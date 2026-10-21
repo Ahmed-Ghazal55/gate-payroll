@@ -5,6 +5,8 @@ if (!(Test-Path (Join-Path $PSScriptRoot 'RiderForm/node_modules/typescript/bin/
   & npm ci --prefix (Join-Path $PSScriptRoot 'RiderForm')
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
+& python (Join-Path $PSScriptRoot 'scripts/fetch_fonts.py')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 & $dotnetCmd publish (Join-Path $PSScriptRoot 'Payroll.Api') -c Release -r $Runtime --self-contained true -o $OutputPath --nologo
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
