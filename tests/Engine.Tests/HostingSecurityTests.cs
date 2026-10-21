@@ -14,6 +14,7 @@ public static class HostingSecurityTests
         Check(HostingSecurity.BootstrapAllowed(key, key, false));
         Check(HostingSecurity.BootstrapAllowed("", "", true));
         Check(HostingSecurity.SameOrigin("https://payroll.example", "https", "payroll.example"));
+        Check(!HostingSecurity.SameOrigin("https://payroll.example", "https", null));
         Check(!HostingSecurity.SameOrigin("http://payroll.example", "https", "payroll.example"));
         Check(!HostingSecurity.SameOrigin("https://payroll.example:444", "https", "payroll.example"));
         Check(!HostingSecurity.SameOrigin("https://other.example", "https", "payroll.example"));

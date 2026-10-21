@@ -6,7 +6,7 @@ namespace Payroll;
 
 public static class HostingSecurity
 {
-    public static bool SameOrigin(string origin, string scheme, string host)
+    public static bool SameOrigin(string origin, string scheme, string? host)
     {
         return Uri.TryCreate(origin, UriKind.Absolute, out var uri)
             && (uri.Scheme is "http" or "https")
