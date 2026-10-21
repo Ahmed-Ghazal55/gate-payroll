@@ -1,3 +1,43 @@
-# Gate Payroll
+# Gate Payroll — الإصدار0.4
 
-ASP.NET Core 10 and TypeScript. Application source and validation workflow are being uploaded. No personal data, database files or secrets are included.
+تطبيق ASP.NET Core10 بواجهة TypeScript عربية لإدارة اختيار نظام العمل والرواتب ودفتر المندوب. المستودع مستقل: مصدر الإدارة في Frontend/src، ومصدر الفورم في RiderForm/src، والخادم في Payroll.Api. لا يعتمد البناء على مجلد05 أو أي مسار خارج المستودع.
+
+الفورم العام يجمع ثلاثة حقول فقط: الإقامة10 أرقام إنجليزية، الاسم من جزأين، ونظام الراتب الجديد أو العمولة السابقة. الرد قيد المراجعة، ولا يعيّن سياسة راتب أو يغيّر كشفًا معتمدًا.
+
+## التشغيل المحلي
+
+يتطلب .NET10 SDK وNode.js24 وnpm. من جذر المستودع:
+
+```bash
+npm ci --prefix RiderForm
+./run-local.sh
+```
+
+على Windows: Run-Local.ps1. العنوان المحلي http://127.0.0.1:5188. إذا كانت قاعدة التشغيل الموجودة تحتوي مسؤولًا، استخدم حسابه. قاعدة جديدة محلية تتيح إنشاء أول مسؤول. لا توجد كلمة مرور افتراضية.
+
+## التحقق والبناء
+
+```bash
+dotnet run --project tests/Engine.Tests/Engine.Tests.csproj
+dotnet build Payroll.Api/Payroll.Api.csproj
+node tests/integration.mjs
+node tests/production.mjs
+python3 scripts/release_source.py --check
+./publish-monsterasp.sh
+```
+
+اختبارات الخادم تستخدم قواعد مؤقتة ولا تعمل على قاعدة المستخدم. برنامج Engine.Tests تطبيق تنفيذي؛ لا يُستبدل أمر تشغيله بـdotnet test. بناء.NET يبني الواجهتين وينسخ الفورم تلقائيًا، بما في ذلك أول بناء من checkout نظيف.
+
+## النشر والبيانات
+
+اقرأ DEPLOYMENT_AR.md لإعداد MonsterASP وHTTPS والدومين والتهيئة والنسخ الاحتياطي، وDATA_IMPORT_AR.md لملفات الدليل الخاصة. حزمة مصدر آمنة يمكن توليدها بواسطة:
+
+```bash
+python3 scripts/release_source.py
+```
+
+المستودع للكود فقط. data وApp_Data والمفاتيح والنسخ الاحتياطية وملفات الأشخاص مستبعدة. تُنشأ الحزمة من قائمة مسموحة صريحة. لا تستخدم حزمة نشر قديمة بعد تغيير الكود؛ حزمة الإصدار تُبنى وتُختبر في GitHub Actions.
+
+التخزين الحالي SQLite محلي على خادم واحد بمجلد دائم. لم يُنفذ ترحيل PostgreSQL أو ربط مباشر بـERP. استيراد الدليل اختياري لبدء استقبال الاختيارات. الحسابات المالية تحتاج مصادر فعلية وسياسات معتمدة؛ لا تُستنتج من البوستر أو تفضيل المندوب.
+
+راجع RELEASE_STATUS_AR.md للفحوص التي نُفذت فعلًا وحدود التحقق. سجلات المراجعات القديمة تحتفظ بحالتها التاريخية؛ تعليمات هذا الإصدار هي المعتمدة للبناء والنشر.

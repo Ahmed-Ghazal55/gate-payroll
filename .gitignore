@@ -1,0 +1,48 @@
+# Operational data and credentials never belong in the code repository.
+data/
+private-data/
+local-backups/
+**/App_Data/
+**/keys/
+**/logs/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.bak
+*.xlsx
+*.xlsm
+*.csv
+*.sql
+*.pem
+*.pfx
+*.key
+.env
+.env.*
+!.env.example
+**/appsettings.Local.json
+**/appsettings.*.Local.json
+# Dependencies, generated assets and build results
+**/node_modules/
+**/bin/
+**/obj/
+artifacts/
+test-results/
+publish-*/
+.npm/
+Payroll.Api/wwwroot/*.js
+Payroll.Api/wwwroot/rider-form.html
+# Historical reports: retained locally; current docs supersede their deployment commands.
+CODEX_GITHUB_DEPLOYMENT_HANDOFF_AR.md
+CODEX_HANDOFF_REVIEW_AR.md
+VALIDATION_2026-10-20.md
+review-evidence/
+# Tools and editor files
+**/__pycache__/
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+.DS_Store
+Thumbs.db

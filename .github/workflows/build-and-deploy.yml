@@ -1,0 +1,51 @@
+name: Validate and package Gate Payroll
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: payroll-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: RiderForm/package-lock.json
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install pinned frontend dependencies
+        run: npm ci --prefix RiderForm
+      - name: Verify release source boundaries
+        run: python3 scripts/release_source.py --check
+      - name: Run engine and hosting-security assertions
+        run: dotnet run --project tests/Engine.Tests/Engine.Tests.csproj
+      - name: Build from clean sources
+        run: dotnet build Payroll.Api/Payroll.Api.csproj --nologo
+      - name: Run HTTP, Excel and public-choice tests
+        run: node tests/integration.mjs
+      - name: Run production bootstrap, HTTPS and origin tests
+        run: node tests/production.mjs
+      - name: Publish Linux smoke-test bundle
+        run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r linux-x64 --self-contained true -o artifacts/linux --nologo
+      - name: Test published application
+        run: PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/integration.mjs
+      - name: Publish MonsterASP bundle
+        run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r win-x64 --self-contained true -o artifacts/monsterasp --nologo
+      - name: Validate deployment payload
+        run: python3 scripts/check_publish.py artifacts/monsterasp
+      - name: Upload clean MonsterASP bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-payroll-monsterasp-win-x64
+          path: artifacts/monsterasp/
+          include-hidden-files: true
+          retention-days: 7

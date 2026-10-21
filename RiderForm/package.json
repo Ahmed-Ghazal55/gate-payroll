@@ -1,0 +1,13 @@
+{
+  "name": "gate-rider-choices",
+  "version": "0.4.0",
+  "private": true,
+  "scripts": {
+    "build": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+    "build:admin": "node node_modules/typescript/bin/tsc -p ../Frontend/tsconfig.json",
+    "build:all": "node node_modules/typescript/bin/tsc -p tsconfig.json && node node_modules/typescript/bin/tsc -p ../Frontend/tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

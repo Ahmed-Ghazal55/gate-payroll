@@ -1,0 +1,1 @@
+(async()=>{try{const status=await api('/auth/status');if(status.needsSetup){await login(true);return}const r=await fetch('/api/me');if(r.ok){user=(await r.json()).username;await show('dashboard')}else login(false)}catch(e){root.innerHTML=`<div class="notice error">${esc(e.message)}</div>`}})();

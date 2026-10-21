@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ES2022"
+    ],
+    "strict": true,
+    "outDir": "../Payroll.Api/wwwroot",
+    "rootDir": "src",
+    "noEmitOnError": true,
+    "module": "es2022",
+    "moduleDetection": "legacy"
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}
