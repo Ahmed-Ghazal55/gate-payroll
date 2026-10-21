@@ -4,7 +4,7 @@ import argparse, json
 def check(root):
     required = ['Payroll.Api.exe', 'Payroll.Api.dll', 'web.config', 'wwwroot/index.html',
                 'wwwroot/app.css', 'wwwroot/app.js', 'wwwroot/table-tools.js',
-                'wwwroot/bootstrap.js', 'wwwroot/rider-form.html', 'wwwroot/rider-form.js']
+                'wwwroot/bootstrap.js', 'wwwroot/enterprise.js', 'wwwroot/rider-form.html', 'wwwroot/rider-form.js']
     for name in required:
         assert (root / name).is_file(), 'Missing published file: ' + name
     for path in root.rglob('*'):

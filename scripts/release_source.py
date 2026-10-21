@@ -13,7 +13,7 @@ EXACT = {'.gitignore', '.env.example', 'README_AR.md', 'DEPLOYMENT_AR.md',
          'Run-Local.ps1', 'Publish-MonsterASP.ps1', 'run-local.sh', 'publish-monsterasp.sh',
          '.github/workflows/build-and-deploy.yml'}
 PATTERNS = ['Payroll.Api/*.cs', 'Frontend/src/*.ts', 'RiderForm/src/*.ts',
-            'tests/*.mjs', 'tests/Engine.Tests/*.cs', 'tests/Engine.Tests/*.csproj', 'scripts/*.py']
+            'tools/StoreMigration/*.cs', 'tools/StoreMigration/*.csproj', 'tests/*.mjs', 'tests/Engine.Tests/*.cs', 'tests/Engine.Tests/*.csproj', 'scripts/*.py', 'scripts/fonts-manifest.json']
 
 def files():
     result = {ROOT / p for p in EXACT if (ROOT / p).is_file()}
@@ -24,7 +24,7 @@ def files():
 def validate(selected):
     required = ['Payroll.Api/Program.cs', 'Payroll.Api/HostingSecurity.cs',
                 'RiderForm/src/rider-form.ts', 'RiderForm/package-lock.json',
-                'tests/production.mjs', 'scripts/check_publish.py']
+                'tests/production.mjs', 'tests/enterprise.mjs', 'Payroll.Api/UserAccess.cs', 'Payroll.Api/FormBuilder.cs', 'Payroll.Api/InquiryApi.cs', 'scripts/check_publish.py']
     for name in required:
         assert ROOT / name in selected, 'Missing release source: ' + name
     settings = json.loads((ROOT / 'Payroll.Api/appsettings.Production.json').read_text())

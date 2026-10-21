@@ -1,0 +1,36 @@
+{
+  "repository": "google/fonts",
+  "commit": "45e3d5269e4a17d823f6d84470bc084dc5ae46f6",
+  "files": [
+    {
+      "path": "ofl/cairo/Cairo[slnt,wght].ttf",
+      "blob": "25641b1c828857698457bcd9f5a102616b4e8033",
+      "file": "cairo.ttf"
+    },
+    {
+      "path": "ofl/cairo/OFL.txt",
+      "blob": "f6e87d489b3f459dde4e0f457fdd63e1f39bfe67",
+      "file": "cairo-OFL.txt"
+    },
+    {
+      "path": "ofl/outfit/OFL.txt",
+      "blob": "723cd447edee83ed3bb07c3343f478d352aa7440",
+      "file": "outfit-OFL.txt"
+    },
+    {
+      "path": "ofl/outfit/Outfit[wght].ttf",
+      "blob": "466d6245f9582df39bf73da91a8b3c938fd061cd",
+      "file": "outfit.ttf"
+    },
+    {
+      "path": "ofl/notonastaliqurdu/NotoNastaliqUrdu[wght].ttf",
+      "blob": "896bb7953039c81192d4b62a6968cae1a52bfc52",
+      "file": "notonastaliqurdu.ttf"
+    },
+    {
+      "path": "ofl/notonastaliqurdu/OFL.txt",
+      "blob": "38833b0693a30ee6820edc3bf807ba7c0ab8804a",
+      "file": "notonastaliqurdu-OFL.txt"
+    }
+  ]
+}

@@ -46,3 +46,4 @@ review-evidence/
 *.suo
 .DS_Store
 Thumbs.db
+Payroll.Api/wwwroot/fonts/

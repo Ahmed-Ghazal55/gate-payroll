@@ -1,0 +1,30 @@
+import {spawn} from 'node:child_process';
+import {mkdtempSync,rmSync,mkdirSync,readFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+import assert from 'node:assert/strict';
+import {randomBytes} from 'node:crypto';
+const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE||'/tmp/gate-browser/node_modules/playwright/index.mjs'));
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');const data=mkdtempSync(path.join(tmpdir(),'gate-browser-v05-'));const base='http://127.0.0.1:19351';
+const proc=spawn(process.env.DOTNET_PATH||'dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data},stdio:['ignore','pipe','pipe']});let logs='',spawnError;proc.on('error',e=>spawnError=e);proc.stdout.on('data',x=>logs+=x);proc.stderr.on('data',x=>logs+=x);let browser;
+try{
+ let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready,logs);
+ browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:1440,height:1000}});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+ const setup=await context.request.post(base+'/api/auth/setup',{data:{username:'browser-admin',password:randomBytes(24).toString('hex')}});assert.equal(setup.status(),200);
+ for(const [iqama,name,nationality,status,city]of [['2000000001','Alpha Rider','Country A','Active','City A'],['2000000002','Beta Rider','Country B','OnLeave','City B']])assert.equal((await context.request.post(base+'/api/riders',{data:{iqama,name,nationality,status,city}})).status(),200);
+ await page.goto(base);await page.locator('[data-view=riders]').click();await page.locator('[data-column-menu="2"]').waitFor();assert.equal(await page.locator('tbody tr').count(),2);
+ for(const theme of ['dark','dim','light']){await page.locator('[data-theme-select]').selectOption(theme);assert.equal(await page.locator('html').getAttribute('data-theme'),theme);}await page.reload();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');assert.ok(await page.locator('.nav-icon svg').count()>5);
+ await page.locator('[data-view=riders]').click();await page.locator('[data-column-menu="2"]').click();await page.locator('[data-no-values]').click();await page.locator('.column-values label').filter({hasText:'Country A'}).locator('input').check();await page.locator('[data-close-filter]').click();assert.equal(await page.locator('tbody tr:visible').count(),1);
+ await page.locator('[data-column-filter="6"]').fill('City B');assert.equal(await page.locator('tbody tr:visible').count(),0);await page.locator('[data-grid-clear]').click();assert.equal(await page.locator('tbody tr:visible').count(),2);
+ await page.locator('[data-column-menu="0"]').click();await page.locator('[data-sort=desc]').click();assert.match(await page.locator('tbody tr').first().innerText(),/Beta/);
+ await page.locator('[data-column-filter="2"]').fill('Country A');let download=page.waitForEvent('download');await page.locator('[data-grid-export=filtered]').click();let file=await download;assert.equal(readFileSync(await file.path()).subarray(0,2).toString(),'PK');
+ download=page.waitForEvent('download');await page.locator('[data-grid-csv]').click();file=await download;const csv=readFileSync(await file.path(),'utf8');assert.ok(csv.includes('Alpha Rider'));assert.ok(!csv.includes('Beta Rider'));
+ const campaign=await (await context.request.post(base+'/api/campaigns',{data:{title:'Browser work choices',days:2}})).json();
+ await page.goto(base+campaign.path);await page.locator('form#rider-choice').waitFor();await page.locator('[data-lang=en]').click();assert.equal(await page.locator('html').getAttribute('dir'),'ltr');assert.match(await page.locator('#rider-choice').innerText(),/New salary tier system/);
+ await page.locator('[data-lang=ur]').click();assert.equal(await page.locator('html').getAttribute('dir'),'rtl');assert.match(await page.locator('#rider-choice').innerText(),/اقامہ/);await page.evaluate(()=>document.fonts.ready);assert.ok(await page.evaluate(()=>document.fonts.check('16px "Noto Nastaliq Urdu"')));
+ await page.locator('[data-lang=ar]').click();await page.locator('#open-resource').click();await page.locator('#resource-dialog').waitFor({state:'visible'});assert.match(await page.locator('#resource-dialog').innerText(),/الشهرية الثابتة/);await page.locator('#close-resource').click();
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await page.locator('[name=iqama]').fill('2000000003');await page.locator('[name=name]').fill('Browser Synthetic');await page.locator('[value=tiers]').check();page.once('dialog',d=>d.accept());await page.locator('button[type=submit]').click();await page.getByText('تم تسجيل ردك بنجاح').waitFor();
+ assert.deepEqual(errors,[]);mkdirSync(path.join(root,'test-results'),{recursive:true});await page.screenshot({path:path.join(root,'test-results/v05-mobile.png'),fullPage:true});console.log('PASS v0.5 browser: themes, SVG navigation, AND/checkbox filters, sorting, XLSX/CSV, AR/EN/UR fonts, reference panel and mobile submission.');
+}catch(e){console.error(logs.slice(-4000));throw e;}finally{await browser?.close();if(proc.exitCode===null&&!spawnError){const ended=new Promise(r=>proc.once('exit',r));proc.kill();await Promise.race([ended,new Promise(r=>setTimeout(r,5000))]);}rmSync(data,{recursive:true,force:true});}
