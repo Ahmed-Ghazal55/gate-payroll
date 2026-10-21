@@ -30,13 +30,17 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     o.Cookie.Name = "Gate.Payroll.Session"; o.Cookie.HttpOnly = true; o.Cookie.SameSite = SameSiteMode.Strict;
     o.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
     o.ExpireTimeSpan = TimeSpan.FromHours(8); o.SlidingExpiration = false;
+    o.Events.OnValidatePrincipal = UserAccess.ValidateCookie;
     o.Events.OnRedirectToLogin = c => { c.Response.StatusCode = 401; return c.Response.WriteAsJsonAsync(new { error = "سجل الدخول للإدارة." }); };
     o.Events.OnRedirectToAccessDenied = c => { c.Response.StatusCode = 403; return Task.CompletedTask; };
 });
 builder.Services.AddAuthorization();
+builder.Services.AddMemoryCache(o => o.SizeLimit = 10000);
+builder.Services.AddSingleton<InquiryLimits>();
 builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
-builder.Services.AddSingleton(new Store(dataDir));
+builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
+CampaignLinks.Migrate(store);
 app.UseForwardedHeaders();
 
 app.Use(async (ctx, next) =>
@@ -62,8 +66,8 @@ app.Use(async (ctx, next) =>
     catch (Exception e)
     { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(new { error = "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا." }); }
 });
-app.UseStaticFiles(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
-app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = "0.4.0" });
+app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
+app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = "0.5.0" });
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName });
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
 {
@@ -71,31 +75,45 @@ app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
     string bootstrap = Environment.GetEnvironmentVariable("PAYROLL_BOOTSTRAP_KEY") ?? builder.Configuration["Payroll:BootstrapKey"] ?? "";
     if (!local && !HostingSecurity.StrongBootstrapKey(bootstrap)) throw new ApiError("تهيئة الإنتاج غير متاحة؛ اضبط مفتاح تهيئة سريًا في الخادم.", 503);
     J.Need(HostingSecurity.BootstrapAllowed(bootstrap, input.S("bootstrapKey"), local), "مفتاح التهيئة غير صحيح.");
-    string username = input.Required("username"); string password = input.Required("password"); J.Need(username.Length is >= 3 and <= 60 && password.Length is >= 12 and <= 200, "اسم المستخدم3أحرف على الأقل وكلمة المرور12حرفًا على الأقل.");
-    var salt = RandomNumberGenerator.GetBytes(16); var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, 210000, HashAlgorithmName.SHA256, 32);
-    store.Write((c, tx) => { J.Need(Store.List(c, "user", tx).Count == 0, "تم إعداد المسؤول بالفعل."); Store.Save(c, "user", new() { ["id"] = "administrator", ["username"] = username, ["salt"] = Convert.ToBase64String(salt), ["hash"] = Convert.ToBase64String(hash) }, tx); Store.Audit(c, tx, "admin.setup", "administrator", username); return true; });
-    await SignIn(ctx, username); return Results.Ok(new { username });
+    var created = UserAccess.Create(input.Required("username"), input.Required("password"), "Admin", "administrator");
+    store.Write((c, tx) => { J.Need(Store.List(c, "user", tx).Count == 0, "تم إعداد المسؤول بالفعل."); Store.Save(c, "user", created, tx); Store.Audit(c, tx, "admin.setup", "administrator", created.S("username")); return true; });
+    await SignIn(ctx, created); return Results.Ok(UserAccess.Public(created));
 }).RequireRateLimiting("sensitive");
 app.MapPost("/api/auth/login", async (JsonObject input, HttpContext ctx) =>
 {
-    var user = store.Read(c => Store.List(c, "user").FirstOrDefault());
-    bool valid = user != null && user.S("username") == input.S("username") && CryptographicOperations.FixedTimeEquals(Convert.FromBase64String(user.S("hash")), Rfc2898DeriveBytes.Pbkdf2(input.S("password"), Convert.FromBase64String(user.S("salt")), 210000, HashAlgorithmName.SHA256, 32));
-    if (!valid) return Results.Json(new { error = "اسم المستخدم أو كلمة المرور غير صحيحة." }, statusCode: 401);
-    await SignIn(ctx, user!.S("username")); return Results.Ok(new { username = user.S("username") });
+    var user = store.Read(c => UserAccess.Find(c, input.S("username")));
+    if (!UserAccess.Password(user, input.S("password"))) return Results.Json(new { error = "اسم المستخدم أو كلمة المرور غير صحيحة." }, statusCode: 401);
+    var loggedIn = store.Write((c,tx) => {
+        var current = Store.Get(c, user!.S("id"), "user", tx)!;
+        J.Need(UserAccess.Status(current)=="active", "الحساب غير متاح.");
+        current["lastLoginAt"]=Now(); Store.Save(c,"user",current,tx); Store.Audit(c,tx,"admin.login",current.S("id"),current.S("username"));return current;
+    });
+    await SignIn(ctx, loggedIn); return Results.Ok(UserAccess.Public(loggedIn));
 }).RequireRateLimiting("sensitive");
 app.MapPost("/api/auth/logout", async (HttpContext ctx) => { await ctx.SignOutAsync(); return Results.Ok(); });
 var api = app.MapGroup("/api").RequireAuthorization();
+api.AddEndpointFilter(async (context, next) => {
+    var ctx=context.HttpContext;
+    if (!UserAccess.Allowed(ctx.User.FindFirstValue(ClaimTypes.Role) ?? "", ctx.Request.Method, ctx.Request.Path.Value ?? ""))
+        return Results.Json(new { error="ليست لديك صلاحية لهذا الإجراء." }, statusCode:403);
+    return await next(context);
+});
 TableExcelApi.Map(api, store);
-api.MapGet("/me", (HttpContext ctx) => new { username = ctx.User.Identity!.Name });
+UserAccess.Map(api, store);
+RiderDirectory.Map(api, store);
+Debts.Map(api, store);
+FormBuilderApi.Map(app, api, store);
+InquiryApi.Map(app, api, store);
+api.MapGet("/me", (HttpContext ctx) => new { username = ctx.User.Identity!.Name, role = ctx.User.FindFirstValue(ClaimTypes.Role), id = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) });
 api.MapGet("/dashboard", () => store.Read(c => new { riders = Store.List(c, "rider").Count, imports = Store.List(c, "batch").Count, pendingResponses = Store.List(c, "submission").Count(x => x.S("status") == "pending"), approvedRuns = Store.List(c, "run").Count, balance = Store.List(c, "ledger").Sum(x => x.N("amount")), latestAudit = Store.List(c, "audit").Take(8) }));
-api.MapGet("/riders", () => store.Read(c => Store.List(c, "rider")));
+api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Select(r => ctx.User.IsInRole("Reviewer") ? UserAccess.RiderView(r) : r).ToList()));
 api.MapPost("/riders", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var iqama = J.Iqama(input.Required("iqama")); var existing = Store.Get(c, iqama, "rider", tx);
-    var rider = existing?.Clone() ?? new JsonObject { ["id"] = iqama, ["iqama"] = iqama, ["status"] = "active" };
-    rider["name"] = DirectoryProfiles.Name(input.Required("name")); rider["phone"] = input.S("phone") == "" ? "" : J.Phone(input.S("phone"));
-    if (input.S("policyId") != "") J.Need(Store.Get(c, input.S("policyId"), "policy", tx)?.S("status") == "approved", "اختر سياسة معتمدة.");
-    rider["policyId"] = input.S("policyId"); rider["city"] = input.S("city"); Store.Save(c, "rider", rider, tx); Store.Audit(c, tx, "rider.save", iqama, Actor(ctx)); return rider;
+    var rider = RiderDirectory.Normalize(input, existing);
+    if (input.ContainsKey("policyId")) { if (input.S("policyId") != "") J.Need(Store.Get(c, input.S("policyId"), "policy", tx)?.S("status") == "approved", "اختر سياسة معتمدة."); rider["policyId"] = input.S("policyId"); }
+    else if (!rider.ContainsKey("policyId")) rider["policyId"]="";
+    Store.Save(c, "rider", rider, tx); Store.Audit(c, tx, "rider.save", iqama, Actor(ctx)); return rider;
 }));
 api.MapGet("/policies", () => store.Read(c => Store.List(c, "policy")));
 api.MapPost("/policies", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -161,9 +179,10 @@ api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Wri
     var rider = Store.Get(c, iqama, "rider", tx)!; var work = Store.List(c, "work", tx).Where(x => x.S("iqama") == iqama && x.S("period") == period).Select(x => x.Clone()).ToList();
     string fingerprint = Fingerprint(c, iqama, period, tx); J.Need(input.S("fingerprint") == fingerprint, "تغيرت البيانات منذ المعاينة؛ أعد المعاينة قبل الاعتماد.");
     var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["name"] = rider.S("name"), ["period"] = period, ["approvedAt"] = Now(), ["approvedBy"] = Actor(ctx), ["fingerprint"] = fingerprint, ["result"] = JsonSerializer.SerializeToNode(result, JsonSerializerOptions.Web), ["sourceRows"] = JsonSerializer.SerializeToNode(work), ["policySnapshot"] = Store.Get(c, rider.S("policyId"), "policy", tx)?.DeepClone() };
-    Store.Save(c, "run", doc, tx); Store.Save(c, "ledger", new() { ["id"] = "run:" + doc.S("id"), ["iqama"] = iqama, ["period"] = period, ["amount"] = result.PeriodMovement, ["kind"] = "approved_payroll", ["sourceRef"] = doc.S("id"), ["createdAt"] = Now() }, tx); Store.Audit(c, tx, "payroll.approve", doc.S("id"), Actor(ctx)); return doc;
+    Store.Save(c, "run", doc, tx); Store.Save(c, "ledger", new() { ["id"] = "run:" + doc.S("id"), ["iqama"] = iqama, ["period"] = period, ["amount"] = result.PeriodMovement - result.Lines.Where(x => x.Category == "debt_installment").Sum(x => x.Amount), ["kind"] = "approved_payroll", ["sourceRef"] = doc.S("id"), ["createdAt"] = Now() }, tx); Debts.Post(c, tx, result, doc.S("id")); Store.Audit(c, tx, "payroll.approve", doc.S("id"), Actor(ctx)); return doc;
 }));
 api.MapGet("/payroll/fingerprint", (string iqama, string period) => store.Read(c => new { fingerprint = Fingerprint(c, J.Iqama(iqama), J.Period(period)) }));
+api.MapGet("/ledger", () => store.Read(c => Store.List(c,"ledger")));
 api.MapGet("/ledger/{iqama}", (string iqama) => store.Read(c => { J.Iqama(iqama); var rows = Store.List(c, "ledger").Where(x => x.S("iqama") == iqama).OrderBy(x => x.S("period")).ThenBy(x => x.S("createdAt")).ToList(); return new { rows, balance = rows.Sum(x => x.N("amount")) }; }));
 api.MapPost("/payments", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
@@ -183,11 +202,12 @@ api.MapGet("/payroll/export.csv", (string period) => store.Read(c =>
 }));
 
 // Public forms are collection links, never a lookup endpoint for existing personal records.
-api.MapGet("/campaigns", () => store.Read(c => Store.List(c, "campaign").Select(x => new { id = x.S("id"), title = x.S("title"), expiresAt = x.S("expiresAt"), status = x.S("status") })));
+api.MapGet("/campaigns", (HttpContext ctx) => store.Read(c => Store.List(c, "campaign").Select(x => new { id=x.S("id"), title=x.S("title"), expiresAt=x.S("expiresAt"), status=x.S("status"), publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+x.S("sharingToken"), qrCodeUrl="/api/campaigns/"+x.S("id")+"/qr.svg" })));
+api.MapGet("/campaigns/{id}/qr.svg", (string id, HttpContext ctx) => store.Read(c => { var d=Store.Get(c,id,"campaign")??throw new ApiError("الحملة غير موجودة.",404); return Results.Text(CampaignLinks.Svg(CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+d.S("sharingToken")),"image/svg+xml"); }));
 api.MapPost("/campaigns", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
-    int days = Math.Clamp((int)input.N("days", 14), 1, 30); string token = Token(); var doc = new JsonObject { ["id"] = Id(), ["tokenHash"] = Hash(Encoding.UTF8.GetBytes(token)), ["title"] = input.Required("title"), ["status"] = "open", ["expiresAt"] = DateTimeOffset.UtcNow.AddDays(days).ToString("O"), ["createdAt"] = Now() };
-    Store.Save(c, "campaign", doc, tx); Store.Audit(c, tx, "form.publish", doc.S("id"), Actor(ctx)); return new { id = doc.S("id"), path = "/forms/" + token, expiresAt = doc.S("expiresAt") };
+    int days = (int)Math.Clamp(input.N("days", 14), 1, 30); string token = Token(); var doc = new JsonObject { ["id"] = Id(), ["tokenHash"] = Hash(Encoding.UTF8.GetBytes(token)), ["sharingToken"] = token, ["title"] = input.Required("title"), ["status"] = "open", ["expiresAt"] = DateTimeOffset.UtcNow.AddDays(days).ToString("O"), ["createdAt"] = Now() };
+    Store.Save(c, "campaign", doc, tx); Store.Audit(c, tx, "form.publish", doc.S("id"), Actor(ctx)); return new { id=doc.S("id"), path="/forms/"+token, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+token, qrCodeUrl="/api/campaigns/"+doc.S("id")+"/qr.svg", expiresAt=doc.S("expiresAt") };
 }));
 api.MapPost("/campaigns/{id}/close", (string id, HttpContext ctx) => store.Write((c, tx) => { var d = Store.Get(c, id, "campaign", tx) ?? throw new ApiError("النموذج غير موجود.", 404); d["status"] = "closed"; Store.Save(c, "campaign", d, tx); Store.Audit(c, tx, "form.close", id, Actor(ctx)); return new { ok = true }; }));
 api.MapGet("/submissions", () => store.Read(c => Store.List(c, "submission")));
@@ -231,7 +251,7 @@ app.MapGet("/rider-form.js", () => Results.File(Path.Combine(AppContext.BaseDire
 app.MapGet("/", () => Results.File(Path.Combine(app.Environment.WebRootPath, "index.html"), "text/html; charset=utf-8"));
 app.Run();
 
-async Task SignIn(HttpContext ctx, string name) => await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, name)], CookieAuthenticationDefaults.AuthenticationScheme)));
+async Task SignIn(HttpContext ctx, JsonObject user) => await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, UserAccess.Principal(user));
 static string Id() => Guid.NewGuid().ToString("N");
 static string Now() => DateTimeOffset.UtcNow.ToString("O");
 static string Actor(HttpContext ctx) => ctx.User.Identity?.Name ?? "administrator";
@@ -246,21 +266,21 @@ Imports.Sheet LoadSheet(string id, string name)
 JsonObject Campaign(string token)
 {
     J.Need(token.Length == 64 && token.All(Uri.IsHexDigit), "رابط غير صالح.");
-    var doc = store.Read(c => Store.List(c, "campaign").FirstOrDefault(d => d.S("tokenHash") == Hash(Encoding.UTF8.GetBytes(token)))) ?? throw new ApiError("الرابط غير صالح أو منتهي.", 404);
+    var doc = store.Read(c => Store.List(c, "campaign").FirstOrDefault(d => d.S("tokenHash") == Hash(Encoding.UTF8.GetBytes(token)) || d.S("sharingToken") == token)) ?? throw new ApiError("الرابط غير صالح أو منتهي.", 404);
     J.Need(doc.S("status") == "open" && DateTimeOffset.Parse(doc.S("expiresAt"), CultureInfo.InvariantCulture) > DateTimeOffset.UtcNow, "النموذج مغلق أو انتهت صلاحيته."); return doc;
 }
-PayrollResult Preview(Microsoft.Data.Sqlite.SqliteConnection c, string iqama, string period, Microsoft.Data.Sqlite.SqliteTransaction? tx = null)
+PayrollResult Preview(System.Data.Common.DbConnection c, string iqama, string period, System.Data.Common.DbTransaction? tx = null)
 {
     var rider = Store.Get(c, iqama, "rider", tx); var policy = rider == null ? null : Store.Get(c, rider.S("policyId"), "policy", tx);
     var rows = Store.List(c, "work", tx).Where(w => w.S("iqama") == iqama && w.S("period") == period).Select(w => w.Deserialize<WorkLine>(JsonSerializerOptions.Web)!).ToList();
     var adjustments = Store.List(c, "adjustment", tx).Where(a => a.S("iqama") == iqama && a.S("period") == period).ToList();
     var opening = Store.List(c, "ledger", tx).Where(a => a.S("iqama") == iqama && string.CompareOrdinal(a.S("period"), period) < 0).Sum(a => a.N("amount"));
-    return Engine.Calculate(iqama, period, policy, rows, adjustments, opening);
+    return Engine.Calculate(iqama, period, policy, rows, adjustments, opening, Store.List(c,"debt",tx));
 }
-string Fingerprint(Microsoft.Data.Sqlite.SqliteConnection c, string iqama, string period, Microsoft.Data.Sqlite.SqliteTransaction? tx = null)
+string Fingerprint(System.Data.Common.DbConnection c, string iqama, string period, System.Data.Common.DbTransaction? tx = null)
 {
     var rider = Store.Get(c, iqama, "rider", tx); var policy = rider == null ? null : Store.Get(c, rider.S("policyId"), "policy", tx);
-    return Hash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { rider, policy, result = Preview(c, iqama, period, tx), rows = Store.List(c, "work", tx).Where(x => x.S("iqama") == iqama && x.S("period") == period).OrderBy(x => x.S("id")) })));
+    return Hash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { rider, policy, debts = Store.List(c,"debt",tx).Where(x=>x.S("iqama")==iqama).OrderBy(x=>x.S("id")), result = Preview(c, iqama, period, tx), rows = Store.List(c, "work", tx).Where(x => x.S("iqama") == iqama && x.S("period") == period).OrderBy(x => x.S("id")) })));
 }
 static void ValidatePolicy(string kind, JsonObject config)
 {

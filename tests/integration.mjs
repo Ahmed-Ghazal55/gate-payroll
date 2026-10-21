@@ -53,7 +53,7 @@ try{
  let submissions=await req('/api/submissions');assert.equal(submissions[0].status,'pending');assert.equal((await req('/api/riders'))[0].workPreference,undefined);
  await req(`/api/submissions/${receipt.receipt}/review`,{status:'approved',note:'Test'},400);
  await req(`/api/submissions/${receipt.receipt}/review`,{status:'approved',note:'Synthetic external identity review',identityReviewed:true});
- const rider=(await req('/api/riders'))[0];assert.equal(rider.workPreference,'tiers');assert.equal(rider.policyId,policy.id);assert.equal(rider.phone,'966501234567');assert.equal(rider.city,'Test');assert.equal(submissions[0].phone,undefined);assert.equal(submissions[0].iban,undefined);
+ const rider=(await req('/api/riders'))[0];assert.equal(rider.workPreference,'tiers');assert.equal(rider.policyId,policy.id);assert.equal(rider.phone,'+966501234567');assert.equal(rider.city,'Test');assert.equal(submissions[0].phone,undefined);assert.equal(submissions[0].iban,undefined);
  await req(`/api/campaigns/${campaign.id}/close`,{});await req(pub,undefined,400,false);
  assert.equal((await req('/api/payroll/runs')).length,2);
 

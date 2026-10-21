@@ -12,38 +12,58 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: GateSynthetic_CI_Only_723!
+        ports:
+          - 1433:1433
+    env:
+      PAYROLL_TEST_SQL_CONNECTION: Server=localhost,1433;Database=master;User ID=sa;Password=GateSynthetic_CI_Only_723!;Encrypt=True;TrustServerCertificate=True
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: RiderForm/package-lock.json
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
       - name: Install pinned frontend dependencies
         run: npm ci --prefix RiderForm
+      - name: Fetch pinned fonts and licenses
+        run: python3 scripts/fetch_fonts.py
       - name: Verify release source boundaries
         run: python3 scripts/release_source.py --check
       - name: Run engine and hosting-security assertions
-        run: dotnet run --project tests/Engine.Tests/Engine.Tests.csproj
+        run: dotnet test tests/Engine.Tests/Engine.Tests.csproj --nologo --logger "console;verbosity=detailed"
       - name: Build from clean sources
         run: dotnet build Payroll.Api/Payroll.Api.csproj --nologo
-      - name: Run HTTP, Excel and public-choice tests
-        run: node tests/integration.mjs
-      - name: Run production bootstrap, HTTPS and origin tests
-        run: node tests/production.mjs
+      - name: Build private migration tool
+        run: dotnet build tools/StoreMigration/StoreMigration.csproj --nologo --warnaserror
+      - name: Browser installation
+        run: |
+          npm install --no-save --prefix /tmp/gate-browser playwright@1.56.1
+          /tmp/gate-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Browser and mobile verification
+        run: |
+          node tests/browser.mjs
+          node tests/browser-v05.mjs
       - name: Publish Linux smoke-test bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r linux-x64 --self-contained true -o artifacts/linux --nologo
       - name: Test published application
-        run: PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/integration.mjs
+        run: |
+          PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/integration.mjs
+          PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/enterprise.mjs
       - name: Publish MonsterASP bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r win-x64 --self-contained true -o artifacts/monsterasp --nologo
       - name: Validate deployment payload
         run: python3 scripts/check_publish.py artifacts/monsterasp
       - name: Upload clean MonsterASP bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: publish
           path: artifacts/monsterasp/

@@ -5,24 +5,13 @@ import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
-let chromium;
-try {
-  const p = 'C:/Users/italm/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs';
-  if (existsSync(p)) {
-    chromium = (await import(pathToFileURL(p))).chromium;
-  } else {
-    chromium = (await import('playwright')).chromium;
-  }
-} catch (e) {
-  console.log('Playwright not available in this environment. Skipping browser visual test.');
-  process.exit(0);
-}
+const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE||'/tmp/gate-browser/node_modules/playwright/index.mjs'));
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),data=mkdtempSync(path.join(tmpdir(),'gate-browser-test-')),out=path.join(root,'test-results');mkdirSync(out,{recursive:true});
-const base='http://127.0.0.1:19348';const server=spawn((process.env.DOTNET_PATH || (process.platform === 'win32' && existsSync('D:/Projectes/.codex-tools/dotnet/dotnet.exe') ? 'D:/Projectes/.codex-tools/dotnet/dotnet.exe' : 'dotnet')),[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data},windowsHide:true,stdio:'ignore'});
+const base='http://127.0.0.1:19348';const server=spawn((process.env.DOTNET_PATH || 'dotnet'),[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data},windowsHide:true,stdio:'ignore'});
+let spawnError;server.once('error',e=>{spawnError=e;});
 let browser;try{
- for(let n=0;n<600;n++){try{if((await fetch(base+'/health')).ok)break}catch{}await new Promise(r=>setTimeout(r,100))}
- const pwExe = 'C:/Users/italm/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe';
-const launchOpts = { headless: true, ...(existsSync(pwExe) ? { executablePath: pwExe } : {}) };
+ let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(server.exitCode!==null)throw Error('Browser server exited');try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100))}assert.ok(ready,'Browser server did not start');
+ const launchOpts = {headless:true};
 browser = await chromium.launch(launchOpts);
  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base);await page.locator('[name=username]').fill('browser-test');await page.locator('[name=password]').fill(randomBytes(24).toString('hex'));await page.locator('#auth-form button').click();await page.getByRole('heading',{name:'كل مستحق في مكانه'}).waitFor();
@@ -35,7 +24,7 @@ browser = await chromium.launch(launchOpts);
  await mobile.locator('[name=iqama]').fill('٢٠٠٠٠٠٠٠٠١');assert.equal(await mobile.locator('[name=iqama]').evaluate(e=>e.checkValidity()),false);
  await mobile.locator('[name=name]').fill('مندوب تجريبي');await mobile.locator('[name=iqama]').fill('2000000002');
  await mobile.locator('[name=workSystem][value=commission]').check();
- await mobile.locator('button[type=submit]').click();await mobile.getByRole('heading',{name:'تم تسجيل اختيارك'}).waitFor();
+ mobile.once('dialog',d=>d.accept());await mobile.locator('button[type=submit]').click();await mobile.getByRole('heading',{name:'تم تسجيل ردك بنجاح'}).waitFor();
  await page.locator('nav [data-view="responses"]').click();await page.getByText('مندوب تجريبي',{exact:true}).waitFor();await page.screenshot({path:path.join(out,'responses.png'),fullPage:true});
 
  // Download template and import a real XLSX through the admin UI (synthetic data only).
@@ -50,4 +39,4 @@ browser = await chromium.launch(launchOpts);
  await grid.locator('[data-grid-clear]').click();assert.equal(await grid.locator('tbody tr:visible').count(),3);
  await page.locator('nav [data-view="audit"]').click();await page.locator('#content .column-filters input').first().waitFor();assert.equal(await page.locator('#content .column-filters input').count(),3);
  assert.deepEqual(errors,[]);console.log('PASS browser: initial setup, 8 admin views, mobile form layout, public submit, response visible, Excel template/import/download, combined column filters and clear, no JS errors.');
-}finally{if(browser)await browser.close();server.kill();await new Promise(r=>server.once('exit',r));rmSync(data,{recursive:true,force:true});}
+}finally{if(browser)await browser.close();if(server.exitCode===null&&!spawnError){const stopped=new Promise(r=>server.once('exit',r));server.kill();await Promise.race([stopped,new Promise(r=>setTimeout(r,5000))]);}rmSync(data,{recursive:true,force:true});}

@@ -2,6 +2,10 @@ using Payroll;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.IO.Compression;
+public static class LegacyAssertions
+{
+public static int Run()
+{
 int checks = 0;
 void Check(bool ok, string label) { if (!ok) throw new Exception(label); checks++; }
 void Reject(Action action, string label) { try { action(); } catch (ApiError) { checks++; return; } throw new Exception(label); }
@@ -41,3 +45,6 @@ var third=choice.Clone();third["workSystem"]="discuss";Reject(()=>WorkChoices.Va
 var extra=choice.Clone();extra["phone"]="0501234567";Reject(()=>WorkChoices.Validate(extra),"Only three payload fields");
 checks += HostingSecurityTests.Run();
 Console.WriteLine($"PASS {checks} engine/import validation checks.");
+return checks;
+}
+}

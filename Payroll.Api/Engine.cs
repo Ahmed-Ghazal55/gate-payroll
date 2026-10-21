@@ -35,7 +35,7 @@ public record PayrollResult(string Iqama, string Period, string PolicyName, deci
 
 public static class Engine
 {
-    public static PayrollResult Calculate(string iqama, string period, JsonObject? policy, List<WorkLine> rows, List<JsonObject> adjustments, decimal opening)
+    public static PayrollResult Calculate(string iqama, string period, JsonObject? policy, List<WorkLine> rows, List<JsonObject> adjustments, decimal opening, List<JsonObject>? debts = null)
     {
         var errors = new List<string>(); var lines = new List<PayLine>(); int orders = rows.Sum(x => x.Orders);
         if (rows.Count == 0) errors.Add("لا توجد سجلات تشغيل مستوردة للمندوب في هذه الفترة.");
@@ -75,6 +75,15 @@ public static class Engine
             default: if (policy != null) errors.Add("نوع سياسة غير مدعوم."); break;
         }
         foreach (var a in adjustments) lines.Add(new(a.S("category"), a.S("description"), J.Money(a.N("amount")), a.S("id")));
+        // Preview is pure. Balances are changed only by Debts.Post inside payroll approval.
+        decimal available = Math.Max(0, J.Money(opening + lines.Sum(x => x.Amount)));
+        foreach (var debt in (debts ?? []).Where(d => d.S("status") == "active" && d.S("iqama") == iqama && string.CompareOrdinal(d.S("effectiveFrom", "0000-00"), period) <= 0 && string.CompareOrdinal(d.S("lastDeductionPeriod"), period) < 0).OrderBy(d => d.S("createdAt")).ThenBy(d => d.S("id")))
+        {
+            decimal amount = J.Money(Math.Min(available, Math.Min(debt.N("remainingBalance"), debt.N("monthlyInstallment"))));
+            if (amount <= 0) continue;
+            lines.Add(new("debt_installment", "قسط دين وفق اتفاق الاستقطاع", -amount, debt.S("id")));
+            available -= amount;
+        }
         var movement = J.Money(lines.Sum(x => x.Amount)); var closing = J.Money(opening + movement);
         return new(iqama, period, policy?.S("name") ?? "غير محددة", opening, movement, closing, Math.Max(0, closing), Math.Max(0, -closing), orders, lines, errors.Distinct().ToList());
     }

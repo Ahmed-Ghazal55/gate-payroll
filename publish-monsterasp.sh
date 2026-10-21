@@ -8,6 +8,7 @@ command -v "$DOTNET_CMD" >/dev/null || { echo 'Install .NET 10 SDK or set DOTNET
 if [ ! -f "$SCRIPT_DIR/RiderForm/node_modules/typescript/bin/tsc" ]; then
   npm ci --prefix "$SCRIPT_DIR/RiderForm"
 fi
+python3 "$SCRIPT_DIR/scripts/fetch_fonts.py"
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 "$DOTNET_CMD" publish "$SCRIPT_DIR/Payroll.Api" -c Release -r "$RUNTIME" --self-contained true -o "$OUTPUT_PATH" --nologo
 if [ "$RUNTIME" = win-x64 ]; then python3 "$SCRIPT_DIR/scripts/check_publish.py" "$OUTPUT_PATH"; fi

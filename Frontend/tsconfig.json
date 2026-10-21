@@ -1,1 +1,22 @@
-{"compilerOptions": {"target": "ES2022", "module": "es2022", "moduleDetection": "legacy", "lib": ["ES2022", "DOM", "DOM.Iterable"], "strict": false, "noEmitOnError": true, "rootDir": "src", "outDir": "../Payroll.Api/wwwroot"}, "files": ["src/app.ts", "src/table-tools.ts", "src/bootstrap.ts"]}
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "es2022",
+    "moduleDetection": "legacy",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "strict": false,
+    "noEmitOnError": true,
+    "rootDir": "src",
+    "outDir": "../Payroll.Api/wwwroot"
+  },
+  "files": [
+    "src/app.ts",
+    "src/table-tools.ts",
+    "src/enterprise.ts",
+    "src/bootstrap.ts"
+  ]
+}

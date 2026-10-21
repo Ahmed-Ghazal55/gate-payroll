@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml;
 using System.Xml.Linq;
-using Microsoft.Data.Sqlite;
+using System.Data.Common;
 
 namespace Payroll;
 
@@ -15,7 +15,7 @@ public static class TableExcelApi
     public static ExcelColumn[] Columns(string kind) => kind switch
     {
         "choices" => [new("رقم الإقامة", Identity: true), new("الاسم الكامل"), new("نظام العمل", Choices: ["نظام الراتب الجديد", "نظام العمولة السابق"])],
-        "riders" => [new("رقم الإقامة", Identity: true), new("الاسم الكامل"), new("الجوال"), new("المدينة"), new("معرف سياسة الحساب")],
+        "riders" => [new("رقم الإقامة", Identity: true), new("الاسم الكامل"), new("الجوال"), new("المدينة"), new("معرف سياسة الحساب"), new("الجنسية"), new("نوع العلاقة", Choices:["SponsoredInternal","External"]), new("الكفيل"), new("نوع المركبة", Choices:["Car","Motorcycle"]), new("الحالة", Choices:["Active","OnLeave","Archived","NeedsReview"])],
         "work" => new[] { "sourceRef", "iqama", "name", "accountId", "from", "to", "orders", "platformRevenue", "riderPay", "isValid", "company", "city" }.Select(h => new ExcelColumn(h, h is "orders" or "platformRevenue" or "riderPay", h == "isValid" ? ["true", "false"] : null, h == "iqama")).ToArray(),
         _ => throw new ApiError("لا يوجد مخطط استيراد معتمد لهذا الجدول.", 404)
     };
@@ -25,7 +25,7 @@ public static class TableExcelApi
 
     public static void Map(RouteGroupBuilder api, Store store)
     {
-        api.MapGet("/excel/{kind}/template", (string kind) => Results.File(ExcelFiles.Write(Columns(kind), []), ExcelFiles.Mime, $"{kind}-template-v1.xlsx"));
+        api.MapGet("/excel/{kind}/template", (string kind) => Results.File(ExcelFiles.Write(Columns(kind), []), ExcelFiles.Mime, $"{kind}-template-v2.xlsx"));
         api.MapPost("/excel/export", (JsonObject input) =>
         {
             var headers = (input["headers"] as JsonArray)?.Select(x => x?.ToString() ?? "").ToArray() ?? [];
@@ -52,7 +52,7 @@ public static class TableExcelApi
             {
                 var doc = row.Data.Clone();
                 doc["id"] = kind == "choices" ? Guid.NewGuid().ToString("N") : doc.S("iqama");
-                doc["status"] = kind == "choices" ? "pending" : "needs_review";
+                if(kind=="choices") doc["status"]="pending"; else if(doc.S("status")=="") doc["status"]="needs_review";
                 doc["createdAt"] = now; doc["importBatchId"] = batchId;
                 if (kind == "choices") { doc["campaignId"] = input.S("campaignId"); doc["schema"] = "work-choice-v1"; }
                 Store.Save(c, kind == "choices" ? "submission" : "rider", doc, tx);
@@ -63,7 +63,7 @@ public static class TableExcelApi
         }));
     }
 
-    public static ImportPreview Preview(SqliteConnection c, string kind, JsonObject input, SqliteTransaction? tx = null)
+    public static ImportPreview Preview(DbConnection c, string kind, JsonObject input, DbTransaction? tx = null)
     {
         J.Need(kind is "choices" or "riders", "استيراد التشغيل من شاشة مصادر الرواتب، وبقية جداول الاعتماد تستخدم مسارها الإداري.");
         var columns = Columns(kind); string campaignId = input.S("campaignId");
@@ -96,6 +96,8 @@ public static class TableExcelApi
         { throw new ApiError("مصنف Excel غير صالح؛ نزّل القالب وأعد التعبئة."); }
         J.Need(sheets.Count == 1 && sheets[0].Name == "البيانات", "استخدم ورقة «البيانات» فقط كما في القالب.");
         var sheet = sheets[0];
+        bool legacyRiders = kind == "riders" && sheet.Rows.Count>0 && sheet.Rows[0].Select(x=>x.Trim()).SequenceEqual(Columns(kind).Take(5).Select(x=>x.Header));
+        if (legacyRiders) columns=columns.Take(5).ToArray();
         J.Need(sheet.Rows.Count > 0 && sheet.Rows[0].Select(h => h.Trim()).SequenceEqual(columns.Select(x => x.Header)), "عناوين أو ترتيب الأعمدة مختلف عن القالب المعتمد. نزّل القالب دون تغيير رأس الجدول.");
         string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(kind + "|v1|" + campaignId + "|" + Convert.ToHexString(SHA256.HashData(bytes)))));
         var rows = new List<ImportRow>(); var errors = new List<ImportIssue>(); var seen = new HashSet<string>();
@@ -121,7 +123,8 @@ public static class TableExcelApi
                     J.Iqama(choice.Iqama); string policy = Value(4);
                     J.Need(policy == "" || approvedPolicies.Contains(policy), "معرف سياسة الحساب غير موجود أو غير معتمد.");
                     J.Need(Value(3).Length <= 100, "اسم المدينة طويل جدًا.");
-                    doc["phone"] = Value(2) == "" ? "" : J.Phone(Value(2)); doc["city"] = Value(3); doc["policyId"] = policy;
+                    doc["phone"] = Value(2) == "" ? "" : RiderDirectory.Phone(Value(2)); doc["city"] = Value(3); doc["policyId"] = policy;
+                    if (!legacyRiders) {doc["nationality"]=Value(5);doc["engagementType"]=Value(6);doc["sponsor"]=Value(7);doc["operationalRole"]=Value(8);doc["status"]=Value(9);doc=RiderDirectory.Normalize(doc);}
                 }
                 rows.Add(new(index + 1, doc));
             }
