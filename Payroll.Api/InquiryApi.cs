@@ -14,8 +14,11 @@ public sealed class InquiryLimits : IDisposable
     private static PartitionedRateLimiter<string> Create()=>PartitionedRateLimiter.Create<string,string>(key=>RateLimitPartition.GetSlidingWindowLimiter(key,_=>new SlidingWindowRateLimiterOptions{PermitLimit=5,Window=TimeSpan.FromMinutes(1),SegmentsPerWindow=6,QueueLimit=2,QueueProcessingOrder=QueueProcessingOrder.OldestFirst}));
     public async Task<bool> Allowed(string address,string iqama,CancellationToken cancellation)
     {
-        using var first=await ip.AcquireAsync(address,1,cancellation);if(!first.IsAcquired)return false;
-        using var second=await identity.AcquireAsync(iqama,1,cancellation);return second.IsAcquired;
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(cancellation);deadline.CancelAfter(TimeSpan.FromMilliseconds(250));
+        try {
+            using var first=await ip.AcquireAsync(address,1,deadline.Token);if(!first.IsAcquired)return false;
+            using var second=await identity.AcquireAsync(iqama,1,deadline.Token);return second.IsAcquired;
+        } catch(OperationCanceledException) when(!cancellation.IsCancellationRequested) {return false;}
     }
     public void Dispose(){ip.Dispose();identity.Dispose();}
 }

@@ -30,6 +30,7 @@ public static class RiderDirectory
         role=role switch { "Car" or "سيارة"=>"Car","Motorcycle" or "دباب" or "دراجة نارية"=>"Motorcycle",""=>"",_=>"" };
         r["operationalRole"]=role;r["status"]=State(Value("status"));
         foreach(string k in new[]{"nationality","sponsor","city"}) J.Need(r.S(k).Length<=200,"قيمة وصفية طويلة جدًا.");
+        r["policyId"]=Value("policyId");
         r["schemaVersion"]=2;
         return r;
     }
@@ -50,18 +51,33 @@ public static class RiderDirectory
             string source=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw.ToJsonString())));
             object Process(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction? tx)
             {
-                var existing=Store.List(c,"rider",tx).Select(x=>x.S("id")).ToHashSet();
-                var added=normalized.Where(x=>!existing.Contains(x.S("id"))).ToList();
-                string fingerprint=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source+"|"+string.Join('|',existing.Order()))));
-                if(input.S("mode")!="commit") return new { fingerprint,sourceFingerprint=source,total=people.Count,excludedAdministrative=raw.Count-people.Count,addCount=added.Count,existingCount=people.Count-added.Count,errors,rows=added };
+                var records=Store.List(c,"rider",tx).OrderBy(x=>x.S("id")).ToList();
+                var existing=records.ToDictionary(x=>x.S("id"));
+                var added=normalized.Where(x=>!existing.ContainsKey(x.S("id"))).ToList();
+                var updates=new List<JsonObject>();var conflicts=new JsonArray();
+                foreach(var row in normalized.Where(x=>existing.ContainsKey(x.S("id"))))
+                {
+                    var current=existing[row.S("id")].Clone();bool changed=false;var fields=new JsonArray();
+                    foreach(string field in new[]{"name","phone","nationality","engagementType","sponsor","city","operationalRole"})
+                    {
+                        if(current.S(field)==""&&row.S(field)!="") {current[field]=row.S(field);changed=true;}
+                        else if(current.S(field)!=""&&row.S(field)!=""&&current.S(field)!=row.S(field))fields.Add(field);
+                    }
+                    if(changed)updates.Add(current);
+                    if(fields.Count>0)conflicts.Add(new JsonObject{["iqama"]=row.S("id"),["fields"]=fields});
+                }
+                string state=string.Join('|',records.Select(x=>x.ToJsonString()));
+                string fingerprint=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source+"|"+state)));
+                if(input.S("mode")!="commit") return new { fingerprint,sourceFingerprint=source,total=people.Count,excludedAdministrative=raw.Count-people.Count,addCount=added.Count,updateCount=updates.Count,existingCount=people.Count-added.Count,conflicts,errors,rows=added };
                 J.Need(errors.Count==0,"الدليل يحتوي أخطاء؛ لم تُكتب أي سجلات.");
                 var prior=Store.Get(c,"baseline:"+source,"baseline_import",tx);
                 if(prior!=null) return new { count=0,alreadyImported=true,batchId=prior.S("id") };
                 J.Need(input.S("fingerprint")==fingerprint,"تغير الدليل منذ المعاينة؛ أعد المعاينة.");
                 string batch="baseline:"+source;
                 foreach(var row in added) { row["baselineSourceFingerprint"]=source;row["createdAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,"rider",row,tx!); }
+                foreach(var row in updates) {row["baselineSourceFingerprint"]=source;Store.Save(c,"rider",row,tx!);}
                 Store.Save(c,"baseline_import",new(){["id"]=batch,["sourceFingerprint"]=source,["count"]=added.Count,["at"]=DateTimeOffset.UtcNow.ToString("O")},tx!);
-                Store.Audit(c,tx!,"rider.baseline_imported",batch,ctx.User.Identity!.Name!);return new{count=added.Count,alreadyImported=false,batchId=batch};
+                Store.Audit(c,tx!,"rider.baseline_imported",batch,ctx.User.Identity!.Name!);return new{count=added.Count,updatedCount=updates.Count,alreadyImported=false,batchId=batch};
             }
             return input.S("mode")=="commit"?store.Write((c,tx)=>Process(c,tx)):store.Read(c=>Process(c,null));
         });

@@ -56,9 +56,9 @@ try{
  // Debt preview and posting: gross wage and the installment are separate ledger entries.
  let policy=await req('/api/policies',{name:'Approved pay',kind:'approved_pay',platform:'all',effectiveFrom:'2026-10',config:{}});await req(`/api/policies/${policy.id}/approve`,{});
  await req('/api/riders',{...rider,policyId:policy.id});
- const csv=`sourceRef,iqama,name,accountId,from,to,orders,riderPay,isValid\r\nenterprise-row,${iq},Synthetic Rider,test,2026-10-01,2026-10-31,1,500,true\r\n`;
+ const csv=`sourceRef,iqama,name,accountId,from,to,orders,riderPay,isValid\r\nenterprise-row,${iq},Synthetic Rider,1234567890123456,2026-10-01,2026-10-31,1,500,true\r\n`;
  const upload=await req('/api/imports/inspect',{filename:'enterprise.csv',dataBase64:Buffer.from(csv).toString('base64')});
- const spec={sheet:'CSV',period:'2026-10',platform:'Keeta',headerRow:1,confirmActualRider:true,mapping:{sourceRef:0,iqama:1,name:2,accountId:3,from:4,to:5,orders:6,riderPay:7,isValid:8}};await req(`/api/imports/${upload.id}/commit`,spec);
+ const spec={sheet:'CSV',period:'2026-10',platform:'Keeta',headerRow:1,confirmActualRider:true,mapping:{sourceRef:0,iqama:1,name:2,accountId:3,from:4,to:5,orders:6,riderPay:7,isValid:8}};const workPreview=await req(`/api/imports/${upload.id}/preview`,spec);assert.equal(workPreview.errors.length,0,JSON.stringify(workPreview.errors));await req(`/api/imports/${upload.id}/commit`,spec);
  const debt=await req('/api/debts',{iqama:iq,category:'Advance',totalAmount:600,monthlyInstallment:400,sourceRef:'agreed-advance',agreementReviewed:true,effectiveFrom:'2026-10'});
  let pay=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(pay.payable,100);assert.equal((await req('/api/debts'))[0].remainingBalance,600);
  await put('/api/debts/'+debt.id,{monthlyInstallment:200,agreementReviewed:true});await req('/api/payroll/approve',{iqama:iq,period:'2026-10',fingerprint:pay.fingerprint},400);
