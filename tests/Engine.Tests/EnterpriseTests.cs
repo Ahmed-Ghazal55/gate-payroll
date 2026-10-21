@@ -9,7 +9,7 @@ using Payroll;
 public sealed class EnterpriseTests
 {
     [TestMethod] public void Original52AssertionsStillRun()=>Assert.AreEqual(52,LegacyAssertions.Run());
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("Reviewer","GET","/api/payroll/runs",false)]
     [DataRow("Reviewer","POST","/api/payments",false)]
     [DataRow("Reviewer","POST","/api/submissions/test/review",true)]
