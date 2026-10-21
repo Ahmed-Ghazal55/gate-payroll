@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.5" /><PackageReference Include="QRCoder" Version="1.7.0" /><PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" /><PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.5" /><PackageReference Include="QRCoder" Version="1.7.0" /><PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <!-- Include generated assets explicitly, including on the first clean build. -->
     <Content Remove="wwwroot/app.js;wwwroot/table-tools.js;wwwroot/bootstrap.js;wwwroot/enterprise.js;wwwroot/rider-form.js;wwwroot/rider-form.html" />

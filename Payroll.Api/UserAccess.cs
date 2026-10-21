@@ -38,8 +38,9 @@ public static class UserAccess
         if(u==null || Status(u)!="active" || (context.Principal!.FindFirst("securityVersion") is {} version && version.Value!=u.S("securityVersion")))
         { context.RejectPrincipal(); await context.HttpContext.SignOutAsync(); return; }
         // Upgrade legacy administrator cookies without invalidating a working production session.
+        bool legacy=context.Principal?.FindFirst(ClaimTypes.Role)==null;
         context.ReplacePrincipal(Principal(u));
-        context.ShouldRenew=context.Principal?.FindFirst(ClaimTypes.Role)==null;
+        context.ShouldRenew=legacy;
     }
     public static bool Allowed(string role, string method, string path)
     {

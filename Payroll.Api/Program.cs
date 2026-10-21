@@ -111,8 +111,9 @@ api.MapPost("/riders", (JsonObject input, HttpContext ctx) => store.Write((c, tx
 {
     var iqama = J.Iqama(input.Required("iqama")); var existing = Store.Get(c, iqama, "rider", tx);
     var rider = RiderDirectory.Normalize(input, existing);
-    if (input.S("policyId") != "") J.Need(Store.Get(c, input.S("policyId"), "policy", tx)?.S("status") == "approved", "اختر سياسة معتمدة.");
-    rider["policyId"] = input.S("policyId"); rider["city"] = input.S("city"); Store.Save(c, "rider", rider, tx); Store.Audit(c, tx, "rider.save", iqama, Actor(ctx)); return rider;
+    if (input.ContainsKey("policyId")) { if (input.S("policyId") != "") J.Need(Store.Get(c, input.S("policyId"), "policy", tx)?.S("status") == "approved", "اختر سياسة معتمدة."); rider["policyId"] = input.S("policyId"); }
+    else if (!rider.ContainsKey("policyId")) rider["policyId"]="";
+    Store.Save(c, "rider", rider, tx); Store.Audit(c, tx, "rider.save", iqama, Actor(ctx)); return rider;
 }));
 api.MapGet("/policies", () => store.Read(c => Store.List(c, "policy")));
 api.MapPost("/policies", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
