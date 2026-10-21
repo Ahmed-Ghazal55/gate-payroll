@@ -4,7 +4,7 @@ import argparse, hashlib, json, re, zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 EXACT = {'.gitignore', '.env.example', 'README_AR.md', 'DEPLOYMENT_AR.md',
-         'DATA_IMPORT_AR.md', 'RELEASE_STATUS_AR.md', 'API_CONTRACT.md', 'TABLE_STANDARD_AR.md',
+         'DATA_IMPORT_AR.md', 'UPGRADE_V05_AR.md', 'RELEASE_STATUS_AR.md', 'API_CONTRACT.md', 'TABLE_STANDARD_AR.md',
          'Payroll.Api/Payroll.Api.csproj', 'Payroll.Api/appsettings.json',
          'Payroll.Api/appsettings.Production.json', 'Payroll.Api/web.config',
          'Payroll.Api/wwwroot/index.html', 'Payroll.Api/wwwroot/app.css',

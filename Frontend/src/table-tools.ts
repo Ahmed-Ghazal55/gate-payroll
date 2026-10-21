@@ -1,6 +1,6 @@
 // Shared table behavior. New grids use table(), not standalone <table> markup.
 let gridSequence = 0;
-const numericTableHeaders = new Set(['الطلبات','المبلغ','رصيد سابق','حركة الشهر','الرصيد الختامي','إيراد المنصة','استحقاق المندوب']);
+const numericTableHeaders = new Set(['الطلبات','المبلغ','رصيد سابق','حركة الشهر','الرصيد الختامي','إيراد المنصة','استحقاق المندوب','الإجمالي','المتبقي','القسط الشهري','الحد الأقصى']);
 function renderDataTable(headers:string[],rows:string[]):string {
     const id='grid-'+(++gridSequence);
     return `<section class="data-grid" id="${id}"><div class="grid-toolbar"><span data-grid-count aria-live="polite">${rows.length} من ${rows.length} سجل</span><div class="actions"><button class="secondary" data-grid-export="all">تصدير Excel — الكل</button><button class="secondary" data-grid-export="filtered">تصدير المفلتر</button><button class="secondary" data-grid-csv>تصدير CSV المفلتر</button><button class="ghost" data-grid-clear>مسح الفلاتر</button></div></div><div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th scope="col" data-header="${esc(h)}" data-numeric="${numericTableHeaders.has(h)}">${esc(h)}${h?`<button class="column-filter-toggle ghost" type="button" data-column-menu="${headers.indexOf(h)}" aria-label="خيارات العمود ${esc(h)}">⌄</button>`:''}</th>`).join('')}</tr><tr class="column-filters">${headers.map((h,i)=>`<th>${h?`<input type="search" data-column-filter="${i}" aria-label="فلتر ${esc(h)}" placeholder="فلتر ${esc(h)}" autocomplete="off">`:''}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div><p class="filter-empty hide">لا توجد صفوف تطابق الفلاتر.</p></section>`;
@@ -70,7 +70,7 @@ function cellText(row:HTMLTableRowElement,index:number):string{return(row.cells[
 function columnSelectionMatches(grid:HTMLElement,row:HTMLTableRowElement):boolean{return [...(columnSelections.get(grid.id)||[])].every(([index,values])=>values.has(cellText(row,index)));}
 function exportGridCsv(grid:HTMLElement):void{
  const headers=[...grid.querySelectorAll<HTMLElement>('thead>tr:first-child>th')];const indices=headers.map((h,i)=>h.dataset.header?i:-1).filter(i=>i>=0);
- const quote=(v:string)=>'"'+(/^[=+\-@\t\r]/.test(v)?"'"+v:v).replace(/"/g,'""')+'"';
+ const quote=(v:string,i:number)=>'"'+(headers[indices[i]].dataset.numeric==='true'&&/^-?[0-9][0-9,]*(\.[0-9]+)?$/.test(v)?v.replace(/,/g,''):/^[=+\-@\t\r]/.test(v)?"'"+v:v).replace(/"/g,'""')+'"';
  const rows=[indices.map(i=>headers[i].dataset.header!),...[...grid.querySelectorAll<HTMLTableRowElement>('tbody>tr')].filter(r=>!r.hidden).map(r=>indices.map(i=>cellText(r,i)))];
  const url=URL.createObjectURL(new Blob(['\uFEFF'+rows.map(r=>r.map(quote).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=active+'-filtered.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }

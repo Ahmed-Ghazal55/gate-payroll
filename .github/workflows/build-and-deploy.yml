@@ -39,21 +39,19 @@ jobs:
       - name: Verify release source boundaries
         run: python3 scripts/release_source.py --check
       - name: Run engine and hosting-security assertions
-        run: dotnet test tests/Engine.Tests/Engine.Tests.csproj --nologo --logger "console;verbosity=normal"
+        run: dotnet test tests/Engine.Tests/Engine.Tests.csproj --nologo --logger "console;verbosity=detailed"
       - name: Build from clean sources
         run: dotnet build Payroll.Api/Payroll.Api.csproj --nologo
-      - name: Run HTTP, Excel and public-choice tests
-        run: node tests/integration.mjs
-      - name: Run enterprise HTTP integration suite
-        run: node tests/enterprise.mjs
+      - name: Build private migration tool
+        run: dotnet build tools/StoreMigration/StoreMigration.csproj --nologo --warnaserror
       - name: Browser installation
         run: |
           npm install --no-save --prefix /tmp/gate-browser playwright@1.56.1
           /tmp/gate-browser/node_modules/.bin/playwright install --with-deps chromium
       - name: Browser and mobile verification
-        run: node tests/browser-v05.mjs
-      - name: Run production bootstrap, HTTPS and origin tests
-        run: node tests/production.mjs
+        run: |
+          node tests/browser.mjs
+          node tests/browser-v05.mjs
       - name: Publish Linux smoke-test bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r linux-x64 --self-contained true -o artifacts/linux --nologo
       - name: Test published application

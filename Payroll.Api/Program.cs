@@ -66,7 +66,7 @@ app.Use(async (ctx, next) =>
     catch (Exception e)
     { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(new { error = "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا." }); }
 });
-app.UseStaticFiles(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
+app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
 app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = "0.5.0" });
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName });
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
@@ -106,7 +106,7 @@ FormBuilderApi.Map(app, api, store);
 InquiryApi.Map(app, api, store);
 api.MapGet("/me", (HttpContext ctx) => new { username = ctx.User.Identity!.Name, role = ctx.User.FindFirstValue(ClaimTypes.Role), id = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) });
 api.MapGet("/dashboard", () => store.Read(c => new { riders = Store.List(c, "rider").Count, imports = Store.List(c, "batch").Count, pendingResponses = Store.List(c, "submission").Count(x => x.S("status") == "pending"), approvedRuns = Store.List(c, "run").Count, balance = Store.List(c, "ledger").Sum(x => x.N("amount")), latestAudit = Store.List(c, "audit").Take(8) }));
-api.MapGet("/riders", () => store.Read(c => Store.List(c, "rider")));
+api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Select(r => ctx.User.IsInRole("Reviewer") ? UserAccess.RiderView(r) : r).ToList()));
 api.MapPost("/riders", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var iqama = J.Iqama(input.Required("iqama")); var existing = Store.Get(c, iqama, "rider", tx);

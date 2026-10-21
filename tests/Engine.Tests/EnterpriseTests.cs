@@ -68,6 +68,18 @@ public sealed class EnterpriseTests
             Parallel.For(0,120,i=>{if(i%5==0)store.Write((c,tx)=>{Store.Save(c,"test",new(){["id"]="row-"+i},tx);return true;});else store.Read(c=>Store.List(c,"test").Count);});Assert.AreEqual(24,store.Read(c=>Store.List(c,"test").Count));
         } finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();if(Directory.Exists(dir))Directory.Delete(dir,true); }
     }
+    [TestMethod] public void LegacyCampaignHashAndNewSharingLinkSurviveMigration()
+    {
+        string dir=Path.Combine(Path.GetTempPath(),"gate-legacy-"+Guid.NewGuid().ToString("N"));
+        try {var store=new Store(dir);store.Write((c,tx)=>{Store.Save(c,"campaign",new(){["id"]="legacy",["tokenHash"]="original-hash",["title"]="Legacy",["status"]="open"},tx);return true;});CampaignLinks.Migrate(store);string token=store.Read(c=>Store.Get(c,"legacy","campaign"))!.S("sharingToken");Assert.AreEqual(64,token.Length);CampaignLinks.Migrate(store);var campaign=store.Read(c=>Store.Get(c,"legacy","campaign"))!;Assert.AreEqual(token,campaign.S("sharingToken"));Assert.AreEqual("original-hash",campaign.S("tokenHash"));}
+        finally {Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();if(Directory.Exists(dir))Directory.Delete(dir,true);}
+    }
+    [TestMethod] public void DebtPostingRollsBackAllLinesIfOneBalanceChanged()
+    {
+        string dir=Path.Combine(Path.GetTempPath(),"gate-debt-"+Guid.NewGuid().ToString("N"));
+        try {var store=new Store(dir);var first=Debt("a",300,200);var second=Debt("b",100,100);store.Write((c,tx)=>{Store.Save(c,"debt",first,tx);Store.Save(c,"debt",second,tx);return true;});var result=Engine.Calculate("2000000001","2026-10",Policy(),[Work(500)],[],0,[first,second]);store.Write((c,tx)=>{var changed=Store.Get(c,"b","debt",tx)!;changed["remainingBalance"]=0;Store.Save(c,"debt",changed,tx);return true;});Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>{Debts.Post(c,tx,result,"test-run");return true;}));Assert.AreEqual(300m,store.Read(c=>Store.Get(c,"a","debt"))!.N("remainingBalance"));Assert.AreEqual(0,store.Read(c=>Store.List(c,"ledger").Count));}
+        finally {Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();if(Directory.Exists(dir))Directory.Delete(dir,true);}
+    }
     [TestMethod] public void StorageSnapshotPreservesDocumentsAndRejectsOverwrite()
     {
         string one=Path.Combine(Path.GetTempPath(),"gate-source-"+Guid.NewGuid().ToString("N")),two=Path.Combine(Path.GetTempPath(),"gate-target-"+Guid.NewGuid().ToString("N"));

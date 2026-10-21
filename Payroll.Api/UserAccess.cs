@@ -15,6 +15,12 @@ public static class UserAccess
     public static string Normalize(string name) => name.Trim().ToUpperInvariant();
     public static JsonObject? Find(DbConnection c, string username, DbTransaction? tx = null) => Store.List(c,"user",tx).SingleOrDefault(u => Normalize(u.S("username")) == Normalize(username));
     public static JsonObject Public(JsonObject u) => new() { ["id"]=u.S("id"),["username"]=u.S("username"),["role"]=Role(u),["status"]=Status(u),["createdAt"]=u.S("createdAt"),["lastLoginAt"]=u.S("lastLoginAt") };
+    public static JsonObject RiderView(JsonObject rider)
+    {
+        var result=new JsonObject();
+        foreach(string field in new[]{"id","iqama","name","phone","nationality","sponsor","engagementType","city","operationalRole","status","policyId","workPreference"})result[field]=rider.S(field);
+        return result;
+    }
     public static JsonObject Create(string username, string password, string role, string? id = null)
     {
         J.Need(username.Length is >=3 and <=60 && Regex.IsMatch(username,@"^[\p{L}\p{N}_.@-]+$"),"اسم المستخدم من3إلى60حرفًا دون مسافات أو محارف خاصة.");
