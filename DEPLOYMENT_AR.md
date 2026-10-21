@@ -4,11 +4,19 @@
 
 ## حزمة الإصدار
 
-GitHub Actions يبني ويختبر المحرك وHTTP وExcel وتهيئة الإنتاج ثم يبني حزمة Windows x64 ذاتية الاحتواء. حمّل artifact باسم gate-payroll-monsterasp-win-x64 من تشغيل ناجح لنفس commit. لا تنشر artifact من تشغيل فاشل أو نسخة سابقة.
+GitHub Actions يبني ويختبر المحرك وHTTP وExcel وتهيئة الإنتاج ثم يبني حزمة Windows x64 ذاتية الاحتواء. حمّل artifact باسم publish من تشغيل ناجح لنفس commit؛ GitHub يقدمه باسم publish.zip، ومحتواه ملفات النشر مباشرة دون مجلد أب. الاسم القديم gate-payroll-monsterasp-win-x64 يخص التشغيل السابق. لا تنشر artifact من تشغيل فاشل أو نسخة سابقة.
 
 للبناء على جهاز به SDK10: npm ci --prefix RiderForm، ثم Publish-MonsterASP.ps1 على Windows أو ./publish-monsterasp.sh على Linux. فاحص الحزمة يرفض قواعد البيانات والمفاتيح وملفات الأشخاص ويتأكد من وجود ملفات الواجهة والفورم.
 
 الحزمة وحدها لا تعني نجاح التشغيل على IIS؛ نتحقق من HTTPS وسجل الخادم وحفظ الردود على الموقع الفعلي قبل المشاركة.
+
+## الرفع السريع من File Manager
+
+وفق [دليل MonsterASP الرسمي](https://help.monsterasp.net/websites/deploy/zip-file): افتح Websites ثم الموقع ثم Files. ارفع publish.zip، واضغط Unzip وحدد /wwwroot هدفًا. عند التحديث فعّل Overwrite existing files وRestart application pool before extracting. يجب أن يكون web.config وPayroll.Api.exe داخل /wwwroot مباشرة؛ مجلد wwwroot الداخلي مخصص لأصول الواجهة ولا يُنقل محتواه إلى جذر التطبيق.
+
+ارفع حزمة التطبيق فقط. الأرشيف المحلي private-data/rider-directory-private.zip يحتوي بيانات الأشخاص كاملة؛ لا يُرفع إلى GitHub أو يُفك في مجلد الموقع. لاستيراد المناديب، فكّه على جهاز إداري واستخدم data/riders-template-ready.xlsx من داخل واجهة الإدارة بعد التهيئة. لا توجد قاعدة SQLite مجهزة بهؤلاء الأشخاص، ولا استيراد تلقائي عند تشغيل التطبيق.
+
+قبل فتح الإدارة اضبط اسم النطاق الحقيقي وإعداد التهيئة كما يلي. يمكن إبقاء Payroll:DataDir=App_Data الافتراضي إذا كان هذا المجلد دائمًا وتملك عملية التطبيق الكتابة إليه؛ يقع بجوار Payroll.Api.exe وخارج مجلد الأصول الثابتة الداخلي. احفظه ومفاتيحه عند كل تحديث، ولا تستخدم Clean folder content.
 
 ## إعداد الموقع
 
