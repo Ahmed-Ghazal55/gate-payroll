@@ -1,4 +1,4 @@
-name: Validate and package Gate Payroll
+name: Validate, package and deploy Gate Payroll
 on:
   push:
     branches: [main]
@@ -8,7 +8,7 @@ permissions:
   contents: read
 concurrency:
   group: payroll-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -38,6 +38,8 @@ jobs:
         run: python3 scripts/fetch_fonts.py
       - name: Verify release source boundaries
         run: python3 scripts/release_source.py --check
+      - name: Verify FTPS lifecycle protections
+        run: python3 -m unittest discover -s scripts -p "test_ftps_deploy.py" -v
       - name: Run engine and hosting-security assertions
         run: dotnet test tests/Engine.Tests/Engine.Tests.csproj --nologo --logger "console;verbosity=detailed"
       - name: Build from clean sources
@@ -70,3 +72,42 @@ jobs:
           path: artifacts/monsterasp/
           include-hidden-files: true
           retention-days: 7
+      - name: Prepare IIS for deployment
+        id: ftps-prepare
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          MONSTERASP_FTP_SERVER: ${{ secrets.MONSTERASP_FTP_SERVER }}
+          MONSTERASP_FTP_USERNAME: ${{ secrets.MONSTERASP_FTP_USERNAME }}
+          MONSTERASP_FTP_PASSWORD: ${{ secrets.MONSTERASP_FTP_PASSWORD }}
+        run: python3 scripts/monsterasp_ftps.py prepare
+      - name: 🚀 Deploy to MonsterASP via FTPS
+        id: ftps-deploy
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.MONSTERASP_FTP_SERVER }}
+          username: ${{ secrets.MONSTERASP_FTP_USERNAME }}
+          password: ${{ secrets.MONSTERASP_FTP_PASSWORD }}
+          server-dir: wwwroot/
+          local-dir: artifacts/monsterasp/
+          protocol: ftps
+          security: strict
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            App_Data/**
+            **/App_Data/**
+            appsettings.Local.json
+            **/appsettings.Local.json
+            app_offline.htm
+      - name: Resume IIS and verify preserved runtime files
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          MONSTERASP_FTP_SERVER: ${{ secrets.MONSTERASP_FTP_SERVER }}
+          MONSTERASP_FTP_USERNAME: ${{ secrets.MONSTERASP_FTP_USERNAME }}
+          MONSTERASP_FTP_PASSWORD: ${{ secrets.MONSTERASP_FTP_PASSWORD }}
+        run: python3 scripts/monsterasp_ftps.py finish
+      - name: Verify live HTTPS release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: python3 scripts/monsterasp_ftps.py health
