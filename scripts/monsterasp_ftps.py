@@ -55,7 +55,10 @@ def connect():
                     output.write('NODE_EXTRA_CA_CERTS='+str(chain_path.resolve())+'\n')
         except ftplib.error_perm as error:
             ftp.close()
-            raise RuntimeError('FTPS permission error '+str(error)[:3]+' during '+stage) from None
+            message=str(error)
+            for value in values:
+                message=message.replace(value,'[redacted]')
+            raise RuntimeError('FTPS permission error during '+stage+': '+message) from None
         except Exception:
             ftp.close()
             raise

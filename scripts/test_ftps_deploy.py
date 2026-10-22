@@ -96,6 +96,16 @@ class FtpsLifecycleTests(unittest.TestCase):
             ftp.cwd.assert_called_once_with('wwwroot')
             self.assertIsNotNone(factory.call_args.kwargs['context'])
 
+    def test_permission_error_is_actionable_and_redacts_credentials(self):
+        env=dict(zip(['MONSTERASP_FTP_SERVER','MONSTERASP_FTP_USERNAME','MONSTERASP_FTP_PASSWORD'],['synthetic.invalid','synthetic-user','synthetic-password']))
+        with patch.dict(os.environ,env),patch.object(deploy.ftplib,'FTP_TLS') as factory:
+            factory.return_value.login.side_effect=ftplib.error_perm('530 User synthetic-user cannot log in synthetic-password')
+            with self.assertRaisesRegex(RuntimeError,'TLS/login') as captured:
+                deploy.connect()
+            self.assertNotIn('synthetic-user',str(captured.exception))
+            self.assertNotIn('synthetic-password',str(captured.exception))
+            self.assertIn('530',str(captured.exception))
+
     def test_health_retries_until_expected_release(self):
         responses = [io.BytesIO(json.dumps(d).encode()) for d in [{'ok': True, 'version': '0.5.1'}, {'ok': True, 'version': '0.5.2'}]]
         with patch.object(deploy.urllib.request, 'urlopen', side_effect=responses) as request:

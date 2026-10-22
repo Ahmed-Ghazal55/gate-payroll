@@ -11,6 +11,8 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 jobs:
   validate:
+    needs: ftps-preflight
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     services:
       sqlserver:
@@ -74,7 +76,7 @@ jobs:
           retention-days: 7
       - name: Prepare IIS for deployment
         id: ftps-prepare
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs['ftps-preflight'].result == 'success'
         env:
           MONSTERASP_FTP_SERVER: ${{ secrets.MONSTERASP_FTP_SERVER }}
           MONSTERASP_FTP_USERNAME: ${{ secrets.MONSTERASP_FTP_USERNAME }}
@@ -82,7 +84,7 @@ jobs:
         run: python3 scripts/monsterasp_ftps.py prepare
       - name: 🚀 Deploy to MonsterASP via FTPS
         id: ftps-deploy
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs['ftps-preflight'].result == 'success'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.MONSTERASP_FTP_SERVER }}
@@ -102,18 +104,18 @@ jobs:
             **/appsettings.Local.json
             app_offline.htm
       - name: Resume IIS and verify preserved runtime files
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs['ftps-preflight'].result == 'success'
         env:
           MONSTERASP_FTP_SERVER: ${{ secrets.MONSTERASP_FTP_SERVER }}
           MONSTERASP_FTP_USERNAME: ${{ secrets.MONSTERASP_FTP_USERNAME }}
           MONSTERASP_FTP_PASSWORD: ${{ secrets.MONSTERASP_FTP_PASSWORD }}
         run: python3 scripts/monsterasp_ftps.py finish
       - name: Verify live HTTPS release
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs['ftps-preflight'].result == 'success'
         run: python3 scripts/monsterasp_ftps.py health
   ftps-preflight:
     name: Check FTPS connection (read only)
-    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
