@@ -1,4 +1,4 @@
-# API v0.5.3
+# API v0.5.4
 
 Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*` and `/api/public/*`. Errors use `{error:string}` with 400/401/403/404/409/429/503. No financial mutation from public routes. Source of truth: `Payroll.Api/Program.cs`, `UserAccess.cs`, `DirectoryApi.cs`, `FormBuilder.cs`, `Debts.cs`, `InquiryApi.cs`, `SubmissionChoices.cs`, `Store.cs`, `Engine.cs`, `Imports.cs`; integration tests are executable request examples.
 
@@ -86,3 +86,9 @@ RBAC matrix, data compatibility, financial posting and operational limits: UPGRA
 - Campaign analytics denominators are all responses, including unknown classifications. Custom forms have no approval workflow; their KPI cards show that approval/edit counts do not apply.
 
 Bulk requests optionally accept `versions:{id:number}`; the UI supplies each visible row version. Any mismatch aborts the entire operation with409, so a newly edited response cannot be approved or deleted from a stale list. Legacy campaign-only calls remain supported.
+
+## Form deletion (0.5.4)
+
+Admin only: `GET /api/campaigns/{id}/delete-preview` or `GET /api/forms/builder/{id}/delete-preview` returns `{id,title,responseCount,fingerprint}`. `DELETE` to the same parent path (without `/delete-preview`) requires a JSON body `{confirm:true,fingerprint}`. The snapshot covers the form and all its replies; any intervening submission, edit or review returns409 and changes nothing. The UI refreshes the count and requires a new explicit confirmation. Missing confirmation/fingerprint returns400; missing form404; staff403; unauthenticated401.
+
+Deletes only the chosen form and its children atomically, records `campaign.deleted` / `builder.deleted` and per-response audit, and invalidates its public link. Rider directory and financial ledgers remain; attributable work preferences are reconciled via the existing response deletion logic. Draft, open, closed and expired forms use the same deletion path. Response history is removed with its parent response; audit records remain. No production form is deleted automatically during deployment.

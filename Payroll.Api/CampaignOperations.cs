@@ -49,7 +49,7 @@ public static class CampaignOperations
     }
     static void Admin(HttpContext ctx){if(ctx.User.FindFirstValue(ClaimTypes.Role)!="Admin")throw new ApiError("الحذف وتعديل الحملات لمسؤول النظام فقط.",403);}
     static string Actor(HttpContext ctx)=>ctx.User.Identity?.Name??"administrator";
-    static void Delete(DbConnection c,DbTransaction tx,List<JsonObject> rows,string actor)
+    internal static void DeleteSubmissions(DbConnection c,DbTransaction tx,List<JsonObject> rows,string actor)
     {
         var all=Store.List(c,"submission",tx);var ids=rows.Select(d=>d.S("id")).ToHashSet();
         foreach(var d in rows){using var cmd=Store.Command(c,tx,"DELETE FROM records WHERE id=@id AND kind='submission'",("@id",d.S("id")));cmd.ExecuteNonQuery();Store.Audit(c,tx,"submission.deleted",d.S("id"),actor);}
@@ -100,8 +100,8 @@ public static class CampaignOperations
             if(input.ContainsKey("status")){J.Need(input.S("status") is "open" or "closed","حالة النموذج غير صحيحة.");d["status"]=input.S("status");}
             if(input.ContainsKey("fields"))d["fields"]=ValidateFields(input["fields"]);d["updatedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,"campaign",d,tx);Store.Audit(c,tx,"campaign.updated",id,Actor(ctx));return new{ok=true};});});
         api.MapGet("/campaigns/{id}/analytics",(string id)=>store.Read(c=>Analytics(c,id)));
-        api.MapDelete("/submissions/{id}",(string id,HttpContext ctx)=>{Admin(ctx);return store.Write((c,tx)=>{var d=Store.Get(c,id,"submission",tx)??throw new ApiError("الرد غير موجود.",404);Delete(c,tx,[d],Actor(ctx));return new{ok=true,message="تم حذف الرد نهائيًا ويمكن للمندوب التسجيل مجددًا."};});});
-        api.MapPost("/submissions/bulk-delete",(JsonObject input,HttpContext ctx)=>{Admin(ctx);J.Need(input.B("confirm"),"أكد الحذف النهائي أولًا.");return store.Write((c,tx)=>{var rows=Scope(c,tx,input,true);Delete(c,tx,rows,Actor(ctx));Store.Audit(c,tx,"submission.bulk_deleted",input.S("campaignId"),Actor(ctx));return new{ok=true,count=rows.Count};});});
+        api.MapDelete("/submissions/{id}",(string id,HttpContext ctx)=>{Admin(ctx);return store.Write((c,tx)=>{var d=Store.Get(c,id,"submission",tx)??throw new ApiError("الرد غير موجود.",404);DeleteSubmissions(c,tx,[d],Actor(ctx));return new{ok=true,message="تم حذف الرد نهائيًا ويمكن للمندوب التسجيل مجددًا."};});});
+        api.MapPost("/submissions/bulk-delete",(JsonObject input,HttpContext ctx)=>{Admin(ctx);J.Need(input.B("confirm"),"أكد الحذف النهائي أولًا.");return store.Write((c,tx)=>{var rows=Scope(c,tx,input,true);DeleteSubmissions(c,tx,rows,Actor(ctx));Store.Audit(c,tx,"submission.bulk_deleted",input.S("campaignId"),Actor(ctx));return new{ok=true,count=rows.Count};});});
         api.MapPost("/submissions/bulk-approve",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>{
             var rows=Scope(c,tx,input,false).Where(d=>d.S("status")=="pending").ToList();
             // Bulk approval cannot attest ownership of legacy banking details.
