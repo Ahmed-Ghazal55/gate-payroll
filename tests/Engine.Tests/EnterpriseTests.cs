@@ -19,6 +19,12 @@ public sealed class EnterpriseTests
     [DataRow("Accountant","PUT","/api/users/test/status",false)]
     [DataRow("Reviewer","POST","/api/excel/riders/commit",false)]
     [DataRow("Admin","POST","/api/riders/sync-baseline",true)]
+    [DataRow("Reviewer","DELETE","/api/submissions/test",false)]
+    [DataRow("Accountant","DELETE","/api/submissions/test",false)]
+    [DataRow("Reviewer","POST","/api/submissions/bulk-delete",false)]
+    [DataRow("Reviewer","POST","/api/submissions/bulk-approve",true)]
+    [DataRow("Reviewer","PUT","/api/campaigns/test",false)]
+    [DataRow("Reviewer","GET","/api/campaigns/test/analytics",true)]
     public void PermissionMatrix(string role,string method,string path,bool allowed)=>Assert.AreEqual(allowed,UserAccess.Allowed(role,method,path));
     [TestMethod] public void PasswordAndProjection()
     {
@@ -95,4 +101,30 @@ public sealed class EnterpriseTests
         try {var target=new SqlConnectionStringBuilder(configured){InitialCatalog=name};var store=new Store(dir,target.ConnectionString);Assert.AreEqual("mssql",store.Provider);store.Write((db,tx)=>{Store.Save(db,"test",new(){["id"]="roundtrip",["name"]="اسم تجريبي"},tx);return true;});Assert.AreEqual("اسم تجريبي",store.Read(db=>Store.Get(db,"roundtrip","test"))!.S("name"));Assert.ThrowsExactly<ApiError>(()=>store.Write<int>((db,tx)=>{Store.Save(db,"test",new(){["id"]="rollback"},tx);throw new ApiError("test");}));Assert.IsNull(store.Read(db=>Store.Get(db,"rollback","test")));}
         finally {SqlConnection.ClearAllPools();using var drop=c.CreateCommand();drop.CommandText="ALTER DATABASE ["+name+"] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ["+name+"]";drop.ExecuteNonQuery();if(Directory.Exists(dir))Directory.Delete(dir,true);}
     }
+    [TestMethod] public void CampaignFieldsRejectHiddenOrInvalidInputs()
+    {
+        Assert.ThrowsExactly<ApiError>(()=>CampaignOperations.ValidateFields(new JsonArray("iban")));
+        Assert.ThrowsExactly<ApiError>(()=>CampaignOperations.ValidateFields(new JsonArray("city","city")));
+        var campaign=new JsonObject{["fields"]=CampaignOperations.ValidateFields(new JsonArray("city","phone"))};
+        Assert.ThrowsExactly<ApiError>(()=>CampaignOperations.Answers(campaign,new(){["city"]="Riyadh"}));
+        Assert.ThrowsExactly<ApiError>(()=>CampaignOperations.Answers(new(),new(){["city"]="Riyadh"}));
+        var answers=CampaignOperations.Answers(campaign,new(){["city"]=" Riyadh ",["phone"]="0500000001"});Assert.AreEqual("Riyadh",answers.S("city"));Assert.AreEqual("+966500000001",answers.S("phone"));
+    }
+    [TestMethod] public void ExtraAnswersRemainInPriorVersionAndProjectionHonorsActiveFields()
+    {
+        var d=new JsonObject{["name"]="Synthetic Rider",["workSystem"]="tiers",["city"]="Riyadh",["phone"]="+966500000001",["status"]="approved",["version"]=1};
+        SubmissionChoices.ArchiveAndEdit(d,new("2000000001","Synthetic Updated","commission"));d["city"]="Jeddah";
+        Assert.AreEqual("Riyadh",d["history"]![0]!.S("city"));Assert.AreEqual("pending",d.S("status"));Assert.AreEqual(2,SubmissionChoices.Version(d));
+        Assert.IsFalse(SubmissionChoices.ChoiceView(d,new()).ContainsKey("phone"));
+        Assert.AreEqual("Jeddah",SubmissionChoices.ChoiceView(d,new(){["fields"]=new JsonArray("city")}).S("city"));
+    }
+    [TestMethod] public void BatchReviewRollbackPreservesEarlierRepliesOnLegacyBankingFailure()
+    {
+        string dir=Path.Combine(Path.GetTempPath(),"gate-review-"+Guid.NewGuid().ToString("N"));
+        try {var store=new Store(dir);store.Write((c,tx)=>{foreach(string id in new[]{"first","second"})Store.Save(c,"submission",new(){["id"]=id,["iqama"]="2000000001",["name"]="Synthetic Rider",["workSystem"]="tiers",["status"]="pending",["iban"]=id=="second"?"legacy-test-value":""},tx);return true;});
+            Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>{foreach(string id in new[]{"first","second"})CampaignOperations.Review(c,tx,Store.Get(c,id,"submission",tx)!,new(){["status"]="approved"},"test-admin");return true;}));
+            Assert.AreEqual("pending",store.Read(c=>Store.Get(c,"first","submission"))!.S("status"));Assert.AreEqual(0,store.Read(c=>Store.List(c,"rider").Count));Assert.AreEqual(0,store.Read(c=>Store.List(c,"audit").Count));
+        }finally{Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();if(Directory.Exists(dir))Directory.Delete(dir,true);}
+    }
+
 }

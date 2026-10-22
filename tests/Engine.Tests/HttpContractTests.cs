@@ -9,6 +9,8 @@ public sealed class HttpContractTests
     [DataRow("integration.mjs",false)]
     [DataRow("enterprise.mjs",false)]
     [DataRow("production.mjs",false)]
+    [DataRow("campaigns.mjs",false)]
+    [DataRow("campaigns.mjs",true)]
     [DataRow("submissions.mjs",false)]
     [DataRow("submissions.mjs",true)]
     [DataRow("integration.mjs",true)]

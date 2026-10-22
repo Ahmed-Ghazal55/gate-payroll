@@ -1,4 +1,4 @@
-# API v0.5.0
+# API v0.5.3
 
 Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*` and `/api/public/*`. Errors use `{error:string}` with 400/401/403/404/409/429/503. No financial mutation from public routes. Source of truth: `Payroll.Api/Program.cs`, `UserAccess.cs`, `DirectoryApi.cs`, `FormBuilder.cs`, `Debts.cs`, `InquiryApi.cs`, `SubmissionChoices.cs`, `Store.cs`, `Engine.cs`, `Imports.cs`; integration tests are executable request examples.
 
@@ -73,3 +73,16 @@ RBAC matrix, data compatibility, financial posting and operational limits: UPGRA
 - `submittedAt` is the response's current updatedAt or original createdAt. The localized `.txt` receipt uses these canonical server values (including actual status and version), not the download time. The UTF-8 BOM file is named `اشعار_تسجيل_الرواتب_[iqama].txt`, supports AR/EN/UR, and contains no edit capabilities. It confirms receipt of the selection, not financial approval. Personal answers remain in page memory, not localStorage/sessionStorage.
 - Admin and Reviewer may review; Accountant cannot. Notes are optional. Quick and modal review send the displayed version; stale dialogs refresh instead of approving an unseen edit. Legacy IBAN ownership still requires detail review. `/api/submissions` and review results strip historical edit hashes.
 - Pending edits do not recalculate payroll or change a policy; a later approval updates rider preference. The three-field Excel input template is unchanged. The response grid retains status/edited chips, multi-column filters, comparisons, typed version/edit/time/note exports and action exclusions.
+
+## v0.5.3 campaign operations
+
+- `DELETE /api/submissions/{id}`: Admin only, physical deletion and atomic `submission.deleted` audit. Missing ID is 404. Frees `(campaignId, iqama)` and removes reply history; financial ledgers and audit events remain. Clear only an attributable rider work preference, or restore the latest surviving approved preference.
+- `POST /api/submissions/bulk-delete`: Admin only, `{campaignId, confirm:true, ids?:string[]}`. Campaign is mandatory; IDs, if supplied, must all exist within it. Without IDs deletes the entire campaign's replies. Transactional and audited, including each deleted ID.
+- `POST /api/submissions/bulk-approve`: Admin or Reviewer, `{campaignId?:string, ids?:string[]}`. Approves pending replies only, records identity review and actor, updates preference without assigning payroll policy. Any pending legacy IBAN rejects the whole batch for individual ownership review. Repeating an already-approved batch changes zero replies.
+- `PUT /api/campaigns/{id}`: Admin only, partial `{title?, expiresAt?, status?:"open"|"closed", fields?:["city","phone"]}`. No token rotation or reply loss. Unknown/duplicate fields rejected. Dates accept explicit offsets; the UI submits UTC.
+- `GET /api/campaigns/{id}/analytics`: Admin or Reviewer. Counts `totalResponses/approved/pending/rejected/edited`, distributions `workSystem/city/engagementType` as `{value,count,percentage}`, and `recent` (latest five by updated/created time). Unknown directory attributes remain explicit. No public analytics route.
+- Public campaign metadata includes `fields` (default empty for older campaigns). Enabled fields are required on create/edit, inactive fields rejected. City max100 characters; phone normalized E.164. Lookup returns enabled submitted values only, never values from the rider directory. Historical versions preserve city/phone; changing either increments version and resets review.
+- Choices Excel template v3 adds city and phone after the canonical three columns. Older three-column files remain compatible for campaigns with no additional required fields. Preview/commit revalidates active fields and campaign state atomically.
+- Campaign analytics denominators are all responses, including unknown classifications. Custom forms have no approval workflow; their KPI cards show that approval/edit counts do not apply.
+
+Bulk requests optionally accept `versions:{id:number}`; the UI supplies each visible row version. Any mismatch aborts the entire operation with409, so a newly edited response cannot be approved or deleted from a stale list. Legacy campaign-only calls remain supported.

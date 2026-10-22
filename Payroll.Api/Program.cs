@@ -67,7 +67,7 @@ app.Use(async (ctx, next) =>
     { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(new { error = "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا." }); }
 });
 app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
-app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = "0.5.2" });
+app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = "0.5.3" });
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName });
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
 {
@@ -202,39 +202,25 @@ api.MapGet("/payroll/export.csv", (string period) => store.Read(c =>
 }));
 
 // Public forms are collection links, never a lookup endpoint for existing personal records.
-api.MapGet("/campaigns", (HttpContext ctx) => store.Read(c => Store.List(c, "campaign").Select(x => new { id=x.S("id"), title=x.S("title"), expiresAt=x.S("expiresAt"), status=x.S("status"), publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+x.S("sharingToken"), qrCodeUrl="/api/campaigns/"+x.S("id")+"/qr.svg" })));
+api.MapGet("/campaigns", (HttpContext ctx) => store.Read(c => Store.List(c, "campaign").Select(x => new { id=x.S("id"), title=x.S("title"), expiresAt=x.S("expiresAt"), status=x.S("status"), fields=CampaignOperations.Fields(x), publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+x.S("sharingToken"), qrCodeUrl="/api/campaigns/"+x.S("id")+"/qr.svg" })));
 api.MapGet("/campaigns/{id}/qr.svg", (string id, HttpContext ctx) => store.Read(c => { var d=Store.Get(c,id,"campaign")??throw new ApiError("الحملة غير موجودة.",404); return Results.Text(CampaignLinks.Svg(CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+d.S("sharingToken")),"image/svg+xml"); }));
 api.MapPost("/campaigns", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     int days = (int)Math.Clamp(input.N("days", 14), 1, 30); string token = Token(); var doc = new JsonObject { ["id"] = Id(), ["tokenHash"] = Hash(Encoding.UTF8.GetBytes(token)), ["sharingToken"] = token, ["title"] = input.Required("title"), ["status"] = "open", ["expiresAt"] = DateTimeOffset.UtcNow.AddDays(days).ToString("O"), ["createdAt"] = Now() };
+    if(input.ContainsKey("fields"))doc["fields"]=CampaignOperations.ValidateFields(input["fields"]);
     Store.Save(c, "campaign", doc, tx); Store.Audit(c, tx, "form.publish", doc.S("id"), Actor(ctx)); return new { id=doc.S("id"), path="/forms/"+token, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+token, qrCodeUrl="/api/campaigns/"+doc.S("id")+"/qr.svg", expiresAt=doc.S("expiresAt") };
 }));
 api.MapPost("/campaigns/{id}/close", (string id, HttpContext ctx) => store.Write((c, tx) => { var d = Store.Get(c, id, "campaign", tx) ?? throw new ApiError("النموذج غير موجود.", 404); d["status"] = "closed"; Store.Save(c, "campaign", d, tx); Store.Audit(c, tx, "form.close", id, Actor(ctx)); return new { ok = true }; }));
 api.MapGet("/submissions", () => store.Read(c => Store.List(c, "submission").Select(SubmissionChoices.PublicAdmin)));
 api.MapPost("/submissions/{id}/review", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
-    var d = Store.Get(c, id, "submission", tx) ?? throw new ApiError("الرد غير موجود.", 404); J.Need(d.S("status") == "pending", "تمت مراجعة الرد بالفعل.");
-    SubmissionChoices.CheckVersion(d, input);
-    string status = input.Required("status"); J.Need(status is "approved" or "rejected", "حالة مراجعة غير صحيحة.");
-    if (status == "approved")
-    {
-        J.Need(input.NullableBool("identityReviewed") != false, "أكد مراجعة هوية المندوب والاسم خارج النموذج.");
-        if (d.S("iban") != "") J.Need(input.B("ibanOwnershipReviewed"), "أكد مراجعة ملكية الآيبان؛ فحص الصيغة لا يثبت صاحب الحساب.");
-        var rider = Store.Get(c, d.S("iqama"), "rider", tx)?.Clone() ?? new JsonObject { ["id"] = d.S("iqama"), ["iqama"] = d.S("iqama"), ["name"] = d.S("name"), ["policyId"] = "", ["status"] = "needs_review" };
-        rider["workPreference"] = d.S("workSystem");
-        // Preserve existing private data for the choice-only form, including older campaigns.
-        foreach (string field in new[] { "phone", "city" }) if (d.S(field) != "") rider[field] = d.S(field);
-        if (d.S("vehicle") != "") rider["vehiclePreference"] = d.S("vehicle");
-        if (d.S("housing") != "") rider["housingPreference"] = d.S("housing");
-        if (d.S("iban") != "") { rider["verifiedIban"] = d.S("iban"); rider["ibanReviewedAt"] = Now(); }
-        // Preferences never replace a payroll policy or modify an approved payroll run.
-        Store.Save(c, "rider", rider, tx);
-    }
-    d["status"] = status; d["reviewNote"] = input.S("note", ""); d["reviewedAt"] = Now(); d["reviewedBy"] = Actor(ctx); Store.Save(c, "submission", d, tx); Store.Audit(c, tx, "submission." + status, id, Actor(ctx)); return SubmissionChoices.PublicAdmin(d);
+    var d=Store.Get(c,id,"submission",tx)??throw new ApiError("الرد غير موجود.",404);
+    CampaignOperations.Review(c,tx,d,input,Actor(ctx));return SubmissionChoices.PublicAdmin(d);
 }));
 api.MapGet("/audit", () => store.Read(c => Store.List(c, "audit")));
-app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = "work-choice-v1" }); }).RequireRateLimiting("sensitive");
+app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = "work-choice-v1", fields=CampaignOperations.Fields(d) }); }).RequireRateLimiting("sensitive");
 SubmissionChoices.Map(app, store, Campaign);
+CampaignOperations.Map(api,store);
 app.MapGet("/forms/{token}", (string token) => { Campaign(token); return Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.html"), "text/html; charset=utf-8"); });
 app.MapGet("/rider-form.js", () => Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.js"), "text/javascript; charset=utf-8"));
 app.MapGet("/", () => Results.File(Path.Combine(app.Environment.WebRootPath, "index.html"), "text/html; charset=utf-8"));
