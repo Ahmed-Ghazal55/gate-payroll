@@ -57,6 +57,13 @@ try{
  // Real XLSX export includes edit flags/version and optional notes, never credentials.
  const xlsx=await fetch(base+'/api/excel/export',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({headers:['الإقامة','التعديل','النسخة','ملاحظة المراجعة'],rows:[[row.iqama,'رد معدل',row.version,row.reviewNote||'']],numericColumns:[2]})});assert.equal(xlsx.status,200);assert.equal(Buffer.from(await xlsx.arrayBuffer()).subarray(0,2).toString(),'PK');checks++;
  cookie=adminCookie;const audit=await req('/api/audit');assert.equal(audit.filter(x=>x.action==='submission.edited').length,3);assert.ok(audit.some(x=>x.action==='submission.approved'&&x.actor==='test-reviewer'));assert.ok(audit.some(x=>x.action==='submission.rejected'&&x.actor==='test-reviewer'));
+ // Race the very first submit for a fresh identity, not just an existing duplicate.
+ const firstRace=await Promise.all(Array.from({length:2},()=>fetch(base+pub,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,iqama:'2000000889'})})));assert.deepEqual(firstRace.map(r=>r.status).sort(),[200,409]);checks+=2;assert.equal((await req('/api/submissions')).length,2);
+ // Imported/legacy receipts upgrade exactly once, then require the new edit code.
+ const workbook=await fetch(base+'/api/excel/export',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({headers:['رقم الإقامة','الاسم الكامل','نظام العمل'],rows:[['2000000890','Legacy Rider','نظام الراتب الجديد']],numericColumns:[]})});assert.equal(workbook.status,200);checks++;
+ const batch={filename:'legacy.xlsx',campaignId:campaign.id,dataBase64:Buffer.from(await workbook.arrayBuffer()).toString('base64')};const preview=await req('/api/excel/choices/preview',batch);assert.deepEqual(preview.errors,[]);await req('/api/excel/choices/commit',{...batch,fingerprint:preview.fingerprint});
+ const legacy=(await req('/api/submissions')).find(r=>r.iqama==='2000000890');assert.equal(legacy.version,1);assert.equal(legacy.isEdited,false);
+ const upgraded=await req(pub+'/resume',{receipt:legacy.id},200,false);assert.match(upgraded.editToken,/^[0-9a-f]{64}$/);await req(pub+'/resume',{receipt:legacy.id},403,false);assert.equal((await req(pub+'/resume',{receipt:legacy.id,editToken:upgraded.editToken},200,false)).name,'Legacy Rider');
  await req('/api/campaigns/'+campaign.id+'/close',{});
  await req(pub+'/edit',{...form,...proof,version:4},400,false);await req(pub+'/resume',proof,400,false);await req(pub,form,400,false);
  console.log(`PASS ${checks} response HTTP checks: optional and quick reviews, RBAC, private duplicate handling, owner edits, version races, immutable history, atomic audit, XLSX, closed campaigns.`);

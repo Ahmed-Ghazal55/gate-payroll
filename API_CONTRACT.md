@@ -1,6 +1,6 @@
 # API v0.5.0
 
-Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*` and `/api/public/*`. Errors use `{error:string}` with 400/401/403/404/429/503. No financial mutation from public routes. Source of truth: `Payroll.Api/Program.cs`, `UserAccess.cs`, `DirectoryApi.cs`, `FormBuilder.cs`, `Debts.cs`, `InquiryApi.cs`, `Store.cs`, `Engine.cs`, `Imports.cs`; integration tests are executable request examples.
+Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*` and `/api/public/*`. Errors use `{error:string}` with 400/401/403/404/409/429/503. No financial mutation from public routes. Source of truth: `Payroll.Api/Program.cs`, `UserAccess.cs`, `DirectoryApi.cs`, `FormBuilder.cs`, `Debts.cs`, `InquiryApi.cs`, `Store.cs`, `Engine.cs`, `Imports.cs`; integration tests are executable request examples.
 
 | Flow | Endpoint | Main payload/result |
 |---|---|---|
@@ -24,7 +24,7 @@ Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*
 | Responses | GET `/api/submissions`; POST `/{id}/review` | status approved/rejected, optional note (empty by default), version (displayed revision), identityReviewed (approval accepts omission, rejects explicit false), ibanOwnershipReviewed required if legacy IBAN provided |
 | Audit | GET `/api/audit` | all stored actor/action/entity/time |
 | Public form | GET `/forms/{token}`; GET `/api/public/forms/{token}` | form HTML / title,expiresAt,schema:work-choice-v1; no existing rider information |
-| Public submit | POST `/api/public/forms/{token}` | name,iqama,workSystem only → receipt,message; extra fields reject |
+| Public submit | POST `/api/public/forms/{token}` | name,iqama,workSystem only → receipt,editToken,version,message; private duplicate prompt409; extra fields reject |
 
 Public workSystem values: `tiers` = نظام الراتب الجديد / `commission` = نظام العمولة السابق. No third choice, no default, no consent input. Public iqama is a 10-character ASCII digit string; Arabic/Persian digits reject instead of normalization. Name 3..150 characters, at least two parts, Arabic/English letters and spaces, whitespace normalized. Duplicate `(campaignId, iqama)` rejects. Existing name/phone/IBAN records never exposed by public API. Approval preserves existing private rider data and records workPreference only, without assigning policyId.
 
