@@ -29,10 +29,14 @@ def connect():
         context.load_verify_locations(cafile=str(chain_path))
     for attempt in range(2):
         ftp = ftplib.FTP_TLS(context=context, timeout=60)
+        stage='TLS/login'
         try:
             ftp.connect(values[0], 21)
             ftp.login(values[1], values[2])
+            print('PASS authenticated FTPS control channel.')
+            stage='data-channel encryption'
             ftp.prot_p()
+            stage='existing wwwroot directory'
             ftp.cwd('wwwroot')
             return ftp
         except ssl.SSLCertVerificationError as error:
@@ -49,6 +53,12 @@ def connect():
             if os.environ.get('GITHUB_ENV'):
                 with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as output:
                     output.write('NODE_EXTRA_CA_CERTS='+str(chain_path.resolve())+'\n')
+        except ftplib.error_perm as error:
+            ftp.close()
+            message=str(error)
+            for value in values:
+                message=message.replace(value,'[redacted]')
+            raise RuntimeError('FTPS permission error during '+stage+': '+message) from None
         except Exception:
             ftp.close()
             raise

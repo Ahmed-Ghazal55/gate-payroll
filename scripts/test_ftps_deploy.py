@@ -96,6 +96,16 @@ class FtpsLifecycleTests(unittest.TestCase):
             ftp.cwd.assert_called_once_with('wwwroot')
             self.assertIsNotNone(factory.call_args.kwargs['context'])
 
+    def test_permission_error_is_actionable_and_redacts_credentials(self):
+        env=dict(zip(['MONSTERASP_FTP_SERVER','MONSTERASP_FTP_USERNAME','MONSTERASP_FTP_PASSWORD'],['synthetic.invalid','synthetic-user','synthetic-password']))
+        with patch.dict(os.environ,env),patch.object(deploy.ftplib,'FTP_TLS') as factory:
+            factory.return_value.login.side_effect=ftplib.error_perm('530 User synthetic-user cannot log in synthetic-password')
+            with self.assertRaisesRegex(RuntimeError,'TLS/login') as captured:
+                deploy.connect()
+            self.assertNotIn('synthetic-user',str(captured.exception))
+            self.assertNotIn('synthetic-password',str(captured.exception))
+            self.assertIn('530',str(captured.exception))
+
     def test_health_retries_until_expected_release(self):
         responses = [io.BytesIO(json.dumps(d).encode()) for d in [{'ok': True, 'version': '0.5.1'}, {'ok': True, 'version': '0.5.2'}]]
         with patch.object(deploy.urllib.request, 'urlopen', side_effect=responses) as request:
@@ -106,6 +116,7 @@ class FtpsLifecycleTests(unittest.TestCase):
 class IntermediateChainTests(unittest.TestCase):
     def test_issuer_url_allowlist(self):
         self.assertTrue(chain.allowed_url('http://cacerts.digicert.com/issuer.crt'))
+        self.assertTrue(chain.allowed_url('http://r11.i.lencr.org/'))
         for url in ['file:///etc/passwd','http://169.254.169.254/latest/','https://digicert.com.attacker.invalid/a','https://user:password@crt.sectigo.com/a']:
             self.assertFalse(chain.allowed_url(url))
 
@@ -123,7 +134,7 @@ class IntermediateChainTests(unittest.TestCase):
 
     def test_untrusted_chain_never_returns_certificates(self):
         leaf=b'-----BEGIN CERTIFICATE-----\nleaf\n-----END CERTIFICATE-----'
-        responses=[SimpleNamespace(returncode=0,stdout=leaf),SimpleNamespace(returncode=1,stdout=b''),SimpleNamespace(returncode=0,stdout=b'')]
+        responses=[SimpleNamespace(returncode=0,stdout=leaf),SimpleNamespace(returncode=1,stdout=b''),SimpleNamespace(returncode=0,stdout=b''),SimpleNamespace(returncode=0,stdout=b'issuer=Synthetic Test CA')]
         with patch.object(chain,'run',side_effect=responses),patch.object(chain,'download_ca') as download:
             with self.assertRaisesRegex(RuntimeError,'cannot be validated'):
                 chain.verified_intermediates('synthetic.invalid')

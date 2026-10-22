@@ -7,7 +7,7 @@ from pathlib import Path
 import urllib.parse
 import urllib.request
 
-CA_DOMAINS = ('digicert.com', 'sectigo.com', 'comodoca.com', 'usertrust.com', 'trust-provider.com', 'globalsign.com', 'letsencrypt.org', 'pki.goog', 'zerossl.com', 'entrust.net', 'certum.pl', 'amazontrust.com', 'microsoft.com', 'ssl.com')
+CA_DOMAINS = ('digicert.com', 'sectigo.com', 'comodoca.com', 'usertrust.com', 'trust-provider.com', 'globalsign.com', 'letsencrypt.org', 'lencr.org', 'pki.goog', 'zerossl.com', 'entrust.net', 'certum.pl', 'amazontrust.com', 'microsoft.com', 'ssl.com')
 
 
 def allowed_url(url):
@@ -71,6 +71,9 @@ def verified_intermediates(host):
             urls = re.findall(r'CA Issuers\s*-\s*URI:(\S+)', aia.stdout.decode(errors='replace'))
             candidate = next((u for u in urls if allowed_url(u) and u not in seen), None)
             if candidate is None:
+                issuer=run(['x509','-noout','-issuer','-subject','-dates'],certificates[0])
+                print('FTPS public certificate metadata: '+issuer.stdout.decode(errors='replace').strip())
+                print('FTPS public issuer hosts: '+', '.join(urllib.parse.urlsplit(u).hostname or '' for u in urls))
                 raise RuntimeError('FTPS chain cannot be validated against system roots; obtain the complete trusted chain from the hosting provider.')
             seen.add(candidate)
             current = download_ca(candidate)
