@@ -20,6 +20,12 @@ public sealed class SubmissionTests
         var error=Assert.ThrowsExactly<ApiError>(()=>SubmissionChoices.CheckVersion(d,new JsonObject { ["version"]=1 }));Assert.AreEqual(409,error.Status);
         SubmissionChoices.CheckVersion(new JsonObject(),new JsonObject { ["version"]=1 });
     }
+    [TestMethod] public void PublicLookupExposesOnlyCurrentChoiceFields()
+    {
+        var d=new JsonObject { ["id"]="receipt",["iqama"]="2000000888",["name"]="Synthetic Rider",["workSystem"]="tiers",["editTokenHash"]="old-hash",["iban"]="private",["phone"]="private",["reviewNote"]="private",["history"]=new JsonArray() };
+        var result=SubmissionChoices.ChoiceView(d);Assert.IsTrue(result.B("alreadySubmitted"));Assert.AreEqual("Synthetic Rider",result.S("name"));Assert.AreEqual("tiers",result.S("currentChoice"));Assert.AreEqual(1,SubmissionChoices.Version(result));Assert.AreEqual(6,result.Count);
+        foreach(string field in new[]{"id","receipt","editTokenHash","iban","phone","reviewNote","history"})Assert.IsFalse(result.ContainsKey(field));
+    }
     [TestMethod] public void AdministrativeProjectionNeverExposesEditCredential()
     {
         var d=new JsonObject { ["id"]="synthetic",["editTokenHash"]="secret",["history"]=new JsonArray() };
