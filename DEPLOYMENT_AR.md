@@ -1,6 +1,6 @@
 # النشر التلقائي 0.5.2
 
-بعد دفع main ونجاح جميع اختبارات .NET وSQLite وSQLServer والمتصفح والحزم، يرفع workflow ملفات artifacts/monsterasp/ إلى wwwroot/ باستخدام SamKirkland/FTP-Deploy-Action@v4.3.5 وFTPS صريح على21، مع فحص شهادة TLS. لا يجري النشر من PR أو workflow_dispatch. ملفات المستودع العامة والحزم تستبعد البيانات والأسرار دائمًا.
+بعد دفع main ونجاح جميع اختبارات .NET وSQLite وSQLServer والمتصفح والحزم، يرفع workflow ملفات artifacts/monsterasp/ إلى wwwroot/ باستخدام SamKirkland/FTP-Deploy-Action@v4.3.5 وFTPS صريح على21، مع فحص شهادة TLS واسم الخادم. إذا أغفل الخادم شهادة وسيطة، يستكملها المساعد من نطاق جهة إصدار معروفة، ويتحقق من السلسلة باستخدام جذور النظام واسم الخادم قبل مشاركتها مع أداة Node عبر NODE_EXTRA_CA_CERTS؛ لا يُعطّل التحقق ولا تُضاف جذور غير موثوقة. لا يجري النشر من PR أو workflow_dispatch. ملفات المستودع العامة والحزم تستبعد البيانات والأسرار دائمًا.
 
 تحتاج Repository Actions Secrets التالية، بقيم FTP الموجودة لدى المستخدم فقط، دون وضعها في ملفات أو المحادثة:
 - MONSTERASP_FTP_SERVER: اسم المضيف دون ftp:// أو مسار.

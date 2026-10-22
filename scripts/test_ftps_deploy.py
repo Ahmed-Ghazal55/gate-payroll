@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import monsterasp_ftps as deploy
+import ftps_chain as chain
+from types import SimpleNamespace
 
 
 class FakeFtp:
@@ -99,6 +101,33 @@ class FtpsLifecycleTests(unittest.TestCase):
         with patch.object(deploy.urllib.request, 'urlopen', side_effect=responses) as request:
             deploy.health(wait=lambda _: None)
             self.assertEqual(2, request.call_count)
+
+
+class IntermediateChainTests(unittest.TestCase):
+    def test_issuer_url_allowlist(self):
+        self.assertTrue(chain.allowed_url('http://cacerts.digicert.com/issuer.crt'))
+        for url in ['file:///etc/passwd','http://169.254.169.254/latest/','https://digicert.com.attacker.invalid/a','https://user:password@crt.sectigo.com/a']:
+            self.assertFalse(chain.allowed_url(url))
+
+    def test_omitted_intermediate_must_verify_with_roots_and_hostname(self):
+        leaf=b'-----BEGIN CERTIFICATE-----\nleaf\n-----END CERTIFICATE-----'
+        intermediate=b'-----BEGIN CERTIFICATE-----\nissuer\n-----END CERTIFICATE-----'
+        responses=[SimpleNamespace(returncode=0,stdout=leaf),SimpleNamespace(returncode=1,stdout=b''),SimpleNamespace(returncode=0,stdout=b'CA Issuers - URI:http://crt.sectigo.com/issuer.crt'),SimpleNamespace(returncode=0,stdout=b'OK')]
+        with patch.object(chain,'run',side_effect=responses) as openssl,patch.object(chain,'download_ca',return_value=intermediate):
+            self.assertEqual(intermediate,chain.verified_intermediates('synthetic.invalid'))
+            verification=openssl.call_args_list[-1].args[0]
+            self.assertIn('-untrusted',verification)
+            self.assertEqual('synthetic.invalid',verification[verification.index('-verify_hostname')+1])
+            self.assertEqual('sslserver',verification[verification.index('-purpose')+1])
+            self.assertTrue('-CAfile' in verification or '-CApath' in verification)
+
+    def test_untrusted_chain_never_returns_certificates(self):
+        leaf=b'-----BEGIN CERTIFICATE-----\nleaf\n-----END CERTIFICATE-----'
+        responses=[SimpleNamespace(returncode=0,stdout=leaf),SimpleNamespace(returncode=1,stdout=b''),SimpleNamespace(returncode=0,stdout=b'')]
+        with patch.object(chain,'run',side_effect=responses),patch.object(chain,'download_ca') as download:
+            with self.assertRaisesRegex(RuntimeError,'cannot be validated'):
+                chain.verified_intermediates('synthetic.invalid')
+            download.assert_not_called()
 
 
 if __name__ == '__main__':

@@ -9,6 +9,7 @@ import ssl
 import sys
 import time
 import urllib.request
+from ftps_chain import verified_intermediates
 
 MARKER = 'app_offline.htm'
 PREFIX = b'<!-- Gate Payroll automated deployment -->'
@@ -22,16 +23,36 @@ def connect():
     missing = [name for name, value in zip(names, values) if not value]
     if missing:
         raise RuntimeError('Missing repository secrets: ' + ', '.join(missing))
-    ftp = ftplib.FTP_TLS(context=ssl.create_default_context(), timeout=60)
-    try:
-        ftp.connect(values[0], 21)
-        ftp.login(values[1], values[2])
-        ftp.prot_p()
-        ftp.cwd('wwwroot')  # Fail if the requested existing root is unavailable.
-        return ftp
-    except Exception:
-        ftp.close()
-        raise
+    context=ssl.create_default_context()
+    chain_path=Path('artifacts/ftps-ca-chain.pem')
+    if chain_path.exists():
+        context.load_verify_locations(cafile=str(chain_path))
+    for attempt in range(2):
+        ftp = ftplib.FTP_TLS(context=context, timeout=60)
+        try:
+            ftp.connect(values[0], 21)
+            ftp.login(values[1], values[2])
+            ftp.prot_p()
+            ftp.cwd('wwwroot')
+            return ftp
+        except ssl.SSLCertVerificationError as error:
+            ftp.close()
+            if attempt or error.verify_code not in {20,21}:
+                raise
+            chain=verified_intermediates(values[0])
+            if not chain:
+                raise RuntimeError('FTPS certificate verification failed without an omitted intermediate.')
+            chain_path.parent.mkdir(parents=True,exist_ok=True)
+            chain_path.write_bytes(chain)
+            context.load_verify_locations(cafile=str(chain_path))
+            # Share the verified CA intermediates with the requested Node FTPS action.
+            if os.environ.get('GITHUB_ENV'):
+                with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as output:
+                    output.write('NODE_EXTRA_CA_CERTS='+str(chain_path.resolve())+'\n')
+        except Exception:
+            ftp.close()
+            raise
+    raise RuntimeError('FTPS TLS verification did not complete.')
 
 
 def marker_bytes():
