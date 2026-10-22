@@ -33,7 +33,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - name: Install pinned frontend dependencies
-        run: npm ci --prefix RiderForm
+        run: npm ci --no-audit --no-fund --prefix RiderForm
       - name: Fetch pinned fonts and licenses
         run: python3 scripts/fetch_fonts.py
       - name: Verify release source boundaries
@@ -111,3 +111,15 @@ jobs:
       - name: Verify live HTTPS release
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: python3 scripts/monsterasp_ftps.py health
+  ftps-preflight:
+    name: Check FTPS connection (read only)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify FTPS certificate, login and existing root
+        env:
+          MONSTERASP_FTP_SERVER: ${{ secrets.MONSTERASP_FTP_SERVER }}
+          MONSTERASP_FTP_USERNAME: ${{ secrets.MONSTERASP_FTP_USERNAME }}
+          MONSTERASP_FTP_PASSWORD: ${{ secrets.MONSTERASP_FTP_PASSWORD }}
+        run: python3 scripts/monsterasp_ftps.py check

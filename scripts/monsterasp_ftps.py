@@ -115,11 +115,14 @@ def main():
     if command == 'health':
         health()
         return
-    if command not in {'prepare', 'finish'}:
-        raise RuntimeError('Use prepare, finish or health.')
+    if command not in {'prepare', 'finish', 'check'}:
+        raise RuntimeError('Use check, prepare, finish or health.')
     ftp = connect()
     try:
-        (prepare if command == 'prepare' else finish)(ftp)
+        if command == 'check':
+            print('PASS verified FTPS TLS/login/existing root; no files changed.')
+        else:
+            (prepare if command == 'prepare' else finish)(ftp)
     finally:
         ftp.close()
 
@@ -129,6 +132,6 @@ if __name__ == '__main__':
         main()
     except Exception as error:
         # Never log credentials, URLs containing them, or remote private filenames.
-        detail = str(error) if isinstance(error, RuntimeError) else type(error).__name__
+        detail = ('TLS certificate verification '+str(error.verify_code)+': '+error.verify_message) if isinstance(error, ssl.SSLCertVerificationError) else str(error) if isinstance(error, RuntimeError) else type(error).__name__
         print('Deployment lifecycle failed: ' + detail, file=sys.stderr)
         sys.exit(1)
