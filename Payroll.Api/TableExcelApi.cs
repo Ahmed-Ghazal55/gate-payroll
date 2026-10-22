@@ -14,7 +14,7 @@ public static class TableExcelApi
 {
     public static ExcelColumn[] Columns(string kind) => kind switch
     {
-        "choices" => [new("رقم الإقامة", Identity: true), new("الاسم الكامل"), new("نظام العمل", Choices: ["نظام الراتب الجديد", "نظام العمولة السابق"])],
+        "choices" => [new("رقم الإقامة", Identity: true), new("الاسم الكامل"), new("نظام العمل", Choices: ["نظام الراتب الجديد", "نظام العمولة السابق"]), new("المدينة"), new("الجوال")],
         "riders" => [new("رقم الإقامة", Identity: true), new("الاسم الكامل"), new("الجوال"), new("المدينة"), new("معرف سياسة الحساب"), new("الجنسية"), new("نوع العلاقة", Choices:["SponsoredInternal","External"]), new("الكفيل"), new("نوع المركبة", Choices:["Car","Motorcycle"]), new("الحالة", Choices:["Active","OnLeave","Archived","NeedsReview"])],
         "work" => new[] { "sourceRef", "iqama", "name", "accountId", "from", "to", "orders", "platformRevenue", "riderPay", "isValid", "company", "city" }.Select(h => new ExcelColumn(h, h is "orders" or "platformRevenue" or "riderPay", h == "isValid" ? ["true", "false"] : null, h == "iqama")).ToArray(),
         _ => throw new ApiError("لا يوجد مخطط استيراد معتمد لهذا الجدول.", 404)
@@ -25,7 +25,7 @@ public static class TableExcelApi
 
     public static void Map(RouteGroupBuilder api, Store store)
     {
-        api.MapGet("/excel/{kind}/template", (string kind) => Results.File(ExcelFiles.Write(Columns(kind), []), ExcelFiles.Mime, $"{kind}-template-v2.xlsx"));
+        api.MapGet("/excel/{kind}/template", (string kind) => Results.File(ExcelFiles.Write(Columns(kind), []), ExcelFiles.Mime, $"{kind}-template-v3.xlsx"));
         api.MapPost("/excel/export", (JsonObject input) =>
         {
             var headers = (input["headers"] as JsonArray)?.Select(x => x?.ToString() ?? "").ToArray() ?? [];
@@ -98,6 +98,8 @@ public static class TableExcelApi
         var sheet = sheets[0];
         bool legacyRiders = kind == "riders" && sheet.Rows.Count>0 && sheet.Rows[0].Select(x=>x.Trim()).SequenceEqual(Columns(kind).Take(5).Select(x=>x.Header));
         if (legacyRiders) columns=columns.Take(5).ToArray();
+        bool legacyChoices=kind=="choices" && sheet.Rows.Count>0 && sheet.Rows[0].Select(x=>x.Trim()).SequenceEqual(Columns(kind).Take(3).Select(x=>x.Header));
+        if(legacyChoices)columns=columns.Take(3).ToArray();
         J.Need(sheet.Rows.Count > 0 && sheet.Rows[0].Select(h => h.Trim()).SequenceEqual(columns.Select(x => x.Header)), "عناوين أو ترتيب الأعمدة مختلف عن القالب المعتمد. نزّل القالب دون تغيير رأس الجدول.");
         string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(kind + "|v1|" + campaignId + "|" + Convert.ToHexString(SHA256.HashData(bytes)))));
         var rows = new List<ImportRow>(); var errors = new List<ImportIssue>(); var seen = new HashSet<string>();
@@ -117,7 +119,13 @@ public static class TableExcelApi
                 J.Need(seen.Add(choice.Iqama), "إقامة مكررة داخل الملف.");
                 J.Need(!existing.Contains(choice.Iqama), "الإقامة مسجلة بالفعل في هذا الجدول/الحملة؛ الاستيراد لا يستبدل السجلات الحالية.");
                 JsonObject doc = new() { ["iqama"] = choice.Iqama, ["name"] = choice.Name };
-                if (kind == "choices") doc["workSystem"] = choice.WorkSystem;
+                if (kind == "choices") {
+                    doc["workSystem"]=choice.WorkSystem;
+                    var campaign=Store.Get(c,campaignId,"campaign",tx)!;
+                    var extra=new JsonObject();
+                    if(!legacyChoices)foreach(var pair in new[]{("city",Value(3)),("phone",Value(4))})if(pair.Item2!=""||CampaignOperations.Fields(campaign).Contains(pair.Item1))extra[pair.Item1]=pair.Item2;
+                    var answers=CampaignOperations.Answers(campaign,extra);foreach(var field in answers)doc[field.Key]=field.Value?.DeepClone();
+                }
                 else
                 {
                     J.Iqama(choice.Iqama); string policy = Value(4);

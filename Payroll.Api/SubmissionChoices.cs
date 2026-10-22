@@ -19,7 +19,7 @@ public static class SubmissionChoices
     {
         var history=d["history"] as JsonArray;
         if (history==null) { history=new JsonArray(); d["history"]=history; }
-        history.Add(new JsonObject { ["workSystem"]=d.S("workSystem"),["name"]=d.S("name"),["submittedAt"]=d.S("updatedAt",d.S("createdAt")),["version"]=Version(d),["status"]=d.S("status"),["reviewNote"]=d.S("reviewNote"),["reviewedAt"]=d.S("reviewedAt"),["reviewedBy"]=d.S("reviewedBy") });
+        history.Add(new JsonObject { ["workSystem"]=d.S("workSystem"),["name"]=d.S("name"),["submittedAt"]=d.S("updatedAt",d.S("createdAt")),["version"]=Version(d),["status"]=d.S("status"),["reviewNote"]=d.S("reviewNote"),["reviewedAt"]=d.S("reviewedAt"),["reviewedBy"]=d.S("reviewedBy"),["city"]=d.S("city"),["phone"]=d.S("phone") });
         d["name"]=choice.Name;d["workSystem"]=choice.WorkSystem;d["version"]=Version(d)+1;d["isEdited"]=true;d["status"]="pending";d["updatedAt"]=DateTimeOffset.UtcNow.ToString("O");
         foreach(string field in new[]{"reviewNote","reviewedAt","reviewedBy"})d.Remove(field);
     }
@@ -44,7 +44,10 @@ public static class SubmissionChoices
         J.Need(System.Text.RegularExpressions.Regex.IsMatch(iqama,"^[0-9]{10}$"),"رقم الإقامة يجب أن يكون10أرقام إنجليزية فقط.");return iqama;
     }
     static JsonObject? Find(DbConnection c,DbTransaction tx,JsonObject campaign,string iqama) => Store.List(c,"submission",tx).SingleOrDefault(d=>d.S("campaignId")==campaign.S("id") && d.S("iqama")==iqama);
-    public static JsonObject ChoiceView(JsonObject d) => new() { ["alreadySubmitted"]=true,["iqama"]=d.S("iqama"),["name"]=d.S("name"),["currentChoice"]=d.S("workSystem"),["version"]=Version(d),["message"]="سبق لك تسجيل اختيار. يمكنك تعديله أدناه مباشرة." };
+    public static JsonObject ChoiceView(JsonObject d,JsonObject? campaign=null)
+    { var result=new JsonObject() { ["alreadySubmitted"]=true,["iqama"]=d.S("iqama"),["name"]=d.S("name"),["currentChoice"]=d.S("workSystem"),["version"]=Version(d),["message"]="سبق لك تسجيل اختيار. يمكنك تعديله أدناه مباشرة." };
+        foreach(string f in campaign==null?[]:CampaignOperations.Fields(campaign))result[f]=d.S(f);return result;
+    }
     static JsonObject Receipt(JsonObject d) => new() { ["receipt"]=d.S("id"),["iqama"]=d.S("iqama"),["name"]=d.S("name"),["workSystem"]=d.S("workSystem"),["isEdited"]=d.B("isEdited"),["version"]=Version(d),["status"]=d.S("status"),["submittedAt"]=d.S("updatedAt",d.S("createdAt")),["message"]=d.B("isEdited")?"تم تعديل اختيارك بنجاح.":"تم تسجيل اختيارك بنجاح." };
     public static void Map(WebApplication app,Store store,Func<string,JsonObject> campaignLookup)
     {
@@ -53,16 +56,18 @@ public static class SubmissionChoices
         app.MapPost("/api/public/forms/{token}/lookup",(string token,JsonObject input)=>
         {
             J.Need(input.All(p=>p.Key=="iqama"),"حقول الاستعلام غير صحيحة.");string iqama=Iqama(input);var campaign=campaignLookup(token);
-            return store.Write<IResult>((c,tx)=>{Open(c,tx,campaign);var d=Find(c,tx,campaign,iqama);return Results.Ok(d==null?new JsonObject { ["alreadySubmitted"]=false,["iqama"]=iqama }:ChoiceView(d));},invalidateSummaries:false);
+            return store.Write<IResult>((c,tx)=>{campaign=Open(c,tx,campaign);var d=Find(c,tx,campaign,iqama);return Results.Ok(d==null?new JsonObject { ["alreadySubmitted"]=false,["iqama"]=iqama }:ChoiceView(d,campaign));},invalidateSummaries:false);
         }).RequireRateLimiting("sensitive");
         app.MapPost("/api/public/forms/{token}",(string token,JsonObject input)=>
         {
-            var campaign=campaignLookup(token);var choice=WorkChoices.Validate(input);
+            var campaign=campaignLookup(token);var choice=WorkChoices.Validate(new JsonObject(input.Where(p=>p.Key is not ("city" or "phone")).Select(p=>new KeyValuePair<string,JsonNode?>(p.Key,p.Value?.DeepClone()))));
             return store.Write<IResult>((c,tx)=>
             {
-                Open(c,tx,campaign);var existing=Find(c,tx,campaign,choice.Iqama);
-                if(existing!=null)return Results.Json(ChoiceView(existing),statusCode:409);
+                campaign=Open(c,tx,campaign);var existing=Find(c,tx,campaign,choice.Iqama);
+                if(existing!=null)return Results.Json(ChoiceView(existing,campaign),statusCode:409);
+                var answers=CampaignOperations.Answers(campaign,input);
                 var d=new JsonObject { ["id"]=Guid.NewGuid().ToString("N"),["campaignId"]=campaign.S("id"),["schema"]="work-choice-v1",["iqama"]=choice.Iqama,["name"]=choice.Name,["workSystem"]=choice.WorkSystem,["status"]="pending",["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["version"]=1,["isEdited"]=false,["history"]=new JsonArray() };
+                foreach(var field in answers)d[field.Key]=field.Value?.DeepClone();
                 Store.Save(c,"submission",d,tx);Store.Audit(c,tx,"submission.received",d.S("id"),"public-form");return Results.Ok(Receipt(d));
             });
         }).RequireRateLimiting("sensitive");
@@ -75,14 +80,14 @@ public static class SubmissionChoices
         app.MapPost("/api/public/forms/{token}/edit",(string token,JsonObject input)=>
         {
             // editToken is accepted but ignored for legacy callers; it is never required or issued.
-            J.Need(input.All(p=>p.Key is "receipt" or "editToken" or "version" or "iqama" or "name" or "workSystem"),"حقول طلب التعديل غير صحيحة.");
+            J.Need(input.All(p=>p.Key is "receipt" or "editToken" or "version" or "iqama" or "name" or "workSystem" or "city" or "phone"),"حقول طلب التعديل غير صحيحة.");
             var campaign=campaignLookup(token);var choice=WorkChoices.Validate(new JsonObject { ["iqama"]=input.S("iqama"),["name"]=input.S("name"),["workSystem"]=input.S("workSystem") });
             return store.Write((c,tx)=>
             {
-                Open(c,tx,campaign);var d=Find(c,tx,campaign,choice.Iqama)??throw new ApiError("لم يتم العثور على رد سابق لتعديله.",404);
+                campaign=Open(c,tx,campaign);var answers=CampaignOperations.Answers(campaign,input);var d=Find(c,tx,campaign,choice.Iqama)??throw new ApiError("لم يتم العثور على رد سابق لتعديله.",404);
                 J.Need(input.S("receipt")=="" || input.S("receipt")==d.S("id"),"رقم الإيصال لا يطابق الإقامة والحملة.");CheckVersion(d,input);
-                bool changed=d.S("name")!=choice.Name || d.S("workSystem")!=choice.WorkSystem;
-                if(changed){ArchiveAndEdit(d,choice);Store.Audit(c,tx,"submission.edited",d.S("id"),"public-form");Store.Save(c,"submission",d,tx);}
+                bool changed=d.S("name")!=choice.Name || d.S("workSystem")!=choice.WorkSystem || answers.Any(p=>d.S(p.Key)!=p.Value?.ToString());
+                if(changed){ArchiveAndEdit(d,choice);foreach(var field in answers)d[field.Key]=field.Value?.DeepClone();Store.Audit(c,tx,"submission.edited",d.S("id"),"public-form");Store.Save(c,"submission",d,tx);}
                 return Results.Ok(Receipt(d));
             });
         }).RequireRateLimiting("sensitive");
