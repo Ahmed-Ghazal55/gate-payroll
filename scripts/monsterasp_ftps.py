@@ -86,7 +86,7 @@ def protected_fingerprint(ftp):
     entries = []
 
     def walk(directory):
-        for name, facts in ftp.mlsd(directory, facts=['type', 'size', 'modify']):
+        for name, facts in ftp.mlsd(directory):
             if name in {'.', '..'} or facts.get('type') in {'cdir', 'pdir'}:
                 continue
             path = directory + '/' + name
@@ -94,7 +94,7 @@ def protected_fingerprint(ftp):
             if facts.get('type') == 'dir':
                 walk(path)
 
-    for name, facts in ftp.mlsd(facts=['type', 'size', 'modify']):
+    for name, facts in ftp.mlsd():
         if name.lower() == 'app_data':
             walk(name)
         elif name.lower() == 'appsettings.local.json':
@@ -106,12 +106,22 @@ def prepare(ftp, wait=time.sleep):
     previous = read_marker(ftp)
     if previous is not None and not previous.startswith(PREFIX):
         raise RuntimeError('An operator maintenance marker already exists; it was not changed.')
+    # Verify metadata capability before taking a live application offline.
+    protected_fingerprint(ftp)
     marker = marker_bytes()
-    ftp.storbinary('STOR ' + MARKER, io.BytesIO(marker))
-    # Allow IIS graceful shutdown and pending database writes to finish.
-    wait(15)
-    STATE.parent.mkdir(parents=True, exist_ok=True)
-    STATE.write_text(json.dumps({'marker_sha256': hashlib.sha256(marker).hexdigest(), 'protected': protected_fingerprint(ftp)}))
+    try:
+        ftp.storbinary('STOR ' + MARKER, io.BytesIO(marker))
+        wait(15)
+        STATE.parent.mkdir(parents=True, exist_ok=True)
+        STATE.write_text(json.dumps({'marker_sha256': hashlib.sha256(marker).hexdigest(), 'protected': protected_fingerprint(ftp)}))
+    except Exception:
+        # No application files have been transferred during prepare. Restore prior availability.
+        if read_marker(ftp) == marker:
+            if previous is None:
+                ftp.delete(MARKER)
+            else:
+                ftp.storbinary('STOR ' + MARKER, io.BytesIO(previous))
+        raise
     print('PASS FTPS preflight and IIS maintenance marker; protected metadata recorded.')
 
 
@@ -163,6 +173,9 @@ if __name__ == '__main__':
         main()
     except Exception as error:
         # Never log credentials, URLs containing them, or remote private filenames.
-        detail = ('TLS certificate verification '+str(error.verify_code)+': '+error.verify_message) if isinstance(error, ssl.SSLCertVerificationError) else str(error) if isinstance(error, RuntimeError) else type(error).__name__
+        detail = ('TLS certificate verification '+str(error.verify_code)+': '+error.verify_message) if isinstance(error, ssl.SSLCertVerificationError) else str(error) if isinstance(error, (RuntimeError,ftplib.error_perm)) else type(error).__name__
+        for name in ['MONSTERASP_FTP_SERVER','MONSTERASP_FTP_USERNAME','MONSTERASP_FTP_PASSWORD']:
+            value=os.environ.get(name,'')
+            if value: detail=detail.replace(value,'[redacted]')
         print('Deployment lifecycle failed: ' + detail, file=sys.stderr)
         sys.exit(1)

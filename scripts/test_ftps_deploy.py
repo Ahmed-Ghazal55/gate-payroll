@@ -61,6 +61,28 @@ class FtpsLifecycleTests(unittest.TestCase):
         self.assertEqual(before, self.ftp.files)
         self.assertEqual(['app_offline.htm', 'app_offline.htm'], self.ftp.writes)
 
+    def test_metadata_uses_default_facts_without_unsupported_opts(self):
+        original=self.ftp.mlsd
+        def no_opts(directory='',facts=None):
+            if facts: raise ftplib.error_perm('500 OPTS MLST not supported')
+            return original(directory)
+        with patch.object(self.ftp,'mlsd',side_effect=no_opts):
+            deploy.prepare(self.ftp,wait=lambda _:None)
+            deploy.finish(self.ftp)
+        self.assertNotIn(deploy.MARKER,self.ftp.files)
+
+    def test_metadata_failure_does_not_take_site_offline(self):
+        with patch.object(deploy,'protected_fingerprint',side_effect=ftplib.error_perm('500 Unsupported command')):
+            with self.assertRaises(ftplib.error_perm): deploy.prepare(self.ftp,wait=lambda _:None)
+        self.assertEqual([],self.ftp.writes)
+        self.assertNotIn(deploy.MARKER,self.ftp.files)
+
+    def test_prepare_failure_after_shutdown_restores_service(self):
+        with patch.object(deploy,'protected_fingerprint',side_effect=['before',ftplib.error_perm('500 Unsupported command')]):
+            with self.assertRaises(ftplib.error_perm): deploy.prepare(self.ftp,wait=lambda _:None)
+        self.assertNotIn(deploy.MARKER,self.ftp.files)
+        self.assertEqual(['app_offline.htm','app_offline.htm'],self.ftp.writes)
+
     def test_operator_marker_is_preserved(self):
         self.ftp.files[deploy.MARKER] = b'Manual maintenance'
         with self.assertRaisesRegex(RuntimeError, 'operator'):
