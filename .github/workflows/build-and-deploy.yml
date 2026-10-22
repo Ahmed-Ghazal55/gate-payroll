@@ -113,7 +113,7 @@ jobs:
         run: python3 scripts/monsterasp_ftps.py health
   ftps-preflight:
     name: Check FTPS connection (read only)
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

@@ -106,6 +106,7 @@ class FtpsLifecycleTests(unittest.TestCase):
 class IntermediateChainTests(unittest.TestCase):
     def test_issuer_url_allowlist(self):
         self.assertTrue(chain.allowed_url('http://cacerts.digicert.com/issuer.crt'))
+        self.assertTrue(chain.allowed_url('http://r11.i.lencr.org/'))
         for url in ['file:///etc/passwd','http://169.254.169.254/latest/','https://digicert.com.attacker.invalid/a','https://user:password@crt.sectigo.com/a']:
             self.assertFalse(chain.allowed_url(url))
 
@@ -123,7 +124,7 @@ class IntermediateChainTests(unittest.TestCase):
 
     def test_untrusted_chain_never_returns_certificates(self):
         leaf=b'-----BEGIN CERTIFICATE-----\nleaf\n-----END CERTIFICATE-----'
-        responses=[SimpleNamespace(returncode=0,stdout=leaf),SimpleNamespace(returncode=1,stdout=b''),SimpleNamespace(returncode=0,stdout=b'')]
+        responses=[SimpleNamespace(returncode=0,stdout=leaf),SimpleNamespace(returncode=1,stdout=b''),SimpleNamespace(returncode=0,stdout=b''),SimpleNamespace(returncode=0,stdout=b'issuer=Synthetic Test CA')]
         with patch.object(chain,'run',side_effect=responses),patch.object(chain,'download_ca') as download:
             with self.assertRaisesRegex(RuntimeError,'cannot be validated'):
                 chain.verified_intermediates('synthetic.invalid')
