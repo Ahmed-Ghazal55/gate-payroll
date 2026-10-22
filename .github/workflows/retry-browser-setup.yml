@@ -1,0 +1,45 @@
+name: Recover stalled v0.5.3 browser setup
+on:
+  push:
+    branches: [ops/retry-v053-browser]
+permissions:
+  actions: write
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Cancel only stalled browser setup before any production deployment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,datetime
+          base='https://api.github.com/repos/Ahmed-Ghazal55/gate-payroll'
+          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+          def call(path,post=False):
+              req=urllib.request.Request(base+path,data=b'' if post else None,headers=headers,method='POST' if post else 'GET')
+              with urllib.request.urlopen(req,timeout=30) as response:
+                  data=response.read()
+                  return json.loads(data) if data else {}
+          run=call('/actions/runs/39772919257')
+          if run['status']!='in_progress' or run['head_sha']!='76e5819d0c72546f8f2e66270b8b926ce82f6511':
+              print('No recovery needed: the exact target run is no longer active.')
+          else:
+              jobs=call('/actions/runs/39772919257/jobs')['jobs']
+              job=next(j for j in jobs if j['name']=='validate')
+              steps=job['steps']
+              current=next((s for s in steps if s['status']=='in_progress'),None)
+              production=[s for s in steps if s['name'] in ['Prepare IIS for deployment','🚀 Deploy to MonsterASP via FTPS','Resume IIS and verify preserved runtime files','Verify live HTTPS release']]
+              if not current or current['name']!='Browser installation' or len(production)!=4 or any(s['status']!='pending' for s in production):
+                  print('Recovery skipped: setup progressed or a production stage may have started.')
+              else:
+                  start=datetime.datetime.fromisoformat(current['started_at'].replace('Z','+00:00'))
+                  elapsed=(datetime.datetime.now(datetime.timezone.utc)-start).total_seconds()
+                  if elapsed<600:
+                      print('Recovery skipped: browser setup has not exceeded ten minutes.')
+                  else:
+                      call('/actions/runs/39772919257/cancel',post=True)
+                      print('PASS requested cancellation of exact stalled setup after '+str(int(elapsed))+' seconds; all production stages were pending.')
+          PY
