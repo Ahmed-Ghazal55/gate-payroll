@@ -67,7 +67,7 @@ app.Use(async (ctx, next) =>
     { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(new { error = "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا." }); }
 });
 app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
-app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = "0.5.3" });
+app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = "0.5.4" });
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName });
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
 {
@@ -221,6 +221,7 @@ api.MapGet("/audit", () => store.Read(c => Store.List(c, "audit")));
 app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = "work-choice-v1", fields=CampaignOperations.Fields(d) }); }).RequireRateLimiting("sensitive");
 SubmissionChoices.Map(app, store, Campaign);
 CampaignOperations.Map(api,store);
+FormDeletion.Map(api,store);
 app.MapGet("/forms/{token}", (string token) => { Campaign(token); return Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.html"), "text/html; charset=utf-8"); });
 app.MapGet("/rider-form.js", () => Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.js"), "text/javascript; charset=utf-8"));
 app.MapGet("/", () => Results.File(Path.Combine(app.Environment.WebRootPath, "index.html"), "text/html; charset=utf-8"));

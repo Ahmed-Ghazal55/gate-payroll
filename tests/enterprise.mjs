@@ -18,7 +18,7 @@ const password=randomBytes(24).toString('hex');let adminCookie='';
 async function put(route,body,expected=200){const r=await fetch(base+route,{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)});const d=await r.json();assert.equal(r.status,expected,JSON.stringify(d));checks++;return d;}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
- assert.equal((await req('/health',undefined,200,false)).version,'0.5.3');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.5.4');
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
  const accountant=await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
  const reviewer=await req('/api/users',{username:'test-reviewer',password,role:'Reviewer'});
