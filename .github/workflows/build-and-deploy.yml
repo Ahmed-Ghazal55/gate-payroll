@@ -58,6 +58,7 @@ jobs:
         run: |
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/integration.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/enterprise.mjs
+          PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/submissions.mjs
       - name: Publish MonsterASP bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r win-x64 --self-contained true -o artifacts/monsterasp --nologo
       - name: Validate deployment payload

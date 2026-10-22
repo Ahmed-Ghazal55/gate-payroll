@@ -44,7 +44,7 @@ async function scenario(secret, expectedSetup, port) {
     const payload={iqama:'2000000999',name:'Release Rider',workSystem:'tiers'};
     assert.equal((await request(endpoint,{...payload,iqama:'٢٠٠٠٠٠٠٩٩٩'})).status,400);
     assert.equal((await request(endpoint,payload)).status,200);
-    assert.equal((await request(endpoint,payload)).status,400);
+    assert.equal((await request(endpoint,payload)).status,409);
     const responses=await request('/api/submissions',undefined,{Cookie:session});const rows=await responses.json();assert.equal(rows.length,1);assert.equal(rows[0].status,'pending');
     const riders=await request('/api/riders',undefined,{Cookie:session});assert.deepEqual(await riders.json(),[]);
     assert.equal((await request('/api/submissions')).status,401);
