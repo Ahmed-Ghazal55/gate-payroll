@@ -1,0 +1,49 @@
+name: Recover failed IIS prepare
+on:
+  push:
+    branches: [ops/recover-prepare]
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Remove only the failed prepare marker and probe FTP metadata commands
+        env:
+          MONSTERASP_FTP_SERVER: ${{ secrets.MONSTERASP_FTP_SERVER }}
+          MONSTERASP_FTP_USERNAME: ${{ secrets.MONSTERASP_FTP_USERNAME }}
+          MONSTERASP_FTP_PASSWORD: ${{ secrets.MONSTERASP_FTP_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import sys,urllib.request,json
+          sys.path.insert(0,'scripts')
+          import monsterasp_ftps as deploy
+          ftp=deploy.connect()
+          try:
+              marker=deploy.read_marker(ftp)
+              expected=deploy.PREFIX+('\n<!-- 39713267843:2 -->\n<!doctype html><meta charset="utf-8"><title>Gate Payroll</title><p>جاري تحديث الموقع. Please try again shortly.</p>').encode()
+              if marker is None:
+                  print('PASS no maintenance marker present.')
+              elif marker==expected:
+                  ftp.delete(deploy.MARKER)
+                  print('PASS removed exactly the failed prepare marker; no application or data files changed.')
+              else:
+                  raise RuntimeError('Marker belongs to another operation; left unchanged.')
+              for label,operation in [('MLSD facts',lambda:list(ftp.mlsd(facts=['type','size','modify']))),('MLSD default',lambda:list(ftp.mlsd())),('NLST',lambda:ftp.nlst())]:
+                  try:
+                      entries=operation()
+                      print('FTP capability '+label+': success ('+str(len(entries))+' entries; names not logged).')
+                  except Exception as error:
+                      message=str(error)
+                      import os
+                      for key in ['MONSTERASP_FTP_SERVER','MONSTERASP_FTP_USERNAME','MONSTERASP_FTP_PASSWORD']:
+                          value=os.environ.get(key,'')
+                          if value: message=message.replace(value,'[redacted]')
+                      print('FTP capability '+label+': '+type(error).__name__+' '+message)
+          finally: ftp.close()
+          try:
+              with urllib.request.urlopen(deploy.HEALTH,timeout=30) as response: result=json.load(response)
+              print('RESTORED HEALTH '+json.dumps({k:result.get(k) for k in ['ok','version']}))
+          except Exception as error: print('Health recheck: '+type(error).__name__)
+          PY
