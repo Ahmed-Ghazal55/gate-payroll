@@ -23,6 +23,7 @@ dotnet build Payroll.Api/Payroll.Api.csproj --warnaserror
 dotnet test tests/Engine.Tests/Engine.Tests.csproj
 node tests/integration.mjs
 node tests/enterprise.mjs
+node tests/submissions.mjs
 node tests/production.mjs
 python3 scripts/release_source.py --check
 ```
