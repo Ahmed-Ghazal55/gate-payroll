@@ -52,7 +52,7 @@ public static class TableExcelApi
             {
                 var doc = row.Data.Clone();
                 doc["id"] = kind == "choices" ? Guid.NewGuid().ToString("N") : doc.S("iqama");
-                if(kind=="choices") doc["status"]="pending"; else if(doc.S("status")=="") doc["status"]="needs_review";
+                if(kind=="choices") { doc["status"]="pending"; doc["version"]=1; doc["isEdited"]=false; doc["history"]=new JsonArray(); } else if(doc.S("status")=="") doc["status"]="needs_review";
                 doc["createdAt"] = now; doc["importBatchId"] = batchId;
                 if (kind == "choices") { doc["campaignId"] = input.S("campaignId"); doc["schema"] = "work-choice-v1"; }
                 Store.Save(c, kind == "choices" ? "submission" : "rider", doc, tx);

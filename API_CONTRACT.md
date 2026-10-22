@@ -1,6 +1,6 @@
 # API v0.5.0
 
-Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*` and `/api/public/*`. Errors use `{error:string}` with 400/401/403/404/429/503. No financial mutation from public routes. Source of truth: `Payroll.Api/Program.cs`, `UserAccess.cs`, `DirectoryApi.cs`, `FormBuilder.cs`, `Debts.cs`, `InquiryApi.cs`, `Store.cs`, `Engine.cs`, `Imports.cs`; integration tests are executable request examples.
+Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*` and `/api/public/*`. Errors use `{error:string}` with 400/401/403/404/409/429/503. No financial mutation from public routes. Source of truth: `Payroll.Api/Program.cs`, `UserAccess.cs`, `DirectoryApi.cs`, `FormBuilder.cs`, `Debts.cs`, `InquiryApi.cs`, `Store.cs`, `Engine.cs`, `Imports.cs`; integration tests are executable request examples.
 
 | Flow | Endpoint | Main payload/result |
 |---|---|---|
@@ -21,10 +21,10 @@ Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*
 | Payment | POST `/api/payments` | iqama,period,amount positive,sourceRef unique |
 | Export | GET `/api/payroll/export.csv?period=...` | review CSV, not bank file |
 | Campaign | GET/POST `/api/campaigns`; POST `/{id}/close` | title,days1..30 → id,path persistent publicUrl + qrCodeUrl; sharing token retained,expiresAt |
-| Responses | GET `/api/submissions`; POST `/{id}/review` | status approved/rejected,note,identityReviewed,ibanOwnershipReviewed if IBAN provided |
+| Responses | GET `/api/submissions`; POST `/{id}/review` | status approved/rejected, optional note (empty by default), version (displayed revision), identityReviewed (approval accepts omission, rejects explicit false), ibanOwnershipReviewed required if legacy IBAN provided |
 | Audit | GET `/api/audit` | all stored actor/action/entity/time |
 | Public form | GET `/forms/{token}`; GET `/api/public/forms/{token}` | form HTML / title,expiresAt,schema:work-choice-v1; no existing rider information |
-| Public submit | POST `/api/public/forms/{token}` | name,iqama,workSystem only → receipt,message; extra fields reject |
+| Public submit | POST `/api/public/forms/{token}` | name,iqama,workSystem only → receipt,editToken,version,message; private duplicate prompt409; extra fields reject |
 
 Public workSystem values: `tiers` = نظام الراتب الجديد / `commission` = نظام العمولة السابق. No third choice, no default, no consent input. Public iqama is a 10-character ASCII digit string; Arabic/Persian digits reject instead of normalization. Name 3..150 characters, at least two parts, Arabic/English letters and spaces, whitespace normalized. Duplicate `(campaignId, iqama)` rejects. Existing name/phone/IBAN records never exposed by public API. Approval preserves existing private rider data and records workPreference only, without assigning policyId.
 
@@ -62,3 +62,14 @@ All administrative endpoints require the live account to be active. Roles are ch
 | Storage | Absent ConnectionStrings:DefaultConnection → SQLite WAL; configured valid string → SQL Server. Invalid configured SQL fails closed, never silently selects another database. Private operator snapshot tool under tools/StoreMigration. |
 
 RBAC matrix, data compatibility, financial posting and operational limits: UPGRADE_V05_AR.md. Public collection form remains the original three-field contract with AR/EN/UR rendering and an informational reference modal following the confirmed existing commission policy.
+
+## Response revisions (0.5.1)
+
+- POST `/api/public/forms/{token}` still accepts **only** `iqama,name,workSystem`. First submission returns `receipt,editToken,version:1`; store the edit capability securely. The server stores only its SHA-256 hash. A duplicate returns HTTP409 `{alreadySubmitted:true,message}` without exposing another rider's receipt, name or choice.
+- POST `/api/public/forms/{token}/resume` accepts `receipt,editToken` and returns the owner's current `iqama,name,workSystem,version,isEdited` and capability. No public lookup by Iqama. Receipts issued before0.5.1 are random128-bit capabilities: receipt-only recovery is accepted only while no edit hash exists, then upgraded to a256-bit edit code atomically. Once upgraded, the edit code is required. Lost capabilities require administrative identity review; there is no public bypass.
+- POST `/api/public/forms/{token}/edit` accepts `iqama,name,workSystem,receipt,editToken,version`. Iqama cannot change. The authenticated capability must belong to this campaign and response. Both resume and edit reject closed/expired campaigns and are rate limited. A supplied stale version returns409; the current UI always supplies it. Identical retries preserve the existing version and review.
+- A changed answer updates the **same** record, increments `version`, sets `isEdited:true,status:pending,updatedAt`, and appends the former name, choice, version, timestamp, status, reviewer and optional note to `history`. Former review metadata leaves the current record; `submission.edited` audit and record changes share one transaction. No revisions are discarded.
+- GET `/api/submissions` and review responses omit `editTokenHash`. Admin and Reviewer may review; Accountant cannot. Quick approval includes the displayed version and explicit identity confirmation; legacy IBAN ownership still requires detail review. Optional notes default to empty.
+- History is review evidence, not a payroll recalculation. Pending edits do not change the previously accepted rider preference; a subsequent approval updates it. Payroll policy, approved runs and financial ledgers remain untouched.
+- Public sessionStorage holds only the receipt/edit capability, scoped by campaign. Personal answers stay in memory and are fetched only after capability verification. Success screen includes the edit button and private code for cross-device recovery. AR/EN/UR edit/duplicate/recovery/error messages are localized.
+- Responses grid exports explicit edit flag, numeric version, update time and optional review note. Status chips combine with all column filters; filtered XLSX/CSV excludes action controls. The three-field input template is unchanged; imports create version1 pending replies.

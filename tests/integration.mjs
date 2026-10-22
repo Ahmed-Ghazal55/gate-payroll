@@ -49,9 +49,9 @@ try{
  await req(pub,{...form,name:'Name123 Rider'},400,false);
  await req(pub,{...form,workSystem:'discuss'},400,false);
  await req(pub,{...form,phone:'0501234567'},400,false);
- const receipt=await req(pub,form,200,false);assert.ok(receipt.receipt);await req(pub,form,400,false);
+ const receipt=await req(pub,form,200,false);assert.ok(receipt.receipt);await req(pub,form,409,false);
  let submissions=await req('/api/submissions');assert.equal(submissions[0].status,'pending');assert.equal((await req('/api/riders'))[0].workPreference,undefined);
- await req(`/api/submissions/${receipt.receipt}/review`,{status:'approved',note:'Test'},400);
+ await req(`/api/submissions/${receipt.receipt}/review`,{status:'approved',note:'Test',identityReviewed:false},400);
  await req(`/api/submissions/${receipt.receipt}/review`,{status:'approved',note:'Synthetic external identity review',identityReviewed:true});
  const rider=(await req('/api/riders'))[0];assert.equal(rider.workPreference,'tiers');assert.equal(rider.policyId,policy.id);assert.equal(rider.phone,'+966501234567');assert.equal(rider.city,'Test');assert.equal(submissions[0].phone,undefined);assert.equal(submissions[0].iban,undefined);
  await req(`/api/campaigns/${campaign.id}/close`,{});await req(pub,undefined,400,false);

@@ -1,6 +1,6 @@
 // Shared table behavior. New grids use table(), not standalone <table> markup.
 let gridSequence = 0;
-const numericTableHeaders = new Set(['الطلبات','المبلغ','رصيد سابق','حركة الشهر','الرصيد الختامي','إيراد المنصة','استحقاق المندوب','الإجمالي','المتبقي','القسط الشهري','الحد الأقصى']);
+const numericTableHeaders = new Set(['الطلبات','المبلغ','رصيد سابق','حركة الشهر','الرصيد الختامي','إيراد المنصة','استحقاق المندوب','الإجمالي','المتبقي','القسط الشهري','الحد الأقصى','النسخة']);
 function renderDataTable(headers:string[],rows:string[]):string {
     const id='grid-'+(++gridSequence);
     return `<section class="data-grid" id="${id}"><div class="grid-toolbar"><span data-grid-count aria-live="polite">${rows.length} من ${rows.length} سجل</span><div class="actions"><button class="secondary" data-grid-export="all">تصدير Excel — الكل</button><button class="secondary" data-grid-export="filtered">تصدير المفلتر</button><button class="secondary" data-grid-csv>تصدير CSV المفلتر</button><button class="ghost" data-grid-clear>مسح الفلاتر</button></div></div><div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th scope="col" data-header="${esc(h)}" data-numeric="${numericTableHeaders.has(h)}">${esc(h)}${h?`<button class="column-filter-toggle ghost" type="button" data-column-menu="${headers.indexOf(h)}" aria-label="خيارات العمود ${esc(h)}">⌄</button>`:''}</th>`).join('')}</tr><tr class="column-filters">${headers.map((h,i)=>`<th>${h?`<input type="search" data-column-filter="${i}" aria-label="فلتر ${esc(h)}" placeholder="فلتر ${esc(h)}" autocomplete="off">`:''}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div><p class="filter-empty hide">لا توجد صفوف تطابق الفلاتر.</p></section>`;
@@ -13,7 +13,7 @@ function filterDataGrid(grid:HTMLElement):void {
     const rows=[...grid.querySelectorAll<HTMLTableRowElement>('tbody>tr')];
     const norm=(text:string)=>text.normalize('NFKC').toLocaleLowerCase('ar').replace(/\s+/g,' ').trim();
     let visible=0;
-    for(const row of rows){row.hidden=!filters.every(f=>!f.value||norm(row.cells[Number(f.dataset.columnFilter)]?.textContent||'').includes(norm(f.value)))||!columnSelectionMatches(grid,row);if(!row.hidden)visible++;}
+    for(const row of rows){const scope=grid.dataset.responseFilter;const scopeMatches=!scope||scope==='all'||(scope==='edited'?row.dataset.responseEdited==='true':row.dataset.responseStatus===scope);row.hidden=!scopeMatches||!filters.every(f=>!f.value||norm(row.cells[Number(f.dataset.columnFilter)]?.textContent||'').includes(norm(f.value)))||!columnSelectionMatches(grid,row);if(!row.hidden)visible++;}
     grid.querySelector<HTMLElement>('[data-grid-count]')!.textContent=`${visible} من ${rows.length} سجل`;
     grid.querySelector('.filter-empty')!.classList.toggle('hide',visible!==0||rows.length===0);
 }
@@ -60,7 +60,7 @@ document.addEventListener('click',async event=>{
         if(button.hasAttribute('data-table-import')){await tableImportDialog(button.dataset.tableImport as 'choices'|'riders');return;}
         const grid=button.closest<HTMLElement>('.data-grid')!;
         if(button.hasAttribute('data-grid-csv')){exportGridCsv(grid);return;}
-        if(button.hasAttribute('data-grid-clear')){columnSelections.delete(grid.id);grid.querySelectorAll<HTMLInputElement>('[data-column-filter]').forEach(input=>input.value='');filterDataGrid(grid);}
+        if(button.hasAttribute('data-grid-clear')){if(grid.dataset.responseFilter){grid.dataset.responseFilter='all';responseFilter='all';$('#response-chips').innerHTML=responseChips();}columnSelections.delete(grid.id);grid.querySelectorAll<HTMLInputElement>('[data-column-filter]').forEach(input=>input.value='');filterDataGrid(grid);}
         else await exportDataGrid(grid,button.dataset.gridExport==='filtered');
     }catch(error){toast(error.message,true);}
 });
