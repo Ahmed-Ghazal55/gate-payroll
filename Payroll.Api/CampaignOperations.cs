@@ -73,6 +73,11 @@ public static class CampaignOperations
             J.Need(input["ids"] is JsonArray,"قائمة الردود غير صحيحة.");var ids=((JsonArray)input["ids"]!).Select(x=>x?.ToString()??"").ToHashSet();
             J.Need(ids.Count is >0 and <=10000 && ids.All(id=>rows.Any(r=>r.S("id")==id)),"تغير نطاق الردود؛ حدّث القائمة قبل المحاولة.");rows=rows.Where(d=>ids.Contains(d.S("id"))).ToList();
         }
+        if(input.ContainsKey("versions"))
+        {
+            J.Need(input["versions"] is JsonObject,"نسخ الردود غير صحيحة.");var versions=(JsonObject)input["versions"]!;
+            foreach(var row in rows){J.Need(versions.ContainsKey(row.S("id")),"أعد تحميل نسخ الردود قبل الإجراء الجماعي.");SubmissionChoices.CheckVersion(row,new(){["version"]=versions[row.S("id")]?.DeepClone()});}
+        }
         return rows;
     }
     public static object Analytics(DbConnection c,string id)

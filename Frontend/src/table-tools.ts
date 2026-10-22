@@ -60,7 +60,7 @@ document.addEventListener('click',async event=>{
         if(button.hasAttribute('data-table-import')){await tableImportDialog(button.dataset.tableImport as 'choices'|'riders');return;}
         const grid=button.closest<HTMLElement>('.data-grid')!;
         if(button.hasAttribute('data-grid-csv')){exportGridCsv(grid);return;}
-        if(button.hasAttribute('data-grid-clear')){if(grid.dataset.responseFilter){grid.dataset.responseFilter='all';responseFilter='all';$('#response-chips').innerHTML=responseChips();}columnSelections.delete(grid.id);grid.querySelectorAll<HTMLInputElement>('[data-column-filter]').forEach(input=>input.value='');filterDataGrid(grid);}
+        if(button.hasAttribute('data-grid-clear')){if(grid.dataset.responseFilter){grid.dataset.responseFilter='all';responseFilter='all';grid.dataset.responseCampaign='';responseCampaign='';if($('#responses-campaign'))$('#responses-campaign').value='';$('#response-chips').innerHTML=responseChips();}columnSelections.delete(grid.id);grid.querySelectorAll<HTMLInputElement>('[data-column-filter]').forEach(input=>input.value='');filterDataGrid(grid);}
         else await exportDataGrid(grid,button.dataset.gridExport==='filtered');
     }catch(error){toast(error.message,true);}
 });

@@ -42,7 +42,7 @@ try{
  for(const role of ['reviewer','accountant']){
   await req('/api/auth/login',{username:'test-'+role,password});await del(a.receipt,403);await req('/api/submissions/bulk-delete',{campaignId:campaign.id,confirm:true},403);await put('/api/campaigns/'+campaign.id,{title:'Forbidden'},403);
   if(role==='accountant')await req('/api/submissions/bulk-approve',{campaignId:campaign.id},403);
-  else {await req('/api/campaigns/'+campaign.id+'/analytics');await req('/api/submissions/bulk-approve',{campaignId:campaign.id,ids:[a.receipt,'missing']},400);assert.equal((await req('/api/submissions')).find(r=>r.id===a.receipt).status,'pending');assert.equal((await req('/api/submissions/bulk-approve',{campaignId:campaign.id})).count,2);assert.equal((await req('/api/submissions/bulk-approve',{campaignId:campaign.id})).count,0);}
+  else {await req('/api/campaigns/'+campaign.id+'/analytics');await req('/api/submissions/bulk-approve',{campaignId:campaign.id,ids:[a.receipt,'missing']},400);assert.equal((await req('/api/submissions')).find(r=>r.id===a.receipt).status,'pending');await req('/api/submissions/bulk-approve',{campaignId:campaign.id,ids:[a.receipt,b.receipt],versions:{[a.receipt]:1,[b.receipt]:1}},409);assert.equal((await req('/api/submissions/bulk-approve',{campaignId:campaign.id})).count,2);assert.equal((await req('/api/submissions/bulk-approve',{campaignId:campaign.id})).count,0);}
  }
  cookie=adminCookie;
  assert.equal((await req('/api/submissions')).find(x=>x.id===untouched.receipt).status,'pending');

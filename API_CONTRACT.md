@@ -84,3 +84,5 @@ RBAC matrix, data compatibility, financial posting and operational limits: UPGRA
 - Public campaign metadata includes `fields` (default empty for older campaigns). Enabled fields are required on create/edit, inactive fields rejected. City max100 characters; phone normalized E.164. Lookup returns enabled submitted values only, never values from the rider directory. Historical versions preserve city/phone; changing either increments version and resets review.
 - Choices Excel template v3 adds city and phone after the canonical three columns. Older three-column files remain compatible for campaigns with no additional required fields. Preview/commit revalidates active fields and campaign state atomically.
 - Campaign analytics denominators are all responses, including unknown classifications. Custom forms have no approval workflow; their KPI cards show that approval/edit counts do not apply.
+
+Bulk requests optionally accept `versions:{id:number}`; the UI supplies each visible row version. Any mismatch aborts the entire operation with409, so a newly edited response cannot be approved or deleted from a stale list. Legacy campaign-only calls remain supported.
