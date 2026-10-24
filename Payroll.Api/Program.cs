@@ -67,7 +67,7 @@ app.Use(async (ctx, next) =>
     { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(new { error = "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا." }); }
 });
 app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
-app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = "0.5.4" });
+app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = "0.5.5" });
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName });
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
 {

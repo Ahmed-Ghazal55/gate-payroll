@@ -5,6 +5,19 @@ function renderDataTable(headers:string[],rows:string[]):string {
     const id='grid-'+(++gridSequence);
     return `<section class="data-grid" id="${id}"><div class="grid-toolbar"><span data-grid-count aria-live="polite">${rows.length} من ${rows.length} سجل</span><div class="actions"><button class="secondary" data-grid-export="all">تصدير Excel — الكل</button><button class="secondary" data-grid-export="filtered">تصدير المفلتر</button><button class="secondary" data-grid-csv>تصدير CSV المفلتر</button><button class="ghost" data-grid-clear>مسح الفلاتر</button></div></div><div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th scope="col" data-header="${esc(h)}" data-numeric="${numericTableHeaders.has(h)}">${esc(h)}${h?`<button class="column-filter-toggle ghost" type="button" data-column-menu="${headers.indexOf(h)}" aria-label="خيارات العمود ${esc(h)}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 4h18l-7 8v8l-4-2v-6z"/></svg></button>`:''}</th>`).join('')}</tr><tr class="column-filters">${headers.map((h,i)=>`<th>${h?`<input type="search" data-column-filter="${i}" aria-label="فلتر ${esc(h)}" placeholder="فلتر ${esc(h)}" autocomplete="off">`:''}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div><p class="filter-empty hide">لا توجد صفوف تطابق الفلاتر.</p></section>`;
 }
+// Refresh a grid after its optional columns change, retaining filters by column name.
+function updateDataGrid(grid:HTMLElement,headers:string[],rows:string[]):void {
+    const oldHeaders=[...grid.querySelectorAll<HTMLElement>('thead>tr:first-child>th')].map(h=>h.dataset.header||'');
+    const oldFilters=new Map([...grid.querySelectorAll<HTMLInputElement>('[data-column-filter]')].map(f=>[oldHeaders[Number(f.dataset.columnFilter)],f.value]));
+    const oldSelections=columnSelections.get(grid.id);
+    const nextSelections=new Map<number,Set<string>>();
+    oldSelections?.forEach((values,index)=>{const next=headers.indexOf(oldHeaders[index]);if(next>=0)nextSelections.set(next,values)});
+    const wrapper=document.createElement('div');wrapper.innerHTML=renderDataTable(headers,rows);
+    grid.innerHTML=wrapper.firstElementChild!.innerHTML;
+    columnSelections.set(grid.id,nextSelections);
+    grid.querySelectorAll<HTMLInputElement>('[data-column-filter]').forEach(f=>f.value=oldFilters.get(headers[Number(f.dataset.columnFilter)])||'');
+    document.querySelector('.column-popover')?.remove();
+}
 function excelControls(kind:'choices'|'riders'):string {
     return `<a class="button secondary" href="/api/excel/${kind}/template">تنزيل قالب Excel</a><button class="secondary" data-table-import="${kind}">استيراد Excel</button>`;
 }
