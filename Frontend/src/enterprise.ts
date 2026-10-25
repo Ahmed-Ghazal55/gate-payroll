@@ -139,7 +139,7 @@ async function renderFinancialSystemHub():Promise<string>{
        <td class="number">${money(d.waivedAmount||0)}</td>
        <td class="number ${Number(d.remainingBalance)>0?'money-negative':''}"><strong>${money(d.remainingBalance)}</strong></td>
        <td class="number">${money(d.monthlyInstallment)}</td>
-       <td>${esc(d.creditorSponsorNameAr||'سجل البوابا')}</td>
+       <td>${esc(d.creditorSponsorNameAr||'غير مربوط — راجع الجدولة')}</td>
        <td class="number">${esc(d.paymentVaultCode||'MAIN.BW.SET')}</td>
        <td class="number">${esc(d.journalNumber||'—')}</td>
        <td>${badge(statusLabels[d.status]||d.status,d.status==='settled'?'good':d.status==='pending_approval'?'warn':'')}</td>
@@ -352,7 +352,7 @@ async function renderFinancialSystemHub():Promise<string>{
   'منظومة إدارة المديونيات والنظام المالي والخزائن',
   'شجرة حسابات جزئية، فصل كامل لذمم السجلات التجارية الثلاثة، توزيع ذكي لتكاليف HR، تحصيل مرن وإعفاءات إدارية، واعتمادات متبادلة.',
   topActions
- ) + `<div class="response-chips" role="tablist" aria-label="أقسام النظام المالي والمديونيات">
+ ) + `${catalog.unassignedDebtCount?`<div class="notice warn">${catalog.unassignedDebtCount} مديونية قديمة دون سجل تجاري مراجع؛ لا توزع على السجلات تلقائيًا. يستطيع المسؤول ربطها من الجدولة.</div>`:''}`+`<div class="response-chips" role="tablist" aria-label="أقسام النظام المالي والمديونيات">
   ${subTabs.map(([id,label])=>`<button class="small ${financeSubTab===id?'':'secondary'}" data-enterprise="finance-subtab" data-subtab="${id}">${label}</button>`).join('')}
  </div>` + bodyHtml;
 }
@@ -415,6 +415,7 @@ function debtDialog(id?:string){
   `:`
    <label>الحالة<select name="status">${options([['active','نشط'],['paused','إيقاف مؤقت']],d.status)}</select></label>
    ${fieldInput('القسط الشهري','monthlyInstallment',d.monthlyInstallment||'','number',true)}
+   ${userRole==='Admin'&&!d.creditorSponsorId?`<label>ربط السجل الدائن بعد المراجعة<select name="creditorSponsorId"><option value="">اترك غير مربوط</option>${options(spOptions)}</select></label>`:''}
   `}
   <label class="full">ملاحظات وبيان القيد<textarea name="notes">${esc(d.notes||'')}</textarea></label>
   <label class="check full"><input name="agreementReviewed" type="checkbox" required>راجعت اتفاق الاستقطاع ومستند الصرف والطرف المتحمل للتكلفة.</label>
@@ -448,7 +449,7 @@ function debtDialog(id?:string){
  }
 
  $('#debt-form').onsubmit=submit(async(v,form)=>{
-  await api(id?`/debts/${id}`:'/debts',{
+  await api(id?`/debts/${id}`:'/debts',{expectedRemainingBalance:d.remainingBalance,
    ...v,
    originSponsorId:v.creditorSponsorId,
    requireMutualApproval:form.elements.requireMutualApproval?.checked||false,
@@ -468,7 +469,7 @@ function debtCollectDialog(id:string){
 
  modal(`تحصيل وتسوية مديونية — ${d.riderName||d.iqama}`,`<form id="debt-collect-form" class="form-grid">
   <div class="notice full">
-   البند: <strong>${esc(d.categoryAr||d.category)}</strong> · السجل الدائن: <strong>${esc(d.creditorSponsorNameAr||'سجل البوابا')}</strong> · الرصيد المتبقي حالياً: <strong class="number">${money(d.remainingBalance)} ر.س</strong>
+   البند: <strong>${esc(d.categoryAr||d.category)}</strong> · السجل الدائن: <strong>${esc(d.creditorSponsorNameAr||'غير مربوط — راجع الجدولة')}</strong> · الرصيد المتبقي حالياً: <strong class="number">${money(d.remainingBalance)} ر.س</strong>
    <br><small>يمكنك تحصيل كامل المبلغ أو جزء منه نقداً أو بنكياً على أي صندوق (حتى لو كان يتبع سجلاً تجارياً آخر، حيث يقوم النظام آلياً بتسوية جاري السجلات الشقيقة 1310)، كما يمكنك منح إعفاء إداري مشروط لجزء من المديونية.</small>
   </div>
   ${fieldInput('المبلغ المحصل فعلياً (كاش أو بنك)','collectedAmount',String(d.monthlyInstallment||d.remainingBalance),'number',true)}
@@ -502,7 +503,7 @@ function debtTransferSponsorDialog(id:string){
  modal(`شراء وترحيل ملكية المديونية بين السجلات`, `<form id="debt-transfer-form" class="form-grid">
   <div class="notice full">
    المندوب: <strong>${esc(d.riderName||d.iqama)}</strong> · الرصيد المتبقي للنقل: <strong class="number">${money(d.remainingBalance)} ر.س</strong>
-   <br>السجل الدائن الحالي (البائع): <strong>${esc(d.creditorSponsorNameAr||'سجل البوابا')}</strong>
+   <br>السجل الدائن الحالي (البائع): <strong>${esc(d.creditorSponsorNameAr||'غير مربوط — راجع الجدولة')}</strong>
   </div>
   <label class="full">السجل التجاري الجديد (المشتري للمديونية)
    <select name="newCreditorSponsorId" required>${options(sponsors.map((s:any)=>[s.id,`${s.shortNameAr} — ${s.nameAr} (${s.unifiedNumber})`]))}</select>

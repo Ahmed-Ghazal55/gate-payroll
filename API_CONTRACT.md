@@ -1,4 +1,4 @@
-# API v0.6.0
+# API v0.6.1
 
 Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*` and `/api/public/*`. Errors use `{error:string}` with 400/401/403/404/409/429/503. No financial mutation from public routes. Source of truth: `Payroll.Api/Program.cs`, `UserAccess.cs`, `DirectoryApi.cs`, `FormBuilder.cs`, `Debts.cs`, `InquiryApi.cs`, `SubmissionChoices.cs`, `Store.cs`, `Engine.cs`, `Imports.cs`; integration tests are executable request examples.
 
@@ -105,3 +105,6 @@ Deletes only the chosen form and its children atomically, records `campaign.dele
 - القوالب لها أعمدة ثابتة بنفس ترتيب التنزيل؛ يقبل CSV الإنجليزي الموثق وExcel العربي الصادر من النظام. لا تُستورد الصفوف الصحيحة وحدها من ملف ذي أخطاء.
 - الديون الملغاة/المنتظرة لا تدخل كشف المديونية المعتمد، ولا تُفعّل بتجاوز مرحلة الاعتماد. الأرصدة والسداد السابق للديون القديمة محفوظة دون ترحيل قيود قديمة تلقائيًا.
 - `deliveryChannel=in_app` يعني إشعارًا محفوظًا داخل البوابة؛ لا يعني تسليم FCM. `fcmRegistered=false` حتى يتوفر تكامل إرسال خارجي فعلي؛ حفظ إعدادات المشروع وحده لا يثبت الاتصال.
+
+
+تحديث0.6.1: ربط سجل دائن لدين قديم عبر PUT /api/debts/{id} يتطلب Admin وcreditorSponsorId وagreementReviewed وexpectedRemainingBalance مطابقًا؛ لا يعيد إنشاء الدين أو تغيير رصيده. يمنع التحصيل الجديد على دين غير مربوط، مع استمرار دفتر الرواتب القديم دون قيد شركة افتراضي.

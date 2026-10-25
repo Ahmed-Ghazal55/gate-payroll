@@ -57,4 +57,14 @@ public sealed class ReleaseSafetyTests
         Assert.ThrowsExactly<ApiError>(()=>FinancialCore.ResolveVault("1210"));
         Assert.AreEqual(200m,Debts.PaidAmount(new(){["totalAmount"]=600m,["remainingBalance"]=400m}));
     }
+    [TestMethod]
+    public void UnassignedLegacyDebtDoesNotBelongToAnySponsor()
+    {
+        var old=new JsonObject{["id"]="old-debt",["remainingBalance"]=123m};
+        Assert.IsNull(FinancialCore.AssignedDebtSponsor(old));
+        Assert.AreEqual(0,FinancialCore.Sponsors.Count(sp=>FinancialCore.AssignedDebtSponsor(old)?.Id==sp.Id));
+        Assert.ThrowsExactly<ApiError>(()=>FinancialCore.RequireDebtSponsor(old));
+        old["creditorSponsorId"]=FinancialCore.Sponsors[1].Id;
+        Assert.AreEqual(1,FinancialCore.Sponsors.Count(sp=>FinancialCore.AssignedDebtSponsor(old)?.Id==sp.Id));
+    }
 }

@@ -94,7 +94,7 @@ public static class Debts
             if (!string.IsNullOrWhiteSpace(sponsorId))
             {
                 var spId = FinancialCore.ResolveSponsor(sponsorId).Id;
-                list = list.Where(d => FinancialCore.ResolveSponsor(d.S("creditorSponsorId")).Id == spId || FinancialCore.ResolveSponsor(d.S("originSponsorId")).Id == spId).ToList();
+                list = list.Where(d => FinancialCore.AssignedDebtSponsor(d)?.Id == spId || FinancialCore.FindSponsor(d.S("originSponsorId"))?.Id == spId).ToList();
             }
             if (!string.IsNullOrWhiteSpace(category)) list = list.Where(d => d.S("category") == category).ToList();
             if (!string.IsNullOrWhiteSpace(status)) list = list.Where(d => d.S("status") == status).ToList();
@@ -254,6 +254,13 @@ public static class Debts
                 J.Need(newInst <= d.N("remainingBalance"), "القسط الجديد يتجاوز الرصيد المتبقي.");
                 d["monthlyInstallment"] = newInst;
             }
+            if(!string.IsNullOrWhiteSpace(input.S("creditorSponsorId")))
+            {
+                if(!ctx.User.IsInRole("Admin"))throw new ApiError("ربط الدين القديم يتطلب مسؤول النظام.",403);
+                J.Need(FinancialCore.AssignedDebtSponsor(d)==null&&input.B("agreementReviewed")&&input.ContainsKey("expectedRemainingBalance")&&input.N("expectedRemainingBalance")==d.N("remainingBalance"),"تغير الدين أو سبق ربطه؛ أعد المراجعة.");
+                var sponsor=FinancialCore.ResolveSponsor(input.Required("creditorSponsorId"));d["creditorSponsorId"]=sponsor.Id;d["creditorSponsorNameAr"]=sponsor.ShortNameAr;
+                Store.Audit(c,tx,"debt.sponsor_assigned",id,ctx.User.Identity!.Name!);
+            }
             d["status"] = status;
             d["notes"] = input.S("notes", d.S("notes"));
             d["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
@@ -278,7 +285,7 @@ public static class Debts
             string receiptRef = input.Required("receiptRef");
             J.Need(!Store.List(c, "debt_settlement", tx).Any(s => s.S("receiptRef") == receiptRef), "رقم سند التحصيل/التسوية مسجل من قبل.");
 
-            var creditorSp = FinancialCore.ResolveSponsor(d.S("creditorSponsorId"));
+            var creditorSp = FinancialCore.RequireDebtSponsor(d);
             string targetVaultCode = input.S("targetVaultCode", FinancialCore.DefaultVaultForSponsor(creditorSp.Id, "MAIN"));
             var vaultAcc = FinancialCore.ResolveVault(targetVaultCode);
             var collectionSp = FinancialCore.ResolveSponsor(vaultAcc.DefaultSponsorId ?? input.S("collectionSponsorId", creditorSp.Id));
@@ -378,7 +385,7 @@ public static class Debts
             decimal remaining = d.N("remainingBalance");
             J.Need(remaining > 0&&d.S("status") is "active" or "paused", "لا يمكن نقل مديونية غير نشطة أو مسددة.");
 
-            var oldSp = FinancialCore.ResolveSponsor(d.S("creditorSponsorId"));
+            var oldSp = FinancialCore.RequireDebtSponsor(d);
             var newSp = FinancialCore.ResolveSponsor(input.Required("newCreditorSponsorId"));
             J.Need(oldSp.Id != newSp.Id, "السجل المشتري للمديونية يجب أن يكون مختلفاً عن السجل الدائن الحالي.");
 
@@ -504,6 +511,7 @@ public static class Debts
 
                     FinancialCore.ResolveVault(vault);
                     J.Need(collected>=0&&waived>=0&&collected==J.Money(collected)&&waived==J.Money(waived),"مبالغ غير صالحة.");
+                    J.Need(allDebts.Where(d=>d.S("iqama")==iqama).All(d=>FinancialCore.AssignedDebtSponsor(d)!=null),"راجع ربط السجل التجاري للديون القديمة قبل التحصيل.");
                     decimal riderRemaining = allDebts.Where(d => d.S("iqama") == iqama).Sum(d => d.N("remainingBalance"));
                     J.Need(collected + waived > 0, "المبلغ المحصل والإعفاء يساويان صفراً.");
                     J.Need(riderRemaining > 0, $"لا توجد مديونية نشطة على الإقامة ({iqama}).");
@@ -583,7 +591,7 @@ public static class Debts
                     remCollect = J.Money(remCollect - takeCollect);
                     remWaive = J.Money(remWaive - takeWaive);
 
-                    var creditorSp = FinancialCore.ResolveSponsor(d.S("creditorSponsorId"));
+                    var creditorSp = FinancialCore.RequireDebtSponsor(d);
                     var collectionSp = FinancialCore.ResolveSponsor(vaultAcc.DefaultSponsorId ?? creditorSp.Id);
                     string receivCode = d.S("receivableAccountCode", "1210");
                     string subRef = subIdx == 1 ? baseRef : $"{baseRef}-{subIdx}";
@@ -1049,8 +1057,9 @@ public static class Debts
                 ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
             }, tx);
 
+            if(FinancialCore.AssignedDebtSponsor(d)==null)continue; // Legacy payroll ledger remains authoritative until a reviewed sponsor link exists.
             // تسجيل القيد المحاسبي المزدوج لاستقطاع القسط من الراتب (من ح/ ذمم دائنة رواتب 2110 إلى ح/ ذمم مدينة مناديب 1210)
-            var creditorSp = FinancialCore.ResolveSponsor(d.S("creditorSponsorId"));
+            var creditorSp = FinancialCore.RequireDebtSponsor(d);
             string receivCode = d.S("receivableAccountCode", "1210");
             var jLines = new JsonArray
             {
