@@ -141,6 +141,8 @@ public static class FinancialCore
             ?? Sponsors.FirstOrDefault(sp=>sp.Code=="BW"&&value.Contains("شركة")&&value.Contains("بواب"));
     }
     public static SponsorDef ResolveSponsor(string? key)=>string.IsNullOrWhiteSpace(key)?Sponsors[0]:FindSponsor(key)??throw new ApiError("السجل التجاري غير معروف؛ راجع الربط قبل الترحيل.");
+    public static SponsorDef? AssignedDebtSponsor(JsonObject debt)=>FindSponsor(debt.S("creditorSponsorId"));
+    public static SponsorDef RequireDebtSponsor(JsonObject debt)=>AssignedDebtSponsor(debt)??throw new ApiError("راجع ربط السجل التجاري للدين القديم أولًا من الجدولة.");
     public static AccountDef ResolveVault(string code){var account=ResolveAccount(code);J.Need(account.IsVault,"اختر صندوقًا أو حساب بنك صالحًا.");return account;}
     private static readonly InquiryLimits MobileLimits=new();
     private static string TokenHash(string token)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
@@ -309,7 +311,7 @@ public static class FinancialCore
                 var spLines = journals.SelectMany(j => j["lines"]?.AsArray() ?? []).Select(x => x!.AsObject()).Where(l => l.S("sponsorId") == sp.Id).ToList();
                 decimal vaultBalance = spLines.Where(l => l.S("accountType") == "Asset" && !l.S("accountCode").StartsWith("12", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
                 decimal receivableFromJournals = spLines.Where(l => l.S("accountCode").StartsWith("12", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
-                decimal activeDebtRemaining = debts.Where(d => d.S("status") is "active" or "paused" && ResolveSponsor(d.S("creditorSponsorId", sp.Id)).Id == sp.Id).Sum(d => d.N("remainingBalance"));
+                decimal activeDebtRemaining = debts.Where(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == sp.Id).Sum(d => d.N("remainingBalance"));
                 decimal expensesTotal = spLines.Where(l => l.S("accountType") == "Expense").Sum(l => l.N("debit") - l.N("credit"));
                 decimal waivesTotal = spLines.Where(l => l.S("accountCode") == "5202").Sum(l => l.N("debit") - l.N("credit"));
                 decimal interCompanyNet = spLines.Where(l => l.S("accountType") == "InterCompany").Sum(l => l.N("debit") - l.N("credit"));
@@ -325,7 +327,7 @@ public static class FinancialCore
                     shortNameAr = sp.ShortNameAr,
                     vaultBalance = J.Money(vaultBalance),
                     receivablesBalance = J.Money(Math.Max(receivableFromJournals, activeDebtRemaining)),
-                    activeDebtsCount = debts.Count(d => d.S("status") is "active" or "paused" && ResolveSponsor(d.S("creditorSponsorId", sp.Id)).Id == sp.Id),
+                    activeDebtsCount = debts.Count(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == sp.Id),
                     payablesBalance = J.Money(payablesTotal),
                     expensesTotal = J.Money(expensesTotal),
                     waiversTotal = J.Money(waivesTotal),
@@ -376,6 +378,7 @@ public static class FinancialCore
         api.MapGet("/finance/catalog", () => store.Read(c => new
         {
             sponsors = Sponsors,
+            unassignedDebtCount=Store.List(c,"debt").Count(d=>AssignedDebtSponsor(d)==null),
             categories = CategoriesCatalog,
             vaults = ChartOfAccounts.Where(a => a.IsVault),
             departments = DepartmentsCatalog,
@@ -434,7 +437,7 @@ public static class FinancialCore
             var rider = Store.Get(c, iqama, "rider");
             var spFilter = string.IsNullOrWhiteSpace(sponsorId) ? null : ResolveSponsor(sponsorId).Id;
 
-            var debts = Store.List(c, "debt").Where(d => d.S("status") is "active" or "paused" or "settled").Where(d => d.S("iqama") == iqama && (spFilter == null || ResolveSponsor(d.S("creditorSponsorId")).Id == spFilter)).OrderBy(d => d.S("createdAt")).ToList();
+            var debts = Store.List(c, "debt").Where(d => d.S("status") is "active" or "paused" or "settled").Where(d => d.S("iqama") == iqama && (spFilter == null || AssignedDebtSponsor(d)?.Id == spFilter)).OrderBy(d => d.S("createdAt")).ToList();
             var ledgerRows = Store.List(c, "ledger").Where(l => l.S("iqama") == iqama).OrderBy(l => l.S("period")).ThenBy(l => l.S("createdAt")).ToList();
             var settlements = Store.List(c, "debt_settlement").Where(s => s.S("iqama") == iqama && (spFilter == null || s.S("creditorSponsorId") == spFilter)).OrderBy(s => s.S("createdAt")).ToList();
 
@@ -446,7 +449,7 @@ public static class FinancialCore
             {
                 decimal principal = d.N("totalAmount");
                 if (principal <= 0) continue;
-                var credSp = ResolveSponsor(d.S("creditorSponsorId"));
+                var credSp = AssignedDebtSponsor(d);
                 runningDebtBalance = J.Money(runningDebtBalance + principal);
                 statementLines.Add(new JsonObject
                 {
@@ -456,8 +459,8 @@ public static class FinancialCore
                     ["typeAr"] = "إثبات مديونية / استحقاق",
                     ["category"] = d.S("category"),
                     ["categoryAr"] = CategoriesCatalog.FirstOrDefault(x => x.Code == d.S("category"))?.NameAr ?? d.S("category"),
-                    ["sponsorId"] = credSp.Id,
-                    ["sponsorNameAr"] = credSp.ShortNameAr,
+                    ["sponsorId"] = credSp?.Id??"",
+                    ["sponsorNameAr"] = credSp?.ShortNameAr??"غير مربوط",
                     ["reference"] = d.S("sourceRef"),
                     ["description"] = d.S("notes", $"تسجيل مديونية ({d.S("category")})"),
                     ["debit"] = principal,
@@ -471,13 +474,13 @@ public static class FinancialCore
                 decimal recorded=settlements.Where(x=>x.S("debtId")==debt.S("id")).Sum(x=>x.N("collectedAmount")+x.N("waivedAmount"));
                 decimal historical=J.Money(debt.N("totalAmount")-debt.N("remainingBalance")-recorded);
                 if(historical<=0)continue;
-                statementLines.Add(new JsonObject{["date"]=debt.S("createdAt"),["period"]=debt.S("effectiveFrom"),["type"]="historical_settlement",["typeAr"]="سداد سابق محفوظ من الرصيد",["reference"]=debt.S("sourceRef"),["sponsorNameAr"]=ResolveSponsor(debt.S("creditorSponsorId")).ShortNameAr,["debit"]=0m,["credit"]=historical});
+                statementLines.Add(new JsonObject{["date"]=debt.S("createdAt"),["period"]=debt.S("effectiveFrom"),["type"]="historical_settlement",["typeAr"]="سداد سابق محفوظ من الرصيد",["reference"]=debt.S("sourceRef"),["sponsorNameAr"]=AssignedDebtSponsor(debt)?.ShortNameAr??"غير مربوط",["debit"]=0m,["credit"]=historical});
             }
             foreach (var s in settlements)
             {
                 decimal collected = s.N("collectedAmount");
                 decimal waived = s.N("waivedAmount");
-                var credSp = ResolveSponsor(s.S("creditorSponsorId"));
+                var credSp = FindSponsor(s.S("creditorSponsorId"));
                 if (collected > 0)
                 {
                     runningDebtBalance = J.Money(runningDebtBalance - collected);
@@ -489,8 +492,8 @@ public static class FinancialCore
                         ["typeAr"] = s.S("method") == "payroll_deduction" ? "استقطاع قسط من مسير الراتب" : "تحصيل وسداد مالي",
                         ["category"] = s.S("category"),
                         ["categoryAr"] = $"سداد ({s.S("targetVaultCode")})",
-                        ["sponsorId"] = credSp.Id,
-                        ["sponsorNameAr"] = credSp.ShortNameAr,
+                        ["sponsorId"] = credSp?.Id??"",
+                        ["sponsorNameAr"] = credSp?.ShortNameAr??"غير مربوط",
                         ["reference"] = s.S("receiptRef"),
                         ["description"] = s.S("notes", "دفعة سداد مديونية"),
                         ["debit"] = 0m,
@@ -509,8 +512,8 @@ public static class FinancialCore
                         ["typeAr"] = "إعفاء وتسوية إدارية",
                         ["category"] = s.S("category"),
                         ["categoryAr"] = "مصروف إعفاءات إدارية",
-                        ["sponsorId"] = credSp.Id,
-                        ["sponsorNameAr"] = credSp.ShortNameAr,
+                        ["sponsorId"] = credSp?.Id??"",
+                        ["sponsorNameAr"] = credSp?.ShortNameAr??"غير مربوط",
                         ["reference"] = s.S("receiptRef") + "-W",
                         ["description"] = "تنازل وإعفاء إداري معتمد مقابل التسوية",
                         ["debit"] = 0m,
@@ -524,7 +527,7 @@ public static class FinancialCore
             runningDebtBalance=0m;foreach(var line in statementLines){runningDebtBalance=J.Money(runningDebtBalance+line.N("debit")-line.N("credit"));line["runningBalance"]=runningDebtBalance;}
             var bySponsor = Sponsors.Select(sp =>
             {
-                var spDebts = debts.Where(d => ResolveSponsor(d.S("creditorSponsorId")).Id == sp.Id).ToList();
+                var spDebts = debts.Where(d => AssignedDebtSponsor(d)?.Id == sp.Id).ToList();
                 return new
                 {
                     sponsorId = sp.Id,
