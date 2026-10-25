@@ -98,7 +98,7 @@ public sealed class EnterpriseTests
         var master=new SqlConnectionStringBuilder(configured){InitialCatalog="master"};string name="GatePayrollTest_"+Guid.NewGuid().ToString("N");
         using var c=new SqlConnection(master.ConnectionString);c.Open();using(var create=c.CreateCommand()){create.CommandText="CREATE DATABASE ["+name+"]";create.ExecuteNonQuery();}
         string dir=Path.Combine(Path.GetTempPath(),name);
-        try {var target=new SqlConnectionStringBuilder(configured){InitialCatalog=name};var store=new Store(dir,target.ConnectionString);Assert.AreEqual("mssql",store.Provider);store.Write((db,tx)=>{Store.Save(db,"test",new(){["id"]="roundtrip",["name"]="اسم تجريبي"},tx);return true;});Assert.AreEqual("اسم تجريبي",store.Read(db=>Store.Get(db,"roundtrip","test"))!.S("name"));Assert.ThrowsExactly<ApiError>(()=>store.Write<int>((db,tx)=>{Store.Save(db,"test",new(){["id"]="rollback"},tx);throw new ApiError("test");}));Assert.IsNull(store.Read(db=>Store.Get(db,"rollback","test")));}
+        try {var target=new SqlConnectionStringBuilder(configured){InitialCatalog=name};var store=new Store(dir,target.ConnectionString);Assert.AreEqual("mssql",store.Provider);store.Write((db,tx)=>{Store.Save(db,"test",new(){["id"]="roundtrip",["name"]="اسم تجريبي"},tx);return true;});Assert.AreEqual("اسم تجريبي",store.Read(db=>Store.Get(db,"roundtrip","test"))!.S("name"));Assert.ThrowsExactly<ApiError>(()=>store.Write<int>((db,tx)=>{Store.Save(db,"test",new(){["id"]="rollback"},tx);throw new ApiError("test");}));Assert.IsNull(store.Read(db=>Store.Get(db,"rollback","test")));var upgraded=new Store(dir,target.ConnectionString);Assert.IsTrue(upgraded.DataPreservationVerified);Assert.IsTrue(upgraded.ReleaseCheckpointPresent);Assert.AreEqual("اسم تجريبي",upgraded.Read(db=>Store.Get(db,"roundtrip","test"))!.S("name"));}
         finally {SqlConnection.ClearAllPools();using var drop=c.CreateCommand();drop.CommandText="ALTER DATABASE ["+name+"] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ["+name+"]";drop.ExecuteNonQuery();if(Directory.Exists(dir))Directory.Delete(dir,true);}
     }
     [TestMethod] public void CampaignFieldsRejectHiddenOrInvalidInputs()
@@ -125,6 +125,70 @@ public sealed class EnterpriseTests
             Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>{foreach(string id in new[]{"first","second"})CampaignOperations.Review(c,tx,Store.Get(c,id,"submission",tx)!,new(){["status"]="approved"},"test-admin");return true;}));
             Assert.AreEqual("pending",store.Read(c=>Store.Get(c,"first","submission"))!.S("status"));Assert.AreEqual(0,store.Read(c=>Store.List(c,"rider").Count));Assert.AreEqual(0,store.Read(c=>Store.List(c,"audit").Count));
         }finally{Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();if(Directory.Exists(dir))Directory.Delete(dir,true);}
+    }
+
+    [TestMethod] public void FinancialDoubleEntryAndAllocationAndInterSponsorSettlementWork()
+    {
+        string dir=Path.Combine(Path.GetTempPath(),"gate-finance-"+Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store=new Store(dir);
+            Assert.AreEqual(3,FinancialCore.Sponsors.Length);
+            Assert.AreEqual("019c18d5-62e1-7000-8000-000000000041",FinancialCore.ResolveSponsor("BW").Id);
+            Assert.AreEqual("019c18d5-62e1-7000-8000-000000000042",FinancialCore.ResolveSponsor("EX").Id);
+            Assert.AreEqual("019c18d5-62e1-7000-8000-000000000040",FinancialCore.ResolveSponsor("TR").Id);
+
+            // Verify HR Expense Accounts are prefixed with "مصروف "
+            foreach(var code in new[]{"5101","5102","5103","5104","5105","5106","5107","5108"})
+            {
+                var acc=FinancialCore.ResolveAccount(code);
+                Assert.IsTrue(acc.NameAr.StartsWith("مصروف "),$"Account {code} must start with مصروف");
+                Assert.AreEqual("Debit",acc.NaturalSide);
+            }
+
+            // Test SharedSplit Journal: WorkPermit 9600 SAR (Company 4600 + Rider 5000) paid from MAIN.BW.SET
+            store.Write((c,tx)=>
+            {
+                var debt=new JsonObject
+                {
+                    ["id"]="debt-wp-1",
+                    ["iqama"]="2491234567",
+                    ["riderName"]="محمد أحمد",
+                    ["debtorType"]="Rider",
+                    ["category"]="WorkPermit",
+                    ["allocationMode"]="SharedSplit",
+                    ["totalCostAmount"]=9600m,
+                    ["companyShareAmount"]=4600m,
+                    ["totalAmount"]=5000m,
+                    ["remainingBalance"]=5000m,
+                    ["monthlyInstallment"]=1000m,
+                    ["originSponsorId"]=FinancialCore.Sponsors[0].Id,
+                    ["creditorSponsorId"]=FinancialCore.Sponsors[0].Id,
+                    ["paymentVaultCode"]="MAIN.BW.SET",
+                    ["sourceRef"]="WP-2026-001",
+                    ["effectiveFrom"]="2026-10"
+                };
+                Store.Save(c,"debt",debt,tx);
+                Debts.PostCreationJournalIfNeeded(c,tx,debt,"admin");
+                var journal=Store.Get(c,debt.S("journalEntryId"),"journal",tx)!;
+                Assert.AreEqual(9600m,journal.N("totalDebit"));
+                Assert.AreEqual(9600m,journal.N("totalCredit"));
+                var lines=journal["lines"]!.AsArray();
+                Assert.AreEqual(3,lines.Count);
+                Assert.AreEqual("5101",lines[0]!.AsObject().S("accountCode"));
+                Assert.AreEqual("increase",lines[0]!.AsObject().S("effectDirection"));
+                Assert.AreEqual("1210",lines[1]!.AsObject().S("accountCode"));
+                Assert.AreEqual("increase",lines[1]!.AsObject().S("effectDirection"));
+                Assert.AreEqual("MAIN.BW.SET",lines[2]!.AsObject().S("accountCode"));
+                Assert.AreEqual("decrease",lines[2]!.AsObject().S("effectDirection"));
+                return true;
+            });
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if(Directory.Exists(dir))Directory.Delete(dir,true);
+        }
     }
 
 }
