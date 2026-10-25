@@ -1,4 +1,4 @@
-# API v0.5.5
+# API v0.6.0
 
 Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*` and `/api/public/*`. Errors use `{error:string}` with 400/401/403/404/409/429/503. No financial mutation from public routes. Source of truth: `Payroll.Api/Program.cs`, `UserAccess.cs`, `DirectoryApi.cs`, `FormBuilder.cs`, `Debts.cs`, `InquiryApi.cs`, `SubmissionChoices.cs`, `Store.cs`, `Engine.cs`, `Imports.cs`; integration tests are executable request examples.
 
@@ -92,3 +92,16 @@ Bulk requests optionally accept `versions:{id:number}`; the UI supplies each vis
 Admin only: `GET /api/campaigns/{id}/delete-preview` or `GET /api/forms/builder/{id}/delete-preview` returns `{id,title,responseCount,fingerprint}`. `DELETE` to the same parent path (without `/delete-preview`) requires a JSON body `{confirm:true,fingerprint}`. The snapshot covers the form and all its replies; any intervening submission, edit or review returns409 and changes nothing. The UI refreshes the count and requires a new explicit confirmation. Missing confirmation/fingerprint returns400; missing form404; staff403; unauthenticated401.
 
 Deletes only the chosen form and its children atomically, records `campaign.deleted` / `builder.deleted` and per-response audit, and invalidates its public link. Rider directory and financial ledgers remain; attributable work preferences are reconciled via the existing response deletion logic. Draft, open, closed and expired forms use the same deletion path. Response history is removed with its parent response; audit records remain. No production form is deleted automatically during deployment.
+
+
+## الإصدار 0.6.0 — عقود الحماية والترقية
+
+- `GET /api/system/release-check` للمسؤول فقط: مزود التخزين، سلامة SQLite، أعداد وبصمة الوثائق، دليل النسخة الاحتياطية وحالات العلاقات اليتيمة. لا يُعرض لبوابة المندوب.
+- `GET /health` يضيف `dataPreservationVerified` و`releaseCheckpointPresent` دون بيانات شخصية أو مالية. النجاح الصحي وحده لا يثبت صحة أي تكامل خارجي.
+- `POST /api/inquiry-access` يقبل `scope=mobile` للمسؤول/المحاسب بعد مراجعة الهوية. الرمز أحادي الاستعمال مدته 10 دقائق، ويُملأ من جزء الرابط الذي لا يُرسل للخادم.
+- `POST /api/rider-mobile/login`: `iqamaNo, phoneLast4, code, language`؛ لا يقبل الإقامة وحدها. جلسة 8 ساعات، بصمة الرمز فقط في التخزين، `Authorization: Bearer` حصريًا، مع فحص انتهاء الجلسة وحالة المندوب على كل قراءة أو إقرار إشعار.
+- ملفات الوثائق في `App_Data/rider-documents`، وتنزيلها عبر API إداري محمي. تحديث الوصف دون مرفق يبقي الملف السابق، والتحديث يحتفظ بتاريخ الإصدارات.
+- معاينتا `/api/debts/import-opening/preview` و`/api/debts/bulk-collect/preview-file` تعيدان `fingerprint`. الاعتماد يتطلب `rows, fingerprint, confirm:true`. أي تعديل للصفوف أو حالة المالية أو اختلاف المستخدم/انتهاء المعاينة يرجع 409 ويطلب معاينة جديدة. يُرفض المرجع المكرر ويُعاد التحقق داخل معاملة واحدة.
+- القوالب لها أعمدة ثابتة بنفس ترتيب التنزيل؛ يقبل CSV الإنجليزي الموثق وExcel العربي الصادر من النظام. لا تُستورد الصفوف الصحيحة وحدها من ملف ذي أخطاء.
+- الديون الملغاة/المنتظرة لا تدخل كشف المديونية المعتمد، ولا تُفعّل بتجاوز مرحلة الاعتماد. الأرصدة والسداد السابق للديون القديمة محفوظة دون ترحيل قيود قديمة تلقائيًا.
+- `deliveryChannel=in_app` يعني إشعارًا محفوظًا داخل البوابة؛ لا يعني تسليم FCM. `fcmRegistered=false` حتى يتوفر تكامل إرسال خارجي فعلي؛ حفظ إعدادات المشروع وحده لا يثبت الاتصال.

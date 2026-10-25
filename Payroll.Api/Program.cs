@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using Payroll;
 
+Environment.SetEnvironmentVariable("DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false).AddEnvironmentVariables();
 var dataDir = HostingSecurity.DataDirectory(Environment.GetEnvironmentVariable("PAYROLL_DATA_DIR") ?? builder.Configuration["Payroll:DataDir"] ?? "App_Data", builder.Environment.ContentRootPath, builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot"));
@@ -67,7 +68,7 @@ app.Use(async (ctx, next) =>
     { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(new { error = "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا." }); }
 });
 app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
-app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = "0.5.5" });
+app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent });
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName });
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
 {
@@ -102,6 +103,7 @@ TableExcelApi.Map(api, store);
 UserAccess.Map(api, store);
 RiderDirectory.Map(api, store);
 Debts.Map(api, store);
+FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
 FormBuilderApi.Map(app, api, store);
 InquiryApi.Map(app, api, store);
 api.MapGet("/me", (HttpContext ctx) => new { username = ctx.User.Identity!.Name, role = ctx.User.FindFirstValue(ClaimTypes.Role), id = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) });

@@ -10,6 +10,8 @@ public sealed class Store
 {
     public string DirectoryPath { get; }
     public string Provider { get; }
+    public bool DataPreservationVerified { get; private set; }
+    public bool ReleaseCheckpointPresent => File.Exists(Path.Combine(DirectoryPath,"release-backups",ReleaseSafety.Version,"checkpoint.json"));
     private readonly string connection;
     private readonly object writeGate = new();
     private long revision;
@@ -26,7 +28,7 @@ public sealed class Store
             connection = config.ConnectionString;
         }
         else connection = new SqliteConnectionStringBuilder { DataSource = Path.Combine(DirectoryPath, "payroll.db"), Mode = SqliteOpenMode.ReadWriteCreate, DefaultTimeout = 30 }.ToString();
-        using var c = Open(); using var cmd = c.CreateCommand();
+        using var c = Open(); var beforeUpgrade=ReleaseSafety.Checkpoint(c,DirectoryPath); using var cmd = c.CreateCommand();
         cmd.CommandText = Provider == "sqlite" ? """
             PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL);
@@ -34,6 +36,9 @@ public sealed class Store
             CREATE UNIQUE INDEX IF NOT EXISTS ix_run_period ON records(json_extract(body,'$.period'),json_extract(body,'$.iqama')) WHERE kind='run';
             CREATE UNIQUE INDEX IF NOT EXISTS ix_form_response ON records(json_extract(body,'$.campaignId'),json_extract(body,'$.iqama')) WHERE kind='submission';
             CREATE UNIQUE INDEX IF NOT EXISTS ix_user_name ON records(lower(json_extract(body,'$.username'))) WHERE kind='user';
+            CREATE INDEX IF NOT EXISTS ix_debt_iqama ON records(json_extract(body,'$.iqama'),json_extract(body,'$.status')) WHERE kind='debt';
+            CREATE INDEX IF NOT EXISTS ix_journal_sponsor ON records(json_extract(body,'$.creditorSponsorId'),json_extract(body,'$.period')) WHERE kind='journal';
+            CREATE INDEX IF NOT EXISTS ix_rider_doc_iqama ON records(json_extract(body,'$.iqama')) WHERE kind='rider_document';
             """ : """
             IF OBJECT_ID(N'dbo.records', N'U') IS NULL
               CREATE TABLE dbo.records(id nvarchar(128) NOT NULL PRIMARY KEY, kind nvarchar(40) NOT NULL, body nvarchar(max) NOT NULL CHECK(ISJSON(body)=1));
@@ -41,6 +46,8 @@ public sealed class Store
               CREATE INDEX ix_records_kind ON dbo.records(kind);
             """;
         cmd.ExecuteNonQuery();
+        if(beforeUpgrade!=null&&beforeUpgrade!=System.Text.Json.JsonSerializer.Serialize(ReleaseSafety.Capture(c)))throw new InvalidOperationException("Startup document preservation verification failed.");
+        DataPreservationVerified=true;
     }
     private DbConnection Open()
     {

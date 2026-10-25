@@ -18,7 +18,7 @@ public static class UserAccess
     public static JsonObject RiderView(JsonObject rider)
     {
         var result=new JsonObject();
-        foreach(string field in new[]{"id","iqama","name","phone","nationality","sponsor","engagementType","city","operationalRole","status","policyId","workPreference"})result[field]=rider.S(field);
+        foreach(string field in new[]{"id","iqama","name","phone","nationality","sponsor","sponsorId","engagementType","city","operationalRole","drivingLicense","platforms","status","policyId","workPreference"})result[field]=rider.S(field);
         return result;
     }
     public static JsonObject Create(string username, string password, string role, string? id = null)
@@ -51,13 +51,15 @@ public static class UserAccess
     public static bool Allowed(string role, string method, string path)
     {
         if(role=="Admin") return true;
+        if(method!="GET" && (path.StartsWith("/api/rider-mobile/firebase-config",StringComparison.Ordinal) || path.StartsWith("/api/finance/features/",StringComparison.Ordinal) || path.StartsWith("/api/approvals/",StringComparison.Ordinal))) return false;
         if(path is "/api/me") return true;
         if(path.StartsWith("/api/users",StringComparison.Ordinal) || path.Contains("sync-baseline",StringComparison.Ordinal) || path.StartsWith("/api/forms/builder",StringComparison.Ordinal)) return false;
         if(path=="/api/excel/export") return role is "Reviewer" or "Accountant";
+        if((path=="/api/debts/bulk-collect/commit" || path=="/api/debts/import-opening/commit") && role=="Accountant") return true;
         if(path.Contains("/commit",StringComparison.Ordinal) || path.EndsWith("/approve",StringComparison.Ordinal)) return false;
         if(role=="Reviewer" && method=="POST" && path=="/api/submissions/bulk-approve")return true;
-        if(role=="Reviewer") return (method=="GET" && path=="/api/submissions" || method=="POST" && path.StartsWith("/api/submissions/",StringComparison.Ordinal) && path.EndsWith("/review",StringComparison.Ordinal)) || (method=="GET" && (path.StartsWith("/api/campaigns",StringComparison.Ordinal) || path.StartsWith("/api/riders",StringComparison.Ordinal) || path.StartsWith("/api/forms/catalog",StringComparison.Ordinal) || path.StartsWith("/api/forms/analytics",StringComparison.Ordinal) || path.StartsWith("/api/forms/responses",StringComparison.Ordinal) || path.Contains("/excel/choices/",StringComparison.Ordinal)));
-        return role=="Accountant" && ((method=="GET" && path.StartsWith("/api/payroll",StringComparison.Ordinal)) || path.StartsWith("/api/ledger",StringComparison.Ordinal) || path.StartsWith("/api/payments",StringComparison.Ordinal) || path.StartsWith("/api/adjustments",StringComparison.Ordinal) || path.StartsWith("/api/debts",StringComparison.Ordinal) || path=="/api/inquiry-access" || (method=="GET" && (path.StartsWith("/api/riders",StringComparison.Ordinal) || path.StartsWith("/api/policies",StringComparison.Ordinal) || path=="/api/dashboard" || path.StartsWith("/api/imports",StringComparison.Ordinal) || path.StartsWith("/api/excel/",StringComparison.Ordinal))));
+        if(role=="Reviewer") return (method=="GET" && (path=="/api/submissions" || path=="/api/riders" || path=="/api/riders/data-quality" || path.StartsWith("/api/campaigns",StringComparison.Ordinal) || path.StartsWith("/api/forms/catalog",StringComparison.Ordinal) || path.StartsWith("/api/forms/analytics",StringComparison.Ordinal) || path.StartsWith("/api/forms/responses",StringComparison.Ordinal) || path.Contains("/excel/choices/",StringComparison.Ordinal))) || (method=="POST" && path.StartsWith("/api/submissions/",StringComparison.Ordinal) && path.EndsWith("/review",StringComparison.Ordinal));
+        return role=="Accountant" && ((method=="GET" && path.StartsWith("/api/payroll",StringComparison.Ordinal)) || path.StartsWith("/api/ledger",StringComparison.Ordinal) || path.StartsWith("/api/payments",StringComparison.Ordinal) || path.StartsWith("/api/adjustments",StringComparison.Ordinal) || path.StartsWith("/api/debts",StringComparison.Ordinal) || path.StartsWith("/api/finance",StringComparison.Ordinal) || path.StartsWith("/api/approvals",StringComparison.Ordinal) || path.StartsWith("/api/notifications",StringComparison.Ordinal) || path.StartsWith("/api/promissory-notes",StringComparison.Ordinal) || path.StartsWith("/api/rider-mobile",StringComparison.Ordinal) || path=="/api/inquiry-access" || (method=="GET" && (path.StartsWith("/api/riders",StringComparison.Ordinal) || path.StartsWith("/api/policies",StringComparison.Ordinal) || path=="/api/dashboard" || path.StartsWith("/api/imports",StringComparison.Ordinal) || path.StartsWith("/api/excel/",StringComparison.Ordinal))));
     }
     public static void Map(RouteGroupBuilder api, Store store)
     {

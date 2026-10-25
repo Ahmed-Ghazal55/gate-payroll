@@ -142,13 +142,13 @@ def health(wait=time.sleep):
             request = urllib.request.Request(HEALTH, headers={'Cache-Control': 'no-cache'})
             with urllib.request.urlopen(request, timeout=15) as response:
                 result = json.load(response)
-            if result.get('ok') is True and result.get('version') == '0.5.5':
-                print('PASS live HTTPS /health: ok=true, version=0.5.5')
+            if result.get('ok') is True and result.get('version') == '0.6.0' and result.get('dataPreservationVerified') is True:
+                print('PASS live HTTPS /health: ok=true, version=0.6.0, dataPreservationVerified=true, releaseCheckpointPresent='+str(result.get('releaseCheckpointPresent')))
                 return
         except (OSError, ValueError):
             pass
         wait(2)
-    raise RuntimeError('Live HTTPS /health did not confirm version 0.5.5.')
+    raise RuntimeError('Live HTTPS /health did not confirm version 0.6.0.')
 
 
 def main():

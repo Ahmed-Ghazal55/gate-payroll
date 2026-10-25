@@ -127,4 +127,68 @@ public sealed class EnterpriseTests
         }finally{Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();if(Directory.Exists(dir))Directory.Delete(dir,true);}
     }
 
+    [TestMethod] public void FinancialDoubleEntryAndAllocationAndInterSponsorSettlementWork()
+    {
+        string dir=Path.Combine(Path.GetTempPath(),"gate-finance-"+Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store=new Store(dir);
+            Assert.AreEqual(3,FinancialCore.Sponsors.Length);
+            Assert.AreEqual("019c18d5-62e1-7000-8000-000000000041",FinancialCore.ResolveSponsor("BW").Id);
+            Assert.AreEqual("019c18d5-62e1-7000-8000-000000000042",FinancialCore.ResolveSponsor("EX").Id);
+            Assert.AreEqual("019c18d5-62e1-7000-8000-000000000040",FinancialCore.ResolveSponsor("TR").Id);
+
+            // Verify HR Expense Accounts are prefixed with "مصروف "
+            foreach(var code in new[]{"5101","5102","5103","5104","5105","5106","5107","5108"})
+            {
+                var acc=FinancialCore.ResolveAccount(code);
+                Assert.IsTrue(acc.NameAr.StartsWith("مصروف "),$"Account {code} must start with مصروف");
+                Assert.AreEqual("Debit",acc.NaturalSide);
+            }
+
+            // Test SharedSplit Journal: WorkPermit 9600 SAR (Company 4600 + Rider 5000) paid from MAIN.BW.SET
+            store.Write((c,tx)=>
+            {
+                var debt=new JsonObject
+                {
+                    ["id"]="debt-wp-1",
+                    ["iqama"]="2491234567",
+                    ["riderName"]="محمد أحمد",
+                    ["debtorType"]="Rider",
+                    ["category"]="WorkPermit",
+                    ["allocationMode"]="SharedSplit",
+                    ["totalCostAmount"]=9600m,
+                    ["companyShareAmount"]=4600m,
+                    ["totalAmount"]=5000m,
+                    ["remainingBalance"]=5000m,
+                    ["monthlyInstallment"]=1000m,
+                    ["originSponsorId"]=FinancialCore.Sponsors[0].Id,
+                    ["creditorSponsorId"]=FinancialCore.Sponsors[0].Id,
+                    ["paymentVaultCode"]="MAIN.BW.SET",
+                    ["sourceRef"]="WP-2026-001",
+                    ["effectiveFrom"]="2026-10"
+                };
+                Store.Save(c,"debt",debt,tx);
+                Debts.PostCreationJournalIfNeeded(c,tx,debt,"admin");
+                var journal=Store.Get(c,debt.S("journalEntryId"),"journal",tx)!;
+                Assert.AreEqual(9600m,journal.N("totalDebit"));
+                Assert.AreEqual(9600m,journal.N("totalCredit"));
+                var lines=journal["lines"]!.AsArray();
+                Assert.AreEqual(3,lines.Count);
+                Assert.AreEqual("5101",lines[0]!.AsObject().S("accountCode"));
+                Assert.AreEqual("increase",lines[0]!.AsObject().S("effectDirection"));
+                Assert.AreEqual("1210",lines[1]!.AsObject().S("accountCode"));
+                Assert.AreEqual("increase",lines[1]!.AsObject().S("effectDirection"));
+                Assert.AreEqual("MAIN.BW.SET",lines[2]!.AsObject().S("accountCode"));
+                Assert.AreEqual("decrease",lines[2]!.AsObject().S("effectDirection"));
+                return true;
+            });
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if(Directory.Exists(dir))Directory.Delete(dir,true);
+        }
+    }
+
 }

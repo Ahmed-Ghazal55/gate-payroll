@@ -129,7 +129,7 @@ class FtpsLifecycleTests(unittest.TestCase):
             self.assertIn('530',str(captured.exception))
 
     def test_health_retries_until_expected_release(self):
-        responses = [io.BytesIO(json.dumps(d).encode()) for d in [{'ok': True, 'version': '0.5.1'}, {'ok': True, 'version': '0.5.5'}]]
+        responses = [io.BytesIO(json.dumps(d).encode()) for d in [{'ok': True, 'version': '0.5.1'}, {'ok': True, 'version': '0.6.0', 'dataPreservationVerified': True, 'releaseCheckpointPresent': True}]]
         with patch.object(deploy.urllib.request, 'urlopen', side_effect=responses) as request:
             deploy.health(wait=lambda _: None)
             self.assertEqual(2, request.call_count)

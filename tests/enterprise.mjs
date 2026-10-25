@@ -18,7 +18,7 @@ const password=randomBytes(24).toString('hex');let adminCookie='';
 async function put(route,body,expected=200){const r=await fetch(base+route,{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)});const d=await r.json();assert.equal(r.status,expected,JSON.stringify(d));checks++;return d;}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
- assert.equal((await req('/health',undefined,200,false)).version,'0.5.5');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.6.0');
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
  const accountant=await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
  const reviewer=await req('/api/users',{username:'test-reviewer',password,role:'Reviewer'});
@@ -73,5 +73,97 @@ try{
  await req('/api/public/inquiry/debt',{iqama:iq,phoneLast4:'4567',code:'0'.repeat(64)},401,false);
  await req('/api/public/inquiry/debt',{iqama:iq,phoneLast4:'4567',code:'0'.repeat(64)},429,false);
  assert.ok((await req('/api/audit')).some(x=>x.action==='rider.baseline_imported'));assert.ok((await req('/api/audit')).some(x=>x.action==='admin.user_update'));
- console.log(`PASS ${checks} enterprise HTTP checks: RBAC, session revocation, baseline atomicity, persistent links/QR, builder limits/analytics, debt posting and private enquiries.`);
+
+ // Financial & Debt Management System v0.6 checks: 3 Sponsors, HR Expenses, SharedSplit, Direct Collection + Waiver, Inter-CR Transfer, Approvals, Mobile FCM, Dormant Promissory Flag
+ const finCatalog=await req('/api/finance/catalog');
+ assert.equal(finCatalog.sponsors.length,3);
+ assert.equal(finCatalog.promissoryNotesArchiveEnabled,false);
+ await req('/api/promissory-notes',{iqama:iq,noteNumber:'NFZ-1',amount:5000},400); // Dormant by default
+
+ // 1. Create HR Service (WorkPermit) with SharedSplit: totalCost 9600, companyShare 4600 -> riderShare 5000 on BW
+ const wpDebt=await req('/api/debts',{iqama:iq,category:'WorkPermit',allocationMode:'SharedSplit',totalCostAmount:9600,companyShareAmount:4600,monthlyInstallment:1000,creditorSponsorId:'BW',paymentVaultCode:'MAIN.BW.SET',sourceRef:'HR-WP-001',agreementReviewed:true,effectiveFrom:'2026-10'});
+ assert.equal(wpDebt.totalAmount,5000);assert.equal(wpDebt.companyShareAmount,4600);assert.equal(wpDebt.remainingBalance,5000);assert.ok(wpDebt.journalNumber);
+
+ // 2. Collect 1500 cash into Express internal cashbox (MAIN.EX.SET) + 500 Administrative Waiver (5202) -> auto Inter-CR clearing (1310)
+ const colRes=await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:1500,waivedAmount:500,targetVaultCode:'MAIN.EX.SET',receiptRef:'RCV-EX-001',waiverReason:'Early settlement discount'});
+ assert.equal(colRes.debt.remainingBalance,3000);assert.equal(colRes.debt.paidAmount,1500);assert.equal(colRes.debt.waivedAmount,500);
+ assert.equal(colRes.journal.totalDebit,3500);assert.equal(colRes.journal.totalCredit,3500); // 1500 MAIN.EX.SET + 500 Waiver 5202 + 1500 InterCompany 1310 = 3500
+
+ // 3. Purchase/Transfer remaining 3000 debt from AlBawaba (BW) to Express Gate (EX)
+ const trRes=await req(`/api/debts/${wpDebt.id}/transfer-sponsor`,{newCreditorSponsorId:'EX',settlementMode:'intercompany',transferRef:'TRN-BW-EX-01'});
+ assert.equal(trRes.debt.creditorSponsorId,'019c18d5-62e1-7000-8000-000000000042');
+
+ // 4. Mutual Approval workflow (HR -> FIN)
+ const pendingDebt=await req('/api/debts',{iqama:iq,category:'IqamaRenewal',allocationMode:'RiderFull',totalAmount:650,monthlyInstallment:650,requireMutualApproval:true,initiatingDepartment:'HR',sourceRef:'HR-IQ-002',agreementReviewed:true});
+ assert.equal(pendingDebt.status,'pending_approval');assert.ok(pendingDebt.approvalRequestId);
+ const decided=await req(`/api/approvals/${pendingDebt.approvalRequestId}/decide`,{decision:'approved',note:'Verified by Finance'});
+ assert.equal(decided.status,'approved');
+ assert.equal((await req('/api/debts')).find(d=>d.id===pendingDebt.id).status,'active');
+
+ // 5. Bulk Collection Commit & Rider 360 Statement
+ const bulkCsv=`iqama,riderName,collectedAmount,waivedAmount,targetVaultCode,receiptRef,notes\r\n${iq},Synthetic Rider,650,0,MAIN.EX.SET,BLK-001,test\r\n`;
+ const bulkPreview=await req('/api/debts/bulk-collect/preview-file',{filename:'bulk.csv',dataBase64:Buffer.from(bulkCsv).toString('base64')});assert.equal(bulkPreview.errorCount,0);
+ const bulkInput={rows:bulkPreview.rows,fingerprint:bulkPreview.fingerprint,confirm:true};
+ const bulkRes=await req('/api/debts/bulk-collect/commit',bulkInput);
+ await req('/api/debts/bulk-collect/commit',bulkInput,409);
+ assert.equal(bulkRes.totalCollectedBatch,650);
+ const st360=await req(`/api/finance/statement/rider/${iq}`);
+ assert.ok(st360.statementLines.length>=4);
+
+ // 6. Google Play Mobile Login & Broadcast
+ await req('/api/rider-mobile/login',{iqamaNo:iq},401,false);
+ const mobileGrant=await req('/api/inquiry-access',{iqama:iq,scope:'mobile',identityReviewed:true});
+ const mobInput={iqamaNo:iq,phoneLast4:'4567',code:mobileGrant.code,language:'ar',fcmDeviceToken:'fcm_test_token_123'};
+ const mobLogin=await req('/api/rider-mobile/login',mobInput,200,false);
+ await req('/api/rider-mobile/login',mobInput,401,false);
+ assert.ok(mobLogin.accessToken.startsWith('rmob_'));assert.equal(mobLogin.fcmRegistered,false);assert.equal(mobLogin.fcmTokenStored,true);
+ const bcast=await req('/api/rider-mobile/broadcast',{iqama:iq,category:'financial',titleAr:'تحديث كشف الحساب',bodyAr:'تم تحديث الرصيد'});
+ assert.equal(bcast.deliveryChannel,'in_app');
+ await req(`/api/rider-mobile/broadcasts/${bcast.id}/ack`,{iqama:iq},401,false);
+ await req(`/api/rider-mobile/broadcasts/${bcast.id}/ack`,{iqama:iq},200,false,{Authorization:`Bearer ${mobLogin.accessToken}`});
+
+ // 7. Rider Data Quality, Missing Data Recovery & 360° Document Checklist (7 ERP Document Types)
+ const dq=await req('/api/riders/data-quality');
+ assert.equal(dq.totalRiders,1);
+ await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',documentNumber:iq,issueDate:'2026-01-01',expiryDate:'2027-01-01',fileName:'iqama.pdf'});
+ const p360=await req(`/api/riders/${iq}/profile-360`);
+ assert.equal(p360.documentChecklist.length,7);
+ assert.equal(p360.documentChecklist.find(d=>d.code==='ResidencyPermit').isUploaded,true);
+ assert.equal(p360.documentChecklist.find(d=>d.code==='ResidencyPermit').documentTypeId,'019c18d5-62e1-7000-8000-000000000030');
+
+ // 8. Opening Balance Debt Import Sheet (Preview Statement + Commit) & Rider Mobile Portal (/rider-app)
+ const obCsv='iqama,riderName,debtorType,category,creditorSponsor,entryMode,allocationMode,totalAmount,priorPaidAmount,companyShareAmount,monthlyInstallment,effectiveFrom,contraAccountCode,sourceRef,notes\r\n2491234567,Opening Balance Rider,Rider,Advance,BW,OpeningBalance,RiderFull,3500,500,0,500,2026-10,3101,OB-TEST-01,Opening balance advance\r\n';
+ const obPrev=await req('/api/debts/import-opening/preview',{filename:'opening.csv',dataBase64:Buffer.from(obCsv).toString('base64')});
+ assert.equal(obPrev.validCount,1);assert.equal(obPrev.errorCount,0);assert.equal(obPrev.totalOpeningRemaining,3000);assert.equal(obPrev.isBalanced,true);
+ assert.equal(obPrev.summaryBySponsor.length,1);assert.equal(obPrev.summaryByCategory.length,1);
+ const openingInput={rows:obPrev.rows,fingerprint:obPrev.fingerprint,confirm:true};
+ const tampered=structuredClone(openingInput);tampered.rows[0].totalAmount=-300;
+ await req('/api/debts/import-opening/commit',tampered,409);
+ const obCommit=await req('/api/debts/import-opening/commit',openingInput);
+ await req('/api/debts/import-opening/commit',openingInput,409);
+ assert.equal(obCommit.importedCount,1);assert.equal(obCommit.totalRemainingImported,3000);
+
+ // Verify Firebase Config & Mobile Portal (/rider-app & /api/rider-mobile/portal/{iqama})
+ await req('/api/rider-mobile/firebase-config',{projectId:'albawaba-gate-rider-prod',senderId:'99887766',androidPackageName:'com.albawaba.gate.rider'});
+ const fbCfg=await req('/api/rider-mobile/firebase-config');
+ assert.equal(fbCfg.projectId,'albawaba-gate-rider-prod');
+ const mobPortal=await req(`/api/rider-mobile/portal/${iq}`,undefined,200,false,{Authorization:`Bearer ${mobLogin.accessToken}`});
+ assert.equal(mobPortal.rider.iqama,iq);assert.ok(mobPortal.broadcasts.length>=1);
+ await req('/rider-app',undefined,200,false);
+ await req(`/api/rider-mobile/portal/${iq}`,undefined,401,false);
+ await req(`/api/rider-mobile/portal/2000000002`,undefined,401,false,{Authorization:`Bearer ${mobLogin.accessToken}`});
+ const attachment=Buffer.from('%PDF-1.4\nSynthetic private attachment');
+ const uploaded=await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',fileName:'rider.pdf',dataBase64:attachment.toString('base64')});
+ await req(uploaded.storagePath,undefined,401,false);
+ const download=await fetch(base+uploaded.storagePath,{headers:{Cookie:adminCookie}});assert.equal(download.status,200);assert.deepEqual(Buffer.from(await download.arrayBuffer()),attachment);checks++;
+ const editedDocument=await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',fileName:'rider.pdf',expiryDate:'2028-01-01'});assert.equal(editedDocument.hasBinary,true);assert.equal(editedDocument.history.length,2);
+ const privateResult=await req('/api/system/release-check');assert.equal(privateResult.version,'0.6.0');
+ const grantAgain=await req('/api/inquiry-access',{iqama:iq,scope:'mobile',identityReviewed:true});assert.ok(grantAgain.url.includes('#access_code='));
+ // New financial surfaces retain original staff-role isolation.
+ await req('/api/auth/login',{username:'test-reviewer',password});
+ for(const route of ['/api/finance/journals','/api/debts',`/api/riders/${iq}/profile-360`,uploaded.storagePath,'/api/system/release-check'])await req(route,undefined,403);
+ cookie=adminCookie;
+
+
+ console.log(`PASS ${checks} enterprise HTTP checks: RBAC, session revocation, baseline atomicity, persistent links/QR, builder limits/analytics, debt posting, double-entry finance, multi-CR, waivers, approvals, and private enquiries.`);
 }catch(e){console.error(logs.slice(-5000));throw e;}finally{if(proc.exitCode===null&&!spawnError){const stopped=new Promise(r=>proc.once('exit',r));proc.kill();await Promise.race([stopped,new Promise(r=>setTimeout(r,5000))]);}rmSync(data,{recursive:true,force:true});}

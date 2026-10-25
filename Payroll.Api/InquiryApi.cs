@@ -25,14 +25,21 @@ public sealed class InquiryLimits : IDisposable
 public static class InquiryApi
 {
     private static string Hash(string s)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(s)));
+    public static bool ConsumeAccess(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,string iqama,string phone,string code,string scope)
+    {
+        if(!System.Text.RegularExpressions.Regex.IsMatch(iqama,"^[12][0-9]{9}$")||code.Length!=64||!System.Text.RegularExpressions.Regex.IsMatch(phone,"^[0-9]{4}$"))return false;
+        var access=Store.Get(c,"inquiry:"+Hash(code),"inquiry_code",tx);var rider=Store.Get(c,iqama,"rider",tx);
+        if(access==null||rider==null||access.B("used")||access.S("iqama")!=iqama||access.S("scope")!=scope||!DateTimeOffset.TryParse(access.S("expiresAt"),out var expiry)||expiry<=DateTimeOffset.UtcNow||rider.S("phone").Length<4||!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(rider.S("phone")[^4..]),Encoding.UTF8.GetBytes(phone)))return false;
+        access["used"]=true;Store.Save(c,"inquiry_code",access,tx);return true;
+    }
     public static void Map(WebApplication app,RouteGroupBuilder api,Store store)
     {
         api.MapPost("/inquiry-access",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>{
-            string iqama=DirectoryProfiles.Iqama(input.Required("iqama")),scope=input.Required("scope");J.Need(scope is "payslip" or "debt","نطاق غير صالح.");
+            string iqama=DirectoryProfiles.Iqama(input.Required("iqama")),scope=input.Required("scope");J.Need(scope is "payslip" or "debt" or "mobile","نطاق غير صالح.");
             var rider=Store.Get(c,iqama,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);J.Need(rider.S("phone").Length>=8,"يلزم جوال مسجل ومراجع.");J.Need(input.B("identityReviewed"),"راجع هوية صاحب الطلب قبل تسليمه الرمز.");
             string code=CampaignLinks.NewToken();string expiry=DateTimeOffset.UtcNow.AddMinutes(10).ToString("O");
             Store.Save(c,"inquiry_code",new(){["id"]="inquiry:"+Hash(code),["iqama"]=iqama,["scope"]=scope,["expiresAt"]=expiry,["used"]=false},tx);Store.Audit(c,tx,"inquiry.access_issued",iqama,ctx.User.Identity!.Name!);
-            return new{iqama,scope,code,expiresAt=expiry,url=CampaignLinks.Base(app.Configuration,ctx)+"/inquiry"};
+            return new{iqama,scope,code,expiresAt=expiry,url=CampaignLinks.Base(app.Configuration,ctx)+(scope=="mobile"?"/rider-app#access_code="+code+"&iqama="+iqama:"/inquiry")};
         },false));
         foreach(string scope in new[]{"payslip","debt"})
         {
