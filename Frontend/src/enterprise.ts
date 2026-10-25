@@ -140,7 +140,7 @@ async function renderFinancialSystemHub():Promise<string>{
        <td class="number ${Number(d.remainingBalance)>0?'money-negative':''}"><strong>${money(d.remainingBalance)}</strong></td>
        <td class="number">${money(d.monthlyInstallment)}</td>
        <td>${esc(d.creditorSponsorNameAr||'غير مربوط — راجع الجدولة')}</td>
-       <td class="number">${esc(d.paymentVaultCode||'MAIN.BW.SET')}</td>
+       <td class="number">${esc(d.paymentVaultCode||'غير مسجل')}</td>
        <td class="number">${esc(d.journalNumber||'—')}</td>
        <td>${badge(statusLabels[d.status]||d.status,d.status==='settled'?'good':d.status==='pending_approval'?'warn':'')}</td>
        <td>
@@ -474,7 +474,7 @@ function debtCollectDialog(id:string){
   </div>
   ${fieldInput('المبلغ المحصل فعلياً (كاش أو بنك)','collectedAmount',String(d.monthlyInstallment||d.remainingBalance),'number',true)}
   ${fieldInput('مبلغ الإعفاء / التنازل الإداري (ح/ 5202)','waivedAmount','0','number')}
-  <label>الصندوق أو البنك المستلم للمبلغ<select name="targetVaultCode">${options(vaultOptions,d.paymentVaultCode||'MAIN.BW.SET')}</select></label>
+  <label>الصندوق أو البنك المستلم للمبلغ<select name="targetVaultCode">${options(vaultOptions,d.paymentVaultCode||'غير مسجل')}</select></label>
   <label>القسم القائم بالتحصيل
    <select name="collectorDepartment">
     <option value="FIN">الشؤون المالية والخزينة (اعتماد فوري)</option>
