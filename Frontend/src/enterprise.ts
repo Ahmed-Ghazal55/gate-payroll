@@ -122,7 +122,7 @@ async function renderFinancialSystemHub():Promise<string>{
      <div class="actions"><a class="button secondary" href="/api/debts/bulk-collect/template">تنزيل قالب التحصيل المجمع (Excel)</a></div>
     </div>
     ${table(
-     ['المندوب / الموظف','الإقامة','البند / الخدمة','جهة التحمل','إجمالي التكلفة','حصة الشركة (مصروف)','ذمة المندوب','المحصل','إعفاء إداري','المتبقي','القسط','السجل الدائن','الصندوق','القيد','الحالة','الإجراءات'],
+     ['المندوب / الموظف','الإقامة','البند / الخدمة','جهة التحمل','إجمالي التكلفة','حصة الشركة (مصروف)','ذمة المندوب','المحصل','إعفاء إداري','المتبقي','القسط','السجل الدائن','الصندوق','القيد','الحالة',''],
      debts.map((d:any)=>{
       const rName=d.riderName||riders.find((r:any)=>r.iqama===d.iqama)?.name||d.iqama;
       const catAr=d.categoryAr||(catalog.categories||[]).find((c:any)=>c.code===d.category)?.nameAr||d.category;
@@ -182,7 +182,7 @@ async function renderFinancialSystemHub():Promise<string>{
    <div class="panel">
     <h2>دفتر القيود المحاسبية المزدوجة (Double-Entry Journal Entries)</h2>
     ${table(
-     ['رقم القيد','التاريخ','الفترة','نوع المعاملة','البيان','السجل المنشئ','السجل الدائن','إجمالي المدين','إجمالي الدائن','المرجع','التفاصيل'],
+     ['رقم القيد','التاريخ','الفترة','نوع المعاملة','البيان','السجل المنشئ','السجل الدائن','إجمالي المدين','إجمالي الدائن','المرجع',''],
      journals.map((j:any)=>`<tr>
       <td class="number"><strong>${esc(j.journalNumber)}</strong></td>
       <td class="number">${esc(j.date)}</td>
@@ -269,7 +269,7 @@ async function renderFinancialSystemHub():Promise<string>{
      </div>
      <p class="muted small">عند تسجيل تحصيل أو مديونية مشروطة من HR يُشترط تصديق المالية، وعند تسجيلها من المالية يُشترط تصديق HR مع توثيق الرتبة والسبب.</p>
      ${table(
-      ['العنوان','من قسم','إلى قسم','الرتبة المطلوبة','الحالة','ملاحظة القرار','الإجراء'],
+      ['العنوان','من قسم','إلى قسم','الرتبة المطلوبة','الحالة','ملاحظة القرار',''],
       approvals.map((a:any)=>`<tr>
        <td><strong>${esc(a.titleAr)}</strong><div class="muted small">${esc(a.bodyAr)}</div></td>
        <td>${esc(a.fromDepartment)}</td>
