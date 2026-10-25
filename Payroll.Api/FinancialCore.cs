@@ -223,6 +223,7 @@ public static class FinancialCore
             decimal net=J.Money(group.Sum(l=>l.N("debit")-l.N("credit")));
             if(net!=0)lines.Add(CreateJournalLine("1310",group.Key,net<0?-net:0m,net>0?net:0m,"مقاصة موازنة القيد بين السجلات",iqama,debtId));
         }
+        idx=1;foreach(var line in lines.OfType<JsonObject>())line["lineNo"]=idx++;
         totalDebit=lines.OfType<JsonObject>().Sum(l=>l.N("debit"));totalCredit=lines.OfType<JsonObject>().Sum(l=>l.N("credit"));
         int seq = Store.List(c, "journal", tx).Count + 1;
         var originSp = ResolveSponsor(originSponsorId);
