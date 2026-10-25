@@ -1,0 +1,116 @@
+name: Read-only production deployment audit
+on:
+  push:
+    branches: [ops/verify-v060-deployment-20261025]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: 4ec55704a6d34386557d7ffd2b1838ffc026691d
+      - uses: actions/download-artifact@v6
+        with:
+          name: publish
+          run-id: 40159432377
+          github-token: ${{ github.token }}
+          path: audit-publish/
+      - name: Verify expected payload is clean
+        run: python3 scripts/check_publish.py audit-publish
+      - name: Compare every deployed artifact file and live public asset (read only)
+        env:
+          MONSTERASP_FTP_SERVER: ${{ secrets.MONSTERASP_FTP_SERVER }}
+          MONSTERASP_FTP_USERNAME: ${{ secrets.MONSTERASP_FTP_USERNAME }}
+          MONSTERASP_FTP_PASSWORD: ${{ secrets.MONSTERASP_FTP_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import sys,json,hashlib,pathlib,urllib.request,urllib.error
+          sys.path.insert(0,'scripts')
+          import monsterasp_ftps as deploy
+          base='https://payroll.marketingalbawaba.com'
+          payload=pathlib.Path('audit-publish')
+          report={'expected_commit':'4ec55704a6d34386557d7ffd2b1838ffc026691d','expected_version':'0.6.0','published_run':40159432377,'read_only':True,'private_database_or_keys_read':False,'checkpoint_metadata_read':True,'file_mismatches':[],'http_mismatches':[]}
+          def get(path):
+              req=urllib.request.Request(base+path,headers={'Cache-Control':'no-cache','Accept-Encoding':'identity'})
+              with urllib.request.urlopen(req,timeout=30) as response:
+                  return response.status,response.read()
+          status,body=get('/health')
+          health=json.loads(body)
+          report['health']={'status':status,'ok':health.get('ok'),'version':health.get('version'),'dataPreservationVerified':health.get('dataPreservationVerified'),'releaseCheckpointPresent':health.get('releaseCheckpointPresent')}
+          print('LIVE HEALTH '+json.dumps(report['health']))
+          assert status==200 and health.get('ok') is True,'Live HTTPS health failed'
+          assert health.get('dataPreservationVerified') is True and health.get('releaseCheckpointPresent') is True,'Data-preservation checkpoint is unverified'
+          for path in ['/api/users','/api/submissions','/api/campaigns','/api/finance/journals','/api/debts','/api/system/release-check']:
+              try:
+                  status,_=get(path)
+              except urllib.error.HTTPError as e:
+                  status=e.code
+              assert status==401,'Administrative data is not protected at '+path
+          print('PASS administrative endpoints reject unauthenticated requests.')
+          status,body=get('/api/auth/status')
+          assert status==200 and json.loads(body).get('needsSetup') is False,'Unexpected bootstrap status'
+          report['needsSetup']=False
+          ftp=deploy.connect()
+          checked=0
+          total=0
+          try:
+              assert deploy.read_marker(ftp) is None,'A maintenance marker is present; audit does not change it.'
+              import io
+              metadata=io.BytesIO()
+              ftp.retrbinary('RETR App_Data/release-backups/0.6.0/checkpoint.json',metadata.write)
+              checkpoint=json.loads(metadata.getvalue())
+              assert checkpoint.get('version')=='0.6.0','Incorrect checkpoint version'
+              counts=checkpoint['before']['counts']
+              assert counts.get('user',0)>0 and counts.get('rider',0)>0,'Checkpoint has no existing users or riders'
+              snapshot=checkpoint['snapshot']
+              assert pathlib.PurePosixPath(snapshot).name==snapshot,'Invalid snapshot filename'
+              ftp.voidcmd('TYPE I')
+              assert ftp.size('App_Data/release-backups/0.6.0/'+snapshot)>0,'Private snapshot is missing'
+              report['checkpoint']={'version':'0.6.0','createdAt':checkpoint['createdAt'],'counts':counts,'snapshotPresent':True,'documentsPreserved':True}
+              print('PASS private release checkpoint exists; counts='+json.dumps(counts),flush=True)
+              for file in sorted(p for p in payload.rglob('*') if p.is_file()):
+                  relative=file.relative_to(payload).as_posix()
+                  assert not any(x.lower()=='app_data' for x in pathlib.PurePosixPath(relative).parts)
+                  assert file.name.lower()!='appsettings.local.json'
+                  assert '\r' not in relative and '\n' not in relative
+                  expected=hashlib.sha256(file.read_bytes()).hexdigest()
+                  digest=hashlib.sha256()
+                  try:
+                      ftp.retrbinary('RETR '+relative,digest.update,blocksize=262144)
+                      actual=digest.hexdigest()
+                      if actual!=expected:report['file_mismatches'].append({'path':relative,'reason':'sha256 differs'})
+                  except Exception as error:
+                      report['file_mismatches'].append({'path':relative,'reason':type(error).__name__})
+                  checked+=1
+                  total+=file.stat().st_size
+                  if checked%50==0:print('AUDIT PROGRESS '+str(checked)+' published files checked; no runtime data read.',flush=True)
+                  if relative.startswith('wwwroot/') and file.suffix in {'.js','.css','.html','.ttf'}:
+                      path='/' if relative=='wwwroot/index.html' else '/'+relative.removeprefix('wwwroot/')
+                      try:
+                          status,body=get(path)
+                          if status!=200 or hashlib.sha256(body).hexdigest()!=expected:report['http_mismatches'].append({'path':path,'reason':'status or sha256 differs'})
+                      except Exception as error:
+                          report['http_mismatches'].append({'path':path,'reason':type(error).__name__})
+          finally:
+              ftp.close()
+          report['checked_files']=checked
+          report['checked_bytes']=total
+          report['maintenance_marker_present']=False
+          report['version_matches']=health.get('version')=='0.6.0'
+          pathlib.Path('deployment-audit.json').write_text(json.dumps(report,indent=2))
+          print('AUDIT SUMMARY '+json.dumps({'checked_files':checked,'checked_bytes':total,'file_mismatches':report['file_mismatches'],'http_mismatches':report['http_mismatches'],'health':report['health']}))
+          assert not report['file_mismatches'] and not report['http_mismatches'] and report['version_matches'],'Deployment differs from the published artifact'
+          print('PASS full production payload and public assets exactly match the published 0.6.0 artifact; no production writes.')
+          
+          PY
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: deployment-audit
+          path: deployment-audit.json
+          if-no-files-found: ignore
+          retention-days: 7
