@@ -18,7 +18,7 @@ public static class FinancialImports
     private static string Signature(DbConnection c,DbTransaction? tx,string kind,JsonArray rows,string actor,string expiry)
     {
         var state=new JsonArray();
-        foreach(string k in new[]{"debt","rider","debt_settlement","journal"})
+        foreach(string k in new[]{"debt","rider","debt_settlement","journal","run","ledger","opening_reconciliation","debt_transfer"})
             foreach(var d in Store.List(c,k,tx).OrderBy(x=>x.S("id"),StringComparer.Ordinal))state.Add(d.Clone());
         string value=kind+"\n"+actor+"\n"+expiry+"\n"+Canonical(rows)+"\n"+Canonical(state);
         return Convert.ToHexString(HMACSHA256.HashData(Key,Encoding.UTF8.GetBytes(value)));

@@ -92,6 +92,7 @@ public static class RiderDirectory
         foreach (string k in new[] { "nationality", "sponsor", "city", "drivingLicense", "platforms" })
             J.Need(r.S(k).Length <= 200, "قيمة وصفية طويلة جدًا.");
         r["policyId"] = Value("policyId");
+        if(input.ContainsKey("financeSponsorId"))r["financeSponsorId"]=input.S("financeSponsorId")==""?"":FinancialCore.ResolveSponsor(input.S("financeSponsorId")).Id;
         r["schemaVersion"] = 2;
         return r;
     }
@@ -330,9 +331,10 @@ public static class RiderDirectory
         {
             J.Iqama(iqama);
             var rider = Store.Get(c, iqama, "rider") ?? throw new ApiError("المندوب غير موجود.", 404);
-            var view = ctx.User.IsInRole("Reviewer") ? UserAccess.RiderView(rider) : rider;
+            FinancialScopes.DemandRider(ctx.User,rider);
+            var view = !AccessPolicy.Has(ctx.User,"riders.view_360") ? UserAccess.RiderView(rider) : rider;
             var docs = Store.List(c, "rider_document").Where(d => d.S("iqama") == iqama).ToList();
-            var debts = Store.List(c, "debt").Where(d => d.S("iqama") == iqama).ToList();
+            var debts = Store.List(c, "debt").Where(d => d.S("iqama") == iqama&&FinancialScopes.Debt(ctx.User,d)).ToList();
             var works = Store.List(c, "work").Where(w => w.S("iqama") == iqama).ToList();
             var submissions = Store.List(c, "submission").Where(s => s.S("iqama") == iqama).ToList();
 
@@ -374,6 +376,7 @@ public static class RiderDirectory
         {
             J.Iqama(iqama);
             var rider = Store.Get(c, iqama, "rider", tx) ?? throw new ApiError("المندوب غير موجود.", 404);
+            FinancialScopes.DemandRider(ctx.User,rider);
             string code = input.Required("documentTypeCode");
             var dt = DocumentTypes.FirstOrDefault(x => x.Code == code || x.Id == code) ?? throw new ApiError("نوع المستند غير صالح.");
 
@@ -423,8 +426,9 @@ public static class RiderDirectory
             Store.Audit(c, tx, "rider.document_saved", $"{iqama}:{dt.Code}", ctx.User.Identity!.Name!);
             return doc;
         }));
-        api.MapGet("/riders/{iqama}/documents/{id}/download",(string iqama,string id)=>store.Read(c=>
+        api.MapGet("/riders/{iqama}/documents/{id}/download",(string iqama,string id,HttpContext ctx)=>store.Read(c=>
         {
+            FinancialScopes.DemandRider(ctx.User,Store.Get(c,J.Iqama(iqama),"rider")??throw new ApiError("المندوب غير موجود.",404));
             var doc=Store.Get(c,id,"rider_document")??throw new ApiError("المستند غير موجود.",404);
             J.Need(doc.S("iqama")==J.Iqama(iqama),"المستند لا يخص هذا المندوب.");
             string relative=doc.S("fileRelativePath");

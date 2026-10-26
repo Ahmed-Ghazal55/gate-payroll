@@ -30,12 +30,12 @@ public static class J
 }
 
 public record WorkLine(string SourceRef, string Iqama, string Name, string Platform, string AccountId, string Period, string From, string To, int Orders, decimal? PlatformRevenue, decimal? RiderPay, bool? IsValid, string Company, string City, bool DatesConfirmed = false);
-public record PayLine(string Category, string Description, decimal Amount, string Source);
+public record PayLine(string Category, string Description, decimal Amount, string Source, string Platform = "");
 public record PayrollResult(string Iqama, string Period, string PolicyName, decimal OpeningBalance, decimal PeriodMovement, decimal ClosingBalance, decimal Payable, decimal Debt, int Orders, IReadOnlyList<PayLine> Lines, IReadOnlyList<string> Blockers);
 
 public static class Engine
 {
-    public static PayrollResult Calculate(string iqama, string period, JsonObject? policy, List<WorkLine> rows, List<JsonObject> adjustments, decimal opening, List<JsonObject>? debts = null)
+    public static PayrollResult Calculate(string iqama, string period, JsonObject? policy, List<WorkLine> rows, List<JsonObject> adjustments, decimal opening, List<JsonObject>? debts = null, List<JsonObject>? currentPayments = null)
     {
         var errors = new List<string>(); var lines = new List<PayLine>(); int orders = rows.Sum(x => x.Orders);
         if (rows.Count == 0) errors.Add("لا توجد سجلات تشغيل مستوردة للمندوب في هذه الفترة.");
@@ -49,13 +49,13 @@ public static class Engine
             case "commission":
                 foreach (var row in rows)
                     if (row.PlatformRevenue is null) errors.Add($"إيراد التسوية الفعلي مفقود: {row.SourceRef}");
-                    else lines.Add(new("platform_settlement", "صافي استحقاق المنصة الفعلي قبل تحملات الشركة", J.Money(row.PlatformRevenue.Value), row.SourceRef));
+                    else lines.Add(new("platform_settlement", "صافي استحقاق المنصة الفعلي قبل تحملات الشركة", J.Money(row.PlatformRevenue.Value), row.SourceRef, row.Platform));
                 lines.Add(new("company_fee", "عمولة الشركة الشهرية مرة واحدة عن الفترة", -J.Money(config.N("companyFee")), policy.S("id")));
                 break;
             case "approved_pay":
                 foreach (var row in rows)
                     if (row.RiderPay is null) errors.Add($"استحقاق المندوب المعتمد مفقود: {row.SourceRef}");
-                    else lines.Add(new("approved_pay", "استحقاق مندوب من مصدر مالي معتمد", J.Money(row.RiderPay.Value), row.SourceRef));
+                    else lines.Add(new("approved_pay", "استحقاق مندوب من مصدر مالي معتمد", J.Money(row.RiderPay.Value), row.SourceRef, row.Platform));
                 break;
             case "tiers":
                 if (rows.Any(x => !x.DatesConfirmed)) errors.Add("يلزم ربط تاريخي بداية ونهاية العمل من المصدر لحساب الشرائح؛ الشهر الافتراضي ليس دليل حضور.");
@@ -75,6 +75,7 @@ public static class Engine
             default: if (policy != null) errors.Add("نوع سياسة غير مدعوم."); break;
         }
         foreach (var a in adjustments) lines.Add(new(a.S("category"), a.S("description"), J.Money(a.N("amount")), a.S("id")));
+        foreach(var payment in currentPayments??[])lines.Add(new("already_paid","دفعة فعلية مسجلة بالفعل في هذه الفترة",J.Money(payment.N("amount")),payment.S("id")));
         // Preview is pure. Balances are changed only by Debts.Post inside payroll approval.
         decimal available = Math.Max(0, J.Money(opening + lines.Sum(x => x.Amount)));
         foreach (var debt in (debts ?? []).Where(d => d.S("status") == "active" && d.S("iqama") == iqama && string.CompareOrdinal(d.S("effectiveFrom", "0000-00"), period) <= 0 && string.CompareOrdinal(d.S("lastDeductionPeriod"), period) < 0).OrderBy(d => d.S("createdAt")).ThenBy(d => d.S("id")))
