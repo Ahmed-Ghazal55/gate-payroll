@@ -4,19 +4,21 @@
 |---|---|
 | Current writer | none |
 | Branch | docs/knowledge-pack |
-| Updated | 2026-10-26 by Codex |
+| Updated | 2026-10-27 by Codex |
 
 ## Goal now
-Knowledge pack completed locally; commit includes [skip ci]. User explicitly requested no push.
+Knowledge pack completed locally and reverified on 2026-10-27; commits include [skip ci]. User explicitly requested no push and read-only external sources.
 Published accounting fixes remain the previously reported 0.7.0 (3b8ac0e); no deployment or live check was performed for this documentation task.
 
 ## Done (latest first)
+- Rechecked the existing pack: all 75 accounts match code (codes/names/owners/parents/types/natures); relative links, sensitive-pattern scan and AGENTS limit pass (53 lines).
+- Corrected moved source paths. PROJECT_REVIEW_2026-10-26.md is absent under ~/Projects; retained its earlier summary with provenance to 06ccd2b, without claiming a fresh source review.
+- Reran build (0 warnings/errors), offline accounting 44/44 plus shared-cost and 52 legacy checks, MSTest 90 passed / 6 SQL Server skipped, and 21 mocked Python deploy-tool tests. No new browser/CI/live verification.
 - Added docs/README.md index and provenance, architecture, all 75 COA entries with owners/purposes, posting rules and reasons, dated decisions, deploy/recovery/backups, and prioritized roadmap.
 - Read continuity, working knowledge, architecture/review and archived handoffs under ~/Projects; historical proposals are distinguished from current code and later fixes.
 - Added AGENTS.md (52 lines): actual stack, build/test commands, deployment authorization and data rules.
 - Matched all 75 account codes and exact names to FinancialCore; verified relative links and screened new docs for sensitive patterns. No operational data copied.
-- Build: 0 warnings/errors; accounting offline 44/44 plus shared-cost test and 52 legacy checks; MSTest 90 passed / 6 SQL Server cases skipped; Python deployment-tool unit tests 21 passed (mocked, no live deploy).
-- Installed pinned frontend dependencies to run the build; no application sources changed.
+- No application sources changed; external source directories remained read-only.
 - Learning note retained in docs/README.md because this task permits no shared learning-log write outside the repo.
 - Earlier live fixes: 5205/5206/5300 classification, no company expense in opening debt, explicit company, same-company Jahez payroll, opening-import permission, login lockout and access-scope fixes.
 

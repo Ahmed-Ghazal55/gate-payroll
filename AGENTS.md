@@ -35,6 +35,7 @@ python3 -m unittest discover -s scripts -p 'test_*.py' -v
 - اتبع `docs/operations/deploy.md`: FTPS مع TLS وتحقق حفظ البيانات.
 - لا ترفع بيانات الجهاز؛ لا clean-slate ولا استبدال بيانات التشغيل.
 - مهمة knowledge pack على `docs/knowledge-pack`: commit بـ`[skip ci]`، بلا push.
+- في مهمة knowledge pack: ما خارج المستودع قراءة فقط؛ ملاحظة التعلم محلية في docs.
 
 ## Data rules
 
