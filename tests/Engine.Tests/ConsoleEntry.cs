@@ -1,7 +1,7 @@
 if(args.Contains("--accounting-review"))
 {
     int passed=0;
-    var methods=new[]{typeof(AccountingReviewTests),typeof(AccountingPostingTests)}.SelectMany(t=>t.GetMethods().Where(m=>m.GetCustomAttributes(typeof(Microsoft.VisualStudio.TestTools.UnitTesting.TestMethodAttribute),false).Length>0)).ToList();
+    var methods=new[]{typeof(AccountingReviewTests),typeof(AccountingPostingTests),typeof(TreasuryControlTests)}.SelectMany(t=>t.GetMethods().Where(m=>m.GetCustomAttributes(typeof(Microsoft.VisualStudio.TestTools.UnitTesting.TestMethodAttribute),false).Length>0)).ToList();
     foreach(var method in methods)
     {
         try { method.Invoke(Activator.CreateInstance(method.DeclaringType!),null); Console.WriteLine("PASS "+method.Name);passed++; }

@@ -90,6 +90,16 @@ try{
  // Financial hub and authenticated rider portal must render on desktop/mobile.
  await page.locator('[data-view=debts]').click();await page.locator('[data-enterprise=finance-subtab]').first().waitFor();
  for(const tab of ['vaults-coa','statement-360','approvals-notif','promissory-archive','debts-list']){await page.locator('[data-subtab="'+tab+'"]').click();await page.locator('[data-enterprise=finance-subtab]').first().waitFor();assert.equal(await page.locator('#content>.notice.error').count(),0);}
+ // Handover blank defaults create a pending custody request; only actual counted receipt posts cash.
+ assert.equal((await context.request.post(base+'/api/finance/jahez-fee',{data:{sponsorId:'BW',targetVaultCode:'SUP.BW.FEE',iqama:'2000000001',amount:200,sourceRef:'browser-fee'}})).status(),200);
+ await page.locator('[data-subtab="vaults-coa"]').click();await page.locator('[data-enterprise="jahez-handover"]').first().click();
+ await page.locator('#jahez-handover-form [name=sponsorId]').selectOption('BW');
+ await page.locator('#jahez-handover-form [name=sourceRef]').fill('browser-handover');await page.locator('#jahez-handover-form button').click();await page.locator('#modal').waitFor({state:'hidden'});
+ const handovers=await(await context.request.get(base+'/api/finance/jahez-handovers')).json();const handover=handovers.find(h=>h.sourceRef==='browser-handover');assert.equal(handover.status,'pending');assert.equal(handover.feeAmount,200);
+ await page.locator('[data-enterprise="jahez-receive"][data-id="'+handover.id+'"]').click();await page.locator('[name=settlementCounted]').fill('0');await page.locator('[name=feeCounted]').fill('200');
+ const denied=page.waitForResponse(r=>r.url().endsWith('/'+handover.id+'/confirm'));await page.locator('#jahez-receive-form button').click();assert.equal((await denied).status(),403);assert.ok(await page.locator('#modal').isVisible());
+ await page.locator('#jahez-receive-override').check();await page.locator('#jahez-receive-note').fill('Synthetic explicit administrative self receipt for browser coverage');await page.locator('#jahez-receive-form button').click();await page.locator('#modal').waitFor({state:'hidden'});
+ const receivedAccounts=await(await context.request.get(base+'/api/finance/accounts')).json();assert.equal(receivedAccounts.find(a=>a.code==='SUP.BW.FEE').netBalance,0);assert.equal(receivedAccounts.find(a=>a.code==='MAIN.BW.FEE').netBalance,200);
  await context.request.post(base+'/api/riders',{data:{iqama:'2000000001',name:'Alpha Rider',phone:'+966500000001',status:'Active'}});
  const mobileAccess=await(await context.request.post(base+'/api/inquiry-access',{data:{iqama:'2000000001',scope:'mobile',identityReviewed:true}})).json();
  const riderPortal=await context.newPage();riderPortal.on('pageerror',e=>errors.push(String(e)));await riderPortal.setViewportSize({width:390,height:844});

@@ -97,14 +97,26 @@ public static class AccountingEvents
         if(payer!=creditor){lines.Add(FinancialCore.CreateJournalLine("1310",payer,0,amount,"استقطاع لحساب سجل دائن آخر",result.Iqama,debt.S("id")));lines.Add(FinancialCore.CreateJournalLine("1310",creditor,amount,0,"مستحق لدى سجل الراتب",result.Iqama,debt.S("id")));}
         return FinancialCore.PostJournal(c,tx,"payroll_deduction","استقطاع قسط من المسير",result.Period,reference,lines,"payroll_engine",result.Iqama,debt.S("id"),payer,creditor);
     }
+    public static JsonArray CompanyPaymentLines(string control,string owner,string vault,decimal amount,string iqama,string debtId,JsonObject evidence)
+    {
+        var account=FinancialCore.ResolveVault(vault);string payer=account.DefaultSponsorId!;
+        J.Need(account.VaultKind is "MainInternal" or "Bank"&&account.VaultPurpose is "DebtAndHr" or "Bank"&&account.AllowedDirections!="InOnly","الدفع من نقدية الشركة الحرة فقط؛ حسابات جاهز والرسوم والمقاصة معزولة.");
+        var lines=new JsonArray(FinancialCore.CreateJournalLine(control,owner,amount,0,"سداد استحقاق مثبت",iqama,debtId),FinancialCore.CreateJournalLine(vault,payer,0,amount,"دفع فعلي من البنك/الصندوق المالك",iqama,debtId));
+        if(owner!=payer)
+        {
+            J.Need(account.VaultKind=="Bank"&&evidence.B("onBehalf")&&evidence.S("onBehalfNote").Trim()!="","الدفع من بنك شركة أخرى يحتاج اختيار الدفع بالنيابة وبيان المستند صراحة.");
+            lines.Add(FinancialCore.CreateJournalLine("1310",payer,amount,0,"حق على السجل المستفيد: "+evidence.S("onBehalfNote"),iqama,debtId));
+            lines.Add(FinancialCore.CreateJournalLine("1310",owner,0,amount,"التزام للسجل الدافع: "+evidence.S("onBehalfNote"),iqama,debtId));
+        }
+        evidence["payerSponsorId"]=payer;return lines;
+    }
     public static JsonObject PostPayment(DbConnection c,DbTransaction tx,JsonObject payment,string sponsor,string vault,string actor)
     {
         var account=FinancialCore.ResolveVault(vault);
-        J.Need(account.DefaultSponsorId==sponsor&&account.VaultKind is "MainInternal" or "Bank"&&account.VaultPurpose is "DebtAndHr" or "Bank","صرف الرواتب من نقدية الشركة أو بنكها فقط وبنفس السجل.");
+
         decimal amount=-payment.N("amount");string iqama=payment.S("iqama");
         J.Need(-Balance(c,tx,"2110",iqama,sponsor)>=amount,"لا يوجد رصيد راتب دائن مطابق؛ يلزم تسوية الافتتاح أولًا.");
         DemandAvailable(c,tx,vault,amount);
-        return FinancialCore.PostJournal(c,tx,"payroll_payment","صرف راتب من حساب الشركة",payment.S("period"),"PAYMENT:"+payment.S("sourceRef"),new JsonArray(
-            FinancialCore.CreateJournalLine("2110",sponsor,amount,0,"صرف مستحق راتب",iqama),FinancialCore.CreateJournalLine(vault,sponsor,0,amount,"دفع فعلي موثق",iqama)),actor,iqama,"",sponsor,sponsor);
+        return FinancialCore.PostJournal(c,tx,"payroll_payment","صرف راتب من حساب الشركة",payment.S("period"),"PAYMENT:"+payment.S("sourceRef"),CompanyPaymentLines("2110",sponsor,vault,amount,iqama,"",payment),actor,iqama,"",account.DefaultSponsorId!,sponsor);
     }
 }

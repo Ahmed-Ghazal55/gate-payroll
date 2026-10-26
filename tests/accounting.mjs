@@ -27,6 +27,9 @@ try{
  assert.equal(amount('MAIN.BW.DEBT'),100000);assert.equal(amount('2130'),900);assert.equal(debt.totalAmount,600);
  await req('/api/finance/liability-payment',{debtId:debt.id,paymentVaultCode:'BANK.BW',amount:100,sourceRef:'invoice-payment'});
  await req('/api/finance/liability-payment',{debtId:debt.id,paymentVaultCode:'BANK.BW',amount:801,sourceRef:'invoice-over'},400);
+ await req('/api/finance/liability-payment',{debtId:debt.id,paymentVaultCode:'BANK.EX',amount:200,sourceRef:'invoice-other-bank'},400);
+ await req('/api/finance/liability-payment',{debtId:debt.id,paymentVaultCode:'BANK.EX',amount:200,sourceRef:'invoice-other-bank',onBehalf:true,onBehalfNote:'EX pays BW vendor per voucher'});
+ accounts=await req('/api/finance/accounts');assert.equal(amount('BANK.EX'),99800);assert.equal(amount('BANK.BW'),99900);assert.equal(amount('2130'),600);
  const move=await req('/api/debts',{iqama:iq,category:'WorkPermit',entryMode:'Accrual',totalAmount:1000,monthlyInstallment:100,creditorSponsorId:'BW',sourceRef:'movable',agreementReviewed:true});
  await req(`/api/debts/${move.id}/collect`,{collectedAmount:200,targetVaultCode:'BANK.BW',receiptRef:'before-transfer'});
  await req(`/api/debts/${move.id}/transfer-sponsor`,{newCreditorSponsorId:'EX',expectedCreditorSponsorId:'BW',expectedRemainingBalance:800,transferRef:'bw-ex'});
@@ -40,7 +43,8 @@ try{
  await req(`/api/debts/${j.id}/collect`,{collectedAmount:1200,targetVaultCode:'SUP.BW.SET',receiptRef:'jahez-collected'});
  await req('/api/finance/jahez-fee',{sponsorId:'BW',targetVaultCode:'SUP.BW.FEE',iqama:iq,amount:200,sourceRef:'company-fee'});
  await req('/api/finance/jahez-handover',{sponsorId:'BW',settlementAmount:1201,feeAmount:200,sourceRef:'over-handover'},400);
- const handover=await req('/api/finance/jahez-handover',{sponsorId:'BW',sourceRef:'handover'});assert.equal(handover.settlementHandedOver,1200);assert.equal(handover.feeHandedOver,200);
+ const handover=await req('/api/finance/jahez-handover',{sponsorId:'BW',sourceRef:'handover'});assert.equal(handover.status,'pending');await req(`/api/finance/jahez-handovers/${handover.id}/confirm`,{settlementCounted:1200,feeCounted:200},403);
+ await req('/api/users',{username:'jahez-receiver',password,role:'Accountant'});await req('/api/auth/login',{username:'jahez-receiver',password});await req(`/api/finance/jahez-handovers/${handover.id}/confirm`,{settlementCounted:1400,feeCounted:0},400);const received=await req(`/api/finance/jahez-handovers/${handover.id}/confirm`,{settlementCounted:1200,feeCounted:200});assert.equal(received.status,'approved');cookie=adminCookie;
  await req('/api/finance/vault-transfer',{fromVaultCode:'MAIN.BW.SET',toVaultCode:'MAIN.BW.DEBT',amount:1,sourceRef:'laundering'},400);
  await req('/api/finance/jahez-transfer',{fromVaultCode:'MAIN.BW.SET',toVaultCode:'BANK.BW.JAHEZ',amount:1200,sourceRef:'custody-bank',notes:'Synthetic bank deposit'});
  await req('/api/finance/jahez-platform-settlement',{sponsorId:'BW',action:'pay',amount:1201,sourceRef:'jahez-overpay',notes:'Synthetic'},400);

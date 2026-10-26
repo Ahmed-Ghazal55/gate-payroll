@@ -184,12 +184,12 @@ async function enterpriseView(view:string):Promise<string>{
 }
 
 async function renderFinancialSystemHub():Promise<string>{
- const [debts,riders,catalog,sponsors,accounts,journals,approvals,notifCenter,broadcasts,promissory]=await Promise.all([
+ const [debts,riders,catalog,sponsors,accounts,journals,approvals,notifCenter,broadcasts,promissory,handovers]=await Promise.all([
   api('/debts'),api('/riders'),api('/finance/catalog'),can('treasury.view')?api('/finance/sponsors'):Promise.resolve([]),can('treasury.view')?api('/finance/accounts'):Promise.resolve([]),
-  can('treasury.view')?api('/finance/journals'):Promise.resolve([]),can('approvals.view')?api('/approvals'):Promise.resolve([]),can('approvals.view')?api('/notifications/center'):Promise.resolve({}),can('mobile.broadcast')?api('/rider-mobile/broadcasts'):Promise.resolve([]),api('/promissory-notes')
+  can('treasury.view')?api('/finance/journals'):Promise.resolve([]),can('approvals.view')?api('/approvals'):Promise.resolve([]),can('approvals.view')?api('/notifications/center'):Promise.resolve({}),can('mobile.broadcast')?api('/rider-mobile/broadcasts'):Promise.resolve([]),api('/promissory-notes'),can('treasury.view')?api('/finance/jahez-handovers'):Promise.resolve([])
  ]);
  cache.debts=debts;cache.riders=riders;cache.financeCatalog=catalog;cache.sponsors=sponsors;cache.accounts=accounts;
- cache.journals=journals;cache.approvals=approvals;cache.notifCenter=notifCenter;cache.broadcasts=broadcasts;cache.promissory=promissory;
+ cache.journals=journals;cache.approvals=approvals;cache.notifCenter=notifCenter;cache.broadcasts=broadcasts;cache.promissory=promissory;cache.handovers=handovers;
  if(!statementRiderIqama&&riders.length)statementRiderIqama=riders[0].iqama;
 
  const pendingApprovalsCount=approvals.filter((a:any)=>a.status==='pending').length;
@@ -211,7 +211,7 @@ async function renderFinancialSystemHub():Promise<string>{
  ${can('debts.collect')?'<button class="secondary" data-enterprise="bulk-collect">شيت التحصيل المجمع (Excel / مباشر)</button>':''}
  ${can('treasury.transfer')?'<button class="secondary" data-enterprise="vault-transfer">تحويل بين الصناديق والبنوك</button>':''}
  ${can('treasury.jahez.handover')?'<button class="secondary" data-enterprise="jahez-handover">🔄 تسليم وتصفير عهدة جاهز</button>':''}
- <button class="secondary" data-enterprise="hr-advance-print">نموذج سلفة نقدية / سند قبض</button>${can('treasury.opening')?'<button class="secondary" data-enterprise="treasury-opening">مطابقة الأرصدة الافتتاحية</button>':''}`;
+ <button class="secondary" data-enterprise="hr-advance-print">نموذج سلفة نقدية / سند قبض</button>${can('treasury.opening')?'<button class="secondary" data-enterprise="treasury-opening">مطابقة الأرصدة الافتتاحية</button>'+((catalog.sponsors||[]).some((s:any)=>s.code==='TR')?'<button class="secondary" data-enterprise="legacy-cash-allocation">توزيع خزنة التجارية التاريخية</button>':''):''}`;
 
  const sponsorCards=sponsors.map((sp:any)=>`
   <article class="stat">
@@ -277,6 +277,7 @@ async function renderFinancialSystemHub():Promise<string>{
     )}
    </div>`;
  } else if(financeSubTab==='vaults-coa'){
+  const handoverTable=table(['المستند','السجل','الحالة','التصفيات','الرسوم','مقدم العهدة','المستلم',''],handovers.map((h:any)=>`<tr><td>${esc(h.sourceRef)}</td><td>${esc(h.sponsorNameAr)}</td><td>${badge(h.status==='pending'?'بانتظار الاستلام':h.status==='approved'?'مستلم':'مرفوض',h.status==='approved'?'good':'warn')}</td><td class="number">${money(h.settlementAmount)}</td><td class="number">${money(h.feeAmount)}</td><td>${esc(h.submittedBy)}</td><td>${esc(h.decidedBy||'—')}</td><td>${h.status==='pending'&&can('treasury.jahez.receive')?`<button class="small good" data-enterprise="jahez-receive" data-id="${esc(h.id)}">عد واستلام / رفض</button>`:''}</td></tr>`));
   const mainRoot=accounts.find((a:any)=>a.code==='1110');
   const jahezRoot=accounts.find((a:any)=>a.code==='1120');
   const bankRoot=accounts.find((a:any)=>a.code==='1130');
@@ -285,9 +286,10 @@ async function renderFinancialSystemHub():Promise<string>{
    <div class="stats">
     <article class="stat"><div class="label">1110 — الصندوق الداخلي الرئيسي العام (MAIN)</div><strong class="number money-positive">${money(mainRoot?.netBalance||0)} ر.س</strong><div class="hint">يضم حسابات المديونيات والسلف (1111) وتصفيات جاهز (1112) والرسوم (1113) وصندوق التجارية (MAIN.TR)</div></article>
     <article class="stat"><div class="label">1120 — صندوق / خزنة كاش جاهز (SUP)</div><strong class="number">${money(jahezRoot?.netBalance||0)} ر.س</strong><div class="hint">خاص حصرياً بمعاملات تطبيق جاهز ويُصفّر للصندوق الداخلي أو البنك</div></article>
-    <article class="stat"><div class="label">1130 — حسابات البنوك الرسمية (BANK)</div><strong class="number money-positive">${money(bankRoot?.netBalance||0)} ر.س</strong><div class="hint">حساب البوابا/إكسبرس المشترك وحساب التجارية المستقل</div></article>
+    <article class="stat"><div class="label">1130 — حسابات البنوك الرسمية (BANK)</div><strong class="number money-positive">${money(bankRoot?.netBalance||0)} ر.س</strong><div class="hint">حسابات مستقلة لكل سجل؛ العمليات بالنيابة لها جاري موثق</div></article>
     <article class="stat"><div class="label">1140 — مقاصة وقود بترو آب (PETRO)</div><strong class="number">${money(petroRoot?.netBalance||0)} ر.س</strong><div class="hint">حساب قبض ومقاصة وقود فقط (InOnly)</div></article>
    </div>
+   <div class="panel"><h2>تسليمات جاهز — لا تنتقل النقدية قبل استلام المالية وعدها</h2>${handoverTable}</div>
    <div class="panel">
     <div class="panel-title">
      <h2>شجرة الحسابات الهرمية، الصندوق الداخلي الرئيسي وفروعه، خزنة جاهز، البنوك، ومصروفات HR</h2>
@@ -295,7 +297,7 @@ async function renderFinancialSystemHub():Promise<string>{
       ${can('treasury.jahez.handover')?'<button class="good" data-enterprise="jahez-handover">🔄 تسليم وتصفير عهدة جاهز للصندوق الداخلي</button>':''}
       ${can('treasury.jahez.manage')?'<button class="secondary" data-enterprise="jahez-fee">قبض رسوم فتح حساب جاهز</button>':''}
       ${can('treasury.transfer')?'<button class="secondary" data-enterprise="jahez-transfer">تحويل عهدة جاهز</button><button class="secondary" data-enterprise="jahez-platform-settle">تسوية مع شركة جاهز</button><button class="secondary" data-enterprise="jahez-fee-deposit">إيداع حصيلة رسوم الشركة</button>':''}
-      <button class="secondary" data-enterprise="vault-transfer">إيداع / تحويل بين الخزائن والبنوك</button>
+${can('treasury.transfer')?'<button class="secondary" data-enterprise="vault-transfer">تحويل نقدية الشركة</button>':''}
      </div>
     </div>
     ${table(
@@ -885,9 +887,9 @@ function jahezHandoverDialog(){
  const supAccounts=accounts.filter((a:any)=>a.code?.startsWith('SUP.'));
  modal('تسليم وتصفير عهدة صندوق جاهز اليومية إلى الصندوق الداخلي الرئيسي (Zero-Out Handover)',`
   <div class="notice">
-   يقوم هذا الإجراء بتصفير رصيد عهدة مشرف جاهز (<code>SUP.*.SET</code> و <code>SUP.*.FEE</code>) وترحيله آلياً إلى الصندوق الداخلي الرئيسي للشركة:
+   يسجل هذا الإجراء طلب تسليم عهدة مشرف جاهز (<code>SUP.*.SET</code> و <code>SUP.*.FEE</code>) ولا ينقل نقدًا حتى تستلمه المالية وتطابق العد لكل غرض:
    <br>• سجل البوابا وإكسبرس: ترحل التصفيات إلى <code>MAIN.*.SET</code> والرسوم إلى <code>MAIN.*.FEE</code>.
-   <br>• مؤسسة التجارية: ترحل التصفيات والرسوم معاً إلى <b>حساب مؤسسة التجارية الموحد (<code>MAIN.TR</code>)</b>.
+   <br>• التجارية: تبقى التصفيات في <code>MAIN.TR.SET</code> والرسوم في <code>MAIN.TR.FEE</code> دون دمج.
   </div>
   ${table(
    ['رمز خزنة جاهز','اسم الحساب','السجل التجاري','الرصيد الحالي القابل للتسليم'],
@@ -903,14 +905,14 @@ function jahezHandoverDialog(){
    ${fieldInput('مبلغ تصفية الكاش المسلم (اتركه فارغاً لتصفير كامل الرصيد)','settlementAmount','','number')}
    ${fieldInput('مبلغ رسوم الحسابات المسلم (اتركه فارغاً لتصفير كامل الرصيد)','feeAmount','','number')}
    ${fieldInput('رقم سند التسليم والتصفير','sourceRef',`HND-${Date.now().toString().slice(-6)}`,'text',true)}
-   <button class="good full">✓ اعتماد تسليم وتصفير عهدة جاهز إلى الصندوق الداخلي الرئيسي</button>
+   <button class="good full">إرسال طلب تسليم للمالية دون نقل النقدية الآن</button>
   </form>
  `);
  $('#jahez-handover-form').onsubmit=submit(async v=>{
   const res=await api('/finance/jahez-handover',v);
   $('#modal').close();
   await show('debts');
-  toast(`تم تسليم وتصفير عهدة جاهز (${res.sponsorNameAr}) بإجمالي ${money(res.totalHandedOver)} ر.س بموجب القيد ${res.journal.journalNumber}`);
+  toast(`سُجل طلب التسليم ${res.sourceRef}؛ النقد باقٍ بالعهدة حتى استلام المالية`);
  });
 }
 
@@ -1391,7 +1393,7 @@ document.addEventListener('click',async e=>{const b=(e.target as HTMLElement).cl
  case'share-statement-mobile':mobileBroadcastDialog(b.dataset.iqama||'ALL');break;
  case'toggle-promissory-flag':await api('/finance/features/promissory-notes',{enabled:b.dataset.enabled==='true'});await show('debts');toast('تم تحديث حالة موديول سندات الأمر');break;
  case'promissory-new':promissoryNewDialog();break;
- case'treasury-opening':treasuryOpeningDialog();break;case'debt-reconcile':debtOpeningDialog(id!);break;case'supplier-pay':supplierPaymentDialog(id!);break;case'jahez-transfer':jahezTransactionDialog('transfer');break;case'jahez-platform-settle':jahezTransactionDialog('settle');break;case'jahez-fee-deposit':jahezTransactionDialog('fee');break;case'campaign-delete':await formDeleteDialog(id!,false);break;case'builder-delete':await formDeleteDialog(id!,true);break;case'campaign-edit':campaignEditDialog(id!);break;case'analytics-review':await show('responses');responseReview(id);break;case'copy':await navigator.clipboard.writeText(b.dataset.url!);toast('تم نسخ الرابط');break;case'qr':modal('رمز المشاركة QR',`<img class="qr-image" alt="QR لمشاركة النموذج" src="${esc(b.dataset.url)}">`);break;case'user-new':userDialog();break;case'user-edit':userDialog(id);break;case'debt-new':debtDialog();break;case'debt-edit':debtDialog(id);break;case'baseline':await baselineDialog();break;case'builder-new':builderDialog();break;case'builder-edit':builderDialog(id);break;case'builder-publish':if(confirm('نشر النموذج وتثبيت الأسئلة؟')){await api(`/forms/builder/${id}/publish`,{});await show('builder');}break;case'builder-close':if(confirm('إغلاق استقبال الردود؟')){await api(`/forms/builder/${id}/close`,{});await show('builder');}break;case'analytics':await analyticsDialog(id!);break;case'inquiry-code':await inquiryCodeDialog();break;
+ case'legacy-cash-allocation':legacyCashAllocationDialog();break;case'jahez-receive':jahezReceiveDialog(id!);break;case'treasury-opening':treasuryOpeningDialog();break;case'debt-reconcile':debtOpeningDialog(id!);break;case'supplier-pay':supplierPaymentDialog(id!);break;case'jahez-transfer':jahezTransactionDialog('transfer');break;case'jahez-platform-settle':jahezTransactionDialog('settle');break;case'jahez-fee-deposit':jahezTransactionDialog('fee');break;case'campaign-delete':await formDeleteDialog(id!,false);break;case'builder-delete':await formDeleteDialog(id!,true);break;case'campaign-edit':campaignEditDialog(id!);break;case'analytics-review':await show('responses');responseReview(id);break;case'copy':await navigator.clipboard.writeText(b.dataset.url!);toast('تم نسخ الرابط');break;case'qr':modal('رمز المشاركة QR',`<img class="qr-image" alt="QR لمشاركة النموذج" src="${esc(b.dataset.url)}">`);break;case'user-new':userDialog();break;case'user-edit':userDialog(id);break;case'debt-new':debtDialog();break;case'debt-edit':debtDialog(id);break;case'baseline':await baselineDialog();break;case'builder-new':builderDialog();break;case'builder-edit':builderDialog(id);break;case'builder-publish':if(confirm('نشر النموذج وتثبيت الأسئلة؟')){await api(`/forms/builder/${id}/publish`,{});await show('builder');}break;case'builder-close':if(confirm('إغلاق استقبال الردود؟')){await api(`/forms/builder/${id}/close`,{});await show('builder');}break;case'analytics':await analyticsDialog(id!);break;case'inquiry-code':await inquiryCodeDialog();break;
 }}catch(error:any){toast(error.message,true);}});
 
 let analyticsSelection='',analyticsRequest=0;
@@ -1419,9 +1421,9 @@ function debtOpeningDialog(id:string){
  $('#debt-opening-form').onsubmit=submit(async v=>{const p=await api(`/debts/${id}/reconcile-opening/preview`,{...v,expectedRemainingBalance:d.remainingBalance,expectedCreditorSponsorId:d.creditorSponsorId});const r=p.rows[0];$('#debt-opening-preview').innerHTML=`<div class="notice">رصيد الذمة الحالي ${money(r.currentJournalBalance)} · المتبقي المراجع ${money(r.expectedRemainingBalance)} · أثر التسوية ${money(r.adjustment)} ر.س</div><button id="debt-opening-commit" class="good">اعتماد التسوية المعروضة</button>`;$('#debt-opening-commit').onclick=async e=>{const b=e.currentTarget as HTMLButtonElement;b.disabled=true;try{await api(`/debts/${id}/reconcile-opening/commit`,{rows:p.rows,fingerprint:p.fingerprint,confirm:true});$('#modal').close();await show('debts');toast('حُفظ افتتاح الدين المراجع')}catch(err:any){toast(err.message,true);b.disabled=false;}};});
 }
 function supplierPaymentDialog(id:string){
- const d=cache.debts?.find((x:any)=>x.id===id);if(!d)return;const vaults=filterVaultsForCategory(cache.financeCatalog?.vaults||[],d.category,'disbursement',d.originSponsorId);
- modal('سداد التزام خدمة معتمد',`<div class="notice">هذا السداد يخفض التزام المورد 2130 ويخرج النقد مرة واحدة؛ لا ينشئ مديونية أخرى على المندوب.</div><form id="supplier-payment-form" class="form-grid"><label>الحساب الدافع<select name="paymentVaultCode" required>${options(vaults.map((v:any)=>[v.code,v.nameAr]))}</select></label>${fieldInput('مبلغ السداد','amount','','number',true)}${fieldInput('مرجع الدفع الفعلي','sourceRef','','text',true)}<button>تسجيل السداد وفحص الرصيد</button></form>`);
- $('#supplier-payment-form [name=amount]').step='.01';$('#supplier-payment-form').onsubmit=submit(async v=>{await api('/finance/liability-payment',{...v,debtId:id});$('#modal').close();await show('debts');toast('حُفظ الدفع دون تكرار الدين')});
+ const d=cache.debts?.find((x:any)=>x.id===id);if(!d)return;const vaults=filterVaultsForCategory(cache.financeCatalog?.vaults||[],d.category,'disbursement');
+ modal('سداد التزام خدمة معتمد',`<div class="notice">هذا السداد يخفض التزام المورد 2130 ويخرج النقد مرة واحدة؛ لا ينشئ مديونية أخرى على المندوب.</div><form id="supplier-payment-form" class="form-grid"><label>الحساب الدافع<select name="paymentVaultCode" required>${options(vaults.map((v:any)=>[v.code,v.nameAr]))}</select></label>${fieldInput('مبلغ السداد','amount','','number',true)}${fieldInput('مرجع الدفع الفعلي','sourceRef','','text',true)}<label class="check full"><input type="checkbox" name="onBehalf" id="company-pay-on-behalf">دفع من بنك شركة أخرى بالنيابة مع إثبات الجاري</label><label class="full">بيان ومستند الدفع بالنيابة<textarea name="onBehalfNote"></textarea></label><button>تسجيل السداد وفحص الرصيد</button></form>`);
+ $('#supplier-payment-form [name=amount]').step='.01';$('#supplier-payment-form').onsubmit=submit(async v=>{await api('/finance/liability-payment',{...v,debtId:id,onBehalf:!!$('#company-pay-on-behalf')?.checked});$('#modal').close();await show('debts');toast('حُفظ الدفع دون تكرار الدين')});
 }
 function jahezTransactionDialog(kind:'transfer'|'settle'|'fee'){
  const sponsors=cache.financeCatalog?.sponsors||[];const vaults=(cache.financeCatalog?.vaults||[]).filter((v:any)=>['GeneralAndSettlement','JahezSettlement'].includes(v.vaultPurpose));
@@ -1436,5 +1438,17 @@ async function approvePayrollDialog(iqama:string){
 }
 async function accountingPaymentDialog(){
  const catalog=await api('/finance/catalog');const vaults=catalog.vaults.filter((v:any)=>['DebtAndHr','Bank'].includes(v.vaultPurpose));
- modal('تسجيل صرف راتب فعلي',`<form id="accounting-payment-form" class="form-grid"><label>المندوب<select name="iqama" required>${riderOptions()}</select></label><label>السجل صاحب الراتب<select name="sponsorId" required><option value="">اختر السجل المالي</option>${options(catalog.sponsors.map((s:any)=>[s.id,s.nameAr]))}</select></label><label>حساب الشركة الدافع<select name="paymentVaultCode" required>${options(vaults.map((v:any)=>[v.code,v.nameAr]))}</select></label>${fieldInput('الفترة','period',month,'month',true)}${fieldInput('المبلغ المدفوع','amount','','number',true)}${fieldInput('مرجع التحويل/الدفع الفعلي','sourceRef','','text',true)}<button>تسجيل الدفع ضمن الرصيدين النقدي والمستحق</button></form>`);$('#accounting-payment-form [name=amount]').step='.01';$('#accounting-payment-form').onsubmit=submit(async v=>{await api('/payments',v);$('#modal').close();await show('payroll');toast('حفظت الدفعة وقيدها دون تجاوز الرصيد')});
+ modal('تسجيل صرف راتب فعلي',`<form id="accounting-payment-form" class="form-grid"><label>المندوب<select name="iqama" required>${riderOptions()}</select></label><label>السجل صاحب الراتب<select name="sponsorId" required><option value="">اختر السجل المالي</option>${options(catalog.sponsors.map((s:any)=>[s.id,s.nameAr]))}</select></label><label>حساب الشركة الدافع<select name="paymentVaultCode" required>${options(vaults.map((v:any)=>[v.code,v.nameAr]))}</select></label>${fieldInput('الفترة','period',month,'month',true)}${fieldInput('المبلغ المدفوع','amount','','number',true)}${fieldInput('مرجع التحويل/الدفع الفعلي','sourceRef','','text',true)}<label class="check full"><input type="checkbox" name="onBehalf" id="company-pay-on-behalf">دفع من بنك شركة أخرى بالنيابة مع إثبات الجاري</label><label class="full">بيان ومستند الدفع بالنيابة<textarea name="onBehalfNote"></textarea></label><button>تسجيل الدفع ضمن الرصيدين النقدي والمستحق</button></form>`);$('#accounting-payment-form [name=amount]').step='.01';$('#accounting-payment-form').onsubmit=submit(async v=>{await api('/payments',{...v,onBehalf:!!$('#company-pay-on-behalf')?.checked});$('#modal').close();await show('payroll');toast('حفظت الدفعة وقيدها دون تجاوز الرصيد')});
+}
+
+function legacyCashAllocationDialog(){
+ modal('توزيع ومطابقة خزنة التجارية التاريخية مرة واحدة',`<div class="notice warn">أدخل الرصيد الفعلي النهائي لكل غرض، شاملاً ما سُجل بالفعل في الأبناء. تُغلق حركة الحساب القديم دون حذفها أو تكرارها؛ أي فرق عن الدفاتر يحتاج مستندًا وتصنيفًا صريحًا.</div><form id="legacy-cash-form" class="form-grid">${fieldInput('الرصيد الفعلي للمديونيات وHR','debtBalance','','number',true)}${fieldInput('الرصيد الفعلي لتصفيات جاهز','settlementBalance','','number',true)}${fieldInput('الرصيد الفعلي لرسوم الشركة','feeBalance','','number',true)}<label>مقابل فرق المطابقة إن وجد<select name="differenceAccountCode"><option value="">لا فرق متوقع / حدد التصنيف إذا وجد</option><option value="3101">افتتاح مفقود موثق — 3101</option><option value="5204">عجز نقدي مراجع — 5204</option><option value="4104">زيادة نقدية موثقة — 4104</option></select></label>${fieldInput('مرجع مستند الفرز والعد','sourceRef','','text',true)}<label class="full">بيان المراجعة ومصدر كل رصيد<textarea name="notes" required></textarea></label><button>معاينة الأثر قبل الاعتماد</button></form><div id="legacy-cash-preview"></div>`);
+ document.querySelectorAll<HTMLInputElement>('#legacy-cash-form input[type=number]').forEach(el=>el.step='.01');
+ $('#legacy-cash-form').onsubmit=submit(async v=>{const p=await api('/finance/legacy-cash-allocation/preview',v),r=p.rows[0];$('#legacy-cash-preview').innerHTML=`<div class="notice">الرصيد المباشر القديم ${money(r.bookBalance)} · الأبناء المسجلون ${money(r.existingChildrenTotal)} · الإجمالي الدفتري ${money(r.currentTotal)} · الإجمالي الفعلي ${money(r.verifiedTotal)} · فرق المطابقة ${money(r.reconciliationDifference)} ر.س · المقابل ${esc(r.differenceAccountCode||'لا فرق')}</div>${table(['الحساب','الرصيد الحالي','الرصيد الفعلي النهائي'],[['DEBT','debtBalance'],['SET','settlementBalance'],['FEE','feeBalance']].map(([code,key])=>`<tr><td>MAIN.TR.${code}</td><td class="number">${money(r['current_'+key])}</td><td class="number">${money(r[key])}</td></tr>`))}<button id="legacy-cash-commit" class="good">راجعت الفرز والمستند وأعتمد التسوية المعروضة</button>`;$('#legacy-cash-commit').onclick=async e=>{const b=e.currentTarget as HTMLButtonElement;b.disabled=true;try{await api('/finance/legacy-cash-allocation/commit',{rows:p.rows,fingerprint:p.fingerprint,confirm:true});$('#modal').close();await show('debts');toast('وزع الرصيد القديم دون تكراره أو حذف تاريخه')}catch(err:any){toast(err.message,true);b.disabled=false;}};});
+}
+function jahezReceiveDialog(id:string){
+ const h=(cache.handovers||[]).find((x:any)=>x.id===id);if(!h)return;const self=h.submittedBy===user,admin=userRole==='Admin'||userRole==='SuperAdmin';
+ modal('استلام عهدة جاهز بعد العد الفعلي',`<div class="notice">${esc(h.sourceRef)} — ${esc(h.sponsorNameAr)}<br>التصفيات المنتظرة ${money(h.settlementAmount)} · رسوم الشركة المنتظرة ${money(h.feeAmount)} ر.س. لا تُستبدل حصة غرض بحصة الآخر؛ العد لكل حساب مستقل. ${self?'يلزم مستلم مستقل عن مقدم الطلب؛ استثناء المدير فقط يحتاج توثيق السبب.':''}</div><form id="jahez-receive-form" class="form-grid"><label>قرار الاستلام<select name="decision" id="jahez-receive-decision"><option value="approved">مطابق — استلام وترحيل</option><option value="rejected">غير مطابق — رفض دون نقل أموال</option></select></label><div id="jahez-receive-counts" class="form-grid full">${fieldInput('عد التصفيات الفعلي (أدخل الصفر أيضًا)','settlementCounted','','number',true)}${fieldInput('عد رسوم الشركة الفعلي (أدخل الصفر أيضًا)','feeCounted','','number',true)}</div><label class="full">بيان الاستلام / سبب الرفض<textarea name="note" id="jahez-receive-note"></textarea></label>${self&&admin?'<label class="check full"><input id="jahez-receive-override" type="checkbox">تجاوز إداري صريح لاستلام طلبك مع بيان السبب</label>':''}<button class="good">حفظ القرار والعد الفعلي</button></form>`);
+ document.querySelectorAll<HTMLInputElement>('#jahez-receive-form input[type=number]').forEach(el=>el.step='.01');const sync=()=>{const reject=$('#jahez-receive-decision').value==='rejected';$('#jahez-receive-counts').classList.toggle('hide',reject);document.querySelectorAll<HTMLInputElement>('#jahez-receive-counts input').forEach(el=>{el.required=!reject;el.disabled=reject;});$('#jahez-receive-note').required=reject||!!$('#jahez-receive-override')?.checked;};$('#jahez-receive-decision').onchange=sync;if($('#jahez-receive-override'))$('#jahez-receive-override').onchange=sync;
+ $('#jahez-receive-form').onsubmit=submit(async v=>{await api(`/finance/jahez-handovers/${id}/${v.decision==='rejected'?'reject':'confirm'}`,{...v,overrideSelf:!!$('#jahez-receive-override')?.checked});$('#modal').close();await show('debts');toast(v.decision==='rejected'?'رفض التسليم وبقي النقد بالعهدة':'استلمت العهدة ورحلت مرة واحدة')});
 }

@@ -400,9 +400,9 @@ public static class Debts
         api.MapPost("/debts/{id}/transfer-sponsor",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>DebtTransfers.Post(c,tx,id,input,ctx.User)));
 
         // قالب إكسل التحصيل المجمع (بالإقامة والاسم والمبلغ المحصل والإعفاء والصندوق)
-        api.MapGet("/debts/bulk-collect/template", () => store.Read(c =>
+        api.MapGet("/debts/bulk-collect/template", (HttpContext ctx) => store.Read(c =>
         {
-            var activeDebts = Store.List(c, "debt").Where(d => d.S("status") == "active" && d.N("remainingBalance") > 0).Take(10).ToList();
+            var activeDebts = Store.List(c, "debt").Where(d => d.S("status") == "active" && d.N("remainingBalance") > 0&&FinancialScopes.Debt(ctx.User,d)).Take(10).ToList();
             var vaultChoices = FinancialCore.ChartOfAccounts.Where(a => a.IsVault).Select(a => a.Code).ToArray();
             var cols = new List<ExcelColumn>
             {
@@ -453,7 +453,7 @@ public static class Debts
             var sheetRows = sheets[0].Rows;
             var seenReceipts=new HashSet<string>(StringComparer.Ordinal);var reserved=new Dictionary<string,decimal>(StringComparer.Ordinal);
             var existingReceipts=Store.List(c,"debt_settlement").Select(x=>x.S("batchReceiptRef",x.S("receiptRef"))).ToHashSet(StringComparer.Ordinal);
-            var allDebts = Store.List(c, "debt").Where(d => d.S("status") is "active" or "paused" && d.N("remainingBalance") > 0).ToList();
+            var allDebts = Store.List(c, "debt").Where(d => d.S("status") is "active" or "paused" && d.N("remainingBalance") > 0&&FinancialScopes.Debt(ctx.User,d)).ToList();
 
             for (int i = 1; i < sheetRows.Count; i++)
             {
@@ -536,7 +536,7 @@ public static class Debts
 
                 // جلب مديونيات المندوب النشطة مرتبة من الأقدم للأحدث لتوزيع المبلغ المحصل عليها
                 var riderDebts = Store.List(c, "debt", tx)
-                    .Where(d => d.S("iqama") == iqama && d.S("status") is "active" or "paused" && d.N("remainingBalance") > 0)
+                    .Where(d => d.S("iqama") == iqama && d.S("status") is "active" or "paused" && d.N("remainingBalance") > 0&&FinancialScopes.Debt(ctx.User,d))
                     .OrderBy(d => d.S("createdAt"))
                     .ToList();
 

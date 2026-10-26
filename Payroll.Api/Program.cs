@@ -106,6 +106,8 @@ Debts.Map(api, store);
 FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
 TreasuryEntries.Map(api,store);
 JahezTreasury.Map(api,store);
+LegacyCashAllocation.Map(api,store);
+JahezHandovers.Map(api,store);
 FormBuilderApi.Map(app, api, store);
 InquiryApi.Map(app, api, store);
 api.MapGet("/me", (HttpContext ctx) =>
@@ -212,8 +214,8 @@ api.MapPost("/payments", (JsonObject input, HttpContext ctx) => store.Write((c, 
     var rider=Store.Get(c,iqama,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);
     var sponsor=AccountingEvents.PayrollSponsor(rider,input);
     string vault=input.S("paymentVaultCode",FinancialCore.DefaultVaultForSponsor(sponsor.Id,"BANK"));
-    FinancialScopes.DemandSponsor(ctx.User,sponsor.Id);FinancialScopes.DemandAccount(ctx.User,vault);
-    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = -amount, ["kind"] = "payment", ["sourceRef"] = reference, ["createdAt"] = Now(),["sponsorId"]=sponsor.Id,["paymentVaultCode"]=vault,["accountingVersion"]=AccountingEvents.Version };
+    FinancialScopes.DemandSponsor(ctx.User,sponsor.Id);FinancialScopes.DemandAccount(ctx.User,vault);FinancialScopes.DemandSponsor(ctx.User,FinancialCore.ResolveVault(vault).DefaultSponsorId!);
+    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = -amount, ["kind"] = "payment", ["sourceRef"] = reference, ["createdAt"] = Now(),["sponsorId"]=sponsor.Id,["paymentVaultCode"]=vault,["accountingVersion"]=AccountingEvents.Version,["onBehalf"]=input.B("onBehalf"),["onBehalfNote"]=input.S("onBehalfNote") };
     var journal=AccountingEvents.PostPayment(c,tx,doc,sponsor.Id,vault,Actor(ctx));doc["journalEntryId"]=journal.S("id");
     Store.Save(c, "ledger", doc, tx); Store.Audit(c, tx, "payment.record", doc.S("id"), Actor(ctx)); return doc;
 }));

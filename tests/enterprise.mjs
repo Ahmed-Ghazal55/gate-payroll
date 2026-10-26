@@ -96,7 +96,7 @@ try{
  assert.equal(trRes.debt.creditorSponsorId,'019c18d5-62e1-7000-8000-000000000042');
 
  // 4. Mutual Approval workflow (HR -> FIN)
- const pendingDebt=await req('/api/debts',{iqama:iq,category:'IqamaRenewal',allocationMode:'RiderFull',totalAmount:650,monthlyInstallment:650,requireMutualApproval:true,initiatingDepartment:'HR',sourceRef:'HR-IQ-002',agreementReviewed:true});
+ const pendingDebt=await req('/api/debts',{iqama:iq,category:'IqamaRenewal',creditorSponsorId:'BW',allocationMode:'RiderFull',totalAmount:650,monthlyInstallment:650,requireMutualApproval:true,initiatingDepartment:'HR',sourceRef:'HR-IQ-002',agreementReviewed:true});
  assert.equal(pendingDebt.status,'pending_approval');assert.ok(pendingDebt.approvalRequestId);
  const decided=await req(`/api/approvals/${pendingDebt.approvalRequestId}/decide`,{decision:'approved',overrideSelf:true,note:'Explicit synthetic administrator override after verification'});
  assert.equal(decided.status,'approved');
@@ -192,7 +192,7 @@ try{
  await req(`/api/debts/${jDebt.id}/collect`,{collectedAmount:1200,waivedAmount:0,targetVaultCode:'SUP.BW.SET',receiptRef:'JCOL-001'});
  // The debt accrual never paid cash: SUP.SET now holds the 1200 collected from the rider, with a matching Jahez liability.
  const jHandover=await req('/api/finance/jahez-handover',{sponsorId:'BW',sourceRef:'JHND-001'});
- assert.equal(jHandover.feeHandedOver,200);assert.equal(jHandover.settlementHandedOver,1200);
+ assert.equal(jHandover.status,'pending');await req('/api/auth/login',{username:'test-accountant',password});const receivedHandover=await req(`/api/finance/jahez-handovers/${jHandover.id}/confirm`,{settlementCounted:1200,feeCounted:200});cookie=adminCookie;assert.equal(receivedHandover.status,'approved');assert.equal(receivedHandover.feeCounted,200);
  const coaAfter=await req('/api/finance/accounts');
  assert.equal(coaAfter.find(a=>a.code==='SUP.BW.FEE').netBalance,0);
  assert.equal(coaAfter.find(a=>a.code==='MAIN.BW.FEE').netBalance,200);

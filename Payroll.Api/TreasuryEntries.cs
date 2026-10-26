@@ -24,6 +24,7 @@ public static class TreasuryEntries
             var row=node!.AsObject();string code=row.Required("accountCode");var account=FinancialCore.ResolveAccount(code);var sponsor=FinancialCore.ResolveSponsor(row.Required("sponsorCode"));
             J.Need(account.IsVault||code is "1211" or "2110" or "1240" or "1241" or "2140" or "2141","الافتتاح العام للصناديق والرواتب وحسابات المنصات الرقابية؛ افتتاح الدين من مساره المخصص.");
             J.Need(account.DefaultSponsorId==null||account.DefaultSponsorId==sponsor.Id,"ملكية حساب الافتتاح لا تطابق السجل.");
+            J.Need(account.ParentCode!="MAIN.TR"||AccountingPolicy.Balance(c,tx,"MAIN.TR")==0,"وزع وطابق الرصيد المباشر لصندوق التجارية القديم أولًا حتى لا يتكرر النقد في الأب والأبناء.");
             string iqama=code is "1211" or "2110"?J.Iqama(row.Required("iqama")):"";decimal target=Debts.OptionalAmount(row,"verifiedBalance");
             J.Need(row.ContainsKey("verifiedBalance")&&target>=0,"أدخل الرصيد الطبيعي الفعلي المراجع.");
             string id="opening:"+sponsor.Code+":"+code+":"+iqama;
@@ -92,11 +93,10 @@ public static class TreasuryEntries
             string debtId=input.Required("debtId");var debt=Store.Get(c,debtId,"debt",tx)??throw new ApiError("الالتزام غير موجود.",404);FinancialScopes.DemandDebt(ctx.User,debt);
             J.Need(debt.S("entryMode")=="Accrual"&&debt.S("recognitionAccountCode")=="2130"&&debt.S("journalEntryId")!="","السداد لفاتورة/التزام مثبت ومعتمد فقط.");
             string owner=debt.S("originSponsorId"),vault=input.Required("paymentVaultCode");FinancialScopes.DemandAccount(ctx.User,vault);
-            var account=FinancialCore.ValidateVaultForOperation(vault,debt.S("category"),"disbursement");J.Need(account.DefaultSponsorId==owner,"سداد المورد من حساب نفس السجل؛ التحويل بين السجلات له مستند مستقل.");
+            var account=FinancialCore.ValidateVaultForOperation(vault,debt.S("category"),"disbursement");FinancialScopes.DemandSponsor(ctx.User,account.DefaultSponsorId!);
             decimal amount=Debts.Amount(input,"amount"),remaining=-Store.List(c,"journal",tx).SelectMany(j=>j["lines"]!.AsArray()).OfType<JsonObject>().Where(l=>l.S("accountCode")=="2130"&&l.S("debtId")==debtId&&l.S("sponsorId")==owner).Sum(l=>l.N("debit")-l.N("credit"));
             J.Need(amount<=remaining,"المبلغ يتجاوز الالتزام غير المسدد.");AccountingEvents.DemandAvailable(c,tx,vault,amount);
-            var journal=FinancialCore.PostJournal(c,tx,"supplier_payment","سداد التزام خدمة مثبت",J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM"))),input.Required("sourceRef"),new JsonArray(
-                FinancialCore.CreateJournalLine("2130",owner,amount,0,"سداد الالتزام وليس إنشاء دين جديد",debt.S("iqama"),debtId),FinancialCore.CreateJournalLine(vault,owner,0,amount,"دفع فعلي للمورد",debt.S("iqama"),debtId)),ctx.User.Identity!.Name!,debt.S("iqama"),debtId,owner,owner);
+            var journal=FinancialCore.PostJournal(c,tx,"supplier_payment","سداد التزام خدمة مثبت",J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM"))),input.Required("sourceRef"),AccountingEvents.CompanyPaymentLines("2130",owner,vault,amount,debt.S("iqama"),debtId,input),ctx.User.Identity!.Name!,debt.S("iqama"),debtId,account.DefaultSponsorId!,owner);
             debt["supplierPaidAmount"]=J.Money(debt.N("supplierPaidAmount")+amount);Store.Save(c,"debt",debt,tx);
             Store.Audit(c,tx,"supplier.paid",debtId,ctx.User.Identity!.Name!);return journal;
         }));

@@ -7,8 +7,8 @@ public static class AccessPolicy
 {
     public static bool Administrator(ClaimsPrincipal user)=>user.IsInRole("Admin")||user.IsInRole("SuperAdmin");
     public static string[] CompatibilityDefaults(string role)=>role switch {
-        "Accountant"=>["payments.record","adjustments.create","imports.view","policies.view","inquiry.issue","treasury.disburse","treasury.journals","treasury.liability.settle","debts.create.housing","debts.create.administrative","debts.create.equipment"],
-        "FinancialAccountant"=>["payments.record","adjustments.create","imports.view","policies.view","inquiry.issue","treasury.disburse","treasury.journals","treasury.opening","treasury.liability.settle","debts.create.housing","debts.create.administrative","debts.create.equipment"],
+        "Accountant"=>["payments.record","adjustments.create","imports.view","policies.view","inquiry.issue","treasury.disburse","treasury.jahez.receive","treasury.journals","treasury.liability.settle","debts.create.housing","debts.create.administrative","debts.create.equipment"],
+        "FinancialAccountant"=>["payments.record","adjustments.create","imports.view","policies.view","inquiry.issue","treasury.disburse","treasury.jahez.receive","treasury.journals","treasury.opening","treasury.liability.settle","debts.create.housing","debts.create.administrative","debts.create.equipment"],
         "FleetSupervisor"=>["debts.create.equipment"],
         "OperationsManager"=>["debts.create.equipment","forms.view"],
         "Reviewer"=>["forms.view"],
@@ -64,6 +64,8 @@ public static class AccessPolicy
         if(path.StartsWith("/api/finance/statement/",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
         if(path=="/api/finance/catalog")return method=="GET"&&(Has("debts.view")||Has("treasury.view"));
         if(path.StartsWith("/api/finance/opening/",StringComparison.Ordinal))return Has("treasury.opening");
+        if(path.StartsWith("/api/finance/legacy-cash-allocation/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
+        if(path.StartsWith("/api/finance/jahez-handovers/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.jahez.receive")&&(path.EndsWith("/confirm",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal));
         if(path.StartsWith("/api/debts/",StringComparison.Ordinal)&&path.Contains("/reconcile-opening/",StringComparison.Ordinal))return Has("treasury.opening");
         if(path.StartsWith("/api/finance/",StringComparison.Ordinal))return method=="GET"?Has("treasury.view"):method=="POST"&&(path switch{
             "/api/finance/vault-transfer"=>Has("treasury.transfer"),

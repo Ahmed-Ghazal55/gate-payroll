@@ -115,10 +115,10 @@ public static class FinancialCore
             "الحسابات البنكية الرسمية للشركات والمؤسسة المعتمدة للتحويلات البنكية والسلف البنكية وتوريد الخزائن."),
         new("BANK.BW", "حساب البنك الرسمي — سجل البوابا", "Asset", "Debit", "1130", Sponsors[0].Id, true,
             "Bank", "Bank", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms", "JahezFee"],
-            "الحساب البنكي الرسمي لسجل البوابا (مشترك البوابا/إكسبرس) للتحويلات البنكية والسلف البنكية وتوريد النقدية."),
+            "الحساب البنكي المستقل لسجل البوابا؛ الدفع عن إكسبرس يسجل بجاري صريح للتحويلات البنكية والسلف البنكية وتوريد النقدية."),
         new("BANK.EX", "حساب البنك الرسمي — سجل إكسبرس", "Asset", "Debit", "1130", Sponsors[1].Id, true,
             "Bank", "Bank", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms", "JahezFee"],
-            "الحساب البنكي الرسمي لسجل إكسبرس (مشترك البوابا/إكسبرس) للتحويلات البنكية والسلف البنكية وتوريد النقدية."),
+            "الحساب البنكي المستقل لسجل إكسبرس؛ الدفع عن البوابا يسجل بجاري صريح للتحويلات البنكية والسلف البنكية وتوريد النقدية."),
         new("BANK.TR", "حساب البنك الرسمي المستقل — سجل التجارية", "Asset", "Debit", "1130", Sponsors[2].Id, true,
             "Bank", "Bank", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms", "JahezFee"],
             "الحساب البنكي الرسمي المستقل لمؤسسة البوابة المقبلة التجارية."),
@@ -169,6 +169,7 @@ public static class FinancialCore
         new("4101", "إيرادات رسوم فتح وتفعيل حسابات جاهز", "Revenue", "Credit", "4100"),
         new("4102", "إيراد عمولة الشركة المعتمدة من تسويات المنصات", "Revenue", "Credit", "4100"),
         new("4103", "إيراد خدمات وتحملات معتمدة للشركة", "Revenue", "Credit", "4100"),
+        new("4104", "فروقات نقدية دائنة معتمدة", "Revenue", "Credit", "4100"),
 
         // حسابات مصروفات الموارد البشرية (تسمى بمسمياتها مسبوقة بكلمة "مصروف" - طبيعتها: مدين Debit)
         new("5100", "مصروفات الموارد البشرية والخدمات الحكومية (HR)", "Expense", "Debit", null),
@@ -188,6 +189,7 @@ public static class FinancialCore
         new("5201", "مصروف صيانة وحوادث مركبات وتجهيزات", "Expense", "Debit", "5200"),
         new("5202", "مصروف إعفاءات وتسويات مديونية إدارية", "Expense", "Debit", "5200"),
         new("5203", "مصروف مخالفات وتلفيات تشغيلية", "Expense", "Debit", "5200"),
+        new("5204", "مصروف عجز نقدي مثبت ومراجع", "Expense", "Debit", "5200"),
         new("5301", "مصروف رواتب وعمولات التشغيل", "Expense", "Debit", "5200")
     ];
 
@@ -349,12 +351,15 @@ public static class FinancialCore
     public static JsonObject PostJournal(DbConnection c, DbTransaction tx, string transactionType, string description, string period, string reference, JsonArray lines, string actor, string iqama = "", string debtId = "", string? originSponsorId = null, string? creditorSponsorId = null)
     {
         J.Need(lines.Count >= 2, "القيد المحاسبي المزدوج يتطلب طرفين على الأقل.");
+        J.Need(lines.OfType<JsonObject>().Count(l=>l.B("closingLegacyGroup"))<=1,"إقفال الرصيد التاريخي سطر واحد فقط.");
         decimal totalDebit = 0m, totalCredit = 0m;
         int idx = 1;
         foreach (var node in lines)
         {
             var l = node!.AsObject();
-            var canonical=CreateJournalLine(l.Required("accountCode"),l.Required("sponsorId"),l.N("debit"),l.N("credit"));
+            JsonObject canonical;
+            if(l.B("closingLegacyGroup")){LegacyCashAllocation.ValidateClosing(c,tx,l,transactionType);canonical=l;}
+            else canonical=CreateJournalLine(l.Required("accountCode"),l.Required("sponsorId"),l.N("debit"),l.N("credit"));
             J.Need(canonical.N("debit")==l.N("debit")&&canonical.N("credit")==l.N("credit"),"مبلغ القيد يحتاج تصحيح دقة الهللة.");
             l["lineNo"] = idx++;
             totalDebit = J.Money(totalDebit + l.N("debit"));
@@ -626,72 +631,6 @@ public static class FinancialCore
         }));
 
         // 5-ج. تسليم وتصفير عهدة صندوق جاهز اليومية (Zero-Out EOD Handover) من خزائن جاهز (SUP.*) إلى الصندوق الداخلي الرئيسي (MAIN.*)
-        api.MapPost("/finance/jahez-handover", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-        {
-            var sp = ResolveSponsor(input.S("sponsorId", "BW"));
-            string refNo = input.Required("sourceRef");
-            string period = J.Period(input.S("period", DateTime.UtcNow.ToString("yyyy-MM")));
-
-            var journals = Store.List(c, "journal", tx);
-            var allLines = journals.SelectMany(j => j["lines"]?.AsArray() ?? []).Select(x => x!.AsObject()).ToList();
-
-            string supSetCode = $"SUP.{sp.Code}.SET";
-            string supFeeCode = $"SUP.{sp.Code}.FEE";
-            string mainSetTarget = $"MAIN.{sp.Code}.SET";
-            string mainFeeTarget = $"MAIN.{sp.Code}.FEE";
-
-            decimal currentSetBal = J.Money(allLines.Where(l => l.S("accountCode") == supSetCode).Sum(l => l.N("debit") - l.N("credit")));
-            decimal currentFeeBal = J.Money(allLines.Where(l => l.S("accountCode") == supFeeCode).Sum(l => l.N("debit") - l.N("credit")));
-
-            decimal settlementAmount = input.ContainsKey("settlementAmount") && !string.IsNullOrWhiteSpace(input.S("settlementAmount"))
-                ? Debts.OptionalAmount(input, "settlementAmount", 0m)
-                : Math.Max(0m, currentSetBal);
-            decimal feeAmount = input.ContainsKey("feeAmount") && !string.IsNullOrWhiteSpace(input.S("feeAmount"))
-                ? Debts.OptionalAmount(input, "feeAmount", 0m)
-                : Math.Max(0m, currentFeeBal);
-
-            FinancialScopes.DemandSponsor(ctx.User,sp.Id);
-            if(settlementAmount>0)FinancialScopes.DemandAccount(ctx.User,supSetCode);if(feeAmount>0)FinancialScopes.DemandAccount(ctx.User,supFeeCode);
-            AccountingPolicy.RequireAvailable(currentSetBal,settlementAmount);
-            AccountingPolicy.RequireAvailable(currentFeeBal,feeAmount);
-            J.Need(settlementAmount + feeAmount > 0m, $"لا يوجد رصيد موجب في خزنة جاهز ({sp.ShortNameAr}) لتسليمه وتصفيره، أو لم يتم تحديد مبلغ التسليم.");
-
-            var lines = new JsonArray();
-            if (settlementAmount > 0m)
-            {
-                lines.Add(CreateJournalLine(mainSetTarget, sp.Id, settlementAmount, 0m, $"استلام تصفية خزنة كاش جاهز ({supSetCode}) بالصندوق الداخلي الرئيسي", "", ""));
-                lines.Add(CreateJournalLine(supSetCode, sp.Id, 0m, settlementAmount, $"تصفير وتسليم عهدة خزنة كاش جاهز إلى ({mainSetTarget})", "", ""));
-            }
-            if (feeAmount > 0m)
-            {
-                lines.Add(CreateJournalLine(mainFeeTarget, sp.Id, feeAmount, 0m, $"استلام حصيلة رسوم فتح حسابات جاهز ({supFeeCode}) بالصندوق الداخلي الرئيسي", "", ""));
-                lines.Add(CreateJournalLine(supFeeCode, sp.Id, 0m, feeAmount, $"تصفير وتسليم عهدة رسوم فتح حسابات جاهز إلى ({mainFeeTarget})", "", ""));
-            }
-
-            var journal = PostJournal(
-                c, tx,
-                "jahez_eod_handover",
-                input.S("description", $"تسليم وتصفير عهدة صندوق جاهز اليومية ({sp.ShortNameAr}) إلى الصندوق الداخلي الرئيسي — تصفيات: {settlementAmount:0.00} ر.س | رسوم: {feeAmount:0.00} ر.س"),
-                period,
-                refNo,
-                lines,
-                ctx.User.Identity!.Name!,
-                "", "", sp.Id, sp.Id
-            );
-            Store.Audit(c, tx, "finance.jahez_handover", journal.S("id"), ctx.User.Identity!.Name!);
-            return new
-            {
-                sponsorCode = sp.Code,
-                sponsorNameAr = sp.ShortNameAr,
-                settlementHandedOver = settlementAmount,
-                feeHandedOver = feeAmount,
-                totalHandedOver = J.Money(settlementAmount + feeAmount),
-                targetSettlementVault = mainSetTarget,
-                targetFeeVault = mainFeeTarget,
-                journal
-            };
-        }));
-
         // 6. كشف حساب المندوب أو الموظف الشامل 360 درجة (مدين / دائن / رصيد تراكمي متسلسل زمنياً بدقة / حسب السجل / مع القيود والرواتب)
         api.MapGet("/finance/statement/rider/{iqama}",(string iqama,string? sponsorId,HttpContext ctx)=>store.Read(c=>RiderStatements.Build(c,iqama,sponsorId,ctx.User)));
 

@@ -16,6 +16,7 @@ public static class UserAccess
     public static readonly PermissionDef[] PermissionsCatalog =
     [
         new("treasury.opening","Treasury","الخزينة","اعتماد تسوية افتتاح موثقة","معاينة وتأكيد تسوية الأرصدة القديمة دون تعديل الوثائق الأصلية."),
+        new("treasury.jahez.receive","Treasury","الخزينة","استلام عهدة جاهز بعد عدها","قرار مالي مستقل يطابق التصفيات والرسوم كلًا على حدة قبل ترحيلهما."),
         new("treasury.journals","Treasury","الخزينة","عرض قيود الأستاذ ضمن النطاق","عرض القيود غير النقدية مع نطاق السجل القانوني."),
         new("treasury.liability.settle","Treasury","الخزينة","سداد التزام مثبت","دفع التزام معتمد من نقدية الشركة مع فحص الرصيد والمستند."),
         new("debts.create.equipment","Debts","المديونيات","تسجيل عهد التجهيزات","لا يمنح إنشاء بقية مخالفات وخدمات الأسطول."),

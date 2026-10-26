@@ -108,3 +108,12 @@ Deletes only the chosen form and its children atomically, records `campaign.dele
 
 
 تحديث0.6.1: ربط سجل دائن لدين قديم عبر PUT /api/debts/{id} يتطلب Admin وcreditorSponsorId وagreementReviewed وexpectedRemainingBalance مطابقًا؛ لا يعيد إنشاء الدين أو تغيير رصيده. يمنع التحصيل الجديد على دين غير مربوط، مع استمرار دفتر الرواتب القديم دون قيد شركة افتراضي.
+
+
+## v0.7.0 financial controls
+
+- `POST /api/finance/legacy-cash-allocation/preview` and `/commit`: signed, actor-bound, stale-safe reconciliation of the former direct `MAIN.TR` balance into final verified DEBT/SET/FEE balances. Requires `treasury.opening`; never duplicates existing children or rewrites historical journals. Nonzero differences require explicit classification.
+- `POST /api/finance/jahez-handover`: creates a pending request only. Blank amounts mean currently available custody within the actor's scope.
+- `GET /api/finance/jahez-handovers` and `POST /api/finance/jahez-handovers/{id}/confirm|reject`: independent finance recipient with `treasury.jahez.receive`, appropriate department/rank and destination scope. Confirmation requires `settlementCounted` and `feeCounted`, including zero; rejection requires a note. Administrator self-receipt requires `overrideSelf: true` plus a note. No cash posting until receipt; no replay.
+- `POST /api/finance/liability-payment` and `/api/payments`: a different company's general bank may pay a verified liability/payable only with `onBehalf: true` and `onBehalfNote`, both-company scope, bank scope, sufficient cash and a documented reference. Explicit paired 1310 lines preserve each entity's balance. Bank ownership remains independent; Jahez and fee custody cannot fund these payments.
+- Opening balance templates/previews/commits, debt recognition modes, immutable transfers, purpose restrictions and scoped user permissions are documented in `UPGRADE_V07_AR.md`. Financial records remain append-only through their designated event workflows; no generic journal import is exposed.

@@ -128,4 +128,22 @@ public sealed class AccountingPostingTests
     {
         InStore(store=>{SeedCash(store,"MAIN.BW.DEBT",1000);var debt=Debt("future-start");debt["effectiveFrom"]=DateTime.UtcNow.AddMonths(3).ToString("yyyy-MM");Create(store,debt);store.Read(c=>{var posted=Store.Get(c,debt.S("journalEntryId"),"journal")!;Assert.AreEqual(DateTime.UtcNow.ToString("yyyy-MM"),posted.S("period"));Assert.AreNotEqual(debt.S("effectiveFrom"),posted.S("period"));return true;});});
     }
+    [TestMethod] public void IndependentBanksPayOnBehalfOnlyWithExplicitEvidenceAndBalancedIntercompanyLines()
+    {
+        InStore(store=>{
+            SeedCash(store,"BANK.EX",1000);
+            store.Write((c,tx)=>FinancialCore.PostJournal(c,tx,"test_salary","Synthetic approved salary","2026-10","approved-bank-test",new JsonArray(FinancialCore.CreateJournalLine("5301",Bw,600,0,"",Iqama),FinancialCore.CreateJournalLine("2110",Bw,0,600,"",Iqama)),"synthetic"));
+            var payment=new JsonObject{["iqama"]=Iqama,["period"]="2026-10",["amount"]=-400,["sourceRef"]="other-bank"};
+            Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>AccountingEvents.PostPayment(c,tx,payment,Bw,"BANK.EX","finance")));
+            Assert.AreEqual(1000m,store.Read(c=>AccountingPolicy.Balance(c,null,"BANK.EX")));
+            payment["onBehalf"]=true;payment["onBehalfNote"]="EX bank transfer paid BW salary per voucher";
+            store.Write((c,tx)=>AccountingEvents.PostPayment(c,tx,payment,Bw,"BANK.EX","finance"));
+            Assert.AreEqual(600m,store.Read(c=>AccountingPolicy.Balance(c,null,"BANK.EX")));Assert.AreEqual(0m,store.Read(c=>AccountingPolicy.Balance(c,null,"BANK.BW")));
+            Assert.AreEqual(-200m,store.Read(c=>AccountingEvents.Balance(c,null,"2110",Iqama,Bw)));
+            store.Read(c=>{var j=Store.List(c,"journal").Last(x=>x.S("transactionType")=="payroll_payment");foreach(var g in j["lines"]!.AsArray().OfType<JsonObject>().GroupBy(l=>l.S("sponsorId")))Assert.AreEqual(0m,g.Sum(l=>l.N("debit")-l.N("credit")));return true;});
+            Assert.ThrowsExactly<ApiError>(()=>AccountingEvents.CompanyPaymentLines("2130",Bw,"BANK.EX.JAHEZ",100,Iqama,"",payment));
+            Assert.ThrowsExactly<ApiError>(()=>AccountingEvents.CompanyPaymentLines("2130",Bw,"MAIN.EX.DEBT",100,Iqama,"",payment));
+        });
+    }
+
 }
