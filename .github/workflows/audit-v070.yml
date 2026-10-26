@@ -9,6 +9,10 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: 52d4e3256485907b5ee8227493f6494c12614ad4
+          persist-credentials: false
       - uses: actions/download-artifact@v6
         with:
           name: publish
@@ -16,30 +20,18 @@ jobs:
           repository: Ahmed-Ghazal55/gate-payroll
           run-id: 40304350594
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Check every HTTPS asset without production writes
+      - name: Verify the deployed v070 bundle without production writes
+        env:
+          MONSTERASP_FTP_SERVER: ${{ secrets.MONSTERASP_FTP_SERVER }}
+          MONSTERASP_FTP_USERNAME: ${{ secrets.MONSTERASP_FTP_USERNAME }}
+          MONSTERASP_FTP_PASSWORD: ${{ secrets.MONSTERASP_FTP_PASSWORD }}
         run: |
-          python3 - <<'PY'
-          import urllib.request,urllib.error,urllib.parse,hashlib,json
-          from pathlib import Path
-          base='https://payroll.marketingalbawaba.com'
-          root=Path('artifacts/monsterasp/wwwroot')
-          results=[]
-          for path in sorted(root.rglob('*')):
-              if not path.is_file():continue
-              route='/'+'/'.join(urllib.parse.quote(p) for p in path.relative_to(root).parts)
-              request=urllib.request.Request(base+route+'?audit=v070',headers={'Cache-Control':'no-cache','Accept-Encoding':'identity'})
-              try:
-                  with urllib.request.urlopen(request,timeout=30) as response:
-                      data=response.read();row={'path':route,'status':response.status,'bytes':len(data),'matches':hashlib.sha256(data).digest()==hashlib.sha256(path.read_bytes()).digest()}
-              except Exception as e:row={'path':route,'error':str(e)}
-              results.append(row);print(json.dumps(row,ensure_ascii=False),flush=True)
-          for route in ['/','/health','/rider-form']:
-              try:
-                  with urllib.request.urlopen(base+route,timeout=30) as response:print(json.dumps({'probe':route,'status':response.status,'bytes':len(response.read())}))
-              except Exception as e:print(json.dumps({'probe':route,'error':str(e)}))
-          Path('https-audit-v070.json').write_text(json.dumps(results,indent=2))
-          PY
-      - uses: actions/upload-artifact@v6
+          python3 scripts/monsterasp_ftps.py health
+          python3 scripts/verify_deployed_payload.py
+      - name: Save read-only verification evidence
+        if: always()
+        uses: actions/upload-artifact@v6
         with:
-          name: https-audit-v070
-          path: https-audit-v070.json
+          name: deployment-verification-v070-independent
+          path: artifacts/deployment-verification-v070.json
+          retention-days: 14
