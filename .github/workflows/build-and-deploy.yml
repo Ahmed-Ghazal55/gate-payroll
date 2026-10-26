@@ -41,7 +41,7 @@ jobs:
       - name: Verify release source boundaries
         run: python3 scripts/release_source.py --check
       - name: Verify FTPS lifecycle protections
-        run: python3 -m unittest discover -s scripts -p "test_ftps_deploy.py" -v
+        run: python3 -m unittest discover -s scripts -p "test_*.py" -v
       - name: Run engine and hosting-security assertions
         run: dotnet test tests/Engine.Tests/Engine.Tests.csproj --nologo --logger "console;verbosity=detailed"
       - name: Build from clean sources
@@ -62,6 +62,7 @@ jobs:
         run: |
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/integration.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/enterprise.mjs
+          PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/accounting.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/submissions.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/campaigns.mjs
       - name: Publish MonsterASP bundle
@@ -114,6 +115,20 @@ jobs:
       - name: Verify live HTTPS release
         if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs['ftps-preflight'].result == 'success'
         run: python3 scripts/monsterasp_ftps.py health
+      - name: Verify every published file and HTTPS asset (read only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs['ftps-preflight'].result == 'success'
+        env:
+          MONSTERASP_FTP_SERVER: ${{ secrets.MONSTERASP_FTP_SERVER }}
+          MONSTERASP_FTP_USERNAME: ${{ secrets.MONSTERASP_FTP_USERNAME }}
+          MONSTERASP_FTP_PASSWORD: ${{ secrets.MONSTERASP_FTP_PASSWORD }}
+        run: python3 scripts/verify_deployed_payload.py
+      - name: Save deployment verification evidence
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs['ftps-preflight'].result == 'success'
+        uses: actions/upload-artifact@v6
+        with:
+          name: deployment-verification-v070
+          path: artifacts/deployment-verification-v070.json
+          retention-days: 14
   ftps-preflight:
     name: Check FTPS connection (read only)
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'

@@ -45,34 +45,32 @@ public static class Debts
         decimal riderShare = debt.N("totalAmount", totalCost - companyShare);
         string originSpId = debt.S("originSponsorId");
         string creditorSpId = debt.S("creditorSponsorId", originSpId);
-        string vaultCode = debt.S("paymentVaultCode", FinancialCore.DefaultVaultForSponsor(originSpId));
-        var vaultAcc = FinancialCore.ResolveVault(vaultCode);
-        var vaultSp = FinancialCore.ResolveSponsor(vaultAcc.DefaultSponsorId ?? originSpId);
-        string receivCode = debt.S("debtorType") == "Employee" ? "1220" : cat.ReceivableAccountCode;
-
-        var lines = new JsonArray();
-        if (companyShare > 0)
+        string mode=debt.S("entryMode");
+        J.Need(mode is "Disbursement" or "Accrual" or "OpeningBalance","الطلب القديم يحتاج تحديد نوع الحدث ومقابله قبل الترحيل.");
+        string vaultCode=debt.S("paymentVaultCode");
+        var vaultAcc=mode=="Disbursement"?FinancialCore.ValidateVaultForOperation(vaultCode,cat.Code,"disbursement",debt.S("platform")):null;
+        string counterpart=mode=="Disbursement"?vaultAcc!.Code:AccountingEvents.RecognitionAccount(debt,cat.Code,mode);
+        string fundingSponsor=mode=="Disbursement"?vaultAcc!.DefaultSponsorId!:originSpId;
+        if(mode=="OpeningBalance"){J.Need(originSpId==creditorSpId,"الافتتاح يثبت للسجل صاحب الرصيد فقط.");fundingSponsor=creditorSpId;}
+        if(mode=="Disbursement")AccountingEvents.DemandAvailable(c,tx,vaultCode,totalCost);
+        if(cat.Code=="PlatformTransferredDebt")J.Need(debt.S("platform")!=""&&mode!="Disbursement","حدد المنصة ومصدر المديونية دون إثبات صرف نقد.");
+        string receivCode=debt.S("debtorType")=="Employee"?"1220":cat.ReceivableAccountCode;
+        var lines=new JsonArray();
+        if(companyShare>0)lines.Add(FinancialCore.CreateJournalLine(cat.ExpenseAccountCode,originSpId,companyShare,0m,"حصة تكلفة الشركة المعتمدة",debt.S("iqama"),debt.S("id")));
+        if(riderShare>0)lines.Add(FinancialCore.CreateJournalLine(receivCode,creditorSpId,riderShare,0m,"إثبات ذمة المندوب",debt.S("iqama"),debt.S("id")));
+        lines.Add(FinancialCore.CreateJournalLine(counterpart,fundingSponsor,0m,totalCost,mode=="Disbursement"?"دفع فعلي موثق":"إثبات غير نقدي؛ لا حركة على الصندوق",debt.S("iqama"),debt.S("id")));
+        void Clearing(string owner,decimal amount)
         {
-            lines.Add(FinancialCore.CreateJournalLine(cat.ExpenseAccountCode, originSpId, companyShare, 0m, $"تحمل الشركة لبند ({cat.NameAr})", debt.S("iqama"), debt.S("id")));
+            if(amount<=0||owner==fundingSponsor)return;
+            lines.Add(FinancialCore.CreateJournalLine("1310",fundingSponsor,amount,0m,"تمويل/التزام لصالح سجل آخر",debt.S("iqama"),debt.S("id")));
+            lines.Add(FinancialCore.CreateJournalLine("1310",owner,0m,amount,"جاري السجل الممول/المتعهد",debt.S("iqama"),debt.S("id")));
         }
-        if (riderShare > 0)
-        {
-            lines.Add(FinancialCore.CreateJournalLine(receivCode, creditorSpId, riderShare, 0m, $"إثبات ذمة مدينة على المندوب/الموظف لبند ({cat.NameAr})", debt.S("iqama"), debt.S("id")));
-        }
-        lines.Add(FinancialCore.CreateJournalLine(vaultAcc.Code, vaultSp.Id, 0m, totalCost, $"سداد/صرف مقابل ({cat.NameAr}) من ({vaultAcc.NameAr})", debt.S("iqama"), debt.S("id")));
-
-        if (creditorSpId != vaultSp.Id && riderShare > 0)
-        {
-            var credSp = FinancialCore.ResolveSponsor(creditorSpId);
-            lines.Add(FinancialCore.CreateJournalLine("1310", vaultSp.Id, riderShare, 0m, $"إثبات حق لسجل ({vaultSp.ShortNameAr}) طرف ({credSp.ShortNameAr}) مقابل تمويل ذمة المندوب", debt.S("iqama"), debt.S("id")));
-            lines.Add(FinancialCore.CreateJournalLine("1310", credSp.Id, 0m, riderShare, $"إثبات التزام على ({credSp.ShortNameAr}) لصالح ({vaultSp.ShortNameAr}) مقابل تمويل ذمة المندوب", debt.S("iqama"), debt.S("id")));
-        }
-
+        Clearing(creditorSpId,riderShare);Clearing(originSpId,companyShare);
         var journal = FinancialCore.PostJournal(
             c, tx,
-            allocationMode == "CompanyFull" ? "company_expense" : "debt_creation",
+            mode=="OpeningBalance"?"opening_balance_debt":mode=="Accrual"?"debt_accrual":allocationMode=="CompanyFull"?"company_expense":"debt_creation",
             $"قيد إثبات ({cat.NameAr}) — تحمل ({allocationMode}) — مرجع ({debt.S("sourceRef")})",
-            debt.S("effectiveFrom", DateTime.UtcNow.ToString("yyyy-MM")),
+            mode=="Disbursement"?DateTime.UtcNow.ToString("yyyy-MM"):debt.S("postingPeriod",DateTime.UtcNow.ToString("yyyy-MM")),
             "DEBT-INIT-" + debt.S("sourceRef"),
             lines,
             actor,
@@ -81,6 +79,8 @@ public static class Debts
             originSpId,
             creditorSpId
         );
+        debt["receivableAccountCode"]=receivCode;
+        debt["postingPeriod"]=journal.S("period");
         debt["journalEntryId"] = journal.S("id");
         debt["journalNumber"] = journal.S("journalNumber");
         Store.Save(c, "debt", debt, tx);
@@ -88,13 +88,13 @@ public static class Debts
 
     public static void Map(RouteGroupBuilder api, Store store)
     {
-        api.MapGet("/debts", (string? sponsorId, string? category, string? status, string? iqama) => store.Read(c =>
+        api.MapGet("/debts", (string? sponsorId, string? category, string? status, string? iqama,HttpContext ctx) => store.Read(c =>
         {
-            var list = Store.List(c, "debt");
+            var list = Store.List(c, "debt").Where(d=>FinancialScopes.Debt(ctx.User,d)).ToList();
             if (!string.IsNullOrWhiteSpace(sponsorId))
             {
                 var spId = FinancialCore.ResolveSponsor(sponsorId).Id;
-                list = list.Where(d => FinancialCore.AssignedDebtSponsor(d)?.Id == spId || FinancialCore.FindSponsor(d.S("originSponsorId"))?.Id == spId).ToList();
+                list = list.Where(d => FinancialCore.AssignedDebtSponsor(d)?.Id == spId).ToList();
             }
             if (!string.IsNullOrWhiteSpace(category)) list = list.Where(d => d.S("category") == category).ToList();
             if (!string.IsNullOrWhiteSpace(status)) list = list.Where(d => d.S("status") == status).ToList();
@@ -102,9 +102,9 @@ public static class Debts
             return list;
         }));
 
-        api.MapGet("/debts/settlements", (string? debtId, string? iqama) => store.Read(c =>
+        api.MapGet("/debts/settlements", (string? debtId, string? iqama,HttpContext ctx) => store.Read(c =>
         {
-            var list = Store.List(c, "debt_settlement");
+            var list = Store.List(c, "debt_settlement").Where(d=>FinancialScopes.Sponsor(ctx.User,d.S("creditorSponsorId"))&&FinancialScopes.Category(ctx.User,d.S("category"))).ToList();
             if (!string.IsNullOrWhiteSpace(debtId)) list = list.Where(s => s.S("debtId") == debtId).ToList();
             if (!string.IsNullOrWhiteSpace(iqama)) list = list.Where(s => s.S("iqama") == iqama.Trim()).ToList();
             return list;
@@ -164,15 +164,19 @@ public static class Debts
             string reference = input.Required("sourceRef");
             J.Need(!Store.List(c, "debt", tx).Any(d => d.S("sourceRef") == reference), "مرجع الدين مسجل من قبل.");
 
-            var sponsorshipSp = FinancialCore.ResolveSponsor(input.S("sponsorshipSponsorId", rider!.S("sponsor")));
-            var originSp = FinancialCore.ResolveSponsor(input.S("originSponsorId", sponsorshipSp.Id));
-            var creditorSp = FinancialCore.ResolveSponsor(input.S("creditorSponsorId", originSp.Id));
-            string vaultCode = input.S("paymentVaultCode", FinancialCore.DefaultVaultForSponsor(originSp.Id, category == "BankAdvance" ? "BANK" : "MAIN"));
-            FinancialCore.ResolveVault(vaultCode);
-
-            bool requireMutualApproval = input.B("requireMutualApproval");
-            string initiatingDept = input.S("initiatingDepartment", catMeta.Sector == "HR" ? "HR" : "FIN");
-            string targetApprovalDept = initiatingDept == "HR" ? "FIN" : "HR";
+            string mode=AccountingEvents.EntryMode(input,category);
+            if(mode=="OpeningBalance"){AccessPolicy.Demand(ctx.User,"treasury.opening");J.Need(input.B("openingReviewed"),"راجع مستند الرصيد الافتتاحي صراحة.");}
+            var sponsorshipSp=FinancialCore.FindSponsor(input.S("sponsorshipSponsorId"))??FinancialCore.FindSponsor(rider!.S("sponsorId"))??FinancialCore.FindSponsor(rider.S("sponsor"));
+            var creditorSp=FinancialCore.FindSponsor(input.S("creditorSponsorId"))??FinancialCore.FindSponsor(input.S("originSponsorId"))??sponsorshipSp??throw new ApiError("حدد السجل التجاري الدائن صراحة.");
+            var originSp=FinancialCore.FindSponsor(input.S("originSponsorId"))??creditorSp;
+            string recognition=AccountingEvents.RecognitionAccount(input,category,mode);
+            J.Need(mode=="Disbursement"||input.S("paymentVaultCode")=="","الإثبات غير النقدي لا يختار صندوق صرف؛ حدد الحدث الصحيح.");
+            string vaultCode=mode=="Disbursement"?input.S("paymentVaultCode",FinancialCore.DefaultVaultForSponsor(originSp.Id,category=="BankAdvance"?"BANK":"MAIN",category)):"";
+            if(mode=="Disbursement")FinancialCore.ValidateVaultForOperation(vaultCode,category,"disbursement",input.S("platform"));
+            if(category=="PlatformTransferredDebt")J.Need(new[]{"Jahez","Keeta","HungerStation","Ninja","Other"}.Contains(input.S("platform")),"حدد المنصة التي أحالت الدين.");
+            bool requireMutualApproval=input.B("requireMutualApproval")||!AccessPolicy.Has(ctx.User,"treasury.disburse")||mode=="Disbursement"&&!AccessPolicy.Administrator(ctx.User);
+            string initiatingDept = AccessPolicy.Administrator(ctx.User)?input.S("initiatingDepartment",catMeta.Sector=="HR"?"HR":"FIN"):ctx.User.FindFirst("department")!.Value;
+            string targetApprovalDept = initiatingDept == "FIN" ? "HR" : "FIN";
             string effectivePeriod = J.Period(input.S("effectiveFrom", DateTime.UtcNow.ToString("yyyy-MM")));
             string status = requireMutualApproval ? "pending_approval" : (totalRiderShare > 0 ? "active" : "settled");
 
@@ -183,11 +187,13 @@ public static class Debts
                 ["riderName"] = rider.S("name"),
                 ["debtorType"] = input.S("debtorType", rider.S("operationalRole", "Rider").Contains("موظف") ? "Employee" : "Rider"),
                 ["category"] = category,
+                ["platform"] = input.S("platform"),
                 ["categoryAr"] = catMeta.NameAr,
                 ["sector"] = catMeta.Sector,
                 ["expenseAccountCode"] = catMeta.ExpenseAccountCode,
                 ["receivableAccountCode"] = catMeta.ReceivableAccountCode,
                 ["allocationMode"] = allocationMode,
+                ["entryMode"]=mode,["recognitionAccountCode"]=recognition,["accountingVersion"]=AccountingEvents.Version,["originalCreditorSponsorId"]=creditorSp.Id,
                 ["totalCostAmount"] = totalCost,
                 ["companyShareAmount"] = companyShare,
                 ["totalAmount"] = totalRiderShare,
@@ -195,8 +201,8 @@ public static class Debts
                 ["waivedAmount"] = 0m,
                 ["remainingBalance"] = totalRiderShare,
                 ["monthlyInstallment"] = installment,
-                ["sponsorshipSponsorId"] = sponsorshipSp.Id,
-                ["sponsorshipSponsorNameAr"] = sponsorshipSp.ShortNameAr,
+                ["sponsorshipSponsorId"] = sponsorshipSp?.Id??"",
+                ["sponsorshipSponsorNameAr"] = sponsorshipSp?.ShortNameAr??rider.S("sponsor"),
                 ["originSponsorId"] = originSp.Id,
                 ["originSponsorNameAr"] = originSp.ShortNameAr,
                 ["creditorSponsorId"] = creditorSp.Id,
@@ -208,10 +214,13 @@ public static class Debts
                 ["notes"] = input.S("notes"),
                 ["sourceRef"] = reference,
                 ["effectiveFrom"] = effectivePeriod,
+                ["postingPeriod"] = J.Period(input.S("postingPeriod",DateTime.UtcNow.ToString("yyyy-MM"))),
                 ["createdBy"] = ctx.User.Identity!.Name!,
                 ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
             };
 
+            FinancialScopes.DemandDebt(ctx.User,d);FinancialScopes.DemandSponsor(ctx.User,originSp.Id);
+            if(mode=="Disbursement")FinancialScopes.DemandAccount(ctx.User,vaultCode);
             Store.Save(c, "debt", d, tx);
 
             if (requireMutualApproval)
@@ -243,6 +252,7 @@ public static class Debts
         api.MapPut("/debts/{id}", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             var d = Store.Get(c, id, "debt", tx) ?? throw new ApiError("الدين غير موجود.", 404);
+            FinancialScopes.DemandDebt(ctx.User,d);
             J.Need(d.S("status") is "active" or "paused", "المديونية تنتظر الاعتماد أو ملغاة؛ لا يمكن إعادة جدولتها.");
             J.Need(d.N("remainingBalance") > 0, "الدين مسدد.");
             string status = input.S("status", d.S("status"));
@@ -256,7 +266,7 @@ public static class Debts
             }
             if(!string.IsNullOrWhiteSpace(input.S("creditorSponsorId")))
             {
-                if(!ctx.User.IsInRole("Admin"))throw new ApiError("ربط الدين القديم يتطلب مسؤول النظام.",403);
+                if(!AccessPolicy.Administrator(ctx.User))throw new ApiError("ربط الدين القديم يتطلب مسؤول النظام.",403);
                 J.Need(FinancialCore.AssignedDebtSponsor(d)==null&&input.B("agreementReviewed")&&input.ContainsKey("expectedRemainingBalance")&&input.N("expectedRemainingBalance")==d.N("remainingBalance"),"تغير الدين أو سبق ربطه؛ أعد المراجعة.");
                 var sponsor=FinancialCore.ResolveSponsor(input.Required("creditorSponsorId"));d["creditorSponsorId"]=sponsor.Id;d["creditorSponsorNameAr"]=sponsor.ShortNameAr;
                 Store.Audit(c,tx,"debt.sponsor_assigned",id,ctx.User.Identity!.Name!);
@@ -273,11 +283,13 @@ public static class Debts
         api.MapPost("/debts/{id}/collect", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             var d = Store.Get(c, id, "debt", tx) ?? throw new ApiError("الدين غير موجود.", 404);
+            FinancialScopes.DemandDebt(ctx.User,d);
             decimal remaining = d.N("remainingBalance");
             J.Need(remaining > 0 && d.S("status") is "active" or "paused", "الدين غير نشط أو مسدد بالكامل.");
 
             decimal collected = OptionalAmount(input, "collectedAmount", 0m);
             decimal waived = OptionalAmount(input, "waivedAmount", 0m);
+            if(waived>0){AccessPolicy.Demand(ctx.User,"debts.waive");input.Required("waiverReason");}
             decimal totalReduction = J.Money(collected + waived);
             J.Need(totalReduction > 0, "أدخل مبلغ التحصيل أو مبلغ الإعفاء الإداري.");
             J.Need(totalReduction <= remaining, $"إجمالي السداد والإعفاء ({totalReduction:0.00}) يتجاوز الرصيد المتبقي ({remaining:0.00}).");
@@ -286,10 +298,16 @@ public static class Debts
             J.Need(!Store.List(c, "debt_settlement", tx).Any(s => s.S("receiptRef") == receiptRef), "رقم سند التحصيل/التسوية مسجل من قبل.");
 
             var creditorSp = FinancialCore.RequireDebtSponsor(d);
-            string targetVaultCode = input.S("targetVaultCode", FinancialCore.DefaultVaultForSponsor(creditorSp.Id, "MAIN"));
-            var vaultAcc = FinancialCore.ResolveVault(targetVaultCode);
+            string debtCategory = d.S("category", "Advance");
+            string targetVaultCode = input.S("targetVaultCode", FinancialCore.DefaultVaultForSponsor(creditorSp.Id, "MAIN", debtCategory));
+            var vaultAcc = collected > 0
+                ? FinancialCore.ValidateVaultForOperation(targetVaultCode, debtCategory, "collection",d.S("platform"))
+                : FinancialCore.ResolveVault(targetVaultCode);
             var collectionSp = FinancialCore.ResolveSponsor(vaultAcc.DefaultSponsorId ?? input.S("collectionSponsorId", creditorSp.Id));
-            string receivCode = d.S("receivableAccountCode", "1210");
+            if(collected>0)FinancialScopes.DemandAccount(ctx.User,vaultAcc.Code);
+            J.Need(AccountingEvents.HasDebtOpening(d),"راجع إثبات الرصيد الافتتاحي القديم قبل التحصيل.");
+            J.Need(AccountingEvents.DebtBalance(c,tx,d,creditorSp.Id)>=totalReduction,"الذمة غير مطابقة للدين؛ راجع الافتتاح أولًا.");
+            string receivCode = AccountingEvents.ReceivableCode(d);
             string period = J.Period(input.S("period", DateTime.UtcNow.ToString("yyyy-MM")));
 
             var lines = new JsonArray();
@@ -360,7 +378,7 @@ public static class Debts
             Store.Save(c, "debt_settlement", settlement, tx);
 
             // في حال كان التحصيل من HR، ننشئ إشعار علم وتصديق للمالية (والعكس)
-            string collectorDept = input.S("collectorDepartment", "FIN");
+            string collectorDept=ctx.User.FindFirst("department")?.Value??"FIN";
             if (collectorDept == "HR")
             {
                 FinancialCore.CreateMutualApproval(
@@ -379,70 +397,13 @@ public static class Debts
         }));
 
         // شراء المديونية / ترحيل ملكية المديونية مالياً من سجل تجاري إلى سجل تجاري آخر
-        api.MapPost("/debts/{id}/transfer-sponsor", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-        {
-            var d = Store.Get(c, id, "debt", tx) ?? throw new ApiError("الدين غير موجود.", 404);
-            decimal remaining = d.N("remainingBalance");
-            J.Need(remaining > 0&&d.S("status") is "active" or "paused", "لا يمكن نقل مديونية غير نشطة أو مسددة.");
-
-            var oldSp = FinancialCore.RequireDebtSponsor(d);
-            var newSp = FinancialCore.ResolveSponsor(input.Required("newCreditorSponsorId"));
-            J.Need(oldSp.Id != newSp.Id, "السجل المشتري للمديونية يجب أن يكون مختلفاً عن السجل الدائن الحالي.");
-
-            string transferRef = input.Required("transferRef");
-            string receivCode = d.S("receivableAccountCode", "1210");
-            string settlementMode = input.S("settlementMode", "intercompany"); // intercompany | cash_purchase
-
-            var lines = new JsonArray
-            {
-                FinancialCore.CreateJournalLine(receivCode, newSp.Id, remaining, 0m, $"إثبات شراء/استحواذ ({newSp.ShortNameAr}) على مديونية المندوب ({d.S("iqama")})", d.S("iqama"), id),
-                FinancialCore.CreateJournalLine(receivCode, oldSp.Id, 0m, remaining, $"إقفال وتنازل ({oldSp.ShortNameAr}) عن مديونية المندوب لصالح ({newSp.ShortNameAr})", d.S("iqama"), id)
-            };
-
-            if (settlementMode == "cash_purchase")
-            {
-                string buyerVault = FinancialCore.DefaultVaultForSponsor(newSp.Id, "MAIN");
-                string sellerVault = FinancialCore.DefaultVaultForSponsor(oldSp.Id, "MAIN");
-                lines.Add(FinancialCore.CreateJournalLine(sellerVault, oldSp.Id, remaining, 0m, $"قبض ثمن بيع المديونية من ({newSp.ShortNameAr})", d.S("iqama"), id));
-                lines.Add(FinancialCore.CreateJournalLine(buyerVault, newSp.Id, 0m, remaining, $"سداد ثمن شراء المديونية إلى ({oldSp.ShortNameAr})", d.S("iqama"), id));
-            }
-            else
-            {
-                lines.Add(FinancialCore.CreateJournalLine("1310", oldSp.Id, remaining, 0m, $"إثبات مديونية على ({newSp.ShortNameAr}) مقابل شراء ذمة المندوب", d.S("iqama"), id));
-                lines.Add(FinancialCore.CreateJournalLine("1310", newSp.Id, 0m, remaining, $"إثبات التزام لصالح ({oldSp.ShortNameAr}) مقابل شراء ذمة المندوب", d.S("iqama"), id));
-            }
-
-            var journal = FinancialCore.PostJournal(
-                c, tx,
-                "intercompany_debt_transfer",
-                $"شراء وترحيل مديونية المندوب ({d.S("iqama")}) من ({oldSp.ShortNameAr}) إلى ({newSp.ShortNameAr})",
-                DateTime.UtcNow.ToString("yyyy-MM"),
-                transferRef,
-                lines,
-                ctx.User.Identity!.Name!,
-                d.S("iqama"),
-                id,
-                oldSp.Id,
-                newSp.Id
-            );
-
-            d["previousCreditorSponsorId"] = oldSp.Id;
-            d["previousCreditorSponsorNameAr"] = oldSp.ShortNameAr;
-            d["creditorSponsorId"] = newSp.Id;
-            d["creditorSponsorNameAr"] = newSp.ShortNameAr;
-            d["transferredAt"] = DateTimeOffset.UtcNow.ToString("O");
-            d["transferJournalId"] = journal.S("id");
-            Store.Save(c, "debt", d, tx);
-
-            Store.Audit(c, tx, "debt.transferred_sponsor", id, ctx.User.Identity!.Name!);
-            return new { debt = d, journal };
-        }));
+        api.MapPost("/debts/{id}/transfer-sponsor",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>DebtTransfers.Post(c,tx,id,input,ctx.User)));
 
         // قالب إكسل التحصيل المجمع (بالإقامة والاسم والمبلغ المحصل والإعفاء والصندوق)
-        api.MapGet("/debts/bulk-collect/template", () => store.Read(c =>
+        api.MapGet("/debts/bulk-collect/template", (HttpContext ctx) => store.Read(c =>
         {
-            var activeDebts = Store.List(c, "debt").Where(d => d.S("status") == "active" && d.N("remainingBalance") > 0).Take(10).ToList();
-            var vaultChoices = FinancialCore.ChartOfAccounts.Where(a => a.IsVault).Select(a => a.Code).ToArray();
+            var activeDebts = Store.List(c, "debt").Where(d => d.S("status") == "active" && d.N("remainingBalance") > 0&&FinancialScopes.Debt(ctx.User,d)&&FinancialCore.AssignedDebtSponsor(d)!=null).Take(10).ToList();
+            var vaultChoices = FinancialCore.ChartOfAccounts.Where(a => a.IsVault&&FinancialScopes.Account(ctx.User,a.Code)).Select(a => a.Code).ToArray();
             var cols = new List<ExcelColumn>
             {
                 new("رقم الإقامة", false, null, true),
@@ -463,14 +424,14 @@ public static class Debts
                     d.S("riderName"),
                     d.N("monthlyInstallment"),
                     0m,
-                    d.S("paymentVaultCode", "MAIN.BW.SET"),
+                    FinancialCore.DefaultVaultForSponsor(d.S("creditorSponsorId"),"MAIN",d.S("category")),
                     $"BLK-{DateTime.UtcNow:yyyyMMdd}-{seq++:D3}",
                     $"تحصيل قسط ({d.S("categoryAr", d.S("category"))})"
                 ]);
             }
             if (rows.Count == 0)
             {
-                rows.Add(["2491234567", "مثال: محمد أحمد", 500m, 0m, "MAIN.BW.SET", "BLK-202610-001", "سداد دفعة نقدية للصندوق الداخلي"]);
+                rows.Add(["2491234567", "مثال: محمد أحمد", 500m, 0m, "MAIN.BW.DEBT", "BLK-202610-001", "سداد دفعة نقدية للصندوق الداخلي"]);
             }
             return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "قالب_التحصيل_المجمع_للمديونيات.xlsx");
         }));
@@ -482,16 +443,16 @@ public static class Debts
             byte[] bytes = FinancialImports.FileBytes(input);
             var sheets = Imports.Read(bytes, filename);
             J.Need(sheets.Count > 0 && sheets[0].Rows.Count > 1, "الملف فارغ أو لا يحتوي على صفوف بيانات.");
-            J.Need(sheets[0].Rows[0].SequenceEqual(new[]{"رقم الإقامة","اسم المندوب / الموظف","المبلغ المحصل","مبلغ الإعفاء الإداري","رمز الصندوق أو البنك","رقم السند / المرجع","ملاحظات التسوية"})||sheets[0].Rows[0].SequenceEqual(new[]{"iqama","riderName","collectedAmount","waivedAmount","targetVaultCode","receiptRef","notes"}),"أعمدة الملف لا تطابق القالب المعتمد؛ نزّل القالب دون إعادة ترتيب العناوين.");
+            DebtFileSchemas.Validate(sheets[0].Rows[0],false);
 
             J.Need(sheets[0].Rows.Count<=1001,"حد دفعة التحصيل 1000 صف.");
-            string defaultVault = input.S("defaultVaultCode", "MAIN.BW.SET");
+            string defaultVault = input.S("defaultVaultCode", "MAIN.BW.DEBT");
             var rows = new JsonArray();
             var errors = new JsonArray();
             var sheetRows = sheets[0].Rows;
             var seenReceipts=new HashSet<string>(StringComparer.Ordinal);var reserved=new Dictionary<string,decimal>(StringComparer.Ordinal);
             var existingReceipts=Store.List(c,"debt_settlement").Select(x=>x.S("batchReceiptRef",x.S("receiptRef"))).ToHashSet(StringComparer.Ordinal);
-            var allDebts = Store.List(c, "debt").Where(d => d.S("status") is "active" or "paused" && d.N("remainingBalance") > 0).ToList();
+            var allDebts = Store.List(c, "debt").Where(d => d.S("status") is "active" or "paused" && d.N("remainingBalance") > 0&&FinancialScopes.Debt(ctx.User,d)).ToList();
 
             for (int i = 1; i < sheetRows.Count; i++)
             {
@@ -509,10 +470,14 @@ public static class Debts
                     string notes = Cell(6);
                     J.Need(!existingReceipts.Contains(receiptRef)&&seenReceipts.Add(receiptRef),"مرجع تحصيل مكرر.");
 
-                    FinancialCore.ResolveVault(vault);
+                    var vaultAcc = FinancialCore.ResolveVault(vault);
+                    J.Need(vaultAcc.VaultPurpose != "JahezFee", $"مخالفة محاسبية: ({vaultAcc.NameAr}) مخصص لقبض رسوم فتح حسابات جاهز فقط ولا يُستخدم في شيت تحصيل المديونيات.");
                     J.Need(collected>=0&&waived>=0&&collected==J.Money(collected)&&waived==J.Money(waived),"مبالغ غير صالحة.");
-                    J.Need(allDebts.Where(d=>d.S("iqama")==iqama).All(d=>FinancialCore.AssignedDebtSponsor(d)!=null),"راجع ربط السجل التجاري للديون القديمة قبل التحصيل.");
-                    decimal riderRemaining = allDebts.Where(d => d.S("iqama") == iqama).Sum(d => d.N("remainingBalance"));
+                    var riderActiveDebts = allDebts.Where(d => d.S("iqama") == iqama).ToList();
+                    J.Need(riderActiveDebts.All(d=>FinancialCore.AssignedDebtSponsor(d)!=null),"راجع ربط السجل التجاري للديون القديمة قبل التحصيل.");
+                    if (collected > 0 && riderActiveDebts.Count > 0)
+                        foreach(var item in riderActiveDebts){FinancialScopes.DemandDebt(ctx.User,item);FinancialCore.ValidateVaultForOperation(vault,item.S("category","Advance"),"collection",item.S("platform"));}FinancialScopes.DemandAccount(ctx.User,vault);
+                    decimal riderRemaining = riderActiveDebts.Sum(d => d.N("remainingBalance"));
                     J.Need(collected + waived > 0, "المبلغ المحصل والإعفاء يساويان صفراً.");
                     J.Need(riderRemaining > 0, $"لا توجد مديونية نشطة على الإقامة ({iqama}).");
                     decimal requested=reserved.GetValueOrDefault(iqama)+collected+waived;reserved[iqama]=requested;
@@ -546,7 +511,7 @@ public static class Debts
             var items = input["rows"]?.AsArray() ?? throw new ApiError("أرسل صفوف التحصيل المجمع في الحقل rows.");
             J.Need(items.Count > 0 && items.Count <= 1000, "عدد صفوف التحصيل المجمع يجب أن يكون بين 1 و 1000 صف.");
 
-            string defaultVault = input.S("defaultVaultCode", "MAIN.BW.SET");
+            string defaultVault = input.S("defaultVaultCode", "MAIN.BW.DEBT");
             string period = J.Period(input.S("period", DateTime.UtcNow.ToString("yyyy-MM")));
             var results = new JsonArray();
             decimal totalCollectedBatch = 0m, totalWaivedBatch = 0m;
@@ -558,22 +523,26 @@ public static class Debts
                 string iqama = DirectoryProfiles.Iqama(r.Required("iqama"));
                 decimal collected = OptionalAmount(r, "collectedAmount", 0m);
                 decimal waived = OptionalAmount(r, "waivedAmount", 0m);
+                if(waived>0)AccessPolicy.Demand(ctx.User,"debts.waive");
                 decimal rowTotal = J.Money(collected + waived);
                 J.Need(rowTotal > 0, $"الصف {rowIdx}: أدخل مبلغاً محصلاً أو إعفاءً أكبر من صفر.");
 
                 string vaultCode = r.S("targetVaultCode", defaultVault);
                 var vaultAcc = FinancialCore.ResolveVault(vaultCode);
+                J.Need(vaultAcc.VaultPurpose != "JahezFee", $"الصف {rowIdx}: ({vaultAcc.NameAr}) مخصص لرسوم فتح حسابات جاهز فقط ولا يُستخدم في تحصيل المديونيات.");
                 string baseRef = r.S("receiptRef", $"BLK-{DateTime.UtcNow:yyyyMMddHHmm}-{rowIdx:D3}");
                 J.Need(!Store.List(c,"debt_settlement",tx).Any(x=>x.S("batchReceiptRef",x.S("receiptRef"))==baseRef),"مرجع التحصيل مكرر.");
 
                 // جلب مديونيات المندوب النشطة مرتبة من الأقدم للأحدث لتوزيع المبلغ المحصل عليها
                 var riderDebts = Store.List(c, "debt", tx)
-                    .Where(d => d.S("iqama") == iqama && d.S("status") is "active" or "paused" && d.N("remainingBalance") > 0)
+                    .Where(d => d.S("iqama") == iqama && d.S("status") is "active" or "paused" && d.N("remainingBalance") > 0&&FinancialScopes.Debt(ctx.User,d))
                     .OrderBy(d => d.S("createdAt"))
                     .ToList();
 
                 decimal totalAvailableDebt = riderDebts.Sum(d => d.N("remainingBalance"));
                 J.Need(riderDebts.Count > 0 && rowTotal <= totalAvailableDebt, $"الصف {rowIdx}: المبلغ ({rowTotal:0.00}) يتجاوز إجمالي مديونية المندوب ({iqama}) البالغة ({totalAvailableDebt:0.00}).");
+                if (collected > 0)
+                    foreach(var item in riderDebts){FinancialScopes.DemandDebt(ctx.User,item);FinancialCore.ValidateVaultForOperation(vaultCode,item.S("category","Advance"),"collection",item.S("platform"));J.Need(AccountingEvents.HasDebtOpening(item),"طابق أرصدة الديون القديمة أولًا.");}FinancialScopes.DemandAccount(ctx.User,vaultCode);
 
                 decimal remCollect = collected;
                 decimal remWaive = waived;
@@ -593,7 +562,7 @@ public static class Debts
 
                     var creditorSp = FinancialCore.RequireDebtSponsor(d);
                     var collectionSp = FinancialCore.ResolveSponsor(vaultAcc.DefaultSponsorId ?? creditorSp.Id);
-                    string receivCode = d.S("receivableAccountCode", "1210");
+                    string receivCode = AccountingEvents.ReceivableCode(d);
                     string subRef = subIdx == 1 ? baseRef : $"{baseRef}-{subIdx}";
                     subIdx++;
 
@@ -689,7 +658,8 @@ public static class Debts
                 new("شهر بداية الاستقطاع (YYYY-MM)"),
                 new("الحساب الدائن المقابل (3101 أو رمز الصندوق)", false, contraChoices),
                 new("رقم السند / المرجع"),
-                new("ملاحظات البيان")
+                new("ملاحظات البيان"),
+                new("المنصة (Platform)", false, new[]{"Jahez","Keeta","HungerStation","Ninja","Other"})
             };
 
             string curMonth = DateTime.UtcNow.ToString("yyyy-MM");
@@ -699,7 +669,7 @@ public static class Debts
                 new object?[] { "2519876543", "مثال: عبد الله سالم", "Rider", "WorkPermit", "EX", "OpeningBalance", "SharedSplit", 5000m, 0m, 4600m, 1000m, curMonth, "3101", "OB-2026-002", "رصيد أول المدة — رخصة عمل بتحمل مشترك على إكسبرس" },
                 new object?[] { "2381122334", "مثال: فهد الحربي", "Rider", "TrafficFine", "TR", "OpeningBalance", "RiderFull", 900m, 0m, 0m, 300m, curMonth, "3101", "OB-2026-003", "رصيد أول المدة — مخالفة مرورية على سجل النقل والتجارة" }
             };
-            return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "قالب_استيراد_أرصدة_أول_المدة_والمديونيات.xlsx");
+            return Results.File(ExcelFiles.Write(cols, rows.Select(r=>r.Concat(new object?[]{""}).ToArray()).ToList()), ExcelFiles.Mime, "قالب_استيراد_أرصدة_أول_المدة_والمديونيات_v3.xlsx");
         });
 
         api.MapPost("/debts/import-opening/preview", (JsonObject input,HttpContext ctx) => store.Read(c =>
@@ -708,7 +678,7 @@ public static class Debts
             byte[] bytes = FinancialImports.FileBytes(input);
             var sheets = Imports.Read(bytes, filename);
             J.Need(sheets.Count > 0 && sheets[0].Rows.Count > 1, "الملف فارغ أو لا يحتوي على صفوف بيانات.");
-            J.Need(sheets[0].Rows[0].SequenceEqual(new[]{"رقم الإقامة (10 أرقام)","اسم المندوب / الموظف","تصنيف المدين (Rider/Employee)","كود البند أو الخدمة (Category)","السجل التجاري الدائن (BW/EX/TR)","نوع القيد (OpeningBalance/Disbursement)","آلية التحمل (RiderFull/SharedSplit/CompanyFull)","إجمالي مبلغ المديونية على المندوب","المسدد سابقاً (إن وجد)","حصة تحمل الشركة (في حال SharedSplit)","القسط الشهري المستقطع","شهر بداية الاستقطاع (YYYY-MM)","الحساب الدائن المقابل (3101 أو رمز الصندوق)","رقم السند / المرجع","ملاحظات البيان"})||sheets[0].Rows[0].SequenceEqual(new[]{"iqama","riderName","debtorType","category","creditorSponsor","entryMode","allocationMode","totalAmount","priorPaidAmount","companyShareAmount","monthlyInstallment","effectiveFrom","contraAccountCode","sourceRef","notes"}),"أعمدة الملف لا تطابق القالب المعتمد؛ نزّل القالب دون إعادة ترتيب العناوين.");
+            DebtFileSchemas.Validate(sheets[0].Rows[0],true);
 
             J.Need(sheets[0].Rows.Count<=2001,"حد دفعة الأرصدة 2000 صف.");
             var existingRiders = Store.List(c, "rider").ToDictionary(r => r.S("id"));
@@ -733,22 +703,16 @@ public static class Debts
                         : Cell(1);
                     string debtorType = Cell(2).Equals("Employee", StringComparison.OrdinalIgnoreCase) || Cell(2).Contains("موظف") ? "Employee" : "Rider";
 
-                    string rawCat = string.IsNullOrWhiteSpace(Cell(3)) ? "Advance" : Cell(3);
-                    var catMeta = FinancialCore.CategoriesCatalog.FirstOrDefault(x =>
-                        x.Code.Equals(rawCat, StringComparison.OrdinalIgnoreCase) ||
-                        x.NameAr.Contains(rawCat, StringComparison.OrdinalIgnoreCase) ||
-                        rawCat.Contains(x.NameAr, StringComparison.OrdinalIgnoreCase))
-                        ?? FinancialCore.ResolveCategory(rawCat);
-
-                    var creditorSp = FinancialCore.ResolveSponsor(string.IsNullOrWhiteSpace(Cell(4)) ? "BW" : Cell(4));
-                    string entryMode = Cell(5).Equals("Disbursement", StringComparison.OrdinalIgnoreCase) || Cell(5).Contains("صرف") ? "Disbursement" : "OpeningBalance";
-                    string allocationMode = Cell(6) switch
-                    {
-                        var s when s.Equals("SharedSplit", StringComparison.OrdinalIgnoreCase) || s.Contains("جزئي") || s.Contains("مشترك") => "SharedSplit",
-                        var s when s.Equals("CompanyFull", StringComparison.OrdinalIgnoreCase) || s.Contains("شركة") => "CompanyFull",
-                        _ => "RiderFull"
-                    };
-
+                    string rawCat=Cell(3);J.Need(rawCat!="","كود البند مطلوب.");
+                    var catMeta=FinancialCore.CategoriesCatalog.FirstOrDefault(x=>x.Code.Equals(rawCat,StringComparison.OrdinalIgnoreCase)||x.NameAr==rawCat)??throw new ApiError("فئة غير صالحة؛ استخدم كود القالب.");
+                    J.Need(Cell(4)!="","حدد السجل الدائن دون افتراض سجل افتراضي.");
+                    var creditorSp=FinancialCore.ResolveSponsor(Cell(4));FinancialScopes.DemandSponsor(ctx.User,creditorSp.Id);
+                    J.Need(FinancialScopes.Category(ctx.User,catMeta.Code),"فئة المديونية خارج نطاقك.");
+                    string entryMode=Cell(5);J.Need(entryMode is "OpeningBalance" or "Disbursement","نوع القيد غير صالح.");
+                    string allocationMode=Cell(6);J.Need(allocationMode is "RiderFull" or "SharedSplit" or "CompanyFull","نوع التحمل غير صالح.");
+                    string platform=Cell(15);
+                    if(catMeta.Code=="PlatformTransferredDebt")J.Need(platform!=""&&entryMode=="OpeningBalance","حدد منصة الدين المرحل في قالب v3؛ لا تسجل صرفًا جديدًا له.");
+                    J.Need(catMeta.Code!="NegativeSalaryCarryover","العجز التاريخي يُراجع في افتتاح الرواتب دون إنشاء ذمة ثانية.");
                     decimal totalAmount = string.IsNullOrWhiteSpace(Cell(7)) ? 0m : decimal.Parse(J.Digits(Cell(7)), CultureInfo.InvariantCulture);
                     decimal priorPaid = string.IsNullOrWhiteSpace(Cell(8)) ? 0m : decimal.Parse(J.Digits(Cell(8)), CultureInfo.InvariantCulture);
                     decimal companyShare = string.IsNullOrWhiteSpace(Cell(9)) ? 0m : decimal.Parse(J.Digits(Cell(9)), CultureInfo.InvariantCulture);
@@ -757,9 +721,9 @@ public static class Debts
                     decimal installment = string.IsNullOrWhiteSpace(Cell(10)) ? Math.Min(remaining > 0 ? remaining : 1m, 500m) : J.Money(decimal.Parse(J.Digits(Cell(10)), CultureInfo.InvariantCulture));
                     string effectiveFrom = string.IsNullOrWhiteSpace(Cell(11)) ? curMonth : J.Period(Cell(11));
 
-                    string defaultContra = entryMode == "OpeningBalance" ? "3101" : FinancialCore.DefaultVaultForSponsor(creditorSp.Id, "MAIN");
+                    string defaultContra = entryMode == "OpeningBalance" ? "3101" : FinancialCore.DefaultVaultForSponsor(creditorSp.Id, "MAIN", catMeta.Code);
                     string contraCode = string.IsNullOrWhiteSpace(Cell(12)) ? defaultContra : Cell(12);
-                    var contraAcc = FinancialCore.ResolveAccount(contraCode);
+                    var contraAcc = contraCode == "3101" ? FinancialCore.ResolveAccount("3101") : FinancialCore.ValidateVaultForOperation(contraCode, catMeta.Code, "disbursement");
 
                     string sourceRef = string.IsNullOrWhiteSpace(Cell(13)) ? $"OB-{DateTime.UtcNow:yyyyMMdd}-{i:D4}" : Cell(13);
                     string notes = Cell(14);
@@ -790,7 +754,7 @@ public static class Debts
                         ["riderName"] = name,
                         ["riderExists"] = existingRiders.ContainsKey(iqama),
                         ["debtorType"] = debtorType,
-                        ["category"] = catMeta.Code,
+                        ["category"] = catMeta.Code,["platform"]=platform,
                         ["categoryAr"] = catMeta.NameAr,
                         ["sector"] = catMeta.Sector,
                         ["creditorSponsorId"] = creditorSp.Id,
@@ -908,7 +872,7 @@ public static class Debts
                 var r = node!.AsObject();
                 string iqama = DirectoryProfiles.Iqama(r.Required("iqama"));
                 string riderName = r.S("riderName", iqama);
-                var creditorSp = FinancialCore.ResolveSponsor(r.S("creditorSponsorId", "BW"));
+                var creditorSp = FinancialCore.ResolveSponsor(r.S("creditorSponsorId", "BW"));FinancialScopes.DemandSponsor(ctx.User,creditorSp.Id);
 
                 // إذا لم يكن المندوب مسجلاً بعد في دليل المناديب، ننشئ له ملفاً تلقائياً مع ربطه بالسجل التجاري
                 var existingRider = Store.Get(c, iqama, "rider", tx);
@@ -929,7 +893,9 @@ public static class Debts
                 }
 
                 string catCode = r.S("category", "Advance");
+                J.Need(catCode!="NegativeSalaryCarryover","العجز من افتتاح الرواتب فقط.");
                 var catMeta = FinancialCore.ResolveCategory(catCode);
+                J.Need(FinancialScopes.Category(ctx.User,catCode),"فئة الافتتاح خارج نطاقك.");
                 string debtorType = r.S("debtorType", "Rider");
                 string entryMode = r.S("entryMode", "OpeningBalance");
                 string allocationMode = r.S("allocationMode", "RiderFull");
@@ -945,8 +911,9 @@ public static class Debts
 
                 string receivCode = debtorType == "Employee" ? "1220" : catMeta.ReceivableAccountCode;
                 string expCode = catMeta.ExpenseAccountCode;
-                string contraCode = r.S("contraAccountCode", entryMode == "OpeningBalance" ? "3101" : FinancialCore.DefaultVaultForSponsor(creditorSp.Id, "MAIN"));
-                var contraAcc = FinancialCore.ResolveAccount(contraCode);
+                string contraCode = r.S("contraAccountCode", entryMode == "OpeningBalance" ? "3101" : FinancialCore.DefaultVaultForSponsor(creditorSp.Id, "MAIN", catMeta.Code));
+                var contraAcc = contraCode == "3101" ? FinancialCore.ResolveAccount("3101") : FinancialCore.ValidateVaultForOperation(contraCode, catMeta.Code, "disbursement");
+                if(contraCode!="3101"){J.Need(catCode is not ("PlatformTransferredDebt" or "NegativeSalaryCarryover"),"المديونية المرحلة ليست صرفًا نقديًا.");FinancialScopes.DemandAccount(ctx.User,contraCode);AccountingEvents.DemandAvailable(c,tx,contraCode,remaining+companyShare);}
 
                 string debtId = Guid.NewGuid().ToString("N");
                 var lines = new JsonArray();
@@ -965,7 +932,7 @@ public static class Debts
                     c, tx,
                     entryMode == "OpeningBalance" ? "opening_balance_debt" : "debt_recognition",
                     $"{(entryMode == "OpeningBalance" ? "رصيد أول المدة" : "إثبات مديونية")} — {catMeta.NameAr} — {riderName} ({iqama})",
-                    effectiveFrom,
+                    DateTime.UtcNow.ToString("yyyy-MM"),
                     sourceRef,
                     lines,
                     ctx.User.Identity!.Name!,
@@ -981,11 +948,11 @@ public static class Debts
                     ["iqama"] = iqama,
                     ["riderName"] = riderName,
                     ["debtorType"] = debtorType,
-                    ["category"] = catMeta.Code,
+                    ["category"] = catMeta.Code,["platform"]=r.S("platform"),["accountingVersion"]=AccountingEvents.Version,["originalCreditorSponsorId"]=creditorSp.Id,
                     ["categoryAr"] = catMeta.NameAr,
                     ["sector"] = catMeta.Sector,
                     ["allocationMode"] = allocationMode,
-                    ["entryMode"] = entryMode,
+                    ["entryMode"] = entryMode,["postingPeriod"]=DateTime.UtcNow.ToString("yyyy-MM"),
                     ["originSponsorId"] = creditorSp.Id,
                     ["originSponsorNameAr"] = creditorSp.ShortNameAr,
                     ["creditorSponsorId"] = creditorSp.Id,
@@ -1031,6 +998,7 @@ public static class Debts
 
     public static void Post(DbConnection c, DbTransaction tx, PayrollResult result, string runId)
     {
+        var accountingRun=Store.Get(c,runId,"run",tx);
         foreach (var line in result.Lines.Where(x => x.Category == "debt_installment"))
         {
             var d = Store.Get(c, line.Source, "debt", tx) ?? throw new ApiError("تغير الدين؛ أعد المعاينة.");
@@ -1052,21 +1020,16 @@ public static class Debts
                 ["period"] = result.Period,
                 ["amount"] = -amount,
                 ["kind"] = "debt_installment",
+                ["sponsorId"] = accountingRun?.S("sponsorId")??"",
+                ["accountingVersion"] = accountingRun?.N("accountingVersion")??0,
                 ["debtId"] = line.Source,
                 ["sourceRef"] = runId,
                 ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
             }, tx);
 
             if(FinancialCore.AssignedDebtSponsor(d)==null)continue; // Legacy payroll ledger remains authoritative until a reviewed sponsor link exists.
-            // تسجيل القيد المحاسبي المزدوج لاستقطاع القسط من الراتب (من ح/ ذمم دائنة رواتب 2110 إلى ح/ ذمم مدينة مناديب 1210)
-            var creditorSp = FinancialCore.RequireDebtSponsor(d);
-            string receivCode = d.S("receivableAccountCode", "1210");
-            var jLines = new JsonArray
-            {
-                FinancialCore.CreateJournalLine("2110", creditorSp.Id, amount, 0m, $"استقطاع قسط مديونية ({d.S("categoryAr", d.S("category"))}) من راتب فترة ({result.Period})", result.Iqama, d.S("id")),
-                FinancialCore.CreateJournalLine(receivCode, creditorSp.Id, 0m, amount, $"تخفيض الذمة المدينة للمندوب باستقطاع الراتب لفترة ({result.Period})", result.Iqama, d.S("id"))
-            };
-            var journal = FinancialCore.PostJournal(c, tx, "payroll_deduction", $"استقطاع قسط راتب ({result.Period}) للمندوب ({result.Iqama})", result.Period, key, jLines, "payroll_engine", result.Iqama, d.S("id"), creditorSp.Id, creditorSp.Id);
+            var creditorSp=FinancialCore.RequireDebtSponsor(d);
+            var journal=AccountingEvents.PostInstallment(c,tx,d,result,runId,amount,key);
 
             Store.Save(c, "debt_settlement", new()
             {

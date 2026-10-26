@@ -146,7 +146,8 @@ public sealed class EnterpriseTests
                 Assert.AreEqual("Debit",acc.NaturalSide);
             }
 
-            // Test SharedSplit Journal: WorkPermit 9600 SAR (Company 4600 + Rider 5000) paid from MAIN.BW.SET
+            AccountingPostingTests.SeedCash(store,"MAIN.BW.DEBT",10000m);
+            // Company HR funding must use the debt/HR account, not restricted Jahez settlement cash.
             store.Write((c,tx)=>
             {
                 var debt=new JsonObject
@@ -155,7 +156,7 @@ public sealed class EnterpriseTests
                     ["iqama"]="2491234567",
                     ["riderName"]="محمد أحمد",
                     ["debtorType"]="Rider",
-                    ["category"]="WorkPermit",
+                    ["category"]="WorkPermit",["entryMode"]="Disbursement",
                     ["allocationMode"]="SharedSplit",
                     ["totalCostAmount"]=9600m,
                     ["companyShareAmount"]=4600m,
@@ -164,7 +165,7 @@ public sealed class EnterpriseTests
                     ["monthlyInstallment"]=1000m,
                     ["originSponsorId"]=FinancialCore.Sponsors[0].Id,
                     ["creditorSponsorId"]=FinancialCore.Sponsors[0].Id,
-                    ["paymentVaultCode"]="MAIN.BW.SET",
+                    ["paymentVaultCode"]="MAIN.BW.DEBT",
                     ["sourceRef"]="WP-2026-001",
                     ["effectiveFrom"]="2026-10"
                 };
@@ -179,7 +180,7 @@ public sealed class EnterpriseTests
                 Assert.AreEqual("increase",lines[0]!.AsObject().S("effectDirection"));
                 Assert.AreEqual("1210",lines[1]!.AsObject().S("accountCode"));
                 Assert.AreEqual("increase",lines[1]!.AsObject().S("effectDirection"));
-                Assert.AreEqual("MAIN.BW.SET",lines[2]!.AsObject().S("accountCode"));
+                Assert.AreEqual("MAIN.BW.DEBT",lines[2]!.AsObject().S("accountCode"));
                 Assert.AreEqual("decrease",lines[2]!.AsObject().S("effectDirection"));
                 return true;
             });

@@ -9,8 +9,31 @@ namespace Payroll;
 public static class FinancialCore
 {
     public sealed record SponsorDef(string Id, string Code, string UnifiedNumber, string NameAr, string ShortNameAr, string CommercialReg);
-    public sealed record AccountDef(string Code, string NameAr, string AccountType, string NaturalSide, string? ParentCode, string? DefaultSponsorId = null, bool IsVault = false);
-    public sealed record CategoryMeta(string Code, string NameAr, string Sector, string ExpenseAccountCode, string ReceivableAccountCode, decimal DefaultReferenceCost);
+
+    public sealed record AccountDef(
+        string Code,
+        string NameAr,
+        string AccountType,
+        string NaturalSide,
+        string? ParentCode,
+        string? DefaultSponsorId = null,
+        bool IsVault = false,
+        string VaultKind = "None",          // None | MainInternal | JahezCashbox | Bank | PetroApp
+        string VaultPurpose = "None",       // None | DebtAndHr | GeneralAndSettlement | JahezSettlement | JahezFee | Combined | Bank | FuelClearing
+        string AllowedDirections = "Dual",  // Dual | InOnly | OutOnly
+        string[]? AllowedSectors = null,
+        string OperationalScopeAr = ""
+    );
+
+    public sealed record CategoryMeta(
+        string Code,
+        string NameAr,
+        string Sector,
+        string ExpenseAccountCode,
+        string ReceivableAccountCode,
+        decimal DefaultReferenceCost,
+        string[]? AllowedVaultKinds = null
+    );
 
     // 1. السجلات التجارية الرسمية المعتمدة في نظام البوابة (Logistic-ERP Sponsor.cs)
     public static readonly SponsorDef[] Sponsors =
@@ -20,38 +43,110 @@ public static class FinancialCore
         new("019c18d5-62e1-7000-8000-000000000040", "TR", "7038745530", "مؤسسة البوابة المقبلة التجارية", "سجل التجارية", "4030512290")
     ];
 
-    // 2. شجرة الحسابات الجزئية القياسية والصناديق والبنوك (متوافقة مع jahez_v3 و AccountingCore)
+    // 2. شجرة الحسابات الهرمية القياسية والصناديق والبنوك (متوافقة مع jahez_v3 والهيكل المحاسبي المعتمد)
     public static readonly AccountDef[] ChartOfAccounts =
     [
-        // الأصول المتداولة - الخزائن والصندوق الداخلي والبنوك (طبيعتها: مدين Debit - تزيد بالقبض وتنقص بالصرف)
-        new("1100", "الأصول المتداولة — الخزائن والبنوك", "Asset", "Debit", null),
-        new("1110", "الصندوق الداخلي العام للتحصيلات (MAIN)", "Asset", "Debit", "1100"),
-        new("MAIN.BW.SET", "صندوق التحصيلات الداخلي — سجل البوابا", "Asset", "Debit", "1110", Sponsors[0].Id, true),
-        new("MAIN.BW.FEE", "صندوق رسوم الحسابات — سجل البوابا", "Asset", "Debit", "1110", Sponsors[0].Id, true),
-        new("MAIN.EX.SET", "صندوق التحصيلات الداخلي — سجل إكسبرس", "Asset", "Debit", "1110", Sponsors[1].Id, true),
-        new("MAIN.EX.FEE", "صندوق رسوم الحسابات — سجل إكسبرس", "Asset", "Debit", "1110", Sponsors[1].Id, true),
-        new("MAIN.TR", "صندوق التجارية الداخلي الموحد — سجل التجارية", "Asset", "Debit", "1110", Sponsors[2].Id, true),
+        // الأصول المتداولة - الخزائن والصندوق الداخلي الرئيسي والبنوك (طبيعتها: مدين Debit - تزيد بالقبض وتنقص بالصرف)
+        new("1100", "الأصول المتداولة — الخزائن والبنوك", "Asset", "Debit", null, null, false, "None", "None", "Dual", null,
+            "المظلة الرئيسية لكافة الصناديق النقدية وعهد جاهز وحسابات البنوك ومقاصة الوقود."),
 
-        new("1120", "خزنة تحصيلات جاهز للكاش (SUP)", "Asset", "Debit", "1100"),
-        new("SUP.BW.SET", "خزنة كاش جاهز — سجل البوابا", "Asset", "Debit", "1120", Sponsors[0].Id, true),
-        new("SUP.EX.SET", "خزنة كاش جاهز — سجل إكسبرس", "Asset", "Debit", "1120", Sponsors[1].Id, true),
-        new("SUP.TR.SET", "خزنة كاش جاهز — سجل التجارية", "Asset", "Debit", "1120", Sponsors[2].Id, true),
+        // أ) الصندوق الداخلي الرئيسي العام (الخزينة المركزية للشركة) وتتفرع تحته الحسابات الفرعية التخصصية
+        new("1110", "الصندوق الداخلي الرئيسي العام — الخزينة المركزية (MAIN)", "Asset", "Debit", "1100", null, false, "None", "None", "Dual", null,
+            "حساب الخزنة الرئيسية الكبرى للشركة، وتتفرع تحته حسابات المديونيات والسلف، وتصفيات جاهز المرحلة، ورسوم فتح الحسابات، وصندوق مؤسسة التجارية الموحد."),
 
-        new("1130", "حسابات البنوك الرسمية (BANK)", "Asset", "Debit", "1100"),
-        new("BANK.BW", "حساب البنك — سجل البوابا", "Asset", "Debit", "1130", Sponsors[0].Id, true),
-        new("BANK.EX", "حساب البنك — سجل إكسبرس", "Asset", "Debit", "1130", Sponsors[1].Id, true),
-        new("BANK.TR", "حساب البنك — سجل التجارية", "Asset", "Debit", "1130", Sponsors[2].Id, true),
+        new("1111", "حساب المديونيات والسلف وطلبات الموارد البشرية بالصندوق الداخلي", "Asset", "Debit", "1110", null, false, "None", "None", "Dual", null,
+            "حساب تجميعي تحت الصندوق الداخلي الرئيسي مخصص لحركة السلف النقدية وطلبات HR وتحصيل المديونيات."),
+        new("MAIN.BW.DEBT", "حساب المديونيات والسلف وطلبات HR — سجل البوابا", "Asset", "Debit", "1111", Sponsors[0].Id, true,
+            "MainInternal", "DebtAndHr", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms"],
+            "حساب فرعي بالصندوق الداخلي الرئيسي لصرف وتحصيل المديونيات والسلف وطلبات HR لسجل البوابا."),
+        new("MAIN.EX.DEBT", "حساب المديونيات والسلف وطلبات HR — سجل إكسبرس", "Asset", "Debit", "1111", Sponsors[1].Id, true,
+            "MainInternal", "DebtAndHr", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms"],
+            "حساب فرعي بالصندوق الداخلي الرئيسي لصرف وتحصيل المديونيات والسلف وطلبات HR لسجل إكسبرس."),
 
-        new("1140", "مقاصة تحصيل الوقود بترو آب (PETRO)", "Asset", "Debit", "1100"),
-        new("PETRO.BW", "مقاصة بترو آب — سجل البوابا", "Asset", "Debit", "1140", Sponsors[0].Id, true),
-        new("PETRO.EX", "مقاصة بترو آب — سجل إكسبرس", "Asset", "Debit", "1140", Sponsors[1].Id, true),
-        new("PETRO.TR", "مقاصة بترو آب — سجل التجارية", "Asset", "Debit", "1140", Sponsors[2].Id, true),
+        new("1112", "حساب التحصيلات والتصفيات الداخلي بالصندوق الرئيسي", "Asset", "Debit", "1110", null, false, "None", "None", "Dual", null,
+            "حساب تجميعي تحت الصندوق الداخلي الرئيسي لاستلام تصفيات صناديق جاهز والتحصيلات النقدية والعمليات الداخلية."),
+        new("MAIN.BW.SET", "صندوق التحصيلات الداخلي — سجل البوابا", "Asset", "Debit", "1112", Sponsors[0].Id, true,
+            "MainInternal", "GeneralAndSettlement", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms"],
+            "صندوق التحصيلات الداخلي وتصفيات الكاش المرحلة بالصندوق الرئيسي لسجل البوابا."),
+        new("MAIN.EX.SET", "صندوق التحصيلات الداخلي — سجل إكسبرس", "Asset", "Debit", "1112", Sponsors[1].Id, true,
+            "MainInternal", "GeneralAndSettlement", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms"],
+            "صندوق التحصيلات الداخلي وتصفيات الكاش المرحلة بالصندوق الرئيسي لسجل إكسبرس."),
+
+        new("1113", "حساب رسوم فتح حسابات جاهز بالصندوق الداخلي (قبض فقط)", "Asset", "Debit", "1110", null, false, "None", "None", "InOnly", null,
+            "حساب تجميعي تحت الصندوق الداخلي لتجميع رسوم فتح وتفعيل حسابات جاهز المحولة من المشرفين."),
+        new("MAIN.BW.FEE", "حساب رسوم فتح حسابات جاهز — سجل البوابا", "Asset", "Debit", "1113", Sponsors[0].Id, true,
+            "MainInternal", "JahezFee", "InOnly", ["JahezFee"],
+            "مخصص حصرياً لقبض وتجميع رسوم فتح حسابات جاهز (200 ر.س) لسجل البوابا — لا يقبل الصرف أو السلف أو طلبات HR."),
+        new("MAIN.EX.FEE", "حساب رسوم فتح حسابات جاهز — سجل إكسبرس", "Asset", "Debit", "1113", Sponsors[1].Id, true,
+            "MainInternal", "JahezFee", "InOnly", ["JahezFee"],
+            "مخصص حصرياً لقبض وتجميع رسوم فتح حسابات جاهز (200 ر.س) لسجل إكسبرس — لا يقبل الصرف أو السلف أو طلبات HR."),
+
+        new("MAIN.TR", "حساب وصندوق مؤسسة التجارية الموحد — سجل التجارية", "Asset", "Debit", "1110", Sponsors[2].Id, false,
+            "MainInternal", "Combined", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms", "JahezFee"],
+            "حساب فرعي موحد تحت الصندوق الداخلي الرئيسي يدمج تصفيات جاهز ورسوم الحسابات والمديونيات والعمليات الداخلية لمؤسسة التجارية."),
+
+        new("MAIN.TR.DEBT","صندوق السلف وHR — التجارية","Asset","Debit","MAIN.TR",Sponsors[2].Id,true,"MainInternal","DebtAndHr","Dual",["HR","Advances","Fleet","Housing","Admin","Platforms"]),
+        new("MAIN.TR.SET","تصفيات جاهز الداخلية — التجارية","Asset","Debit","MAIN.TR",Sponsors[2].Id,true,"MainInternal","GeneralAndSettlement","Dual",["Platforms"]),
+        new("MAIN.TR.FEE","رسوم جاهز الداخلية — التجارية","Asset","Debit","MAIN.TR",Sponsors[2].Id,true,"MainInternal","JahezFee","InOnly",["JahezFee"]),
+        // ب) صناديق وخزائن جاهز الميدانية (SUP) — تمثل أرصدة ومعاملات تطبيق وشركة جاهز حصراً
+        new("1120", "صندوق / خزنة تحصيلات جاهز للكاش (SUP — خاص بتطبيق جاهز فقط)", "Asset", "Debit", "1100", null, false, "None", "None", "Dual", null,
+            "يمثل أرصدة ومعاملات تطبيق وشركة جاهز فقط؛ يتم التعامل فيه بين المناديب وشركة جاهز والصندوق الداخلي الرئيسي والبنوك المخصصة فقط، ولا علاقة له بالسلف أو طلبات HR."),
+        new("SUP.BW.SET", "خزنة كاش جاهز للتصفيات — سجل البوابا", "Asset", "Debit", "1120", Sponsors[0].Id, true,
+            "JahezCashbox", "JahezSettlement", "Dual", ["Platforms"],
+            "خاص بمعاملات وأرصدة تطبيق جاهز فقط (بين المناديب وشركة جاهز والصندوق الداخلي والبنوك) — يمنع استخدامه في السلف أو طلبات HR."),
+        new("SUP.EX.SET", "خزنة كاش جاهز للتصفيات — سجل إكسبرس", "Asset", "Debit", "1120", Sponsors[1].Id, true,
+            "JahezCashbox", "JahezSettlement", "Dual", ["Platforms"],
+            "خاص بمعاملات وأرصدة تطبيق جاهز فقط (بين المناديب وشركة جاهز والصندوق الداخلي والبنوك) — يمنع استخدامه في السلف أو طلبات HR."),
+        new("SUP.TR.SET", "خزنة كاش جاهز للتصفيات — سجل التجارية", "Asset", "Debit", "1120", Sponsors[2].Id, true,
+            "JahezCashbox", "JahezSettlement", "Dual", ["Platforms"],
+            "خاص بمعاملات وأرصدة تطبيق جاهز فقط (بين المناديب وشركة جاهز والصندوق الداخلي والبنوك) — يمنع استخدامه في السلف أو طلبات HR."),
+        new("SUP.BW.FEE", "عهدة رسوم فتح حسابات جاهز — سجل البوابا", "Asset", "Debit", "1120", Sponsors[0].Id, true,
+            "JahezCashbox", "JahezFee", "InOnly", ["JahezFee"],
+            "عهدة قبض رسوم فتح حساب جاهز جديد من المناديب فقط وتُصفّر بنهاية اليوم إلى حساب (MAIN.BW.FEE)."),
+        new("SUP.EX.FEE", "عهدة رسوم فتح حسابات جاهز — سجل إكسبرس", "Asset", "Debit", "1120", Sponsors[1].Id, true,
+            "JahezCashbox", "JahezFee", "InOnly", ["JahezFee"],
+            "عهدة قبض رسوم فتح حساب جاهز جديد من المناديب فقط وتُصفّر بنهاية اليوم إلى حساب (MAIN.EX.FEE)."),
+        new("SUP.TR.FEE", "عهدة رسوم فتح حسابات جاهز — سجل التجارية", "Asset", "Debit", "1120", Sponsors[2].Id, true,
+            "JahezCashbox", "JahezFee", "InOnly", ["JahezFee"],
+            "عهدة قبض رسوم فتح حساب جاهز جديد من المناديب فقط وتُصفّر بنهاية اليوم إلى حساب (MAIN.TR)."),
+
+        // ج) حسابات البنوك الرسمية المخصصة (BANK)
+        new("1130", "حسابات البنوك الرسمية (BANK)", "Asset", "Debit", "1100", null, false, "None", "None", "Dual", null,
+            "الحسابات البنكية الرسمية للشركات والمؤسسة المعتمدة للتحويلات البنكية والسلف البنكية وتوريد الخزائن."),
+        new("BANK.BW", "حساب البنك الرسمي — سجل البوابا", "Asset", "Debit", "1130", Sponsors[0].Id, true,
+            "Bank", "Bank", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms", "JahezFee"],
+            "الحساب البنكي المستقل لسجل البوابا؛ الدفع عن إكسبرس يسجل بجاري صريح للتحويلات البنكية والسلف البنكية وتوريد النقدية."),
+        new("BANK.EX", "حساب البنك الرسمي — سجل إكسبرس", "Asset", "Debit", "1130", Sponsors[1].Id, true,
+            "Bank", "Bank", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms", "JahezFee"],
+            "الحساب البنكي المستقل لسجل إكسبرس؛ الدفع عن البوابا يسجل بجاري صريح للتحويلات البنكية والسلف البنكية وتوريد النقدية."),
+        new("BANK.TR", "حساب البنك الرسمي المستقل — سجل التجارية", "Asset", "Debit", "1130", Sponsors[2].Id, true,
+            "Bank", "Bank", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms", "JahezFee"],
+            "الحساب البنكي الرسمي المستقل لمؤسسة البوابة المقبلة التجارية."),
+        new("BANK.BW.JAHEZ","رصيد البنك المخصص لتسويات جاهز — البوابا","Asset","Debit","1130",Sponsors[0].Id,true,"Bank","JahezSettlement","Dual",["Platforms"]),
+        new("BANK.EX.JAHEZ","رصيد البنك المخصص لتسويات جاهز — إكسبرس","Asset","Debit","1130",Sponsors[1].Id,true,"Bank","JahezSettlement","Dual",["Platforms"]),
+        new("BANK.TR.JAHEZ","رصيد البنك المخصص لتسويات جاهز — التجارية","Asset","Debit","1130",Sponsors[2].Id,true,"Bank","JahezSettlement","Dual",["Platforms"]),
+
+        // د) مقاصة تحصيل الوقود بترو آب (PETRO) — جهة قبض ومقاصة فقط
+        new("1140", "مقاصة تحصيل الوقود بترو آب (PETRO — قبض ومقاصة فقط)", "Asset", "Debit", "1100", null, false, "None", "None", "InOnly", null,
+            "حساب مقاصة استقطاعات وقود المناديب عبر بترو آب؛ يقبل التحصيل والمقاصة فقط ولا يقبل الصرف أو التحويل بين الصناديق."),
+        new("PETRO.BW", "مقاصة بترو آب — سجل البوابا", "Asset", "Debit", "1140", Sponsors[0].Id, true,
+            "PetroApp", "FuelClearing", "InOnly", ["Platforms", "FleetFuel"],
+            "حساب مقاصة وقود بترو آب لسجل البوابا (قبض فقط من تسويات الوقود والمنصات)."),
+        new("PETRO.EX", "مقاصة بترو آب — سجل إكسبرس", "Asset", "Debit", "1140", Sponsors[1].Id, true,
+            "PetroApp", "FuelClearing", "InOnly", ["Platforms", "FleetFuel"],
+            "حساب مقاصة وقود بترو آب لسجل إكسبرس (قبض فقط من تسويات الوقود والمنصات)."),
+        new("PETRO.TR", "مقاصة بترو آب — سجل التجارية", "Asset", "Debit", "1140", Sponsors[2].Id, true,
+            "PetroApp", "FuelClearing", "InOnly", ["Platforms", "FleetFuel"],
+            "حساب مقاصة وقود بترو آب لسجل التجارية (قبض فقط من تسويات الوقود والمنصات)."),
 
         // الذمم المدينة (طبيعتها: مدين Debit - تزيد بنشوء الدين وتنقص بالسداد أو الإعفاء)
-        new("1200", "الذمم المدينة (حسابات المناديب والموظفين)", "Asset", "Debit", null),
+        new("1200", "الذمم المدينة (حسابات المناديب والموظفين والمنصات)", "Asset", "Debit", null),
         new("1210", "ذمم مدينة — مناديب (سلف وخدمات HR وحوادث)", "Asset", "Debit", "1200"),
+        new("1211", "ذمم مدينة — عجز رواتب مثبت من المسيرات", "Asset", "Debit", "1200"),
         new("1220", "ذمم مدينة — موظفين إداريين (سلف وعهد)", "Asset", "Debit", "1200"),
-        new("1230", "ذمم مدينة — مديونيات كاش المنصات المرحلة", "Asset", "Debit", "1200"),
+        new("1230", "ذمم مدينة — مديونيات كاش المنصات المرحلة (تطبيق جاهز والمنصات)", "Asset", "Debit", "1200"),
+        new("1240", "حساب شركة / منصة جاهز — تسويات ومستحقات المنصة", "Asset", "Debit", "1200"),
+        new("1241", "تسويات ومستحقات المنصات الأخرى", "Asset", "Debit", "1200"),
 
         // حسابات المقاصة وجاري السجلات الشقيقة (عند شراء المديونية أو التحصيل نيابة عن سجل آخر)
         new("1300", "حسابات جاري السجلات الشقيقة والمقاصة", "InterCompany", "Debit", null),
@@ -61,10 +156,20 @@ public static class FinancialCore
         new("2100", "الذمم الدائنة ومستحقات المناديب والموظفين", "Liability", "Credit", null),
         new("2110", "ذمم دائنة — رواتب ومستحقات معتمدة", "Liability", "Credit", "2100"),
         new("2120", "ذمم دائنة — أمانات وتأمينات محتجزة", "Liability", "Credit", "2100"),
+        new("2130", "التزامات خدمات وفواتير معتمدة غير مسددة", "Liability", "Credit", "2100"),
+        new("2140", "التزامات تسويات ومديونيات محالة من المنصات", "Liability", "Credit", "2100"),
+        new("2141", "التزامات تسويات المنصات الأخرى", "Liability", "Credit", "2100"),
 
-        // حساب أرصدة أول المدة والمديونيات المرحلة (طبيعته: دائن Credit - يُستخدم كطرف مقابل عند رفع رصيد أول المدة للمديونيات دون المساس برصيد الخزينة النقدي الحالي)
+        // حساب أرصدة أول المدة والمديونيات المرحلة
         new("3100", "حقوق الملكية وأرصدة أول المدة", "Equity", "Credit", null),
         new("3101", "حساب أرصدة أول المدة والمديونيات المرحلة", "Equity", "Credit", "3100"),
+
+        // إيرادات رسوم فتح وتفعيل حسابات جاهز
+        new("4100", "الإيرادات التشغيلية ورسوم التفعيل", "Revenue", "Credit", null),
+        new("4101", "إيرادات رسوم فتح وتفعيل حسابات جاهز", "Revenue", "Credit", "4100"),
+        new("4102", "إيراد عمولة الشركة المعتمدة من تسويات المنصات", "Revenue", "Credit", "4100"),
+        new("4103", "إيراد خدمات وتحملات معتمدة للشركة", "Revenue", "Credit", "4100"),
+        new("4104", "فروقات نقدية دائنة معتمدة", "Revenue", "Credit", "4100"),
 
         // حسابات مصروفات الموارد البشرية (تسمى بمسمياتها مسبوقة بكلمة "مصروف" - طبيعتها: مدين Debit)
         new("5100", "مصروفات الموارد البشرية والخدمات الحكومية (HR)", "Expense", "Debit", null),
@@ -84,41 +189,42 @@ public static class FinancialCore
         new("5201", "مصروف صيانة وحوادث مركبات وتجهيزات", "Expense", "Debit", "5200"),
         new("5202", "مصروف إعفاءات وتسويات مديونية إدارية", "Expense", "Debit", "5200"),
         new("5203", "مصروف مخالفات وتلفيات تشغيلية", "Expense", "Debit", "5200"),
+        new("5204", "مصروف عجز نقدي مثبت ومراجع", "Expense", "Debit", "5200"),
         new("5301", "مصروف رواتب وعمولات التشغيل", "Expense", "Debit", "5200")
     ];
 
-    // 3. كتالوج فئات المديونيات وربطها المباشر بحسابات المصروفات والذمم المدينة
+    // 3. كتالوج فئات المديونيات وربطها المباشر بحسابات المصروفات والذمم المدينة والصناديق المسموحة لكل نوع عملية
     public static readonly CategoryMeta[] CategoriesCatalog =
     [
-        // البنود الثمانية + السلف والعهد لقسم الموارد البشرية (HR)
-        new("WorkPermit", "رخصة عمل (مكتب العمل)", "HR", "5101", "1210", 9600m),
-        new("IqamaRenewal", "إصدار وتجديد الإقامة", "HR", "5102", "1210", 650m),
-        new("SponsorshipTransfer", "نقل كفالة", "HR", "5103", "1210", 2000m),
-        new("ExitReEntryVisa", "تأشيرة خروج وعودة (إصدار/تمديد)", "HR", "5104", "1210", 200m),
-        new("MedicalInsurance", "تأمين طبي وكرت صحي", "HR", "5105", "1210", 1000m),
-        new("ProfessionChange", "تغيير مهنة", "HR", "5106", "1210", 1000m),
-        new("DriverLicense", "إصدار رخصة قيادة", "HR", "5107", "1210", 400m),
-        new("DriverCard", "بطاقة سائق هيئة النقل", "HR", "5108", "1210", 250m),
-        new("OtherHrService", "طلبات ورسوم HR أخرى", "HR", "5109", "1210", 0m),
+        // البنود الثمانية + الإضافية لقسم الموارد البشرية (HR) — تُصرف وتُحصّل فقط عبر الصندوق الداخلي (MAIN) أو البنوك (BANK)
+        new("WorkPermit", "رخصة عمل (مكتب العمل)", "HR", "5101", "1210", 9600m, ["MainInternal", "Bank"]),
+        new("IqamaRenewal", "إصدار وتجديد الإقامة", "HR", "5102", "1210", 650m, ["MainInternal", "Bank"]),
+        new("SponsorshipTransfer", "نقل كفالة", "HR", "5103", "1210", 2000m, ["MainInternal", "Bank"]),
+        new("ExitReEntryVisa", "تأشيرة خروج وعودة (إصدار/تمديد)", "HR", "5104", "1210", 200m, ["MainInternal", "Bank"]),
+        new("MedicalInsurance", "تأمين طبي وكرت صحي", "HR", "5105", "1210", 1000m, ["MainInternal", "Bank"]),
+        new("ProfessionChange", "تغيير مهنة", "HR", "5106", "1210", 1000m, ["MainInternal", "Bank"]),
+        new("DriverLicense", "إصدار رخصة قيادة", "HR", "5107", "1210", 400m, ["MainInternal", "Bank"]),
+        new("DriverCard", "بطاقة سائق هيئة النقل", "HR", "5108", "1210", 250m, ["MainInternal", "Bank"]),
+        new("OtherHrService", "طلبات ورسوم HR أخرى", "HR", "5109", "1210", 0m, ["MainInternal", "Bank"]),
 
-        // السلف النقدية والبنكية والعهد
-        new("Advance", "سلفة نقدية / بنكية", "Advances", "5109", "1210", 0m),
-        new("CashAdvance", "سلفة نقدية", "Advances", "5109", "1210", 0m),
-        new("BankAdvance", "سلفة بنكية", "Advances", "5109", "1210", 0m),
-        new("CashCustody", "عهدة نقدية مقابل سند لأمر", "Advances", "5109", "1220", 15000m),
+        // السلف النقدية والبنكية والعهد — لا علاقة لصناديق جاهز (SUP.*) بها إطلاقاً
+        new("Advance", "سلفة نقدية / بنكية", "Advances", "5109", "1210", 0m, ["MainInternal", "Bank"]),
+        new("CashAdvance", "سلفة نقدية (من الصندوق الداخلي)", "Advances", "5109", "1210", 0m, ["MainInternal"]),
+        new("BankAdvance", "سلفة بنكية (من حساب البنك)", "Advances", "5109", "1210", 0m, ["Bank"]),
+        new("CashCustody", "عهدة نقدية مقابل سند لأمر", "Advances", "5109", "1220", 15000m, ["MainInternal", "Bank"]),
 
         // الحركة والأسطول ومخالفات تم
-        new("TrafficFine", "مخالفة مرورية (تم / ساهر)", "Fleet", "5203", "1210", 0m),
-        new("AccidentDamage", "تحمل حادث / تلفيات ورشة", "Fleet", "5201", "1210", 0m),
-        new("VehicleInstallment", "قسط مركبة / دباب", "Fleet", "5201", "1210", 0m),
-        new("EquipmentLoan", "عهدة جوال / شنطة / تجهيزات", "Fleet", "5201", "1210", 0m),
-        new("FuelOverage", "فروقات استهلاك وقود وزيت", "Fleet", "5203", "1210", 0m),
+        new("TrafficFine", "مخالفة مرورية (تم / ساهر)", "Fleet", "5203", "1210", 0m, ["MainInternal", "Bank"]),
+        new("AccidentDamage", "تحمل حادث / تلفيات ورشة", "Fleet", "5201", "1210", 0m, ["MainInternal", "Bank"]),
+        new("VehicleInstallment", "قسط مركبة / دباب", "Fleet", "5201", "1210", 0m, ["MainInternal", "Bank"]),
+        new("EquipmentLoan", "عهدة جوال / شنطة / تجهيزات", "Fleet", "5201", "1210", 0m, ["MainInternal", "Bank"]),
+        new("FuelOverage", "فروقات استهلاك وقود وزيت", "Fleet", "5203", "1210", 0m, ["MainInternal", "Bank", "PetroApp"]),
 
         // المنصات والسكن والخصومات الإدارية
-        new("PlatformTransferredDebt", "مديونية كاش منصة مرحلة (جاهز/شيفز/نينجا)", "Platforms", "5203", "1230", 0m),
-        new("NegativeSalaryCarryover", "ترحيل راتب بالسالب (عجز مسير)", "Platforms", "5301", "1210", 0m),
-        new("HousingDeduction", "استقطاع سكن وإيجارات", "Housing", "5110", "1210", 0m),
-        new("AdministrativeDeduction", "جزاء / خصم إداري", "Admin", "5203", "1210", 0m)
+        new("PlatformTransferredDebt", "مديونية كاش منصة مرحلة (جاهز/شيفز/نينجا)", "Platforms", "5203", "1230", 0m, ["JahezCashbox", "MainInternal", "Bank", "PetroApp"]),
+        new("NegativeSalaryCarryover", "ترحيل راتب بالسالب (عجز مسير)", "Platforms", "5301", "1210", 0m, ["MainInternal", "Bank"]),
+        new("HousingDeduction", "استقطاع سكن وإيجارات", "Housing", "5110", "1210", 0m, ["MainInternal", "Bank"]),
+        new("AdministrativeDeduction", "جزاء / خصم إداري", "Admin", "5203", "1210", 0m, ["MainInternal", "Bank"])
     ];
 
     // 4. كتالوج الأقسام والرتب لمنظومة الاعتمادات المتبادلة والإشعارات
@@ -133,26 +239,28 @@ public static class FinancialCore
 
     public static SponsorDef? FindSponsor(string? key)
     {
-        if(string.IsNullOrWhiteSpace(key))return null;
-        string value=key.Trim();
-        return Sponsors.FirstOrDefault(sp=>new[]{sp.Id,sp.Code,sp.UnifiedNumber,sp.CommercialReg,sp.NameAr,sp.ShortNameAr}.Any(x=>string.Equals(x,value,StringComparison.OrdinalIgnoreCase)))
-            ?? Sponsors.FirstOrDefault(sp=>sp.Code=="EX"&&(value.Contains("اكسبرس")||value.Contains("إكسبرس")))
-            ?? Sponsors.FirstOrDefault(sp=>sp.Code=="TR"&&(value.Contains("مؤسسة")&&value.Contains("تجاري")))
-            ?? Sponsors.FirstOrDefault(sp=>sp.Code=="BW"&&value.Contains("شركة")&&value.Contains("بواب"));
+        if (string.IsNullOrWhiteSpace(key)) return null;
+        string value = key.Trim();
+        return Sponsors.FirstOrDefault(sp => new[] { sp.Id, sp.Code, sp.UnifiedNumber, sp.CommercialReg, sp.NameAr, sp.ShortNameAr }.Any(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase)))
+            ?? Sponsors.FirstOrDefault(sp => sp.Code == "EX" && (value.Contains("اكسبرس") || value.Contains("إكسبرس")))
+            ?? Sponsors.FirstOrDefault(sp => sp.Code == "TR" && (value.Contains("مؤسسة") && value.Contains("تجاري")))
+            ?? Sponsors.FirstOrDefault(sp => sp.Code == "BW" && value.Contains("شركة") && value.Contains("بواب"));
     }
-    public static SponsorDef ResolveSponsor(string? key)=>string.IsNullOrWhiteSpace(key)?Sponsors[0]:FindSponsor(key)??throw new ApiError("السجل التجاري غير معروف؛ راجع الربط قبل الترحيل.");
-    public static SponsorDef? AssignedDebtSponsor(JsonObject debt)=>FindSponsor(debt.S("creditorSponsorId"));
-    public static SponsorDef RequireDebtSponsor(JsonObject debt)=>AssignedDebtSponsor(debt)??throw new ApiError("راجع ربط السجل التجاري للدين القديم أولًا من الجدولة.");
-    public static AccountDef ResolveVault(string code){var account=ResolveAccount(code);J.Need(account.IsVault,"اختر صندوقًا أو حساب بنك صالحًا.");return account;}
-    private static readonly InquiryLimits MobileLimits=new();
-    private static string TokenHash(string token)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
-    private static JsonObject MobileSession(DbConnection c,HttpContext ctx,string iqama,DbTransaction? tx=null)
+
+    public static SponsorDef ResolveSponsor(string? key) => string.IsNullOrWhiteSpace(key) ? Sponsors[0] : FindSponsor(key) ?? throw new ApiError("السجل التجاري غير معروف؛ راجع الربط قبل الترحيل.");
+    public static SponsorDef? AssignedDebtSponsor(JsonObject debt) => FindSponsor(debt.S("creditorSponsorId"));
+    public static SponsorDef RequireDebtSponsor(JsonObject debt) => AssignedDebtSponsor(debt) ?? throw new ApiError("راجع ربط السجل التجاري للدين القديم أولًا من الجدولة.");
+    public static AccountDef ResolveVault(string code) { var account = ResolveAccount(code); J.Need(account.IsVault, "اختر صندوقًا أو حساب بنك صالحًا."); return account; }
+
+    private static readonly InquiryLimits MobileLimits = new();
+    private static string TokenHash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+    private static JsonObject MobileSession(DbConnection c, HttpContext ctx, string iqama, DbTransaction? tx = null)
     {
-        string header=ctx.Request.Headers.Authorization.ToString();
-        if(!header.StartsWith("Bearer rmob_",StringComparison.Ordinal)||header.Length!=7+5+64)throw new ApiError("جلسة المندوب غير صالحة.",401);
-        var session=Store.Get(c,"mobile:"+TokenHash(header[7..]),"mobile_session",tx);
-        var rider=Store.Get(c,iqama,"rider",tx);
-        if(session==null||session.S("iqama")!=iqama||!DateTimeOffset.TryParse(session.S("expiresAtUtc"),out var expiry)||expiry<=DateTimeOffset.UtcNow||rider==null||!rider.S("status").Equals("Active",StringComparison.OrdinalIgnoreCase))throw new ApiError("جلسة المندوب منتهية أو الحساب موقوف.",401);
+        string header = ctx.Request.Headers.Authorization.ToString();
+        if (!header.StartsWith("Bearer rmob_", StringComparison.Ordinal) || header.Length != 7 + 5 + 64) throw new ApiError("جلسة المندوب غير صالحة.", 401);
+        var session = Store.Get(c, "mobile:" + TokenHash(header[7..]), "mobile_session", tx);
+        var rider = Store.Get(c, iqama, "rider", tx);
+        if (session == null || session.S("iqama") != iqama || !DateTimeOffset.TryParse(session.S("expiresAtUtc"), out var expiry) || expiry <= DateTimeOffset.UtcNow || rider == null || !rider.S("status").Equals("Active", StringComparison.OrdinalIgnoreCase)) throw new ApiError("جلسة المندوب منتهية أو الحساب موقوف.", 401);
         return session;
     }
 
@@ -164,19 +272,54 @@ public static class FinancialCore
         CategoriesCatalog.FirstOrDefault(c => string.Equals(c.Code, category, StringComparison.OrdinalIgnoreCase))
         ?? throw new ApiError("فئة المديونية أو الخدمة غير صالحة: " + category);
 
-    public static string DefaultVaultForSponsor(string sponsorId, string kind = "MAIN")
+    public static string DefaultVaultForSponsor(string sponsorId, string kind = "MAIN", string? categoryCode = null)
     {
         var sp = ResolveSponsor(sponsorId);
-        if (kind.Equals("BANK", StringComparison.OrdinalIgnoreCase)) return "BANK." + sp.Code;
-        if (kind.Equals("SUP", StringComparison.OrdinalIgnoreCase)) return $"SUP.{sp.Code}.SET";
-        if (kind.Equals("PETRO", StringComparison.OrdinalIgnoreCase)) return "PETRO." + sp.Code;
-        return sp.Code == "TR" ? "MAIN.TR" : $"MAIN.{sp.Code}.SET";
+        if (kind.Equals("BANK", StringComparison.OrdinalIgnoreCase) || string.Equals(categoryCode, "BankAdvance", StringComparison.OrdinalIgnoreCase))
+            return "BANK." + sp.Code;
+        if (kind.Equals("SUP", StringComparison.OrdinalIgnoreCase))
+            return $"SUP.{sp.Code}.SET";
+        if (kind.Equals("PETRO", StringComparison.OrdinalIgnoreCase))
+            return "PETRO." + sp.Code;
+        if(categoryCode=="PlatformTransferredDebt")return $"SUP.{sp.Code}.SET";
+        if (kind.Equals("DEBT", StringComparison.OrdinalIgnoreCase))
+            return $"MAIN.{sp.Code}.DEBT";
+        if (!string.IsNullOrWhiteSpace(categoryCode))
+        {
+            var cat = CategoriesCatalog.FirstOrDefault(c => string.Equals(c.Code, categoryCode, StringComparison.OrdinalIgnoreCase));
+            if (cat != null && cat.Sector is "HR" or "Advances" or "Fleet" or "Housing" or "Admin")
+                return $"MAIN.{sp.Code}.DEBT";
+        }
+        return $"MAIN.{sp.Code}.DEBT";
+    }
+
+    // التحقق الصارم من صلاحية الحساب/الصندوق لنوع المعاملة (منع خلط صناديق جاهز ورسوم جاهز وبترو آب مع طلبات HR والسلف)
+    public static AccountDef ValidateVaultForOperation(string vaultCode,string categoryCode,string operationKind="disbursement",string? platform=null)=>AccountingPolicy.ValidateOperation(vaultCode,categoryCode,operationKind,platform);
+    public static (AccountDef From,AccountDef To) ValidateVaultTransfer(string fromVaultCode,string toVaultCode)
+    {
+        var from=ResolveVault(fromVaultCode);var to=ResolveVault(toVaultCode);AccountingPolicy.ValidateCompanyTransfer(from,to);return(from,to);
+    }
+
+    public static bool IsDescendantOrSelf(string candidateCode, string targetParentCode)
+    {
+        if (string.Equals(candidateCode, targetParentCode, StringComparison.OrdinalIgnoreCase)) return true;
+        var current = ChartOfAccounts.FirstOrDefault(a => string.Equals(a.Code, candidateCode, StringComparison.OrdinalIgnoreCase));
+        int guard = 0;
+        while (current?.ParentCode != null && guard++ < 10)
+        {
+            if (string.Equals(current.ParentCode, targetParentCode, StringComparison.OrdinalIgnoreCase)) return true;
+            current = ChartOfAccounts.FirstOrDefault(a => string.Equals(a.Code, current.ParentCode, StringComparison.OrdinalIgnoreCase));
+        }
+        return false;
     }
 
     public static JsonObject CreateJournalLine(string accountCode, string sponsorId, decimal debit, decimal credit, string note = "", string iqama = "", string debtId = "")
     {
         var acc = ResolveAccount(accountCode);
+        J.Need(AccountingPolicy.PostingAccount(acc.Code),"الحساب تجميعي؛ اختر حساب ترحيل فرعيًا.");
+        J.Need(acc.DefaultSponsorId==null||ResolveSponsor(sponsorId).Id==acc.DefaultSponsorId,"السجل لا يطابق ملكية الحساب.");
         var sp = ResolveSponsor(acc.DefaultSponsorId ?? sponsorId);
+        J.Need(debit == J.Money(debit) && credit == J.Money(credit), "مبلغ القيد يجب أن يكون بدقة الهللة.");
         debit = J.Money(debit);
         credit = J.Money(credit);
         J.Need(debit >= 0 && credit >= 0 && (debit > 0 ^ credit > 0), "سطر القيد المحاسبي يجب أن يحتوي على طرف مدين أو دائن موجب.");
@@ -208,25 +351,26 @@ public static class FinancialCore
     public static JsonObject PostJournal(DbConnection c, DbTransaction tx, string transactionType, string description, string period, string reference, JsonArray lines, string actor, string iqama = "", string debtId = "", string? originSponsorId = null, string? creditorSponsorId = null)
     {
         J.Need(lines.Count >= 2, "القيد المحاسبي المزدوج يتطلب طرفين على الأقل.");
+        J.Need(lines.OfType<JsonObject>().Count(l=>l.B("closingLegacyGroup"))<=1,"إقفال الرصيد التاريخي سطر واحد فقط.");
         decimal totalDebit = 0m, totalCredit = 0m;
         int idx = 1;
         foreach (var node in lines)
         {
             var l = node!.AsObject();
+            JsonObject canonical;
+            if(l.B("closingLegacyGroup")){LegacyCashAllocation.ValidateClosing(c,tx,l,transactionType);canonical=l;}
+            else canonical=CreateJournalLine(l.Required("accountCode"),l.Required("sponsorId"),l.N("debit"),l.N("credit"));
+            J.Need(canonical.N("debit")==l.N("debit")&&canonical.N("credit")==l.N("credit"),"مبلغ القيد يحتاج تصحيح دقة الهللة.");
             l["lineNo"] = idx++;
             totalDebit = J.Money(totalDebit + l.N("debit"));
             totalCredit = J.Money(totalCredit + l.N("credit"));
         }
         J.Need(totalDebit > 0 && totalDebit == totalCredit, $"القيد المحاسبي غير متوازن: إجمالي المدين ({totalDebit:0.00}) لا يساوي إجمالي الدائن ({totalCredit:0.00}).");
 
-        J.Need(!Store.List(c,"journal",tx).Any(j=>j.S("sourceRef")==reference),"مرجع القيد مسجل مسبقًا.");
-        foreach(var group in lines.OfType<JsonObject>().GroupBy(l=>l.S("sponsorId")).ToList())
-        {
-            decimal net=J.Money(group.Sum(l=>l.N("debit")-l.N("credit")));
-            if(net!=0)lines.Add(CreateJournalLine("1310",group.Key,net<0?-net:0m,net>0?net:0m,"مقاصة موازنة القيد بين السجلات",iqama,debtId));
-        }
-        idx=1;foreach(var line in lines.OfType<JsonObject>())line["lineNo"]=idx++;
-        totalDebit=lines.OfType<JsonObject>().Sum(l=>l.N("debit"));totalCredit=lines.OfType<JsonObject>().Sum(l=>l.N("credit"));
+        J.Need(!Store.List(c, "journal", tx).Any(j => j.S("sourceRef") == reference), "مرجع القيد مسجل مسبقًا.");
+        J.Need(lines.OfType<JsonObject>().GroupBy(l=>l.S("sponsorId")).All(g=>g.Sum(l=>l.N("debit")-l.N("credit"))==0m),"قيد السجل غير متوازن؛ اذكر المقاصة بين السجلات صراحة بدل توليدها لإخفاء الخطأ.");
+        idx = 1; foreach (var line in lines.OfType<JsonObject>()) line["lineNo"] = idx++;
+        totalDebit = lines.OfType<JsonObject>().Sum(l => l.N("debit")); totalCredit = lines.OfType<JsonObject>().Sum(l => l.N("credit"));
         int seq = Store.List(c, "journal", tx).Count + 1;
         var originSp = ResolveSponsor(originSponsorId);
         var creditorSp = ResolveSponsor(creditorSponsorId ?? originSponsorId);
@@ -301,16 +445,21 @@ public static class FinancialCore
 
     public static void Map(WebApplication app, RouteGroupBuilder api, Store store)
     {
-        // 1. استعراض السجلات التجارية وأرصدتها المدينة والدائنة والخزائن
-        api.MapGet("/finance/sponsors", () => store.Read(c =>
+        // 1. استعراض السجلات التجارية وأرصدتها المدينة والدائنة والخزائن (مع تفصيل الصندوق الداخلي وخزنة جاهز والبنوك)
+        api.MapGet("/finance/sponsors", (HttpContext ctx) => store.Read(c =>
         {
             var journals = Store.List(c, "journal");
-            var debts = Store.List(c, "debt");
-            return Sponsors.Select(sp =>
+            var debts = Store.List(c, "debt").Where(d=>FinancialScopes.Debt(ctx.User,d)).ToList();
+            return Sponsors.Where(sp=>FinancialScopes.Sponsor(ctx.User,sp.Id)).Select(sp =>
             {
-                var spLines = journals.SelectMany(j => j["lines"]?.AsArray() ?? []).Select(x => x!.AsObject()).Where(l => l.S("sponsorId") == sp.Id).ToList();
-                decimal vaultBalance = spLines.Where(l => l.S("accountType") == "Asset" && !l.S("accountCode").StartsWith("12", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
-                decimal receivableFromJournals = spLines.Where(l => l.S("accountCode").StartsWith("12", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
+                var spLines = journals.SelectMany(j => j["lines"]?.AsArray() ?? []).Select(x => x!.AsObject()).Where(l => l.S("sponsorId") == sp.Id && FinancialScopes.Line(ctx.User,l)).ToList();
+                // Held cash includes restricted Jahez custody; fuel clearing is not physical cash.
+                decimal vaultBalance = spLines.Where(l => l.S("accountCode").StartsWith("MAIN.", StringComparison.Ordinal) || l.S("accountCode").StartsWith("SUP.", StringComparison.Ordinal) || l.S("accountCode").StartsWith("BANK.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
+                decimal mainVaultBalance = spLines.Where(l => l.S("accountCode").StartsWith("MAIN.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
+                decimal jahezBoxBalance = spLines.Where(l => l.S("accountCode").StartsWith("SUP.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
+                decimal bankBalance = spLines.Where(l => l.S("accountCode").StartsWith("BANK.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
+                decimal petroBalance = spLines.Where(l => l.S("accountCode").StartsWith("PETRO.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
+                decimal receivableFromJournals = spLines.Where(l => l.S("accountCode") is "1210" or "1220" or "1230").Sum(l => l.N("debit") - l.N("credit"));
                 decimal activeDebtRemaining = debts.Where(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == sp.Id).Sum(d => d.N("remainingBalance"));
                 decimal expensesTotal = spLines.Where(l => l.S("accountType") == "Expense").Sum(l => l.N("debit") - l.N("credit"));
                 decimal waivesTotal = spLines.Where(l => l.S("accountCode") == "5202").Sum(l => l.N("debit") - l.N("credit"));
@@ -326,7 +475,13 @@ public static class FinancialCore
                     nameAr = sp.NameAr,
                     shortNameAr = sp.ShortNameAr,
                     vaultBalance = J.Money(vaultBalance),
-                    receivablesBalance = J.Money(Math.Max(receivableFromJournals, activeDebtRemaining)),
+                    mainVaultBalance = J.Money(mainVaultBalance),
+                    jahezBoxBalance = J.Money(jahezBoxBalance),
+                    bankBalance = J.Money(bankBalance),
+                    petroBalance = J.Money(petroBalance),
+                    receivablesBalance = J.Money(activeDebtRemaining),
+                    receivablesFromJournals = J.Money(receivableFromJournals),
+                    receivablesReconciliationDifference = J.Money(receivableFromJournals - activeDebtRemaining),
                     activeDebtsCount = debts.Count(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == sp.Id),
                     payablesBalance = J.Money(payablesTotal),
                     expensesTotal = J.Money(expensesTotal),
@@ -336,20 +491,21 @@ public static class FinancialCore
             }).ToList();
         }));
 
-        // 2. شجرة الحسابات الجزئية وأرصدة الصناديق والبنوك والمصروفات
-        api.MapGet("/finance/accounts", (string? sponsorId) => store.Read(c =>
+        // 2. شجرة الحسابات الهرمية وأرصدة الصناديق الرئيسية والفرعية والبنوك والمصروفات (مع التجميع التلقائي للحسابات الأب)
+        api.MapGet("/finance/accounts", (string? sponsorId,HttpContext ctx) => store.Read(c =>
         {
             var journals = Store.List(c, "journal");
-            var allLines = journals.SelectMany(j => j["lines"]?.AsArray() ?? []).Select(x => x!.AsObject()).ToList();
+            var allLines = journals.SelectMany(j => j["lines"]?.AsArray() ?? []).Select(x => x!.AsObject()).Where(l=>FinancialScopes.Line(ctx.User,l)).ToList();
             if (!string.IsNullOrWhiteSpace(sponsorId))
             {
                 var targetSp = ResolveSponsor(sponsorId).Id;
                 allLines = allLines.Where(l => l.S("sponsorId") == targetSp).ToList();
             }
 
-            return ChartOfAccounts.Select(acc =>
+            return ChartOfAccounts.Where(a=>FinancialScopes.Account(ctx.User,a.Code)).Select(acc =>
             {
-                var matching = allLines.Where(l => l.S("accountCode") == acc.Code).ToList();
+                bool isGroup = ChartOfAccounts.Any(child => string.Equals(child.ParentCode, acc.Code, StringComparison.OrdinalIgnoreCase));
+                var matching = allLines.Where(l => IsDescendantOrSelf(l.S("accountCode"), acc.Code)).ToList();
                 decimal debit = J.Money(matching.Sum(l => l.N("debit")));
                 decimal credit = J.Money(matching.Sum(l => l.N("credit")));
                 decimal netBalance = acc.NaturalSide == "Debit" ? J.Money(debit - credit) : J.Money(credit - debit);
@@ -361,7 +517,14 @@ public static class FinancialCore
                     naturalSide = acc.NaturalSide,
                     naturalSideAr = acc.NaturalSide == "Debit" ? "مدين" : "دائن",
                     parentCode = acc.ParentCode,
+                    isGroup,
                     isVault = acc.IsVault,
+                    vaultKind = acc.VaultKind,
+                    vaultPurpose = acc.VaultPurpose,
+                    allowedDirections = acc.AllowedDirections,
+                    allowedDirectionsAr = acc.AllowedDirections == "InOnly" ? "قبض فقط (InOnly)" : acc.AllowedDirections == "OutOnly" ? "صرف فقط (OutOnly)" : "قبض وصرف (Dual)",
+                    allowedSectors = acc.AllowedSectors ?? [],
+                    operationalScopeAr = acc.OperationalScopeAr,
                     defaultSponsorId = acc.DefaultSponsorId,
                     defaultSponsorNameAr = acc.DefaultSponsorId != null ? ResolveSponsor(acc.DefaultSponsorId).ShortNameAr : "كل السجلات",
                     debitTotal = debit,
@@ -374,43 +537,50 @@ public static class FinancialCore
             }).ToList();
         }));
 
-        // 3. كتالوج فئات المديونيات وخدمات الـ HR والأقسام والرتب
-        api.MapGet("/finance/catalog", () => store.Read(c => new
+        // 3. كتالوج فئات المديونيات وخدمات الـ HR والأقسام والرتب والصناديق المصنفة
+        api.MapGet("/finance/catalog", (HttpContext ctx) => store.Read(c => new
         {
-            sponsors = Sponsors,
-            unassignedDebtCount=Store.List(c,"debt").Count(d=>AssignedDebtSponsor(d)==null),
-            categories = CategoriesCatalog,
-            vaults = ChartOfAccounts.Where(a => a.IsVault),
+            sponsors = Sponsors.Where(sp=>FinancialScopes.Sponsor(ctx.User,sp.Id)),
+            unassignedDebtCount = Store.List(c, "debt").Count(d => AssignedDebtSponsor(d) == null),
+            categories = CategoriesCatalog.Where(cat=>FinancialScopes.Category(ctx.User,cat.Code)).Select(cat=>new {cat.Code,cat.NameAr,cat.Sector,cat.ExpenseAccountCode,cat.ReceivableAccountCode,cat.DefaultReferenceCost,cat.AllowedVaultKinds,requiredPermission=AccessPolicy.CategoryPermission(cat.Code)}),
+            vaults = ChartOfAccounts.Where(a => a.IsVault&&FinancialScopes.Account(ctx.User,a.Code)),
             departments = DepartmentsCatalog,
+            roles = UserAccess.RolesCatalog,
+            permissions = UserAccess.PermissionsCatalog,
             promissoryNotesArchiveEnabled = PromissoryArchiveEnabled(c)
         }));
 
         // 4. سجل القيود المحاسبية المزدوجة (Journal Entries)
-        api.MapGet("/finance/journals", (string? sponsorId, string? iqama, string? accountCode) => store.Read(c =>
+        api.MapGet("/finance/journals", (string? sponsorId, string? iqama, string? accountCode,HttpContext ctx) => store.Read(c =>
         {
-            var list = Store.List(c, "journal");
+            var list = Store.List(c, "journal").Select(j=>FinancialScopes.Journal(ctx.User,j)).Where(j=>j!=null).Select(j=>j!).ToList();
             if (!string.IsNullOrWhiteSpace(sponsorId))
             {
                 var spId = ResolveSponsor(sponsorId).Id;
                 list = list.Where(j => j.S("originSponsorId") == spId || j.S("creditorSponsorId") == spId || (j["lines"]?.AsArray().Any(l => l!.AsObject().S("sponsorId") == spId) ?? false)).ToList();
             }
             if (!string.IsNullOrWhiteSpace(iqama)) list = list.Where(j => j.S("iqama") == iqama.Trim()).ToList();
-            if (!string.IsNullOrWhiteSpace(accountCode)) list = list.Where(j => j["lines"]?.AsArray().Any(l => l!.AsObject().S("accountCode") == accountCode.Trim()) ?? false).ToList();
+            if (!string.IsNullOrWhiteSpace(accountCode))
+            {
+                string targetAcc = accountCode.Trim();
+                list = list.Where(j => j["lines"]?.AsArray().Any(l => IsDescendantOrSelf(l!.AsObject().S("accountCode"), targetAcc)) ?? false).ToList();
+            }
             return list;
         }));
 
-        // 5. إنشاء قيد خزينة مباشر (إيداع / تمويل صندوق / تحويل بين الصناديق والبنوك)
+        // 5. إنشاء قيد خزينة مباشر (إيداع / تمويل صندوق / تحويل بين الصناديق والبنوك مع تطبيق قواعد العزل المالي)
         api.MapPost("/finance/vault-transfer", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             string fromVault = input.Required("fromVaultCode");
             string toVault = input.Required("toVaultCode");
-            J.Need(fromVault != toVault, "اختر صندوقين مختلفين للتحويل.");
+            var (fromAcc, toAcc) = ValidateVaultTransfer(fromVault, toVault);
+            FinancialScopes.DemandAccount(ctx.User,fromAcc.Code);FinancialScopes.DemandAccount(ctx.User,toAcc.Code);
+
             decimal amount = Debts.Amount(input, "amount");
+            AccountingPolicy.RequireAvailable(AccountingPolicy.Balance(c,tx,fromAcc.Code),amount);
             string refNo = input.Required("sourceRef");
             J.Need(!Store.List(c, "journal", tx).Any(j => j.S("sourceRef") == refNo), "مرجع التحويل مسجل من قبل.");
 
-            var fromAcc = ResolveVault(fromVault);
-            var toAcc = ResolveVault(toVault);
             var fromSp = ResolveSponsor(fromAcc.DefaultSponsorId ?? input.S("fromSponsorId"));
             var toSp = ResolveSponsor(toAcc.DefaultSponsorId ?? input.S("toSponsorId", fromSp.Id));
 
@@ -430,138 +600,44 @@ public static class FinancialCore
             return journal;
         }));
 
-        // 6. كشف حساب المندوب أو الموظف الشامل 360 درجة (مدين / دائن / رصيد تراكمي / حسب السجل)
-        api.MapGet("/finance/statement/rider/{iqama}", (string iqama, string? sponsorId) => store.Read(c =>
+        // 5-ب. قبض رسوم فتح وتفعيل حساب جاهز جديد (200 ر.س أو مبلغ مخصص) في حسابات رسوم جاهز المخصصة (SUP.*.FEE أو MAIN.*.FEE أو MAIN.TR)
+        api.MapPost("/finance/jahez-fee", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
-            J.Iqama(iqama);
-            var rider = Store.Get(c, iqama, "rider");
-            var spFilter = string.IsNullOrWhiteSpace(sponsorId) ? null : ResolveSponsor(sponsorId).Id;
+            string iqama = input.S("iqama");
+            if (!string.IsNullOrWhiteSpace(iqama)) iqama = DirectoryProfiles.Iqama(iqama);
+            var sp = ResolveSponsor(input.S("sponsorId", "BW"));
+            decimal amount = input.ContainsKey("amount") && !string.IsNullOrWhiteSpace(input.S("amount")) ? Debts.Amount(input, "amount") : 200m;
+            string defaultFeeVault = $"SUP.{sp.Code}.FEE";
+            string vaultCode = input.S("targetVaultCode", defaultFeeVault);
+            var vaultAcc = ResolveVault(vaultCode);
 
-            var debts = Store.List(c, "debt").Where(d => d.S("status") is "active" or "paused" or "settled").Where(d => d.S("iqama") == iqama && (spFilter == null || AssignedDebtSponsor(d)?.Id == spFilter)).OrderBy(d => d.S("createdAt")).ToList();
-            var ledgerRows = Store.List(c, "ledger").Where(l => l.S("iqama") == iqama).OrderBy(l => l.S("period")).ThenBy(l => l.S("createdAt")).ToList();
-            var settlements = Store.List(c, "debt_settlement").Where(s => s.S("iqama") == iqama && (spFilter == null || s.S("creditorSponsorId") == spFilter)).OrderBy(s => s.S("createdAt")).ToList();
+            J.Need(vaultAcc.VaultPurpose is "JahezFee" or "Combined",
+                $"مخالفة محاسبية: رسوم فتح حسابات جاهز تُقبض فقط في حسابات رسوم جاهز المخصصة (SUP.*.FEE أو MAIN.*.FEE أو MAIN.TR)، ولا يجوز إيداعها في ({vaultAcc.NameAr}).");
 
-            // بناء كشف حساب مدين/دائن متسلسل الرصيد للمديونيات
-            var statementLines = new List<JsonObject>();
-            decimal runningDebtBalance = 0m;
+            var vaultSp = ResolveSponsor(vaultAcc.DefaultSponsorId ?? sp.Id);
+            J.Need(vaultSp.Id==sp.Id,"سجل الرسوم لا يطابق ملكية صندوق التحصيل.");FinancialScopes.DemandAccount(ctx.User,vaultAcc.Code);
+            string refNo = input.Required("sourceRef");
+            string period = J.Period(input.S("period", DateTime.UtcNow.ToString("yyyy-MM")));
 
-            foreach (var d in debts)
+            var lines = new JsonArray
             {
-                decimal principal = d.N("totalAmount");
-                if (principal <= 0) continue;
-                var credSp = AssignedDebtSponsor(d);
-                runningDebtBalance = J.Money(runningDebtBalance + principal);
-                statementLines.Add(new JsonObject
-                {
-                    ["date"] = d.S("createdAt").Length >= 10 ? d.S("createdAt")[..10] : d.S("effectiveFrom"),
-                    ["period"] = d.S("effectiveFrom"),
-                    ["type"] = "debt_created",
-                    ["typeAr"] = "إثبات مديونية / استحقاق",
-                    ["category"] = d.S("category"),
-                    ["categoryAr"] = CategoriesCatalog.FirstOrDefault(x => x.Code == d.S("category"))?.NameAr ?? d.S("category"),
-                    ["sponsorId"] = credSp?.Id??"",
-                    ["sponsorNameAr"] = credSp?.ShortNameAr??"غير مربوط",
-                    ["reference"] = d.S("sourceRef"),
-                    ["description"] = d.S("notes", $"تسجيل مديونية ({d.S("category")})"),
-                    ["debit"] = principal,
-                    ["credit"] = 0m,
-                    ["runningBalance"] = runningDebtBalance
-                });
-            }
-
-            foreach(var debt in debts)
-            {
-                decimal recorded=settlements.Where(x=>x.S("debtId")==debt.S("id")).Sum(x=>x.N("collectedAmount")+x.N("waivedAmount"));
-                decimal historical=J.Money(debt.N("totalAmount")-debt.N("remainingBalance")-recorded);
-                if(historical<=0)continue;
-                statementLines.Add(new JsonObject{["date"]=debt.S("createdAt"),["period"]=debt.S("effectiveFrom"),["type"]="historical_settlement",["typeAr"]="سداد سابق محفوظ من الرصيد",["reference"]=debt.S("sourceRef"),["sponsorNameAr"]=AssignedDebtSponsor(debt)?.ShortNameAr??"غير مربوط",["debit"]=0m,["credit"]=historical});
-            }
-            foreach (var s in settlements)
-            {
-                decimal collected = s.N("collectedAmount");
-                decimal waived = s.N("waivedAmount");
-                var credSp = FindSponsor(s.S("creditorSponsorId"));
-                if (collected > 0)
-                {
-                    runningDebtBalance = J.Money(runningDebtBalance - collected);
-                    statementLines.Add(new JsonObject
-                    {
-                        ["date"] = s.S("collectionDate", s.S("createdAt").Length >= 10 ? s.S("createdAt")[..10] : ""),
-                        ["period"] = s.S("period"),
-                        ["type"] = s.S("method", "cash_collection"),
-                        ["typeAr"] = s.S("method") == "payroll_deduction" ? "استقطاع قسط من مسير الراتب" : "تحصيل وسداد مالي",
-                        ["category"] = s.S("category"),
-                        ["categoryAr"] = $"سداد ({s.S("targetVaultCode")})",
-                        ["sponsorId"] = credSp?.Id??"",
-                        ["sponsorNameAr"] = credSp?.ShortNameAr??"غير مربوط",
-                        ["reference"] = s.S("receiptRef"),
-                        ["description"] = s.S("notes", "دفعة سداد مديونية"),
-                        ["debit"] = 0m,
-                        ["credit"] = collected,
-                        ["runningBalance"] = runningDebtBalance
-                    });
-                }
-                if (waived > 0)
-                {
-                    runningDebtBalance = J.Money(runningDebtBalance - waived);
-                    statementLines.Add(new JsonObject
-                    {
-                        ["date"] = s.S("collectionDate", s.S("createdAt").Length >= 10 ? s.S("createdAt")[..10] : ""),
-                        ["period"] = s.S("period"),
-                        ["type"] = "administrative_waiver",
-                        ["typeAr"] = "إعفاء وتسوية إدارية",
-                        ["category"] = s.S("category"),
-                        ["categoryAr"] = "مصروف إعفاءات إدارية",
-                        ["sponsorId"] = credSp?.Id??"",
-                        ["sponsorNameAr"] = credSp?.ShortNameAr??"غير مربوط",
-                        ["reference"] = s.S("receiptRef") + "-W",
-                        ["description"] = "تنازل وإعفاء إداري معتمد مقابل التسوية",
-                        ["debit"] = 0m,
-                        ["credit"] = waived,
-                        ["runningBalance"] = runningDebtBalance
-                    });
-                }
-            }
-
-            statementLines=statementLines.OrderBy(x=>x.S("date"),StringComparer.Ordinal).ToList();
-            runningDebtBalance=0m;foreach(var line in statementLines){runningDebtBalance=J.Money(runningDebtBalance+line.N("debit")-line.N("credit"));line["runningBalance"]=runningDebtBalance;}
-            var bySponsor = Sponsors.Select(sp =>
-            {
-                var spDebts = debts.Where(d => AssignedDebtSponsor(d)?.Id == sp.Id).ToList();
-                return new
-                {
-                    sponsorId = sp.Id,
-                    sponsorNameAr = sp.ShortNameAr,
-                    totalPrincipal = J.Money(spDebts.Sum(d => d.N("totalAmount"))),
-                    totalPaid = J.Money(spDebts.Sum(Debts.PaidAmount)),
-                    totalWaived = J.Money(spDebts.Sum(d => d.N("waivedAmount"))),
-                    remainingBalance = J.Money(spDebts.Sum(d => d.N("remainingBalance")))
-                };
-            }).ToList();
-
-            return new
-            {
-                iqama,
-                riderName = rider?.S("name") ?? "غير مسجل بالدليل",
-                sponsorshipSponsor = rider?.S("sponsor") ?? "شركة البوابة المقبلة للتجارة",
-                phone = rider?.S("phone") ?? "",
-                city = rider?.S("city") ?? "",
-                totalPrincipalDebt = J.Money(debts.Sum(d => d.N("totalAmount"))),
-                totalPaidAmount = J.Money(debts.Sum(Debts.PaidAmount)),
-                totalWaivedAmount = J.Money(debts.Sum(d => d.N("waivedAmount"))),
-                totalRemainingDebt = J.Money(debts.Sum(d => d.N("remainingBalance"))),
-                payrollLedgerBalance = J.Money(ledgerRows.Sum(l => l.N("amount"))),
-                bySponsor,
-                debts,
-                statementLines,
-                payrollLedgerRows = ledgerRows
+                CreateJournalLine(vaultAcc.Code, vaultSp.Id, amount, 0m, $"قبض رسوم فتح وتفعيل حساب جاهز جديد في ({vaultAcc.NameAr})", iqama, ""),
+                CreateJournalLine(AccountingPolicy.FeeCounterpart(input.S("beneficiary",AccountingPolicy.FeeBeneficiary)), vaultSp.Id, 0m, amount, "إيراد رسوم فتح حساب جاهز للشركة — قرار المالك 2026-10-26", iqama, "")
             };
+
+            var journal = PostJournal(c, tx, "jahez_account_fee", input.S("description", $"قبض رسوم فتح حساب جاهز ({vaultSp.ShortNameAr}) — مرجع ({refNo})"), period, refNo, lines, ctx.User.Identity!.Name!, iqama, "", vaultSp.Id, vaultSp.Id);
+            Store.Audit(c, tx, "finance.jahez_fee", journal.S("id"), ctx.User.Identity!.Name!);
+            return journal;
         }));
 
+        // 5-ج. تسليم وتصفير عهدة صندوق جاهز اليومية (Zero-Out EOD Handover) من خزائن جاهز (SUP.*) إلى الصندوق الداخلي الرئيسي (MAIN.*)
+        // 6. كشف حساب المندوب أو الموظف الشامل 360 درجة (مدين / دائن / رصيد تراكمي متسلسل زمنياً بدقة / حسب السجل / مع القيود والرواتب)
+        api.MapGet("/finance/statement/rider/{iqama}",(string iqama,string? sponsorId,HttpContext ctx)=>store.Read(c=>RiderStatements.Build(c,iqama,sponsorId,ctx.User)));
+
         // 7. منظومة الاعتمادات المتبادلة (المالية ⇄ HR ⇄ التشغيل ⇄ الحركة) ومركز الإشعارات والمهام
-        api.MapGet("/approvals", (string? department, string? status) => store.Read(c =>
+        api.MapGet("/approvals", (string? department, string? status,HttpContext ctx) => store.Read(c =>
         {
-            var list = Store.List(c, "approval_request");
+            var list = Store.List(c, "approval_request").Where(a=>FinancialScopes.Approval(ctx.User,a,c)).ToList();
             if (!string.IsNullOrWhiteSpace(department)) list = list.Where(a => a.S("targetDepartment") == department || a.S("fromDepartment") == department).ToList();
             if (!string.IsNullOrWhiteSpace(status)) list = list.Where(a => a.S("status") == status).ToList();
             return list;
@@ -570,6 +646,8 @@ public static class FinancialCore
         api.MapPost("/approvals/{id}/decide", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             var req = Store.Get(c, id, "approval_request", tx) ?? throw new ApiError("طلب الاعتماد غير موجود.", 404);
+            if(!FinancialScopes.Approval(ctx.User,req,c,tx))throw new ApiError("الطلب خارج نطاق القسم/السجل المسند لك.",403);
+            AccessPolicy.ValidateApproval(ctx.User,req,input);
             J.Need(req.S("status") == "pending" || req.S("status") == "suspended", "تم البت في هذا الطلب مسبقاً.");
             string decision = input.Required("decision"); // approved | rejected | suspended
             J.Need(decision is "approved" or "rejected" or "suspended", "قرار غير صالح: استخدم approved أو rejected أو suspended.");
@@ -578,6 +656,7 @@ public static class FinancialCore
 
             req["status"] = decision;
             req["decisionNote"] = note;
+            req["administrativeSelfOverride"] = AccessPolicy.Administrator(ctx.User) && input.B("overrideSelf") && string.Equals(req.S("requestedBy",req.S("createdBy")),ctx.User.Identity!.Name,StringComparison.OrdinalIgnoreCase);
             req["decidedBy"] = ctx.User.Identity!.Name!;
             req["decidedAt"] = DateTimeOffset.UtcNow.ToString("O");
             Store.Save(c, "approval_request", req, tx);
@@ -617,9 +696,9 @@ public static class FinancialCore
             return req;
         }));
 
-        api.MapGet("/notifications/center", (string? tab, string? department) => store.Read(c =>
+        api.MapGet("/notifications/center", (string? tab, string? department,HttpContext ctx) => store.Read(c =>
         {
-            var items = Store.List(c, "sys_notification");
+            var items = Store.List(c, "sys_notification").Where(n=>AccessPolicy.Administrator(ctx.User)||(n.S("targetDepartment")==ctx.User.FindFirst("department")?.Value||n.S("targetDepartment")=="ALL")&&(n.S("approvalId")==""||Store.Get(c,n.S("approvalId"),"approval_request") is {} approval&&FinancialScopes.Approval(ctx.User,approval,c))).ToList();
             if (!string.IsNullOrWhiteSpace(tab)) items = items.Where(n => n.S("tab") == tab).ToList();
             if (!string.IsNullOrWhiteSpace(department)) items = items.Where(n => n.S("targetDepartment") == department || n.S("targetDepartment") == "ALL").ToList();
             return new
@@ -669,32 +748,34 @@ public static class FinancialCore
         }));
 
         // 8. بوابة تطبيق الجوال وخدمات جوجل (Google Play / Firebase Cloud Messaging - FCM)
-        app.MapPost("/api/rider-mobile/login", async Task<IResult> (JsonObject input,HttpContext ctx)=>
+        app.MapPost("/api/rider-mobile/login", async Task<IResult> (JsonObject input, HttpContext ctx) =>
         {
-            string iqama=input.S("iqamaNo");
-            if(!await MobileLimits.Allowed(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",TokenHash(iqama),ctx.RequestAborted))throw new ApiError("حاول مرة أخرى بعد قليل.",429);
-            return store.Write<IResult>((c,tx)=>
+            string iqama = input.S("iqamaNo");
+            if (!await MobileLimits.Allowed(ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown", TokenHash(iqama), ctx.RequestAborted)) throw new ApiError("حاول مرة أخرى بعد قليل.", 429);
+            return store.Write<IResult>((c, tx) =>
             {
-                if(!InquiryApi.ConsumeAccess(c,tx,iqama,input.S("phoneLast4"),input.S("code"),"mobile"))throw new ApiError("تعذر التحقق من بيانات الدخول أو انتهت صلاحية الرمز.",401);
-                var rider=Store.Get(c,iqama,"rider",tx)!;
-                if(!rider.S("status").Equals("Active",StringComparison.OrdinalIgnoreCase))throw new ApiError("بيانات الدخول غير صحيحة أو الحساب غير نشط.",401);
-                string token="rmob_"+CampaignLinks.NewToken(),lang=input.S("language","ar");
-                if(lang is not ("ar" or "en" or "ur" or "bn"))lang="ar";
-                string fcm=input.S("fcmDeviceToken");J.Need(fcm.Length<=4096,"رمز جهاز طويل جدًا.");
-                var session=new JsonObject{["id"]="mobile:"+TokenHash(token),["iqama"]=iqama,["language"]=lang,["fcmDeviceToken"]=fcm,["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["expiresAtUtc"]=DateTimeOffset.UtcNow.AddHours(8).ToString("O")};
-                Store.Save(c,"mobile_session",session,tx);Store.Audit(c,tx,"mobile.login",iqama,"rider");
-                return Results.Ok(new{accessToken=token,tokenType="Bearer",expiresAtUtc=session.S("expiresAtUtc"),language=lang,fcmRegistered=false,fcmTokenStored=fcm.Length>0,rider=UserAccess.RiderView(rider)});
-            },false);
+                if (!InquiryApi.ConsumeAccess(c, tx, iqama, input.S("phoneLast4"), input.S("code"), "mobile")) throw new ApiError("تعذر التحقق من بيانات الدخول أو انتهت صلاحية الرمز.", 401);
+                var rider = Store.Get(c, iqama, "rider", tx)!;
+                if (!rider.S("status").Equals("Active", StringComparison.OrdinalIgnoreCase)) throw new ApiError("بيانات الدخول غير صحيحة أو الحساب غير نشط.", 401);
+                string token = "rmob_" + CampaignLinks.NewToken(), lang = input.S("language", "ar");
+                if (lang is not ("ar" or "en" or "ur" or "bn")) lang = "ar";
+                string fcm = input.S("fcmDeviceToken"); J.Need(fcm.Length <= 4096, "رمز جهاز طويل جدًا.");
+                var session = new JsonObject { ["id"] = "mobile:" + TokenHash(token), ["iqama"] = iqama, ["language"] = lang, ["fcmDeviceToken"] = fcm, ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"), ["expiresAtUtc"] = DateTimeOffset.UtcNow.AddHours(8).ToString("O") };
+                Store.Save(c, "mobile_session", session, tx); Store.Audit(c, tx, "mobile.login", iqama, "rider");
+                return Results.Ok(new { accessToken = token, tokenType = "Bearer", expiresAtUtc = session.S("expiresAtUtc"), language = lang, fcmRegistered = false, fcmTokenStored = fcm.Length > 0, rider = UserAccess.RiderView(rider) });
+            }, false);
         }).RequireRateLimiting("sensitive");
 
-        api.MapPost("/rider-mobile/broadcast", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
+        api.MapPost("/api/rider-mobile/broadcast".Replace("/api/", "/"), (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             string category = input.S("category", "operational"); // financial | operational | administrative | form_link
             string titleAr = input.Required("titleAr");
             string bodyAr = input.Required("bodyAr");
             string targetIqama = input.S("iqama", "ALL");
+            if(targetIqama=="ALL"){if(!FinancialScopes.AllCompanies(ctx.User))throw new ApiError("النشر العام يحتاج نطاقًا على جميع السجلات.",403);}
+            else FinancialScopes.DemandRider(ctx.User,Store.Get(c,J.Iqama(targetIqama),"rider",tx)??throw new ApiError("المندوب غير موجود.",404));
             string actionUrl = input.S("actionUrl");
-            J.Need(string.IsNullOrWhiteSpace(actionUrl)||(Uri.TryCreate(actionUrl,UriKind.Absolute,out var action)&&action.Scheme=="https")||(actionUrl.StartsWith("/")&&!actionUrl.StartsWith("//")),"رابط الإشعار غير صالح.");
+            J.Need(string.IsNullOrWhiteSpace(actionUrl) || (Uri.TryCreate(actionUrl, UriKind.Absolute, out var action) && action.Scheme == "https") || (actionUrl.StartsWith("/") && !actionUrl.StartsWith("//")), "رابط الإشعار غير صالح.");
             bool requiresAck = input.B("requiresAck");
 
             var msg = new JsonObject
@@ -717,7 +798,7 @@ public static class FinancialCore
             return msg;
         }));
 
-        api.MapGet("/rider-mobile/broadcasts", () => store.Read(c => Store.List(c, "mobile_broadcast")));
+        api.MapGet("/rider-mobile/broadcasts", (HttpContext ctx) => store.Read(c => Store.List(c, "mobile_broadcast").Where(b=>b.S("targetIqama")=="ALL"||Store.Get(c,b.S("targetIqama"),"rider") is {} rider&&FinancialScopes.Rider(ctx.User,rider)||AccessPolicy.Administrator(ctx.User))));
 
         // إعدادات ربط Firebase Cloud Messaging (FCM) وتطبيق Google Play
         api.MapGet("/rider-mobile/firebase-config", (HttpContext ctx) => store.Read(c =>
@@ -766,7 +847,7 @@ public static class FinancialCore
         app.MapGet("/api/rider-mobile/portal/{iqama}", (string iqama, HttpContext ctx) => store.Read(c =>
         {
             J.Iqama(iqama);
-            MobileSession(c,ctx,iqama);
+            MobileSession(c, ctx, iqama);
 
             var rider = Store.Get(c, iqama, "rider") ?? throw new ApiError("المندوب غير موجود.", 404);
             var debts = Store.List(c, "debt").Where(d => d.S("iqama") == iqama).Select(d => new
@@ -813,9 +894,9 @@ public static class FinancialCore
         app.MapPost("/api/rider-mobile/broadcasts/{id}/ack", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             string iqama = J.Iqama(input.Required("iqama"));
-            MobileSession(c,ctx,iqama,tx);
+            MobileSession(c, ctx, iqama, tx);
             var b = Store.Get(c, id, "mobile_broadcast", tx) ?? throw new ApiError("الإشعار غير موجود.", 404);
-            J.Need(b.S("targetIqama")=="ALL"||b.S("targetIqama")==iqama,"الإشعار غير متاح لهذا المندوب.");
+            J.Need(b.S("targetIqama") == "ALL" || b.S("targetIqama") == iqama, "الإشعار غير متاح لهذا المندوب.");
             var acks = b["acknowledgedBy"] as JsonArray ?? new JsonArray();
             if (!acks.Any(x => x?.GetValue<string>() == iqama))
             {
@@ -845,10 +926,10 @@ public static class FinancialCore
             return doc;
         }));
 
-        api.MapGet("/promissory-notes", () => store.Read(c => new
+        api.MapGet("/promissory-notes", (HttpContext ctx) => store.Read(c => new
         {
             featureEnabled = PromissoryArchiveEnabled(c),
-            items = Store.List(c, "promissory_note")
+            items = Store.List(c, "promissory_note").Where(n=>FinancialScopes.Sponsor(ctx.User,n.S("beneficiarySponsorId")))
         }));
 
         api.MapPost("/promissory-notes", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>

@@ -36,7 +36,9 @@ public static class InquiryApi
     {
         api.MapPost("/inquiry-access",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>{
             string iqama=DirectoryProfiles.Iqama(input.Required("iqama")),scope=input.Required("scope");J.Need(scope is "payslip" or "debt" or "mobile","نطاق غير صالح.");
-            var rider=Store.Get(c,iqama,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);J.Need(rider.S("phone").Length>=8,"يلزم جوال مسجل ومراجع.");J.Need(input.B("identityReviewed"),"راجع هوية صاحب الطلب قبل تسليمه الرمز.");
+            var rider=Store.Get(c,iqama,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);
+            if(!FinancialScopes.AllCompanies(ctx.User)||!FinancialCore.CategoriesCatalog.All(cat=>FinancialScopes.Category(ctx.User,cat.Code))||scope is "payslip" or "mobile"&&!AccessPolicy.Has(ctx.User,"payroll.view"))throw new ApiError("رمز الاستعلام الشامل يصدر من مسؤول مالي بنطاق شامل، حتى لا يتجاوز صلاحيات الشركة/الفئة.",403);
+            J.Need(rider.S("phone").Length>=8,"يلزم جوال مسجل ومراجع.");J.Need(input.B("identityReviewed"),"راجع هوية صاحب الطلب قبل تسليمه الرمز.");
             string code=CampaignLinks.NewToken();string expiry=DateTimeOffset.UtcNow.AddMinutes(10).ToString("O");
             Store.Save(c,"inquiry_code",new(){["id"]="inquiry:"+Hash(code),["iqama"]=iqama,["scope"]=scope,["expiresAt"]=expiry,["used"]=false},tx);Store.Audit(c,tx,"inquiry.access_issued",iqama,ctx.User.Identity!.Name!);
             return new{iqama,scope,code,expiresAt=expiry,url=CampaignLinks.Base(app.Configuration,ctx)+(scope=="mobile"?"/rider-app#access_code="+code+"&iqama="+iqama:"/inquiry")};

@@ -2,17 +2,81 @@ const themeNames={dark:'داكن',light:'فاتح',dim:'متوسط'};
 function setTheme(value:string){const theme=Object.hasOwn(themeNames,value)?value:'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem('gate-theme',theme)}catch{}}
 try{setTheme(localStorage.getItem('gate-theme')||'light')}catch{setTheme('light')}
 function themeControl(){return `<select class="theme-control" aria-label="مظهر الواجهة" data-theme-select>${options(Object.entries(themeNames),document.documentElement.dataset.theme)}</select>`;}
-function visibleView(view:string){if(userRole==='Admin')return true;if(userRole==='Reviewer')return ['responses','riders','analytics'].includes(view);return ['dashboard','riders','payroll','ledger','debts','policies'].includes(view);}
+function can(permission:string){return userRole==='Admin'||userRole==='SuperAdmin'||userPermissions.includes(permission)}
+function defaultView(){return ['dashboard','responses','riders','debts'].find(visibleView)||'riders'}
+function visibleView(view:string){const permissions:Record<string,string>={dashboard:'payroll.view',riders:'riders.view',payroll:'payroll.view',ledger:'payroll.view',debts:'debts.view',policies:'policies.view',responses:'forms.view',analytics:'forms.view',forms:'forms.view',builder:'forms.manage',users:'users.manage',imports:'imports.view'};return view==='audit'?(userRole==='Admin'||userRole==='SuperAdmin'):!!permissions[view]&&can(permissions[view])}
+
 function navIcon(id:string){const paths:Record<string,string>={dashboard:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',riders:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M17 4a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-4',payroll:'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h3',forms:'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2',ledger:'M4 3h16v18H4zM8 7h8M8 11h8M8 15h4',users:'M12 3l8 4v6c0 4-8 8-8 8s-8-4-8-8V7zM9 12l2 2 4-4',audit:'M12 8v5l3 2M21 12a9 9 0 1 1-9-9',debts:'M3 7h18v13H3zM3 7l3-4h12l3 4M15 11h6v5h-6z',imports:'M12 16V3M7 8l5-5 5 5M4 15v6h16v-6',policies:'M4 6h16M4 12h16M4 18h16',responses:'M5 12l4 4L19 6'};return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[id]||paths.forms}"/></svg>`;}
 document.addEventListener('change',e=>{const target=e.target as HTMLSelectElement;if(target.matches('[data-theme-select]'))setTheme(target.value);});
 const fieldInput=(label:string,key:string,value='',type='text',required=false)=>`<label>${esc(label)}<input name="${key}" type="${type}" value="${esc(value)}" ${required?'required':''}></label>`;
-const roleLabels={Admin:'مسؤول النظام',Accountant:'محاسب',Reviewer:'مراجع'};
-const statusLabels={Active:'نشط',OnLeave:'في إجازة',Archived:'مؤرشف',NeedsReview:'يحتاج مراجعة',active:'نشط',suspended:'موقوف',settled:'مسدد',paused:'متوقف',pending_approval:'بانتظار تصديق القسم الآخر',cancelled:'ملغي'};
+const roleLabels:Record<string,string>={
+ Admin:'مدير النظام العام (Super Admin)',
+ SuperAdmin:'المدير العام / الإدارة العليا',
+ Accountant:'محاسب مالي ومسؤول خزينة',
+ FinancialAccountant:'رئيس الحسابات والخزينة المركزية',
+ HRSpecialist:'أخصائي الموارد البشرية والعلاقات الحكومية',
+ OperationsManager:'مدير التشغيل والمنصات',
+ PlatformsSupervisor:'مشرف منصات وعهدة صندوق جاهز',
+ FleetSupervisor:'مشرف الحركة والأسطول والورشة',
+ HousingSupervisor:'مشرف السكن والإعاشة',
+ WarehouseOfficer:'أمين المستودع والعهد والتجهيزات',
+ Reviewer:'مراجع البيانات والنماذج'
+};
+const statusLabels:Record<string,string>={Active:'نشط',OnLeave:'في إجازة',Archived:'مؤرشف',NeedsReview:'يحتاج مراجعة',active:'نشط',suspended:'موقوف',settled:'مسدد',paused:'متوقف',pending_approval:'بانتظار تصديق القسم الآخر',cancelled:'ملغي'};
 const allocationLabels:Record<string,string>={RiderFull:'تحمل المندوب 100% (ذمة مدينة)',CompanyFull:'تحمل الشركة 100% (مصروف)',SharedSplit:'تحمل جزئي مشترك (شركة + مندوب)'};
 
 let financeSubTab='debts-list';
 let statementRiderIqama='';
 let statementSponsorFilter='';
+
+// فلترة الحسابات والصناديق ديناميكياً حسب نوع العملية لمنع ظهور صندوق جاهز أو رسوم جاهز أو بترو آب في طلبات الموارد البشرية أو السلف
+function filterVaultsForCategory(vaults:any[],categoryCode:string,operationKind:'disbursement'|'collection',preferredSponsorId?:string,platform?:string):any[]{
+ const catalog=cache.financeCatalog||{categories:[]};
+ const cat=(catalog.categories||[]).find((c:any)=>c.code===categoryCode)||{code:categoryCode,sector:'HR'};
+ const sector=cat.sector||'HR';
+
+ const filtered=(vaults||[]).filter((v:any)=>{
+  const vKind=v.vaultKind||(v.code?.startsWith('SUP.')?'JahezCashbox':v.code?.startsWith('BANK.')?'Bank':v.code?.startsWith('PETRO.')?'PetroApp':'MainInternal');
+  const vPurpose=v.vaultPurpose||(v.code?.endsWith('.FEE')?'JahezFee':v.code?.endsWith('.DEBT')?'DebtAndHr':'GeneralAndSettlement');
+  const dir=v.allowedDirections||(v.code?.endsWith('.FEE')||v.code?.startsWith('PETRO.')?'InOnly':'Dual');
+
+  // 1. حسابات رسوم فتح حسابات جاهز (*.FEE) لا تظهر أبداً في السلف أو طلبات HR أو المديونيات
+  if(categoryCode==='PlatformTransferredDebt')return operationKind==='collection'&&platform==='Jahez'&&['JahezSettlement','GeneralAndSettlement'].includes(vPurpose);
+  if(['JahezFee','GeneralAndSettlement','JahezSettlement'].includes(vPurpose)&&vKind!=='JahezCashbox')return false;
+  if(vPurpose==='JahezFee')return false;
+
+  // 2. في حالة الصرف/التمويل، يُمنع أي حساب طبيعته قبض فقط (InOnly مثل بترو آب)
+  if(operationKind==='disbursement'&&dir==='InOnly')return false;
+
+  // 3. عزل صناديق وخزائن جاهز (SUP.*) تماماً عن طلبات HR والسلف والأسطول والسكن والجزاءات الإدارية
+  if(vKind==='JahezCashbox'){
+   return operationKind==='collection'&&categoryCode==='PlatformTransferredDebt'&&platform==='Jahez';
+  }
+
+  // 4. عزل حسابات مقاصة بترو آب (PETRO.*) عن طلبات HR والسلف
+  if(vKind==='PetroApp'){
+   return operationKind==='collection'&&categoryCode==='FuelOverage';
+  }
+
+  // 5. تخصيص السلفة النقدية مقابل السلفة البنكية عند الصرف
+  if(operationKind==='disbursement'){
+   if(categoryCode==='CashAdvance'&&vKind==='Bank')return false;
+   if(categoryCode==='BankAdvance'&&vKind!=='Bank')return false;
+  }
+
+  if(cat.allowedVaultKinds&&!cat.allowedVaultKinds.includes(vKind)&&!(operationKind==='collection'&&['Advance','CashAdvance','BankAdvance','CashCustody'].includes(categoryCode)&&['MainInternal','Bank'].includes(vKind)))return false;
+  return true;
+ });
+
+ return filtered.sort((a:any,b:any)=>{
+  const aSp=preferredSponsorId&&a.defaultSponsorId===preferredSponsorId?0:1;
+  const bSp=preferredSponsorId&&b.defaultSponsorId===preferredSponsorId?0:1;
+  if(aSp!==bSp)return aSp-bSp;
+  const aDebt=(sector==='HR'||sector==='Advances'||sector==='Fleet')&&a.vaultPurpose==='DebtAndHr'?0:1;
+  const bDebt=(sector==='HR'||sector==='Advances'||sector==='Fleet')&&b.vaultPurpose==='DebtAndHr'?0:1;
+  return aDebt-bDebt;
+ });
+}
 
 async function enterpriseView(view:string):Promise<string>{
  if(view==='riders'){
@@ -31,7 +95,7 @@ async function enterpriseView(view:string):Promise<string>{
   return heading(
    'دليل المناديب وملفاتهم الوثائقية 360°',
    'هوية فعلية واحدة، مع الفصل بين الكفالة والعلاقة التشغيلية والسياسة المالية، واستكمال آلي للبيانات المفقودة وأرشيف الوثائق السبع.',
-   userRole==='Admin'
+   userRole==='Admin'||userRole==='SuperAdmin'
     ? `<button data-action="rider-new">＋ إضافة مندوب</button>${excelControls('riders')}<button class="secondary" data-enterprise="rider-enrich">⚡ جلب واستكمال البيانات المفقودة</button><button class="secondary" data-enterprise="baseline">مزامنة الدليل المرجعي (826 مندوب)</button>`
     : ''
   )+kpiStrip+`<div class="panel">${table(
@@ -52,13 +116,66 @@ async function enterpriseView(view:string):Promise<string>{
     <td><div class="row-actions">
      ${userRole!=='Reviewer'?`<button class="small secondary" data-enterprise="rider-profile-360" data-iqama="${esc(r.iqama)}">📂 الملف والوثائق 360°</button>
      <button class="small ghost" data-enterprise="open-statement" data-iqama="${esc(r.iqama)}">📊 كشف الحساب</button>`:''}
-     ${userRole==='Admin'?`<button class="small ghost" data-action="rider-edit" data-id="${esc(r.id)}">تعديل</button>`:''}
+     ${userRole==='Admin'||userRole==='SuperAdmin'?`<button class="small ghost" data-action="rider-edit" data-id="${esc(r.id)}">تعديل</button>`:''}
     </div></td>
    </tr>`)
   )}</div>`;
  }
- if(view==='forms'){const forms=await api('/campaigns');cache.campaigns=forms;return heading('النماذج والروابط','روابط محفوظة قابلة للنسخ وQR دون إظهار بيانات المناديب.',`<button data-action="campaign-new">إنشاء حملة اختيار</button><button class="secondary" data-view="builder">مصمم النماذج</button>`)+`<div id="new-link"></div><div class="panel">${table(['الحملة','الانتهاء','الحالة','الرابط',''],forms.map(f=>`<tr><td>${esc(f.title)}</td><td>${esc(f.expiresAt.slice(0,10))}</td><td>${esc(f.status)}</td><td><span class="link-label" dir="ltr">${esc(f.publicUrl)}</span></td><td><button data-enterprise="copy" data-url="${esc(f.publicUrl)}">نسخ الرابط</button><button class="secondary" data-enterprise="qr" data-url="${esc(f.qrCodeUrl)}">QR</button><button class="secondary" data-enterprise="campaign-edit" data-id="${esc(f.id)}">تعديل النموذج</button>${userRole==='Admin'?`<button class="danger" data-enterprise="campaign-delete" data-id="${esc(f.id)}">حذف النموذج</button>`:''}${f.status==='open'?`<button class="ghost" data-action="campaign-close" data-id="${f.id}">إغلاق</button>`:''}</td></tr>`))}</div>`;}
- if(view==='users'){const users=await api('/users');cache.users=users;return heading('إدارة المستخدمين','الصلاحيات تُفحص في الخادم، وإيقاف الحساب يلغي جلساته.',`<button data-enterprise="user-new">إنشاء مستخدم</button>`)+`<div class="panel">${table(['اسم المستخدم','الدور','الحالة','تاريخ الإنشاء','آخر دخول',''],users.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(roleLabels[u.role])}</td><td>${esc(statusLabels[u.status])}</td><td>${esc(u.createdAt)}</td><td>${esc(u.lastLoginAt)}</td><td><button class="secondary" data-enterprise="user-edit" data-id="${u.id}">تعديل الصلاحيات</button></td></tr>`))}</div>`;}
+ if(view==='forms'){const forms=await api('/campaigns');cache.campaigns=forms;return heading('النماذج والروابط','روابط محفوظة قابلة للنسخ وQR دون إظهار بيانات المناديب.',`<button data-action="campaign-new">إنشاء حملة اختيار</button><button class="secondary" data-view="builder">مصمم النماذج</button>`)+`<div id="new-link"></div><div class="panel">${table(['الحملة','الانتهاء','الحالة','الرابط',''],forms.map(f=>`<tr><td>${esc(f.title)}</td><td>${esc(f.expiresAt.slice(0,10))}</td><td>${esc(f.status)}</td><td><span class="link-label" dir="ltr">${esc(f.publicUrl)}</span></td><td><button data-enterprise="copy" data-url="${esc(f.publicUrl)}">نسخ الرابط</button><button class="secondary" data-enterprise="qr" data-url="${esc(f.qrCodeUrl)}">QR</button><button class="secondary" data-enterprise="campaign-edit" data-id="${esc(f.id)}">تعديل النموذج</button>${userRole==='Admin'||userRole==='SuperAdmin'?`<button class="danger" data-enterprise="campaign-delete" data-id="${esc(f.id)}">حذف النموذج</button>`:''}${f.status==='open'?`<button class="ghost" data-action="campaign-close" data-id="${f.id}">إغلاق</button>`:''}</td></tr>`))}</div>`;}
+ if(view==='users'){
+  const [users,rolesCat]=await Promise.all([api('/users'),api('/roles-catalog').catch(()=>({roles:[],permissions:[],departments:[]}))]);
+  cache.users=users;cache.rolesCatalog=rolesCat;
+  const rolesList=rolesCat.roles||[];
+  const permsList=rolesCat.permissions||[];
+  return heading(
+   'إدارة المستخدمين والأدوار والصلاحيات التفصيلية (RBAC)',
+   'هيكلة صلاحيات ذرية دقيقة مرتبطة بالأدوار التشغيلية والأقسام والرتب الوظيفية، مع فحص إلزامي في الخادم وإلغاء فوري للجلسات عند الإيقاف.',
+   `<button data-enterprise="user-new">＋ إنشاء مستخدم وتعيين الدور والصلاحيات</button>`
+  )+`
+  <div class="panel" style="margin-bottom:16px">
+   <h2>1. الحسابات والمستخدمون المسجلون (${users.length})</h2>
+   ${table(
+    ['اسم المستخدم','الدور الوظيفي','القسم','الرتبة الوظيفية','الصلاحيات المفعلة','الحالة','تاريخ الإنشاء','آخر دخول',''],
+    users.map((u:any)=>`<tr>
+     <td><strong>${esc(u.username)}</strong></td>
+     <td><strong>${esc(u.roleNameAr||roleLabels[u.role]||u.role)}</strong><div class="muted small number">${esc(u.role)}</div></td>
+     <td>${esc(u.departmentNameAr||u.department||'—')}</td>
+     <td>${badge(`رتبة ${u.rankLevel||1}`,'good')}</td>
+     <td class="number">${(u.permissions||[]).length} صلاحية ${(u.customPermissions||[]).length?`<span class="muted small">(+${u.customPermissions.length} مخصصة)</span>`:''}</td>
+     <td>${badge(statusLabels[u.status]||u.status,u.status==='active'?'good':'warn')}</td>
+     <td class="small number">${esc((u.createdAt||'').slice(0,10))}</td>
+     <td class="small number">${esc(u.lastLoginAt?u.lastLoginAt.slice(0,16):'—')}</td>
+     <td><button class="secondary small" data-enterprise="user-edit" data-id="${esc(u.id)}">تعديل الصلاحيات</button></td>
+    </tr>`)
+   )}
+  </div>
+  <div class="panel" style="margin-bottom:16px">
+   <h2>2. مصفوفة الأدوار التشغيلية والرقابية المعتمدة (${rolesList.length} أدوار)</h2>
+   ${table(
+    ['كود الدور','المسمى الوظيفي','القسم الافتراضي','الرتبة الافتراضية','الوصف التشغيلي والاختصاص','عدد الصلاحيات الافتراضية'],
+    rolesList.map((r:any)=>`<tr>
+     <td class="number"><strong>${esc(r.code)}</strong></td>
+     <td><strong>${esc(r.nameAr)}</strong></td>
+     <td class="number">${esc(r.defaultDepartment)}</td>
+     <td>رتبة ${r.defaultRankLevel}</td>
+     <td class="small">${esc(r.summaryAr)}</td>
+     <td class="number">${(r.defaultPermissions||[]).length} صلاحية</td>
+    </tr>`)
+   )}
+  </div>
+  <div class="panel">
+   <h2>3. دليل الصلاحيات الذرية الدقيقة والشرح التشغيلي (${permsList.length} صلاحية)</h2>
+   ${table(
+    ['كود الصلاحية (Permission Key)','الوحدة / القسم','اسم الصلاحية','الشرح التشغيلي وما تتحكم به في النظام'],
+    permsList.map((p:any)=>`<tr>
+     <td class="number"><code>${esc(p.code)}</code></td>
+     <td>${badge(p.moduleAr,'')}</td>
+     <td><strong>${esc(p.nameAr)}</strong></td>
+     <td class="small muted">${esc(p.descriptionAr)}</td>
+    </tr>`)
+   )}
+  </div>`;
+ }
  if(view==='debts')return await renderFinancialSystemHub();
  if(view==='ledger'){cache.riders=await api('/riders');const rows=await api('/ledger');return heading('دفتر الحسابات','حركات المسيرات المعتمدة والأقساط والدفعات، دون إدخال مباشر يتجاوز الاعتماد.',`<button data-enterprise="inquiry-code">رمز استعلام للمندوب</button>`)+`<div class="panel">${table(['الإقامة','الفترة','الحركة','المبلغ','المرجع'],rows.map(x=>`<tr><td>${esc(x.iqama)}</td><td>${esc(x.period)}</td><td>${esc(x.kind)}</td><td class="number">${money(x.amount)}</td><td>${esc(x.sourceRef)}</td></tr>`))}</div>`;}
  if(view==='builder'){const forms=await api('/forms/builder');cache.customForms=forms;return heading('مصمم النماذج','أسئلة بثلاث لغات؛ النشر يثبّت المخطط ويحفظ رابط المشاركة.',`<button data-enterprise="builder-new">نموذج جديد</button>`)+`<div class="panel">${table(['العنوان','الحالة','الحد الأقصى','الانتهاء',''],forms.map(f=>`<tr><td>${esc(f.titleAr)}</td><td>${esc(f.status)}</td><td>${f.maxSubmissions}</td><td>${esc(f.expiresAt.slice(0,10))}</td><td>${f.status==='draft'?`<button data-enterprise="builder-publish" data-id="${f.id}">نشر</button><button class="secondary" data-enterprise="builder-edit" data-id="${f.id}">تحرير</button>`:`<button data-enterprise="copy" data-url="${esc(f.publicUrl)}">نسخ الرابط</button><button class="secondary" data-enterprise="qr" data-url="${esc(f.qrCodeUrl)}">QR</button><button class="secondary" data-enterprise="analytics" data-id="${f.id}">التحليلات</button>${f.status==='open'?`<button class="ghost" data-enterprise="builder-close" data-id="${f.id}">إغلاق</button>`:''}`}<button class="danger" data-enterprise="builder-delete" data-id="${esc(f.id)}">حذف النموذج</button></td></tr>`))}</div>`;}
@@ -67,12 +184,12 @@ async function enterpriseView(view:string):Promise<string>{
 }
 
 async function renderFinancialSystemHub():Promise<string>{
- const [debts,riders,catalog,sponsors,accounts,journals,approvals,notifCenter,broadcasts,promissory]=await Promise.all([
-  api('/debts'),api('/riders'),api('/finance/catalog'),api('/finance/sponsors'),api('/finance/accounts'),
-  api('/finance/journals'),api('/approvals'),api('/notifications/center'),api('/rider-mobile/broadcasts'),api('/promissory-notes')
+ const [debts,riders,catalog,sponsors,accounts,journals,approvals,notifCenter,broadcasts,promissory,handovers]=await Promise.all([
+  api('/debts'),api('/riders'),api('/finance/catalog'),can('treasury.view')?api('/finance/sponsors'):Promise.resolve([]),can('treasury.view')?api('/finance/accounts'):Promise.resolve([]),
+  can('treasury.view')?api('/finance/journals'):Promise.resolve([]),can('approvals.view')?api('/approvals'):Promise.resolve([]),can('approvals.view')?api('/notifications/center'):Promise.resolve({}),can('mobile.broadcast')?api('/rider-mobile/broadcasts'):Promise.resolve([]),api('/promissory-notes'),can('treasury.view')?api('/finance/jahez-handovers'):Promise.resolve([])
  ]);
  cache.debts=debts;cache.riders=riders;cache.financeCatalog=catalog;cache.sponsors=sponsors;cache.accounts=accounts;
- cache.journals=journals;cache.approvals=approvals;cache.notifCenter=notifCenter;cache.broadcasts=broadcasts;cache.promissory=promissory;
+ cache.journals=journals;cache.approvals=approvals;cache.notifCenter=notifCenter;cache.broadcasts=broadcasts;cache.promissory=promissory;cache.handovers=handovers;
  if(!statementRiderIqama&&riders.length)statementRiderIqama=riders[0].iqama;
 
  const pendingApprovalsCount=approvals.filter((a:any)=>a.status==='pending').length;
@@ -86,21 +203,21 @@ async function renderFinancialSystemHub():Promise<string>{
   ['statement-360','كشف حساب المندوب والشركات 360°'],
   ['approvals-notif',`الاعتمادات المتبادلة والإشعارات والجوال ${pendingApprovalsCount?`(${pendingApprovalsCount})`:''}`],
   ['promissory-archive',`أرشيف سندات الأمر ${promissory.featureEnabled?'(مفعل)':'(معلق)'}`]
- ];
+ ].filter(([id])=>id!=='vaults-coa'||can('treasury.view')).filter(([id])=>id!=='approvals-notif'||can('approvals.view'));
+ if(!subTabs.some(([id])=>id===financeSubTab))financeSubTab='debts-list';
 
- const topActions=userRole==='Reviewer'
-  ? `<button class="secondary" data-enterprise="inquiry-code">رمز استعلام للمندوب</button><a class="button secondary" href="/rider-app" target="_blank">📱 بوابة تطبيق المندوب</a>`
-  : `<button data-enterprise="debt-new">＋ تسجيل مديونية / خدمة HR / سلفة</button>
-     <button class="good" data-enterprise="opening-debt-import">📥 رفع رصيد أول المدة وشيت المديونيات</button>
-     <button class="secondary" data-enterprise="bulk-collect">شيت التحصيل المجمع (Excel / مباشر)</button>
-     <button class="secondary" data-enterprise="vault-transfer">تحويل بين الصناديق والبنوك</button>
-     <button class="secondary" data-enterprise="hr-advance-print">نموذج سلفة نقدية / سند قبض</button>`;
+ const topActions=`${userPermissions.some(p=>p.startsWith('debts.create.'))||userRole==='Admin'||userRole==='SuperAdmin'?'<button data-enterprise="debt-new">＋ تسجيل مديونية / خدمة HR / سلفة</button>':''}
+ ${can('debts.import_opening')?'<button class="good" data-enterprise="opening-debt-import">📥 رفع رصيد أول المدة وشيت المديونيات</button>':''}
+ ${can('debts.collect')?'<button class="secondary" data-enterprise="bulk-collect">شيت التحصيل المجمع (Excel / مباشر)</button>':''}
+ ${can('treasury.transfer')?'<button class="secondary" data-enterprise="vault-transfer">تحويل بين الصناديق والبنوك</button>':''}
+ ${can('treasury.jahez.handover')?'<button class="secondary" data-enterprise="jahez-handover">🔄 تسليم وتصفير عهدة جاهز</button>':''}
+ <button class="secondary" data-enterprise="hr-advance-print">نموذج سلفة نقدية / سند قبض</button>${can('treasury.opening')?'<button class="secondary" data-enterprise="treasury-opening">مطابقة الأرصدة الافتتاحية</button>'+((catalog.sponsors||[]).some((s:any)=>s.code==='TR')?'<button class="secondary" data-enterprise="legacy-cash-allocation">توزيع خزنة التجارية التاريخية</button>':''):''}`;
 
  const sponsorCards=sponsors.map((sp:any)=>`
   <article class="stat">
    <div class="label">${esc(sp.shortNameAr)} — <span class="number">${esc(sp.unifiedNumber)}</span></div>
    <strong class="money-positive">${money(sp.receivablesBalance)} <small style="font-size:12px">ر.س ذمم مدينة</small></strong>
-   <div class="hint">رصيد الصناديق والبنوك: <b class="number">${money(sp.vaultBalance)}</b> ر.س · مديونيات نشطة: <b>${sp.activeDebtsCount}</b> · مصروفات وتحملات: <b class="number">${money(sp.expensesTotal)}</b> ر.س · جاري السجلات: <b class="number">${money(sp.interCompanyNet)}</b> ر.س</div>
+   <div class="hint">الصندوق الداخلي: <b class="number">${money(sp.mainVaultBalance??sp.vaultBalance)}</b> · خزنة جاهز: <b class="number">${money(sp.jahezBoxBalance||0)}</b> · البنك: <b class="number">${money(sp.bankBalance||0)}</b> · مصروفات: <b class="number">${money(sp.expensesTotal)}</b> ر.س</div>
   </article>`).join('');
 
  let bodyHtml='';
@@ -114,7 +231,8 @@ async function renderFinancialSystemHub():Promise<string>{
     </article>
    </div>
    <div class="notice">
-    <strong>القاعدة المحاسبية المطبقة:</strong> الذمم المدينة (<code>1210/1220</code>) وحسابات المصروفات (<code>5101..5203</code>) والصناديق (<code>MAIN/SUP/BANK</code>) طبيعتها <b>مدينة (Debit)</b> تزيد في الطرف المدين وتنقص في الطرف الدائن. يمكنك تحصيل مديونية أي مندوب نقداً أو بنكياً على أي سجل تجاري أو شراء/ترحيل المديونية بين السجلات مع تسوية آلية في <b>جاري السجلات الشقيقة (1310)</b>.
+    <strong>القاعدة المحاسبية وعزل الصناديق:</strong>
+    <b>الصندوق الداخلي الرئيسي (1110 / MAIN)</b> تتفرع تحته حسابات المديونيات والسلف وطلبات الموارد البشرية (<code>MAIN.*.DEBT</code>) وحسابات التحصيلات والتصفيات (<code>MAIN.*.SET</code>) وحسابات رسوم فتح حسابات جاهز (<code>MAIN.*.FEE</code>) وحساب مؤسسة التجارية الموحد (<code>MAIN.TR</code>). أما <b>صندوق جاهز (1120 / SUP.*)</b> فهو خاص حصرياً بمعاملات وأرصدة تطبيق وشركة جاهز، ولا يُسمح بظهوره أو استخدامه في السلف أو طلبات الموارد البشرية (HR).
    </div>
    <div class="panel">
     <div class="panel-title">
@@ -140,14 +258,16 @@ async function renderFinancialSystemHub():Promise<string>{
        <td class="number ${Number(d.remainingBalance)>0?'money-negative':''}"><strong>${money(d.remainingBalance)}</strong></td>
        <td class="number">${money(d.monthlyInstallment)}</td>
        <td>${esc(d.creditorSponsorNameAr||'غير مربوط — راجع الجدولة')}</td>
-       <td class="number">${esc(d.paymentVaultCode||'غير مسجل')}</td>
+       <td class="number">${esc(d.paymentVaultCode||(d.entryMode==='Accrual'?'إثبات غير نقدي':'غير مسجل'))}</td>
        <td class="number">${esc(d.journalNumber||'—')}</td>
        <td>${badge(statusLabels[d.status]||d.status,d.status==='settled'?'good':d.status==='pending_approval'?'warn':'')}</td>
        <td>
         <div class="row-actions">
-         ${canAct?`<button class="small good" data-enterprise="debt-collect" data-id="${esc(d.id)}">تحصيل / إعفاء</button>
-                   <button class="small secondary" data-enterprise="debt-edit" data-id="${esc(d.id)}">جدولة</button>
-                   <button class="small secondary" data-enterprise="debt-transfer-sp" data-id="${esc(d.id)}">شراء/نقل لسجل</button>`:''}
+         ${canAct&&can('debts.collect')?`<button class="small good" data-enterprise="debt-collect" data-id="${esc(d.id)}">تحصيل / إعفاء</button>`:''}
+         ${canAct&&can('debts.reschedule')?`<button class="small secondary" data-enterprise="debt-edit" data-id="${esc(d.id)}">جدولة</button>`:''}
+         ${canAct&&can('debts.transfer_sponsor')?`<button class="small secondary" data-enterprise="debt-transfer-sp" data-id="${esc(d.id)}">شراء/نقل لسجل</button>`:''}
+         ${can('treasury.liability.settle')&&d.entryMode==='Accrual'&&d.recognitionAccountCode==='2130'&&Number(d.totalCostAmount||d.totalAmount)>Number(d.supplierPaidAmount||0)?`<button class="small secondary" data-enterprise="supplier-pay" data-id="${esc(d.id)}">سداد الالتزام</button>`:''}
+         ${can('treasury.opening')&&!d.journalEntryId&&!d.openingReconciliationId?`<button class="small secondary" data-enterprise="debt-reconcile" data-id="${esc(d.id)}">مطابقة الافتتاح</button>`:''}
          <button class="small ghost" data-enterprise="open-statement" data-iqama="${esc(d.iqama)}">كشف 360°</button>
          <button class="small ghost" data-enterprise="print-voucher" data-id="${esc(d.id)}">سند/نموذج</button>
         </div>
@@ -157,26 +277,47 @@ async function renderFinancialSystemHub():Promise<string>{
     )}
    </div>`;
  } else if(financeSubTab==='vaults-coa'){
+  const handoverTable=table(['المستند','السجل','الحالة','التصفيات','الرسوم','مقدم العهدة','المستلم',''],handovers.map((h:any)=>`<tr><td>${esc(h.sourceRef)}</td><td>${esc(h.sponsorNameAr)}</td><td>${badge(h.status==='pending'?'بانتظار الاستلام':h.status==='approved'?'مستلم':'مرفوض',h.status==='approved'?'good':'warn')}</td><td class="number">${money(h.settlementAmount)}</td><td class="number">${money(h.feeAmount)}</td><td>${esc(h.submittedBy)}</td><td>${esc(h.decidedBy||'—')}</td><td>${h.status==='pending'&&can('treasury.jahez.receive')?`<button class="small good" data-enterprise="jahez-receive" data-id="${esc(h.id)}">عد واستلام / رفض</button>`:''}</td></tr>`));
+  const mainRoot=accounts.find((a:any)=>a.code==='1110');
+  const jahezRoot=accounts.find((a:any)=>a.code==='1120');
+  const bankRoot=accounts.find((a:any)=>a.code==='1130');
+  const petroRoot=accounts.find((a:any)=>a.code==='1140');
   bodyHtml=`
-   <div class="stats">${sponsorCards}</div>
+   <div class="stats">
+    <article class="stat"><div class="label">1110 — الصندوق الداخلي الرئيسي العام (MAIN)</div><strong class="number money-positive">${money(mainRoot?.netBalance||0)} ر.س</strong><div class="hint">يضم حسابات المديونيات والسلف (1111) وتصفيات جاهز (1112) والرسوم (1113) وصندوق التجارية (MAIN.TR)</div></article>
+    <article class="stat"><div class="label">1120 — صندوق / خزنة كاش جاهز (SUP)</div><strong class="number">${money(jahezRoot?.netBalance||0)} ر.س</strong><div class="hint">خاص حصرياً بمعاملات تطبيق جاهز ويُصفّر للصندوق الداخلي أو البنك</div></article>
+    <article class="stat"><div class="label">1130 — حسابات البنوك الرسمية (BANK)</div><strong class="number money-positive">${money(bankRoot?.netBalance||0)} ر.س</strong><div class="hint">حسابات مستقلة لكل سجل؛ العمليات بالنيابة لها جاري موثق</div></article>
+    <article class="stat"><div class="label">1140 — مقاصة وقود بترو آب (PETRO)</div><strong class="number">${money(petroRoot?.netBalance||0)} ر.س</strong><div class="hint">حساب قبض ومقاصة وقود فقط (InOnly)</div></article>
+   </div>
+   <div class="panel"><h2>تسليمات جاهز — لا تنتقل النقدية قبل استلام المالية وعدها</h2>${handoverTable}</div>
    <div class="panel">
     <div class="panel-title">
-     <h2>شجرة الحسابات الجزئية، الصناديق الداخلية (MAIN)، كاش جاهز (SUP)، البنوك (BANK)، وحسابات مصروفات HR</h2>
-     <button class="secondary" data-enterprise="vault-transfer">إيداع / تحويل بين الخزائن والبنوك</button>
+     <h2>شجرة الحسابات الهرمية، الصندوق الداخلي الرئيسي وفروعه، خزنة جاهز، البنوك، ومصروفات HR</h2>
+     <div class="actions">
+      ${can('treasury.jahez.handover')?'<button class="good" data-enterprise="jahez-handover">🔄 تسليم وتصفير عهدة جاهز للصندوق الداخلي</button>':''}
+      ${can('treasury.jahez.manage')?'<button class="secondary" data-enterprise="jahez-fee">قبض رسوم فتح حساب جاهز</button>':''}
+      ${can('treasury.transfer')?'<button class="secondary" data-enterprise="jahez-transfer">تحويل عهدة جاهز</button><button class="secondary" data-enterprise="jahez-platform-settle">تسوية مع شركة جاهز</button><button class="secondary" data-enterprise="jahez-fee-deposit">إيداع حصيلة رسوم الشركة</button>':''}
+${can('treasury.transfer')?'<button class="secondary" data-enterprise="vault-transfer">تحويل نقدية الشركة</button>':''}
+     </div>
     </div>
     ${table(
-     ['رمز الحساب','اسم الحساب / الصندوق','النوع','الطبيعة المحاسبية','السجل الافتراضي','إجمالي المدين (Debit)','إجمالي الدائن (Credit)','الرصيد الصافي','قاعدة الزيادة والنقصان'],
-     accounts.map((a:any)=>`<tr>
-      <td class="number"><strong>${esc(a.code)}</strong></td>
-      <td><strong>${esc(a.nameAr)}</strong>${a.isVault?` ${badge('خزينة/بنك','good')}`:''}</td>
-      <td>${esc(a.accountType)}</td>
-      <td>${badge(a.naturalSideAr,a.naturalSide==='Debit'?'':'warn')}</td>
-      <td>${esc(a.defaultSponsorNameAr)}</td>
-      <td class="number">${money(a.debitTotal)}</td>
-      <td class="number">${money(a.creditTotal)}</td>
-      <td class="number ${a.netBalance<0?'money-negative':'money-positive'}"><strong>${money(a.netBalance)}</strong></td>
-      <td class="small muted">${esc(a.ruleExplanationAr)}</td>
-     </tr>`)
+     ['رمز الحساب','الأب','اسم الحساب / الصندوق','التصنيف والاتجاه','الطبيعة','السجل','إجمالي المدين','إجمالي الدائن','الرصيد الصافي','النطاق التشغيلي المعتمد'],
+     accounts.map((a:any)=>{
+      const depth=a.parentCode?((a.parentCode==='1111'||a.parentCode==='1112'||a.parentCode==='1113')?2:1):0;
+      const prefix=depth===2?'↳ ↳ ':depth===1?'↳ ':'';
+      return `<tr>
+       <td class="number"><strong>${esc(a.code)}</strong></td>
+       <td class="number muted small">${esc(a.parentCode||'رئيسي')}</td>
+       <td>${prefix}<strong>${esc(a.nameAr)}</strong> ${a.isGroup?badge('حساب تجميعي رئيسي',''):a.isVault?badge(a.vaultKind==='JahezCashbox'?'خزنة تطبيق جاهز':a.vaultKind==='Bank'?'حساب بنكي':a.vaultKind==='PetroApp'?'مقاصة وقود':'صندوق داخلي','good'):''}</td>
+       <td class="small">${esc(a.accountType)} · ${badge(a.allowedDirectionsAr||'قبض وصرف',a.allowedDirections==='InOnly'?'warn':'')}</td>
+       <td>${badge(a.naturalSideAr,a.naturalSide==='Debit'?'':'warn')}</td>
+       <td>${esc(a.defaultSponsorNameAr)}</td>
+       <td class="number">${money(a.debitTotal)}</td>
+       <td class="number">${money(a.creditTotal)}</td>
+       <td class="number ${a.netBalance<0?'money-negative':'money-positive'}"><strong>${money(a.netBalance)}</strong></td>
+       <td class="small muted">${esc(a.operationalScopeAr||a.ruleExplanationAr)}</td>
+      </tr>`;
+     })
     )}
    </div>
    <div class="panel">
@@ -217,24 +358,25 @@ async function renderFinancialSystemHub():Promise<string>{
    </div>
    ${st?`
    <div class="stats">
-    <article class="stat"><div class="label">إجمالي أصل المديونيات المسجلة (مدين)</div><strong class="money-negative">${money(st.totalPrincipalDebt)}</strong><div class="hint">الكفالة: ${esc(st.sponsorshipSponsor)}</div></article>
-    <article class="stat"><div class="label">إجمالي المسدد نقداً وبنكياً ومن الراتب (دائن)</div><strong class="money-positive">${money(st.totalPaidAmount)}</strong><div class="hint">تخفيض مباشر للذمة المدينة</div></article>
+    <article class="stat"><div class="label">إثباتات الذمم دون نقل الملكية (مدين)</div><strong class="money-negative">${money(st.totalPrincipalDebt)}</strong><div class="hint">تحملات الشركة لخدمات HR: ${money(st.totalCompanyBorneCost||0)} ر.س</div></article>
+    <article class="stat"><div class="label">السداد الموثق بالحركات نقداً وبنكياً ومن الراتب</div><strong class="money-positive">${money(st.totalPaidAmount)}</strong><div class="hint">سداد أقدم محفوظ بالمصدر: ${money(st.historicalPaidAmount||0)} ر.س؛ لا يعاد خصمه من رصيد الافتتاح</div></article>
     <article class="stat"><div class="label">إجمالي الإعفاءات الإدارية المعتمدة (دائن)</div><strong>${money(st.totalWaivedAmount)}</strong><div class="hint">تُقيد في ح/ مصروف إعفاءات 5202</div></article>
-    <article class="stat"><div class="label">صافي المديونية المتبقية حالياً</div><strong class="${st.totalRemainingDebt>0?'money-negative':'money-positive'}">${money(st.totalRemainingDebt)}</strong><div class="hint">رصيد دفتر الرواتب العام: ${money(st.payrollLedgerBalance)} ر.س</div></article>
+    <article class="stat"><div class="label">صافي المديونية المتبقية حالياً</div><strong class="${st.totalRemainingDebt>0?'money-negative':'money-positive'}">${money(st.totalRemainingDebt)}</strong><div class="hint">رصيد دفتر الرواتب العام: ${st.payrollVisible===false?'خارج صلاحية الدور':money(st.payrollLedgerBalance)+' ر.س'}</div></article>
    </div>
    <div class="panel">
     <div class="panel-title">
-     <h2>توزيع ذمم المندوب (${esc(st.riderName)} — ${esc(st.iqama)}) حسب السجلات التجارية</h2>
+     <h2>1. توزيع ذمم المندوب (${esc(st.riderName)} — ${esc(st.iqama)}) وتكاليف HR حسب السجلات التجارية</h2>
      <div class="actions">
       <button class="secondary no-print" data-action="print">طباعة كشف الحساب الرسمي</button>
       <button class="secondary no-print" data-enterprise="share-statement-mobile" data-iqama="${esc(st.iqama)}">مشاركة الكشف داخل بوابة المندوب</button>
      </div>
     </div>
     ${table(
-     ['السجل التجاري','إجمالي أصل الدين (مدين)','المسدد (دائن)','الإعفاء الإداري (دائن)','الرصيد المتبقي للسجل'],
+     ['السجل التجاري','إثبات الذمم','حقوق منقولة للداخل','حقوق منقولة للخارج','تكلفة الشركة الأصلية','السداد','الإعفاء','المتبقي'],
      st.bySponsor.map((b:any)=>`<tr>
       <td><strong>${esc(b.sponsorNameAr)}</strong></td>
-      <td class="number">${money(b.totalPrincipal)}</td>
+      <td class="number">${money(b.totalPrincipal)}</td><td class="number">${money(b.transferredInAmount||0)}</td><td class="number">${money(b.transferredOutAmount||0)}</td>
+      <td class="number">${money(b.totalCompanyShare||0)}</td>
       <td class="number money-positive">${money(b.totalPaid)}</td>
       <td class="number">${money(b.totalWaived)}</td>
       <td class="number ${b.remainingBalance>0?'money-negative':''}"><strong>${money(b.remainingBalance)}</strong></td>
@@ -242,22 +384,53 @@ async function renderFinancialSystemHub():Promise<string>{
     )}
    </div>
    <div class="panel">
-    <h2>كشف حركة المديونية التفصيلي (مدين / دائن / رصيد تراكمي)</h2>
+    <h2>2. كشف حركة المديونيات والخدمات التفصيلي (مرتب زمنياً بدقة — مدين / دائن / رصيد تراكمي)</h2>
     ${table(
-     ['التاريخ','الفترة','نوع الحركة','البند / الصندوق','السجل التجاري','رقم المرجع / السند','البيان','مدين (+ زيادة دين)','دائن (- سداد / إعفاء)','الرصيد التراكمي'],
+     ['التاريخ','الفترة','نوع الحركة','البند / الصندوق','السجل التجاري','رقم المرجع / السند','البيان','تحمل الشركة','مدين (+ زيادة دين)','دائن (- سداد / إعفاء)','الرصيد التراكمي'],
      st.statementLines.map((l:any)=>`<tr>
       <td class="number">${esc(l.date)}</td>
       <td class="number">${esc(l.period)}</td>
-      <td>${badge(l.typeAr,l.credit>0?'good':'warn')}</td>
+      <td>${badge(l.typeAr,l.credit>0?'good':l.type==='company_borne_service'?'':'warn')}</td>
       <td>${esc(l.categoryAr)}</td>
       <td>${esc(l.sponsorNameAr)}</td>
       <td class="number">${esc(l.reference)}</td>
       <td>${esc(l.description)}</td>
+      <td class="number">${l.companyBorneAmount>0?money(l.companyBorneAmount):'—'}</td>
       <td class="number ${l.debit>0?'money-negative':''}">${l.debit>0?money(l.debit):'—'}</td>
       <td class="number ${l.credit>0?'money-positive':''}">${l.credit>0?money(l.credit):'—'}</td>
       <td class="number"><strong>${money(l.runningBalance)}</strong></td>
      </tr>`)
     )}
+   </div>
+   <div class="split">
+    <div class="panel">
+     <h2>3. القيود المحاسبية المزدوجة المرتبطة بالمندوب (${(st.journalEntries||[]).length})</h2>
+     ${table(
+      ['رقم القيد','التاريخ','النوع','البيان','مدين','دائن',''],
+      (st.journalEntries||[]).map((j:any)=>`<tr>
+       <td class="number"><strong>${esc(j.journalNumber)}</strong></td>
+       <td class="number">${esc(j.date)}</td>
+       <td>${esc(j.transactionType)}</td>
+       <td class="small">${esc(j.description)}</td>
+       <td class="number">${money(j.totalDebit)}</td>
+       <td class="number">${money(j.totalCredit)}</td>
+       <td><button class="small secondary" data-enterprise="journal-detail" data-id="${esc(j.id)}">الأسطر</button></td>
+      </tr>`)
+     )}
+    </div>
+    <div class="panel">
+     <h2>4. سجل مسيرات الرواتب والدفعات والاستقطاعات (${(st.payrollLedgerRows||[]).length})</h2>
+     ${table(
+      ['الفترة','نوع الحركة','المبلغ','المرجع','التاريخ'],
+      (st.payrollLedgerRows||[]).map((r:any)=>`<tr>
+       <td class="number">${esc(r.period)}</td>
+       <td>${esc(r.kind==='approved_payroll'?'استحقاق مسير راتب معتمد':r.kind==='debt_installment'?'استقطاع قسط مديونية':r.kind==='payment'?'دفعة مصروفة للمندوب':r.kind)}</td>
+       <td class="number ${r.amount<0?'money-negative':'money-positive'}"><strong>${money(r.amount)}</strong></td>
+       <td class="number small">${esc(r.sourceRef)}</td>
+       <td class="number small">${esc((r.createdAt||'').slice(0,10))}</td>
+      </tr>`)
+     )}
+    </div>
    </div>`:empty('اختر مندوباً','اختر مندوباً من القائمة أعلاه لعرض كشف حسابه التفصيلي.')}`;
  } else if(financeSubTab==='approvals-notif'){
   bodyHtml=`
@@ -277,7 +450,7 @@ async function renderFinancialSystemHub():Promise<string>{
        <td>رتبة ${esc(a.requiredRankLevel)}</td>
        <td>${badge(a.status==='approved'?'مصدق':a.status==='rejected'?'مرفوض':a.status==='suspended'?'معلق':'بانتظار التصديق',a.status==='approved'?'good':a.status==='rejected'?'bad':'warn')}</td>
        <td>${esc(a.decisionNote||'—')}</td>
-       <td>${a.status==='pending'||a.status==='suspended'?`<button class="small good" data-enterprise="approval-decide" data-id="${esc(a.id)}">قرار وتصديق</button>`:esc(a.decidedBy||'')}</td>
+       <td>${can('approvals.decide')&&(a.status==='pending'||a.status==='suspended')?`<button class="small good" data-enterprise="approval-decide" data-id="${esc(a.id)}">قرار وتصديق</button>`:esc(a.decidedBy||'')}</td>
       </tr>`)
      )}
     </div>
@@ -286,7 +459,7 @@ async function renderFinancialSystemHub():Promise<string>{
       <h2>مركز الإشعارات والمهام (To-Do) وتطبيق الجوال (Google Play / FCM)</h2>
       <div class="actions">
        <a class="button secondary" href="/rider-app" target="_blank">📱 فتح تطبيق المندوب (/rider-app)</a>
-       ${userRole==='Admin'?`<button class="secondary" data-enterprise="firebase-config">⚙️ إعدادات ربط Firebase و Google Play</button>`:''}
+       ${userRole==='Admin'||userRole==='SuperAdmin'?`<button class="secondary" data-enterprise="firebase-config">⚙️ إعدادات ربط Firebase و Google Play</button>`:''}
        <button class="secondary" data-enterprise="notif-new">＋ إشعار / مهمة لقسم</button>
        <button data-enterprise="mobile-broadcast">📲 إرسال إشعار لتطبيق المناديب</button>
       </div>
@@ -322,7 +495,7 @@ async function renderFinancialSystemHub():Promise<string>{
     <div class="panel-title">
      <h2>أرشيف سندات الأمر الموحد (منصة نافذ — الحركة · الموارد البشرية · المنصات)</h2>
      <div class="actions">
-      ${userRole==='Admin'?`<button class="secondary" data-enterprise="toggle-promissory-flag" data-enabled="${promissory.featureEnabled?'false':'true'}">${promissory.featureEnabled?'تعليق الموديول (Dormant Mode)':'تفعيل الموديول للاختبار'}</button>`:''}
+      ${userRole==='Admin'||userRole==='SuperAdmin'?`<button class="secondary" data-enterprise="toggle-promissory-flag" data-enabled="${promissory.featureEnabled?'false':'true'}">${promissory.featureEnabled?'تعليق الموديول (Dormant Mode)':'تفعيل الموديول للاختبار'}</button>`:''}
       ${promissory.featureEnabled?`<button data-enterprise="promissory-new">＋ أرشفة سند لأمر جديد</button>`:''}
      </div>
     </div>
@@ -350,7 +523,7 @@ async function renderFinancialSystemHub():Promise<string>{
 
  return heading(
   'منظومة إدارة المديونيات والنظام المالي والخزائن',
-  'شجرة حسابات جزئية، فصل كامل لذمم السجلات التجارية الثلاثة، توزيع ذكي لتكاليف HR، تحصيل مرن وإعفاءات إدارية، واعتمادات متبادلة.',
+  'شجرة حسابات هرمية، عزل مالي لصناديق جاهز عن السلف وطلبات HR، فصل كامل لذمم السجلات التجارية الثلاثة، واعتمادات متبادلة.',
   topActions
  ) + `${catalog.unassignedDebtCount?`<div class="notice warn">${catalog.unassignedDebtCount} مديونية قديمة دون سجل تجاري مراجع؛ لا توزع على السجلات تلقائيًا. يستطيع المسؤول ربطها من الجدولة.</div>`:''}`+`<div class="response-chips" role="tablist" aria-label="أقسام النظام المالي والمديونيات">
   ${subTabs.map(([id,label])=>`<button class="small ${financeSubTab===id?'':'secondary'}" data-enterprise="finance-subtab" data-subtab="${id}">${label}</button>`).join('')}
@@ -373,19 +546,86 @@ function bindEnterprise(view:string){
 }
 
 function riderDialog(id?:string){const r=cache.riders?.find(x=>x.id===id)||{};modal(id?'تعديل بيانات المندوب':'إضافة مندوب',`<form id="rider-form" class="form-grid">${fieldInput('الإقامة','iqama',r.iqama||'','text',true)}${fieldInput('الاسم المصدري','name',r.name||'','text',true)}${fieldInput('الجنسية','nationality',r.nationality)}${fieldInput('الجوال الدولي','phone',r.phone)}${fieldInput('الكفيل / السجل التجاري','sponsor',r.sponsor||'شركة البوابة المقبلة للتجارة')}${fieldInput('المدينة','city',r.city)}${fieldInput('رخصة القيادة','drivingLicense',r.drivingLicense||'')}${fieldInput('المنصات العاملة','platforms',r.platforms||'')}${fieldInput('رقم الآيبان البنكي (IBAN)','iban',r.iban||'')}<label>نوع العلاقة<select name="engagementType">${options([['','غير محسوم'],['SponsoredInternal','كفالة الشركة'],['External','خارجي']],r.engagementType)}</select></label><label>نوع المركبة<select name="operationalRole">${options([['','غير محدد'],['Car','سيارة'],['Motorcycle','دباب']],r.operationalRole)}</select></label><label>الحالة<select name="status">${options(['Active','OnLeave','Archived','NeedsReview'].map(x=>[x,statusLabels[x]]),r.status||'NeedsReview')}</select></label><label>سياسة الحساب<select name="policyId"><option value="">لم تحدد</option>${options((cache.policies||[]).filter(p=>p.status==='approved').map(p=>[p.id,p.name]),r.policyId)}</select></label><button>حفظ</button></form>`);if(id)$('#rider-form [name=iqama]').readOnly=true;$('#rider-form').onsubmit=submit(async d=>{await api('/riders',d);$('#modal').close();await show('riders');});}
-function userDialog(id?:string){const u=cache.users?.find(x=>x.id===id)||{};modal(id?'صلاحيات المستخدم':'مستخدم جديد',`<form id="user-form" class="form-grid">${id?'':fieldInput('اسم المستخدم','username','','text',true)+fieldInput('كلمة مرور12حرفًا على الأقل','password','','password',true)}<label>الدور<select name="role">${options(Object.entries(roleLabels),u.role||'Reviewer')}</select></label>${id?`<label>الحالة<select name="status">${options([['active','نشط'],['suspended','موقوف']],u.status)}</select></label>`:''}<button>حفظ</button></form>`);$('#user-form').onsubmit=submit(async d=>{await api(id?`/users/${id}/status`:'/users',d,id?'PUT':'POST');$('#modal').close();await show('users');});}
+
+function userDialog(id?:string){
+ const u=cache.users?.find((x:any)=>x.id===id)||{};
+ const rolesCat=cache.rolesCatalog||{roles:[],permissions:[],departments:[]};
+ const roleEntries=(rolesCat.roles||[]).length
+  ? rolesCat.roles.map((r:any)=>[r.code,`${r.nameAr} (${r.code})`])
+  : Object.entries(roleLabels);
+ const deptEntries=[
+  ['FIN','الشؤون المالية والخزينة (FIN)'],
+  ['HR','الموارد البشرية والعلاقات الحكومية (HR)'],
+  ['OPS','تشغيل المنصات والتطبيقات (OPS)'],
+  ['FLT','الحركة والأسطول والورشة (FLT)'],
+  ['MGT','الإدارة العليا والامتثال القانوني (MGT)']
+ ];
+ const perms=rolesCat.permissions||[];
+ const userCustom=new Set<string>(u.customPermissions||[]);
+
+ modal(id?'تعديل دور وصلاحيات المستخدم':'إنشاء مستخدم وتعيين الدور والصلاحيات',`<form id="user-form" class="form-grid">
+  ${id?'':fieldInput('اسم المستخدم','username','','text',true)+fieldInput('كلمة مرور12حرفًا على الأقل','password','','password',true)}
+  <label>الدور الوظيفي المعتمد<select name="role" id="user-role-select">${options(roleEntries,u.role||'Reviewer')}</select></label>
+  <label>القسم التابع له<select name="department" id="user-dept-select">${options(deptEntries,u.department||'OPS')}</select></label>
+  <label>الرتبة الوظيفية (للاعتمادات المتبادلة)
+   <select name="rankLevel" id="user-rank-select">
+    ${options([['1','رتبة 1 — أخصائي / محاسب صندوق / مشرف'],['2','رتبة 2 — مسؤول علاقات / مشرف أول'],['3','رتبة 3 — رئيس حسابات / مدير قسم'],['4','رتبة 4 — مدير مالي / مدير تشغيل'],['5','رتبة 5 — مدير عام / إدارة عليا']],String(u.rankLevel||1))}
+   </select>
+  </label>
+  ${id?`<label>حالة الحساب<select name="status">${options([['active','نشط'],['suspended','موقوف']],u.status)}</select></label>`:''}
+  ${perms.length?`
+   <details class="full" style="background:var(--raised);padding:10px 14px;border-radius:10px">
+    <summary style="cursor:pointer;font-weight:700">🔐 تخصيص صلاحيات ذرية إضافية لهذا المستخدم (${perms.length} صلاحية متاحة)</summary>
+    <div class="form-grid" style="margin-top:10px">
+     ${perms.map((p:any)=>`<label class="check small"><input type="checkbox" data-custom-perm="${esc(p.code)}" ${userCustom.has(p.code)?'checked':''}><b>${esc(p.nameAr)}</b> <span class="muted">(${esc(p.moduleAr)})</span></label>`).join('')}
+    </div>
+   </details>
+  `:''}
+  ${perms.length?`<details class="full"><summary>منع صلاحيات افتراضية لهذا المستخدم (المنع له أولوية)</summary>${perms.map((p:any)=>`<label class="check small"><input type="checkbox" data-deny-perm="${esc(p.code)}" ${(u.deniedPermissions||[]).includes(p.code)?'checked':''}>منع ${esc(p.nameAr)}</label>`).join('')}<p>مدير النظام يظل مسؤولًا كامل الصلاحية؛ استخدم دورًا محدودًا لمن يحتاج الاستثناءات.</p></details>`:''}
+  <details class="full"><summary>نطاق البيانات والحسابات المالية المسموحة</summary><p class="muted">الصلاحية تحدد الفعل؛ والنطاق يحدد الشركة والحساب والفئة والمنصة. الدور المحدود لا يرى أموال شركات أخرى. اختيار لا شيء يعني عدم إسناد نطاق، وليس السماح للجميع.</p>
+  ${[['sponsorIds','السجلات القانونية',(rolesCat.financialScopeCatalog?.sponsors||[]).map((x:any)=>[x.id,x.nameAr])],['accountCodes','الصناديق والبنوك',(rolesCat.financialScopeCatalog?.accounts||[]).map((x:any)=>[x.code,x.nameAr])],['categoryCodes','أنواع المديونيات',(rolesCat.financialScopeCatalog?.categories||[]).map((x:any)=>[x.code,x.nameAr])],['platforms','المنصات',(rolesCat.financialScopeCatalog?.platforms||[]).map((x:string)=>[x,x])]].map(([key,label,entries]:any)=>`<fieldset><legend>${label}</legend><div class="form-grid">${entries.map(([value,text]:string[])=>`<label class="check small"><input type="checkbox" data-financial-scope="${key}" value="${esc(value)}" ${(u.financialScope?.[key]||[]).includes(value)?'checked':''}>${esc(text)}</label>`).join('')}</div></fieldset>`).join('')}
+  </details>
+  <button>حفظ بيانات وصلاحيات المستخدم</button>
+ </form>`);
+
+ const roleSel=$('#user-role-select');
+ if(roleSel){
+  roleSel.onchange=()=>{
+   const def=(rolesCat.roles||[]).find((r:any)=>r.code===roleSel.value);
+   if(def){
+    if($('#user-dept-select'))$('#user-dept-select').value=def.defaultDepartment;
+    if($('#user-rank-select'))$('#user-rank-select').value=String(def.defaultRankLevel);
+   }
+  };
+ }
+
+ $('#user-form').onsubmit=submit(async d=>{
+  const customPermissions=[...document.querySelectorAll<HTMLInputElement>('#user-form [data-custom-perm]:checked')].map(el=>el.dataset.customPerm!);
+  await api(id?`/users/${id}/status`:'/users',{...d,rankLevel:Number(d.rankLevel||1),customPermissions,financialScope:Object.fromEntries(['sponsorIds','accountCodes','categoryCodes','platforms'].map(key=>[key,[...document.querySelectorAll<HTMLInputElement>(`#user-form [data-financial-scope="${key}"]:checked`)].map(el=>el.value)])),deniedPermissions:[...document.querySelectorAll<HTMLInputElement>('#user-form [data-deny-perm]:checked')].map(el=>el.dataset.denyPerm!)},id?'PUT':'POST');
+  $('#modal').close();
+  await show('users');
+ });
+}
 
 function debtDialog(id?:string){
  const d=cache.debts?.find((x:any)=>x.id===id)||{};
  const catalog=cache.financeCatalog||{categories:[],sponsors:[],vaults:[]};
- const catOptions=(catalog.categories||[]).length
-  ? catalog.categories.map((c:any)=>[c.code,`${c.nameAr} (${c.sector}) — ح/${c.expenseAccountCode}`])
-  : ['Advance','TrafficFine','EquipmentLoan','VehicleInstallment','AdministrativeDeduction'].map(x=>[x,x]);
+ const sectors:Record<string,string>={HR:'hr',Advances:'advance',Fleet:'fleet',Platforms:'platform',Housing:'housing',Admin:'administrative'};
+ const allowedCategories=(catalog.categories||[]).filter((c:any)=>c.code!=='NegativeSalaryCarryover'&&can(c.requiredPermission||'debts.create.'+(c.code==='EquipmentLoan'?'equipment':sectors[c.sector])));
+ const catOptions=allowedCategories.length
+  ? allowedCategories.map((c:any)=>[c.code,`${c.nameAr} (${c.sector}) — ح/${c.expenseAccountCode}`])
+  : [];
  const spOptions=(catalog.sponsors||[]).map((s:any)=>[s.id,`${s.shortNameAr} — ${s.nameAr} (${s.unifiedNumber})`]);
- const vaultOptions=(catalog.vaults||[]).map((v:any)=>[v.code,`${v.code} — ${v.nameAr}`]);
+ const initialCategory=allowedCategories[0]?.code||'WorkPermit';
+ const initialSponsor=catalog.sponsors?.[0]?.id||'';
+ const initialVaults=filterVaultsForCategory(catalog.vaults||[],initialCategory,'disbursement',initialSponsor);
+ const vaultOptions=initialVaults.map((v:any)=>[v.code,`${v.code} — ${v.nameAr}`]);
 
  modal(id?'إعادة جدولة وتحديث حالة المديونية':'تسجيل مديونية / خدمة HR / سلفة جديدة',`<form id="debt-form" class="form-grid">
   ${!id?`
+   <div class="notice full" id="debt-vault-rule-banner">
+    <strong>تخصيص الحسابات حسب نوع العملية:</strong> يظهر في قائمة الصرف أدناه فقط الصندوق الداخلي الرئيسي وفروعه المخصصة للمديونيات وطلبات HR (<code>MAIN.*.DEBT</code>) وحسابات البنوك (<code>BANK.*</code>). يُحجب تلقائياً <b>صندوق جاهز (SUP.*)</b> و<b>حساب رسوم جاهز (*.FEE)</b> و<b>بترو آب (PETRO.*)</b> في طلبات الموارد البشرية والسلف لعدم صحة المعاملة مالياً.
+   </div>
    <label>المندوب / الموظف<select name="iqama" required>${riderOptions()}</select></label>
    <label>تصنيف المدين<select name="debtorType"><option value="Rider">مندوب توصيل (ذمم 1210)</option><option value="Employee">موظف إداري (ذمم 1220)</option></select></label>
    <label class="full">البند أو خدمة الـ HR أو السلفة<select name="category" id="debt-category-select">${options(catOptions)}</select></label>
@@ -397,15 +637,18 @@ function debtDialog(id?:string){
     </select>
    </label>
    <label>القسم المنشئ للطلب
-    <select name="initiatingDepartment">
+    <select name="initiatingDepartment" id="debt-init-dept">
      <option value="HR">الموارد البشرية والعلاقات الحكومية (HR)</option>
      <option value="FIN">الشؤون المالية والخزينة (FIN)</option>
      <option value="FLT">الحركة والأسطول والورشة (FLT)</option>
      <option value="OPS">تشغيل المنصات (OPS)</option>
     </select>
    </label>
-   <label>السجل التجاري الدائن / جهة الصرف<select name="creditorSponsorId">${options(spOptions)}</select></label>
-   <label>الصندوق أو البنك الدافع للتكلفة<select name="paymentVaultCode">${options(vaultOptions)}</select></label>
+   <label>السجل التجاري الدائن / جهة الصرف<select name="creditorSponsorId" id="debt-sponsor-select">${options(spOptions)}</select></label>
+   <label>نوع الحدث المالي<select name="entryMode" id="debt-entry-mode"><option value="Accrual">إثبات خدمة/التزام غير نقدي (دون صرف)</option><option value="Disbursement">صرف فعلي مثبت من صندوق الشركة أو البنك</option></select></label>
+   <label id="debt-platform-field">المنصة المحيلة للدين<select name="platform"><option value="">اختر المنصة عند إحالة دين منها</option>${options(['Jahez','Keeta','HungerStation','Ninja','Other'].map(x=>[x,x]))}</select></label>
+   <label id="debt-recognition-field">مقابل الإثبات غير النقدي<select name="recognitionAccountCode"><option value="2130">التزام فاتورة/خدمة غير مسددة — 2130</option><option value="4103">استحقاق خدمة للشركة — 4103</option><option value="5301">تسوية تكلفة راتب معتمدة — 5301</option></select><span class="muted">الدين المحال من منصة يثبت مقابل حساب المنصة، ولا يصرف من عهدتها.</span></label>
+   <label id="debt-cash-field">الصندوق أو البنك الدافع للتكلفة<select name="paymentVaultCode" id="debt-vault-select">${options(vaultOptions)}</select></label>
    ${fieldInput('إجمالي مبلغ الذمة على المندوب (أو التكلفة)','totalAmount','','number',true)}
    <div id="company-share-wrap" class="hide">${fieldInput('مبلغ تحمل الشركة (يُقيد في حساب المصروف)','companyShareAmount','0','number')}</div>
    ${fieldInput('القسط الشهري المستقطع من الراتب','monthlyInstallment','','number',true)}
@@ -415,7 +658,7 @@ function debtDialog(id?:string){
   `:`
    <label>الحالة<select name="status">${options([['active','نشط'],['paused','إيقاف مؤقت']],d.status)}</select></label>
    ${fieldInput('القسط الشهري','monthlyInstallment',d.monthlyInstallment||'','number',true)}
-   ${userRole==='Admin'&&!d.creditorSponsorId?`<label>ربط السجل الدائن بعد المراجعة<select name="creditorSponsorId"><option value="">اترك غير مربوط</option>${options(spOptions)}</select></label>`:''}
+   ${(userRole==='Admin'||userRole==='SuperAdmin')&&!d.creditorSponsorId?`<label>ربط السجل الدائن بعد المراجعة<select name="creditorSponsorId"><option value="">اترك غير مربوط</option>${options(spOptions)}</select></label>`:''}
   `}
   <label class="full">ملاحظات وبيان القيد<textarea name="notes">${esc(d.notes||'')}</textarea></label>
   <label class="check full"><input name="agreementReviewed" type="checkbox" required>راجعت اتفاق الاستقطاع ومستند الصرف والطرف المتحمل للتكلفة.</label>
@@ -435,18 +678,30 @@ function debtDialog(id?:string){
    if(instInput&&mode==='CompanyFull'){instInput.value='1';instInput.required=false;}
   };
  }
+
  const catSelect=$('#debt-category-select');
- if(catSelect){
-  catSelect.onchange=()=>{
-   const found=(catalog.categories||[]).find((c:any)=>c.code===catSelect.value);
-   const totalInput=$('#debt-form input[name=totalAmount]');
-   const instInput=$('#debt-form input[name=monthlyInstallment]');
-   if(found&&found.defaultReferenceCost>0&&totalInput&&!totalInput.value){
-    totalInput.value=String(found.defaultReferenceCost);
-    if(instInput&&!instInput.value)instInput.value=String(Math.min(found.defaultReferenceCost,1000));
-   }
-  };
- }
+ const spSelect=$('#debt-sponsor-select');
+ const vaultSelect=$('#debt-vault-select');
+ const refreshAllowedVaults=()=>{
+  if(!catSelect||!vaultSelect)return;
+  const catCode=catSelect.value;
+  const spId=spSelect?.value||'';
+  const validVaults=filterVaultsForCategory(catalog.vaults||[],catCode,'disbursement',spId);
+  vaultSelect.innerHTML=options(validVaults.map((v:any)=>[v.code,`${v.code} — ${v.nameAr}`]));
+  const found=(catalog.categories||[]).find((c:any)=>c.code===catCode);
+  const totalInput=$('#debt-form input[name=totalAmount]');
+  const instInput=$('#debt-form input[name=monthlyInstallment]');
+  if(found&&found.defaultReferenceCost>0&&totalInput&&!totalInput.value){
+   totalInput.value=String(found.defaultReferenceCost);
+   if(instInput&&!instInput.value)instInput.value=String(Math.min(found.defaultReferenceCost,1000));
+  }
+ };
+ const entrySelect=$('#debt-entry-mode');
+ const syncEntry=()=>{if(!entrySelect||!catSelect)return;const cash=entrySelect.value==='Disbursement',platform=catSelect.value==='PlatformTransferredDebt';$('#debt-cash-field')?.classList.toggle('hide',!cash);if(vaultSelect)vaultSelect.disabled=!cash;$('#debt-recognition-field')?.classList.toggle('hide',cash||platform);const recognition=$('#debt-form [name=recognitionAccountCode]');if(recognition)recognition.disabled=cash||platform;$('#debt-platform-field')?.classList.toggle('hide',!platform);const platformSelect=$('#debt-form [name=platform]');if(platformSelect){platformSelect.disabled=!platform;platformSelect.required=platform;}};
+ if(entrySelect)entrySelect.onchange=syncEntry;
+ if(catSelect)catSelect.onchange=()=>{refreshAllowedVaults();if(entrySelect)entrySelect.value=['Advance','CashAdvance','BankAdvance','CashCustody'].includes(catSelect.value)?'Disbursement':'Accrual';syncEntry();};
+ syncEntry();
+ if(spSelect)spSelect.onchange=refreshAllowedVaults;
 
  $('#debt-form').onsubmit=submit(async(v,form)=>{
   await api(id?`/debts/${id}`:'/debts',{expectedRemainingBalance:d.remainingBalance,
@@ -457,7 +712,7 @@ function debtDialog(id?:string){
   },id?'PUT':'POST');
   $('#modal').close();
   await show('debts');
-  toast(id?'تم تحديث جدولة المديونية':'تم حفظ السجل وتوليد القيد المحاسبي المزدوج بنجاح');
+  toast(id?'تم تحديث جدولة المديونية':'تم حفظ الحدث المالي حسب نوعه وحالة اعتماده المزدوج بنجاح');
  });
 }
 
@@ -465,16 +720,17 @@ function debtCollectDialog(id:string){
  const d=cache.debts?.find((x:any)=>x.id===id);
  if(!d)return;
  const catalog=cache.financeCatalog||{vaults:[]};
- const vaultOptions=(catalog.vaults||[]).map((v:any)=>[v.code,`${v.code} — ${v.nameAr}`]);
+ const validVaults=filterVaultsForCategory(catalog.vaults||[],d.category||'Advance','collection',d.creditorSponsorId,d.platform);
+ const vaultOptions=validVaults.map((v:any)=>[v.code,`${v.code} — ${v.nameAr}`]);
 
  modal(`تحصيل وتسوية مديونية — ${d.riderName||d.iqama}`,`<form id="debt-collect-form" class="form-grid">
   <div class="notice full">
    البند: <strong>${esc(d.categoryAr||d.category)}</strong> · السجل الدائن: <strong>${esc(d.creditorSponsorNameAr||'غير مربوط — راجع الجدولة')}</strong> · الرصيد المتبقي حالياً: <strong class="number">${money(d.remainingBalance)} ر.س</strong>
-   <br><small>يمكنك تحصيل كامل المبلغ أو جزء منه نقداً أو بنكياً على أي صندوق (حتى لو كان يتبع سجلاً تجارياً آخر، حيث يقوم النظام آلياً بتسوية جاري السجلات الشقيقة 1310)، كما يمكنك منح إعفاء إداري مشروط لجزء من المديونية.</small>
+   <br><small>تظهر أدناه فقط الصناديق والحسابات المصرح لها باستلام هذا النوع من المديونية (الصندوق الداخلي الرئيسي وفروعه والبنوك)، مع تسوية آلية في <b>جاري السجلات الشقيقة (1310)</b> إذا تم التحصيل في صندوق سجل آخر.</small>
   </div>
   ${fieldInput('المبلغ المحصل فعلياً (كاش أو بنك)','collectedAmount',String(d.monthlyInstallment||d.remainingBalance),'number',true)}
   ${fieldInput('مبلغ الإعفاء / التنازل الإداري (ح/ 5202)','waivedAmount','0','number')}
-  <label>الصندوق أو البنك المستلم للمبلغ<select name="targetVaultCode">${options(vaultOptions,d.paymentVaultCode||'غير مسجل')}</select></label>
+  <label>الصندوق أو البنك المستلم للمبلغ (مفلتر حسب نوع المديونية)<select name="targetVaultCode">${options(vaultOptions,d.paymentVaultCode||validVaults[0]?.code)}</select></label>
   <label>القسم القائم بالتحصيل
    <select name="collectorDepartment">
     <option value="FIN">الشؤون المالية والخزينة (اعتماد فوري)</option>
@@ -518,7 +774,7 @@ function debtTransferSponsorDialog(id:string){
   <button>اعتماد نقل المديونية وتوليد قيد المقاصة</button>
  </form>`);
  $('#debt-transfer-form').onsubmit=submit(async v=>{
-  const res=await api(`/debts/${id}/transfer-sponsor`,v);
+  const res=await api(`/debts/${id}/transfer-sponsor`,{...v,expectedRemainingBalance:d.remainingBalance,expectedCreditorSponsorId:d.creditorSponsorId});
   $('#modal').close();
   await show('debts');
   toast(`تم نقل ملكية المديونية وإثبات القيد ${res.journal.journalNumber}`);
@@ -526,7 +782,8 @@ function debtTransferSponsorDialog(id:string){
 }
 
 function bulkCollectDialog(){
- const vaultOptions=(cache.financeCatalog?.vaults||[]).map((v:any)=>[v.code,`${v.code} — ${v.nameAr}`]);
+ const validVaults=filterVaultsForCategory(cache.financeCatalog?.vaults||[],'Advance','collection');
+ const vaultOptions=validVaults.map((v:any)=>[v.code,`${v.code} — ${v.nameAr}`]);
  modal('شيت التحصيل المجمع للمديونيات (Excel / CSV / إدخال مباشر)',`
   <div class="notice">
    يمكنك رفع ملف Excel أو CSV يحتوي على الأعمدة: <b>(رقم الإقامة، اسم المندوب، المبلغ المحصل، مبلغ الإعفاء الإداري، رمز الصندوق، رقم السند، ملاحظات)</b>، أو لصق البيانات مباشرة. يقوم النظام بتوزيع المبلغ المحصل والإعفاء على مديونيات المندوب النشطة من الأقدم للأحدث وإصدار القيود المحاسبية.
@@ -573,14 +830,22 @@ function bulkCollectDialog(){
 }
 
 function vaultTransferDialog(){
- const vaultOptions=(cache.financeCatalog?.vaults||[]).map((v:any)=>[v.code,`${v.code} — ${v.nameAr}`]);
- modal('تحويل مالي بين الصناديق الداخلية وخزنة جاهز والبنوك',`<form id="vault-transfer-form" class="form-grid">
-  <label>من صندوق / خزينة / بنك (طرف دائن ينقص)<select name="fromVaultCode" required>${options(vaultOptions,'SUP.BW.SET')}</select></label>
-  <label>إلى صندوق / خزينة / بنك (طرف مدين يزيد)<select name="toVaultCode" required>${options(vaultOptions,'MAIN.BW.SET')}</select></label>
+ const allVaults=(cache.financeCatalog?.vaults||[]).filter((v:any)=>['MainInternal','Bank'].includes(v.vaultKind)&&!['JahezFee','GeneralAndSettlement','JahezSettlement'].includes(v.vaultPurpose));
+ const fromOptions=allVaults.map((v:any)=>[v.code,`${v.code} — ${v.nameAr}`]);
+ const toOptions=allVaults.filter((v:any)=>!(v.vaultKind==='JahezCashbox'&&v.vaultPurpose==='JahezFee')).map((v:any)=>[v.code,`${v.code} — ${v.nameAr}`]);
+
+ modal('تحويل داخلي بين صندوق الشركة والبنك',`<form id="vault-transfer-form" class="form-grid">
+  <div class="notice full">
+   <strong>الضوابط المالية للحركة بين الصناديق:</strong><br>
+   • التحويل العام بين حسابين مختلفين داخل السجل نفسه، من الرصيد الفعلي المتاح.<br>
+   • عهد جاهز والتصفيات والرسوم لها مسار التسليم المخصص، وتظل منفصلة عن تمويل السلف وHR.<br>
+   • بترو آب حساب مقاصة وقود، وليس صندوق نقدية للتحويلات.
+  </div>
+  <label>من صندوق / بنك (طرف دائن ينقص)<select name="fromVaultCode" id="vtr-from" required>${options(fromOptions,'MAIN.BW.DEBT')}</select></label>
+  <label>إلى صندوق / بنك (طرف مدين يزيد)<select name="toVaultCode" id="vtr-to" required>${options(toOptions,'BANK.BW')}</select></label>
   ${fieldInput('المبلغ المحول (ر.س)','amount','','number',true)}
   ${fieldInput('رقم مرجع التحويل / الإيداع','sourceRef',`VTR-${Date.now().toString().slice(-6)}`,'text',true)}
-  <label class="full">البيان والتفاصيل<input name="description" value="توريد نقدية من خزنة جاهز إلى الصندوق الداخلي للشركة"></label>
-  <div class="notice full">إذا كان التحويل بين صندوقين يتبعان سجلين تجاريين مختلفين، يُولّد النظام تلقائياً سطري مقاصة في حساب <b>جاري السجلات الشقيقة (1310)</b>.</div>
+  <label class="full">البيان والتفاصيل<input name="description" value="تحويل نقدية الشركة داخل السجل نفسه"></label>
   <button>تنفيذ التحويل وتوليد القيد المحاسبي</button>
  </form>`);
  $('#vault-transfer-form input[name=amount]')?.setAttribute('step','.01');
@@ -589,6 +854,65 @@ function vaultTransferDialog(){
   $('#modal').close();
   await show('debts');
   toast(`تم ترحيل قيد التحويل رقم ${j.journalNumber}`);
+ });
+}
+
+function jahezFeeDialog(){
+ const spOptions=(cache.financeCatalog?.sponsors||[]).map((s:any)=>[s.code,`${s.shortNameAr} — ${s.nameAr}`]);
+ const feeVaults=(cache.financeCatalog?.vaults||[]).filter((v:any)=>v.vaultPurpose==='JahezFee'||v.vaultPurpose==='Combined').map((v:any)=>[v.code,`${v.code} — ${v.nameAr}`]);
+ modal('قبض رسوم فتح وتفعيل حساب جاهز جديد (200 ر.س)',`<form id="jahez-fee-form" class="form-grid">
+  <div class="notice full">
+   رسوم فتح حساب جاهز إيراد للشركة (ح/4101) حسب القرار المعتمد. تُحصّل في عهدة المشرف للرسوم (<code>SUP.*.FEE</code>) أو حساب الرسوم الداخلي (<code>MAIN.*.FEE</code>، ومنها <code>MAIN.TR.FEE</code>)، وتظل منفصلة عن تصفيات جاهز والسلف وطلبات HR.
+  </div>
+  <label>السجل التجاري للحساب<select name="sponsorId">${options(spOptions,'BW')}</select></label>
+  <label>حساب / عهدة الرسوم المستلمة (قبض فقط)<select name="targetVaultCode">${options(feeVaults,'SUP.BW.FEE')}</select></label>
+  <input type="hidden" name="beneficiary" value="company">
+  <label>المندوب (اختياري)<select name="iqama"><option value="">بدون تحديد مندوب</option>${riderOptions()}</select></label>
+  ${fieldInput('مبلغ رسوم فتح الحساب (ر.س)','amount','200','number',true)}
+  ${fieldInput('رقم سند قبض الرسوم','sourceRef',`JFEE-${Date.now().toString().slice(-6)}`,'text',true)}
+  <label class="full">ملاحظات البيان<input name="description" value="قبض رسوم فتح وتفعيل حساب جاهز جديد (200 ر.س)"></label>
+  <button class="good">تسجيل قبض الرسوم وتوليد القيد المحاسبي</button>
+ </form>`);
+ $('#jahez-fee-form').onsubmit=submit(async v=>{
+  const j=await api('/finance/jahez-fee',v);
+  $('#modal').close();
+  await show('debts');
+  toast(`تم قيد رسوم فتح حساب جاهز بموجب القيد ${j.journalNumber}`);
+ });
+}
+
+function jahezHandoverDialog(){
+ const spOptions=(cache.financeCatalog?.sponsors||[]).map((s:any)=>[s.code,`${s.shortNameAr} — ${s.nameAr}`]);
+ const accounts=cache.accounts||[];
+ const supAccounts=accounts.filter((a:any)=>a.code?.startsWith('SUP.'));
+ modal('تسليم وتصفير عهدة صندوق جاهز اليومية إلى الصندوق الداخلي الرئيسي (Zero-Out Handover)',`
+  <div class="notice">
+   يسجل هذا الإجراء طلب تسليم عهدة مشرف جاهز (<code>SUP.*.SET</code> و <code>SUP.*.FEE</code>) ولا ينقل نقدًا حتى تستلمه المالية وتطابق العد لكل غرض:
+   <br>• سجل البوابا وإكسبرس: ترحل التصفيات إلى <code>MAIN.*.SET</code> والرسوم إلى <code>MAIN.*.FEE</code>.
+   <br>• التجارية: تبقى التصفيات في <code>MAIN.TR.SET</code> والرسوم في <code>MAIN.TR.FEE</code> دون دمج.
+  </div>
+  ${table(
+   ['رمز خزنة جاهز','اسم الحساب','السجل التجاري','الرصيد الحالي القابل للتسليم'],
+   supAccounts.map((a:any)=>`<tr>
+    <td class="number"><strong>${esc(a.code)}</strong></td>
+    <td>${esc(a.nameAr)}</td>
+    <td>${esc(a.defaultSponsorNameAr)}</td>
+    <td class="number ${a.netBalance>0?'money-positive':''}"><strong>${money(a.netBalance)} ر.س</strong></td>
+   </tr>`)
+  )}
+  <form id="jahez-handover-form" class="form-grid" style="margin-top:12px">
+   <label>اختر السجل التجاري لتصفير عهدة جاهز الخاصة به<select name="sponsorId">${options(spOptions,'BW')}</select></label>
+   ${fieldInput('مبلغ تصفية الكاش المسلم (اتركه فارغاً لتصفير كامل الرصيد)','settlementAmount','','number')}
+   ${fieldInput('مبلغ رسوم الحسابات المسلم (اتركه فارغاً لتصفير كامل الرصيد)','feeAmount','','number')}
+   ${fieldInput('رقم سند التسليم والتصفير','sourceRef',`HND-${Date.now().toString().slice(-6)}`,'text',true)}
+   <button class="good full">إرسال طلب تسليم للمالية دون نقل النقدية الآن</button>
+  </form>
+ `);
+ $('#jahez-handover-form').onsubmit=submit(async v=>{
+  const res=await api('/finance/jahez-handover',v);
+  $('#modal').close();
+  await show('debts');
+  toast(`سُجل طلب التسليم ${res.sourceRef}؛ النقد باقٍ بالعهدة حتى استلام المالية`);
  });
 }
 
@@ -643,7 +967,7 @@ function printVoucherDialog(debtId?:string){
     <div><span class="muted small">اسم المندوب / الموظف:</span><br><strong>${esc(rName)}</strong></div>
     <div><span class="muted small">رقم الهوية / الإقامة:</span><br><strong class="number">${esc(iqama)}</strong></div>
     <div><span class="muted small">نوع البند / المعاملة:</span><br><strong>${esc(catAr)} (${esc(allocationLabels[d?.allocationMode||'RiderFull'])})</strong></div>
-    <div><span class="muted small">الصندوق / الحساب الصارف:</span><br><strong class="number">${esc(d?.paymentVaultCode||'MAIN.BW.SET')}</strong></div>
+    <div><span class="muted small">الصندوق / الحساب الصارف:</span><br><strong class="number">${esc(d?.paymentVaultCode||'MAIN.BW.DEBT')}</strong></div>
     <div><span class="muted small">مبلغ الذمة على المندوب:</span><br><strong class="number">${amount} ريال سعودي</strong></div>
     <div><span class="muted small">القسط الشهري المتفق عليه:</span><br><strong class="number">${inst} ريال سعودي</strong></div>
    </div>
@@ -675,10 +999,11 @@ function approvalDecideDialog(id:string){
    </select>
   </label>
   <label class="full">ملاحظة المراجعة أو سبب التعليق/الرفض<textarea name="note" placeholder="اكتب ملاحظة التصديق أو سبب الرفض/التعليق..."></textarea></label>
+  ${userRole==='Admin'||userRole==='SuperAdmin'?'<label class="full check"><input id="approval-override-self" type="checkbox">تجاوز إداري صريح عند مراجعة طلبك (تلزم ملاحظة توضيحية)</label>':''}
   <button class="good">حفظ القرار وإشعار القسم المرسل</button>
  </form>`);
  $('#approval-decide-form').onsubmit=submit(async v=>{
-  await api(`/approvals/${id}/decide`,v);
+  await api(`/approvals/${id}/decide`,{...v,overrideSelf:$('#approval-override-self')?.checked||false});
   $('#modal').close();
   await show('debts');
   toast('تم حفظ قرار التصديق وتحديث حالة القيد والإشعارات');
@@ -997,7 +1322,7 @@ async function riderProfile360Dialog(iqama:string){
     <td dir="ltr" class="small muted">${esc(d.storagePath)}</td>
    </tr>`)
   )}
-  ${userRole==='Admin'?`
+  ${userRole==='Admin'||userRole==='SuperAdmin'?`
    <hr>
    <h3>إرفاق / تحديث وثيقة رسمية للمندوب</h3>
    <form id="rider-doc-form" class="form-grid">
@@ -1055,6 +1380,8 @@ document.addEventListener('click',async e=>{const b=(e.target as HTMLElement).cl
  case'opening-debt-import':openingDebtImportDialog();break;
  case'bulk-collect':bulkCollectDialog();break;
  case'vault-transfer':vaultTransferDialog();break;
+ case'jahez-fee':jahezFeeDialog();break;
+ case'jahez-handover':jahezHandoverDialog();break;
  case'journal-detail':journalDetailDialog(id!);break;
  case'hr-advance-print':printVoucherDialog();break;
  case'print-voucher':printVoucherDialog(id);break;
@@ -1066,7 +1393,7 @@ document.addEventListener('click',async e=>{const b=(e.target as HTMLElement).cl
  case'share-statement-mobile':mobileBroadcastDialog(b.dataset.iqama||'ALL');break;
  case'toggle-promissory-flag':await api('/finance/features/promissory-notes',{enabled:b.dataset.enabled==='true'});await show('debts');toast('تم تحديث حالة موديول سندات الأمر');break;
  case'promissory-new':promissoryNewDialog();break;
- case'campaign-delete':await formDeleteDialog(id!,false);break;case'builder-delete':await formDeleteDialog(id!,true);break;case'campaign-edit':campaignEditDialog(id!);break;case'analytics-review':await show('responses');responseReview(id);break;case'copy':await navigator.clipboard.writeText(b.dataset.url!);toast('تم نسخ الرابط');break;case'qr':modal('رمز المشاركة QR',`<img class="qr-image" alt="QR لمشاركة النموذج" src="${esc(b.dataset.url)}">`);break;case'user-new':userDialog();break;case'user-edit':userDialog(id);break;case'debt-new':debtDialog();break;case'debt-edit':debtDialog(id);break;case'baseline':await baselineDialog();break;case'builder-new':builderDialog();break;case'builder-edit':builderDialog(id);break;case'builder-publish':if(confirm('نشر النموذج وتثبيت الأسئلة؟')){await api(`/forms/builder/${id}/publish`,{});await show('builder');}break;case'builder-close':if(confirm('إغلاق استقبال الردود؟')){await api(`/forms/builder/${id}/close`,{});await show('builder');}break;case'analytics':await analyticsDialog(id!);break;case'inquiry-code':await inquiryCodeDialog();break;
+ case'legacy-cash-allocation':legacyCashAllocationDialog();break;case'jahez-receive':jahezReceiveDialog(id!);break;case'treasury-opening':treasuryOpeningDialog();break;case'debt-reconcile':debtOpeningDialog(id!);break;case'supplier-pay':supplierPaymentDialog(id!);break;case'jahez-transfer':jahezTransactionDialog('transfer');break;case'jahez-platform-settle':jahezTransactionDialog('settle');break;case'jahez-fee-deposit':jahezTransactionDialog('fee');break;case'campaign-delete':await formDeleteDialog(id!,false);break;case'builder-delete':await formDeleteDialog(id!,true);break;case'campaign-edit':campaignEditDialog(id!);break;case'analytics-review':await show('responses');responseReview(id);break;case'copy':await navigator.clipboard.writeText(b.dataset.url!);toast('تم نسخ الرابط');break;case'qr':modal('رمز المشاركة QR',`<img class="qr-image" alt="QR لمشاركة النموذج" src="${esc(b.dataset.url)}">`);break;case'user-new':userDialog();break;case'user-edit':userDialog(id);break;case'debt-new':debtDialog();break;case'debt-edit':debtDialog(id);break;case'baseline':await baselineDialog();break;case'builder-new':builderDialog();break;case'builder-edit':builderDialog(id);break;case'builder-publish':if(confirm('نشر النموذج وتثبيت الأسئلة؟')){await api(`/forms/builder/${id}/publish`,{});await show('builder');}break;case'builder-close':if(confirm('إغلاق استقبال الردود؟')){await api(`/forms/builder/${id}/close`,{});await show('builder');}break;case'analytics':await analyticsDialog(id!);break;case'inquiry-code':await inquiryCodeDialog();break;
 }}catch(error:any){toast(error.message,true);}});
 
 let analyticsSelection='',analyticsRequest=0;
@@ -1082,3 +1409,46 @@ document.addEventListener('click',e=>{const target=(e.target as Element).closest
 document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&(e.target as Element).matches('circle[data-chart-detail]')){e.preventDefault();(e.target as Element).dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
 
 async function formDeleteDialog(id:string,custom:boolean){const path=(custom?'/forms/builder/':'/campaigns/')+encodeURIComponent(id);const preview=await api(path+'/delete-preview');modal('حذف النموذج',`<form id="form-delete-confirm"><p>النموذج: <strong>${esc(preview.title)}</strong></p><div class="notice warn">سيُحذف هذا النموذج نهائيًا مع جميع ردوده (${preview.responseCount} رد)، ويتوقف رابط المشاركة عن العمل.</div><p class="muted">سجل العمليات ودليل المناديب والدفاتر المالية محفوظة.</p><label class="check"><input type="checkbox" name="confirm" required>أؤكد حذف النموذج وجميع ردوده نهائيًا.</label><div class="actions"><button type="submit" class="danger">حذف النموذج نهائيًا</button><button type="button" class="secondary" data-action="close-modal">إلغاء</button></div></form>`);$('#form-delete-confirm').onsubmit=submit(async(_d,form)=>{try{await api(path,{confirm:form.elements.confirm.checked,fingerprint:preview.fingerprint},'DELETE')}catch(error){if(error.status===409){$('#modal').close();await formDeleteDialog(id,custom)}throw error}$('#modal').close();if(!custom&&responseCampaign===id)responseCampaign='';if(analyticsSelection===(custom?'custom:':'campaign:')+id)analyticsSelection='';await show(custom?'builder':'forms');toast('تم حذف النموذج وردوده نهائيًا')});}
+
+async function treasuryOpeningDialog(){
+ modal('مطابقة الأرصدة الافتتاحية الموثقة',`<div class="notice warn">تُضاف تسوية موثقة دون تعديل القيود القديمة. أدخل الرصيد الطبيعي الفعلي بعد مطابقته مع الصندوق أو كشف البنك. افصل رصيد البنك الحر عن المخصص لجاهز حتى لا تُحسب الأموال مرتين. أرصدة الرواتب يجب أن تطابق الدفتر القديم.</div><a class="button secondary" href="/api/finance/opening/template">تنزيل قالب Excel v1</a><form id="treasury-opening-form"><label>ملف الأرصدة<input type="file" id="treasury-opening-file" accept=".xlsx,.csv" required></label><button>معاينة وفحص الأثر</button></form><div id="treasury-opening-preview"></div>`);
+ $('#treasury-opening-form').onsubmit=async e=>{e.preventDefault();try{const file=$('#treasury-opening-file').files[0];const dataBase64=await financeFileBase64(file);const p=await api('/finance/opening/preview',{filename:file.name,dataBase64});$('#treasury-opening-preview').innerHTML=table(['الحساب','السجل','الإقامة','الرصيد الحالي','الرصيد المراجع','فرق التسوية','المستند','البيان'],p.rows.map((r:any)=>`<tr><td>${esc(r.accountCode)}</td><td>${esc(r.sponsorCode)}</td><td>${esc(r.iqama)}</td><td class="number">${money(r.currentBalance)}</td><td class="number">${money(r.verifiedBalance)}</td><td class="number">${money(r.adjustment)}</td><td>${esc(r.sourceRef)}</td><td>${esc(r.notes)}</td></tr>`))+`<button id="treasury-opening-commit" class="good">راجعت المستندات وأعتمد تسوية الأرصدة المعروضة</button>`;$('#treasury-opening-commit').onclick=async e=>{const b=e.currentTarget as HTMLButtonElement;b.disabled=true;try{await api('/finance/opening/commit',{rows:p.rows,fingerprint:p.fingerprint,confirm:true});$('#modal').close();await show('debts');toast('تم حفظ التسوية الافتتاحية وأثرها دون تعديل التاريخ')}catch(err:any){toast(err.message,true);b.disabled=false;}};}catch(err:any){toast(err.message,true);}};
+}
+function financeFileBase64(file:File):Promise<string>{if(!file||file.size>8*1024*1024)throw Error('اختر ملفًا بحد أقصى 8 ميجابايت');return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});}
+function debtOpeningDialog(id:string){
+ const d=cache.debts?.find((x:any)=>x.id===id);if(!d)return;const sponsors=cache.financeCatalog?.sponsors||[];
+ modal('مطابقة افتتاح الدين التاريخي',`<div class="notice warn">المتبقي المحفوظ: ${money(d.remainingBalance)} ر.س. لا يُعدل الأصل أو السداد التاريخي؛ تضاف تسوية بالقيمة اللازمة لمطابقة الذمة الفعلية فقط.</div><form id="debt-opening-form" class="form-grid"><label>السجل صاحب الدين<select name="sponsorId" required><option value="">حدد المالك من المستند</option>${options(sponsors.map((s:any)=>[s.id,s.nameAr]),d.creditorSponsorId)}</select></label>${fieldInput('مرجع مستند المطابقة','sourceRef','','text',true)}<label class="full">بيان ودليل الرصيد<textarea name="notes" required></textarea></label><button>معاينة المطابقة</button></form><div id="debt-opening-preview"></div>`);
+ $('#debt-opening-form').onsubmit=submit(async v=>{const p=await api(`/debts/${id}/reconcile-opening/preview`,{...v,expectedRemainingBalance:d.remainingBalance,expectedCreditorSponsorId:d.creditorSponsorId});const r=p.rows[0];$('#debt-opening-preview').innerHTML=`<div class="notice">رصيد الذمة الحالي ${money(r.currentJournalBalance)} · المتبقي المراجع ${money(r.expectedRemainingBalance)} · أثر التسوية ${money(r.adjustment)} ر.س</div><button id="debt-opening-commit" class="good">اعتماد التسوية المعروضة</button>`;$('#debt-opening-commit').onclick=async e=>{const b=e.currentTarget as HTMLButtonElement;b.disabled=true;try{await api(`/debts/${id}/reconcile-opening/commit`,{rows:p.rows,fingerprint:p.fingerprint,confirm:true});$('#modal').close();await show('debts');toast('حُفظ افتتاح الدين المراجع')}catch(err:any){toast(err.message,true);b.disabled=false;}};});
+}
+function supplierPaymentDialog(id:string){
+ const d=cache.debts?.find((x:any)=>x.id===id);if(!d)return;const vaults=filterVaultsForCategory(cache.financeCatalog?.vaults||[],d.category,'disbursement');
+ modal('سداد التزام خدمة معتمد',`<div class="notice">هذا السداد يخفض التزام المورد 2130 ويخرج النقد مرة واحدة؛ لا ينشئ مديونية أخرى على المندوب.</div><form id="supplier-payment-form" class="form-grid"><label>الحساب الدافع<select name="paymentVaultCode" required>${options(vaults.map((v:any)=>[v.code,v.nameAr]))}</select></label>${fieldInput('مبلغ السداد','amount','','number',true)}${fieldInput('مرجع الدفع الفعلي','sourceRef','','text',true)}<label class="check full"><input type="checkbox" name="onBehalf" id="company-pay-on-behalf">دفع من بنك شركة أخرى بالنيابة مع إثبات الجاري</label><label class="full">بيان ومستند الدفع بالنيابة<textarea name="onBehalfNote"></textarea></label><button>تسجيل السداد وفحص الرصيد</button></form>`);
+ $('#supplier-payment-form [name=amount]').step='.01';$('#supplier-payment-form').onsubmit=submit(async v=>{await api('/finance/liability-payment',{...v,debtId:id,onBehalf:!!$('#company-pay-on-behalf')?.checked});$('#modal').close();await show('debts');toast('حُفظ الدفع دون تكرار الدين')});
+}
+function jahezTransactionDialog(kind:'transfer'|'settle'|'fee'){
+ const sponsors=cache.financeCatalog?.sponsors||[];const vaults=(cache.financeCatalog?.vaults||[]).filter((v:any)=>['GeneralAndSettlement','JahezSettlement'].includes(v.vaultPurpose));
+ const title=kind==='transfer'?'تحويل عهدة جاهز بين الحسابات المخصصة':kind==='fee'?'إيداع حصيلة رسوم الشركة في البنك':'تسوية مع شركة جاهز';
+ modal(title,`<div class="notice">تصفيات جاهز منفصلة عن HR والسلف. تسليم العهدة أو إيداع حصيلة الرسوم لا يولد إيرادًا ثانيًا. تسوية شركة جاهز من حساب البنك المخصص وبحد المطالبة/الالتزام المثبت.</div><form id="jahez-transaction-form" class="form-grid">${kind==='transfer'?`<label>من حساب<select name="fromVaultCode" required>${options(vaults.filter((v:any)=>v.vaultKind!=='JahezCashbox').map((v:any)=>[v.code,v.nameAr]))}</select></label><label>إلى حساب<select name="toVaultCode" required>${options(vaults.map((v:any)=>[v.code,v.nameAr]))}</select></label>`:`<label>السجل القانوني<select name="sponsorId" required><option value="">حدد السجل</option>${options(sponsors.map((s:any)=>[s.id,s.nameAr]))}</select></label>`}${kind==='settle'?'<label>نوع التسوية<select name="action"><option value="pay">سداد التزام مثبت لجاهز</option><option value="receive">استلام مستحق مثبت من جاهز</option></select></label>':''}${fieldInput('المبلغ الفعلي','amount','','number',true)}${fieldInput('مرجع التحويل/التسوية الفعلي','sourceRef','','text',true)}<label class="full">بيان المستند<textarea name="notes" required></textarea></label><button>تسجيل المعاملة الموثقة</button></form>`);
+ $('#jahez-transaction-form [name=amount]').step='.01';$('#jahez-transaction-form').onsubmit=submit(async v=>{await api(kind==='transfer'?'/finance/jahez-transfer':kind==='fee'?'/finance/jahez-fee-deposit':'/finance/jahez-platform-settlement',v);$('#modal').close();await show('debts');toast('تمت المعاملة ضمن الحسابات المخصصة')});
+}
+async function approvePayrollDialog(iqama:string){
+ const preview=cache.payroll.find((r:any)=>r.iqama===iqama);const rider=cache.riders.find((r:any)=>r.iqama===iqama);const catalog=await api('/finance/catalog');
+ modal('اعتماد مسير وترحيله محاسبيًا',`<div class="notice">${esc(rider?.name||iqama)} · ${esc(month)} · صافي الرصيد ${money(preview.closingBalance)} ر.س. يُثبت الاستحقاق والخصومات دون صرف نقد؛ الدفعة لها مستند وحساب مستقلان.</div><form id="payroll-accounting-form"><label>السجل المالي صاحب المسير<select name="sponsorId" required><option value="">حدد السجل من العقد</option>${options(catalog.sponsors.map((s:any)=>[s.id,s.nameAr]),rider?.financeSponsorId||rider?.sponsorId||'')}</select></label><button class="good">اعتماد المسير والقيود مرة واحدة</button></form>`);
+ $('#payroll-accounting-form').onsubmit=submit(async v=>{await api('/payroll/approve',{...v,iqama,period:month,fingerprint:preview.fingerprint});$('#modal').close();await show('payroll');toast('اعتمد المسير وقيده المحاسبي')});
+}
+async function accountingPaymentDialog(){
+ const catalog=await api('/finance/catalog');const vaults=catalog.vaults.filter((v:any)=>['DebtAndHr','Bank'].includes(v.vaultPurpose));
+ modal('تسجيل صرف راتب فعلي',`<form id="accounting-payment-form" class="form-grid"><label>المندوب<select name="iqama" required>${riderOptions()}</select></label><label>السجل صاحب الراتب<select name="sponsorId" required><option value="">اختر السجل المالي</option>${options(catalog.sponsors.map((s:any)=>[s.id,s.nameAr]))}</select></label><label>حساب الشركة الدافع<select name="paymentVaultCode" required>${options(vaults.map((v:any)=>[v.code,v.nameAr]))}</select></label>${fieldInput('الفترة','period',month,'month',true)}${fieldInput('المبلغ المدفوع','amount','','number',true)}${fieldInput('مرجع التحويل/الدفع الفعلي','sourceRef','','text',true)}<label class="check full"><input type="checkbox" name="onBehalf" id="company-pay-on-behalf">دفع من بنك شركة أخرى بالنيابة مع إثبات الجاري</label><label class="full">بيان ومستند الدفع بالنيابة<textarea name="onBehalfNote"></textarea></label><button>تسجيل الدفع ضمن الرصيدين النقدي والمستحق</button></form>`);$('#accounting-payment-form [name=amount]').step='.01';$('#accounting-payment-form').onsubmit=submit(async v=>{await api('/payments',{...v,onBehalf:!!$('#company-pay-on-behalf')?.checked});$('#modal').close();await show('payroll');toast('حفظت الدفعة وقيدها دون تجاوز الرصيد')});
+}
+
+function legacyCashAllocationDialog(){
+ modal('توزيع ومطابقة خزنة التجارية التاريخية مرة واحدة',`<div class="notice warn">أدخل الرصيد الفعلي النهائي لكل غرض، شاملاً ما سُجل بالفعل في الأبناء. تُغلق حركة الحساب القديم دون حذفها أو تكرارها؛ أي فرق عن الدفاتر يحتاج مستندًا وتصنيفًا صريحًا.</div><form id="legacy-cash-form" class="form-grid">${fieldInput('الرصيد الفعلي للمديونيات وHR','debtBalance','','number',true)}${fieldInput('الرصيد الفعلي لتصفيات جاهز','settlementBalance','','number',true)}${fieldInput('الرصيد الفعلي لرسوم الشركة','feeBalance','','number',true)}<label>مقابل فرق المطابقة إن وجد<select name="differenceAccountCode"><option value="">لا فرق متوقع / حدد التصنيف إذا وجد</option><option value="3101">افتتاح مفقود موثق — 3101</option><option value="5204">عجز نقدي مراجع — 5204</option><option value="4104">زيادة نقدية موثقة — 4104</option></select></label>${fieldInput('مرجع مستند الفرز والعد','sourceRef','','text',true)}<label class="full">بيان المراجعة ومصدر كل رصيد<textarea name="notes" required></textarea></label><button>معاينة الأثر قبل الاعتماد</button></form><div id="legacy-cash-preview"></div>`);
+ document.querySelectorAll<HTMLInputElement>('#legacy-cash-form input[type=number]').forEach(el=>el.step='.01');
+ $('#legacy-cash-form').onsubmit=submit(async v=>{const p=await api('/finance/legacy-cash-allocation/preview',v),r=p.rows[0];$('#legacy-cash-preview').innerHTML=`<div class="notice">الرصيد المباشر القديم ${money(r.bookBalance)} · الأبناء المسجلون ${money(r.existingChildrenTotal)} · الإجمالي الدفتري ${money(r.currentTotal)} · الإجمالي الفعلي ${money(r.verifiedTotal)} · فرق المطابقة ${money(r.reconciliationDifference)} ر.س · المقابل ${esc(r.differenceAccountCode||'لا فرق')}</div>${table(['الحساب','الرصيد الحالي','الرصيد الفعلي النهائي'],[['DEBT','debtBalance'],['SET','settlementBalance'],['FEE','feeBalance']].map(([code,key])=>`<tr><td>MAIN.TR.${code}</td><td class="number">${money(r['current_'+key])}</td><td class="number">${money(r[key])}</td></tr>`))}<button id="legacy-cash-commit" class="good">راجعت الفرز والمستند وأعتمد التسوية المعروضة</button>`;$('#legacy-cash-commit').onclick=async e=>{const b=e.currentTarget as HTMLButtonElement;b.disabled=true;try{await api('/finance/legacy-cash-allocation/commit',{rows:p.rows,fingerprint:p.fingerprint,confirm:true});$('#modal').close();await show('debts');toast('وزع الرصيد القديم دون تكراره أو حذف تاريخه')}catch(err:any){toast(err.message,true);b.disabled=false;}};});
+}
+function jahezReceiveDialog(id:string){
+ const h=(cache.handovers||[]).find((x:any)=>x.id===id);if(!h)return;const self=h.submittedBy===user,admin=userRole==='Admin'||userRole==='SuperAdmin';
+ modal('استلام عهدة جاهز بعد العد الفعلي',`<div class="notice">${esc(h.sourceRef)} — ${esc(h.sponsorNameAr)}<br>التصفيات المنتظرة ${money(h.settlementAmount)} · رسوم الشركة المنتظرة ${money(h.feeAmount)} ر.س. لا تُستبدل حصة غرض بحصة الآخر؛ العد لكل حساب مستقل. ${self?'يلزم مستلم مستقل عن مقدم الطلب؛ استثناء المدير فقط يحتاج توثيق السبب.':''}</div><form id="jahez-receive-form" class="form-grid"><label>قرار الاستلام<select name="decision" id="jahez-receive-decision"><option value="approved">مطابق — استلام وترحيل</option><option value="rejected">غير مطابق — رفض دون نقل أموال</option></select></label><div id="jahez-receive-counts" class="form-grid full">${fieldInput('عد التصفيات الفعلي (أدخل الصفر أيضًا)','settlementCounted','','number',true)}${fieldInput('عد رسوم الشركة الفعلي (أدخل الصفر أيضًا)','feeCounted','','number',true)}</div><label class="full">بيان الاستلام / سبب الرفض<textarea name="note" id="jahez-receive-note"></textarea></label>${self&&admin?'<label class="check full"><input id="jahez-receive-override" type="checkbox">تجاوز إداري صريح لاستلام طلبك مع بيان السبب</label>':''}<button class="good">حفظ القرار والعد الفعلي</button></form>`);
+ document.querySelectorAll<HTMLInputElement>('#jahez-receive-form input[type=number]').forEach(el=>el.step='.01');const sync=()=>{const reject=$('#jahez-receive-decision').value==='rejected';$('#jahez-receive-counts').classList.toggle('hide',reject);document.querySelectorAll<HTMLInputElement>('#jahez-receive-counts input').forEach(el=>{el.required=!reject;el.disabled=reject;});$('#jahez-receive-note').required=reject||!!$('#jahez-receive-override')?.checked;};$('#jahez-receive-decision').onchange=sync;if($('#jahez-receive-override'))$('#jahez-receive-override').onchange=sync;
+ $('#jahez-receive-form').onsubmit=submit(async v=>{await api(`/finance/jahez-handovers/${id}/${v.decision==='rejected'?'reject':'confirm'}`,{...v,overrideSelf:!!$('#jahez-receive-override')?.checked});$('#modal').close();await show('debts');toast(v.decision==='rejected'?'رفض التسليم وبقي النقد بالعهدة':'استلمت العهدة ورحلت مرة واحدة')});
+}

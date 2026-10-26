@@ -1,3 +1,4 @@
+import {seedAccountingCash} from './financial-fixtures.mjs';
 import {spawn} from 'node:child_process';
 import {mkdtempSync,rmSync,mkdirSync,writeFileSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -18,8 +19,9 @@ const password=randomBytes(24).toString('hex');let adminCookie='';
 async function put(route,body,expected=200){const r=await fetch(base+route,{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)});const d=await r.json();assert.equal(r.status,expected,JSON.stringify(d));checks++;return d;}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
- assert.equal((await req('/health',undefined,200,false)).version,'0.6.1');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.7.0');
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
+ await seedAccountingCash(req);
  const accountant=await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
  const reviewer=await req('/api/users',{username:'test-reviewer',password,role:'Reviewer'});
  const other=await req('/api/users',{username:'test-other',password,role:'Admin'});
@@ -59,10 +61,10 @@ try{
  const csv=`sourceRef,iqama,name,accountId,from,to,orders,riderPay,isValid\r\nenterprise-row,${iq},Synthetic Rider,1234567890123456,2026-10-01,2026-10-31,1,500,true\r\n`;
  const upload=await req('/api/imports/inspect',{filename:'enterprise.csv',dataBase64:Buffer.from(csv).toString('base64')});
  const spec={sheet:'CSV',period:'2026-10',platform:'Keeta',headerRow:1,confirmActualRider:true,mapping:{sourceRef:0,iqama:1,name:2,accountId:3,from:4,to:5,orders:6,riderPay:7,isValid:8}};const workPreview=await req(`/api/imports/${upload.id}/preview`,spec);assert.equal(workPreview.errors.length,0,JSON.stringify(workPreview.errors));await req(`/api/imports/${upload.id}/commit`,spec);
- const debt=await req('/api/debts',{iqama:iq,category:'Advance',totalAmount:600,monthlyInstallment:400,sourceRef:'agreed-advance',agreementReviewed:true,effectiveFrom:'2026-10'});
+ const debt=await req('/api/debts',{iqama:iq,category:'Advance',creditorSponsorId:'BW',totalAmount:600,monthlyInstallment:400,sourceRef:'agreed-advance',agreementReviewed:true,effectiveFrom:'2026-10'});
  let pay=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(pay.payable,100);assert.equal((await req('/api/debts'))[0].remainingBalance,600);
- await put('/api/debts/'+debt.id,{monthlyInstallment:200,agreementReviewed:true});await req('/api/payroll/approve',{iqama:iq,period:'2026-10',fingerprint:pay.fingerprint},400);
- pay=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(pay.payable,300);await req('/api/payroll/approve',{iqama:iq,period:'2026-10',fingerprint:pay.fingerprint});await req('/api/payroll/approve',{iqama:iq,period:'2026-10',fingerprint:pay.fingerprint},400);
+ await put('/api/debts/'+debt.id,{monthlyInstallment:200,agreementReviewed:true});await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:pay.fingerprint},400);
+ pay=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(pay.payable,300);await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:pay.fingerprint});await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:pay.fingerprint},400);
  assert.equal((await req('/api/debts'))[0].remainingBalance,400);const ledger=await req('/api/ledger/'+iq);assert.equal(ledger.balance,300);assert.equal(ledger.rows.filter(x=>x.kind==='debt_installment').length,1);assert.equal(ledger.rows.find(x=>x.kind==='approved_payroll').amount,500);
  // Financial disclosure always requires a fresh, scoped, unguessable code and phone check.
  let access=await req('/api/inquiry-access',{iqama:iq,scope:'payslip',identityReviewed:true});
@@ -75,33 +77,35 @@ try{
  assert.ok((await req('/api/audit')).some(x=>x.action==='rider.baseline_imported'));assert.ok((await req('/api/audit')).some(x=>x.action==='admin.user_update'));
 
  // Financial & Debt Management System v0.6 checks: 3 Sponsors, HR Expenses, SharedSplit, Direct Collection + Waiver, Inter-CR Transfer, Approvals, Mobile FCM, Dormant Promissory Flag
+ const openingTemplate=await fetch(base+'/api/debts/import-opening/template',{headers:{Cookie:cookie}});assert.equal(openingTemplate.status,200);const openingTemplateBytes=Buffer.from(await openingTemplate.arrayBuffer());
+ const templatePreview=await req('/api/debts/import-opening/preview',{filename:'opening-v3.xlsx',dataBase64:openingTemplateBytes.toString('base64')});assert.equal(templatePreview.errorCount,0,JSON.stringify(templatePreview.errors));
  const finCatalog=await req('/api/finance/catalog');
  assert.equal(finCatalog.sponsors.length,3);
  assert.equal(finCatalog.promissoryNotesArchiveEnabled,false);
  await req('/api/promissory-notes',{iqama:iq,noteNumber:'NFZ-1',amount:5000},400); // Dormant by default
 
  // 1. Create HR Service (WorkPermit) with SharedSplit: totalCost 9600, companyShare 4600 -> riderShare 5000 on BW
- const wpDebt=await req('/api/debts',{iqama:iq,category:'WorkPermit',allocationMode:'SharedSplit',totalCostAmount:9600,companyShareAmount:4600,monthlyInstallment:1000,creditorSponsorId:'BW',paymentVaultCode:'MAIN.BW.SET',sourceRef:'HR-WP-001',agreementReviewed:true,effectiveFrom:'2026-10'});
+ const wpDebt=await req('/api/debts',{iqama:iq,category:'WorkPermit',allocationMode:'SharedSplit',totalCostAmount:9600,companyShareAmount:4600,monthlyInstallment:1000,creditorSponsorId:'BW',entryMode:'Disbursement',paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'HR-WP-001',agreementReviewed:true,effectiveFrom:'2026-10'});
  assert.equal(wpDebt.totalAmount,5000);assert.equal(wpDebt.companyShareAmount,4600);assert.equal(wpDebt.remainingBalance,5000);assert.ok(wpDebt.journalNumber);
 
  // 2. Collect 1500 cash into Express internal cashbox (MAIN.EX.SET) + 500 Administrative Waiver (5202) -> auto Inter-CR clearing (1310)
- const colRes=await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:1500,waivedAmount:500,targetVaultCode:'MAIN.EX.SET',receiptRef:'RCV-EX-001',waiverReason:'Early settlement discount'});
+ const colRes=await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:1500,waivedAmount:500,targetVaultCode:'MAIN.EX.DEBT',receiptRef:'RCV-EX-001',waiverReason:'Early settlement discount'});
  assert.equal(colRes.debt.remainingBalance,3000);assert.equal(colRes.debt.paidAmount,1500);assert.equal(colRes.debt.waivedAmount,500);
  assert.equal(colRes.journal.totalDebit,3500);assert.equal(colRes.journal.totalCredit,3500); // 1500 MAIN.EX.SET + 500 Waiver 5202 + 1500 InterCompany 1310 = 3500
 
  // 3. Purchase/Transfer remaining 3000 debt from AlBawaba (BW) to Express Gate (EX)
- const trRes=await req(`/api/debts/${wpDebt.id}/transfer-sponsor`,{newCreditorSponsorId:'EX',settlementMode:'intercompany',transferRef:'TRN-BW-EX-01'});
+ const trRes=await req(`/api/debts/${wpDebt.id}/transfer-sponsor`,{newCreditorSponsorId:'EX',settlementMode:'intercompany',expectedCreditorSponsorId:'BW',expectedRemainingBalance:3000,transferRef:'TRN-BW-EX-01'});
  assert.equal(trRes.debt.creditorSponsorId,'019c18d5-62e1-7000-8000-000000000042');
 
  // 4. Mutual Approval workflow (HR -> FIN)
- const pendingDebt=await req('/api/debts',{iqama:iq,category:'IqamaRenewal',allocationMode:'RiderFull',totalAmount:650,monthlyInstallment:650,requireMutualApproval:true,initiatingDepartment:'HR',sourceRef:'HR-IQ-002',agreementReviewed:true});
+ const pendingDebt=await req('/api/debts',{iqama:iq,category:'IqamaRenewal',creditorSponsorId:'BW',allocationMode:'RiderFull',totalAmount:650,monthlyInstallment:650,requireMutualApproval:true,initiatingDepartment:'HR',sourceRef:'HR-IQ-002',agreementReviewed:true});
  assert.equal(pendingDebt.status,'pending_approval');assert.ok(pendingDebt.approvalRequestId);
- const decided=await req(`/api/approvals/${pendingDebt.approvalRequestId}/decide`,{decision:'approved',note:'Verified by Finance'});
+ const decided=await req(`/api/approvals/${pendingDebt.approvalRequestId}/decide`,{decision:'approved',overrideSelf:true,note:'Explicit synthetic administrator override after verification'});
  assert.equal(decided.status,'approved');
  assert.equal((await req('/api/debts')).find(d=>d.id===pendingDebt.id).status,'active');
 
  // 5. Bulk Collection Commit & Rider 360 Statement
- const bulkCsv=`iqama,riderName,collectedAmount,waivedAmount,targetVaultCode,receiptRef,notes\r\n${iq},Synthetic Rider,650,0,MAIN.EX.SET,BLK-001,test\r\n`;
+ const bulkCsv=`iqama,riderName,collectedAmount,waivedAmount,targetVaultCode,receiptRef,notes\r\n${iq},Synthetic Rider,650,0,MAIN.EX.DEBT,BLK-001,test\r\n`;
  const bulkPreview=await req('/api/debts/bulk-collect/preview-file',{filename:'bulk.csv',dataBase64:Buffer.from(bulkCsv).toString('base64')});assert.equal(bulkPreview.errorCount,0);
  const bulkInput={rows:bulkPreview.rows,fingerprint:bulkPreview.fingerprint,confirm:true};
  const bulkRes=await req('/api/debts/bulk-collect/commit',bulkInput);
@@ -157,11 +161,61 @@ try{
  await req(uploaded.storagePath,undefined,401,false);
  const download=await fetch(base+uploaded.storagePath,{headers:{Cookie:adminCookie}});assert.equal(download.status,200);assert.deepEqual(Buffer.from(await download.arrayBuffer()),attachment);checks++;
  const editedDocument=await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',fileName:'rider.pdf',expiryDate:'2028-01-01'});assert.equal(editedDocument.hasBinary,true);assert.equal(editedDocument.history.length,2);
- const privateResult=await req('/api/system/release-check');assert.equal(privateResult.version,'0.6.1');
+ const privateResult=await req('/api/system/release-check');assert.equal(privateResult.version,'0.7.0');
  const grantAgain=await req('/api/inquiry-access',{iqama:iq,scope:'mobile',identityReviewed:true});assert.ok(grantAgain.url.includes('#access_code='));
  // New financial surfaces retain original staff-role isolation.
  await req('/api/auth/login',{username:'test-reviewer',password});
  for(const route of ['/api/finance/journals','/api/debts',`/api/riders/${iq}/profile-360`,uploaded.storagePath,'/api/system/release-check'])await req(route,undefined,403);
+ cookie=adminCookie;
+
+ // 9. Treasury & Chart of Accounts Hierarchy + Jahez Box Financial Isolation + Operation-Specific Account Filtering
+ // 9.a: Reject using Jahez Cashbox (SUP.*), Jahez Fee Account (*.FEE), or PetroApp (PETRO.*) in HR Requests or Advances
+ await req('/api/debts',{iqama:iq,category:'WorkPermit',totalAmount:9600,monthlyInstallment:1000,paymentVaultCode:'SUP.BW.SET',sourceRef:'BAD-HR-SUP',agreementReviewed:true},400);
+ await req('/api/debts',{iqama:iq,category:'Advance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'SUP.BW.SET',sourceRef:'BAD-ADV-SUP',agreementReviewed:true},400);
+ await req('/api/debts',{iqama:iq,category:'WorkPermit',totalAmount:9600,monthlyInstallment:1000,paymentVaultCode:'MAIN.BW.FEE',sourceRef:'BAD-HR-FEE',agreementReviewed:true},400);
+ await req('/api/debts',{iqama:iq,category:'WorkPermit',totalAmount:9600,monthlyInstallment:1000,paymentVaultCode:'PETRO.BW',sourceRef:'BAD-HR-PETRO',agreementReviewed:true},400);
+ await req('/api/debts',{iqama:iq,category:'CashAdvance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'BANK.BW',sourceRef:'BAD-CASH-BANK',agreementReviewed:true},400);
+ await req('/api/debts',{iqama:iq,category:'BankAdvance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'BAD-BANK-MAIN',agreementReviewed:true},400);
+ // Reject collecting an HR debt into Jahez Cashbox or Fee account or PetroApp
+ await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:100,targetVaultCode:'SUP.EX.SET',receiptRef:'BAD-COL-SUP'},400);
+ await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:100,targetVaultCode:'MAIN.EX.FEE',receiptRef:'BAD-COL-FEE'},400);
+ await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:100,targetVaultCode:'PETRO.EX',receiptRef:'BAD-COL-PETRO'},400);
+
+ // 9.b: Reject invalid Vault Transfers (PetroApp, funding SUP.*.FEE, or transferring SUP.*.SET to MAIN.*.DEBT)
+ await req('/api/finance/vault-transfer',{fromVaultCode:'PETRO.BW',toVaultCode:'MAIN.BW.SET',amount:500,sourceRef:'BAD-VTR-PETRO'},400);
+ await req('/api/finance/vault-transfer',{fromVaultCode:'MAIN.BW.SET',toVaultCode:'SUP.BW.FEE',amount:200,sourceRef:'BAD-VTR-SUPFEE'},400);
+ await req('/api/finance/vault-transfer',{fromVaultCode:'SUP.BW.SET',toVaultCode:'MAIN.BW.DEBT',amount:500,sourceRef:'BAD-VTR-SUPDEBT'},400);
+
+ // 9.c: Valid Jahez Platform Cycle: Account Opening Fee (200 SAR -> SUP.BW.FEE) + PlatformTransferredDebt collection (800 SAR -> SUP.BW.SET) + EOD Handover Zero-Out to Main Internal Vault
+ const jFee=await req('/api/finance/jahez-fee',{sponsorId:'BW',targetVaultCode:'SUP.BW.FEE',iqama:iq,amount:200,sourceRef:'JFEE-001'});
+ assert.equal(jFee.totalDebit,200);
+ const jDebt=await req('/api/debts',{iqama:iq,category:'PlatformTransferredDebt',platform:'Jahez',entryMode:'Accrual',totalAmount:1200,monthlyInstallment:600,creditorSponsorId:'BW',sourceRef:'JPLAT-001',agreementReviewed:true});
+ const jCol=await req(`/api/debts/${jDebt.id}/collect`,{collectedAmount:2000,waivedAmount:0,targetVaultCode:'SUP.BW.SET',receiptRef:'bad-over'},400);
+ await req(`/api/debts/${jDebt.id}/collect`,{collectedAmount:1200,waivedAmount:0,targetVaultCode:'SUP.BW.SET',receiptRef:'JCOL-001'});
+ // The debt accrual never paid cash: SUP.SET now holds the 1200 collected from the rider, with a matching Jahez liability.
+ const jHandover=await req('/api/finance/jahez-handover',{sponsorId:'BW',sourceRef:'JHND-001'});
+ assert.equal(jHandover.status,'pending');await req('/api/auth/login',{username:'test-accountant',password});const receivedHandover=await req(`/api/finance/jahez-handovers/${jHandover.id}/confirm`,{settlementCounted:1200,feeCounted:200});cookie=adminCookie;assert.equal(receivedHandover.status,'approved');assert.equal(receivedHandover.feeCounted,200);
+ const coaAfter=await req('/api/finance/accounts');
+ assert.equal(coaAfter.find(a=>a.code==='SUP.BW.FEE').netBalance,0);
+ assert.equal(coaAfter.find(a=>a.code==='MAIN.BW.FEE').netBalance,200);
+ assert.equal(coaAfter.find(a=>a.code==='1113').netBalance,200); // Parent group 1113 rolls up MAIN.*.FEE
+
+ // 9.d: CompanyFull HR Order appears in Rider 360 Statement without increasing rider debt balance
+ await req('/api/debts',{iqama:iq,category:'MedicalInsurance',allocationMode:'CompanyFull',totalCostAmount:1000,creditorSponsorId:'BW',entryMode:'Disbursement',paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'HR-MED-COMP',agreementReviewed:true});
+ const stUpdated=await req(`/api/finance/statement/rider/${iq}`);
+ assert.ok(stUpdated.statementLines.some(l=>l.type==='company_borne_service'&&l.companyBorneAmount===1000&&l.debit===0));
+ assert.ok(stUpdated.journalEntries.length>=4);
+
+ // 10. RBAC Roles Catalog & Operational Roles (HRSpecialist, PlatformsSupervisor) with Department, Rank & Custom Permissions
+ const rolesCat=await req('/api/roles-catalog');
+ assert.ok(rolesCat.roles.length>=10);
+ assert.ok(rolesCat.permissions.length>=20);
+ const hrUser=await req('/api/users',{username:'hr-specialist-1',password,role:'HRSpecialist',department:'HR',rankLevel:3,customPermissions:['debts.waive']});
+ assert.equal(hrUser.department,'HR');assert.equal(hrUser.rankLevel,3);
+ assert.ok(hrUser.permissions.includes('debts.create.hr'));assert.ok(hrUser.permissions.includes('debts.waive'));
+ await req('/api/auth/login',{username:'hr-specialist-1',password});
+ const hrMe=await req('/api/me');assert.equal(hrMe.role,'HRSpecialist');assert.equal(hrMe.department,'HR');
+ await req('/api/users',undefined,403); // HRSpecialist cannot manage users
  cookie=adminCookie;
 
 
