@@ -123,7 +123,7 @@ jobs:
           MONSTERASP_FTP_PASSWORD: ${{ secrets.MONSTERASP_FTP_PASSWORD }}
         run: python3 scripts/verify_deployed_payload.py
       - name: Save deployment verification evidence
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs['ftps-preflight'].result == 'success'
+        if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push' && needs['ftps-preflight'].result == 'success'
         uses: actions/upload-artifact@v6
         with:
           name: deployment-verification-v070
