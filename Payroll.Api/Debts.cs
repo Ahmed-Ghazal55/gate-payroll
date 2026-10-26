@@ -402,8 +402,8 @@ public static class Debts
         // قالب إكسل التحصيل المجمع (بالإقامة والاسم والمبلغ المحصل والإعفاء والصندوق)
         api.MapGet("/debts/bulk-collect/template", (HttpContext ctx) => store.Read(c =>
         {
-            var activeDebts = Store.List(c, "debt").Where(d => d.S("status") == "active" && d.N("remainingBalance") > 0&&FinancialScopes.Debt(ctx.User,d)).Take(10).ToList();
-            var vaultChoices = FinancialCore.ChartOfAccounts.Where(a => a.IsVault).Select(a => a.Code).ToArray();
+            var activeDebts = Store.List(c, "debt").Where(d => d.S("status") == "active" && d.N("remainingBalance") > 0&&FinancialScopes.Debt(ctx.User,d)&&FinancialCore.AssignedDebtSponsor(d)!=null).Take(10).ToList();
+            var vaultChoices = FinancialCore.ChartOfAccounts.Where(a => a.IsVault&&FinancialScopes.Account(ctx.User,a.Code)).Select(a => a.Code).ToArray();
             var cols = new List<ExcelColumn>
             {
                 new("رقم الإقامة", false, null, true),
@@ -424,14 +424,14 @@ public static class Debts
                     d.S("riderName"),
                     d.N("monthlyInstallment"),
                     0m,
-                    d.S("paymentVaultCode", "MAIN.BW.SET"),
+                    FinancialCore.DefaultVaultForSponsor(d.S("creditorSponsorId"),"MAIN",d.S("category")),
                     $"BLK-{DateTime.UtcNow:yyyyMMdd}-{seq++:D3}",
                     $"تحصيل قسط ({d.S("categoryAr", d.S("category"))})"
                 ]);
             }
             if (rows.Count == 0)
             {
-                rows.Add(["2491234567", "مثال: محمد أحمد", 500m, 0m, "MAIN.BW.SET", "BLK-202610-001", "سداد دفعة نقدية للصندوق الداخلي"]);
+                rows.Add(["2491234567", "مثال: محمد أحمد", 500m, 0m, "MAIN.BW.DEBT", "BLK-202610-001", "سداد دفعة نقدية للصندوق الداخلي"]);
             }
             return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "قالب_التحصيل_المجمع_للمديونيات.xlsx");
         }));
@@ -443,8 +443,7 @@ public static class Debts
             byte[] bytes = FinancialImports.FileBytes(input);
             var sheets = Imports.Read(bytes, filename);
             J.Need(sheets.Count > 0 && sheets[0].Rows.Count > 1, "الملف فارغ أو لا يحتوي على صفوف بيانات.");
-            J.Need(sheets[0].Rows[0].Take(15).SequenceEqual(new[]{"رقم الإقامة","اسم المندوب / الموظف","المبلغ المحصل","مبلغ الإعفاء الإداري","رمز الصندوق أو البنك","رقم السند / المرجع","ملاحظات التسوية"})||sheets[0].Rows[0].Take(15).SequenceEqual(new[]{"iqama","riderName","collectedAmount","waivedAmount","targetVaultCode","receiptRef","notes"}),"أعمدة الملف لا تطابق القالب المعتمد؛ نزّل القالب دون إعادة ترتيب العناوين.");
-            J.Need(sheets[0].Rows[0].Count==15||sheets[0].Rows[0].Count==16&&new[]{"platform","المنصة (Platform)"}.Contains(sheets[0].Rows[0][15]),"العمود السادس عشر للمنصة فقط في قالب v3.");
+            DebtFileSchemas.Validate(sheets[0].Rows[0],false);
 
             J.Need(sheets[0].Rows.Count<=1001,"حد دفعة التحصيل 1000 صف.");
             string defaultVault = input.S("defaultVaultCode", "MAIN.BW.DEBT");
@@ -679,7 +678,7 @@ public static class Debts
             byte[] bytes = FinancialImports.FileBytes(input);
             var sheets = Imports.Read(bytes, filename);
             J.Need(sheets.Count > 0 && sheets[0].Rows.Count > 1, "الملف فارغ أو لا يحتوي على صفوف بيانات.");
-            J.Need(sheets[0].Rows[0].SequenceEqual(new[]{"رقم الإقامة (10 أرقام)","اسم المندوب / الموظف","تصنيف المدين (Rider/Employee)","كود البند أو الخدمة (Category)","السجل التجاري الدائن (BW/EX/TR)","نوع القيد (OpeningBalance/Disbursement)","آلية التحمل (RiderFull/SharedSplit/CompanyFull)","إجمالي مبلغ المديونية على المندوب","المسدد سابقاً (إن وجد)","حصة تحمل الشركة (في حال SharedSplit)","القسط الشهري المستقطع","شهر بداية الاستقطاع (YYYY-MM)","الحساب الدائن المقابل (3101 أو رمز الصندوق)","رقم السند / المرجع","ملاحظات البيان"})||sheets[0].Rows[0].SequenceEqual(new[]{"iqama","riderName","debtorType","category","creditorSponsor","entryMode","allocationMode","totalAmount","priorPaidAmount","companyShareAmount","monthlyInstallment","effectiveFrom","contraAccountCode","sourceRef","notes"}),"أعمدة الملف لا تطابق القالب المعتمد؛ نزّل القالب دون إعادة ترتيب العناوين.");
+            DebtFileSchemas.Validate(sheets[0].Rows[0],true);
 
             J.Need(sheets[0].Rows.Count<=2001,"حد دفعة الأرصدة 2000 صف.");
             var existingRiders = Store.List(c, "rider").ToDictionary(r => r.S("id"));

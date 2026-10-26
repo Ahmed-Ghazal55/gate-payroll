@@ -358,8 +358,8 @@ ${can('treasury.transfer')?'<button class="secondary" data-enterprise="vault-tra
    </div>
    ${st?`
    <div class="stats">
-    <article class="stat"><div class="label">إجمالي أصل المديونيات على المندوب (مدين)</div><strong class="money-negative">${money(st.totalPrincipalDebt)}</strong><div class="hint">تحملات الشركة لخدمات HR: ${money(st.totalCompanyBorneCost||0)} ر.س</div></article>
-    <article class="stat"><div class="label">إجمالي المسدد نقداً وبنكياً ومن الراتب (دائن)</div><strong class="money-positive">${money(st.totalPaidAmount)}</strong><div class="hint">تخفيض مباشر للذمة المدينة</div></article>
+    <article class="stat"><div class="label">إثباتات الذمم دون نقل الملكية (مدين)</div><strong class="money-negative">${money(st.totalPrincipalDebt)}</strong><div class="hint">تحملات الشركة لخدمات HR: ${money(st.totalCompanyBorneCost||0)} ر.س</div></article>
+    <article class="stat"><div class="label">السداد الموثق بالحركات نقداً وبنكياً ومن الراتب</div><strong class="money-positive">${money(st.totalPaidAmount)}</strong><div class="hint">سداد أقدم محفوظ بالمصدر: ${money(st.historicalPaidAmount||0)} ر.س؛ لا يعاد خصمه من رصيد الافتتاح</div></article>
     <article class="stat"><div class="label">إجمالي الإعفاءات الإدارية المعتمدة (دائن)</div><strong>${money(st.totalWaivedAmount)}</strong><div class="hint">تُقيد في ح/ مصروف إعفاءات 5202</div></article>
     <article class="stat"><div class="label">صافي المديونية المتبقية حالياً</div><strong class="${st.totalRemainingDebt>0?'money-negative':'money-positive'}">${money(st.totalRemainingDebt)}</strong><div class="hint">رصيد دفتر الرواتب العام: ${st.payrollVisible===false?'خارج صلاحية الدور':money(st.payrollLedgerBalance)+' ر.س'}</div></article>
    </div>
@@ -372,10 +372,10 @@ ${can('treasury.transfer')?'<button class="secondary" data-enterprise="vault-tra
      </div>
     </div>
     ${table(
-     ['السجل التجاري','إجمالي أصل الدين على المندوب (مدين)','حصة تحمل الشركة (مصروف HR)','المسدد (دائن)','الإعفاء الإداري (دائن)','الرصيد المتبقي للسجل'],
+     ['السجل التجاري','إثبات الذمم','حقوق منقولة للداخل','حقوق منقولة للخارج','تكلفة الشركة الأصلية','السداد','الإعفاء','المتبقي'],
      st.bySponsor.map((b:any)=>`<tr>
       <td><strong>${esc(b.sponsorNameAr)}</strong></td>
-      <td class="number">${money(b.totalPrincipal)}</td>
+      <td class="number">${money(b.totalPrincipal)}</td><td class="number">${money(b.transferredInAmount||0)}</td><td class="number">${money(b.transferredOutAmount||0)}</td>
       <td class="number">${money(b.totalCompanyShare||0)}</td>
       <td class="number money-positive">${money(b.totalPaid)}</td>
       <td class="number">${money(b.totalWaived)}</td>

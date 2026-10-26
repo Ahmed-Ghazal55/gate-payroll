@@ -77,6 +77,8 @@ try{
  assert.ok((await req('/api/audit')).some(x=>x.action==='rider.baseline_imported'));assert.ok((await req('/api/audit')).some(x=>x.action==='admin.user_update'));
 
  // Financial & Debt Management System v0.6 checks: 3 Sponsors, HR Expenses, SharedSplit, Direct Collection + Waiver, Inter-CR Transfer, Approvals, Mobile FCM, Dormant Promissory Flag
+ const openingTemplate=await fetch(base+'/api/debts/import-opening/template',{headers:{Cookie:cookie}});assert.equal(openingTemplate.status,200);const openingTemplateBytes=Buffer.from(await openingTemplate.arrayBuffer());
+ const templatePreview=await req('/api/debts/import-opening/preview',{filename:'opening-v3.xlsx',dataBase64:openingTemplateBytes.toString('base64')});assert.equal(templatePreview.errorCount,0,JSON.stringify(templatePreview.errors));
  const finCatalog=await req('/api/finance/catalog');
  assert.equal(finCatalog.sponsors.length,3);
  assert.equal(finCatalog.promissoryNotesArchiveEnabled,false);

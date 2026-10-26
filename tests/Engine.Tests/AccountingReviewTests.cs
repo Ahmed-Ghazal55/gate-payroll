@@ -166,4 +166,16 @@ public sealed class AccountingReviewTests
         Reject(()=>AccessPolicy.ValidateApproval(User("Admin","requester"),request,new()),403);
         AccessPolicy.ValidateApproval(User("Admin","requester"),request,new JsonObject{["overrideSelf"]=true,["note"]="Emergency override with evidence"});
     }
+    [TestMethod] public void CollectionAndOpeningTemplatesKeepTheirOwnExactCanonicalHeaderWidths()
+    {
+        DebtFileSchemas.Validate(DebtFileSchemas.CollectionEn,false);DebtFileSchemas.Validate(DebtFileSchemas.CollectionAr,false);
+        DebtFileSchemas.Validate(DebtFileSchemas.OpeningEn,true);DebtFileSchemas.Validate(DebtFileSchemas.OpeningAr,true);
+        DebtFileSchemas.Validate(DebtFileSchemas.OpeningEn.Concat(new[]{"platform"}).ToArray(),true);
+        DebtFileSchemas.Validate(DebtFileSchemas.OpeningAr.Concat(new[]{"المنصة (Platform)"}).ToArray(),true);
+        Assert.ThrowsExactly<ApiError>(()=>DebtFileSchemas.Validate(DebtFileSchemas.CollectionEn.Concat(new[]{"platform"}).ToArray(),false));
+        Assert.ThrowsExactly<ApiError>(()=>DebtFileSchemas.Validate(DebtFileSchemas.OpeningEn.Concat(new[]{"wrong"}).ToArray(),true));
+        Assert.ThrowsExactly<ApiError>(()=>DebtFileSchemas.Validate(DebtFileSchemas.OpeningEn,false));
+        Assert.ThrowsExactly<ApiError>(()=>DebtFileSchemas.Validate(DebtFileSchemas.CollectionEn.Reverse().ToArray(),false));
+    }
+
 }

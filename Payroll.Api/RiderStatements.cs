@@ -58,18 +58,24 @@ public static class RiderStatements
         decimal balance=0;foreach(var line in lines){balance=J.Money(balance+line.N("debit")-line.N("credit"));line["runningBalance"]=balance;}
         var current=visible.Values.Where(d=>d.S("status") is "active" or "paused" or "settled").Where(d=>Owner(d.S("creditorSponsorId"))||(sponsor==null&&d.S("creditorSponsorId")==""&&AccessPolicy.Administrator(user))).ToList();
         var paid=settlements.Where(s=>visible.ContainsKey(s.S("debtId"))&&Owner(s.S("creditorSponsorId"))).ToList();
+        // Report transferred rights separately from original recognition; otherwise cycling a
+        // debt through several entities inflates the apparent original debt and company cost.
+        decimal Recognition(string? owner)=>lines.Where(l=>(owner==null||l.S("sponsorId")==owner)&&l.S("type")!="intercompany_debt_transfer").Sum(l=>l.N("debit"));
+        decimal Transfer(string? owner,string side)=>lines.Where(l=>(owner==null||l.S("sponsorId")==owner)&&l.S("type")=="intercompany_debt_transfer").Sum(l=>l.N(side));
+        var costDebts=visible.Values.Where(d=>d.S("status") is "active" or "paused" or "settled").Where(d=>Owner(d.S("originSponsorId"))).ToList();
+        decimal historicalPaid=visible.Values.Where(d=>Owner(d.S("originalCreditorSponsorId",d.S("creditorSponsorId")))).Sum(d=>Math.Max(0,Debts.PaidAmount(d)-settlements.Where(x=>x.S("debtId")==d.S("id")).Sum(x=>x.N("collectedAmount"))));
         bool payrollVisible=AccessPolicy.Has(user,"payroll.view");
         var ledger=Store.List(c,"ledger").Where(l=>payrollVisible&&l.S("iqama")==iqama&&(Owner(l.S("sponsorId"))||(l.S("sponsorId")==""&&sponsor==null&&FinancialScopes.AllCompanies(user)))).ToList();
         var bySponsor=new JsonArray(FinancialCore.Sponsors.Where(s=>Owner(s.Id)).Select(s=>(JsonNode?)new JsonObject{
-            ["sponsorId"]=s.Id,["sponsorNameAr"]=s.ShortNameAr,["totalPrincipal"]=lines.Where(l=>l.S("sponsorId")==s.Id).Sum(l=>l.N("debit")),
+            ["sponsorId"]=s.Id,["sponsorNameAr"]=s.ShortNameAr,["totalPrincipal"]=Recognition(s.Id),["transferredInAmount"]=Transfer(s.Id,"debit"),["transferredOutAmount"]=Transfer(s.Id,"credit"),
             ["totalPaid"]=paid.Where(p=>p.S("creditorSponsorId")==s.Id).Sum(p=>p.N("collectedAmount")),["totalWaived"]=paid.Where(p=>p.S("creditorSponsorId")==s.Id).Sum(p=>p.N("waivedAmount")),
-            ["totalCompanyShare"]=current.Where(d=>d.S("originSponsorId")==s.Id).Sum(d=>d.N("companyShareAmount")),
+            ["totalCompanyShare"]=costDebts.Where(d=>d.S("originSponsorId")==s.Id).Sum(d=>d.N("companyShareAmount")),
             ["remainingBalance"]=current.Where(d=>d.S("creditorSponsorId")==s.Id).Sum(d=>d.N("remainingBalance")),
             ["statementBalance"]=lines.Where(l=>l.S("sponsorId")==s.Id).Sum(l=>l.N("debit")-l.N("credit"))}).ToArray());
         decimal remaining=current.Sum(d=>d.N("remainingBalance"));
         return new JsonObject{
             ["iqama"]=iqama,["riderName"]=rider.S("name",current.FirstOrDefault().S("riderName","غير مسجل")),["sponsorshipSponsor"]=rider.S("sponsor"),["phone"]=rider.S("phone"),["city"]=rider.S("city"),["status"]=rider.S("status"),
-            ["totalPrincipalDebt"]=current.Sum(d=>d.N("totalAmount")),["totalCompanyBorneCost"]=current.Sum(d=>d.N("companyShareAmount")),["totalPaidAmount"]=paid.Sum(s=>s.N("collectedAmount")),["totalWaivedAmount"]=paid.Sum(s=>s.N("waivedAmount")),
+            ["totalPrincipalDebt"]=Recognition(null),["transferredInAmount"]=Transfer(null,"debit"),["transferredOutAmount"]=Transfer(null,"credit"),["historicalPaidAmount"]=historicalPaid,["totalCompanyBorneCost"]=costDebts.Sum(d=>d.N("companyShareAmount")),["totalPaidAmount"]=paid.Sum(s=>s.N("collectedAmount")),["totalWaivedAmount"]=paid.Sum(s=>s.N("waivedAmount")),
             ["totalRemainingDebt"]=remaining,["statementBalance"]=balance,["reconciliationDifference"]=J.Money(balance-remaining),["historyCoverage"]=legacy.Count>0?"legacy_requires_review":"journal_events",
             ["payrollVisible"]=payrollVisible,["payrollLedgerBalance"]=payrollVisible?JsonValue.Create(ledger.Sum(l=>l.N("amount"))):null,["bySponsor"]=bySponsor,["debts"]=new JsonArray(current.Select(d=>(JsonNode?)d.Clone()).ToArray()),
             ["statementLines"]=new JsonArray(lines.Select(l=>(JsonNode?)l).ToArray()),["journalEntries"]=new JsonArray(journals.Where(j=>visible.ContainsKey(j.S("debtId"))||payrollVisible).Select(j=>FinancialScopes.Journal(user,j)).Where(j=>j!=null).Select(j=>(JsonNode?)j).ToArray()),

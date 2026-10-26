@@ -78,7 +78,7 @@ public sealed class AccountingPostingTests
             foreach(var pair in new[]{(Bw,Ex),(Ex,Tr)})store.Write((c,tx)=>DebtTransfers.Post(c,tx,"movable",new(){["newCreditorSponsorId"]=pair.Item2,["expectedCreditorSponsorId"]=pair.Item1,["expectedRemainingBalance"]=600,["transferRef"]="move:"+pair.Item2},Admin));
             store.Read(c=>{Assert.AreEqual(2,Store.List(c,"debt_transfer").Count);var d=Store.Get(c,"movable","debt")!;Assert.AreEqual(2,d["ownershipHistory"]!.AsArray().Count);Assert.AreEqual(Tr,d.S("creditorSponsorId"));Assert.AreEqual(0m,AccountingEvents.DebtBalance(c,null,d,Bw));Assert.AreEqual(0m,AccountingEvents.DebtBalance(c,null,d,Ex));Assert.AreEqual(600m,AccountingEvents.DebtBalance(c,null,d,Tr));
                 foreach(var owner in new[]{Bw,Ex,Tr}){var statement=RiderStatements.Build(c,Iqama,owner,Admin);Assert.AreEqual(owner==Tr?600m:0m,statement.N("totalRemainingDebt"));Assert.AreEqual(0m,statement.N("reconciliationDifference"));}
-                Assert.AreEqual(600m,RiderStatements.Build(c,Iqama,null,Admin).N("statementBalance"));return true;});});
+                var all=RiderStatements.Build(c,Iqama,null,Admin);Assert.AreEqual(600m,all.N("statementBalance"));Assert.AreEqual(600m,all.N("totalPrincipalDebt"));Assert.AreEqual(1200m,all.N("transferredInAmount"));Assert.AreEqual(1200m,all.N("transferredOutAmount"));Assert.AreEqual(0m,RiderStatements.Build(c,Iqama,Tr,Admin).N("totalPrincipalDebt"));return true;});});
     }
     [TestMethod] public void CashPurchaseCannotOverdrawAndStaleOwnerCannotBeTransferred()
     {
