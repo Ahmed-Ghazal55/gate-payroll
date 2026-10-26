@@ -47,7 +47,7 @@ public static class CampaignOperations
         d["status"]=status;d["reviewNote"]=input.S("note");d["reviewedAt"]=DateTimeOffset.UtcNow.ToString("O");d["reviewedBy"]=actor;
         Store.Save(c,"submission",d,tx);Store.Audit(c,tx,"submission."+status,d.S("id"),actor);
     }
-    static void Admin(HttpContext ctx){if(ctx.User.FindFirstValue(ClaimTypes.Role)!="Admin")throw new ApiError("الحذف وتعديل الحملات لمسؤول النظام فقط.",403);}
+    static void Admin(HttpContext ctx){if(!AccessPolicy.Administrator(ctx.User))throw new ApiError("الحذف وتعديل الحملات لمسؤول النظام فقط.",403);}
     static string Actor(HttpContext ctx)=>ctx.User.Identity?.Name??"administrator";
     internal static void DeleteSubmissions(DbConnection c,DbTransaction tx,List<JsonObject> rows,string actor)
     {

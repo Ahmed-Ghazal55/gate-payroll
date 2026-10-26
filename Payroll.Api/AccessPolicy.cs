@@ -55,7 +55,8 @@ public static class AccessPolicy
             if(path.Contains("/reconcile-opening/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
             if(method=="GET")return Has("debts.view");
             if(path=="/api/debts")return method=="POST"&&Has(input==null?"invalid.permission":CategoryPermission(input.S("category")));
-            if(path.StartsWith("/api/debts/import-opening/",StringComparison.Ordinal))return method=="POST"&&Has("debts.import_opening");
+            // Opening balances post against equity: commit needs the treasury opening permission too.
+            if(path.StartsWith("/api/debts/import-opening/",StringComparison.Ordinal))return method=="POST"&&Has("debts.import_opening")&&(!path.EndsWith("/commit",StringComparison.Ordinal)||Has("treasury.opening"));
             if(path.StartsWith("/api/debts/bulk-collect/",StringComparison.Ordinal))return method=="POST"&&Has("debts.collect");
             if(path.EndsWith("/collect",StringComparison.Ordinal))return method=="POST"&&Has("debts.collect")&&((input?.N("waivedAmount")??0)==0||Has("debts.waive"));
             if(path.EndsWith("/transfer-sponsor",StringComparison.Ordinal))return method=="POST"&&Has("debts.transfer_sponsor");

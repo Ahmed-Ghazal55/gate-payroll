@@ -83,10 +83,19 @@ app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
 app.MapPost("/api/auth/login", async (JsonObject input, HttpContext ctx) =>
 {
     var user = store.Read(c => UserAccess.Find(c, input.S("username")));
-    if (!UserAccess.Password(user, input.S("password"))) return Results.Json(new { error = "اسم المستخدم أو كلمة المرور غير صحيحة." }, statusCode: 401);
+    // Per-account lockout complements the per-IP rate limit: 5 failures lock the account for 15 minutes.
+    if (user != null && DateTimeOffset.TryParse(user.S("lockedUntil"), out var lockedUntil) && lockedUntil > DateTimeOffset.UtcNow) return Results.Json(new { error = "الحساب مقفل مؤقتًا بعد محاولات دخول خاطئة؛ حاول بعد 15 دقيقة أو راجع مسؤول النظام." }, statusCode: 423);
+    if (!UserAccess.Password(user, input.S("password")))
+    {
+        if (user != null) store.Write((c,tx) => { var current = Store.Get(c, user.S("id"), "user", tx)!; int failed = (int)current.N("failedLogins") + 1;
+            current["failedLogins"] = failed >= 5 ? 0 : failed; if (failed >= 5) { current["lockedUntil"] = DateTimeOffset.UtcNow.AddMinutes(15).ToString("O"); Store.Audit(c,tx,"admin.login_locked",current.S("id"),current.S("username")); }
+            Store.Save(c,"user",current,tx); return true; });
+        return Results.Json(new { error = "اسم المستخدم أو كلمة المرور غير صحيحة." }, statusCode: 401);
+    }
     var loggedIn = store.Write((c,tx) => {
         var current = Store.Get(c, user!.S("id"), "user", tx)!;
         J.Need(UserAccess.Status(current)=="active", "الحساب غير متاح.");
+        current["failedLogins"]=0; current["lockedUntil"]="";
         current["lastLoginAt"]=Now(); Store.Save(c,"user",current,tx); Store.Audit(c,tx,"admin.login",current.S("id"),current.S("username"));return current;
     });
     await SignIn(ctx, loggedIn); return Results.Ok(UserAccess.Public(loggedIn));

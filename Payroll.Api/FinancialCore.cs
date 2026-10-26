@@ -52,7 +52,7 @@ public static class FinancialCore
 
         // أ) الصندوق الداخلي الرئيسي العام (الخزينة المركزية للشركة) وتتفرع تحته الحسابات الفرعية التخصصية
         new("1110", "الصندوق الداخلي الرئيسي العام — الخزينة المركزية (MAIN)", "Asset", "Debit", "1100", null, false, "None", "None", "Dual", null,
-            "حساب الخزنة الرئيسية الكبرى للشركة، وتتفرع تحته حسابات المديونيات والسلف، وتصفيات جاهز المرحلة، ورسوم فتح الحسابات، وصندوق مؤسسة التجارية الموحد."),
+            "حساب الخزنة الرئيسية الكبرى للشركة، وتتفرع تحته حسابات المديونيات والسلف، وتصفيات جاهز المرحلة، ورسوم فتح الحسابات، ومجموعة صناديق مؤسسة التجارية (MAIN.TR)."),
 
         new("1111", "حساب المديونيات والسلف وطلبات الموارد البشرية بالصندوق الداخلي", "Asset", "Debit", "1110", null, false, "None", "None", "Dual", null,
             "حساب تجميعي تحت الصندوق الداخلي الرئيسي مخصص لحركة السلف النقدية وطلبات HR وتحصيل المديونيات."),
@@ -81,9 +81,9 @@ public static class FinancialCore
             "MainInternal", "JahezFee", "InOnly", ["JahezFee"],
             "مخصص حصرياً لقبض وتجميع رسوم فتح حسابات جاهز (200 ر.س) لسجل إكسبرس — لا يقبل الصرف أو السلف أو طلبات HR."),
 
-        new("MAIN.TR", "حساب وصندوق مؤسسة التجارية الموحد — سجل التجارية", "Asset", "Debit", "1110", Sponsors[2].Id, false,
+        new("MAIN.TR", "مجموعة صناديق مؤسسة التجارية (تجميعي) — سجل التجارية", "Asset", "Debit", "1110", Sponsors[2].Id, false,
             "MainInternal", "Combined", "Dual", ["HR", "Advances", "Fleet", "Housing", "Admin", "Platforms", "JahezFee"],
-            "حساب فرعي موحد تحت الصندوق الداخلي الرئيسي يدمج تصفيات جاهز ورسوم الحسابات والمديونيات والعمليات الداخلية لمؤسسة التجارية."),
+            "حساب تجميعي لا يقبل ترحيلًا مباشرًا؛ يتفرع إلى MAIN.TR.DEBT وMAIN.TR.SET وMAIN.TR.FEE. رصيده المباشر القديم يُوزع مرة واحدة عبر مسار توزيع النقد التاريخي."),
 
         new("MAIN.TR.DEBT","صندوق السلف وHR — التجارية","Asset","Debit","MAIN.TR",Sponsors[2].Id,true,"MainInternal","DebtAndHr","Dual",["HR","Advances","Fleet","Housing","Admin","Platforms"]),
         new("MAIN.TR.SET","تصفيات جاهز الداخلية — التجارية","Asset","Debit","MAIN.TR",Sponsors[2].Id,true,"MainInternal","GeneralAndSettlement","Dual",["Platforms"]),
@@ -108,7 +108,7 @@ public static class FinancialCore
             "عهدة قبض رسوم فتح حساب جاهز جديد من المناديب فقط وتُصفّر بنهاية اليوم إلى حساب (MAIN.EX.FEE)."),
         new("SUP.TR.FEE", "عهدة رسوم فتح حسابات جاهز — سجل التجارية", "Asset", "Debit", "1120", Sponsors[2].Id, true,
             "JahezCashbox", "JahezFee", "InOnly", ["JahezFee"],
-            "عهدة قبض رسوم فتح حساب جاهز جديد من المناديب فقط وتُصفّر بنهاية اليوم إلى حساب (MAIN.TR)."),
+            "عهدة قبض رسوم فتح حساب جاهز جديد من المناديب فقط وتُصفّر بنهاية اليوم إلى حساب (MAIN.TR.FEE)."),
 
         // ج) حسابات البنوك الرسمية المخصصة (BANK)
         new("1130", "حسابات البنوك الرسمية (BANK)", "Asset", "Debit", "1100", null, false, "None", "None", "Dual", null,
@@ -157,8 +157,8 @@ public static class FinancialCore
         new("2110", "ذمم دائنة — رواتب ومستحقات معتمدة", "Liability", "Credit", "2100"),
         new("2120", "ذمم دائنة — أمانات وتأمينات محتجزة", "Liability", "Credit", "2100"),
         new("2130", "التزامات خدمات وفواتير معتمدة غير مسددة", "Liability", "Credit", "2100"),
-        new("2140", "التزامات تسويات ومديونيات محالة من المنصات", "Liability", "Credit", "2100"),
-        new("2141", "التزامات تسويات المنصات الأخرى", "Liability", "Credit", "2100"),
+        new("2140", "مستحقات شركة جاهز — تسويات ومديونيات محالة", "Liability", "Credit", "2100"),
+        new("2141", "مستحقات المنصات الأخرى — تسويات ومديونيات محالة", "Liability", "Credit", "2100"),
 
         // حساب أرصدة أول المدة والمديونيات المرحلة
         new("3100", "حقوق الملكية وأرصدة أول المدة", "Equity", "Credit", null),
@@ -190,7 +190,12 @@ public static class FinancialCore
         new("5202", "مصروف إعفاءات وتسويات مديونية إدارية", "Expense", "Debit", "5200"),
         new("5203", "مصروف مخالفات وتلفيات تشغيلية", "Expense", "Debit", "5200"),
         new("5204", "مصروف عجز نقدي مثبت ومراجع", "Expense", "Debit", "5200"),
-        new("5301", "مصروف رواتب وعمولات التشغيل", "Expense", "Debit", "5200")
+        new("5205", "مصروف سلف وعهد تتحملها الشركة", "Expense", "Debit", "5200"),
+        new("5206", "مصروف مديونيات منصات تتحملها الشركة", "Expense", "Debit", "5200"),
+
+        // مصروفات الرواتب والتشغيل المباشر (5301 كان تحت 5200؛ نُقل لمجموعته دون تغيير رمزه أو قيوده)
+        new("5300", "مصروفات الرواتب والعمولات", "Expense", "Debit", null),
+        new("5301", "مصروف رواتب وعمولات التشغيل", "Expense", "Debit", "5300")
     ];
 
     // 3. كتالوج فئات المديونيات وربطها المباشر بحسابات المصروفات والذمم المدينة والصناديق المسموحة لكل نوع عملية
@@ -208,10 +213,10 @@ public static class FinancialCore
         new("OtherHrService", "طلبات ورسوم HR أخرى", "HR", "5109", "1210", 0m, ["MainInternal", "Bank"]),
 
         // السلف النقدية والبنكية والعهد — لا علاقة لصناديق جاهز (SUP.*) بها إطلاقاً
-        new("Advance", "سلفة نقدية / بنكية", "Advances", "5109", "1210", 0m, ["MainInternal", "Bank"]),
-        new("CashAdvance", "سلفة نقدية (من الصندوق الداخلي)", "Advances", "5109", "1210", 0m, ["MainInternal"]),
-        new("BankAdvance", "سلفة بنكية (من حساب البنك)", "Advances", "5109", "1210", 0m, ["Bank"]),
-        new("CashCustody", "عهدة نقدية مقابل سند لأمر", "Advances", "5109", "1220", 15000m, ["MainInternal", "Bank"]),
+        new("Advance", "سلفة نقدية / بنكية", "Advances", "5205", "1210", 0m, ["MainInternal", "Bank"]),
+        new("CashAdvance", "سلفة نقدية (من الصندوق الداخلي)", "Advances", "5205", "1210", 0m, ["MainInternal"]),
+        new("BankAdvance", "سلفة بنكية (من حساب البنك)", "Advances", "5205", "1210", 0m, ["Bank"]),
+        new("CashCustody", "عهدة نقدية مقابل سند لأمر", "Advances", "5205", "1220", 15000m, ["MainInternal", "Bank"]),
 
         // الحركة والأسطول ومخالفات تم
         new("TrafficFine", "مخالفة مرورية (تم / ساهر)", "Fleet", "5203", "1210", 0m, ["MainInternal", "Bank"]),
@@ -221,7 +226,7 @@ public static class FinancialCore
         new("FuelOverage", "فروقات استهلاك وقود وزيت", "Fleet", "5203", "1210", 0m, ["MainInternal", "Bank", "PetroApp"]),
 
         // المنصات والسكن والخصومات الإدارية
-        new("PlatformTransferredDebt", "مديونية كاش منصة مرحلة (جاهز/شيفز/نينجا)", "Platforms", "5203", "1230", 0m, ["JahezCashbox", "MainInternal", "Bank", "PetroApp"]),
+        new("PlatformTransferredDebt", "مديونية كاش منصة مرحلة (جاهز/شيفز/نينجا)", "Platforms", "5206", "1230", 0m, ["JahezCashbox", "MainInternal", "Bank", "PetroApp"]),
         new("NegativeSalaryCarryover", "ترحيل راتب بالسالب (عجز مسير)", "Platforms", "5301", "1210", 0m, ["MainInternal", "Bank"]),
         new("HousingDeduction", "استقطاع سكن وإيجارات", "Housing", "5110", "1210", 0m, ["MainInternal", "Bank"]),
         new("AdministrativeDeduction", "جزاء / خصم إداري", "Admin", "5203", "1210", 0m, ["MainInternal", "Bank"])
@@ -247,7 +252,7 @@ public static class FinancialCore
             ?? Sponsors.FirstOrDefault(sp => sp.Code == "BW" && value.Contains("شركة") && value.Contains("بواب"));
     }
 
-    public static SponsorDef ResolveSponsor(string? key) => string.IsNullOrWhiteSpace(key) ? Sponsors[0] : FindSponsor(key) ?? throw new ApiError("السجل التجاري غير معروف؛ راجع الربط قبل الترحيل.");
+    public static SponsorDef ResolveSponsor(string? key) => FindSponsor(key) ?? throw new ApiError(string.IsNullOrWhiteSpace(key) ? "حدد السجل التجاري صراحة؛ لا يوجد سجل افتراضي." : "السجل التجاري غير معروف؛ راجع الربط قبل الترحيل.");
     public static SponsorDef? AssignedDebtSponsor(JsonObject debt) => FindSponsor(debt.S("creditorSponsorId"));
     public static SponsorDef RequireDebtSponsor(JsonObject debt) => AssignedDebtSponsor(debt) ?? throw new ApiError("راجع ربط السجل التجاري للدين القديم أولًا من الجدولة.");
     public static AccountDef ResolveVault(string code) { var account = ResolveAccount(code); J.Need(account.IsVault, "اختر صندوقًا أو حساب بنك صالحًا."); return account; }
@@ -372,8 +377,9 @@ public static class FinancialCore
         idx = 1; foreach (var line in lines.OfType<JsonObject>()) line["lineNo"] = idx++;
         totalDebit = lines.OfType<JsonObject>().Sum(l => l.N("debit")); totalCredit = lines.OfType<JsonObject>().Sum(l => l.N("credit"));
         int seq = Store.List(c, "journal", tx).Count + 1;
-        var originSp = ResolveSponsor(originSponsorId);
-        var creditorSp = ResolveSponsor(creditorSponsorId ?? originSponsorId);
+        // Header owner defaults to the first line's company, never to a fixed company.
+        var originSp = ResolveSponsor(string.IsNullOrWhiteSpace(originSponsorId) ? lines[0]!.S("sponsorId") : originSponsorId);
+        var creditorSp = ResolveSponsor(string.IsNullOrWhiteSpace(creditorSponsorId) ? originSp.Id : creditorSponsorId);
         var doc = new JsonObject
         {
             ["id"] = Guid.NewGuid().ToString("N"),
@@ -600,19 +606,19 @@ public static class FinancialCore
             return journal;
         }));
 
-        // 5-ب. قبض رسوم فتح وتفعيل حساب جاهز جديد (200 ر.س أو مبلغ مخصص) في حسابات رسوم جاهز المخصصة (SUP.*.FEE أو MAIN.*.FEE أو MAIN.TR)
+        // 5-ب. قبض رسوم فتح وتفعيل حساب جاهز جديد (200 ر.س أو مبلغ مخصص) في حسابات رسوم جاهز المخصصة (SUP.*.FEE أو MAIN.*.FEE)
         api.MapPost("/finance/jahez-fee", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             string iqama = input.S("iqama");
             if (!string.IsNullOrWhiteSpace(iqama)) iqama = DirectoryProfiles.Iqama(iqama);
-            var sp = ResolveSponsor(input.S("sponsorId", "BW"));
+            var sp = ResolveSponsor(input.Required("sponsorId"));
             decimal amount = input.ContainsKey("amount") && !string.IsNullOrWhiteSpace(input.S("amount")) ? Debts.Amount(input, "amount") : 200m;
             string defaultFeeVault = $"SUP.{sp.Code}.FEE";
             string vaultCode = input.S("targetVaultCode", defaultFeeVault);
             var vaultAcc = ResolveVault(vaultCode);
 
-            J.Need(vaultAcc.VaultPurpose is "JahezFee" or "Combined",
-                $"مخالفة محاسبية: رسوم فتح حسابات جاهز تُقبض فقط في حسابات رسوم جاهز المخصصة (SUP.*.FEE أو MAIN.*.FEE أو MAIN.TR)، ولا يجوز إيداعها في ({vaultAcc.NameAr}).");
+            J.Need(vaultAcc.VaultPurpose=="JahezFee",
+                $"مخالفة محاسبية: رسوم فتح حسابات جاهز تُقبض فقط في حسابات رسوم جاهز المخصصة (SUP.*.FEE أو MAIN.*.FEE)، ولا يجوز إيداعها في ({vaultAcc.NameAr}).");
 
             var vaultSp = ResolveSponsor(vaultAcc.DefaultSponsorId ?? sp.Id);
             J.Need(vaultSp.Id==sp.Id,"سجل الرسوم لا يطابق ملكية صندوق التحصيل.");FinancialScopes.DemandAccount(ctx.User,vaultAcc.Code);
@@ -738,6 +744,7 @@ public static class FinancialCore
         api.MapPost("/notifications/center/{id}/toggle-todo", (string id, HttpContext ctx) => store.Write((c, tx) =>
         {
             var notif = Store.Get(c, id, "sys_notification", tx) ?? throw new ApiError("المهمة غير موجودة.", 404);
+            J.Need(AccessPolicy.Administrator(ctx.User)||notif.S("targetDepartment") is var dept&&(dept=="ALL"||dept==ctx.User.FindFirst("department")?.Value),"المهمة خارج قسمك.");
             bool done = !notif.B("completed");
             notif["completed"] = done;
             notif["status"] = done ? "acknowledged" : "unread";

@@ -100,7 +100,9 @@ public static class AccountingEvents
     public static JsonArray CompanyPaymentLines(string control,string owner,string vault,decimal amount,string iqama,string debtId,JsonObject evidence)
     {
         var account=FinancialCore.ResolveVault(vault);string payer=account.DefaultSponsorId!;
-        J.Need(account.VaultKind is "MainInternal" or "Bank"&&account.VaultPurpose is "DebtAndHr" or "Bank"&&account.AllowedDirections!="InOnly","الدفع من نقدية الشركة الحرة فقط؛ حسابات جاهز والرسوم والمقاصة معزولة.");
+        // Jahez settlement money exists to pay riders' approved dues (2110) of the same company; nothing else.
+        bool jahezPayroll=control=="2110"&&owner==payer&&account.VaultKind is "MainInternal" or "Bank"&&account.VaultPurpose is "JahezSettlement" or "GeneralAndSettlement";
+        J.Need(jahezPayroll||account.VaultKind is "MainInternal" or "Bank"&&account.VaultPurpose is "DebtAndHr" or "Bank"&&account.AllowedDirections!="InOnly","الدفع من نقدية الشركة الحرة فقط؛ أموال تصفيات جاهز تصرف لرواتب نفس السجل فقط، والرسوم والمقاصة معزولة.");
         var lines=new JsonArray(FinancialCore.CreateJournalLine(control,owner,amount,0,"سداد استحقاق مثبت",iqama,debtId),FinancialCore.CreateJournalLine(vault,payer,0,amount,"دفع فعلي من البنك/الصندوق المالك",iqama,debtId));
         if(owner!=payer)
         {

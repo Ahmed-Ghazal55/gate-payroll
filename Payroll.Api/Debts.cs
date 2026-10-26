@@ -47,6 +47,7 @@ public static class Debts
         string creditorSpId = debt.S("creditorSponsorId", originSpId);
         string mode=debt.S("entryMode");
         J.Need(mode is "Disbursement" or "Accrual" or "OpeningBalance","الطلب القديم يحتاج تحديد نوع الحدث ومقابله قبل الترحيل.");
+        J.Need(mode!="OpeningBalance"||companyShare==0,"الرصيد الافتتاحي ذمة على المندوب فقط؛ تحمل الشركة عن سنوات سابقة مقفل في حقوق الملكية ولا يُقيد مصروفًا في الفترة الحالية.");
         string vaultCode=debt.S("paymentVaultCode");
         var vaultAcc=mode=="Disbursement"?FinancialCore.ValidateVaultForOperation(vaultCode,cat.Code,"disbursement",debt.S("platform")):null;
         string counterpart=mode=="Disbursement"?vaultAcc!.Code:AccountingEvents.RecognitionAccount(debt,cat.Code,mode);
@@ -666,8 +667,8 @@ public static class Debts
             var rows = new List<object?[]>
             {
                 new object?[] { "2491234567", "مثال: محمد أحمد علي", "Rider", "Advance", "BW", "OpeningBalance", "RiderFull", 4500m, 1000m, 0m, 500m, curMonth, "3101", "OB-2026-001", "رصيد أول المدة — سلفة نقدية سابقة على سجل البوابا" },
-                new object?[] { "2519876543", "مثال: عبد الله سالم", "Rider", "WorkPermit", "EX", "OpeningBalance", "SharedSplit", 5000m, 0m, 4600m, 1000m, curMonth, "3101", "OB-2026-002", "رصيد أول المدة — رخصة عمل بتحمل مشترك على إكسبرس" },
-                new object?[] { "2381122334", "مثال: فهد الحربي", "Rider", "TrafficFine", "TR", "OpeningBalance", "RiderFull", 900m, 0m, 0m, 300m, curMonth, "3101", "OB-2026-003", "رصيد أول المدة — مخالفة مرورية على سجل النقل والتجارة" }
+                new object?[] { "2519876543", "مثال: عبد الله سالم", "Rider", "WorkPermit", "EX", "OpeningBalance", "RiderFull", 5000m, 0m, 0m, 1000m, curMonth, "3101", "OB-2026-002", "رصيد أول المدة — حصة المندوب المتبقية من رخصة عمل على إكسبرس (حصة الشركة القديمة لا تُستورد)" },
+                new object?[] { "2381122334", "مثال: فهد الحربي", "Rider", "TrafficFine", "TR", "OpeningBalance", "RiderFull", 900m, 0m, 0m, 300m, curMonth, "3101", "OB-2026-003", "رصيد أول المدة — مخالفة مرورية على سجل التجارية" }
             };
             return Results.File(ExcelFiles.Write(cols, rows.Select(r=>r.Concat(new object?[]{""}).ToArray()).ToList()), ExcelFiles.Mime, "قالب_استيراد_أرصدة_أول_المدة_والمديونيات_v3.xlsx");
         });
@@ -717,6 +718,7 @@ public static class Debts
                     decimal priorPaid = string.IsNullOrWhiteSpace(Cell(8)) ? 0m : decimal.Parse(J.Digits(Cell(8)), CultureInfo.InvariantCulture);
                     decimal companyShare = string.IsNullOrWhiteSpace(Cell(9)) ? 0m : decimal.Parse(J.Digits(Cell(9)), CultureInfo.InvariantCulture);
                     J.Need(new[]{totalAmount,priorPaid,companyShare}.All(n=>n>=0&&n<100000000&&n==J.Money(n)),"مبالغ الرصيد غير صالحة.");
+                    J.Need(entryMode!="OpeningBalance"||companyShare==0&&allocationMode!="CompanyFull","الرصيد الافتتاحي ذمة على المندوب فقط؛ تحمل الشركة عن سنوات سابقة مقفل في حقوق الملكية ولا يُقيد مصروفًا في الفترة الحالية.");
                     decimal remaining = J.Money(totalAmount - priorPaid);
                     decimal installment = string.IsNullOrWhiteSpace(Cell(10)) ? Math.Min(remaining > 0 ? remaining : 1m, 500m) : J.Money(decimal.Parse(J.Digits(Cell(10)), CultureInfo.InvariantCulture));
                     string effectiveFrom = string.IsNullOrWhiteSpace(Cell(11)) ? curMonth : J.Period(Cell(11));
@@ -872,7 +874,7 @@ public static class Debts
                 var r = node!.AsObject();
                 string iqama = DirectoryProfiles.Iqama(r.Required("iqama"));
                 string riderName = r.S("riderName", iqama);
-                var creditorSp = FinancialCore.ResolveSponsor(r.S("creditorSponsorId", "BW"));FinancialScopes.DemandSponsor(ctx.User,creditorSp.Id);
+                var creditorSp = FinancialCore.ResolveSponsor(r.Required("creditorSponsorId"));FinancialScopes.DemandSponsor(ctx.User,creditorSp.Id);
 
                 // إذا لم يكن المندوب مسجلاً بعد في دليل المناديب، ننشئ له ملفاً تلقائياً مع ربطه بالسجل التجاري
                 var existingRider = Store.Get(c, iqama, "rider", tx);
@@ -905,6 +907,7 @@ public static class Debts
                 decimal remaining = J.Money(totalAmount - priorPaid);
                 decimal companyShare = J.Money(r.N("companyShareAmount"));
                 decimal installment = J.Money(r.N("monthlyInstallment", Math.Min(remaining > 0 ? remaining : 1m, 500m)));
+                J.Need(entryMode!="OpeningBalance"||companyShare==0&&allocationMode!="CompanyFull","الرصيد الافتتاحي ذمة على المندوب فقط؛ تحمل الشركة عن سنوات سابقة مقفل في حقوق الملكية ولا يُقيد مصروفًا في الفترة الحالية.");
                 string effectiveFrom = J.Period(r.S("effectiveFrom", DateTime.UtcNow.ToString("yyyy-MM")));
                 string sourceRef = r.Required("sourceRef");
                 J.Need(!Store.List(c,"debt",tx).Any(d=>d.S("sourceRef")==sourceRef),"مرجع الدين مكرر؛ أعد المعاينة.");

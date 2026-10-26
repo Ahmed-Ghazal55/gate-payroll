@@ -35,6 +35,44 @@ public sealed class AccountingReviewTests
         Assert.AreEqual("MAIN.TR",FinancialCore.ResolveAccount("MAIN.TR.SET").ParentCode);
     }
 
+    [TestMethod] public void ChartClassifiesCompanyShareAndPayrollExpenseByNature()
+    {
+        AccountingPolicy.ValidateChart();
+        Assert.AreEqual("5300",FinancialCore.ResolveAccount("5301").ParentCode);
+        foreach(var code in new[]{"Advance","CashAdvance","BankAdvance","CashCustody"})Assert.AreEqual("5205",FinancialCore.ResolveCategory(code).ExpenseAccountCode);
+        Assert.AreEqual("5206",FinancialCore.ResolveCategory("PlatformTransferredDebt").ExpenseAccountCode);
+        foreach(var key in new string?[]{null,""," "})Reject(()=>FinancialCore.ResolveSponsor(key));
+    }
+
+    [TestMethod] public void OpeningBalanceNeverBooksCurrentPeriodCompanyExpense()
+    {
+        WithStore(store=>Reject(()=>store.Write((c,tx)=>
+        {
+            var debt=new JsonObject{["id"]="ob-share",["iqama"]="2000000002",["category"]="WorkPermit",["entryMode"]="OpeningBalance",["allocationMode"]="SharedSplit",
+                ["totalCostAmount"]=900m,["companyShareAmount"]=300m,["totalAmount"]=600m,["originSponsorId"]=Bw,["creditorSponsorId"]=Bw,["sourceRef"]="ob-share"};
+            Debts.PostCreationJournalIfNeeded(c,tx,debt,"review");return true;
+        })));
+    }
+
+    [TestMethod] public void JahezSettlementMoneyPaysSameCompanyPayrollOnly()
+    {
+        var evidence=new JsonObject();
+        Assert.AreEqual(2,AccountingEvents.CompanyPaymentLines("2110",Bw,"BANK.BW.JAHEZ",100,"2000000003","",evidence).Count);
+        Assert.AreEqual(2,AccountingEvents.CompanyPaymentLines("2110",Bw,"MAIN.BW.SET",100,"2000000003","",evidence).Count);
+        Reject(()=>AccountingEvents.CompanyPaymentLines("2130",Bw,"BANK.BW.JAHEZ",100,"","",evidence));
+        Reject(()=>AccountingEvents.CompanyPaymentLines("2110",Ex,"BANK.BW.JAHEZ",100,"2000000003","",new JsonObject{["onBehalf"]=true,["onBehalfNote"]="x"}));
+        Reject(()=>AccountingEvents.CompanyPaymentLines("2110",Bw,"SUP.BW.SET",100,"2000000003","",evidence));
+        Reject(()=>AccountingEvents.CompanyPaymentLines("2110",Bw,"MAIN.BW.FEE",100,"2000000003","",evidence));
+    }
+
+    [TestMethod] public void OpeningDebtImportCommitNeedsTreasuryOpeningPermission()
+    {
+        var importer=User("Accountant","importer","debts.import_opening");
+        Assert.IsTrue(AccessPolicy.Allowed(importer,"POST","/api/debts/import-opening/preview"));
+        Assert.IsFalse(AccessPolicy.Allowed(importer,"POST","/api/debts/import-opening/commit"));
+        Assert.IsTrue(AccessPolicy.Allowed(User("Accountant","opener","debts.import_opening","treasury.opening"),"POST","/api/debts/import-opening/commit"));
+    }
+
     [TestMethod] public void JahezCannotFundOrCollectUnrelatedDebts()
     {
         foreach(var account in FinancialCore.ChartOfAccounts.Where(a=>a.VaultKind=="JahezCashbox"))
