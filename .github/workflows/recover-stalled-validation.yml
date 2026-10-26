@@ -1,4 +1,4 @@
-name: Recover stalled pre-deployment validation
+name: Stop superseded read-only audit
 on:
   push:
     branches: [audit/v070-recover-main]
@@ -10,28 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Cancel only the stalled browser setup before deployment starts
+      - name: Cancel only the audit of the previous bundle once a newer deployment starts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          import urllib.request,json,os,time
+          import urllib.request,json,os
           base='https://api.github.com/repos/Ahmed-Ghazal55/gate-payroll'
           def api(path,method='GET'):
               req=urllib.request.Request(base+path,data=b'{}' if method=='POST' else None,method=method,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Cache-Control':'no-cache'})
               with urllib.request.urlopen(req,timeout=20) as response:
                   raw=response.read();return json.loads(raw) if raw else {}
-          jobs=api('/actions/runs/40308430474/jobs')['jobs']
-          job=next(j for j in jobs if j['id']==121523326620)
-          current=next((s for s in job['steps'] if s['status']=='in_progress'),{})
+          jobs=api('/actions/runs/40308430474/jobs')['jobs'];job=next(j for j in jobs if j['id']==121523326620)
           deployment=next(s for s in job['steps'] if s['name']=='Prepare IIS for deployment')
-          if job['status']!='in_progress' or current.get('name')!='Browser installation' or deployment['status']!='pending':
-              print('No cancellation: validation progressed or deployment has started.');raise SystemExit(0)
-          api('/actions/runs/40308430474/cancel','POST')
-          for _ in range(24):
-              run=api('/actions/runs/40308430474')
-              if run['status']=='completed':
-                  print('Cancelled the stalled pre-deployment run; production was never placed into maintenance.');break
-              time.sleep(5)
-          else:raise RuntimeError('Cancellation not confirmed; do not start a concurrent deployment.')
+          audit=api('/actions/runs/40310001080')
+          if deployment['status']!='pending' and audit['status']=='in_progress':
+              api('/actions/runs/40310001080/cancel','POST');print('Cancelled superseded read-only audit of the older bundle; latest main deployment continues untouched.')
+          else:print('No cancellation needed.')
           PY
