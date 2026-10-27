@@ -2,14 +2,16 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Codex |
+| Current writer | none |
 | Branch | docs/knowledge-pack |
 | Updated | 2026-10-27 by Codex |
 
 ## Goal now
-Complete the requested knowledge-pack corrections and a separate deploy-trigger commit, both with [skip ci]. No push or deployment authorized.
+Requested knowledge-pack corrections and the separate deploy-trigger change are complete locally, with [skip ci] commits. No push or deployment authorized.
 
 ## Done (latest first)
+- Added push-to-main paths-ignore for docs/** and **/*.md; PR/manual triggers and all jobs are unchanged. Separate commit from documentation f39d67f.
+- Current checks pass: 21 mocked Python deploy-tool tests, YAML parse/trigger-only comparison, relative Markdown links, exact review copy, unique moved learning entry, line limits and git diff --check.
 - Continued the interrupted session: only the Current writer field was dirty; no duplicated edits.
 - Moved the existing learning entry from docs/README.md to ~/.agents/learning/log.md; removed the docs-only learning restriction from AGENTS.md.
 - Copied the recovered 2026-10-26 Claude review byte-for-byte into docs/reviews and linked it from the index; clarified its historical evidence.
@@ -20,9 +22,9 @@ Complete the requested knowledge-pack corrections and a separate deploy-trigger 
 - Published accounting fixes remain the previously reported 0.7.0 (3b8ac0e); no fresh production verification.
 
 ## Next step (exact)
-1. Commit these documentation corrections with [skip ci].
-2. Add push.paths-ignore for docs/** and **/*.md in .github/workflows/build-and-deploy.yml; verify and commit separately with [skip ci].
-3. Do not push; future implementation starts with debt creation per docs/roadmap.md.
+1. Keep docs/knowledge-pack local; no push or deployment.
+2. When implementation is requested, start with Jahez debt creation (2140 + 4102 split), then commission release and per-company isolation per docs/roadmap.md.
+3. Preserve the business-rule/source-review distinction and maker-checker requirement while implementing.
 
 ## Open problems / decisions for Ghazal
 - Jahez opening policy is settled; its implementation and maker-checker enforcement still need verification/fixes against the rule.
