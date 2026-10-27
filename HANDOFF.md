@@ -4,12 +4,19 @@
 |---|---|
 | Current writer | none |
 | Branch | feat/v0.8.0-rider-simple-statement |
-| Updated | 2026-10-28 by Codex |
+| Updated | 2026-10-28 by Antigravity |
 
 ## Goal now
-0.8.0 simple rider statement API is implemented and verified locally; no push or deployment.
+0.8.0 plain rider statement frontend and backend verified locally; no push or deployment.
 
 ## Done (latest first)
+- Plain rider statement UI created in Frontend/src/rider-statement.ts with minimal wiring in enterprise.ts; Payroll.Api untouched.
+- Sub-tab "كشف حساب مبسّط" added next to statement-360; "كشف مبسّط" button added in rider rows and debt rows.
+- Filters for rider, company and month-range; six stat cards (اتستحقله، اتخصم، استلم، اتحوّل، مديونية، الصافي مع تمييز دائن/مدين بالأخضر والأحمر).
+- Month summary table with expandable itemized detail rows; plain Arabic labels without debit/credit terms.
+- A4 RTL print stylesheet hiding app chrome and expanding full report for printing.
+- Responsive mobile layout, loading, empty, and error handling states.
+- Verified with browser tests (tests/browser.mjs, tests/browser-v05.mjs, tests/rider-statement-ui.mjs), dotnet tests, python scripts, and release boundary check.
 - GET /api/finance/statement/rider/{iqama}/simple?from=YYYY-MM&to=YYYY-MM&sponsorId= uses store.Read; no schema/migration or existing posting changes.
 - Posted lines carrying the rider identity drive opening, monthly buckets, audit details, totals and closing; counterpart rows remain visible without counting twice. All 23 existing transaction types documented; unknowns remain other.
 - Closing matches 2110 minus 1210/1211/1230; Jahez cash is separate from salary. Legacy unverified debt flags survive without manufacturing journal openings.

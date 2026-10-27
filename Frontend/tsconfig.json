@@ -17,6 +17,7 @@
     "src/app.ts",
     "src/table-tools.ts",
     "src/enterprise.ts",
+    "src/rider-statement.ts",
     "src/bootstrap.ts"
   ]
 }

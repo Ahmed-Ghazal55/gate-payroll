@@ -28,6 +28,24 @@ const allocationLabels:Record<string,string>={RiderFull:'تحمل المندوب
 let financeSubTab='debts-list';
 let statementRiderIqama='';
 let statementSponsorFilter='';
+let statementSimpleRiderIqama='';
+
+async function ensureRiderStatementModule():Promise<void>{
+ if(typeof (window as any).renderSimpleStatementView==='function')return;
+ const existing=document.querySelector<HTMLScriptElement>('script[src*="rider-statement.js"]');
+ if(existing){
+  if(typeof (window as any).renderSimpleStatementView==='function')return;
+  await new Promise<void>(resolve=>{existing.addEventListener('load',()=>resolve());setTimeout(resolve,150);});
+  return;
+ }
+ await new Promise<void>((resolve,reject)=>{
+  const s=document.createElement('script');
+  s.src='/rider-statement.js';
+  s.onload=()=>resolve();
+  s.onerror=()=>reject(new Error('تعذر تحميل كود كشف الحساب المبسط'));
+  document.head.appendChild(s);
+ });
+}
 
 // فلترة الحسابات والصناديق ديناميكياً حسب نوع العملية لمنع ظهور صندوق جاهز أو رسوم جاهز أو بترو آب في طلبات الموارد البشرية أو السلف
 function filterVaultsForCategory(vaults:any[],categoryCode:string,operationKind:'disbursement'|'collection',preferredSponsorId?:string,platform?:string):any[]{
@@ -115,7 +133,8 @@ async function enterpriseView(view:string):Promise<string>{
     <td>${esc(systems[r.workPreference]||r.workPreference||'لم يختر بعد')}</td>
     <td><div class="row-actions">
      ${userRole!=='Reviewer'?`<button class="small secondary" data-enterprise="rider-profile-360" data-iqama="${esc(r.iqama)}">📂 الملف والوثائق 360°</button>
-     <button class="small ghost" data-enterprise="open-statement" data-iqama="${esc(r.iqama)}">📊 كشف الحساب</button>`:''}
+     <button class="small ghost" data-enterprise="open-statement" data-iqama="${esc(r.iqama)}">📊 كشف الحساب</button>
+     <button class="small ghost" data-enterprise="open-statement-simple" data-iqama="${esc(r.iqama)}">كشف مبسّط</button>`:''}
      ${userRole==='Admin'||userRole==='SuperAdmin'?`<button class="small ghost" data-action="rider-edit" data-id="${esc(r.id)}">تعديل</button>`:''}
     </div></td>
    </tr>`)
@@ -201,6 +220,7 @@ async function renderFinancialSystemHub():Promise<string>{
   ['debts-list',`المديونيات والسلف وتكاليف HR (${debts.length})`],
   ['vaults-coa',`الخزائن وشجرة الحسابات والقيود (${journals.length})`],
   ['statement-360','كشف حساب المندوب والشركات 360°'],
+  ['statement-simple','كشف حساب مبسّط'],
   ['approvals-notif',`الاعتمادات المتبادلة والإشعارات والجوال ${pendingApprovalsCount?`(${pendingApprovalsCount})`:''}`],
   ['promissory-archive',`أرشيف سندات الأمر ${promissory.featureEnabled?'(مفعل)':'(معلق)'}`]
  ].filter(([id])=>id!=='vaults-coa'||can('treasury.view')).filter(([id])=>id!=='approvals-notif'||can('approvals.view'));
@@ -269,6 +289,7 @@ async function renderFinancialSystemHub():Promise<string>{
          ${can('treasury.liability.settle')&&d.entryMode==='Accrual'&&d.recognitionAccountCode==='2130'&&Number(d.totalCostAmount||d.totalAmount)>Number(d.supplierPaidAmount||0)?`<button class="small secondary" data-enterprise="supplier-pay" data-id="${esc(d.id)}">سداد الالتزام</button>`:''}
          ${can('treasury.opening')&&!d.journalEntryId&&!d.openingReconciliationId?`<button class="small secondary" data-enterprise="debt-reconcile" data-id="${esc(d.id)}">مطابقة الافتتاح</button>`:''}
          <button class="small ghost" data-enterprise="open-statement" data-iqama="${esc(d.iqama)}">كشف 360°</button>
+         <button class="small ghost" data-enterprise="open-statement-simple" data-iqama="${esc(d.iqama)}">كشف مبسّط</button>
          <button class="small ghost" data-enterprise="print-voucher" data-id="${esc(d.id)}">سند/نموذج</button>
         </div>
        </td>
@@ -432,6 +453,9 @@ ${can('treasury.transfer')?'<button class="secondary" data-enterprise="vault-tra
      )}
     </div>
    </div>`:empty('اختر مندوباً','اختر مندوباً من القائمة أعلاه لعرض كشف حسابه التفصيلي.')}`;
+ } else if(financeSubTab==='statement-simple'){
+  await ensureRiderStatementModule();
+  bodyHtml=await renderSimpleStatementView();
  } else if(financeSubTab==='approvals-notif'){
   bodyHtml=`
    <div class="split">
@@ -532,6 +556,10 @@ ${can('treasury.transfer')?'<button class="secondary" data-enterprise="vault-tra
 
 function bindEnterprise(view:string){
  if(view==='debts'){
+  if(financeSubTab==='statement-simple'){
+   if(typeof (window as any).bindSimpleStatementView==='function')bindSimpleStatementView();
+   return;
+  }
   const rSel=$('#statement-rider-select');
   if(rSel)rSel.onchange=async()=>{statementRiderIqama=rSel.value;await show('debts');};
   const sSel=$('#statement-sponsor-select');
@@ -1373,6 +1401,7 @@ async function inquiryCodeDialog(){modal('تسليم رمز استعلام خا�
 document.addEventListener('click',async e=>{const b=(e.target as HTMLElement).closest<HTMLElement>('[data-enterprise]');if(!b)return;try{const id=b.dataset.id;switch(b.dataset.enterprise){
  case'finance-subtab':financeSubTab=b.dataset.subtab||'debts-list';await show('debts');break;
  case'open-statement':statementRiderIqama=b.dataset.iqama||'';financeSubTab='statement-360';await show('debts');break;
+ case'open-statement-simple':statementSimpleRiderIqama=b.dataset.iqama||'';financeSubTab='statement-simple';await show('debts');break;
  case'rider-profile-360':await riderProfile360Dialog(b.dataset.iqama!);break;
  case'rider-enrich':{const res=await api('/riders/enrich-missing',{});await show('riders');toast(`تم استكمال حقول ${res.enrichedExisting} مندوب وإضافة ${res.addedFromSources} سجل من المصادر`);break;}
  case'debt-collect':debtCollectDialog(id!);break;
