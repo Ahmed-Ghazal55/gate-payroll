@@ -3,7 +3,7 @@ using System.Security.Claims;
 using System.Text.Json.Nodes;
 namespace Payroll;
 
-public static class RiderStatements
+public static partial class RiderStatements
 {
     private static bool Receivable(string code)=>code is "1210" or "1220" or "1230";
     public static JsonObject Build(DbConnection c,string iqama,string? sponsorId,ClaimsPrincipal user)

@@ -47,7 +47,7 @@ def verify_http_assets(root,base='https://payroll.marketingalbawaba.com'):
         # a .br download URL is not promised. All sidecars remain fully hashed by FTPS.
         if path.suffix in {'.br','.gz'} and path.with_suffix('').is_file():continue
         route='/'+'/'.join(urllib.parse.quote(p) for p in relative.parts[1:])
-        request=urllib.request.Request(base+route+'?release=0.7.0',headers={'Cache-Control':'no-cache','Accept-Encoding':'identity'})
+        request=urllib.request.Request(base+route+'?release=0.8.0',headers={'Cache-Control':'no-cache','Accept-Encoding':'identity'})
         try:
             with urllib.request.urlopen(request,timeout=30) as response:
                 actual=hashlib.sha256(response.read()).hexdigest()
@@ -65,9 +65,9 @@ def main():
         if lifecycle.read_marker(ftp) is not None:raise RuntimeError('An IIS maintenance marker remains active.')
         proof=verify_bundle(ftp,root)
         # Only release metadata is read from App_Data. No record bodies or secret contents are downloaded.
-        checkpoint=io.BytesIO();ftp.retrbinary('RETR App_Data/release-backups/0.7.0/checkpoint.json',checkpoint.write)
+        checkpoint=io.BytesIO();ftp.retrbinary('RETR App_Data/release-backups/0.8.0/checkpoint.json',checkpoint.write)
         metadata=json.loads(checkpoint.getvalue());before=metadata.get('before',{})
-        if metadata.get('version')!='0.7.0' or not before.get('recordsSha256'):raise RuntimeError('Release checkpoint metadata is incomplete.')
+        if metadata.get('version')!='0.8.0' or not before.get('recordsSha256'):raise RuntimeError('Release checkpoint metadata is incomplete.')
         proof['checkpoint']={'version':metadata['version'],'counts':before.get('counts',{}),'recordsSha256':before['recordsSha256']}
     finally:ftp.close()
     target=Path('artifacts/deployment-verification-v070.json')
