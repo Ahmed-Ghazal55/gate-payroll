@@ -2,46 +2,38 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none |
+| Current writer | Codex |
 | Branch | docs/knowledge-pack |
 | Updated | 2026-10-27 by Codex |
 
 ## Goal now
-Knowledge pack completed locally and reverified on 2026-10-27; commits include [skip ci]. User explicitly requested no push and read-only external sources.
-Published accounting fixes remain the previously reported 0.7.0 (3b8ac0e); no deployment or live check was performed for this documentation task.
+Complete the requested knowledge-pack corrections and a separate deploy-trigger commit, both with [skip ci]. No push or deployment authorized.
 
 ## Done (latest first)
-- Rechecked the existing pack: all 75 accounts match code (codes/names/owners/parents/types/natures); relative links, sensitive-pattern scan and AGENTS limit pass (53 lines).
-- Corrected moved source paths. PROJECT_REVIEW_2026-10-26.md is absent under ~/Projects; retained its earlier summary with provenance to 06ccd2b, without claiming a fresh source review.
-- Reran build (0 warnings/errors), offline accounting 44/44 plus shared-cost and 52 legacy checks, MSTest 90 passed / 6 SQL Server skipped, and 21 mocked Python deploy-tool tests. No new browser/CI/live verification.
-- Added docs/README.md index and provenance, architecture, all 75 COA entries with owners/purposes, posting rules and reasons, dated decisions, deploy/recovery/backups, and prioritized roadmap.
-- Read continuity, working knowledge, architecture/review and archived handoffs under ~/Projects; historical proposals are distinguished from current code and later fixes.
-- Added AGENTS.md (52 lines): actual stack, build/test commands, deployment authorization and data rules.
-- Matched all 75 account codes and exact names to FinancialCore; verified relative links and screened new docs for sensitive patterns. No operational data copied.
-- No application sources changed; external source directories remained read-only.
-- Learning note retained in docs/README.md because this task permits no shared learning-log write outside the repo.
-- Earlier live fixes: 5205/5206/5300 classification, no company expense in opening debt, explicit company, same-company Jahez payroll, opening-import permission, login lockout and access-scope fixes.
+- Continued the interrupted session: only the Current writer field was dirty; no duplicated edits.
+- Moved the existing learning entry from docs/README.md to ~/.agents/learning/log.md; removed the docs-only learning restriction from AGENTS.md.
+- Copied the recovered 2026-10-26 Claude review byte-for-byte into docs/reviews and linked it from the index; clarified its historical evidence.
+- Recorded Ghazal's 2026-10-26 Jahez agent rule: commission/remainder split, debt split, opening 2140/equity split and mandatory maker-checker for balance changes.
+- Added P1 Jahez agent-model gaps from the Claude 2026-10-27 findings supplied by Ghazal; fix order: debt creation, commission release, per-company isolation.
+- Corrected stale claims that opening policy was undecided or same-company 2110 payment fully resolved fund isolation.
+- Earlier verification on ee254cc: build clean; offline accounting 44/44 plus shared-cost and 52 legacy checks; MSTest 90 passed / 6 SQL Server skipped; Python deployment tools 21/21. These are historical results, not reruns for this docs task.
+- Published accounting fixes remain the previously reported 0.7.0 (3b8ac0e); no fresh production verification.
 
 ## Next step (exact)
-1. Ghazal: choose the Jahez cash opening counterpart and who receives treasury.opening; docs/accounting/decisions.md lists the options and current behavior.
-2. Start implementation with POST /api/finance/journals/{id}/reverse: mirror journal, original link, reason, independent second approver and consistent source-document effects. Add period-close enforcement in FinancialCore.PostJournal.
-3. Then JahezTreasury.cs: earned-4102 commission release capped by previous releases, followed by company-specific 2140/1240 netting.
-4. Follow docs/roadmap.md for independent waiver/transfer approval, security, off-site backups, staging/production approval, opening UI and performance.
+1. Commit these documentation corrections with [skip ci].
+2. Add push.paths-ignore for docs/** and **/*.md in .github/workflows/build-and-deploy.yml; verify and commit separately with [skip ci].
+3. Do not push; future implementation starts with debt creation per docs/roadmap.md.
 
 ## Open problems / decisions for Ghazal
-- Jahez-purpose openings still use 3101; choose documented 2140/1240 or per-row treatment, rather than silently changing equity.
-- Accountant cannot commit opening-debt imports without treasury.opening; assign the approver deliberately.
-- Old 5109/5203 company-share entries remain history; reclassify by reviewed journal after reversal is available.
-- No reversal/period close, commission release/netting, protected staging deployment or scheduled off-site backup is claimed complete.
-- docs/knowledge-pack is local only; do not push or deploy without a new explicit instruction.
+- Jahez opening policy is settled; its implementation and maker-checker enforcement still need verification/fixes against the rule.
+- The debt, pay-source, commission-release and per-company isolation gaps in docs/roadmap.md remain implementation work.
+- Assign treasury.opening approvers deliberately; no permissions were changed.
+- Reversal/period close, netting, protected staging and scheduled off-site backups remain open.
+- No application code or operational data changed; local branch only.
 
 ## How to verify
 ```bash
-npm ci --no-audit --no-fund --prefix RiderForm
-dotnet build tests/Engine.Tests -v q
-dotnet run --no-build --project tests/Engine.Tests -- --accounting-review
-dotnet test tests/Engine.Tests --no-build
-python3 -m unittest discover -s scripts -p 'test_*.py' -v
 git diff --check
+python3 -m unittest discover -s scripts -p 'test_*.py' -v
 ```
-Full VSTest requires local TCP permission; SQL Server cases require an isolated configured service. No secrets belong in this file or the knowledge pack.
+Also check relative Markdown links, recovered-review byte equality, learning-entry uniqueness and workflow trigger scope. Application, browser, HTTP and SQL Server checks are not rerun for documentation/trigger-only changes.

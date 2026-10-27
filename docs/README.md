@@ -10,6 +10,7 @@
 | [Decisions](accounting/decisions.md) | القرارات المؤرخة والأسئلة التي تحتاج حسمًا |
 | [Deploy](operations/deploy.md) | CI والنشر والتحقق والتراجع والنسخ الاحتياطي |
 | [Roadmap](roadmap.md) | المطلوب بالترتيب بعد استبعاد ما أُصلح |
+| [Project review 2026-10-26](reviews/PROJECT_REVIEW_2026-10-26.md) | مراجعة Claude التاريخية؛ بعض نتائجها سبقت الإصلاحات اللاحقة |
 
 ## ترتيب الاعتماد
 
@@ -19,12 +20,12 @@
 
 ## مصادر المعرفة
 
-المصادر الخارجية للقراءة فقط. لم تُنسخ قواعد أو ملفات أشخاص أو مجلدات بيانات خاصة. تُستخدم المسارات التالية للعثور على النص التاريخي، ولا يحتاج التشغيل وجود الأرشيف. توضح القائمة المسارات المتاحة عند إعادة التحقق، والمسار التاريخي للمراجعة التي لم تعد موجودة.
+المصادر الخارجية للقراءة فقط. لم تُنسخ قواعد أو ملفات أشخاص أو مجلدات بيانات خاصة. تُستخدم المسارات التالية للعثور على النص التاريخي، ولا يحتاج التشغيل وجود الأرشيف. توضح القائمة المسارات المتاحة عند إعادة التحقق؛ استُعيد أصل المراجعة في 2026-10-27 وأُضيفت نسخة منه للحزمة.
 
 | المرجع | موقع المصدر ودوره |
 |---|---|
 | S1 | [HANDOFF.md](../HANDOFF.md): آخر حالة، إصلاحات المراجعة وأسئلة المالك |
-| S2 | المسار التاريخي: `~/Projects/pro win/Projectes/08_MultiPlatform_Payroll_&_Rider_Ledger_App/02_Architecture_&_System_Blueprints/PROJECT_REVIEW_2026-10-26.md`. المراجعة P1–P3 وترتيب المقترحات موثقان في الحزمة الأصلية، commit `06ccd2b`. لم يُعثر على أي `PROJECT_REVIEW_*.md` تحت `~/Projects` في 2026-10-27؛ لم تُعد قراءة أصل المراجعة في هذه الجولة |
+| S2 | [PROJECT_REVIEW_2026-10-26.md](reviews/PROJECT_REVIEW_2026-10-26.md): نسخة مطابقة للمصدر المستعاد `~/.agents/work/recovered/PROJECT_REVIEW_2026-10-26.md`، نُقلت في 2026-10-27. مراجعة Claude بتاريخ 2026-10-26 وتوصيات P1–P3؛ بعض نتائجها سبقت إصلاحات S1، وأدلتها تخص وقت المراجعة وليست تحققًا حاليًا |
 | S3 | `~/Projects/Comprress_projects/pro win/Projectes/PROJECT_CONTINUITY.md`: نسخة السياق التاريخي المتاحة. توجد نسخة منقولة في `~/Projects/pro win/Projectes/01 الأنظمة والتطبيقات/01 متعقب المهام وخارطة الطريق/وثائق_التوجيه_والمهام/PROJECT_CONTINUITY.md`؛ تحديثات نشر 0.7.0 تُراجع مع S1/S6، ولا تُفترض من تاريخ الملف المنقول |
 | S4 | تحت `~/Projects/Comprress_projects/pro win/`: `Projectes/.codex-brain-review/continuity/WORKING_KNOWLEDGE_AR.md` و`PAYROLL_HANDOFF_REVIEW_2026-10-21_AR.md`، و`Chat/Codex/continuity/WORKING_KNOWLEDGE_AR.md`. النسخة المنقولة: `~/Projects/pro win/Projectes/06 السجلات والذكاء الاصطناعي/02 بيئات ومراجعات الذكاء/.codex-brain-review/continuity/WORKING_KNOWLEDGE_AR.md`. السياق وقيود الحساب وتصحيح التسليمات؛ ليست إثباتًا مستقلًا للإصدار الحالي |
 | S5 | المخططات الأربعة تحت `~/Projects/Comprress_projects/pro win/Projectes/08_MultiPlatform_Payroll_&_Rider_Ledger_App/02_Architecture_&_System_Blueprints/`؛ ولها نظائر منقولة تحت `~/Projects/pro win/Projectes/01 الأنظمة والتطبيقات/03 تطبيق الرواتب ودفتر الأستاذ/المخططات المعمارية للنظام/`: `01_Payroll_Engine_&_Rider_Ledger_Blueprint.md`، `02_Rider_Portal_&_OTP_Microservice_Blueprint.md`، `03_Project_Boundaries_And_Work_Split.md`، `04_Work_Choice_Form_And_Deployment.md` |
@@ -37,19 +38,3 @@
 المراجع التنفيذية الأساسية: [FinancialCore](../Payroll.Api/FinancialCore.cs)، [AccountingEvents](../Payroll.Api/AccountingEvents.cs)، [AccountingPolicy](../Payroll.Api/AccountingPolicy.cs)، [Store](../Payroll.Api/Store.cs)، [workflow](../.github/workflows/build-and-deploy.yml). تفاصيل API في [API_CONTRACT](../API_CONTRACT.md)، والجداول في [TABLE_STANDARD_AR](../TABLE_STANDARD_AR.md).
 
 إعادة التحقق في 2026-10-27: مطابقة أكواد الحسابات الـ75 وأسمائها وملاكها وآبائها وأنواعها وطبيعتها مع الكود، والتحقق من الروابط النسبية وحد 60 سطرًا لـAGENTS. البناء بلا أخطاء أو تحذيرات؛ المحاسبة offline نجحت 44/44 مع اختبار التكلفة المشتركة و52 فحصًا قديمًا؛ MSTest نجحت 90 وتخطت 6 اختبارات SQL Server لعدم تهيئة خدمته؛ أدوات النشر نجحت 21/21 بمحاكاة الاتصال. لم يُنفذ فحص browser أو CI أو إنتاج جديد.
-
-## ملاحظة تعلّم محلية
-
-## 2026-10-27 — Gate Payroll — Knowledge pack verification (Codex)
-حُفظت هنا التزامًا بقراءة كل ما خارج المستودع فقط، بدل تحديث سجل التعلّم المشترك.
-
-**Concepts**
-- `Accrual` — إثبات الاستحقاق قبل الدفع؛ مستخدم في `Payroll.Api/AccountingEvents.cs:20`.
-- `Provenance` — توثيق مصدر المعلومة وحدود توفره؛ مستخدم في `docs/README.md` حتى لو اختفى أصل المراجعة.
-- `Skipped test` — اختبار لم يُنفذ لغياب متطلبه؛ نتائج SQL Server هنا ليست نجاحًا للمزود.
-
-**English**
-- `Counterpart` — الطرف المقابل؛ “The opening counterpart still needs an owner decision.”
-- `Recheck` — إعادة التحقق؛ “Recheck the source path before citing it.”
-
-**Check yourself:** لماذا لا يسجل تسليم حصيلة رسوم جاهز إيرادًا جديدًا؟
