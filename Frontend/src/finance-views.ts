@@ -25,6 +25,8 @@ let fvBankPeriod: string = '';
 let fvBankPreviewData: any = null;
 let fvBankRows: any[] = [];
 let fvBankConfirmCode40: boolean = false;
+// صفوف كود بنكها غير معروف: البنك يتكتب يدوي (BR §19)
+let fvBankManualRows: Set<number> = new Set();
 
 function fvInitDates(): void {
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -938,7 +940,7 @@ function bankErrorLabel(err: string): string {
   switch (err) {
     case 'missing_iban': return 'لا يوجد آيبان';
     case 'invalid_iban_mod97': return 'آيبان غير صالح (فحص mod-97)';
-    case 'unknown_bank_code': return 'كود بنك غير معروف';
+    case 'unknown_bank_code': return 'كود بنك غير معروف: اكتب أول 4 حروف من SWIFT';
     case 'bank_mismatch': return 'اختصار البنك لا يطابق الآيبان';
     case 'bank_code_40_manual_confirmation_required': return 'كود 40 يتطلب إقرار يدوي (NCBK)';
     case 'invalid_amount_positive_2dp_required': return 'مبلغ غير موجب أو بدقة أكثر من منزلتين';
@@ -1043,7 +1045,9 @@ async function renderBankFileView(): Promise<string> {
         <td class="number">${idx + 1}</td>
         <td><strong>${esc(r.name || '—')}</strong></td>
         <td class="number">${esc(r.iqama)}</td>
-        <td><span class="tag">${esc(r.bank || '—')}</span></td>
+        <td>${fvBankManualRows.has(idx)
+          ? `<input type="text" maxlength="4" class="bank-code-input" data-index="${idx}" value="${esc(r.bank || '')}" style="width: 70px; text-transform: uppercase;" placeholder="SWIFT">`
+          : `<span class="tag">${esc(r.bank || '—')}</span>`}</td>
         <td class="number" style="font-family: monospace; letter-spacing: 0.5px;">${esc(r.iban || '—')}</td>
         <td>
           <input type="number" step="0.01" min="0.01" class="bank-amount-input number" data-index="${idx}" value="${Number(r.amount).toFixed(2)}" style="width: 130px; font-weight: 700; text-align: left;" required>
@@ -1124,6 +1128,7 @@ function bindBankFileView(): void {
 
         fvBankPreviewData = data;
         fvBankRows = data.rows || [];
+        fvBankManualRows = new Set(fvBankRows.map((r: any, i: number) => (r.errors || []).includes('unknown_bank_code') ? i : -1).filter((i: number) => i >= 0));
         show('debts');
         toast('تم تحميل معاينة ملف البنك');
       } catch (e: any) {
@@ -1159,6 +1164,18 @@ function bindBankFileView(): void {
         }
       }
       // تحديث حالة زر التصدير والإحصائيات
+      updateBankFileExportState();
+    };
+  });
+
+  document.querySelectorAll<HTMLInputElement>('.bank-code-input').forEach(input => {
+    input.oninput = () => {
+      const idx = Number(input.dataset.index);
+      const code = input.value.trim().toUpperCase();
+      fvBankRows[idx].bank = code;
+      const errors = (fvBankRows[idx].errors || []).filter((e: string) => e !== 'unknown_bank_code');
+      if (!/^[A-Z]{4}$/.test(code)) errors.push('unknown_bank_code');
+      fvBankRows[idx].errors = errors;
       updateBankFileExportState();
     };
   });

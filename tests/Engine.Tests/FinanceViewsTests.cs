@@ -97,7 +97,9 @@ public sealed class FinanceViewsTests
     {
         foreach(string code in new[]{"80","40","99"})Assert.IsTrue(BankPayrollFiles.ValidIban(FakeIban(code)));
         Assert.IsFalse(BankPayrollFiles.ValidIban(FakeIban()[..23]+"4"));Assert.IsFalse(BankPayrollFiles.ValidIban("SA00"));
-        InStore(store=>{SalaryFixture(store,FakeIban("99"));var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));CollectionAssert.Contains(preview["rows"]![0]!["errors"]!.AsArray().Select(v=>v!.ToString()).ToArray(),"unknown_bank_code");Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,ExportInput(preview))));Assert.AreEqual(0,store.Read(c=>Store.List(c,"audit").Count));});
+        InStore(store=>{SalaryFixture(store,FakeIban("99"));var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));CollectionAssert.Contains(preview["rows"]![0]!["errors"]!.AsArray().Select(v=>v!.ToString()).ToArray(),"unknown_bank_code");Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,ExportInput(preview))));Assert.AreEqual(0,store.Read(c=>Store.List(c,"audit").Count));
+            var manual=ExportInput(preview);manual["rows"]![0]!["bank"]="stcb";Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,manual)));manual["rows"]![0]!["bank"]="STCB";StringAssert.Contains(Encoding.UTF8.GetString(store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,manual)).Bytes),"\r\nSTCB,");});
+        InStore(store=>{SalaryFixture(store);var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));var input=ExportInput(preview);input["rows"]![0]!["bank"]="INMA";Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,input)));});
         InStore(store=>{SalaryFixture(store,FakeIban("40"));var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));Assert.AreEqual("NCBK",preview["rows"]![0].S("bank"));Assert.IsFalse(preview.B("canExport"));var input=ExportInput(preview);Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,input)));input["confirmBankCode40"]=true;Assert.IsTrue(store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,input)).Bytes.Length>0);});
     }
     [TestMethod] public void PreviewUsesVerifiedIbanAndOnlyPosted2110ClosingPayableForTheRequestedCompany()
@@ -108,6 +110,11 @@ public sealed class FinanceViewsTests
             string before=Snapshot(store);var preview=store.Read(c=>BankPayrollFiles.Preview(c,Manager(),Input()));Assert.AreEqual(1,preview["rows"]!.AsArray().Count);Assert.AreEqual(1100m,preview["rows"]![0].N("amount"));Assert.AreEqual(FakeIban("10"),preview["rows"]![0].S("iban"));Assert.AreEqual("NCBK",preview["rows"]![0].S("bank"));Assert.AreEqual(before,Snapshot(store));
             var other=Input();other["sponsorId"]="EX";Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>store.Read(c=>BankPayrollFiles.Preview(c,Manager(),other))).Status);
         });
+    }
+    [TestMethod] public void SettledOrDebitRidersAreLeftOutAndDoNotBlockTheFile()
+    {
+        InStore(store=>{SalaryFixture(store);Journal(store,"paid-other","2026-10",Line("5301",Bw,300,0,"2000000222"),Line("2110",Bw,0,300,"2000000222"),Line("2110",Bw,300,0,"2000000222"),Line("MAIN.BW.DEBT",Bw,0,300,"2000000222"));
+            var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));Assert.AreEqual(1,preview["rows"]!.AsArray().Count);Assert.AreEqual(Rider,preview["rows"]![0].S("iqama"));Assert.IsTrue(preview.B("canExport"));});
     }
     [TestMethod] public void CsvHasExactBomCrlfAndHeaderAndAuditContainsOnlyMetadata()
     {

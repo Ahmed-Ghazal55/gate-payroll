@@ -23,7 +23,8 @@ public static class BankPayrollFiles
         var errors=new JsonArray();string iban=row.S("iban");
         if(iban=="")errors.Add("missing_iban");else if(!ValidIban(iban))errors.Add("invalid_iban_mod97");
         string bankCode=iban.Length>=6?iban.Substring(4,2):"";
-        if(!Banks.TryGetValue(bankCode,out var bank))errors.Add("unknown_bank_code");else if(row.S("bank")!=bank)errors.Add("bank_mismatch");
+        // BR §19: an unknown IBAN bank code is entered manually as the 4-letter SWIFT prefix.
+        if(!Banks.TryGetValue(bankCode,out var bank)){if(!Regex.IsMatch(row.S("bank"),@"\A[A-Z]{4}\z"))errors.Add("unknown_bank_code");}else if(row.S("bank")!=bank)errors.Add("bank_mismatch");
         if(bankCode=="40"&&!confirmBankCode40)errors.Add("bank_code_40_manual_confirmation_required");
         if(row["amount"] is not JsonValue amount||!amount.TryGetValue<decimal>(out var money)||money<=0||money!=J.Money(money))errors.Add("invalid_amount_positive_2dp_required");
         if(!Regex.IsMatch(row.S("iqama"),@"\A[12][0-9]{9}\z"))errors.Add("invalid_iqama");
@@ -52,7 +53,7 @@ public static class BankPayrollFiles
             if(string.CompareOrdinal(journal.S("period"),request.From)>=0)eligible.Add(iqama);
             amounts[iqama]=amounts.GetValueOrDefault(iqama)+line.N("credit")-line.N("debit");
         }
-        var rows=new JsonArray();foreach(var pair in amounts.Where(p=>eligible.Contains(p.Key)).OrderBy(p=>p.Key,StringComparer.Ordinal))
+        var rows=new JsonArray();foreach(var pair in amounts.Where(p=>p.Value>0&&eligible.Contains(p.Key)).OrderBy(p=>p.Key,StringComparer.Ordinal))
         {
             riders.TryGetValue(pair.Key,out var rider);
             if(rider.B("isEmployee")||rider.S("personRole") is "Employee" or "employee" or "administrative")continue;
@@ -80,10 +81,11 @@ public static class BankPayrollFiles
         {
             var row=rows[i] as JsonObject??throw new ApiError("صف غير صالح.");var original=baseline[i]!.AsObject();
             J.Need(row.All(p=>new[]{"bank","iban","amount","notes","name","iqama","address","errors"}.Contains(p.Key)),"يسمح بتعديل المبلغ والملاحظات فقط.");
-            foreach(string field in new[]{"bank","iban","name","iqama","address"})J.Need(row[field] is JsonValue&&row.S(field)==original.S(field),"يسمح بتعديل المبلغ والملاحظات فقط؛ أعد المعاينة لتحديث البيانات.");
+            foreach(string field in new[]{"iban","name","iqama","address"})J.Need(row[field] is JsonValue&&row.S(field)==original.S(field),"يسمح بتعديل المبلغ والملاحظات فقط؛ أعد المعاينة لتحديث البيانات.");
+            J.Need(row["bank"] is JsonValue&&(row.S("bank")==original.S("bank")||!Banks.ContainsKey(original.S("iban").Length>=6?original.S("iban").Substring(4,2):"")),"البنك يتعدل يدويًا فقط لو كود الآيبان غير معروف.");
             J.Need(row["notes"] is JsonValue notes&&notes.TryGetValue<string>(out var note)&&note.Length<=2000,"الملاحظات نص بحد أقصى 2000 حرف.");
             J.Need(Validate(row,input.B("confirmBankCode40")).Count==0,"يوجد خطأ في صفوف ملف البنك؛ صححه وأعد المعاينة قبل التصدير.");
-            if(row.N("amount")!=original.N("amount")||row.S("notes")!=original.S("notes"))edited++;
+            if(row.N("amount")!=original.N("amount")||row.S("notes")!=original.S("notes")||row.S("bank")!=original.S("bank"))edited++;
             total+=row.N("amount");checkedRows.Add(row);
         }
         byte[] bytes=Csv(checkedRows);string filename=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)+"_bulkPayroll.csv";

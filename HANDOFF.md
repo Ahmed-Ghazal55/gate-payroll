@@ -4,12 +4,13 @@
 |---|---|
 | Current writer | none |
 | Branch | feat/v0.9.0-finance-views |
-| Updated | 2026-10-28 by Antigravity |
+| Updated | 2026-10-28 by Claude Code (review + fix round) |
 
 ## Goal now
 0.9.0 finance views and bank-file frontend and backend verified locally; no push or deployment.
 
 ## Done (latest first)
+- Review fix round (Claude Code): unknown IBAN bank code now takes a manual 4-letter SWIFT bank (BR §19) instead of blocking export; riders with zero/debit 2110 closing balance are left out instead of blocking the whole file. 115 .NET passed / 6 skipped; frontend tsc build OK.
 - 0.9.0 finance views implemented in Frontend/src/finance-views.ts with minimal wiring in enterprise.ts; Payroll.Api untouched.
 - Four finance sub-tabs added:
   - "شجرة الحسابات المعتمدة": collapsible tree, search by code/name, badges (header/posting, nature debit/credit, type bank/cash/other, direction pay/receive/both), stats cards (total 392, posting 222, headers 170, new vs Excel 317/75).
@@ -37,7 +38,8 @@
 ## Open problems / decisions for Ghazal
 - Generic BANK.* has no proven actual bank configuration; unresolved 1112xx mappings stay in unmapped. Context-free category/platform/vehicle splits also remain explicit; no historical guesses or reclassification.
 - Bank source includes prior approved dues for selected riders, subtracts posted deductions/payments through to, and never nets 121x debts again. Prior-only riders without period activity/run require an appropriate wider from range.
-- Unknown IBAN bank code blocks export until the confirmed reference is updated; bank is immutable in this API. Code 40 remains a manual confirmation requirement.
+- Unknown IBAN bank code: bank is typed manually (BR §19); confirm the new code with the bank, then add it to ~/.agents/references/saudi-banks-iban.md and Banks. Code 40 remains a manual confirmation requirement.
+- Audit stores edited row count only, not per-row before/after (BR §19 says "every edit is recorded"); per-row detail would need PII. Ghazal to decide.
 - Existing Jahez opening counterpart remains 3101 pending owner decision on 2140/1240 or per-row policy; legacy unverified balances require existing reconciliation workflow.
 - Journal reversal/period close, capped company commission release, Jahez netting, second approvers, security hardening and journal-scan performance remain outside this feature.
 

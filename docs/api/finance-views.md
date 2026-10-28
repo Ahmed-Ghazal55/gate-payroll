@@ -154,13 +154,13 @@ python3 tools/generate_target_coa.py --check
 |---|---|
 | missing_iban | لا يوجد آيبان |
 | invalid_iban_mod97 | الشكل السعودي أو فحص mod-97 غير صحيح |
-| unknown_bank_code | كود البنك غير موجود في المرجع |
+| unknown_bank_code | كود البنك غير موجود في المرجع، ولم يُكتب bank يدويًا (4 حروف كبيرة) |
 | bank_mismatch | اختصار البنك لا يطابق الآيبان |
 | bank_code_40_manual_confirmation_required | كود 40 محجوب لحين التأكيد اليدوي؛ المتوقع NCBK وفق BR §19 |
 | invalid_amount_positive_2dp_required | مبلغ غير رقمي أو ≤ 0 أو بدقة أكثر من منزلتين |
 | invalid_iqama / missing_name | هوية غير صالحة أو اسم مفقود في المصدر |
 
-كود غير معروف يظل محجوبًا؛ تحديث مرجع البنك المؤكد خارج هذه العملية. طلب المهمة يقصر تعديل الصف على amount وnotes، لذلك لا ندعم إدخال bank يدويًا في التصدير.
+كود غير معروف: bank يُكتب يدويًا (أول 4 حروف من SWIFT) حسب BUSINESS_RULES §19، ويُحسب الصف ضمن editedRowCount. تعديل bank مرفوض لأي كود معروف. الصفوف اللي رصيد 2110 الختامي ليها صفر أو مدين لا تظهر في الملف.
 
 ## تصدير ملف البنك
 
