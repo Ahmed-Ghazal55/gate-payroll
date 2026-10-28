@@ -35,41 +35,44 @@ public static partial class RiderStatements
         var runs = Store.List(c, "run").Where(r => r.S("iqama") == iqama).ToList();
         var journals = Store.List(c, "journal").Where(j => j.S("status", "posted") == "posted").ToList();
         var rows = new List<JsonObject>();
+        int excludedLineCount = 0;
         foreach (var journal in journals)
         {
             string period = journal.S("period");
             // Posted journals use a validated accounting period, not the wall-clock creation month.
             // Keep malformed historical periods visible as an explicit error, rather than losing lines.
             var sourceLines = (journal["lines"] as JsonArray)?.OfType<JsonObject>().ToList() ?? [];
-            if (!sourceLines.Any(l => l.S("iqama") == iqama && Owner(l.S("sponsorId")))) continue;
+            if (!sourceLines.Any(l => l.S("iqama") == iqama)) continue;
+            // Future periods and an explicit company filter are query boundaries, not scope exclusions.
+            if (string.CompareOrdinal(period, to) > 0) continue;
             string type = journal.S("transactionType");
             var run = runs.FirstOrDefault(r => r.S("journalEntryId") == journal.S("id") || journal.S("sourceRef") == "PAYROLL:" + r.S("id"));
             for (int index = 0; index < sourceLines.Count; index++)
             {
                 var line = sourceLines[index];
-                if (line.S("iqama") != iqama || !Owner(line.S("sponsorId"))) continue;
+                if (line.S("iqama") != iqama || sponsor != null && line.S("sponsorId") != sponsor) continue;
+                if (!FinancialScopes.Sponsor(user, line.S("sponsorId"))) { excludedLineCount++; continue; }
                 string code = line.S("accountCode");
                 string debtId = FirstNonEmpty(line.S("debtId"), journal.S("debtId"));
                 debts.TryGetValue(debtId, out var debt);
-                if (debt != null && !DebtVisible(debt)) continue;
-                if (debtId != "" && debt == null && !admin) continue; // Cannot infer a missing debt's category or platform.
-                if ((code is "2110" or "1211" || type is "payroll_accrual" or "payroll_payment") && !payrollVisible) continue;
+                if (debt != null && !DebtVisible(debt)) { excludedLineCount++; continue; }
+                if (debtId != "" && debt == null && !admin) { excludedLineCount++; continue; } // Cannot infer a missing debt's category or platform.
+                if ((code is "2110" or "1211" || type is "payroll_accrual" or "payroll_payment") && !payrollVisible) { excludedLineCount++; continue; }
                 string category = FirstNonEmpty(debt.S("category"), line.S("category"), journal.S("category"));
-                if (category != "" && !FinancialScopes.Category(user, category)) continue;
+                if (category != "" && !FinancialScopes.Category(user, category)) { excludedLineCount++; continue; }
                 if (debt == null && code is "1210" or "1230" && category == "" && !admin &&
-                    !FinancialCore.CategoriesCatalog.All(cat => FinancialScopes.Category(user, cat.Code))) continue;
+                    !FinancialCore.CategoriesCatalog.All(cat => FinancialScopes.Category(user, cat.Code))) { excludedLineCount++; continue; }
                 string platform = FirstNonEmpty(debt.S("platform"), line.S("platform"), journal.S("platform"));
                 if (platform == "" && (code is "1240" or "2140" || code.StartsWith("SUP.", StringComparison.Ordinal) ||
                     code.EndsWith(".JAHEZ", StringComparison.Ordinal) || type.StartsWith("jahez_", StringComparison.Ordinal))) platform = "Jahez";
-                if (platform != "" && !Platform(platform)) continue;
+                if (platform != "" && !Platform(platform)) { excludedLineCount++; continue; }
                 if (platform == "" && debt == null && !admin)
                 {
                     var platforms = (run?["sourceRows"] as JsonArray)?.OfType<JsonObject>().Select(r => r.S("platform")).Where(p => p != "").Distinct().ToList() ?? [];
                     // A mixed or unlabelled posted line cannot be attributed to just the permitted platform.
-                    if (platforms.Count > 0 ? platforms.Any(p => !Platform(p)) : !AllPlatforms()) continue;
+                    if (platforms.Count > 0 ? platforms.Any(p => !Platform(p)) : !AllPlatforms()) { excludedLineCount++; continue; }
                 }
                 J.Period(period);
-                if (string.CompareOrdinal(period, to) > 0) continue;
                 bool control = code is "2110" or "1210" or "1211" or "1230";
                 bool jahezControl = code == "1230" && platform == "Jahez";
                 bool jahez = jahezControl || code == "2140" || code.StartsWith("SUP.", StringComparison.Ordinal) && code.EndsWith(".SET", StringComparison.Ordinal) ||
@@ -123,16 +126,18 @@ public static partial class RiderStatements
             month = month.AddMonths(1);
         }
         bool incomplete = legacy.Count > 0 || rows.Any(r => r.B("legacyEvidenceIncomplete"));
+        bool scopeLimited = excludedLineCount > 0;
         return new JsonObject
         {
             ["rider"] = new JsonObject { ["iqama"] = iqama, ["name"] = rider.S("name", "غير مسجل"), ["city"] = rider.S("city"), ["status"] = rider.S("status") },
             ["from"] = from, ["to"] = to, ["sponsorId"] = sponsor, ["currency"] = "SAR", ["balanceBasis"] = "posted_journal_lines",
+            ["scopeLimited"] = scopeLimited, ["excludedLineCount"] = excludedLineCount, ["closingNetIsComplete"] = !scopeLimited,
             ["openingBalance"] = opening, ["months"] = months, ["details"] = new JsonArray(details.Select(r => (JsonNode?)r).ToArray()),
             ["periodTotals"] = SimpleTotals(details), ["netMovement"] = J.Money(details.Sum(r => r.N("netAmount"))), ["closingNet"] = balance,
             ["closingSalaryNet"] = J.Money(rows.Sum(r => r.N("salaryAmount"))),
             ["openingJahezCashNet"] = J.Money(before.Sum(r => r.N("jahezCashAmount"))), ["closingJahezCashNet"] = J.Money(rows.Sum(r => r.N("jahezCashAmount"))),
             ["closingOtherDebtNet"] = J.Money(rows.Sum(r => r.N("netAmount") - r.N("salaryAmount") - r.N("jahezCashAmount"))),
-            ["closingLabelAr"] = balance > 0 ? "مستحق لك لدى الشركة" : balance < 0 ? "مستحق عليك للشركة" : "لا يوجد رصيد متبقٍ",
+            ["closingLabelAr"] = scopeLimited ? "صافي جزئي ضمن نطاقك — لا يمثل الرصيد الكامل" : balance > 0 ? "مستحق لك لدى الشركة" : balance < 0 ? "مستحق عليك للشركة" : "لا يوجد رصيد متبقٍ",
             ["legacyEvidenceIncomplete"] = incomplete,
             ["historyCoverage"] = incomplete ? "legacy_requires_review" : "journal_events", ["legacyUnverifiedDebts"] = legacy,
             ["transactionTypes"] = new JsonArray(details.GroupBy(r => r.S("transactionType")).Select(g => (JsonNode?)new JsonObject

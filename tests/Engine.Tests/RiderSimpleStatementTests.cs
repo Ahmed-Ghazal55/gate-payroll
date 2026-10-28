@@ -115,9 +115,46 @@ public sealed class RiderSimpleStatementTests
             var user = Scoped(); var statement = Simple(store, user: user); var rows = statement["details"]!.AsArray().OfType<JsonObject>().ToList();
             Assert.AreEqual(2, rows.Count); Assert.IsTrue(rows.All(r => r.S("sponsorId") == Bw)); Assert.AreEqual(-100m, statement.N("closingNet"));
             Assert.AreEqual(-100m, statement["periodTotals"].N("transferred")); Assert.AreEqual(1, statement["transactionTypes"]!.AsArray().Count);
+            Assert.IsTrue(statement.B("scopeLimited")); Assert.AreEqual(8m, statement.N("excludedLineCount")); Assert.IsFalse(statement.B("closingNetIsComplete"));
+            Assert.AreEqual("صافي جزئي ضمن نطاقك — لا يمثل الرصيد الكامل", statement.S("closingLabelAr"));
+            var selected = Simple(store, sponsor: "BW", user: user); Assert.AreEqual(4m, selected.N("excludedLineCount")); Assert.IsTrue(selected.B("scopeLimited"));
+            var admin = Simple(store); Assert.IsFalse(admin.B("scopeLimited")); Assert.AreEqual(0m, admin.N("excludedLineCount")); Assert.IsTrue(admin.B("closingNetIsComplete"));
+            var selectedAdmin = Simple(store, sponsor: "BW"); Assert.IsFalse(selectedAdmin.B("scopeLimited")); Assert.IsTrue(selectedAdmin.B("closingNetIsComplete"));
+
             Assert.AreEqual(403, Assert.ThrowsExactly<ApiError>(() => Simple(store, sponsor: "EX", user: user)).Status);
             Assert.IsTrue(Simple(store)["details"]!.AsArray().Count > rows.Count); // Administrative override.
             Assert.AreEqual(Subledger(store, "2026-10"), Simple(store).N("closingNet"));
+        });
+    }
+
+    [TestMethod]
+    [DataRow("company")]
+    [DataRow("category")]
+    [DataRow("platform")]
+    [DataRow("payroll.view")]
+    public void ScopeExclusionsFlagOpeningHistoryButNotFuturePeriods(string reason)
+    {
+        InStore(store =>
+        {
+            string owner = reason == "company" ? Ex : Bw;
+            string category = reason == "category" ? "WorkPermit" : "Advance";
+            string platform = reason == "platform" ? "Keeta" : "Jahez";
+            Debt(store, "restricted", owner, category, platform);
+            bool payroll = reason == "payroll.view";
+            string type = payroll ? "payroll_accrual" : "debt_accrual";
+            JsonObject[] Lines() => payroll
+                ? [Line("5301", owner, 100, 0), Line("2110", owner, 0, 100)]
+                : [Line("1210", owner, 100, 0, "restricted"), Line("2130", owner, 0, 100, "restricted")];
+            Post(store, type, "2026-09", "restricted-opening", Lines());
+            Post(store, type, "2026-11", "future-excluded", Lines());
+            var user = Scoped();
+            if (payroll) user = new ClaimsPrincipal(new ClaimsIdentity(user.Claims.Where(c => c.Type != "permission" || c.Value != "payroll.view"), "synthetic"));
+            var result = Simple(store, user: user);
+            Assert.IsTrue(result.B("scopeLimited")); Assert.AreEqual(2m, result.N("excludedLineCount")); Assert.IsFalse(result.B("closingNetIsComplete"));
+            Assert.AreEqual(0m, result.N("openingBalance")); Assert.AreEqual(0m, result.N("closingNet"));
+            Assert.AreEqual(0, result["details"]!.AsArray().Count); Assert.AreEqual(0, result["transactionTypes"]!.AsArray().Count);
+            Assert.IsFalse(result.ContainsKey("excludedLines")); Assert.IsFalse(result.ContainsKey("excludedAmount"));
+            var unrestricted = Simple(store); Assert.IsFalse(unrestricted.B("scopeLimited")); Assert.AreEqual(0m, unrestricted.N("excludedLineCount")); Assert.IsTrue(unrestricted.B("closingNetIsComplete"));
         });
     }
 

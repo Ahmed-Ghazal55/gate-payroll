@@ -4,12 +4,13 @@
 |---|---|
 | Current writer | none |
 | Branch | feat/v0.8.0-rider-simple-statement |
-| Updated | 2026-10-28 by Claude Code (review) |
+| Updated | 2026-10-28 by Codex |
 
 ## Goal now
 0.8.0 plain rider statement frontend and backend verified locally; no push or deployment.
 
 ## Done (latest first)
+- B1 backend fixed: scopeLimited/excludedLineCount/closingNetIsComplete flag scope-hidden posted lines (including opening history), disclose no hidden amounts/details, and label partial balances. Scope assertions + four exclusion cases: 102 .NET passed / 6 SQL Server skipped; API docs and learning log updated. No push.
 - Plain rider statement UI created in Frontend/src/rider-statement.ts with minimal wiring in enterprise.ts; Payroll.Api untouched.
 - Sub-tab "كشف حساب مبسّط" added next to statement-360; "كشف مبسّط" button added in rider rows and debt rows.
 - Filters for rider, company and month-range; six stat cards (اتستحقله، اتخصم، استلم، اتحوّل، مديونية، الصافي مع تمييز دائن/مدين بالأخضر والأحمر).
@@ -27,8 +28,7 @@
 - Prior accounting/COA/permission fixes retained; legacy posted classifications were not rewritten.
 
 ## Next step (exact)
-0. Review 2026-10-28 (Claude Code) — fix these 2 blocking items in one round, then Ghazal decides:
-   - B1 `Payroll.Api/RiderStatements.Simple.cs:54-70`: out-of-scope lines are skipped silently, so a limited user sees a partial `closingNet` labelled «مستحق لك/عليك». Count them, return `scopeLimited` + `hiddenLineCount`; the UI shows a warning and no final label. Add an assert in `RiderSimpleStatementTests.CompanyCategoryPlatform...`.
+0. Review 2026-10-28: B1 backend fixed in this round; B2 remains for Ghazal outside the requested fix:
    - B2 `Frontend/src/rider-statement.ts:334-366`: `jahez_cash` and `other` affect the net but have no card, so the 6 cards do not explain the net (BR §5). Show salary / Jahez cash / other from `closingSalaryNet`, `closingJahezCashNet`, `closingOtherDebtNet`.
    - Verified: dotnet test 98 pass / 6 skip; `tsc -p Frontend` clean; `tests/rider-statement-simple.mjs` PASS. `tests/rider-statement-ui.mjs` not run here (playwright missing in /tmp/gate-browser).
 1. Review docs/api/rider-statement-simple.md and the branch diff; run the commands below. Commit is local only, with the requested feature message.
