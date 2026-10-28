@@ -110,10 +110,62 @@ try {
   const statLabels = await page.locator('.simple-statement-stats .stat .label').allInnerTexts();
   assert.deepEqual(statLabels, ['اتستحقله', 'اتخصم', 'استلم', 'اتحوّل', 'مديونية', 'الصافي']);
 
+  // Verify that cards add up to the net: 0 + 0 + 0 + 0 + (-400) = -400
+  const statValues = (await page.locator('.simple-statement-stats .stat strong').allInnerTexts())
+    .map(t => Number(t.replace(/,/g, '').trim()));
+  const movementSum = statValues.slice(0, 5).reduce((s, v) => s + v, 0);
+  assert.equal(movementSum, statValues[5], `Cards sum (${movementSum}) must equal net (${statValues[5]})`);
+
   // Net should be -400 (money-negative / red)
   const netCard = page.locator('.simple-statement-stats .stat').nth(5);
   assert.match(await netCard.locator('strong').innerText(), /400/);
   assert.ok(await netCard.locator('strong').evaluate(el => el.classList.contains('money-negative')));
+
+  // Verify Net Split cards (Salary, Jahez Cash, Other Debts)
+  const splitLabels = await page.locator('.net-split-cards .stat .label').allInnerTexts();
+  assert.equal(splitLabels.length, 3);
+  assert.ok(splitLabels[0].includes('الراتب'));
+  assert.ok(splitLabels[1].includes('جاهز'));
+  assert.ok(splitLabels[2].includes('الأخرى'));
+  const splitValues = (await page.locator('.net-split-cards .stat strong').allInnerTexts())
+    .map(t => Number(t.replace(/,/g, '').trim()));
+  const splitSum = splitValues.reduce((s, v) => s + v, 0);
+  assert.equal(splitSum, statValues[5], `Split sum (${splitSum}) must equal net (${statValues[5]})`);
+
+  // Verify scopeLimited=false shows normal phrase
+  const normalPhrase = await netCard.locator('.hint').innerText();
+  assert.ok(normalPhrase.includes('مستحق عليك للشركة'));
+
+  // 3. Test scopeLimited=true: warning banner appears, "مستحق لك/عليك" phrase is hidden
+  await page.route('**/api/finance/statement/rider/*/simple*', async route => {
+    const res = await route.fetch();
+    const json = await res.json();
+    json.scopeLimited = true;
+    json.excludedLineCount = 3;
+    json.closingNetIsComplete = false;
+    json.closingLabelAr = 'صافي جزئي ضمن نطاقك — لا يمثل الرصيد الكامل';
+    await route.fulfill({json});
+  });
+
+  await page.locator('[data-subtab="debts-list"]').click();
+  await page.locator('[data-subtab="statement-simple"]').click();
+  await page.locator('.scope-limited-banner').waitFor();
+
+  const bannerText = await page.locator('.scope-limited-banner').innerText();
+  assert.ok(bannerText.includes('تنبيه نطاق الصلاحيات'));
+  assert.ok(bannerText.includes('3 سطر مالي'));
+
+  const scopedNetText = await page.locator('.simple-statement-stats .stat').nth(5).locator('.hint').innerText();
+  assert.ok(scopedNetText.includes('صافي جزئي ضمن نطاقك'));
+  assert.ok(!scopedNetText.includes('مستحق لك'));
+  assert.ok(!scopedNetText.includes('مستحق عليك'));
+
+  // Verify entire screen has no "مستحق لك / مستحق عليك" phrase when scopeLimited
+  const scopedPageText = await page.locator('#content').innerText();
+  assert.ok(!scopedPageText.includes('مستحق لك لدى الشركة'));
+  assert.ok(!scopedPageText.includes('مستحق عليك للشركة'));
+
+  await page.unroute('**/api/finance/statement/rider/*/simple*');
 
   // Verify Month table
   const monthTable = page.locator('.simple-statement-month-table');

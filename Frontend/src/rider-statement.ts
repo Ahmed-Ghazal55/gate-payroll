@@ -213,6 +213,22 @@ async function renderSimpleStatementView(): Promise<string> {
         color: var(--accent);
         transition: transform 0.15s ease;
       }
+      .scope-limited-banner {
+        border-inline-start: 4px solid #d97706 !important;
+        font-size: 13px !important;
+        padding: 12px 16px !important;
+        margin-bottom: 16px !important;
+      }
+      .net-split-cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      @media (max-width: 700px) {
+        .net-split-cards {
+          grid-template-columns: 1fr;
+        }
+      }
       @media print {
         @page {
           size: A4 portrait;
@@ -246,11 +262,22 @@ async function renderSimpleStatementView(): Promise<string> {
           margin-bottom: 10px !important;
           break-inside: avoid;
         }
+        .scope-limited-banner {
+          display: block !important;
+          background: #fff8e9 !important;
+          border: 1px solid #f2e2ba !important;
+          border-inline-start: 4px solid #d97706 !important;
+          color: #927132 !important;
+          font-size: 9.5px !important;
+          padding: 8px 10px !important;
+          margin-bottom: 10px !important;
+          break-inside: avoid;
+        }
         .simple-statement-stats {
           display: grid !important;
           grid-template-columns: repeat(6, 1fr) !important;
           gap: 6px !important;
-          margin-bottom: 12px !important;
+          margin-bottom: 10px !important;
         }
         .simple-statement-stats .stat {
           border: 1px solid #cbd5e1 !important;
@@ -261,7 +288,7 @@ async function renderSimpleStatementView(): Promise<string> {
           break-inside: avoid;
         }
         .simple-statement-stats .stat strong {
-          font-size: 14px !important;
+          font-size: 13px !important;
           margin: 2px 0 !important;
         }
         .simple-statement-stats .stat .label {
@@ -269,6 +296,35 @@ async function renderSimpleStatementView(): Promise<string> {
           color: #475569 !important;
         }
         .simple-statement-stats .stat .hint {
+          font-size: 8px !important;
+          color: #64748b !important;
+        }
+        .simple-statement-net-split {
+          break-inside: avoid;
+          margin-bottom: 10px !important;
+        }
+        .net-split-cards {
+          display: grid !important;
+          grid-template-columns: repeat(3, 1fr) !important;
+          gap: 6px !important;
+        }
+        .net-split-cards .stat {
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 4px !important;
+          padding: 6px 8px !important;
+          box-shadow: none !important;
+          background: #f8fafc !important;
+          break-inside: avoid;
+        }
+        .net-split-cards .stat strong {
+          font-size: 13px !important;
+          margin: 2px 0 !important;
+        }
+        .net-split-cards .stat .label {
+          font-size: 9px !important;
+          color: #475569 !important;
+        }
+        .net-split-cards .stat .hint {
           font-size: 8px !important;
           color: #64748b !important;
         }
@@ -306,6 +362,11 @@ async function renderSimpleStatementView(): Promise<string> {
     </style>
   `;
 
+  const isScopeLimited = Boolean(st.scopeLimited || st.closingNetIsComplete === false);
+  const finalNetPhrase = isScopeLimited
+    ? 'صافي جزئي ضمن نطاقك — لا يمثل الرصيد الكامل'
+    : (st.closingLabelAr || (st.closingNet > 0 ? 'مستحق لك لدى الشركة' : st.closingNet < 0 ? 'مستحق عليك للشركة' : 'لا يوجد رصيد متبقٍ'));
+
   const headerHtml = `
     <div class="panel simple-statement-header">
       <div class="panel-title" style="margin-bottom: 6px; flex-wrap: wrap; gap: 10px;">
@@ -314,12 +375,14 @@ async function renderSimpleStatementView(): Promise<string> {
             <span>كشف حساب المندوب: <strong>${esc(st.rider?.name || 'غير مسجل')}</strong></span>
             <span class="number" style="font-size: 14px; color: var(--muted);">${esc(st.rider?.iqama || statementSimpleRiderIqama)}</span>
             ${badge(statusLabels[st.rider?.status] || st.rider?.status || 'نشط', st.rider?.status === 'Active' ? 'good' : 'warn')}
+            ${isScopeLimited ? `<span class="tag warn">نطاق جزئي (${Number(st.excludedLineCount || 0)} سطر محجوب)</span>` : ''}
           </h2>
           <div class="hint" style="margin-top: 6px; line-height: 1.6;">
             المدينة: <strong>${esc(st.rider?.city || '—')}</strong> ·
             الفترة: <strong>${esc(st.from)}</strong> إلى <strong>${esc(st.to)}</strong> ·
             السجل: <strong>${esc(sponsorName)}</strong> ·
             أساس الرصيد: <strong>${st.balanceBasis === 'posted_journal_lines' ? 'قيود يومية مثبتة' : esc(st.balanceBasis)}</strong>
+            ${isScopeLimited ? ` · <span style="color: #b45309; font-weight: 700;">صافي جزئي — غير مكتمل</span>` : ''}
           </div>
         </div>
         <div class="actions no-print">
@@ -331,6 +394,15 @@ async function renderSimpleStatementView(): Promise<string> {
     </div>
   `;
 
+  const scopeLimitedHtml = isScopeLimited ? `
+    <div class="notice warn scope-limited-banner">
+      ⚠️ <strong>تنبيه نطاق الصلاحيات:</strong> تم حجب ${Number(st.excludedLineCount || 0)} سطر مالي مثبت يخص المندوب لعدم شمول صلاحيات المستخدم لنطاق الشركة أو الفئة أو المنصة أو مسيرات الرواتب.
+      الأرقام المعروضة تمثل <strong>صافياً جزئياً</strong> ضمن نطاق صلاحياتك فقط، ولا تمثل الرصيد النهائي الكامل للمندوب.
+    </div>
+  ` : '';
+
+  const netDebtMovement = (st.periodTotals?.debt_added || 0) + (st.periodTotals?.debt_collected || 0) + (st.periodTotals?.jahez_cash || 0) + (st.periodTotals?.other || 0);
+
   const statsHtml = `
     <div class="stats simple-statement-stats">
       <article class="stat">
@@ -340,29 +412,57 @@ async function renderSimpleStatementView(): Promise<string> {
       </article>
       <article class="stat">
         <div class="label">اتخصم</div>
-        <strong class="${(st.periodTotals?.deducted || 0) !== 0 ? 'money-negative' : ''}">${money(Math.abs(st.periodTotals?.deducted || 0))}</strong>
+        <strong class="${(st.periodTotals?.deducted || 0) < 0 ? 'money-negative' : ''}">${money(st.periodTotals?.deducted || 0)}</strong>
         <div class="hint">استقطاعات وخصومات معتمدة</div>
       </article>
       <article class="stat">
         <div class="label">استلم</div>
-        <strong>${money(Math.abs(st.periodTotals?.received || 0))}</strong>
+        <strong class="${(st.periodTotals?.received || 0) < 0 ? 'money-negative' : ''}">${money(st.periodTotals?.received || 0)}</strong>
         <div class="hint">دفعات نقدية وبنكية مسلّمة</div>
       </article>
       <article class="stat">
         <div class="label">اتحوّل</div>
-        <strong>${money(st.periodTotals?.transferred || 0)}</strong>
+        <strong class="${(st.periodTotals?.transferred || 0) < 0 ? 'money-negative' : (st.periodTotals?.transferred || 0) > 0 ? 'money-positive' : ''}">${money(st.periodTotals?.transferred || 0)}</strong>
         <div class="hint">مناقلات حقوق بين السجلات</div>
       </article>
       <article class="stat">
         <div class="label">مديونية</div>
-        <strong class="${((st.periodTotals?.debt_added || 0) + (st.periodTotals?.debt_collected || 0)) < 0 ? 'money-negative' : ''}">${money(Math.abs(st.periodTotals?.debt_added || 0))}</strong>
-        <div class="hint">سُدد منها: ${money(st.periodTotals?.debt_collected || 0)} ر.س</div>
+        <strong class="${netDebtMovement < 0 ? 'money-negative' : netDebtMovement > 0 ? 'money-positive' : ''}">${money(netDebtMovement)}</strong>
+        <div class="hint">أضيف: ${money(Math.abs(st.periodTotals?.debt_added || 0))} · سُدد: ${money(st.periodTotals?.debt_collected || 0)}${(st.periodTotals?.jahez_cash || 0) !== 0 ? ` · جاهز: ${money(st.periodTotals?.jahez_cash)}` : ''}${(st.periodTotals?.other || 0) !== 0 ? ` · أخرى: ${money(st.periodTotals?.other)}` : ''}</div>
       </article>
       <article class="stat">
         <div class="label">الصافي</div>
         <strong class="${st.closingNet > 0 ? 'money-positive' : st.closingNet < 0 ? 'money-negative' : ''}">${money(st.closingNet)}</strong>
-        <div class="hint">${esc(st.closingLabelAr || (st.closingNet > 0 ? 'مستحق لك لدى الشركة' : st.closingNet < 0 ? 'مستحق عليك للشركة' : 'لا يوجد رصيد متبقٍ'))} · رصيد الافتتاح: ${money(st.openingBalance)}</div>
+        <div class="hint">${esc(finalNetPhrase)} · رصيد الافتتاح: ${money(st.openingBalance)}</div>
       </article>
+    </div>
+  `;
+
+  const netSplitHtml = `
+    <div class="panel simple-statement-net-split">
+      <div class="panel-title" style="margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+        <h3 style="margin: 0; font-size: 14px; font-weight: 700;">
+          تفصيل الصافي حسب الحسابات (${money(st.closingNet)} ر.س)
+        </h3>
+        <span class="muted small">مجموع الحسابات الثلاثة يطابق الصافي بدقة: حساب الراتب + كاش جاهز + الذمم والديون الأخرى</span>
+      </div>
+      <div class="stats net-split-cards" style="margin-bottom: 0;">
+        <article class="stat">
+          <div class="label">حساب الراتب والمستحقات (Salary Account)</div>
+          <strong class="${st.closingSalaryNet > 0 ? 'money-positive' : st.closingSalaryNet < 0 ? 'money-negative' : ''}">${money(st.closingSalaryNet)}</strong>
+          <div class="hint">مستحقات عمل معتمدة وعجز الرواتب (ح/ 2110 و1211)</div>
+        </article>
+        <article class="stat">
+          <div class="label">كاش تطبيق جاهز (Jahez Cash)</div>
+          <strong class="${st.closingJahezCashNet > 0 ? 'money-positive' : st.closingJahezCashNet < 0 ? 'money-negative' : ''}">${money(st.closingJahezCashNet)}</strong>
+          <div class="hint">عهدة كاش جاهز المثبتة (ح/ 1230) — منفصلة عن الراتب</div>
+        </article>
+        <article class="stat">
+          <div class="label">الديون والذمم الأخرى (Other Debts)</div>
+          <strong class="${st.closingOtherDebtNet > 0 ? 'money-positive' : st.closingOtherDebtNet < 0 ? 'money-negative' : ''}">${money(st.closingOtherDebtNet)}</strong>
+          <div class="hint">باقي ذمم وسلف وخدمات HR المثبتة على المندوب (ح/ 1210)</div>
+        </article>
+      </div>
     </div>
   `;
 
@@ -407,7 +507,7 @@ async function renderSimpleStatementView(): Promise<string> {
     </div>
   `;
 
-  return styles + filtersHtml + headerHtml + statsHtml + legacyHtml + tableHtml;
+  return styles + filtersHtml + headerHtml + scopeLimitedHtml + statsHtml + netSplitHtml + legacyHtml + tableHtml;
 }
 
 function bindSimpleStatementView(): void {
