@@ -5,7 +5,7 @@ namespace Payroll;
 
 public static class FinancialScopes
 {
-    private static bool FinanceRole(string role)=>role is "Admin" or "SuperAdmin" or "Accountant" or "FinancialAccountant";
+    private static bool FinanceRole(string role)=>role is "Admin" or "SuperAdmin" or "Accountant" or "FinancialAccountant" or "FinancialManager";
     public static JsonObject Normalize(JsonObject scope)
     {
         var result=new JsonObject();

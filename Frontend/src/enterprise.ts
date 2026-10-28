@@ -47,6 +47,23 @@ async function ensureRiderStatementModule():Promise<void>{
  });
 }
 
+async function ensureFinanceViewsModule():Promise<void>{
+ if(typeof (window as any).renderFinanceViewsTab==='function')return;
+ const existing=document.querySelector<HTMLScriptElement>('script[src*="finance-views.js"]');
+ if(existing){
+  if(typeof (window as any).renderFinanceViewsTab==='function')return;
+  await new Promise<void>(resolve=>{existing.addEventListener('load',()=>resolve());setTimeout(resolve,150);});
+  return;
+ }
+ await new Promise<void>((resolve,reject)=>{
+  const s=document.createElement('script');
+  s.src='/finance-views.js';
+  s.onload=()=>resolve();
+  s.onerror=()=>reject(new Error('تعذر تحميل كود القوائم المالية'));
+  document.head.appendChild(s);
+ });
+}
+
 // فلترة الحسابات والصناديق ديناميكياً حسب نوع العملية لمنع ظهور صندوق جاهز أو رسوم جاهز أو بترو آب في طلبات الموارد البشرية أو السلف
 function filterVaultsForCategory(vaults:any[],categoryCode:string,operationKind:'disbursement'|'collection',preferredSponsorId?:string,platform?:string):any[]{
  const catalog=cache.financeCatalog||{categories:[]};
@@ -221,9 +238,13 @@ async function renderFinancialSystemHub():Promise<string>{
   ['vaults-coa',`الخزائن وشجرة الحسابات والقيود (${journals.length})`],
   ['statement-360','كشف حساب المندوب والشركات 360°'],
   ['statement-simple','كشف حساب مبسّط'],
+  ['coa-target','شجرة الحسابات المعتمدة'],
+  ['trial-balance','ميزان المراجعة'],
+  ['income-statement','قائمة الدخل'],
+  ['bank-file','ملف البنك'],
   ['approvals-notif',`الاعتمادات المتبادلة والإشعارات والجوال ${pendingApprovalsCount?`(${pendingApprovalsCount})`:''}`],
   ['promissory-archive',`أرشيف سندات الأمر ${promissory.featureEnabled?'(مفعل)':'(معلق)'}`]
- ].filter(([id])=>id!=='vaults-coa'||can('treasury.view')).filter(([id])=>id!=='approvals-notif'||can('approvals.view'));
+ ].filter(([id])=>id!=='vaults-coa'||can('treasury.view')).filter(([id])=>id!=='coa-target'||can('treasury.view')).filter(([id])=>id!=='trial-balance'||can('treasury.journals')).filter(([id])=>id!=='income-statement'||can('treasury.journals')).filter(([id])=>id!=='bank-file'||(can('finance.bankfile.export')&&can('payroll.view'))).filter(([id])=>id!=='approvals-notif'||can('approvals.view'));
  if(!subTabs.some(([id])=>id===financeSubTab))financeSubTab='debts-list';
 
  const topActions=`${userPermissions.some(p=>p.startsWith('debts.create.'))||userRole==='Admin'||userRole==='SuperAdmin'?'<button data-enterprise="debt-new">＋ تسجيل مديونية / خدمة HR / سلفة</button>':''}
@@ -456,6 +477,9 @@ ${can('treasury.transfer')?'<button class="secondary" data-enterprise="vault-tra
  } else if(financeSubTab==='statement-simple'){
   await ensureRiderStatementModule();
   bodyHtml=await renderSimpleStatementView();
+ } else if(['coa-target','trial-balance','income-statement','bank-file'].includes(financeSubTab)){
+  await ensureFinanceViewsModule();
+  bodyHtml=await (window as any).renderFinanceViewsTab(financeSubTab);
  } else if(financeSubTab==='approvals-notif'){
   bodyHtml=`
    <div class="split">
@@ -558,6 +582,10 @@ function bindEnterprise(view:string){
  if(view==='debts'){
   if(financeSubTab==='statement-simple'){
    if(typeof (window as any).bindSimpleStatementView==='function')bindSimpleStatementView();
+   return;
+  }
+  if(['coa-target','trial-balance','income-statement','bank-file'].includes(financeSubTab)){
+   if(typeof (window as any).bindFinanceViewsTab==='function')(window as any).bindFinanceViewsTab(financeSubTab);
    return;
   }
   const rSel=$('#statement-rider-select');

@@ -1,0 +1,5333 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-10-28.1",
+  "source": "gate-finance-spec/docs/02-chart-of-accounts.md §§4,6; BUSINESS_RULES §20",
+  "accounts": [
+    {
+      "code": "1",
+      "nameAr": "الأصول",
+      "parent": null,
+      "level": 1,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "11",
+      "nameAr": "الأصول المتداولة",
+      "parent": "1",
+      "level": 2,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "111",
+      "nameAr": "النقدية وما في حكمها",
+      "parent": "11",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1111",
+      "nameAr": "الصندوق",
+      "parent": "111",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "cash",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "111101",
+      "nameAr": "الصندوق الرئيسي",
+      "parent": "1111",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "cash",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "111102",
+      "nameAr": "صندوق المصروفات النثرية",
+      "parent": "1111",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "cash",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "111103",
+      "nameAr": "صندوق تصفيات جاهز المركزي",
+      "parent": "1111",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "cash",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "111104",
+      "nameAr": "صندوق رسوم فتح حسابات جاهز",
+      "parent": "1111",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "cash",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1112",
+      "nameAr": "البنوك",
+      "parent": "111",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "bank",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "111201",
+      "nameAr": "بنك الراجحي - حساب جاري",
+      "parent": "1112",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "bank",
+      "direction": "both",
+      "company": "حسب الإعداد",
+      "status": "active"
+    },
+    {
+      "code": "111202",
+      "nameAr": "البنك الأهلي السعودي - حساب جاري",
+      "parent": "1112",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "bank",
+      "direction": "both",
+      "company": "حسب الإعداد",
+      "status": "active"
+    },
+    {
+      "code": "111203",
+      "nameAr": "حسابات بنكية بالعملات الأجنبية",
+      "parent": "1112",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "bank",
+      "direction": "both",
+      "company": "حسب الإعداد",
+      "status": "active"
+    },
+    {
+      "code": "111204",
+      "nameAr": "رصيد بنكي مخصص لتسويات جاهز",
+      "parent": "1112",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "bank",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112",
+      "nameAr": "الذمم المدينة وأرصدة مدينة أخرى",
+      "parent": "11",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1121",
+      "nameAr": "ذمم العملاء التجارية",
+      "parent": "112",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112101",
+      "nameAr": "عملاء - محلي",
+      "parent": "1121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112102",
+      "nameAr": "عملاء - تصدير",
+      "parent": "1121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112103",
+      "nameAr": "مخصص خسائر الائتمان المتوقعة للعملاء (دائن مقابل)",
+      "parent": "1121",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1122",
+      "nameAr": "أوراق القبض",
+      "parent": "112",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112201",
+      "nameAr": "أوراق قبض محلية",
+      "parent": "1122",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112202",
+      "nameAr": "أوراق قبض برسم التحصيل",
+      "parent": "1122",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1123",
+      "nameAr": "ذمم موظفين وسلف وعُهد",
+      "parent": "112",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112301",
+      "nameAr": "سلف موظفين",
+      "parent": "1123",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112302",
+      "nameAr": "عهد نقدية موظفين",
+      "parent": "1123",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112303",
+      "nameAr": "ذمم مدينة اخري موظفين",
+      "parent": "1123",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112304",
+      "nameAr": "عهدة تصفيات جاهز - مشرف",
+      "parent": "1123",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112305",
+      "nameAr": "عهدة رسوم فتح حسابات جاهز - مشرف",
+      "parent": "1123",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1124",
+      "nameAr": "أرصدة مدينة أخرى",
+      "parent": "112",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112401",
+      "nameAr": "مصروفات مدفوعة مقدماً",
+      "parent": "1124",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112402",
+      "nameAr": "إيرادات مستحقة غير مفوترة",
+      "parent": "1124",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112403",
+      "nameAr": "تأمينات مستردة لدى الغير",
+      "parent": "1124",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1125",
+      "nameAr": "ذمم مدينة مناديب",
+      "parent": "112",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112501",
+      "nameAr": "سلف المناديب",
+      "parent": "1125",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112502",
+      "nameAr": "مخالفات مرورية مناديب",
+      "parent": "1125",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112503",
+      "nameAr": "سلف انترنت مناديب",
+      "parent": "1125",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112504",
+      "nameAr": "سلف مناديب مقسطة",
+      "parent": "1125",
+      "level": 5,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "stopped"
+    },
+    {
+      "code": "112505",
+      "nameAr": "ذمم مدينة اخري مناديب",
+      "parent": "1125",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112506",
+      "nameAr": "خدمات HR محمّلة على المناديب",
+      "parent": "1125",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112507",
+      "nameAr": "عجز صافي مسير مرحّل - مناديب",
+      "parent": "1125",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112508",
+      "nameAr": "مديونيات منصات محالة على المناديب",
+      "parent": "1125",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112509",
+      "nameAr": "حوادث وصيانة خارجية على المناديب",
+      "parent": "1125",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112510",
+      "nameAr": "فروق وقود على المناديب",
+      "parent": "1125",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1126",
+      "nameAr": "ضريبة القيمة المضافة - مدين",
+      "parent": "112",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112601",
+      "nameAr": "ضريبة القيمة المضافة على المشتريات (مدخلات)",
+      "parent": "1126",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112602",
+      "nameAr": "رصيد ضريبة القيمة المضافة المدين المرحّل",
+      "parent": "1126",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1127",
+      "nameAr": "جاري الشركات المدينة",
+      "parent": "112",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112701",
+      "nameAr": "جاري الشركات - BW",
+      "parent": "1127",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل، إلا دفتر نفس الشركة",
+      "status": "active"
+    },
+    {
+      "code": "112702",
+      "nameAr": "جاري الشركات - EX",
+      "parent": "1127",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل، إلا دفتر نفس الشركة",
+      "status": "active"
+    },
+    {
+      "code": "112703",
+      "nameAr": "جاري الشركات - TR",
+      "parent": "1127",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل، إلا دفتر نفس الشركة",
+      "status": "active"
+    },
+    {
+      "code": "1128",
+      "nameAr": "ذمم المنصات",
+      "parent": "112",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112801",
+      "nameAr": "مستحق على جاهز",
+      "parent": "1128",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "112802",
+      "nameAr": "مستحق على المنصات الأخرى",
+      "parent": "1128",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "113",
+      "nameAr": "المخزون",
+      "parent": "11",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1131",
+      "nameAr": "مخزون قطع الغيار",
+      "parent": "113",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "113101",
+      "nameAr": "مخزون قطع غيار السيارات",
+      "parent": "1131",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "113102",
+      "nameAr": "مخزون قطع غيار الدبابات",
+      "parent": "1131",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1132",
+      "nameAr": "مخزون براميل الزيت",
+      "parent": "113",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "113201",
+      "nameAr": "مخزون براميل زيت السيارات",
+      "parent": "1132",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "113202",
+      "nameAr": "مخزون براميل زيت الدبابات",
+      "parent": "1132",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1133",
+      "nameAr": "مخزون أدوات المناديب",
+      "parent": "113",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "113301",
+      "nameAr": "تيشرتات",
+      "parent": "1133",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "113302",
+      "nameAr": "واقي رأس",
+      "parent": "1133",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "113303",
+      "nameAr": "حافظات طعام",
+      "parent": "1133",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1134",
+      "nameAr": "مخزون في الطريق",
+      "parent": "113",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "113401",
+      "nameAr": "بضاعة في الطريق - شحن بحري",
+      "parent": "1134",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "113402",
+      "nameAr": "بضاعة في الطريق - شحن جوي",
+      "parent": "1134",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1135",
+      "nameAr": "مخصص تدني قيمة المخزون",
+      "parent": "113",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "113501",
+      "nameAr": "مخصص تدني قيمة المخزون (دائن مقابل)",
+      "parent": "1135",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "114",
+      "nameAr": "حسابات الأصول الوسيطة",
+      "parent": "11",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1141",
+      "nameAr": "حسابات الأصول الوسيطة",
+      "parent": "114",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "114101",
+      "nameAr": "التحويلات النقدية",
+      "parent": "1141",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "114102",
+      "nameAr": "التحصيلات المعلقة",
+      "parent": "1141",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "114103",
+      "nameAr": "المدفوعات المعلقة",
+      "parent": "1141",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "114104",
+      "nameAr": "حساب بنك و نقدية مؤقت",
+      "parent": "1141",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "114105",
+      "nameAr": "حساب مراقبه المخزون المنصرف",
+      "parent": "1141",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "114106",
+      "nameAr": "مقاصة بترو آب",
+      "parent": "1141",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "115",
+      "nameAr": "الاستثمارات قصيرة الأجل",
+      "parent": "11",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1151",
+      "nameAr": "الاستثمارات قصيرة الأجل",
+      "parent": "115",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "115101",
+      "nameAr": "ودائع بنكية قصيرة الأجل (أقل من سنة)",
+      "parent": "1151",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "115102",
+      "nameAr": "استثمارات مالية بالقيمة العادلة من خلال الربح أو الخسارة",
+      "parent": "1151",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "12",
+      "nameAr": "الأصول غير المتداولة",
+      "parent": "1",
+      "level": 2,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121",
+      "nameAr": "الممتلكات والآلات والمعدات",
+      "parent": "12",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1211",
+      "nameAr": "الأراضي",
+      "parent": "121",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121101",
+      "nameAr": "أراضي",
+      "parent": "1211",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1212",
+      "nameAr": "المباني",
+      "parent": "121",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121201",
+      "nameAr": "مباني ومنشآت",
+      "parent": "1212",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121202",
+      "nameAr": "مجمع إهلاك المباني",
+      "parent": "1212",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1213",
+      "nameAr": "الآلات والمعدات",
+      "parent": "121",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121301",
+      "nameAr": "آلات ومعدات",
+      "parent": "1213",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121302",
+      "nameAr": "مجمع إهلاك الآلات والمعدات",
+      "parent": "1213",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1214",
+      "nameAr": "الأثاث والتجهيزات المكتبية",
+      "parent": "121",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121401",
+      "nameAr": "أثاث وتجهيزات مكتبية",
+      "parent": "1214",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121402",
+      "nameAr": "مجمع إهلاك الأثاث والتجهيزات",
+      "parent": "1214",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1215",
+      "nameAr": "المركبات",
+      "parent": "121",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121501",
+      "nameAr": "السيارات",
+      "parent": "1215",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121502",
+      "nameAr": "مجمع إهلاك السيارات",
+      "parent": "1215",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121503",
+      "nameAr": "الدبابات",
+      "parent": "1215",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121504",
+      "nameAr": "مجمع اهلاك الدبابات",
+      "parent": "1215",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121505",
+      "nameAr": "مركبات تحت التسليم/التجهيز",
+      "parent": "1215",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1216",
+      "nameAr": "أجهزة الحاسب الآلي والشبكات",
+      "parent": "121",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121601",
+      "nameAr": "أجهزة حاسب آلي وشبكات",
+      "parent": "1216",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121602",
+      "nameAr": "مجمع إهلاك أجهزة الحاسب الآلي",
+      "parent": "1216",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1217",
+      "nameAr": "أعمال رأسمالية تحت التنفيذ",
+      "parent": "121",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "121701",
+      "nameAr": "مشاريع ومنشآت تحت التنفيذ",
+      "parent": "1217",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "122",
+      "nameAr": "الأصول غير الملموسة",
+      "parent": "12",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1221",
+      "nameAr": "الشهرة",
+      "parent": "122",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "122101",
+      "nameAr": "شهرة الشركة",
+      "parent": "1221",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1222",
+      "nameAr": "برامج الحاسب الآلي",
+      "parent": "122",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "122201",
+      "nameAr": "تراخيص وبرامج حاسب آلي",
+      "parent": "1222",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "122202",
+      "nameAr": "مجمع إطفاء البرامج",
+      "parent": "1222",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1223",
+      "nameAr": "حقوق الامتياز والعلامات التجارية",
+      "parent": "122",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "122301",
+      "nameAr": "علامات تجارية وحقوق امتياز",
+      "parent": "1223",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "122302",
+      "nameAr": "مجمع إطفاء العلامات التجارية",
+      "parent": "1223",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "123",
+      "nameAr": "حق استخدام الأصول المستأجرة",
+      "parent": "12",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1231",
+      "nameAr": "حق استخدام العقارات المستأجرة",
+      "parent": "123",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "123101",
+      "nameAr": "حق استخدام أصول - عقارات",
+      "parent": "1231",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "123102",
+      "nameAr": "مجمع إهلاك حق استخدام الأصول",
+      "parent": "1231",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "124",
+      "nameAr": "الاستثمارات طويلة الأجل",
+      "parent": "12",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1241",
+      "nameAr": "استثمارات في شركات شقيقة وتابعة",
+      "parent": "124",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "124101",
+      "nameAr": "استثمارات في شركة 1",
+      "parent": "1241",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "حسب الإعداد",
+      "status": "active"
+    },
+    {
+      "code": "124102",
+      "nameAr": "استثمارات في شركة 2",
+      "parent": "1241",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "حسب الإعداد",
+      "status": "active"
+    },
+    {
+      "code": "125",
+      "nameAr": "أصول أخرى غير متداولة",
+      "parent": "12",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1251",
+      "nameAr": "تأمينات مستردة طويلة الأجل",
+      "parent": "125",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "125101",
+      "nameAr": "تأمينات مستردة - عقود إيجار",
+      "parent": "1251",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "1252",
+      "nameAr": "مصروفات مؤجلة",
+      "parent": "125",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "125201",
+      "nameAr": "مصروفات ما قبل التشغيل المؤجلة",
+      "parent": "1252",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2",
+      "nameAr": "الالتزامات",
+      "parent": null,
+      "level": 1,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "21",
+      "nameAr": "الالتزامات المتداولة",
+      "parent": "2",
+      "level": 2,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "211",
+      "nameAr": "الذمم الدائنة التجارية",
+      "parent": "21",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2111",
+      "nameAr": "الموردون",
+      "parent": "211",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "211101",
+      "nameAr": "موردون - محليون",
+      "parent": "2111",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "211102",
+      "nameAr": "موردون - مستوردون",
+      "parent": "2111",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2112",
+      "nameAr": "أوراق الدفع",
+      "parent": "211",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "211201",
+      "nameAr": "أوراق دفع محلية",
+      "parent": "2112",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212",
+      "nameAr": "مصروفات مستحقة وأرصدة دائنة أخرى",
+      "parent": "21",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2121",
+      "nameAr": "مصروفات مستحقة",
+      "parent": "212",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212101",
+      "nameAr": "رواتب وأجور مستحقة - موظفين",
+      "parent": "2121",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212102",
+      "nameAr": "مصروفات مستحقة أخرى",
+      "parent": "2121",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212103",
+      "nameAr": "رواتب و أجور مستحقة - مناديب",
+      "parent": "2121",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2122",
+      "nameAr": "إيرادات مقبوضة مقدماً",
+      "parent": "212",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212201",
+      "nameAr": "إيرادات مؤجلة غير مكتسبة",
+      "parent": "2122",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2123",
+      "nameAr": "أرصدة دائنة أخرى",
+      "parent": "212",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212301",
+      "nameAr": "تأمينات مستلمة من الغير",
+      "parent": "2123",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212302",
+      "nameAr": "عهد وأمانات مستحقة الرد",
+      "parent": "2123",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212303",
+      "nameAr": "أرباح أسهم / توزيعات مستحقة للمساهمين",
+      "parent": "2123",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212304",
+      "nameAr": "ذمم دائنة اخري - موظفين",
+      "parent": "2123",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212305",
+      "nameAr": "ذمم دائنة اخري مناديب",
+      "parent": "2123",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2124",
+      "nameAr": "جاري الشركات الدائنة",
+      "parent": "212",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "display"
+    },
+    {
+      "code": "212401",
+      "nameAr": "جاري الشركات الدائنة - شركة 1",
+      "parent": "2124",
+      "level": 5,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "stopped"
+    },
+    {
+      "code": "212402",
+      "nameAr": "جاري الشركات الدائنة - شركة 1",
+      "parent": "2124",
+      "level": 5,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "stopped"
+    },
+    {
+      "code": "2126",
+      "nameAr": "مستحقات المنصات (نموذج الوكيل)",
+      "parent": "212",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212601",
+      "nameAr": "مستحق لجاهز",
+      "parent": "2126",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "212602",
+      "nameAr": "مستحق للمنصات الأخرى",
+      "parent": "2126",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "213",
+      "nameAr": "المستحقات الزكوية والضريبية والحكومية",
+      "parent": "21",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2131",
+      "nameAr": "الزكاة الشرعية المستحقة",
+      "parent": "213",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "213101",
+      "nameAr": "مخصص الزكاة الشرعية عن العام الحالي",
+      "parent": "2131",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "213102",
+      "nameAr": "زكاة مستحقة الدفع لهيئة الزكاة والضريبة والجمارك",
+      "parent": "2131",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2132",
+      "nameAr": "ضريبة القيمة المضافة - دائن",
+      "parent": "213",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "213201",
+      "nameAr": "ضريبة القيمة المضافة على المبيعات (مخرجات)",
+      "parent": "2132",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "213202",
+      "nameAr": "صافي ضريبة القيمة المضافة المستحقة للهيئة",
+      "parent": "2132",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2133",
+      "nameAr": "ضريبة الاستقطاع (الخصم من المنبع)",
+      "parent": "213",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "213301",
+      "nameAr": "ضريبة استقطاع مستحقة للهيئة",
+      "parent": "2133",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2134",
+      "nameAr": "ضريبة الدخل المستحقة",
+      "parent": "213",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "213401",
+      "nameAr": "مخصص ضريبة الدخل",
+      "parent": "2134",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2135",
+      "nameAr": "التأمينات الاجتماعية (GOSI)",
+      "parent": "213",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "213501",
+      "nameAr": "التأمينات الاجتماعية مستحقة الدفع",
+      "parent": "2135",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "214",
+      "nameAr": "القروض والتمويل قصير الأجل",
+      "parent": "21",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2141",
+      "nameAr": "قروض بنكية قصيرة الأجل",
+      "parent": "214",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "214101",
+      "nameAr": "قروض قصيرة الأجل",
+      "parent": "2141",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2142",
+      "nameAr": "الجزء المتداول من الالتزامات طويلة الأجل",
+      "parent": "214",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "214201",
+      "nameAr": "الجزء المتداول من قروض طويلة الأجل",
+      "parent": "2142",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "214202",
+      "nameAr": "الجزء المتداول من التزامات عقود الإيجار",
+      "parent": "2142",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "214203",
+      "nameAr": "الجزء المتداول من تمويل المركبات",
+      "parent": "2142",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "22",
+      "nameAr": "الالتزامات غير المتداولة",
+      "parent": "2",
+      "level": 2,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "221",
+      "nameAr": "القروض طويلة الأجل",
+      "parent": "22",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2211",
+      "nameAr": "قروض بنكية طويلة الأجل",
+      "parent": "221",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "221101",
+      "nameAr": "قروض طويلة الأجل",
+      "parent": "2211",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2212",
+      "nameAr": "تمويل المركبات طويل الأجل",
+      "parent": "221",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "221201",
+      "nameAr": "التزام تمويل المركبات",
+      "parent": "2212",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "222",
+      "nameAr": "التزامات عقود الإيجار طويلة الأجل",
+      "parent": "22",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2221",
+      "nameAr": "التزامات عقود إيجار طويلة الأجل",
+      "parent": "222",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "222101",
+      "nameAr": "التزام عقد إيجار طويل الأجل",
+      "parent": "2221",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "223",
+      "nameAr": "مخصص مكافأة نهاية الخدمة",
+      "parent": "22",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2231",
+      "nameAr": "مكافأة نهاية الخدمة للموظفين",
+      "parent": "223",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "223101",
+      "nameAr": "مخصص مكافأة نهاية الخدمة",
+      "parent": "2231",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "224",
+      "nameAr": "مخصصات أخرى طويلة الأجل",
+      "parent": "22",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "2241",
+      "nameAr": "مخصصات التزامات محتملة",
+      "parent": "224",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "224101",
+      "nameAr": "مخصص دعاوى قضائية",
+      "parent": "2241",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "224102",
+      "nameAr": "مخصصات أخرى",
+      "parent": "2241",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "3",
+      "nameAr": "حقوق الملكية",
+      "parent": null,
+      "level": 1,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "31",
+      "nameAr": "رأس المال",
+      "parent": "3",
+      "level": 2,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "311",
+      "nameAr": "رأس المال المصدر والمدفوع",
+      "parent": "31",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "3111",
+      "nameAr": "رأس المال",
+      "parent": "311",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "311101",
+      "nameAr": "رأس المال المصرح به والمدفوع",
+      "parent": "3111",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "32",
+      "nameAr": "الاحتياطيات",
+      "parent": "3",
+      "level": 2,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "321",
+      "nameAr": "الاحتياطي النظامي",
+      "parent": "32",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "3211",
+      "nameAr": "الاحتياطي النظامي",
+      "parent": "321",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "321101",
+      "nameAr": "الاحتياطي النظامي (10% من صافي الربح)",
+      "parent": "3211",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "322",
+      "nameAr": "احتياطيات أخرى",
+      "parent": "32",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "3221",
+      "nameAr": "احتياطي اتفاقي",
+      "parent": "322",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "322101",
+      "nameAr": "احتياطي اتفاقي",
+      "parent": "3221",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "3222",
+      "nameAr": "احتياطي القيمة العادلة",
+      "parent": "322",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "322201",
+      "nameAr": "احتياطي إعادة تقييم الاستثمارات (الدخل الشامل الآخر)",
+      "parent": "3222",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "33",
+      "nameAr": "الأرباح المبقاة",
+      "parent": "3",
+      "level": 2,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "331",
+      "nameAr": "الأرباح المبقاة ونتيجة العام",
+      "parent": "33",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "3311",
+      "nameAr": "أرباح مرحلة من سنوات سابقة",
+      "parent": "331",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "331101",
+      "nameAr": "أرباح مبقاة مرحلة",
+      "parent": "3311",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "3312",
+      "nameAr": "أرباح / خسائر السنة الحالية",
+      "parent": "331",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "331201",
+      "nameAr": "صافي ربح / خسارة العام الحالي",
+      "parent": "3312",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "331202",
+      "nameAr": "توزيعات أرباح مقترحة",
+      "parent": "3312",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "3313",
+      "nameAr": "أرصدة الافتتاح",
+      "parent": "331",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "331301",
+      "nameAr": "حساب أرصدة أول المدة (وسيط)",
+      "parent": "3313",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "331302",
+      "nameAr": "عمولات جاهز عن فترات سابقة",
+      "parent": "3313",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "34",
+      "nameAr": "جاري الشركاء",
+      "parent": "3",
+      "level": 2,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "341",
+      "nameAr": "جاري الشركاء",
+      "parent": "34",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "3411",
+      "nameAr": "حساب الشركاء الجاري",
+      "parent": "341",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "341101",
+      "nameAr": "الحساب الجاري للشريك - [شريك محجوب]",
+      "parent": "3411",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "حسب الإعداد",
+      "status": "active"
+    },
+    {
+      "code": "341102",
+      "nameAr": "الحساب الجاري للشريك - [شريك محجوب]",
+      "parent": "3411",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "both",
+      "company": "حسب الإعداد",
+      "status": "active"
+    },
+    {
+      "code": "4",
+      "nameAr": "الإيرادات",
+      "parent": null,
+      "level": 1,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "41",
+      "nameAr": "إيرادات النشاط الرئيسي",
+      "parent": "4",
+      "level": 2,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411",
+      "nameAr": "إيرادات الخدمات",
+      "parent": "41",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "4111",
+      "nameAr": "إيرادات التطبيقات",
+      "parent": "411",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411101",
+      "nameAr": "إيرادات كيتا - نظام الراتب (أصيل)",
+      "parent": "4111",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411102",
+      "nameAr": "إيرادات تطبيق هنقرستيشن",
+      "parent": "4111",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411103",
+      "nameAr": "إيرادات تطبيق شيفز",
+      "parent": "4111",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411104",
+      "nameAr": "إيرادات تطبيق نينجا",
+      "parent": "4111",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411105",
+      "nameAr": "إيرادات تطبيق امازون",
+      "parent": "4111",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411106",
+      "nameAr": "إيرادات تطبيق جاهز",
+      "parent": "4111",
+      "level": 5,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "stopped"
+    },
+    {
+      "code": "4112",
+      "nameAr": "مبيعات تصدير",
+      "parent": "411",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411201",
+      "nameAr": "مبيعات بضاعة - تصدير (نسبة صفرية)",
+      "parent": "4112",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "4113",
+      "nameAr": "مردودات المبيعات",
+      "parent": "411",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411301",
+      "nameAr": "مردودات المبيعات",
+      "parent": "4113",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "4114",
+      "nameAr": "إيرادات جاهز (نموذج الوكيل)",
+      "parent": "411",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411401",
+      "nameAr": "إيراد عمولة جاهز",
+      "parent": "4114",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411402",
+      "nameAr": "إيراد رسوم فتح حسابات جاهز",
+      "parent": "4114",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411403",
+      "nameAr": "إعفاء/تخفيض عمولة جاهز ممنوح",
+      "parent": "4114",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411404",
+      "nameAr": "رد رسوم توصيل - من العمولة",
+      "parent": "4114",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411405",
+      "nameAr": "إعفاء/رد رسوم فتح الحساب",
+      "parent": "4114",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411406",
+      "nameAr": "رد رسوم توصيل - من رسوم فتح الحساب",
+      "parent": "4114",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "4115",
+      "nameAr": "إيرادات كيتا - نظام العمولة (وكيل)",
+      "parent": "411",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "411501",
+      "nameAr": "إيراد عمولة كيتا",
+      "parent": "4115",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "42",
+      "nameAr": "إيرادات أخرى",
+      "parent": "4",
+      "level": 2,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "421",
+      "nameAr": "إيرادات تشغيلية أخرى",
+      "parent": "42",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "4211",
+      "nameAr": "إيرادات استقطاع مركبات التشغيل من المناديب",
+      "parent": "421",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "421101",
+      "nameAr": "إيراد استقطاع مركبات التشغيل - سيارات",
+      "parent": "4211",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "421102",
+      "nameAr": "إيراد استقطاع مركبات التشغيل - دراجات",
+      "parent": "4211",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "4212",
+      "nameAr": "أرباح استبعاد أصول ثابتة",
+      "parent": "421",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "421201",
+      "nameAr": "أرباح بيع / استبعاد أصول ثابتة",
+      "parent": "4212",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "4213",
+      "nameAr": "إيرادات خدمات وتحملات",
+      "parent": "421",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "421301",
+      "nameAr": "إيراد خدمات وتحملات معتمدة",
+      "parent": "4213",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "4214",
+      "nameAr": "إيرادات سكن المناديب",
+      "parent": "421",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "421401",
+      "nameAr": "إيراد سكن المناديب",
+      "parent": "4214",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "422",
+      "nameAr": "إيرادات غير تشغيلية",
+      "parent": "42",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "4221",
+      "nameAr": "إيرادات الاستثمارات",
+      "parent": "422",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "422101",
+      "nameAr": "توزيعات أرباح مستلمة",
+      "parent": "4221",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "422102",
+      "nameAr": "إيرادات فوائد",
+      "parent": "4221",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "4222",
+      "nameAr": "أرباح فروق العملة / فروق النقدية",
+      "parent": "422",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "422201",
+      "nameAr": "أرباح تقييم وتحويل العملات الأجنبية",
+      "parent": "4222",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "422202",
+      "nameAr": "أرباح فرق النقدية",
+      "parent": "4222",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "4223",
+      "nameAr": "إيرادات متنوعة",
+      "parent": "422",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "422301",
+      "nameAr": "إيرادات متفرقة أخرى",
+      "parent": "4223",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5",
+      "nameAr": "المصروفات",
+      "parent": null,
+      "level": 1,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "51",
+      "nameAr": "تكلفة الإيرادات",
+      "parent": "5",
+      "level": 2,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "511",
+      "nameAr": "تكلفة البضاعة المباعة",
+      "parent": "51",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5111",
+      "nameAr": "تكلفة البضاعة المباعة",
+      "parent": "511",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "511101",
+      "nameAr": "تكلفة البضاعة المباعة",
+      "parent": "5111",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "511102",
+      "nameAr": "تكاليف فروق المخزون",
+      "parent": "5111",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "511103",
+      "nameAr": "تكاليف البضاعة التالفة",
+      "parent": "5111",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512",
+      "nameAr": "تكلفة الخدمات المقدمة",
+      "parent": "51",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5121",
+      "nameAr": "تكلفة تنفيذ الخدمات - تكلفة تشغيلية",
+      "parent": "512",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512101",
+      "nameAr": "رواتب وأجور المناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512102",
+      "nameAr": "كهرباء سكن المناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512103",
+      "nameAr": "مياه سكن المناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512104",
+      "nameAr": "محروقات",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512105",
+      "nameAr": "صيانة سيارات",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512106",
+      "nameAr": "صيانة الدبابات",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512107",
+      "nameAr": "مصروف التامين الصحي للمناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512108",
+      "nameAr": "مصروفات التأمينات الاجتماعية للمناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512109",
+      "nameAr": "مصروفات ايجار سكن المناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512110",
+      "nameAr": "تكلفة خدمات توصيل الطلبات - مناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512111",
+      "nameAr": "حوادث وتلفيات مركبات - حصة الشركة",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512112",
+      "nameAr": "أدوات ومستلزمات المناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512113",
+      "nameAr": "تأمين المركبات",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512114",
+      "nameAr": "رسوم ترخيص وفحص المركبات",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512115",
+      "nameAr": "مكافأة نهاية الخدمة - مناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512116",
+      "nameAr": "بدل وقود مناديب الراتب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512117",
+      "nameAr": "بدل إنترنت مناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512118",
+      "nameAr": "تعويضات المناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512119",
+      "nameAr": "تكلفة السعودة الموزعة",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5122",
+      "nameAr": "تكاليف HR والخدمات الحكومية للمناديب",
+      "parent": "512",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512201",
+      "nameAr": "رخص عمل - مناديب",
+      "parent": "5122",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512202",
+      "nameAr": "إصدار وتجديد إقامات - مناديب",
+      "parent": "5122",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512203",
+      "nameAr": "نقل كفالة - مناديب",
+      "parent": "5122",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512204",
+      "nameAr": "خروج وعودة - مناديب",
+      "parent": "5122",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512205",
+      "nameAr": "تغيير مهنة - مناديب",
+      "parent": "5122",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512206",
+      "nameAr": "رخص قيادة - مناديب",
+      "parent": "5122",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512207",
+      "nameAr": "بطاقة سائق هيئة النقل",
+      "parent": "5122",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "512208",
+      "nameAr": "رسوم حكومية أخرى - مناديب",
+      "parent": "5122",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "52",
+      "nameAr": "المصروفات الإدارية والعمومية",
+      "parent": "5",
+      "level": 2,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "521",
+      "nameAr": "الرواتب والأجور ومزايا الموظفين",
+      "parent": "52",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5211",
+      "nameAr": "رواتب الموظفين الإداريين",
+      "parent": "521",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "521101",
+      "nameAr": "رواتب وأجور الموظفين الإداريين",
+      "parent": "5211",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "521102",
+      "nameAr": "بدل سكن",
+      "parent": "5211",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "521103",
+      "nameAr": "التأمينات الاجتماعية - حصة الشركة",
+      "parent": "5211",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "521104",
+      "nameAr": "مصروف مكافأة نهاية الخدمة",
+      "parent": "5211",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "521105",
+      "nameAr": "بدل انتقال",
+      "parent": "5211",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "521106",
+      "nameAr": "بدل ساعات عمل إضافي",
+      "parent": "5211",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5212",
+      "nameAr": "مزايا ورعاية الموظفين",
+      "parent": "521",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "521201",
+      "nameAr": "تذاكر سفر وإجازات الموظفين",
+      "parent": "5212",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "521202",
+      "nameAr": "تأمين طبي للموظفين",
+      "parent": "5212",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "521203",
+      "nameAr": "تدريب وتطوير الموظفين",
+      "parent": "5212",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "521204",
+      "nameAr": "رسوم حكومية وإقامات - موظفين",
+      "parent": "5212",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "522",
+      "nameAr": "مصروفات إيجارات وصيانة",
+      "parent": "52",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5221",
+      "nameAr": "إيجارات",
+      "parent": "522",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "522101",
+      "nameAr": "إيجار مكاتب إدارية",
+      "parent": "5221",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5222",
+      "nameAr": "صيانة وإصلاحات",
+      "parent": "522",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "522201",
+      "nameAr": "صيانة عامة",
+      "parent": "5222",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "523",
+      "nameAr": "مصروفات المرافق والاتصالات",
+      "parent": "52",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5231",
+      "nameAr": "كهرباء ومياه واتصالات",
+      "parent": "523",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "523101",
+      "nameAr": "كهرباء ومياه إدارية",
+      "parent": "5231",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "523102",
+      "nameAr": "اتصالات وإنترنت إدارية",
+      "parent": "5231",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "524",
+      "nameAr": "مصروفات الإهلاك والإطفاء",
+      "parent": "52",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5241",
+      "nameAr": "إهلاك وإطفاء الأصول",
+      "parent": "524",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "524101",
+      "nameAr": "مصروف إهلاك ممتلكات وآلات ومعدات",
+      "parent": "5241",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "524102",
+      "nameAr": "مصروف إطفاء أصول غير ملموسة",
+      "parent": "5241",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "524103",
+      "nameAr": "مصروف إهلاك حق استخدام الأصول",
+      "parent": "5241",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "524104",
+      "nameAr": "مصروف إهلاك المركبات",
+      "parent": "5241",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "525",
+      "nameAr": "مصروفات مهنية واستشارية",
+      "parent": "52",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5251",
+      "nameAr": "أتعاب مهنية",
+      "parent": "525",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "525101",
+      "nameAr": "أتعاب المراجعة القانونية (المراجع الخارجي)",
+      "parent": "5251",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "525102",
+      "nameAr": "أتعاب استشارات قانونية وضريبية وزكوية",
+      "parent": "5251",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526",
+      "nameAr": "مصروفات إدارية أخرى",
+      "parent": "52",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5261",
+      "nameAr": "قرطاسية ومطبوعات",
+      "parent": "526",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526101",
+      "nameAr": "قرطاسية ومطبوعات",
+      "parent": "5261",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5262",
+      "nameAr": "ضيافة ومصروفات مكتبية",
+      "parent": "526",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526201",
+      "nameAr": "ضيافة",
+      "parent": "5262",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5263",
+      "nameAr": "مصروف مخصص خسائر الائتمان المتوقعة",
+      "parent": "526",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526301",
+      "nameAr": "مصروف مخصص ديون معدومة ومشكوك فيها",
+      "parent": "5263",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5264",
+      "nameAr": "غرامات وجزاءات",
+      "parent": "526",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526401",
+      "nameAr": "غرامات وجزاءات حكومية (غير مخصومة زكوياً)",
+      "parent": "5264",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526402",
+      "nameAr": "مخالفات وتلفيات تشغيلية تتحملها الشركة",
+      "parent": "5264",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5265",
+      "nameAr": "مصروفات حكومية",
+      "parent": "526",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526501",
+      "nameAr": "مصروفات تجديد السجل التجاري",
+      "parent": "5265",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526502",
+      "nameAr": "مصروفات شراء نقاط علم",
+      "parent": "5265",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526503",
+      "nameAr": "مصروفات شراء نقاط وزارة النقل",
+      "parent": "5265",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526504",
+      "nameAr": "فارغ",
+      "parent": "5265",
+      "level": 5,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "reserved"
+    },
+    {
+      "code": "526505",
+      "nameAr": "فارغ",
+      "parent": "5265",
+      "level": 5,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "reserved"
+    },
+    {
+      "code": "526506",
+      "nameAr": "فارغ",
+      "parent": "5265",
+      "level": 5,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "reserved"
+    },
+    {
+      "code": "5266",
+      "nameAr": "إعفاءات وتحملات معتمدة",
+      "parent": "526",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526601",
+      "nameAr": "إعفاء من مديونيات مثبتة",
+      "parent": "5266",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526602",
+      "nameAr": "سلف وعهد تتحملها الشركة",
+      "parent": "5266",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526603",
+      "nameAr": "مديونيات منصات تتحملها الشركة",
+      "parent": "5266",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5267",
+      "nameAr": "خسائر استبعاد أصول",
+      "parent": "526",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "526701",
+      "nameAr": "خسائر بيع/استبعاد أصول ثابتة",
+      "parent": "5267",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "53",
+      "nameAr": "المصروفات البيعية والتسويقية",
+      "parent": "5",
+      "level": 2,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "531",
+      "nameAr": "مصروفات تسويق وإعلان",
+      "parent": "53",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5311",
+      "nameAr": "إعلانات ودعاية",
+      "parent": "531",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "531101",
+      "nameAr": "حملات إعلانية",
+      "parent": "5311",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "532",
+      "nameAr": "عمولات ومصاريف بيع وتوزيع",
+      "parent": "53",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5321",
+      "nameAr": "عمولات مبيعات",
+      "parent": "532",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "532101",
+      "nameAr": "عمولات مندوبي مبيعات",
+      "parent": "5321",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5322",
+      "nameAr": "مصاريف نقل وتوزيع",
+      "parent": "532",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "532201",
+      "nameAr": "مصاريف الشحن والتوزيع",
+      "parent": "5322",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5323",
+      "nameAr": "خصم مسموح به",
+      "parent": "532",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "532301",
+      "nameAr": "خصم مسموح به",
+      "parent": "5323",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "54",
+      "nameAr": "المصروفات التمويلية",
+      "parent": "5",
+      "level": 2,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "541",
+      "nameAr": "فوائد وأعباء تمويلية",
+      "parent": "54",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5411",
+      "nameAr": "فوائد قروض",
+      "parent": "541",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "541101",
+      "nameAr": "مصروف فوائد قروض بنكية",
+      "parent": "5411",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5412",
+      "nameAr": "فوائد التزامات عقود الإيجار",
+      "parent": "541",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "541201",
+      "nameAr": "مصروف فوائد التزام عقود الإيجار",
+      "parent": "5412",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5413",
+      "nameAr": "أعباء تمويل المركبات",
+      "parent": "541",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "541301",
+      "nameAr": "مصروف أعباء تمويل المركبات",
+      "parent": "5413",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "542",
+      "nameAr": "خسائر فروق العملة / فروق النقدية",
+      "parent": "54",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5421",
+      "nameAr": "فروق عملة / نقدية",
+      "parent": "542",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "542101",
+      "nameAr": "خسائر تقييم وتحويل العملات الأجنبية",
+      "parent": "5421",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "542102",
+      "nameAr": "خسائر فروق النقدية",
+      "parent": "5421",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "55",
+      "nameAr": "الزكاة الشرعية وضريبة الدخل",
+      "parent": "5",
+      "level": 2,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "551",
+      "nameAr": "مصروف الزكاة الشرعية",
+      "parent": "55",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5511",
+      "nameAr": "الزكاة الشرعية",
+      "parent": "551",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "551101",
+      "nameAr": "مصروف الزكاة الشرعية للعام",
+      "parent": "5511",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "552",
+      "nameAr": "مصروف ضريبة الدخل",
+      "parent": "55",
+      "level": 3,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "5521",
+      "nameAr": "ضريبة الدخل",
+      "parent": "552",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "552101",
+      "nameAr": "مصروف ضريبة الدخل",
+      "parent": "5521",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "6",
+      "nameAr": "حسابات إحصائية وخارج الميزانية",
+      "parent": null,
+      "level": 1,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "61",
+      "nameAr": "الالتزامات المحتملة والضمانات",
+      "parent": "6",
+      "level": 2,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "611",
+      "nameAr": "خطابات الضمان الصادرة",
+      "parent": "61",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "6111",
+      "nameAr": "ضمانات ابتدائية ونهائية",
+      "parent": "611",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "611101",
+      "nameAr": "خطابات ضمان صادرة",
+      "parent": "6111",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "612",
+      "nameAr": "التزامات تعاقدية مستقبلية",
+      "parent": "61",
+      "level": 3,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "6121",
+      "nameAr": "التزامات إيجارية غير مسجلة",
+      "parent": "612",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    },
+    {
+      "code": "612101",
+      "nameAr": "التزامات عقود إيجار قصيرة الأجل / منخفضة القيمة",
+      "parent": "6121",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active"
+    }
+  ],
+  "mapping": [
+    {
+      "currentCode": "1100",
+      "targetCodes": [
+        "111"
+      ],
+      "ruleAr": "`111`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "1110",
+      "targetCodes": [
+        "1111"
+      ],
+      "ruleAr": "`1111`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "1111",
+      "targetCodes": [
+        "1111"
+      ],
+      "ruleAr": "`1111`",
+      "noteAr": "يُدمج؛ لا مستوى إضافي"
+    },
+    {
+      "currentCode": "MAIN.BW.DEBT",
+      "targetCodes": [
+        "111101"
+      ],
+      "ruleAr": "`111101` @BW",
+      "noteAr": "الصندوق الرئيسي الحر"
+    },
+    {
+      "currentCode": "MAIN.EX.DEBT",
+      "targetCodes": [
+        "111101"
+      ],
+      "ruleAr": "`111101` @EX",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "1112",
+      "targetCodes": [
+        "1111"
+      ],
+      "ruleAr": "`1111`",
+      "noteAr": "يُدمج"
+    },
+    {
+      "currentCode": "MAIN.BW.SET",
+      "targetCodes": [
+        "111103"
+      ],
+      "ruleAr": "`111103` @BW",
+      "noteAr": "غرض مقيد"
+    },
+    {
+      "currentCode": "MAIN.EX.SET",
+      "targetCodes": [
+        "111103"
+      ],
+      "ruleAr": "`111103` @EX",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "1113",
+      "targetCodes": [
+        "1111"
+      ],
+      "ruleAr": "`1111`",
+      "noteAr": "يُدمج"
+    },
+    {
+      "currentCode": "MAIN.BW.FEE",
+      "targetCodes": [
+        "111104"
+      ],
+      "ruleAr": "`111104` @BW",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "MAIN.EX.FEE",
+      "targetCodes": [
+        "111104"
+      ],
+      "ruleAr": "`111104` @EX",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "MAIN.TR",
+      "targetCodes": [
+        "1111"
+      ],
+      "ruleAr": "`1111` @TR",
+      "noteAr": "رصيده المباشر القديم يُقفل مرة واحدة بالتوزيع"
+    },
+    {
+      "currentCode": "MAIN.TR.DEBT",
+      "targetCodes": [
+        "111101"
+      ],
+      "ruleAr": "`111101` @TR",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "MAIN.TR.SET",
+      "targetCodes": [
+        "111103"
+      ],
+      "ruleAr": "`111103` @TR",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "MAIN.TR.FEE",
+      "targetCodes": [
+        "111104"
+      ],
+      "ruleAr": "`111104` @TR",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "1120",
+      "targetCodes": [
+        "1123"
+      ],
+      "ruleAr": "`1123`",
+      "noteAr": "ذمة مشرف، مش نقدية (BR §20.2)"
+    },
+    {
+      "currentCode": "SUP.BW.SET",
+      "targetCodes": [
+        "112304"
+      ],
+      "ruleAr": "`112304` @BW",
+      "noteAr": "الدفتر المساعد = المشرف"
+    },
+    {
+      "currentCode": "SUP.EX.SET",
+      "targetCodes": [
+        "112304"
+      ],
+      "ruleAr": "`112304` @EX",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "SUP.TR.SET",
+      "targetCodes": [
+        "112304"
+      ],
+      "ruleAr": "`112304` @TR",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "SUP.BW.FEE",
+      "targetCodes": [
+        "112305"
+      ],
+      "ruleAr": "`112305` @BW",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "SUP.EX.FEE",
+      "targetCodes": [
+        "112305"
+      ],
+      "ruleAr": "`112305` @EX",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "SUP.TR.FEE",
+      "targetCodes": [
+        "112305"
+      ],
+      "ruleAr": "`112305` @TR",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "1130",
+      "targetCodes": [
+        "1112"
+      ],
+      "ruleAr": "`1112`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "BANK.BW",
+      "targetCodes": [],
+      "ruleAr": "`1112xx` @BW",
+      "noteAr": "البنك الفعلي حسب الإعداد (`111201`/`111202`)"
+    },
+    {
+      "currentCode": "BANK.EX",
+      "targetCodes": [],
+      "ruleAr": "`1112xx` @EX",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "BANK.TR",
+      "targetCodes": [],
+      "ruleAr": "`1112xx` @TR",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "BANK.BW.JAHEZ",
+      "targetCodes": [
+        "111204"
+      ],
+      "ruleAr": "`111204` @BW",
+      "noteAr": "تحليلي داخل نفس البنك"
+    },
+    {
+      "currentCode": "BANK.EX.JAHEZ",
+      "targetCodes": [
+        "111204"
+      ],
+      "ruleAr": "`111204` @EX",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "BANK.TR.JAHEZ",
+      "targetCodes": [
+        "111204"
+      ],
+      "ruleAr": "`111204` @TR",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "1140",
+      "targetCodes": [
+        "1141"
+      ],
+      "ruleAr": "`1141`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "PETRO.BW",
+      "targetCodes": [
+        "114106"
+      ],
+      "ruleAr": "`114106` @BW",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "PETRO.EX",
+      "targetCodes": [
+        "114106"
+      ],
+      "ruleAr": "`114106` @EX",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "PETRO.TR",
+      "targetCodes": [
+        "114106"
+      ],
+      "ruleAr": "`114106` @TR",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "1200",
+      "targetCodes": [
+        "112"
+      ],
+      "ruleAr": "`112`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "1210",
+      "targetCodes": [
+        "112501",
+        "112502",
+        "112505",
+        "112506",
+        "112509",
+        "112510"
+      ],
+      "ruleAr": "تقسيم: `112501`، `112502`، `112505`، `112506`، `112509`، `112510`",
+      "noteAr": "حسب الفئة؛ 03 §ربط الفئات"
+    },
+    {
+      "currentCode": "1211",
+      "targetCodes": [
+        "112507"
+      ],
+      "ruleAr": "`112507`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "1220",
+      "targetCodes": [
+        "112301",
+        "112302",
+        "112303"
+      ],
+      "ruleAr": "تقسيم: `112301` سلف، `112302` عهد، `112303` أخرى",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "1230",
+      "targetCodes": [
+        "112508"
+      ],
+      "ruleAr": "`112508`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "1240",
+      "targetCodes": [
+        "112801"
+      ],
+      "ruleAr": "`112801`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "1241",
+      "targetCodes": [
+        "112802"
+      ],
+      "ruleAr": "`112802`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "1300",
+      "targetCodes": [
+        "1127"
+      ],
+      "ruleAr": "`1127`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "1310",
+      "targetCodes": [
+        "112701",
+        "112702",
+        "112703"
+      ],
+      "ruleAr": "`112701`/`112702`/`112703`",
+      "noteAr": "حساب لكل شركة مقابلة"
+    },
+    {
+      "currentCode": "2100",
+      "targetCodes": [
+        "212"
+      ],
+      "ruleAr": "`212`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "2110",
+      "targetCodes": [
+        "212103",
+        "212101"
+      ],
+      "ruleAr": "تقسيم: `212103` مناديب، `212101` موظفين",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "2120",
+      "targetCodes": [
+        "212302"
+      ],
+      "ruleAr": "`212302`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "2130",
+      "targetCodes": [
+        "212102",
+        "211101"
+      ],
+      "ruleAr": "`212102`؛ أو `211101` لو له مورد وفاتورة",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "2140",
+      "targetCodes": [
+        "212601"
+      ],
+      "ruleAr": "`212601`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "2141",
+      "targetCodes": [
+        "212602"
+      ],
+      "ruleAr": "`212602`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "3100",
+      "targetCodes": [
+        "3313"
+      ],
+      "ruleAr": "`3313`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "3101",
+      "targetCodes": [
+        "331301"
+      ],
+      "ruleAr": "`331301`",
+      "noteAr": "وسيط؛ العمولة التاريخية تُنقل إلى `331302`"
+    },
+    {
+      "currentCode": "4100",
+      "targetCodes": [
+        "4114"
+      ],
+      "ruleAr": "`4114`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "4101",
+      "targetCodes": [
+        "411402"
+      ],
+      "ruleAr": "`411402`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "4102",
+      "targetCodes": [
+        "411401",
+        "411501"
+      ],
+      "ruleAr": "`411401` جاهز؛ `411501` كيتا عمولة؛ غيرها حسب ملف المنصة (04)",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "4103",
+      "targetCodes": [
+        "421301"
+      ],
+      "ruleAr": "`421301`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "4104",
+      "targetCodes": [
+        "422202"
+      ],
+      "ruleAr": "`422202`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5100",
+      "targetCodes": [
+        "5122"
+      ],
+      "ruleAr": "`5122`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "5101",
+      "targetCodes": [
+        "512201",
+        "521204"
+      ],
+      "ruleAr": "`512201`؛ موظف: `521204`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5102",
+      "targetCodes": [
+        "512202",
+        "521204"
+      ],
+      "ruleAr": "`512202`؛ موظف: `521204`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5103",
+      "targetCodes": [
+        "512203",
+        "521204"
+      ],
+      "ruleAr": "`512203`؛ موظف: `521204`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5104",
+      "targetCodes": [
+        "512204",
+        "521201"
+      ],
+      "ruleAr": "`512204`؛ موظف: `521201`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5105",
+      "targetCodes": [
+        "512107",
+        "521202"
+      ],
+      "ruleAr": "`512107`؛ موظف: `521202`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5106",
+      "targetCodes": [
+        "512205",
+        "521204"
+      ],
+      "ruleAr": "`512205`؛ موظف: `521204`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5107",
+      "targetCodes": [
+        "512206"
+      ],
+      "ruleAr": "`512206`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5108",
+      "targetCodes": [
+        "512207"
+      ],
+      "ruleAr": "`512207`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5109",
+      "targetCodes": [
+        "512208",
+        "521204"
+      ],
+      "ruleAr": "`512208`؛ موظف: `521204`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5110",
+      "targetCodes": [
+        "512109"
+      ],
+      "ruleAr": "`512109`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5200",
+      "targetCodes": [
+        "5121",
+        "5266"
+      ],
+      "ruleAr": "`5121` / `5266`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "5201",
+      "targetCodes": [
+        "512105",
+        "512106",
+        "512111",
+        "512112"
+      ],
+      "ruleAr": "تقسيم: `512105` سيارات، `512106` دراجات، `512111` حوادث، `512112` تجهيزات",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5202",
+      "targetCodes": [
+        "526601"
+      ],
+      "ruleAr": "`526601`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5203",
+      "targetCodes": [
+        "526402",
+        "512104"
+      ],
+      "ruleAr": "`526402`؛ الوقود: `512104`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5204",
+      "targetCodes": [
+        "542102"
+      ],
+      "ruleAr": "`542102`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5205",
+      "targetCodes": [
+        "526602"
+      ],
+      "ruleAr": "`526602`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5206",
+      "targetCodes": [
+        "526603"
+      ],
+      "ruleAr": "`526603`",
+      "noteAr": ""
+    },
+    {
+      "currentCode": "5300",
+      "targetCodes": [
+        "5121",
+        "5211"
+      ],
+      "ruleAr": "`5121` / `5211`",
+      "noteAr": "تجميعي"
+    },
+    {
+      "currentCode": "5301",
+      "targetCodes": [
+        "512101",
+        "521101"
+      ],
+      "ruleAr": "`512101` مناديب، `521101` موظفين",
+      "noteAr": "التعديل السالب: ليس `Cr 5301` بل حسابه (03)"
+    }
+  ]
+}

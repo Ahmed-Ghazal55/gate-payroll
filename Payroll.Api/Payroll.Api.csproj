@@ -8,6 +8,7 @@
     <Content Include="wwwroot/app.js;wwwroot/table-tools.js;wwwroot/bootstrap.js;wwwroot/enterprise.js;wwwroot/rider-form.js;wwwroot/rider-form.html" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="App_Data/**;appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
   </ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Resources/target-coa.v1.json" LogicalName="Payroll.TargetCoa.v1.json" /></ItemGroup>
   <Target Name="BuildChoiceFrontend" BeforeTargets="PrepareForBuild">
     <Exec WorkingDirectory="../RiderForm" Command="npm run build:all" />
     <Copy SourceFiles="../RiderForm/web/rider-form.html" DestinationFiles="wwwroot/rider-form.html" />
