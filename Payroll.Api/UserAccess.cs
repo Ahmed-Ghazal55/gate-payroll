@@ -15,6 +15,7 @@ public static class UserAccess
     // 1. كتالوج الصلاحيات الذرية الدقيقة (Atomic Permissions) مع الشرح التشغيلي لكل صلاحية
     public static readonly PermissionDef[] PermissionsCatalog =
     [
+        new("finance.bankfile.export","Treasury","الخزينة","معاينة وتصدير ملف البنك","تصدير الرواتب المعتمدة ضمن نطاق الشركة دون تسجيل دفع أو تعديل قيد."),
         new("treasury.opening","Treasury","الخزينة","اعتماد تسوية افتتاح موثقة","معاينة وتأكيد تسوية الأرصدة القديمة دون تعديل الوثائق الأصلية."),
         new("treasury.jahez.receive","Treasury","الخزينة","استلام عهدة جاهز بعد عدها","قرار مالي مستقل يطابق التصفيات والرسوم كلًا على حدة قبل ترحيلهما."),
         new("treasury.journals","Treasury","الخزينة","عرض قيود الأستاذ ضمن النطاق","عرض القيود غير النقدية مع نطاق السجل القانوني."),
@@ -81,6 +82,10 @@ public static class UserAccess
         new("SuperAdmin", "المدير العام / الإدارة العليا", "MGT", 5,
             "صلاحية شاملة للإدارة العليا والرقابة المالية والتشغيلية واعتماد السياسات والرواتب.",
             PermissionsCatalog.Select(p => p.Code).ToArray()),
+
+        new("FinancialManager", "المدير المالي", "FIN", 4,
+            "قراءة التقارير المالية ومعاينة وتصدير ملف البنك ضمن النطاق.",
+            ["treasury.view","treasury.journals","payroll.view","riders.view","debts.view","finance.bankfile.export"]),
 
         new("Accountant", "محاسب مالي ومسؤول خزينة", "FIN", 3,
             "إدارة الصندوق الداخلي والبنوك، تسجيل وتحصيل المديونيات والسلف وطلبات HR، التحويل بين الصناديق، واستيراد أرصدة أول المدة.",

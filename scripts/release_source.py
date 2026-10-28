@@ -5,7 +5,8 @@ import argparse, hashlib, json, re, zipfile
 ROOT = Path(__file__).resolve().parents[1]
 EXACT = {'.gitignore', '.env.example', 'README_AR.md', 'DEPLOYMENT_AR.md',
          'DATA_IMPORT_AR.md', 'UPGRADE_V05_AR.md', 'UPGRADE_V07_AR.md', 'RELEASE_STATUS_AR.md', 'API_CONTRACT.md', 'TABLE_STANDARD_AR.md',
-         'Payroll.Api/Payroll.Api.csproj', 'Payroll.Api/appsettings.json',
+         'Payroll.Api/Payroll.Api.csproj', 'Payroll.Api/Resources/target-coa.v1.json',
+         'tools/generate_target_coa.py', 'Payroll.Api/appsettings.json',
          'Payroll.Api/appsettings.Production.json', 'Payroll.Api/web.config',
          'Payroll.Api/wwwroot/index.html', 'Payroll.Api/wwwroot/app.css',
          'Frontend/tsconfig.json', 'RiderForm/package.json', 'RiderForm/package-lock.json',
@@ -22,7 +23,7 @@ def files():
     return sorted(result)
 
 def validate(selected):
-    required = ['Payroll.Api/Program.cs', 'Payroll.Api/HostingSecurity.cs',
+    required = ['Payroll.Api/Resources/target-coa.v1.json', 'tools/generate_target_coa.py', 'Payroll.Api/Program.cs', 'Payroll.Api/HostingSecurity.cs',
                 'RiderForm/src/rider-form.ts', 'RiderForm/package-lock.json',
                 'tests/production.mjs', 'tests/enterprise.mjs', 'Payroll.Api/UserAccess.cs', 'Payroll.Api/FormBuilder.cs', 'Payroll.Api/InquiryApi.cs', 'scripts/check_publish.py']
     for name in required:

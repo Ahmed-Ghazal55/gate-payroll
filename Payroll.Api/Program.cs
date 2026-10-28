@@ -113,6 +113,7 @@ UserAccess.Map(api, store);
 RiderDirectory.Map(api, store);
 Debts.Map(api, store);
 FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
+FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);
 TreasuryEntries.Map(api,store);
 JahezTreasury.Map(api,store);
 LegacyCashAllocation.Map(api,store);

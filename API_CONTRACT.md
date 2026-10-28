@@ -1,4 +1,4 @@
-# API v0.6.1
+# API v0.9.0
 
 Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*` and `/api/public/*`. Errors use `{error:string}` with 400/401/403/404/409/429/503. No financial mutation from public routes. Source of truth: `Payroll.Api/Program.cs`, `UserAccess.cs`, `DirectoryApi.cs`, `FormBuilder.cs`, `Debts.cs`, `InquiryApi.cs`, `SubmissionChoices.cs`, `Store.cs`, `Engine.cs`, `Imports.cs`; integration tests are executable request examples.
 
@@ -121,3 +121,11 @@ Deletes only the chosen form and its children atomically, records `campaign.dele
 ## v0.8.0 plain rider statement
 
 `GET /api/finance/statement/rider/{iqama}/simple?from=YYYY-MM&to=YYYY-MM&sponsorId=` is read-only, scoped, and reconciles posted rider-control journal lines. Full request, response and transaction-type mapping: [simple rider statement](docs/api/rider-statement-simple.md).
+
+
+## v0.9.0 financial views and bank file
+
+- `GET /api/finance/coa/target`: versioned embedded resource generated from finance-spec docs/02, with all 392 accounts and the payroll mapping table. No change to the current posting chart.
+- `GET /api/finance/trial-balance` and `/income-statement`: posted journals, explicit company scope, `from/to=YYYY-MM`, `view=current|target`; unresolved target mappings stay in a separate list and trial totals. Header rows roll up without repeating them in totals.
+- `POST /api/finance/bank-file/preview` and `/export`: approved posted 2110 payable, signed actor/source-bound preview, amount/notes edits only, complete server revalidation, exact UTF-8 BOM/CRLF CSV. New `finance.bankfile.export` defaults to FinancialManager and administrators. Export writes audit metadata only, never payments or file content.
+- Requests, fake examples, balance basis, scope/completeness flags and bank code 40 confirmation: [finance views API](docs/api/finance-views.md).

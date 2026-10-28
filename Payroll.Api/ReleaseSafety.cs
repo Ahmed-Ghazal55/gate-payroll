@@ -7,7 +7,7 @@ namespace Payroll;
 
 public static class ReleaseSafety
 {
-    public const string Version="0.8.0";
+    public const string Version="0.9.0";
     public static object Capture(DbConnection c,DbTransaction? tx=null)
     {
         using var cmd=Store.Command(c,tx,"SELECT id,kind,body FROM records ORDER BY id");using var reader=cmd.ExecuteReader();
