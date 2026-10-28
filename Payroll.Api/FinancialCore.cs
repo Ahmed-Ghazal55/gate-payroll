@@ -639,6 +639,8 @@ public static class FinancialCore
         // 5-ج. تسليم وتصفير عهدة صندوق جاهز اليومية (Zero-Out EOD Handover) من خزائن جاهز (SUP.*) إلى الصندوق الداخلي الرئيسي (MAIN.*)
         // 6. كشف حساب المندوب أو الموظف الشامل 360 درجة (مدين / دائن / رصيد تراكمي متسلسل زمنياً بدقة / حسب السجل / مع القيود والرواتب)
         api.MapGet("/finance/statement/rider/{iqama}",(string iqama,string? sponsorId,HttpContext ctx)=>store.Read(c=>RiderStatements.Build(c,iqama,sponsorId,ctx.User)));
+        api.MapGet("/finance/statement/rider/{iqama}/simple", (string iqama, string from, string to, string? sponsorId, HttpContext ctx) =>
+            store.Read(c => RiderStatements.BuildSimple(c, iqama, from, to, sponsorId, ctx.User)));
 
         // 7. منظومة الاعتمادات المتبادلة (المالية ⇄ HR ⇄ التشغيل ⇄ الحركة) ومركز الإشعارات والمهام
         api.MapGet("/approvals", (string? department, string? status,HttpContext ctx) => store.Read(c =>

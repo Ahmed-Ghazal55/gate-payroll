@@ -7,6 +7,7 @@ public sealed class HttpContractTests
 {
     [TestMethod]
     [DataRow("integration.mjs",false)]
+    [DataRow("rider-statement-simple.mjs",false)]
     [DataRow("enterprise.mjs",false)]
     [DataRow("accounting.mjs",false)]
     [DataRow("accounting.mjs",true)]

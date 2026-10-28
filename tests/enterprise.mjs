@@ -19,7 +19,7 @@ const password=randomBytes(24).toString('hex');let adminCookie='';
 async function put(route,body,expected=200){const r=await fetch(base+route,{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)});const d=await r.json();assert.equal(r.status,expected,JSON.stringify(d));checks++;return d;}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
- assert.equal((await req('/health',undefined,200,false)).version,'0.7.0');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.8.0');
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
  await seedAccountingCash(req);
  const accountant=await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
@@ -161,7 +161,7 @@ try{
  await req(uploaded.storagePath,undefined,401,false);
  const download=await fetch(base+uploaded.storagePath,{headers:{Cookie:adminCookie}});assert.equal(download.status,200);assert.deepEqual(Buffer.from(await download.arrayBuffer()),attachment);checks++;
  const editedDocument=await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',fileName:'rider.pdf',expiryDate:'2028-01-01'});assert.equal(editedDocument.hasBinary,true);assert.equal(editedDocument.history.length,2);
- const privateResult=await req('/api/system/release-check');assert.equal(privateResult.version,'0.7.0');
+ const privateResult=await req('/api/system/release-check');assert.equal(privateResult.version,'0.8.0');
  const grantAgain=await req('/api/inquiry-access',{iqama:iq,scope:'mobile',identityReviewed:true});assert.ok(grantAgain.url.includes('#access_code='));
  // New financial surfaces retain original staff-role isolation.
  await req('/api/auth/login',{username:'test-reviewer',password});
