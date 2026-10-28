@@ -18,6 +18,7 @@
     "src/table-tools.ts",
     "src/enterprise.ts",
     "src/rider-statement.ts",
+    "src/finance-views.ts",
     "src/bootstrap.ts"
   ]
 }
