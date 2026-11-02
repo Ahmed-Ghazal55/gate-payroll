@@ -56,6 +56,7 @@ jobs:
         run: |
           node tests/browser.mjs
           node tests/browser-v05.mjs
+          node tests/browser-iban.mjs
       - name: Publish Linux smoke-test bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r linux-x64 --self-contained true -o artifacts/linux --nologo
       - name: Test published application
@@ -64,6 +65,7 @@ jobs:
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/enterprise.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/accounting.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/submissions.mjs
+          PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/iban-form.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/campaigns.mjs
       - name: Publish MonsterASP bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r win-x64 --self-contained true -o artifacts/monsterasp --nologo

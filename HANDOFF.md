@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none |
+| Current writer | Claude Code (feat/iban-form, 2026-11-02) |
 | Branch | feat/v0.9.0-finance-views |
 | Updated | 2026-10-28 by Claude Code (review + fix round) |
 

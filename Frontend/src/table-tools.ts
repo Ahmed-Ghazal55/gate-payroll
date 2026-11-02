@@ -46,7 +46,7 @@ async function exportDataGrid(grid:HTMLElement,filtered:boolean):Promise<void> {
 let tableImportState:any=null;
 async function tableImportDialog(kind:'choices'|'riders'):Promise<void> {
     tableImportState=null;
-    const campaigns=kind==='choices'?(await api('/campaigns')).filter(c=>c.status==='open'&&Date.parse(c.expiresAt)>Date.now()):[];
+    const campaigns=kind==='choices'?(await api('/campaigns')).filter(c=>c.status==='open'&&c.kind!=='iban'&&Date.parse(c.expiresAt)>Date.now()):[];
     modal(kind==='choices'?'استيراد اختيارات المناديب':'استيراد مناديب جدد',`<div class="notice">استخدم القالب دون تعديل عناوين الأعمدة أو ترتيبها. الاستيراد يضيف سجلات جديدة فقط؛ الردود المستوردة تنتظر المراجعة.</div><a class="button secondary" href="/api/excel/${kind}/template">تنزيل القالب المعتمد</a>${kind==='choices'?`<label>حملة الاختيارات<select id="table-import-campaign" required><option value="">اختر الحملة</option>${options(campaigns.map(c=>[c.id,`${c.title} — ${c.id.slice(0,8)}`]))}</select></label>${!campaigns.length?'<div class="notice warn">أنشئ حملة استقبال مفتوحة أولًا من شاشة النماذج.</div>':''}`:''}<label>ملف Excel<input id="table-import-file" type="file" accept=".xlsx"></label><button id="table-import-preview">معاينة وفحص الملف</button><div id="table-import-result"></div>`);
     const invalidate=()=>{tableImportState=null;$('#table-import-result').innerHTML='';};
     $('#table-import-file').onchange=invalidate;if($('#table-import-campaign'))$('#table-import-campaign').onchange=invalidate;

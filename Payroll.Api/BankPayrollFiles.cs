@@ -10,6 +10,7 @@ public static class BankPayrollFiles
 {
     public const string Header="البنك,رقم الحساب,إجمالي الراتب,ملاحظات,اسم الموظف,رقم الهوية أو الإقامة,عنوان الموظف";
     private static readonly Dictionary<string,string> Banks=new(){["05"]="INMA",["10"]="NCBK",["15"]="ALBI",["20"]="RIBL",["30"]="ARNB",["40"]="NCBK",["45"]="SABB",["50"]="SABB",["55"]="BSFR",["60"]="BJAZ",["65"]="SIBC",["71"]="NBOB",["75"]="NBOK",["76"]="BMUS",["80"]="RJHI",["81"]="DEUT",["82"]="NBOP",["83"]="SBOI",["84"]="TCZT",["86"]="CHAS",["87"]="ICBK",["90"]="GULF",["95"]="EBIL",["98"]="BNPA"};
+    public static string BankFor(string code)=>Banks.GetValueOrDefault(code,"");
     public sealed record Download(byte[] Bytes,string Filename);
     private static string NormalizeIban(string value)=>Regex.Replace(value.ToUpperInvariant(),@"\s","");
     public static bool ValidIban(string value)

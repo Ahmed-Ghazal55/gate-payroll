@@ -1,0 +1,44 @@
+import {spawn} from 'node:child_process';
+import {mkdtempSync,rmSync,mkdirSync,readFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+import assert from 'node:assert/strict';
+import {randomBytes} from 'node:crypto';
+const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE||'/tmp/gate-browser/node_modules/playwright/index.mjs'));
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');const data=mkdtempSync(path.join(tmpdir(),'gate-browser-iban-'));const base='http://127.0.0.1:19372';
+const proc=spawn(process.env.DOTNET_PATH||'dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data},stdio:['ignore','pipe','pipe']});let logs='',spawnError;proc.on('error',e=>spawnError=e);proc.stdout.on('data',x=>logs+=x);proc.stderr.on('data',x=>logs+=x);let browser;
+const shots=process.env.IBAN_SCREENSHOTS||'';
+try{
+ let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready,logs);
+ browser=await chromium.launch({headless:true});const admin=await browser.newContext({viewport:{width:1440,height:1000}});
+ assert.equal((await admin.request.post(base+'/api/auth/setup',{data:{username:'browser-admin',password:randomBytes(24).toString('hex')}})).status(),200);
+ const campaign=await(await admin.request.post(base+'/api/campaigns',{data:{title:'تحديث بيانات الآيبان',days:2,kind:'iban'}})).json();
+ const phone=await browser.newContext({viewport:{width:360,height:800},hasTouch:true,isMobile:true});const page=await phone.newPage();const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+ await page.goto(base+campaign.path);await page.locator('#rider-choice [name=ibanBody]').waitFor();
+ assert.equal(await page.locator('.iban-prefix').textContent(),'SA');assert.equal(await page.locator('[name=workSystem]').count(),0);assert.equal(await page.locator('#open-resource').count(),0);
+ assert.equal(await page.locator('[name=platforms]').count(),7);assert.equal(await page.locator('[name=bankCode] option').count(),25);
+ await page.fill('[name=iqama]','2000000911');await page.fill('[name=name]','Synthetic Rider');await page.fill('[name=phone]','0500000911');
+ const iban=page.locator('[name=ibanBody]');await iban.focus();
+ await page.evaluate(()=>{const el=document.querySelector('[name=ibanBody]');const dt=new DataTransfer();dt.setData('text','SA00 8000 0000 6080 1016 7519');el.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));});
+ assert.equal(await iban.inputValue(),'00 8000 0000 6080 1016 7519');assert.match(await page.locator('#iban-status').textContent(),/الآيبان غير صحيح|غير صحيح/);
+ await page.evaluate(()=>{const el=document.querySelector('[name=ibanBody]');const dt=new DataTransfer();dt.setData('text','sa0380000000608010167519');el.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));});
+ assert.equal(await iban.inputValue(),'03 8000 0000 6080 1016 7519');assert.match(await page.locator('#iban-status').textContent(),/آيبان صحيح.*RJHI/);assert.equal(await page.locator('[name=bankCode]').inputValue(),'80');
+ await page.selectOption('[name=bankCode]','10');assert.equal(await page.locator('[name=bankCode]').evaluate(e=>e.validationMessage),'البنك المختار لا يطابق رقم الآيبان.');await page.selectOption('[name=bankCode]','80');
+ await page.check('[name=platforms][value=keeta]');await page.check('[name=platforms][value=jahez]');
+ const overflow=()=>page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);assert.ok(await overflow()<=1,'no horizontal scroll on 360px');
+ if(shots)await page.screenshot({path:path.join(shots,'iban-ar.png'),fullPage:true});
+ for(const [lang,label] of [['en','IBAN'],['ur','آئی بین نمبر']]){await page.click(`[data-lang=${lang}]`);await page.locator('[name=ibanBody]').waitFor();assert.match(await page.locator('#rider-choice').textContent(),new RegExp(label));
+  assert.equal(await page.locator('[name=iqama]').inputValue(),'2000000911');assert.equal(await page.locator('[name=platforms][value=keeta]').isChecked(),true);assert.equal(await page.locator('[name=platforms][value=ninja]').isChecked(),false);assert.equal(await page.locator('[name=bankCode]').inputValue(),'80');assert.ok(await overflow()<=1);
+  if(shots)await page.screenshot({path:path.join(shots,`iban-${lang}.png`),fullPage:true});}
+ await page.click('[data-lang=ar]');await page.locator('[name=ibanBody]').waitFor();
+ page.once('dialog',d=>d.accept());await page.click('#rider-choice button[type=submit]');await page.locator('.success-symbol').waitFor();
+ const rows=await(await admin.request.get(base+'/api/submissions')).json();assert.equal(rows.length,1);assert.equal(rows[0].iban,'SA0380000000608010167519');assert.deepEqual(rows[0].platforms,['keeta','jahez']);assert.equal(rows[0].phone,'+966500000911');
+ await page.click('#btn-edit-choice');await page.locator('#edit-notice:not([hidden])').waitFor();assert.match(await page.locator('#edit-notice').textContent(),/•••• 7519/);assert.equal(await page.locator('[name=ibanBody]').inputValue(),'');assert.equal(await page.locator('[name=platforms][value=jahez]').isChecked(),true);
+ const adminPage=await admin.newPage();adminPage.on('pageerror',e=>errors.push(String(e)));await adminPage.goto(base+'/#responses');await adminPage.locator('[data-response-id]').first().waitFor();
+ const rowText=await adminPage.locator('[data-response-id]').first().textContent();assert.match(rowText,/تحديث بيانات الآيبان/);assert.match(rowText,/SA0380000000608010167519/);assert.match(rowText,/RJHI/);
+ await adminPage.click('[data-action=response-review]');await adminPage.locator('#review-form [name=ibanOwnershipReviewed]').waitFor();assert.match(await adminPage.locator('#modal').textContent(),/لا يغيّر آيبان المندوب/);
+ if(shots)await adminPage.screenshot({path:path.join(shots,'iban-admin-review.png')});
+ assert.deepEqual(errors,[]);
+ console.log('PASS IBAN browser: 360px phone, SA prefix, paste normalization, mod97 status, bank auto-select and mismatch, multi apps, AR/EN/UR with kept values, submit, masked edit, admin columns and review notice.');
+}catch(e){console.error(logs.slice(-4000));throw e;}finally{await browser?.close();if(proc.exitCode===null){proc.kill();await new Promise(r=>setTimeout(r,500));}rmSync(data,{recursive:true,force:true});}
