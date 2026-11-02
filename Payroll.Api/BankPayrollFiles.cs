@@ -9,7 +9,9 @@ namespace Payroll;
 public static class BankPayrollFiles
 {
     public const string Header="البنك,رقم الحساب,إجمالي الراتب,ملاحظات,اسم الموظف,رقم الهوية أو الإقامة,عنوان الموظف";
-    private static readonly Dictionary<string,string> Banks=new(){["05"]="INMA",["10"]="NCBK",["15"]="ALBI",["20"]="RIBL",["30"]="ARNB",["40"]="NCBK",["45"]="SABB",["50"]="SABB",["55"]="BSFR",["60"]="BJAZ",["65"]="SIBC",["71"]="NBOB",["75"]="NBOK",["76"]="BMUS",["80"]="RJHI",["81"]="DEUT",["82"]="NBOP",["83"]="SBOI",["84"]="TCZT",["86"]="CHAS",["87"]="ICBK",["90"]="GULF",["95"]="EBIL",["98"]="BNPA"};
+    // SARIE clearing codes (IBAN digits 5-6) → SWIFT prefix, checked 2026-11-02 against ANB's clearing table.
+    // 40 stays for BR §19 (former Samba, manual confirmation); 50 (Alawwal), 83 and 98 are no longer participants.
+    private static readonly Dictionary<string,string> Banks=new(){["05"]="INMA",["10"]="NCBK",["15"]="ALBI",["20"]="RIBL",["30"]="ARNB",["36"]="DBAK",["40"]="NCBK",["45"]="SABB",["55"]="BSFR",["60"]="BJAZ",["65"]="SIBC",["71"]="NBOB",["72"]="QNBA",["73"]="FABM",["75"]="NBOK",["76"]="BMUS",["78"]="STCJ",["79"]="NBIQ",["80"]="RJHI",["81"]="DEUT",["82"]="NBPA",["84"]="TCZB",["85"]="BNPA",["86"]="CHAS",["87"]="ICBK",["88"]="BOTK",["89"]="CRES",["90"]="GULF",["91"]="SCBL",["92"]="BSHR",["93"]="VIIO",["95"]="EBIL"};
     public static string BankFor(string code)=>Banks.GetValueOrDefault(code,"");
     public sealed record Download(byte[] Bytes,string Filename);
     private static string NormalizeIban(string value)=>Regex.Replace(value.ToUpperInvariant(),@"\s","");

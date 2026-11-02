@@ -11,6 +11,9 @@ public sealed record IbanAnswer(string Iqama, string Name, string Phone, string 
 public static class IbanChoices
 {
     public const string Kind = "iban", Schema = "iban-v1";
+    // Banks that open individual accounts and receive salary transfers (Ghazal 2026-11-02). Any other code is refused.
+    public static readonly string[] SalaryBanks = ["80", "10", "05", "20", "15", "45", "30", "55", "60", "65", "90", "78", "36", "93", "95"];
+    static readonly string[] Retired = ["40", "50"];
     public static readonly string[] Platforms = ["keeta", "hungerstation", "ninja", "amazon", "chefz", "jahez", "other"];
     static readonly string[] Keys = ["iqama", "name", "phone", "city", "iban", "bankCode", "platforms"];
     static readonly string[] Snapshot = ["name", "phone", "city", "iban", "bankCode", "bank"];
@@ -30,6 +33,8 @@ public static class IbanChoices
         J.Need(city.Length <= 100 && !city.Any(char.IsControl), "اسم المدينة بحد أقصى100حرف.");
         string iban = J.Iban(NormalizeIban(input.Required("iban")));
         string code = iban.Substring(4, 2), chosen = input.S("bankCode").Trim();
+        J.Need(!Retired.Contains(code), "هذا الآيبان من بنك اندمج في بنك آخر ولم يعد يستقبل التحويلات؛ اطلب آيبانك الجديد من البنك.");
+        J.Need(SalaryBanks.Contains(code), "بنك هذا الآيبان غير مقبول لاستلام الرواتب في هذا النموذج؛ استخدم آيبان حساب في أحد البنوك المدرجة.");
         J.Need(chosen == "" || chosen == code, "البنك المختار لا يطابق رقم الآيبان؛ راجع الآيبان أو اختر البنك الصحيح.");
         string[] platforms = [];
         if (input["platforms"] is not null)

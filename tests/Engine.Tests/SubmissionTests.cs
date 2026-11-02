@@ -16,7 +16,15 @@ public sealed class SubmissionTests
             Assert.AreEqual("SA0380000000608010167519",a.Iban);Assert.AreEqual("80",a.BankCode);Assert.AreEqual("+966500000901",a.Phone);Assert.AreEqual("",a.City);Assert.AreEqual(0,a.Platforms.Length);
         }
         Assert.AreEqual("RJHI",BankPayrollFiles.BankFor("80"));Assert.AreEqual("",BankPayrollFiles.BankFor("99"));
-        Assert.AreEqual("99",IbanChoices.Validate(IbanInput(Synthetic("99","000000000000000003"))).BankCode);
+        foreach(var (code,swift) in new[]{("78","STCJ"),("36","DBAK"),("93","VIIO"),("82","NBPA"),("84","TCZB"),("85","BNPA"),("40","NCBK")})Assert.AreEqual(swift,BankPayrollFiles.BankFor(code));
+        foreach(string gone in new[]{"50","83","98"})Assert.AreEqual("",BankPayrollFiles.BankFor(gone));
+        foreach(string code in IbanChoices.SalaryBanks)Assert.AreEqual(code,IbanChoices.Validate(IbanInput(Synthetic(code,"000000000000000003"))).BankCode);
+        Assert.AreEqual(15,IbanChoices.SalaryBanks.Length);
+    }
+    [TestMethod] public void IbanFormRefusesBanksThatCannotReceiveSalaries()
+    {
+        foreach(string code in new[]{"40","50","82","84","81","99"})
+        { var error=Assert.ThrowsExactly<ApiError>(()=>IbanChoices.Validate(IbanInput(Synthetic(code,"000000000000000003"))));StringAssert.Contains(error.Message,code is "40" or "50"?"اندمج":"غير مقبول"); }
     }
     [TestMethod] public void IbanFormRejectsWrongIbanBankAndApps()
     {

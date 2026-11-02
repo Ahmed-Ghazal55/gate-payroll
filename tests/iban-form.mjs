@@ -17,7 +17,7 @@ async function req(route,body,expected=200,auth=true,headers={}){const r=await f
 const password=randomBytes(24).toString('hex');let adminCookie='';
 // Release sources may only contain the allow-listed synthetic IBAN; other banks are generated here.
 const synthetic=(bank,account)=>{let r=0;for(const c of bank+account+'281000')r=(r*10+Number(c))%97;return 'SA'+String(98-r).padStart(2,'0')+bank+account;};
-const IBAN10=synthetic('10','000000000000000002'),IBAN99=synthetic('99','000000000000000003');
+const IBAN10=synthetic('10','000000000000000002'),IBAN78=synthetic('78','000000000000000003'),IBAN40=synthetic('40','000000000000000004'),IBAN82=synthetic('82','000000000000000005');
 async function put(route,body,expected=200){const r=await fetch(base+route,{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)});const d=await r.json();assert.equal(r.status,expected,JSON.stringify(d));checks++;return d;}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
@@ -46,7 +46,8 @@ try{
  const reviewed=await req('/api/submissions/'+receipt.receipt+'/review',{status:'approved',version:2,identityReviewed:true,ibanOwnershipReviewed:true});assert.equal(reviewed.status,'approved');
  const riders=await req('/api/riders');assert.ok(!JSON.stringify(riders).includes(IBAN10),'approval must not write the rider IBAN');
  const analytics=await req('/api/campaigns/'+campaign.id+'/analytics');assert.equal(analytics.kind,'iban');assert.equal(analytics.approved,1);assert.equal(analytics.bank[0].value,'NCBK');
- const unknown=await req(pub,{iqama:'2000000903',name:'Synthetic Third',phone:'+966500000903',iban:IBAN99},200,false);assert.equal(unknown.bankCode,'99');
+ const stc=await req(pub,{iqama:'2000000903',name:'Synthetic Third',phone:'+966500000903',iban:IBAN78},200,false);assert.equal(stc.bankCode,'78');
+ for(const iban of [IBAN40,IBAN82,synthetic('99','000000000000000006')])await req(pub,{iqama:'2000000905',name:'Synthetic Fourth',phone:'+966500000905',iban},400,false);
  await req('/api/campaigns/'+campaign.id+'/close',{});await req(pub,{...form,iqama:'2000000904'},400,false);
  console.log(`PASS ${checks} IBAN form HTTP checks: kind, paste normalization, mod97, bank match, apps, masked lookup, edit history, stale version, review without rider IBAN write, close.`);
 }catch(e){console.error(logs.slice(-5000));throw e;}finally{if(proc.exitCode===null&&!spawnError){const stopped=new Promise(r=>proc.once('exit',r));proc.kill();await Promise.race([stopped,new Promise(r=>setTimeout(r,5000))]);}rmSync(data,{recursive:true,force:true});}
