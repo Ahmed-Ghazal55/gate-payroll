@@ -71,6 +71,7 @@ public static class TableExcelApi
         {
             var campaign = Store.Get(c, campaignId, "campaign", tx) ?? throw new ApiError("اختر حملة استقبال موجودة.");
             J.Need(campaign.S("status") == "open" && DateTimeOffset.Parse(campaign.S("expiresAt"), CultureInfo.InvariantCulture) > DateTimeOffset.UtcNow, "الحملة مغلقة أو انتهت صلاحيتها.");
+            J.Need(!IbanChoices.Is(campaign), "استيراد الاختيارات لا يستخدم حملة الآيبان.");
         }
         J.Need(Path.GetExtension(input.S("filename")).Equals(".xlsx", StringComparison.OrdinalIgnoreCase), "استخدم قالب Excel بصيغة xlsx.");
         byte[] bytes;

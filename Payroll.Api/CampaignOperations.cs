@@ -36,6 +36,10 @@ public static class CampaignOperations
         {
             J.Need(input.NullableBool("identityReviewed")!=false,"أكد مراجعة هوية المندوب والاسم خارج النموذج.");
             if(d.S("iban")!="")J.Need(input.B("ibanOwnershipReviewed"),"أكد مراجعة ملكية الآيبان؛ فحص الصيغة لا يثبت صاحب الحساب.");
+        }
+        // IBAN campaigns: approval marks the answer reviewed only; the rider's bank details stay unchanged.
+        if(status=="approved"&&d.S("schema")!=IbanChoices.Schema)
+        {
             var rider=Store.Get(c,d.S("iqama"),"rider",tx)?.Clone()??new JsonObject{["id"]=d.S("iqama"),["iqama"]=d.S("iqama"),["name"]=d.S("name"),["policyId"]="",["status"]="needs_review"};
             rider["workPreference"]=d.S("workSystem");rider["workPreferenceSubmissionId"]=d.S("id");
             foreach(string field in new[]{"phone","city"})if(d.S(field)!="")rider[field]=d.S(field);
@@ -51,9 +55,9 @@ public static class CampaignOperations
     static string Actor(HttpContext ctx)=>ctx.User.Identity?.Name??"administrator";
     internal static void DeleteSubmissions(DbConnection c,DbTransaction tx,List<JsonObject> rows,string actor)
     {
-        var all=Store.List(c,"submission",tx);var ids=rows.Select(d=>d.S("id")).ToHashSet();
+        var all=Store.List(c,"submission",tx).Where(d=>d.S("schema")!=IbanChoices.Schema).ToList();var ids=rows.Select(d=>d.S("id")).ToHashSet();
         foreach(var d in rows){using var cmd=Store.Command(c,tx,"DELETE FROM records WHERE id=@id AND kind='submission'",("@id",d.S("id")));cmd.ExecuteNonQuery();Store.Audit(c,tx,"submission.deleted",d.S("id"),actor);}
-        foreach(string iqama in rows.Select(d=>d.S("iqama")).Distinct())
+        foreach(string iqama in rows.Where(d=>d.S("schema")!=IbanChoices.Schema).Select(d=>d.S("iqama")).Distinct())
         {
             var rider=Store.Get(c,iqama,"rider",tx);if(rider==null)continue;
             var latest=all.Where(d=>d.S("iqama")==iqama&&d.S("status")=="approved").OrderByDescending(d=>d.S("reviewedAt",d.S("createdAt"))).ThenByDescending(d=>d.S("id")).FirstOrDefault();
@@ -82,13 +86,14 @@ public static class CampaignOperations
     }
     public static object Analytics(DbConnection c,string id)
     {
-        _=Store.Get(c,id,"campaign")??throw new ApiError("الحملة غير موجودة.",404);
+        var campaign=Store.Get(c,id,"campaign")??throw new ApiError("الحملة غير موجودة.",404);
         var rows=Store.List(c,"submission").Where(d=>d.S("campaignId")==id).ToList();
         var riders=Store.List(c,"rider").ToDictionary(d=>d.S("iqama"));
         object[] Distribution(Func<JsonObject,string> key)=>rows.GroupBy(key).Select(g=>(object)new{value=g.Key,count=g.Count(),percentage=rows.Count==0?0:Math.Round(100m*g.Count()/rows.Count,2)}).ToArray();
         return new{campaignId=id,totalResponses=rows.Count,approved=rows.Count(d=>d.S("status")=="approved"),pending=rows.Count(d=>d.S("status")=="pending"),rejected=rows.Count(d=>d.S("status")=="rejected"),edited=rows.Count(d=>d.B("isEdited")),
             workSystem=Distribution(d=>d.S("workSystem")),city=Distribution(d=>d.S("city")!=""?d.S("city"):(riders.GetValueOrDefault(d.S("iqama"))?.S("city") is string city && city!=""?city:"غير محدد")),
             engagementType=Distribution(d=>{string value=riders.GetValueOrDefault(d.S("iqama"))?.S("engagementType")??"";return value is "SponsoredInternal" or "External"?value:"Unknown";}),
+            kind=campaign.S("kind","work-choice"),platforms=IbanChoices.Distribution(rows,d=>(d["platforms"] as JsonArray)?.Select(x=>x?.ToString()??"")??[]),bank=IbanChoices.Distribution(rows,d=>d.S("schema")==IbanChoices.Schema?[d.S("bank")!=""?d.S("bank"):d.S("bankCode")]:[]),
             recent=rows.OrderByDescending(d=>d.S("updatedAt",d.S("createdAt"))).ThenBy(d=>d.S("id")).Take(5).Select(d=>new{id=d.S("id"),name=d.S("name"),iqama=d.S("iqama"),workSystem=d.S("workSystem"),status=d.S("status"),createdAt=d.S("createdAt"),updatedAt=d.S("updatedAt"),isEdited=d.B("isEdited")})};
     }
     public static void Map(RouteGroupBuilder api,Store store)
@@ -98,7 +103,7 @@ public static class CampaignOperations
             if(input.ContainsKey("title")){string title=input.Required("title");J.Need(title.Length<=200,"العنوان طويل جدًا.");d["title"]=title;}
             if(input.ContainsKey("expiresAt")){J.Need(DateTimeOffset.TryParse(input.S("expiresAt"),CultureInfo.InvariantCulture,DateTimeStyles.None,out var expiry),"تاريخ الانتهاء غير صالح.");d["expiresAt"]=expiry.ToUniversalTime().ToString("O");}
             if(input.ContainsKey("status")){J.Need(input.S("status") is "open" or "closed","حالة النموذج غير صحيحة.");d["status"]=input.S("status");}
-            if(input.ContainsKey("fields"))d["fields"]=ValidateFields(input["fields"]);d["updatedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,"campaign",d,tx);Store.Audit(c,tx,"campaign.updated",id,Actor(ctx));return new{ok=true};});});
+            if(input.ContainsKey("fields")){J.Need(!IbanChoices.Is(d),"حقول نموذج الآيبان ثابتة.");d["fields"]=ValidateFields(input["fields"]);}d["updatedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,"campaign",d,tx);Store.Audit(c,tx,"campaign.updated",id,Actor(ctx));return new{ok=true};});});
         api.MapGet("/campaigns/{id}/analytics",(string id)=>store.Read(c=>Analytics(c,id)));
         api.MapDelete("/submissions/{id}",(string id,HttpContext ctx)=>{Admin(ctx);return store.Write((c,tx)=>{var d=Store.Get(c,id,"submission",tx)??throw new ApiError("الرد غير موجود.",404);DeleteSubmissions(c,tx,[d],Actor(ctx));return new{ok=true,message="تم حذف الرد نهائيًا ويمكن للمندوب التسجيل مجددًا."};});});
         api.MapPost("/submissions/bulk-delete",(JsonObject input,HttpContext ctx)=>{Admin(ctx);J.Need(input.B("confirm"),"أكد الحذف النهائي أولًا.");return store.Write((c,tx)=>{var rows=Scope(c,tx,input,true);DeleteSubmissions(c,tx,rows,Actor(ctx));Store.Audit(c,tx,"submission.bulk_deleted",input.S("campaignId"),Actor(ctx));return new{ok=true,count=rows.Count};});});

@@ -13,7 +13,7 @@ jobs:
   validate:
     needs: ftps-preflight
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-latest
@@ -56,6 +56,7 @@ jobs:
         run: |
           node tests/browser.mjs
           node tests/browser-v05.mjs
+          node tests/browser-iban.mjs
       - name: Publish Linux smoke-test bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r linux-x64 --self-contained true -o artifacts/linux --nologo
       - name: Test published application
@@ -64,6 +65,7 @@ jobs:
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/enterprise.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/accounting.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/submissions.mjs
+          PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/iban-form.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/campaigns.mjs
       - name: Publish MonsterASP bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r win-x64 --self-contained true -o artifacts/monsterasp --nologo
@@ -132,7 +134,7 @@ jobs:
   ftps-preflight:
     name: Check FTPS connection (read only)
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
       - name: Verify FTPS certificate, login and existing root

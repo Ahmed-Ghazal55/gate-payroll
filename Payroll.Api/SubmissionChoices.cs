@@ -33,7 +33,7 @@ public static class SubmissionChoices
             throw new ApiError("تعذر التحقق من رمز تعديل الرد. استخدم بيانات المتابعة الأصلية أو تواصل مع الإدارة.",403);
         return d;
     }
-    static JsonObject Open(DbConnection c,DbTransaction tx,JsonObject campaign)
+    internal static JsonObject Open(DbConnection c,DbTransaction tx,JsonObject campaign)
     {
         var current=Store.Get(c,campaign.S("id"),"campaign",tx)??throw new ApiError("النموذج غير موجود.",404);
         J.Need(current.S("status")=="open" && DateTimeOffset.Parse(current.S("expiresAt"),CultureInfo.InvariantCulture)>DateTimeOffset.UtcNow,"النموذج مغلق أو انتهت صلاحيته.");return current;
@@ -43,7 +43,7 @@ public static class SubmissionChoices
         string iqama=input.Required("iqama");
         J.Need(System.Text.RegularExpressions.Regex.IsMatch(iqama,"^[0-9]{10}$"),"رقم الإقامة يجب أن يكون10أرقام إنجليزية فقط.");return iqama;
     }
-    static JsonObject? Find(DbConnection c,DbTransaction tx,JsonObject campaign,string iqama) => Store.List(c,"submission",tx).SingleOrDefault(d=>d.S("campaignId")==campaign.S("id") && d.S("iqama")==iqama);
+    internal static JsonObject? Find(DbConnection c,DbTransaction tx,JsonObject campaign,string iqama) => Store.List(c,"submission",tx).SingleOrDefault(d=>d.S("campaignId")==campaign.S("id") && d.S("iqama")==iqama);
     public static JsonObject ChoiceView(JsonObject d,JsonObject? campaign=null)
     { var result=new JsonObject() { ["alreadySubmitted"]=true,["iqama"]=d.S("iqama"),["name"]=d.S("name"),["currentChoice"]=d.S("workSystem"),["version"]=Version(d),["message"]="سبق لك تسجيل اختيار. يمكنك تعديله أدناه مباشرة." };
         foreach(string f in campaign==null?[]:CampaignOperations.Fields(campaign))result[f]=d.S(f);return result;
@@ -56,11 +56,12 @@ public static class SubmissionChoices
         app.MapPost("/api/public/forms/{token}/lookup",(string token,JsonObject input)=>
         {
             J.Need(input.All(p=>p.Key=="iqama"),"حقول الاستعلام غير صحيحة.");string iqama=Iqama(input);var campaign=campaignLookup(token);
-            return store.Write<IResult>((c,tx)=>{campaign=Open(c,tx,campaign);var d=Find(c,tx,campaign,iqama);return Results.Ok(d==null?new JsonObject { ["alreadySubmitted"]=false,["iqama"]=iqama }:ChoiceView(d,campaign));},invalidateSummaries:false);
+            return store.Write<IResult>((c,tx)=>{campaign=Open(c,tx,campaign);var d=Find(c,tx,campaign,iqama);return Results.Ok(d==null?new JsonObject { ["alreadySubmitted"]=false,["iqama"]=iqama }:IbanChoices.Is(campaign)?IbanChoices.View(d):ChoiceView(d,campaign));},invalidateSummaries:false);
         }).RequireRateLimiting("sensitive");
         app.MapPost("/api/public/forms/{token}",(string token,JsonObject input)=>
         {
-            var campaign=campaignLookup(token);var choice=WorkChoices.Validate(new JsonObject(input.Where(p=>p.Key is not ("city" or "phone")).Select(p=>new KeyValuePair<string,JsonNode?>(p.Key,p.Value?.DeepClone()))));
+            var campaign=campaignLookup(token);if(IbanChoices.Is(campaign))return IbanChoices.Create(store,campaign,input);
+            var choice=WorkChoices.Validate(new JsonObject(input.Where(p=>p.Key is not ("city" or "phone")).Select(p=>new KeyValuePair<string,JsonNode?>(p.Key,p.Value?.DeepClone()))));
             return store.Write<IResult>((c,tx)=>
             {
                 campaign=Open(c,tx,campaign);var existing=Find(c,tx,campaign,choice.Iqama);
@@ -79,9 +80,10 @@ public static class SubmissionChoices
         }).RequireRateLimiting("sensitive");
         app.MapPost("/api/public/forms/{token}/edit",(string token,JsonObject input)=>
         {
+            var campaign=campaignLookup(token);if(IbanChoices.Is(campaign))return IbanChoices.Edit(store,campaign,input);
             // editToken is accepted but ignored for legacy callers; it is never required or issued.
             J.Need(input.All(p=>p.Key is "receipt" or "editToken" or "version" or "iqama" or "name" or "workSystem" or "city" or "phone"),"حقول طلب التعديل غير صحيحة.");
-            var campaign=campaignLookup(token);var choice=WorkChoices.Validate(new JsonObject { ["iqama"]=input.S("iqama"),["name"]=input.S("name"),["workSystem"]=input.S("workSystem") });
+            var choice=WorkChoices.Validate(new JsonObject { ["iqama"]=input.S("iqama"),["name"]=input.S("name"),["workSystem"]=input.S("workSystem") });
             return store.Write((c,tx)=>
             {
                 campaign=Open(c,tx,campaign);var answers=CampaignOperations.Answers(campaign,input);var d=Find(c,tx,campaign,choice.Iqama)??throw new ApiError("لم يتم العثور على رد سابق لتعديله.",404);
