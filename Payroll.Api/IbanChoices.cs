@@ -18,31 +18,48 @@ public static class IbanChoices
     static readonly string[] Keys = ["iqama", "name", "phone", "city", "iban", "bankCode", "platforms"];
     static readonly string[] Snapshot = ["name", "phone", "city", "iban", "bankCode", "bank"];
     public static bool Is(JsonObject campaign) => campaign.S("kind") == Kind;
+    static readonly JsonArray DefaultCities = [new JsonObject { ["ar"] = "الرياض", ["en"] = "Riyadh" }, new JsonObject { ["ar"] = "جدة", ["en"] = "Jeddah" }];
+    // Riders pick the city from the campaign's own list (set by the administrator); free text is refused.
+    public static JsonArray Cities(JsonObject campaign) => (campaign["cities"] as JsonArray ?? DefaultCities).DeepClone().AsArray();
+    public static JsonArray ValidateCities(JsonNode? value)
+    {
+        J.Need(value is JsonArray, "قائمة المدن غير صحيحة.");
+        var cities = ((JsonArray)value!).Select(x => x as JsonObject).ToList();
+        J.Need(cities.Count is >= 1 and <= 60 && cities.All(c => c != null), "أدخل من مدينة إلى60 مدينة.");
+        var result = new JsonArray();
+        foreach (var c in cities)
+        {
+            string ar = c!.S("ar").Trim(), en = c.S("en").Trim();
+            J.Need(ar.Length is >= 2 and <= 60 && en.Length <= 60 && !(ar + en).Any(char.IsControl), "اسم المدينة بالعربي مطلوب وبحد أقصى60حرفًا.");
+            result.Add(new JsonObject { ["ar"] = ar, ["en"] = en == "" ? ar : en });
+        }
+        J.Need(result.Select(c => c!.S("ar")).Distinct().Count() == result.Count, "يوجد اسم مدينة مكرر.");
+        return result;
+    }
 
     public static string NormalizeIban(string value)
     {
-        string s = Regex.Replace(J.Digits(value).ToUpperInvariant(), @"[\s\-]", "");
+        // Pasted IBANs may carry spaces, dashes, dots, direction marks or an "IBAN:" label.
+        string s = Regex.Replace(J.Digits(value).ToUpperInvariant(), @"[^0-9A-Z]", "");
+        if (s.StartsWith("IBAN", StringComparison.Ordinal)) s = s[4..];
         return Regex.IsMatch(s, "^[0-9]{22}$") ? "SA" + s : s;
     }
-    public static IbanAnswer Validate(JsonObject input, bool edit = false)
+    public static IbanAnswer Validate(JsonObject input, JsonObject campaign, bool edit = false)
     {
         J.Need(input.All(p => Keys.Contains(p.Key) || (edit && p.Key is "version" or "receipt")), "حقول نموذج الآيبان غير صحيحة.");
         var identity = WorkChoices.Identity(input);
         string phone = RiderDirectory.Phone(input.Required("phone"));
-        string city = input.S("city").Trim();
-        J.Need(city.Length <= 100 && !city.Any(char.IsControl), "اسم المدينة بحد أقصى100حرف.");
+        string city = input.Required("city").Trim();
+        J.Need(Cities(campaign).Any(c => c!.S("ar") == city), "اختر المدينة من القائمة.");
         string iban = J.Iban(NormalizeIban(input.Required("iban")));
         string code = iban.Substring(4, 2), chosen = input.S("bankCode").Trim();
         J.Need(!Retired.Contains(code), "هذا الآيبان من بنك اندمج في بنك آخر ولم يعد يستقبل التحويلات؛ اطلب آيبانك الجديد من البنك.");
         J.Need(SalaryBanks.Contains(code), "بنك هذا الآيبان غير مقبول لاستلام الرواتب في هذا النموذج؛ استخدم آيبان حساب في أحد البنوك المدرجة.");
-        J.Need(chosen == "" || chosen == code, "البنك المختار لا يطابق رقم الآيبان؛ راجع الآيبان أو اختر البنك الصحيح.");
-        string[] platforms = [];
-        if (input["platforms"] is not null)
-        {
-            J.Need(input["platforms"] is JsonArray, "تطبيقات العمل غير صحيحة.");
-            platforms = ((JsonArray)input["platforms"]!).Select(x => x?.ToString() ?? "").ToArray();
-            J.Need(platforms.Length <= Platforms.Length && platforms.Distinct().Count() == platforms.Length && platforms.All(Platforms.Contains), "اختر تطبيقات العمل من القائمة فقط.");
-        }
+        J.Need(chosen != "", "اختر البنك من القائمة.");
+        J.Need(chosen == code, "البنك المختار لا يطابق رقم الآيبان؛ راجع الآيبان أو اختر البنك الصحيح.");
+        J.Need(input["platforms"] is JsonArray, "اختر تطبيق عمل واحدًا على الأقل.");
+        string[] platforms = ((JsonArray)input["platforms"]!).Select(x => x?.ToString() ?? "").ToArray();
+        J.Need(platforms.Length is >= 1 && platforms.Length <= Platforms.Length && platforms.Distinct().Count() == platforms.Length && platforms.All(Platforms.Contains), "اختر تطبيق عمل واحدًا على الأقل من القائمة.");
         return new(identity.Iqama, identity.Name, phone, city, iban, code, Platforms.Where(platforms.Contains).ToArray());
     }
     static void Apply(JsonObject d, IbanAnswer a)
@@ -69,7 +86,7 @@ public static class IbanChoices
     };
     public static IResult Create(Store store, JsonObject campaign, JsonObject input)
     {
-        var answer = Validate(input);
+        var answer = Validate(input, campaign);
         return store.Write<IResult>((c, tx) =>
         {
             campaign = SubmissionChoices.Open(c, tx, campaign); var existing = SubmissionChoices.Find(c, tx, campaign, answer.Iqama);
@@ -80,7 +97,7 @@ public static class IbanChoices
     }
     public static IResult Edit(Store store, JsonObject campaign, JsonObject input)
     {
-        var answer = Validate(input, edit: true);
+        var answer = Validate(input, campaign, edit: true);
         return store.Write<IResult>((c, tx) =>
         {
             campaign = SubmissionChoices.Open(c, tx, campaign); var d = SubmissionChoices.Find(c, tx, campaign, answer.Iqama) ?? throw new ApiError("لم يتم العثور على رد سابق لتعديله.", 404);

@@ -7,37 +7,44 @@ public sealed class SubmissionTests
 {
     // Release sources may only contain the allow-listed synthetic IBAN; other banks are generated here.
     static string Synthetic(string bank,string account){int r=0;foreach(char c in bank+account+"281000")r=(r*10+c-'0')%97;return "SA"+(98-r).ToString("00")+bank+account;}
-    static JsonObject IbanInput(string iban) => new() { ["iqama"]="2000000901",["name"]="Synthetic Rider",["phone"]="0500000901",["iban"]=iban };
+    static readonly JsonObject IbanCampaign=new(){["kind"]="iban"};
+    static JsonObject IbanInput(string iban,string bank="80") => new() { ["iqama"]="2000000901",["name"]="Synthetic Rider",["phone"]="0500000901",["iban"]=iban,["bankCode"]=bank,["city"]="الرياض",["platforms"]=new JsonArray("keeta") };
+    static IbanAnswer Check(JsonObject input) => IbanChoices.Validate(input,IbanCampaign);
     [TestMethod] public void IbanFormNormalizesPastedIbanAndDerivesBank()
     {
-        foreach(string pasted in new[]{"SA0380000000608010167519","sa03 8000 0000 6080 1016 7519","03-8000-0000-6080-1016-7519","٠٣٨٠٠٠٠٠٠٠٦٠٨٠١٠١٦٧٥١٩"})
+        foreach(string pasted in new[]{"IBAN: SA03 8000 0000 6080 1016 7519","\u200fSA0380000000608010167519\u200f","SA0380000000608010167519","sa03 8000 0000 6080 1016 7519","03-8000-0000-6080-1016-7519","٠٣٨٠٠٠٠٠٠٠٦٠٨٠١٠١٦٧٥١٩"})
         {
-            var a=IbanChoices.Validate(IbanInput(pasted));
-            Assert.AreEqual("SA0380000000608010167519",a.Iban);Assert.AreEqual("80",a.BankCode);Assert.AreEqual("+966500000901",a.Phone);Assert.AreEqual("",a.City);Assert.AreEqual(0,a.Platforms.Length);
+            var a=Check(IbanInput(pasted));
+            Assert.AreEqual("SA0380000000608010167519",a.Iban);Assert.AreEqual("80",a.BankCode);Assert.AreEqual("+966500000901",a.Phone);Assert.AreEqual("الرياض",a.City);CollectionAssert.AreEqual(new[]{"keeta"},a.Platforms);
         }
         Assert.AreEqual("RJHI",BankPayrollFiles.BankFor("80"));Assert.AreEqual("",BankPayrollFiles.BankFor("99"));
         foreach(var (code,swift) in new[]{("78","STCJ"),("36","DBAK"),("93","VIIO"),("82","NBPA"),("84","TCZB"),("85","BNPA"),("40","NCBK")})Assert.AreEqual(swift,BankPayrollFiles.BankFor(code));
         foreach(string gone in new[]{"50","83","98"})Assert.AreEqual("",BankPayrollFiles.BankFor(gone));
-        foreach(string code in IbanChoices.SalaryBanks)Assert.AreEqual(code,IbanChoices.Validate(IbanInput(Synthetic(code,"000000000000000003"))).BankCode);
+        foreach(string code in IbanChoices.SalaryBanks)Assert.AreEqual(code,Check(IbanInput(Synthetic(code,"000000000000000003"),code)).BankCode);
         Assert.AreEqual(15,IbanChoices.SalaryBanks.Length);
     }
     [TestMethod] public void IbanFormRefusesBanksThatCannotReceiveSalaries()
     {
         foreach(string code in new[]{"40","50","82","84","81","99"})
-        { var error=Assert.ThrowsExactly<ApiError>(()=>IbanChoices.Validate(IbanInput(Synthetic(code,"000000000000000003"))));StringAssert.Contains(error.Message,code is "40" or "50"?"اندمج":"غير مقبول"); }
+        { var error=Assert.ThrowsExactly<ApiError>(()=>Check(IbanInput(Synthetic(code,"000000000000000003"))));StringAssert.Contains(error.Message,code is "40" or "50"?"اندمج":"غير مقبول"); }
     }
     [TestMethod] public void IbanFormRejectsWrongIbanBankAndApps()
     {
         foreach(string bad in new[]{"SA0080000000608010167519","SA038000000060801016751","AE070331234567890123456","SA03800000006080101675O9",""})
-            Assert.ThrowsExactly<ApiError>(()=>IbanChoices.Validate(IbanInput(bad)));
-        var mismatch=IbanInput("SA0380000000608010167519");mismatch["bankCode"]="10";Assert.ThrowsExactly<ApiError>(()=>IbanChoices.Validate(mismatch));
-        var matching=IbanInput("SA0380000000608010167519");matching["bankCode"]="80";Assert.AreEqual("80",IbanChoices.Validate(matching).BankCode);
-        foreach(var apps in new[]{new JsonArray("keeta","keeta"),new JsonArray("uber"),new JsonArray(1)})
-        { var input=IbanInput("SA0380000000608010167519");input["platforms"]=apps;Assert.ThrowsExactly<ApiError>(()=>IbanChoices.Validate(input)); }
-        var multi=IbanInput("SA0380000000608010167519");multi["platforms"]=new JsonArray("jahez","keeta");multi["city"]="Riyadh";
-        var answer=IbanChoices.Validate(multi);CollectionAssert.AreEqual(new[]{"keeta","jahez"},answer.Platforms);Assert.AreEqual("Riyadh",answer.City);
-        var extra=IbanInput("SA0380000000608010167519");extra["workSystem"]="tiers";Assert.ThrowsExactly<ApiError>(()=>IbanChoices.Validate(extra));
-        var noPhone=IbanInput("SA0380000000608010167519");noPhone.Remove("phone");Assert.ThrowsExactly<ApiError>(()=>IbanChoices.Validate(noPhone));
+            Assert.ThrowsExactly<ApiError>(()=>Check(IbanInput(bad)));
+        var mismatch=IbanInput("SA0380000000608010167519");mismatch["bankCode"]="10";Assert.ThrowsExactly<ApiError>(()=>Check(mismatch));
+        var matching=IbanInput("SA0380000000608010167519");matching["bankCode"]="80";Assert.AreEqual("80",Check(matching).BankCode);
+        foreach(var apps in new[]{new JsonArray("keeta","keeta"),new JsonArray("uber"),new JsonArray(1),new JsonArray()})
+        { var input=IbanInput("SA0380000000608010167519");input["platforms"]=apps;Assert.ThrowsExactly<ApiError>(()=>Check(input)); }
+        var multi=IbanInput("SA0380000000608010167519");multi["platforms"]=new JsonArray("jahez","keeta");multi["city"]="جدة";
+        var answer=Check(multi);CollectionAssert.AreEqual(new[]{"keeta","jahez"},answer.Platforms);Assert.AreEqual("جدة",answer.City);
+        foreach(var (key,value) in new (string,JsonNode?)[]{("city","Riyadh"),("city","Dammam"),("bankCode",""),("platforms",null)})
+        { var input=IbanInput("SA0380000000608010167519");if(value==null)input.Remove(key);else input[key]=value;Assert.ThrowsExactly<ApiError>(()=>Check(input)); }
+        var custom=new JsonObject{["kind"]="iban",["cities"]=IbanChoices.ValidateCities(new JsonArray(new JsonObject{["ar"]="الدمام",["en"]="Dammam"}))};
+        var dammam=IbanInput("SA0380000000608010167519");dammam["city"]="الدمام";Assert.AreEqual("الدمام",IbanChoices.Validate(dammam,custom).City);Assert.ThrowsExactly<ApiError>(()=>IbanChoices.Validate(IbanInput("SA0380000000608010167519"),custom));
+        foreach(var bad in new JsonNode?[]{new JsonArray(),new JsonArray(new JsonObject{["ar"]="x"}),new JsonArray(new JsonObject{["ar"]="جدة"},new JsonObject{["ar"]="جدة"}),new JsonObject()})Assert.ThrowsExactly<ApiError>(()=>IbanChoices.ValidateCities(bad));
+        var extra=IbanInput("SA0380000000608010167519");extra["workSystem"]="tiers";Assert.ThrowsExactly<ApiError>(()=>Check(extra));
+        var noPhone=IbanInput("SA0380000000608010167519");noPhone.Remove("phone");Assert.ThrowsExactly<ApiError>(()=>Check(noPhone));
     }
     [TestMethod] public void IbanLookupNeverExposesFullIbanOrPhone()
     {

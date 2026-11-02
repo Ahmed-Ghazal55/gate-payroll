@@ -11,6 +11,9 @@ Ship **0.9.2 = IBAN bank list fix** (Ghazal 2026-11-02):
 - The IBAN form accepts only 15 banks that open individual salary accounts: 80, 10, 05, 20, 15, 45, 30, 55, 60, 65, 90 (GIB/meem), 78 (STC Bank), 36 (D360), 93 (Vision), 95 (Emirates NBD).
   Retired 40/50 (Samba/Alawwal mergers) and any other code (foreign branches, unknown) are refused with a reason in AR/EN/UR; submit stays blocked until fixed.
 - Bank-file SWIFT map corrected from the SARIE clearing table: added 36/72/73/78/79/85/88/89/91/92/93, fixed 82=NBPA, 84=TCZB; removed 50, 83, 98. Code 40 kept as NCBK + manual confirmation (BR §19).
+- City, bank and work apps are **required** and picked from lists (type to search, no free text). Cities come from each campaign's own list
+  (admin edits it in the create/edit dialog, one "Arabic | English" per line; default Riyadh, Jeddah). Bank is auto-filled from the IBAN.
+- IBAN paste accepts SA or no SA, spaces, dashes, dots, direction marks and an "IBAN:" label; stored as SA + 22 digits.
 - COA/bank-exclusion fixes below move to **0.9.3**.
 
 0.9.0 finance views and bank-file frontend and backend verified locally; no push or deployment.
