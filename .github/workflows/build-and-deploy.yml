@@ -13,7 +13,7 @@ jobs:
   validate:
     needs: ftps-preflight
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-latest
@@ -134,7 +134,7 @@ jobs:
   ftps-preflight:
     name: Check FTPS connection (read only)
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
       - name: Verify FTPS certificate, login and existing root
