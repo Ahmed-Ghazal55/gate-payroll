@@ -99,11 +99,11 @@ public static class CampaignOperations
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapPut("/campaigns/{id}",(string id,JsonObject input,HttpContext ctx)=>{Admin(ctx);return store.Write((c,tx)=>{
-            J.Need(input.All(p=>p.Key is "title" or "expiresAt" or "status" or "fields"),"حقول تعديل النموذج غير صحيحة.");var d=Store.Get(c,id,"campaign",tx)??throw new ApiError("النموذج غير موجود.",404);
+            J.Need(input.All(p=>p.Key is "title" or "expiresAt" or "status" or "fields" or "cities"),"حقول تعديل النموذج غير صحيحة.");var d=Store.Get(c,id,"campaign",tx)??throw new ApiError("النموذج غير موجود.",404);
             if(input.ContainsKey("title")){string title=input.Required("title");J.Need(title.Length<=200,"العنوان طويل جدًا.");d["title"]=title;}
             if(input.ContainsKey("expiresAt")){J.Need(DateTimeOffset.TryParse(input.S("expiresAt"),CultureInfo.InvariantCulture,DateTimeStyles.None,out var expiry),"تاريخ الانتهاء غير صالح.");d["expiresAt"]=expiry.ToUniversalTime().ToString("O");}
             if(input.ContainsKey("status")){J.Need(input.S("status") is "open" or "closed","حالة النموذج غير صحيحة.");d["status"]=input.S("status");}
-            if(input.ContainsKey("fields")){J.Need(!IbanChoices.Is(d),"حقول نموذج الآيبان ثابتة.");d["fields"]=ValidateFields(input["fields"]);}d["updatedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,"campaign",d,tx);Store.Audit(c,tx,"campaign.updated",id,Actor(ctx));return new{ok=true};});});
+            if(input.ContainsKey("fields")){J.Need(!IbanChoices.Is(d),"حقول نموذج الآيبان ثابتة.");d["fields"]=ValidateFields(input["fields"]);}if(input.ContainsKey("cities")){J.Need(IbanChoices.Is(d),"قائمة المدن لنموذج الآيبان فقط.");d["cities"]=IbanChoices.ValidateCities(input["cities"]);}d["updatedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,"campaign",d,tx);Store.Audit(c,tx,"campaign.updated",id,Actor(ctx));return new{ok=true};});});
         api.MapGet("/campaigns/{id}/analytics",(string id)=>store.Read(c=>Analytics(c,id)));
         api.MapDelete("/submissions/{id}",(string id,HttpContext ctx)=>{Admin(ctx);return store.Write((c,tx)=>{var d=Store.Get(c,id,"submission",tx)??throw new ApiError("الرد غير موجود.",404);DeleteSubmissions(c,tx,[d],Actor(ctx));return new{ok=true,message="تم حذف الرد نهائيًا ويمكن للمندوب التسجيل مجددًا."};});});
         api.MapPost("/submissions/bulk-delete",(JsonObject input,HttpContext ctx)=>{Admin(ctx);J.Need(input.B("confirm"),"أكد الحذف النهائي أولًا.");return store.Write((c,tx)=>{var rows=Scope(c,tx,input,true);DeleteSubmissions(c,tx,rows,Actor(ctx));Store.Audit(c,tx,"submission.bulk_deleted",input.S("campaignId"),Actor(ctx));return new{ok=true,count=rows.Count};});});
