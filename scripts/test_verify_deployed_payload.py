@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import urllib.error
-from verify_deployed_payload import verify_bundle,verify_http_assets
+from verify_deployed_payload import verify_bundle,verify_http_assets,required_favicons
 
 class ReadOnlyFtp:
     def __init__(self,files):self.files=files;self.reads=[]
@@ -31,6 +31,20 @@ class PayloadVerificationTests(unittest.TestCase):
                 self.assertEqual(ftp.reads,[])
 
 class HttpsAssetTests(unittest.TestCase):
+    def test_legacy_index_is_ftp_verified_and_not_requested_without_a_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);(root/'wwwroot').mkdir();(root/'wwwroot/index.html').write_bytes(b'synthetic protected legacy')
+            ftp=ReadOnlyFtp({'wwwroot/index.html':b'synthetic protected legacy'})
+            self.assertEqual(verify_bundle(ftp,root)['files'],1)
+            with patch('verify_deployed_payload.urllib.request.urlopen') as opened:
+                self.assertEqual(verify_http_assets(root),[]);opened.assert_not_called()
+    def test_both_favicons_are_required_and_must_have_identical_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);(root/'wwwroot').mkdir()
+            with self.assertRaisesRegex(RuntimeError,'Missing required favicon'):required_favicons(root)
+            (root/'wwwroot/favicon.svg').write_bytes(b'<svg/>');(root/'wwwroot/favicon.ico').write_bytes(b'wrong')
+            with self.assertRaisesRegex(RuntimeError,'differs'):required_favicons(root)
+            (root/'wwwroot/favicon.ico').write_bytes(b'<svg/>');required_favicons(root)
     def test_compressed_sidecars_are_verified_by_ftp_and_only_original_is_requested_over_https(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);(root/'wwwroot').mkdir()

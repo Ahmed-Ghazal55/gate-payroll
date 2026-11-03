@@ -17,6 +17,8 @@ R2 backend: M1 0.11.0 on feat/r2-m1, then M2 0.12.0 on stacked feat/r2-m2. Backe
 - COA --check failed as expected (resource 396 versus approved spec 403); assigned to M2.0.
 
 ## Done
+- M1.4 complete: shared SVG favicon and ICO alias on legacy/forms/questionnaires/inquiry/rider app; both payload assets required and hashed. Protected legacy index is verified by FTPS, not unsigned HTTP.
+- M1.4 checks: build clean, Python 26 passed, 34 R2 HTTP checks plus legacy browser smoke passed; source boundary 163 files.
 - M1.3 complete: two ordered reads per source table, at most three attempts; >10% change / >2% drop refusal before writes; private counts-only logs (700/600), no deletes and preserved certificate fields.
 - M1.3 checks: .NET 158 passed / 0 failed / 6 SQL skipped. User unit syntax/timezone verified (03:15 Asia/Riyadh, Persistent=true); units delivered uninstalled/disabled. No live sync executed.
 - M1.2 complete: additive company/CR fields, signed administrator-only preview/commit, identity checks, audit and annual-confirmation reminders. Dry-run: 3 changed companies + 3 new registrations, zero writes; fresh «حمّل» approval pending.
@@ -25,7 +27,7 @@ R2 backend: M1 0.11.0 on feat/r2-m1, then M2 0.12.0 on stacked feat/r2-m2. Backe
 - M1.1 checks: .NET 151 passed / 0 failed / 6 SQL skipped; 26 R2 HTTP checks and all six browser suites passed.
 
 ## Next step (exact)
-M1.4: copy the approved icon into the backend static assets, add favicon links to all served HTML pages, and update payload verification. Company certificate staging load remains pending a fresh «حمّل»; daily timer is not enabled.
+M1.5: bump backend/deploy/test/footer/RiderForm version to 0.11.0 using only the permitted UI version touchpoints, regenerate the route inventory, run the full suite and record the M1 milestone before creating feat/r2-m2. Certificate staging load remains pending «حمّل».
 
 ## How to verify
 ```bash

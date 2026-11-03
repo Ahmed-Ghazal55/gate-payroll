@@ -3,7 +3,7 @@ import argparse, json
 
 def check(root):
     required = ['Payroll.Api.exe', 'Payroll.Api.dll', 'web.config', 'wwwroot/index.html',
-                'wwwroot/app.css', 'wwwroot/app.js', 'wwwroot/table-tools.js',
+                'wwwroot/favicon.svg', 'wwwroot/favicon.ico', 'wwwroot/app.css', 'wwwroot/app.js', 'wwwroot/table-tools.js',
                 'wwwroot/fonts/cairo.ttf', 'wwwroot/fonts/outfit.ttf', 'wwwroot/fonts/notonastaliqurdu.ttf',
                 'wwwroot/fonts/cairo-OFL.txt', 'wwwroot/fonts/outfit-OFL.txt', 'wwwroot/fonts/notonastaliqurdu-OFL.txt',
                 'wwwroot/bootstrap.js', 'wwwroot/enterprise.js', 'wwwroot/rider-form.html', 'wwwroot/rider-form.js']
@@ -11,6 +11,7 @@ def check(root):
         required.append('wwwroot/app/index.html')
     for name in required:
         assert (root / name).is_file(), 'Missing published file: ' + name
+    assert (root/'wwwroot/favicon.ico').read_bytes() == (root/'wwwroot/favicon.svg').read_bytes(), 'Favicon alias differs from SVG'
     for path in root.rglob('*'):
         if not path.is_file(): continue
         rel = path.relative_to(root)

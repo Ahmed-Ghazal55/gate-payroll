@@ -986,6 +986,7 @@ public static class FinancialCore
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>تطبيق مندوب البوابة — الكشوف والمديونيات والإشعارات</title>

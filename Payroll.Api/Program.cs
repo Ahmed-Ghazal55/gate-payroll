@@ -78,6 +78,12 @@ app.Use(async (ctx, next) =>
 app.UseStatusCodePages(async context => { if(context.HttpContext.Request.Path.StartsWithSegments("/api") || context.HttpContext.Request.Path.StartsWithSegments("/openapi")) await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(context.HttpContext.Response.StatusCode)); });
 app.UseAuthentication();
 LegacyUi.Protect(app);
+app.Use(async (ctx,next)=>
+{
+    if(ctx.Request.Path=="/favicon.ico")
+    {await Results.File(Path.Combine(app.Environment.WebRootPath,"favicon.svg"),"image/svg+xml").ExecuteAsync(ctx);return;}
+    await next();
+});
 app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } });
 app.UseRouting(); app.UseAuthorization(); app.UseRateLimiter();
 NextApp.Map(app);

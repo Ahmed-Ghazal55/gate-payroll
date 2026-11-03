@@ -18,6 +18,15 @@ def selected_files(root):
             raise RuntimeError('Protected runtime content must not enter the public payload.')
     return files
 
+REQUIRED_FAVICONS = ('wwwroot/favicon.svg', 'wwwroot/favicon.ico')
+
+def required_favicons(root):
+    root=Path(root)
+    for name in REQUIRED_FAVICONS:
+        if not (root/name).is_file():raise RuntimeError('Missing required favicon: '+name)
+    if (root/REQUIRED_FAVICONS[0]).read_bytes()!=(root/REQUIRED_FAVICONS[1]).read_bytes():
+        raise RuntimeError('Favicon alias differs from SVG')
+
 def digest_file(path):
     digest=hashlib.sha256()
     with path.open('rb') as source:
@@ -53,6 +62,8 @@ def verify_http_assets(root,base='https://payroll.marketingalbawaba.com'):
     for path in selected_files(root):
         relative=path.relative_to(root)
         if not relative.parts or relative.parts[0]!='wwwroot':continue
+        # Legacy HTML is session-protected; verify its exact bytes by FTPS above.
+        if relative.as_posix()=='wwwroot/index.html':continue
         # Publish emits compression sidecars. UseStaticFiles serves the original URL;
         # a .br download URL is not promised. All sidecars remain fully hashed by FTPS.
         if path.suffix in {'.br','.gz'} and path.with_suffix('').is_file():continue
@@ -69,7 +80,7 @@ def verify_http_assets(root,base='https://payroll.marketingalbawaba.com'):
     return verified
 
 def main():
-    root=Path('artifacts/monsterasp');selected_files(root)
+    root=Path('artifacts/monsterasp');selected_files(root);required_favicons(root)
     ftp=lifecycle.connect()
     try:
         if lifecycle.read_marker(ftp) is not None:raise RuntimeError('An IIS maintenance marker remains active.')

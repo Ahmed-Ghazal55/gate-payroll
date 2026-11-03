@@ -1,7 +1,7 @@
 // Release-train behavior checks: local process and disposable synthetic SQLite only.
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
-import {mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -13,6 +13,7 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const data=mkdtempSync(path.join(tmpdir(),'gate-r2-'));
 const webroot=path.join(data,'synthetic-webroot'),base='http://127.0.0.1:19481';
 mkdirSync(path.join(webroot,'app/login'),{recursive:true});
+writeFileSync(path.join(webroot,'favicon.svg'),readFileSync(path.join(root,'Payroll.Api/wwwroot/favicon.svg')));
 writeFileSync(path.join(webroot,'index.html'),'<html>synthetic legacy entry</html>');
 writeFileSync(path.join(webroot,'app/index.html'),'<html>synthetic app entry</html>');
 writeFileSync(path.join(webroot,'app/login/index.html'),'<html>synthetic login</html>');
@@ -42,7 +43,10 @@ try{
  const campaign=await json('/api/campaigns',{title:'Synthetic R2 form',days:2});
  const form=await json('/api/forms/builder',{titleAr:'Synthetic questionnaire',expiresAt:new Date(Date.now()+86400000).toISOString(),maxSubmissions:10,fields:[{id:'identity',labelAr:'Identity',type:'iqama',required:true}]});
  const published=await json('/api/forms/builder/'+form.id+'/publish',{});
- for(const route of [campaign.path,new URL(published.publicUrl).pathname,'/inquiry','/rider-app','/health'])await request(route,{auth:false});
+ for(const route of [campaign.path,new URL(published.publicUrl).pathname,'/inquiry','/rider-app'])assert.ok((await (await request(route,{auth:false})).text()).includes('href="/favicon.svg"'));
+ await request('/health',{auth:false});
+ const favicon=await request('/favicon.ico',{auth:false});assert.match(favicon.headers.get('content-type'),/image\/svg\+xml/);assert.equal(await favicon.text(),readFileSync(path.join(webroot,'favicon.svg'),'utf8'));
+ assert.equal(await (await request('/favicon.svg',{auth:false})).text(),readFileSync(path.join(webroot,'favicon.svg'),'utf8'));
  const existingCompanies=await json('/api/companies');
  const setupDb=new DatabaseSync(path.join(data,'payroll.db'));
  const companyRows=existingCompanies.map((company,i)=>{

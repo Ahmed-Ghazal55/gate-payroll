@@ -15,6 +15,7 @@ let browser;try{
 browser = await chromium.launch(launchOpts);
  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  assert.equal((await page.request.post(base+'/api/auth/setup',{data:{username:'browser-test',password:randomBytes(24).toString('hex')}})).status(),200);await page.goto(base+'/legacy/');await page.getByRole('heading',{name:'كل مستحق في مكانه'}).waitFor();
+ assert.equal(await page.locator('link[rel=icon]').getAttribute('href'),'/favicon.svg');
  await page.screenshot({path:path.join(out,'dashboard.png'),fullPage:true});
  for(const view of ['imports','riders','policies','payroll','forms','responses','audit']){await page.locator(`nav [data-view="${view}"]`).click();await page.waitForFunction(()=>!document.querySelector('#content .loading'));}
  const campaign=await page.evaluate(async()=>await(await fetch('/api/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:'اختبار نموذج المناديب',days:2})})).json());assert.ok(campaign.path);
