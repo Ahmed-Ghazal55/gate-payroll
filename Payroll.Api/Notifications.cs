@@ -35,10 +35,10 @@ public static class Notifications
         string id=ReadId(user,item.S("id"));if(Store.Get(c,id,"notification_read",tx)!=null)return;
         Store.Save(c,"notification_read",new(){["id"]=id,["userId"]=Identity(user),["notificationId"]=item.S("id"),["readAt"]=DateTimeOffset.UtcNow.ToString("O")},tx);
     }
-    public static void Raise(DbConnection c,DbTransaction tx,string id,string category,string title,string permission,string actor,string? approvalId=null)
+    public static void Raise(DbConnection c,DbTransaction tx,string id,string category,string title,string permission,string actor,string? approvalId=null,DateTimeOffset? clock=null,string eventKey="")
     {
         if(Store.Get(c,id,"sys_notification",tx)!=null)return;
-        Store.Save(c,"sys_notification",new(){["id"]=id,["category"]=category,["tab"]=category,["titleAr"]=title,["bodyAr"]="راجع قائمة العمليات للمزيد.",["requiredPermission"]=permission,["targetDepartment"]="ALL",["approvalId"]=approvalId??"",["status"]="unread",["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["createdBy"]=actor},tx);
+        Store.Save(c,"sys_notification",new(){["id"]=id,["category"]=category,["tab"]=category,["titleAr"]=title,["bodyAr"]="راجع قائمة العمليات للمزيد.",["requiredPermission"]=permission,["targetDepartment"]="ALL",["approvalId"]=approvalId??"",["status"]="unread",["createdAt"]=(clock??DateTimeOffset.UtcNow).ToString("O"),["eventKey"]=eventKey,["createdBy"]=actor},tx);
         Store.Audit(c,tx,"notification.system_created",id,actor);
     }
     // Invoked inside the original write transaction; the notification cannot outlive a rollback.
@@ -50,7 +50,7 @@ public static class Notifications
             var answer=Store.Get(c,entity,action=="submission.received"?"submission":"custom_response",tx);
             if(answer==null)return;
             string campaign=answer.S(action=="submission.received"?"campaignId":"formId");
-            Raise(c,tx,$"notice:answers:{campaign}:{now:yyyyMMddHH}","system","وصلت ردود جديدة للنماذج.","forms.view",actor);
+            Answers(c,tx,campaign,actor,now);
         }
         else if(action=="import.commit"||action.StartsWith("excel.import.",StringComparison.Ordinal)||action is "rider.baseline_imported" or "debt.opening_imported")
         {
@@ -58,6 +58,12 @@ public static class Notifications
             // Audit entities may contain summaries, so use a fresh opaque key rather than embedding them.
             Raise(c,tx,"notice:import:"+Guid.NewGuid().ToString("N"),"system","اكتمل استيراد البيانات.",permission,actor);
         }
+    }
+    public static void Answers(DbConnection c,DbTransaction tx,string campaign,string actor,DateTimeOffset? clock=null)
+    {
+        var now=clock??DateTimeOffset.UtcNow;string key="answers:"+campaign;
+        if(Store.List(c,"sys_notification",tx).Any(n=>n.S("eventKey")==key&&DateTimeOffset.TryParse(n.S("createdAt"),out var at)&&at>now.AddHours(-1)))return;
+        Raise(c,tx,$"notice:answers:{campaign}:{now:yyyyMMddHHmmssfff}","system","وصلت ردود جديدة للنماذج.","forms.view",actor,clock:now,eventKey:key);
     }
     public static void EnsureDataQuality(Store store,ClaimsPrincipal user)
     {

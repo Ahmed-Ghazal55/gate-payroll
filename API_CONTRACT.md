@@ -1,4 +1,6 @@
-# API v0.9.0
+# API contract — see [the endpoint index](docs/api/ENDPOINTS.md)
+
+Current route inventory, permissions and compatibility statuses: [ENDPOINTS.md](docs/api/ENDPOINTS.md). Admin-only machine-readable contract: `/openapi/v1.json`. The notes below describe the retained legacy contracts.
 
 Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*` and `/api/public/*`. Errors use `{error:string}` with 400/401/403/404/409/429/503. No financial mutation from public routes. Source of truth: `Payroll.Api/Program.cs`, `UserAccess.cs`, `DirectoryApi.cs`, `FormBuilder.cs`, `Debts.cs`, `InquiryApi.cs`, `SubmissionChoices.cs`, `Store.cs`, `Engine.cs`, `Imports.cs`; integration tests are executable request examples.
 

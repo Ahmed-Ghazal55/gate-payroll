@@ -48,7 +48,7 @@ builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnec
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
 CampaignLinks.Migrate(store);
 Companies.Seed(store);
-app.MapOpenApi("/openapi/{documentName}.json").RequireAuthorization().AddEndpointFilter(async (context, next) =>
+app.MapOpenApi("/openapi/{documentName}.json").WithTags("Administration").WithSummary("Administrator-only OpenAPI document").RequireAuthorization().AddEndpointFilter(async (context, next) =>
     AccessPolicy.Administrator(context.HttpContext.User) ? await next(context) : Results.Json(new { error="التوثيق لمسؤول النظام فقط.", code="forbidden" }, statusCode:403));
 app.UseForwardedHeaders();
 
@@ -76,7 +76,8 @@ app.Use(async (ctx, next) =>
     { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(ApiErrors.Body(500, "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا.")); }
 });
 app.UseStatusCodePages(async context => { if(context.HttpContext.Request.Path.StartsWithSegments("/api") || context.HttpContext.Request.Path.StartsWithSegments("/openapi")) await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(context.HttpContext.Response.StatusCode)); });
-app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
+app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
+NextApp.Map(app);
 app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent }).WithTags("Administration").WithSummary("Read  health");
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName }).WithTags("Administration").WithSummary("Read auth status");
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>

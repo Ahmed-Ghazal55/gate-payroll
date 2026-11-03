@@ -47,3 +47,6 @@ review-evidence/
 .DS_Store
 Thumbs.db
 Payroll.Api/wwwroot/fonts/
+
+# Next static export is packaged by CI, never committed as a second source.
+Payroll.Api/wwwroot/app/

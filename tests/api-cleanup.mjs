@@ -1,6 +1,6 @@
 // All fixtures live in a new temporary SQLite store. No production settings or data.
 import {spawn} from 'node:child_process';
-import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
+import {mkdtempSync,rmSync,readFileSync,mkdirSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -9,11 +9,15 @@ import assert from 'node:assert/strict';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const data=mkdtempSync(path.join(tmpdir(),'gate-api-cleanup-'));
 const base='http://127.0.0.1:19473';
-const proc=spawn('dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ConnectionStrings__DefaultConnection:'',ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data},stdio:['ignore','pipe','pipe']});
+const webroot=path.join(data,'synthetic-webroot');mkdirSync(path.join(webroot,'app/_next'),{recursive:true});writeFileSync(path.join(webroot,'app/index.html'),'<html>synthetic Next entry</html>');writeFileSync(path.join(webroot,'app/_next/synthetic.js'),'synthetic asset');
+const proc=spawn('dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll'),'--webroot',webroot],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ConnectionStrings__DefaultConnection:'',ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_WEBROOT:webroot,ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data},stdio:['ignore','pipe','pipe']});
 let cookie='',admin='',checks=0,logs='';proc.stdout.on('data',x=>logs+=x);proc.stderr.on('data',x=>logs+=x);
 async function req(route,body,method=body===undefined?'GET':'POST',status=200){const r=await fetch(base+route,{method,headers:{...(cookie?{Cookie:cookie}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body)});const text=await r.text();assert.equal(r.status,status,`${method} ${route}: ${text}`);checks++;if(r.headers.get('set-cookie'))cookie=r.headers.get('set-cookie').split(';')[0];return text?JSON.parse(text):null;}
 try{
  let ready=false;for(let n=0;n<150;n++){if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready,'API ready');
+ for(const route of ['/app','/app/forms/inbox','/app/index.html']){const r=await fetch(base+route);assert.equal(r.status,200,route);assert.equal(await r.text(),'<html>synthetic Next entry</html>');checks++;}
+ const asset=await fetch(base+'/app/_next/synthetic.js');assert.equal(await asset.text(),'synthetic asset');checks++;
+ for(const route of ['/app/missing.js','/app/unknown.json']){assert.equal((await fetch(base+route)).status,404);checks++;}
  await req('/openapi/v1.json',undefined,'GET',401);
  const password=randomBytes(24).toString('hex');
  await req('/api/auth/setup',{username:'synthetic-admin',password});admin=cookie;

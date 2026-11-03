@@ -6,9 +6,13 @@ DEPRECATED = {'/api/template.csv', '/api/payroll/fingerprint', '/api/imports', '
 GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Companies and registrations':'الشركات والسجلات', 'Payroll':'الرواتب', 'Debts and advances':'المديونيات والسلف', 'Banks and treasury':'البنوك والصناديق والخزن', 'Accounting and reports':'المحاسبة والتقارير', 'Forms and responses':'النماذج والردود', 'Administration':'الإدارة'}
 def permission(method,p):
  if p.startswith(('/api/public/', '/api/auth/')) or not p.startswith('/api/'): return 'public (rider portal: own authenticated rider)'
- if p in ('/api/me','/api/roles-catalog','/api/search') or p.startswith('/api/notifications'): return 'authenticated; notifications: category/owner visibility'
+ if p.startswith(('/api/rider-mobile/login','/api/rider-mobile/portal/')) or p.startswith('/api/rider-mobile/broadcasts/') and p.endswith('/ack'):return 'own rider session / one-time inquiry code'
+ if p=='/api/inquiry-access':return 'inquiry.issue + full company/category scope (+ payroll.view for payslip/mobile)'
+ if p.startswith('/api/notifications/center/') and p.endswith('/toggle-todo'):return 'approvals.view OR owner; department visibility'
+ if p=='/api/notifications/center':return 'approvals.view' if method=='GET' else 'mobile.broadcast'
+ if p in ('/api/me','/api/roles-catalog','/api/search') or p.startswith('/api/notifications'):return 'authenticated; category/owner visibility in handler'
  if p.startswith('/api/companies'): return 'companies.view' if method=='GET' else 'companies.manage'
- if p.startswith(('/api/users','/api/system','/api/rider-mobile/firebase')) or method=='DELETE' or p=='/api/submissions/bulk-delete' or method=='PUT' and p.startswith('/api/campaigns/'):return 'Admin / SuperAdmin'
+ if p.startswith(('/api/users','/api/system','/api/rider-mobile/firebase')) or method=='DELETE' or p=='/api/submissions/bulk-delete' or p.endswith('/delete-preview') or method=='PUT' and p.startswith('/api/campaigns/'):return 'Admin / SuperAdmin'
  if p.startswith('/api/riders/sync') or p.startswith('/api/riders/enrich'):return 'Admin / SuperAdmin'
  if p.startswith('/api/riders'):return ('riders.view_360 + debts.view' if p.endswith('/profile-360') else 'riders.view_360' if '/documents' in p and method=='GET' else 'riders.view' if method=='GET' else 'riders.edit (+ riders.financial_edit for financial fields)')
  if p.startswith('/api/debts'):
@@ -51,18 +55,23 @@ def routes():
    # Metadata belongs to the declaration before the next route.
    end=re.search(r'\b(?:app|api)\.Map(?:Get|Post|Put|Delete|Patch)\(',s[m.end():]);tail=s[m.end():m.end()+end.start()] if end else s[m.end():]
    tag=re.search(r'\.WithTags\("([^"]+)"',tail);group=tag[1] if tag else 'Administration'
-   caller='rider form' if p.startswith('/api/public/forms') else 'rider app' if p.startswith('/api/rider-mobile') and ('portal' in p or 'ack' in p or 'login' in p) else 'none'
+   caller='rider form' if p.startswith(('/api/public/forms','/api/public/questionnaires','/api/public/inquiry')) else 'rider app' if p.startswith('/api/rider-mobile') and ('portal' in p or 'ack' in p or 'login' in p) else 'none'
    if caller=='none':
-    prefix=re.sub(r'\{[^}]+\}', '',p).rstrip('/')
-    if any(prefix in x.read_text() for x in (ROOT/'Frontend/src').glob('*.ts')):caller='old UI'
+    prefix=p.split('{',1)[0].rstrip('/')
+    variants={prefix,prefix.removeprefix('/api')}
+    if any(any(v and any(quote+v in x.read_text() for quote in ['\"',"'",'`']) for v in variants) for x in (ROOT/'Frontend/src').glob('*.ts')):caller='old UI'
+    if p.startswith('/api/auth/') or p.startswith('/api/submissions/bulk-'):caller='old UI'
+    if p.startswith(('/api/companies','/api/search','/api/responses')) or p.startswith('/api/notifications') and '/center' not in p or p=='/api/users/{id}':caller='none'
    status='deprecated' if p in DEPRECATED and (p!='/api/imports' or method=='GET') else 'new' if p.startswith(('/api/companies','/api/search','/api/responses')) or p.startswith('/api/notifications') and '/center' not in p else 'keep'
-   if p=='/api/users/{id}':status='new'
+   if p in ('/api/users/{id}','/app','/app/{**path}'):status='new'
    for actual in (['/api/public/inquiry/payslip','/api/public/inquiry/debt'] if p=='/api/public/inquiry/' else [p]):
     rows.append((group,method,actual,f'{f.relative_to(ROOT)}:{s[:m.start()].count(chr(10))+1}',permission(method,actual),caller,status))
  for prefix in ("/api/campaigns", "/api/forms/builder"):
   for method,suffix,needle in (("GET","/{id}/delete-preview","api.MapGet(path"),("DELETE","/{id}","api.MapDelete(path")):
    f=ROOT/"Payroll.Api/FormDeletion.cs";line=next(i for i,l in enumerate(f.read_text().splitlines(),1) if needle in l)
    rows.append(("Forms and responses",method,prefix+suffix,f"Payroll.Api/FormDeletion.cs:{line}","Admin / SuperAdmin","old UI","keep"))
+ f=ROOT/'Payroll.Api/Program.cs';line=next(i for i,l in enumerate(f.read_text().splitlines(),1) if 'app.MapOpenApi(' in l)
+ rows.append(('Administration','GET','/openapi/v1.json',f'Payroll.Api/Program.cs:{line}','Admin / SuperAdmin','none','new'))
  return rows
 
 def main():

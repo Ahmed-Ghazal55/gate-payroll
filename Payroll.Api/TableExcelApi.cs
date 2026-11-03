@@ -59,6 +59,7 @@ public static class TableExcelApi
             }
             Store.Save(c, "table_import", new() { ["id"] = batchId, ["kind"] = kind, ["schemaVersion"] = 1, ["sourceFingerprint"] = preview.Fingerprint, ["filename"] = Path.GetFileName(input.S("filename")), ["campaignId"] = input.S("campaignId"), ["count"] = preview.Rows.Count, ["createdAt"] = now }, tx);
             Store.Audit(c, tx, "excel.import." + kind, batchId, ctx.User.Identity?.Name ?? "administrator");
+            if(kind=="choices")Notifications.Answers(c,tx,input.S("campaignId"),ctx.User.Identity?.Name??"administrator");
             return new { count = preview.Rows.Count, batchId };
         })).WithTags("Payroll").WithSummary("Submit excel {kind} commit");
     }

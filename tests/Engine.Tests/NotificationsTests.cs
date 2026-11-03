@@ -26,6 +26,8 @@ public sealed class NotificationsTests
             Assert.ThrowsExactly<InvalidOperationException>(()=>store.Write<int>((c,tx)=>{Notifications.Raise(c,tx,"rolled-back","system","اختبار","forms.view","synthetic");throw new InvalidOperationException();}));
             Assert.IsNull(store.Read(c=>Store.Get(c,"rolled-back","sys_notification")));
             store.Write((c,tx)=>{Notifications.OnAudit(c,tx,"submission.received","synthetic-answer-one","synthetic",DateTimeOffset.Parse("2026-11-03T13:00:00Z"));return true;});
+            Assert.AreEqual(1,store.Read(c=>Store.List(c,"sys_notification").Count)); // Fixed-hour boundaries must not bypass the rolling hour.
+            store.Write((c,tx)=>{Notifications.Answers(c,tx,"synthetic-campaign","synthetic",DateTimeOffset.Parse("2026-11-03T13:06:00Z"));return true;});
             Assert.AreEqual(2,store.Read(c=>Store.List(c,"sys_notification").Count));
         }
         finally{Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();Directory.Delete(dir,true);}

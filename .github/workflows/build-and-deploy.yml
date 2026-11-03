@@ -36,6 +36,12 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Install pinned frontend dependencies
         run: npm ci --no-audit --no-fund --prefix RiderForm
+      - name: Build Next.js static export when present
+        if: ${{ hashFiles('web/package.json') != '' }}
+        working-directory: web
+        run: npm ci --no-audit --no-fund && npm run build
+      - name: Package optional Next.js export before build and publish
+        run: python3 scripts/package_web.py
       - name: Fetch pinned fonts and licenses
         run: python3 scripts/fetch_fonts.py
       - name: Verify release source boundaries
