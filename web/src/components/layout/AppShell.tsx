@@ -19,10 +19,7 @@ export function AppShell({ children }: AppShellProps) {
   const [period, setPeriod] = useState('2026-10');
 
   const isAuthPage =
-    pathname === '/login' ||
-    pathname?.startsWith('/login/') ||
-    pathname === '/setup' ||
-    pathname?.startsWith('/setup/');
+    Boolean(pathname && (pathname.includes('/login') || pathname.includes('/setup')));
 
   if (isAuthPage) {
     return (

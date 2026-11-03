@@ -4,6 +4,11 @@ import type {
   NotificationSummary,
   SearchResult,
   CompanySponsor,
+  Company,
+  CommercialRegistration,
+  CompanyDocument,
+  ExpiringRecord,
+  CompanyImportPlan,
   DashboardMetrics,
   Campaign,
   Submission,
@@ -581,6 +586,22 @@ export const api = {
   markAllNotificationsRead: () => handleRequest<{ success: boolean }>('/notifications/read-all', { method: 'POST' }),
   search: (query: string) => handleRequest<SearchResult[]>(`/search?q=${encodeURIComponent(query)}`),
   getCompanies: () => handleRequest<CompanySponsor[]>('/companies'),
+
+  // Companies & Registrations (Track L2 / M1.2)
+  getCompaniesList: () => handleRequest<Company[]>('/companies'),
+  getExpiringCompanies: (days = 60) => handleRequest<ExpiringRecord[]>(`/companies/expiring?days=${days}`),
+  getCompany: (id: string) => handleRequest<Company>(`/companies/${id}`),
+  getCompanyRegistrations: (id: string) => handleRequest<CommercialRegistration[]>(`/companies/${id}/registrations`),
+  getCompanyDocuments: (id: string) => handleRequest<CompanyDocument[]>(`/companies/${id}/documents`),
+  uploadCompanyDocument: (companyId: string, doc: { type: string; number?: string; expiryDate?: string; fileName: string; dataBase64: string }) =>
+    handleRequest<CompanyDocument>(`/companies/${companyId}/documents`, { method: 'POST', body: JSON.stringify(doc) }),
+  deleteCompanyDocument: (companyId: string, documentId: string) =>
+    handleRequest<{ ok: boolean }>(`/companies/${companyId}/documents/${documentId}`, { method: 'DELETE' }),
+  previewCompanyImport: (companies: any[]) =>
+    handleRequest<CompanyImportPlan>('/companies/import/preview', { method: 'POST', body: JSON.stringify({ companies }) }),
+  commitCompanyImport: (payload: { rows: any[]; fingerprint: string; confirm: boolean }) =>
+    handleRequest<{ counts: any }>('/companies/import/commit', { method: 'POST', body: JSON.stringify(payload) }),
+  getAuditLogs: () => handleRequest<Array<{ id: string; action: string; actor: string; at: string }>>('/audit'),
 
   // Campaigns
   getCampaigns: () => handleRequest<Campaign[]>('/campaigns'),

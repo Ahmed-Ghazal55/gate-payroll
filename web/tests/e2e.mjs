@@ -387,13 +387,13 @@ async function run() {
     // -------------------------------------------------------------
     // Test 6: W1 Auth Pages (Login & Setup at 1440 and 360)
     // -------------------------------------------------------------
-    console.log('\n[6/6] Testing W1 Auth Pages (Login & Setup at 1440 & 360)...');
+    console.log('\n[6/6] Testing W1 & W2 Pages (Login, Setup, Companies at 1440 & 360)...');
     const r2ResultsDir = path.join(webDir, '../test-results/r2-web');
     if (!fs.existsSync(r2ResultsDir)) {
       fs.mkdirSync(r2ResultsDir, { recursive: true });
     }
 
-    for (const p of ['login', 'setup']) {
+    for (const p of ['login', 'setup', 'companies']) {
       // 1440 desktop
       const deskContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
       const deskPage = await deskContext.newPage();
