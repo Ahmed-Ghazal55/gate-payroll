@@ -1,4 +1,5 @@
 """Read-only proof of the exact public payload; never retrieves a database or session key."""
+import os
 import hashlib
 import io
 import json
@@ -42,7 +43,8 @@ def required_app_entry(root):
     root=Path(root)
     # Source checkout tells us whether this release includes Next. A packaged app
     # directory also requires its index, including in standalone verification.
-    if (Path(__file__).resolve().parents[1]/'web/package.json').is_file() or (root/'wwwroot/app').exists():
+    # The deploy workflow sets PAYROLL_REQUIRE_NEXT_APP=1 when web/package.json exists in the release.
+    if os.environ.get('PAYROLL_REQUIRE_NEXT_APP')=='1' or (root/'wwwroot/app').exists():
         if not (root/'wwwroot/app/index.html').is_file():
             raise RuntimeError('Missing Next application entry: /app/index.html')
 

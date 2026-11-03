@@ -11,6 +11,7 @@
 Fix Round 1 (Claude review of 229f7cc..20507f1) complete: NextApp deep links in /app fixed and verified. One commit: `fix(api): Next deep links (1.0-A)`. No push, PR, merge or deployment without Ghazal.
 
 ## Done (latest first)
+- Web 1.0 (Antigravity d6597a9 + fix 58960e0, rebased by Claude onto feat/1.0-api as 6c209ba/73deaa8): Next.js 16 static export at /app; shell, home, notifications, forms and responses group; no silent mocks; permissions; live e2e. Old footer 0.10.0.
 - Fix Round 1 (Claude Review A1–A2):
   - A1 (blocking): Fixed `NextApp.Fallback(path, webRoot)` deep links resolution order:
     1. `app/<path>/index.html`
