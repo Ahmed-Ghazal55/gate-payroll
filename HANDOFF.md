@@ -11,6 +11,7 @@
 Prompt A: API cleanup for 0.10.0 / 1.0. Preserve Minimal APIs and document storage. Antigravity owns web/ in its separate worktree. Never edit Frontend/, RiderForm/ or web/ (Ghazal confirmed version files stay excluded).
 
 ## Done (latest first)
+- Task 7: unified campaign/custom responses inbox with one row shape, source/status/parent filters and opt-in pagination; review mutations remain on existing endpoints. Synthetic permission/shape/filter and HTTP tests.
 - Task 6: global search over four collections, minimum query length and twenty-result cap, same collection gates and company/debt scope; synthetic permission/scope and HTTP tests.
 - Task 5: additive company/registration/document CRUD, private attachments and expiry listing; idempotent startup seed for existing databases, companies permissions in live role catalog, read-only finance sponsor alias and audit on every write. DELETE archives; financial references/files remain.
 - Task 4: notification inbox/read/summary with per-user state and category permissions; transactional approval/import/answer notices, hourly answer throttle and daily quality notices. Synthetic tests cover isolation, visibility, throttle and rollback.
@@ -21,7 +22,7 @@ Prompt A: API cleanup for 0.10.0 / 1.0. Preserve Minimal APIs and document stora
 - Restore used only local NuGet cache; no source change or network restore. Frontend compiled from unchanged source using existing TypeScript, output only under Payroll.Api/wwwroot. SkipFrontendBuild supports backend-only builds.
 
 ## Next step (exact)
-Continue prompt A tasks 7–9, one commit per task. Final next = Claude review of feat/1.0-api; no push, PR, merge or deploy.
+Continue prompt A tasks 8–9, one commit per task. Final next = Claude review of feat/1.0-api; no push, PR, merge or deploy.
 
 ## Open problems / decisions
 - UI release labels remain 0.9.3 under the explicit no-UI-edit rule; Antigravity handles them.

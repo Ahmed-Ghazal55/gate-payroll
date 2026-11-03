@@ -118,6 +118,7 @@ api.AddEndpointFilter(ApiPagination.Filter);
 Notifications.Map(api,store);
 Companies.Map(api,store);
 GlobalSearch.Map(api,store);
+ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);
 UserAccess.Map(api, store);
 RiderDirectory.Map(api, store);
