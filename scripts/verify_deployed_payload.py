@@ -1,4 +1,5 @@
 """Read-only proof of the exact public payload; never retrieves a database or session key."""
+import os
 import hashlib
 import io
 import json
@@ -38,8 +39,17 @@ def verify_bundle(ftp,root):
         if index%50==0 or index==len(files):print(f'Verified FTPS payload {index}/{len(files)} files',flush=True)
     return {'files':len(files),'bytes':total,'manifest':manifest}
 
+def required_app_entry(root):
+    root=Path(root)
+    # Source checkout tells us whether this release includes Next. A packaged app
+    # directory also requires its index, including in standalone verification.
+    # The deploy workflow sets PAYROLL_REQUIRE_NEXT_APP=1 when web/package.json exists in the release.
+    if os.environ.get('PAYROLL_REQUIRE_NEXT_APP')=='1' or (root/'wwwroot/app').exists():
+        if not (root/'wwwroot/app/index.html').is_file():
+            raise RuntimeError('Missing Next application entry: /app/index.html')
+
 def verify_http_assets(root,base='https://payroll.marketingalbawaba.com'):
-    root=Path(root);verified=[]
+    root=Path(root);verified=[];required_app_entry(root)
     for path in selected_files(root):
         relative=path.relative_to(root)
         if not relative.parts or relative.parts[0]!='wwwroot':continue
@@ -47,7 +57,7 @@ def verify_http_assets(root,base='https://payroll.marketingalbawaba.com'):
         # a .br download URL is not promised. All sidecars remain fully hashed by FTPS.
         if path.suffix in {'.br','.gz'} and path.with_suffix('').is_file():continue
         route='/'+'/'.join(urllib.parse.quote(p) for p in relative.parts[1:])
-        request=urllib.request.Request(base+route+'?release=0.9.3',headers={'Cache-Control':'no-cache','Accept-Encoding':'identity'})
+        request=urllib.request.Request(base+route+'?release=0.10.0',headers={'Cache-Control':'no-cache','Accept-Encoding':'identity'})
         try:
             with urllib.request.urlopen(request,timeout=30) as response:
                 actual=hashlib.sha256(response.read()).hexdigest()
@@ -65,9 +75,9 @@ def main():
         if lifecycle.read_marker(ftp) is not None:raise RuntimeError('An IIS maintenance marker remains active.')
         proof=verify_bundle(ftp,root)
         # Only release metadata is read from App_Data. No record bodies or secret contents are downloaded.
-        checkpoint=io.BytesIO();ftp.retrbinary('RETR App_Data/release-backups/0.9.3/checkpoint.json',checkpoint.write)
+        checkpoint=io.BytesIO();ftp.retrbinary('RETR App_Data/release-backups/0.10.0/checkpoint.json',checkpoint.write)
         metadata=json.loads(checkpoint.getvalue());before=metadata.get('before',{})
-        if metadata.get('version')!='0.9.3' or not before.get('recordsSha256'):raise RuntimeError('Release checkpoint metadata is incomplete.')
+        if metadata.get('version')!='0.10.0' or not before.get('recordsSha256'):raise RuntimeError('Release checkpoint metadata is incomplete.')
         proof['checkpoint']={'version':metadata['version'],'counts':before.get('counts',{}),'recordsSha256':before['recordsSha256']}
     finally:ftp.close()
     target=Path('artifacts/deployment-verification-v070.json')

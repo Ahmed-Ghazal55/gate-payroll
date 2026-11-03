@@ -38,6 +38,7 @@ public sealed class Store
             CREATE UNIQUE INDEX IF NOT EXISTS ix_user_name ON records(lower(json_extract(body,'$.username'))) WHERE kind='user';
             CREATE INDEX IF NOT EXISTS ix_debt_iqama ON records(json_extract(body,'$.iqama'),json_extract(body,'$.status')) WHERE kind='debt';
             CREATE INDEX IF NOT EXISTS ix_journal_sponsor ON records(json_extract(body,'$.creditorSponsorId'),json_extract(body,'$.period')) WHERE kind='journal';
+            CREATE INDEX IF NOT EXISTS ix_company_children ON records(kind,json_extract(body,'$.companyId')) WHERE kind IN ('commercial_registration','company_document');
             CREATE INDEX IF NOT EXISTS ix_rider_doc_iqama ON records(json_extract(body,'$.iqama')) WHERE kind='rider_document';
             """ : """
             IF OBJECT_ID(N'dbo.records', N'U') IS NULL
@@ -98,5 +99,9 @@ public sealed class Store
             insert.ExecuteNonQuery();
         }
     }
-    public static void Audit(DbConnection c, DbTransaction tx, string action, string entity, string actor) => Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = action, ["entityId"] = entity, ["actor"] = actor, ["at"] = DateTimeOffset.UtcNow.ToString("O") }, tx);
+    public static void Audit(DbConnection c, DbTransaction tx, string action, string entity, string actor)
+    {
+        Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = action, ["entityId"] = entity, ["actor"] = actor, ["at"] = DateTimeOffset.UtcNow.ToString("O") }, tx);
+        Notifications.OnAudit(c,tx,action,entity,actor);
+    }
 }

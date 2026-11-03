@@ -7,6 +7,8 @@ def check(root):
                 'wwwroot/fonts/cairo.ttf', 'wwwroot/fonts/outfit.ttf', 'wwwroot/fonts/notonastaliqurdu.ttf',
                 'wwwroot/fonts/cairo-OFL.txt', 'wwwroot/fonts/outfit-OFL.txt', 'wwwroot/fonts/notonastaliqurdu-OFL.txt',
                 'wwwroot/bootstrap.js', 'wwwroot/enterprise.js', 'wwwroot/rider-form.html', 'wwwroot/rider-form.js']
+    if (Path(__file__).resolve().parents[1]/'web/package.json').is_file() or (root/'wwwroot/app').exists():
+        required.append('wwwroot/app/index.html')
     for name in required:
         assert (root / name).is_file(), 'Missing published file: ' + name
     for path in root.rglob('*'):

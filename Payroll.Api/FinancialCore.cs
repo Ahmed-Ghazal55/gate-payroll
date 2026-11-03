@@ -440,6 +440,8 @@ public static class FinancialCore
             ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
         };
         Store.Save(c, "sys_notification", notif, tx);
+        Store.Audit(c,tx,"approval.request_created",req.S("id"),actor);
+        Store.Audit(c,tx,"notification.system_created",notif.S("id"),actor);
         return req;
     }
 
@@ -456,9 +458,10 @@ public static class FinancialCore
         {
             var journals = Store.List(c, "journal");
             var debts = Store.List(c, "debt").Where(d=>FinancialScopes.Debt(ctx.User,d)).ToList();
-            return Sponsors.Where(sp=>FinancialScopes.Sponsor(ctx.User,sp.Id)).Select(sp =>
+            return Companies.List(c,ctx.User).Select(company =>
             {
-                var spLines = journals.SelectMany(j => j["lines"]?.AsArray() ?? []).Select(x => x!.AsObject()).Where(l => l.S("sponsorId") == sp.Id && FinancialScopes.Line(ctx.User,l)).ToList();
+                string spId=company.S("id");
+                var spLines = journals.SelectMany(j => j["lines"]?.AsArray() ?? []).Select(x => x!.AsObject()).Where(l => l.S("sponsorId") == spId && FinancialScopes.Line(ctx.User,l)).ToList();
                 // Held cash includes restricted Jahez custody; fuel clearing is not physical cash.
                 decimal vaultBalance = spLines.Where(l => l.S("accountCode").StartsWith("MAIN.", StringComparison.Ordinal) || l.S("accountCode").StartsWith("SUP.", StringComparison.Ordinal) || l.S("accountCode").StartsWith("BANK.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
                 decimal mainVaultBalance = spLines.Where(l => l.S("accountCode").StartsWith("MAIN.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
@@ -466,7 +469,7 @@ public static class FinancialCore
                 decimal bankBalance = spLines.Where(l => l.S("accountCode").StartsWith("BANK.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
                 decimal petroBalance = spLines.Where(l => l.S("accountCode").StartsWith("PETRO.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
                 decimal receivableFromJournals = spLines.Where(l => l.S("accountCode") is "1210" or "1220" or "1230").Sum(l => l.N("debit") - l.N("credit"));
-                decimal activeDebtRemaining = debts.Where(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == sp.Id).Sum(d => d.N("remainingBalance"));
+                decimal activeDebtRemaining = debts.Where(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == spId).Sum(d => d.N("remainingBalance"));
                 decimal expensesTotal = spLines.Where(l => l.S("accountType") == "Expense").Sum(l => l.N("debit") - l.N("credit"));
                 decimal waivesTotal = spLines.Where(l => l.S("accountCode") == "5202").Sum(l => l.N("debit") - l.N("credit"));
                 decimal interCompanyNet = spLines.Where(l => l.S("accountType") == "InterCompany").Sum(l => l.N("debit") - l.N("credit"));
@@ -474,12 +477,14 @@ public static class FinancialCore
 
                 return new
                 {
-                    id = sp.Id,
-                    code = sp.Code,
-                    unifiedNumber = sp.UnifiedNumber,
-                    commercialReg = sp.CommercialReg,
-                    nameAr = sp.NameAr,
-                    shortNameAr = sp.ShortNameAr,
+                    id = spId,
+                    sponsorId=spId,
+                    status=company.S("status"),
+                    code = company.S("code"),
+                    unifiedNumber = company.S("unifiedNumber"),
+                    commercialReg = company.S("commercialReg"),
+                    nameAr = company.S("nameAr"),
+                    shortNameAr = company.S("shortNameAr"),
                     vaultBalance = J.Money(vaultBalance),
                     mainVaultBalance = J.Money(mainVaultBalance),
                     jahezBoxBalance = J.Money(jahezBoxBalance),
@@ -488,14 +493,14 @@ public static class FinancialCore
                     receivablesBalance = J.Money(activeDebtRemaining),
                     receivablesFromJournals = J.Money(receivableFromJournals),
                     receivablesReconciliationDifference = J.Money(receivableFromJournals - activeDebtRemaining),
-                    activeDebtsCount = debts.Count(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == sp.Id),
+                    activeDebtsCount = debts.Count(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == spId),
                     payablesBalance = J.Money(payablesTotal),
                     expensesTotal = J.Money(expensesTotal),
                     waiversTotal = J.Money(waivesTotal),
                     interCompanyNet = J.Money(interCompanyNet)
                 };
             }).ToList();
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Read finance sponsors");
 
         // 2. شجرة الحسابات الهرمية وأرصدة الصناديق الرئيسية والفرعية والبنوك والمصروفات (مع التجميع التلقائي للحسابات الأب)
         api.MapGet("/finance/accounts", (string? sponsorId,HttpContext ctx) => store.Read(c =>
@@ -541,7 +546,7 @@ public static class FinancialCore
                         : "حساب طبيعته دائنة: يزيد عندما يُجعل دائناً (Credit)، وينقص عندما يُجعل مديناً (Debit)."
                 };
             }).ToList();
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Read finance accounts");
 
         // 3. كتالوج فئات المديونيات وخدمات الـ HR والأقسام والرتب والصناديق المصنفة
         api.MapGet("/finance/catalog", (HttpContext ctx) => store.Read(c => new
@@ -554,7 +559,7 @@ public static class FinancialCore
             roles = UserAccess.RolesCatalog,
             permissions = UserAccess.PermissionsCatalog,
             promissoryNotesArchiveEnabled = PromissoryArchiveEnabled(c)
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Read finance catalog");
 
         // 4. سجل القيود المحاسبية المزدوجة (Journal Entries)
         api.MapGet("/finance/journals", (string? sponsorId, string? iqama, string? accountCode,HttpContext ctx) => store.Read(c =>
@@ -572,7 +577,7 @@ public static class FinancialCore
                 list = list.Where(j => j["lines"]?.AsArray().Any(l => IsDescendantOrSelf(l!.AsObject().S("accountCode"), targetAcc)) ?? false).ToList();
             }
             return list;
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Read finance journals");
 
         // 5. إنشاء قيد خزينة مباشر (إيداع / تمويل صندوق / تحويل بين الصناديق والبنوك مع تطبيق قواعد العزل المالي)
         api.MapPost("/finance/vault-transfer", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -604,7 +609,7 @@ public static class FinancialCore
             var journal = PostJournal(c, tx, "vault_transfer", input.S("description", $"تحويل مالي من ({fromAcc.NameAr}) إلى ({toAcc.NameAr})"), input.S("period", DateTime.UtcNow.ToString("yyyy-MM")), refNo, lines, ctx.User.Identity!.Name!, "", "", fromSp.Id, toSp.Id);
             Store.Audit(c, tx, "finance.vault_transfer", journal.S("id"), ctx.User.Identity!.Name!);
             return journal;
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Submit finance vault transfer");
 
         // 5-ب. قبض رسوم فتح وتفعيل حساب جاهز جديد (200 ر.س أو مبلغ مخصص) في حسابات رسوم جاهز المخصصة (SUP.*.FEE أو MAIN.*.FEE)
         api.MapPost("/finance/jahez-fee", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -634,13 +639,13 @@ public static class FinancialCore
             var journal = PostJournal(c, tx, "jahez_account_fee", input.S("description", $"قبض رسوم فتح حساب جاهز ({vaultSp.ShortNameAr}) — مرجع ({refNo})"), period, refNo, lines, ctx.User.Identity!.Name!, iqama, "", vaultSp.Id, vaultSp.Id);
             Store.Audit(c, tx, "finance.jahez_fee", journal.S("id"), ctx.User.Identity!.Name!);
             return journal;
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Submit finance jahez fee");
 
         // 5-ج. تسليم وتصفير عهدة صندوق جاهز اليومية (Zero-Out EOD Handover) من خزائن جاهز (SUP.*) إلى الصندوق الداخلي الرئيسي (MAIN.*)
         // 6. كشف حساب المندوب أو الموظف الشامل 360 درجة (مدين / دائن / رصيد تراكمي متسلسل زمنياً بدقة / حسب السجل / مع القيود والرواتب)
-        api.MapGet("/finance/statement/rider/{iqama}",(string iqama,string? sponsorId,HttpContext ctx)=>store.Read(c=>RiderStatements.Build(c,iqama,sponsorId,ctx.User)));
+        api.MapGet("/finance/statement/rider/{iqama}",(string iqama,string? sponsorId,HttpContext ctx)=>store.Read(c=>RiderStatements.Build(c,iqama,sponsorId,ctx.User))).WithTags("Banks and treasury").WithSummary("Read finance statement rider {iqama}");
         api.MapGet("/finance/statement/rider/{iqama}/simple", (string iqama, string from, string to, string? sponsorId, HttpContext ctx) =>
-            store.Read(c => RiderStatements.BuildSimple(c, iqama, from, to, sponsorId, ctx.User)));
+            store.Read(c => RiderStatements.BuildSimple(c, iqama, from, to, sponsorId, ctx.User))).WithTags("Banks and treasury").WithSummary("Read finance statement rider {iqama} simple");
 
         // 7. منظومة الاعتمادات المتبادلة (المالية ⇄ HR ⇄ التشغيل ⇄ الحركة) ومركز الإشعارات والمهام
         api.MapGet("/approvals", (string? department, string? status,HttpContext ctx) => store.Read(c =>
@@ -649,7 +654,7 @@ public static class FinancialCore
             if (!string.IsNullOrWhiteSpace(department)) list = list.Where(a => a.S("targetDepartment") == department || a.S("fromDepartment") == department).ToList();
             if (!string.IsNullOrWhiteSpace(status)) list = list.Where(a => a.S("status") == status).ToList();
             return list;
-        }));
+        })).WithTags("Home").WithSummary("Read approvals");
 
         api.MapPost("/approvals/{id}/decide", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -702,7 +707,7 @@ public static class FinancialCore
 
             Store.Audit(c, tx, "approval." + decision, id, ctx.User.Identity!.Name!);
             return req;
-        }));
+        })).WithTags("Home").WithSummary("Submit approvals {id} decide");
 
         api.MapGet("/notifications/center", (string? tab, string? department,HttpContext ctx) => store.Read(c =>
         {
@@ -717,7 +722,7 @@ public static class FinancialCore
                 todoCount = items.Count(n => n.S("tab") == "todo" && !n.B("completed")),
                 items
             };
-        }));
+        })).WithTags("Home").WithSummary("Read notifications center");
 
         api.MapPost("/notifications/center", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -741,12 +746,14 @@ public static class FinancialCore
             Store.Save(c, "sys_notification", notif, tx);
             Store.Audit(c, tx, "notification.created", notif.S("id"), ctx.User.Identity!.Name!);
             return notif;
-        }));
+        })).WithTags("Home").WithSummary("Submit notifications center");
 
         api.MapPost("/notifications/center/{id}/toggle-todo", (string id, HttpContext ctx) => store.Write((c, tx) =>
         {
             var notif = Store.Get(c, id, "sys_notification", tx) ?? throw new ApiError("المهمة غير موجودة.", 404);
-            J.Need(AccessPolicy.Administrator(ctx.User)||notif.S("targetDepartment") is var dept&&(dept=="ALL"||dept==ctx.User.FindFirst("department")?.Value),"المهمة خارج قسمك.");
+            bool owner=notif.S("assignedTo")==ctx.User.Identity?.Name||notif.S("createdBy")==ctx.User.Identity?.Name;
+            if(!owner&&!AccessPolicy.Has(ctx.User,"approvals.view"))throw new ApiError("ليست لديك صلاحية لهذه المهمة.",403);
+            J.Need(owner||AccessPolicy.Administrator(ctx.User)||notif.S("targetDepartment") is var dept&&(dept=="ALL"||dept==ctx.User.FindFirst("department")?.Value),"المهمة خارج قسمك.");
             bool done = !notif.B("completed");
             notif["completed"] = done;
             notif["status"] = done ? "acknowledged" : "unread";
@@ -754,7 +761,7 @@ public static class FinancialCore
             notif["completedAt"] = done ? DateTimeOffset.UtcNow.ToString("O") : "";
             Store.Save(c, "sys_notification", notif, tx);
             return notif;
-        }));
+        })).WithTags("Home").WithSummary("Submit notifications center {id} toggle todo");
 
         // 8. بوابة تطبيق الجوال وخدمات جوجل (Google Play / Firebase Cloud Messaging - FCM)
         app.MapPost("/api/rider-mobile/login", async Task<IResult> (JsonObject input, HttpContext ctx) =>
@@ -773,9 +780,9 @@ public static class FinancialCore
                 Store.Save(c, "mobile_session", session, tx); Store.Audit(c, tx, "mobile.login", iqama, "rider");
                 return Results.Ok(new { accessToken = token, tokenType = "Bearer", expiresAtUtc = session.S("expiresAtUtc"), language = lang, fcmRegistered = false, fcmTokenStored = fcm.Length > 0, rider = UserAccess.RiderView(rider) });
             }, false);
-        }).RequireRateLimiting("sensitive");
+        }).WithTags("Riders").WithSummary("Submit rider mobile login").RequireRateLimiting("sensitive");
 
-        api.MapPost("/api/rider-mobile/broadcast".Replace("/api/", "/"), (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
+        api.MapPost("/rider-mobile/broadcast", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             string category = input.S("category", "operational"); // financial | operational | administrative | form_link
             string titleAr = input.Required("titleAr");
@@ -805,9 +812,9 @@ public static class FinancialCore
             Store.Save(c, "mobile_broadcast", msg, tx);
             Store.Audit(c, tx, "mobile.broadcast", msg.S("id"), ctx.User.Identity!.Name!);
             return msg;
-        }));
+        })).WithTags("Riders").WithSummary("Submit rider mobile broadcast");
 
-        api.MapGet("/rider-mobile/broadcasts", (HttpContext ctx) => store.Read(c => Store.List(c, "mobile_broadcast").Where(b=>b.S("targetIqama")=="ALL"||Store.Get(c,b.S("targetIqama"),"rider") is {} rider&&FinancialScopes.Rider(ctx.User,rider)||AccessPolicy.Administrator(ctx.User))));
+        api.MapGet("/rider-mobile/broadcasts", (HttpContext ctx) => store.Read(c => Store.List(c, "mobile_broadcast").Where(b=>b.S("targetIqama")=="ALL"||Store.Get(c,b.S("targetIqama"),"rider") is {} rider&&FinancialScopes.Rider(ctx.User,rider)||AccessPolicy.Administrator(ctx.User)))).WithTags("Riders").WithSummary("Read rider mobile broadcasts");
 
         // إعدادات ربط Firebase Cloud Messaging (FCM) وتطبيق Google Play
         api.MapGet("/rider-mobile/firebase-config", (HttpContext ctx) => store.Read(c =>
@@ -830,7 +837,7 @@ public static class FinancialCore
                 fcmRegisteredDevicesCount = sessions.Count(s => !string.IsNullOrWhiteSpace(s.S("fcmDeviceToken"))),
                 updatedAt = cfg?.S("updatedAt") ?? ""
             };
-        }));
+        })).WithTags("Riders").WithSummary("Read rider mobile firebase config");
 
         api.MapPost("/rider-mobile/firebase-config", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -850,7 +857,7 @@ public static class FinancialCore
             Store.Save(c, "setting", doc, tx);
             Store.Audit(c, tx, "mobile.firebase_configured", doc.S("projectId"), ctx.User.Identity!.Name!);
             return new { ok = true, projectId = doc.S("projectId"), androidPackageName = doc.S("androidPackageName") };
-        }));
+        })).WithTags("Riders").WithSummary("Submit rider mobile firebase config");
 
         // واجهة بيانات تطبيق المندوب (يستدعيها تطبيق الجوال بعد تسجيل الدخول بـ rmob_ token)
         app.MapGet("/api/rider-mobile/portal/{iqama}", (string iqama, HttpContext ctx) => store.Read(c =>
@@ -898,7 +905,7 @@ public static class FinancialCore
                 debts,
                 broadcasts
             };
-        }));
+        })).WithTags("Riders").WithSummary("Read rider mobile portal {iqama}");
 
         app.MapPost("/api/rider-mobile/broadcasts/{id}/ack", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -914,10 +921,10 @@ public static class FinancialCore
                 Store.Save(c, "mobile_broadcast", b, tx);
             }
             return new { ok = true, id, acknowledgedCount = acks.Count };
-        }));
+        })).WithTags("Riders").WithSummary("Submit rider mobile broadcasts {id} ack");
 
-        app.MapGet("/rider-app", () => Results.Text(RiderAppHtml, "text/html; charset=utf-8"));
-        app.MapGet("/rider-app.js", () => Results.Text(RiderAppJs, "text/javascript; charset=utf-8"));
+        app.MapGet("/rider-app", () => Results.Text(RiderAppHtml, "text/html; charset=utf-8")).WithTags("Riders").WithSummary("Read  rider app");
+        app.MapGet("/rider-app.js", () => Results.Text(RiderAppJs, "text/javascript; charset=utf-8")).WithTags("Riders").WithSummary("Read  rider app.js");
 
         // 9. أرشيف سندات الأمر التكاملي الموحد (جاهز برمجياً مع مفتاح تفعيل Feature Flag)
         api.MapPost("/finance/features/promissory-notes", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -933,13 +940,13 @@ public static class FinancialCore
             Store.Save(c, "setting", doc, tx);
             Store.Audit(c, tx, "feature.promissory_notes", enabled ? "enabled" : "disabled", ctx.User.Identity!.Name!);
             return doc;
-        }));
+        })).WithTags("Debts and advances").WithSummary("Submit finance features promissory notes");
 
         api.MapGet("/promissory-notes", (HttpContext ctx) => store.Read(c => new
         {
             featureEnabled = PromissoryArchiveEnabled(c),
             items = Store.List(c, "promissory_note").Where(n=>FinancialScopes.Sponsor(ctx.User,n.S("beneficiarySponsorId")))
-        }));
+        })).WithTags("Debts and advances").WithSummary("Read promissory notes");
 
         api.MapPost("/promissory-notes", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -972,7 +979,7 @@ public static class FinancialCore
             Store.Save(c, "promissory_note", note, tx);
             Store.Audit(c, tx, "promissory_note.created", note.S("id"), ctx.User.Identity!.Name!);
             return note;
-        }));
+        })).WithTags("Debts and advances").WithSummary("Submit promissory notes");
     }
 
     private const string RiderAppHtml = """

@@ -90,7 +90,7 @@ public static class IbanChoices
         return store.Write<IResult>((c, tx) =>
         {
             campaign = SubmissionChoices.Open(c, tx, campaign); var existing = SubmissionChoices.Find(c, tx, campaign, answer.Iqama);
-            if (existing != null) return Results.Json(View(existing), statusCode: 409);
+            if (existing != null) return Results.Json(ApiErrors.Duplicate(View(existing)), statusCode: 409);
             var d = new JsonObject { ["id"] = Guid.NewGuid().ToString("N"), ["campaignId"] = campaign.S("id"), ["schema"] = Schema, ["iqama"] = answer.Iqama, ["status"] = "pending", ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"), ["version"] = 1, ["isEdited"] = false, ["history"] = new JsonArray() };
             Apply(d, answer); Store.Save(c, "submission", d, tx); Store.Audit(c, tx, "submission.received", d.S("id"), "public-form"); return Results.Ok(Receipt(d));
         });

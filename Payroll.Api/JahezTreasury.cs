@@ -17,7 +17,7 @@ public static class JahezTreasury
             string owner=source.DefaultSponsorId!;var journal=FinancialCore.PostJournal(c,tx,"jahez_custody_transfer","نقل عهدة جاهز دون إيراد أو تغيير ذمة مندوب",J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM"))),input.Required("sourceRef"),new JsonArray(
                 FinancialCore.CreateJournalLine(to,owner,amount,0,input.Required("notes")),FinancialCore.CreateJournalLine(from,owner,0,amount,input.S("notes"))),ctx.User.Identity!.Name!,"","",owner,owner);
             Store.Audit(c,tx,"jahez.custody_transferred",journal.S("id"),ctx.User.Identity!.Name!);return journal;
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Submit finance jahez transfer");
         api.MapPost("/finance/jahez-platform-settlement",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
         {
             string action=input.Required("action");J.Need(action is "pay" or "receive","اتجاه التسوية غير صالح.");var sponsor=FinancialCore.ResolveSponsor(input.Required("sponsorId"));string vault="BANK."+sponsor.Code+".JAHEZ";
@@ -27,7 +27,7 @@ public static class JahezTreasury
             var lines=action=="pay"?new JsonArray(FinancialCore.CreateJournalLine(control,sponsor.Id,amount,0,"سداد مستحق جاهز"),FinancialCore.CreateJournalLine(vault,sponsor.Id,0,amount,input.Required("notes"))):new JsonArray(FinancialCore.CreateJournalLine(vault,sponsor.Id,amount,0,"تحصيل تسوية منصة جاهز"),FinancialCore.CreateJournalLine(control,sponsor.Id,0,amount,input.Required("notes")));
             var journal=FinancialCore.PostJournal(c,tx,"jahez_platform_settlement","تسوية مباشرة مع شركة جاهز",J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM"))),input.Required("sourceRef"),lines,ctx.User.Identity!.Name!,"","",sponsor.Id,sponsor.Id);
             Store.Audit(c,tx,"jahez.platform_settled",journal.S("id"),ctx.User.Identity!.Name!);return journal;
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Submit finance jahez platform settlement");
         api.MapPost("/finance/jahez-fee-deposit",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
         {
             var sponsor=FinancialCore.ResolveSponsor(input.Required("sponsorId"));string from="MAIN."+sponsor.Code+".FEE",to="BANK."+sponsor.Code;
@@ -35,6 +35,6 @@ public static class JahezTreasury
             var journal=FinancialCore.PostJournal(c,tx,"company_fee_deposit","إيداع حصيلة رسوم الشركة في البنك دون إثبات إيراد ثان",J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM"))),input.Required("sourceRef"),new JsonArray(
                 FinancialCore.CreateJournalLine(to,sponsor.Id,amount,0,input.Required("notes")),FinancialCore.CreateJournalLine(from,sponsor.Id,0,amount,"إيداع حصيلة رسوم محصلة سابقًا")),ctx.User.Identity!.Name!,"","",sponsor.Id,sponsor.Id);
             Store.Audit(c,tx,"jahez.fee_deposited",journal.S("id"),ctx.User.Identity!.Name!);return journal;
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Submit finance jahez fee deposit");
     }
 }

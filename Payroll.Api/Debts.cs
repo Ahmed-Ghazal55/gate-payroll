@@ -101,7 +101,7 @@ public static class Debts
             if (!string.IsNullOrWhiteSpace(status)) list = list.Where(d => d.S("status") == status).ToList();
             if (!string.IsNullOrWhiteSpace(iqama)) list = list.Where(d => d.S("iqama") == iqama.Trim()).ToList();
             return list;
-        }));
+        })).WithTags("Debts and advances").WithSummary("Read debts");
 
         api.MapGet("/debts/settlements", (string? debtId, string? iqama,HttpContext ctx) => store.Read(c =>
         {
@@ -109,7 +109,7 @@ public static class Debts
             if (!string.IsNullOrWhiteSpace(debtId)) list = list.Where(s => s.S("debtId") == debtId).ToList();
             if (!string.IsNullOrWhiteSpace(iqama)) list = list.Where(s => s.S("iqama") == iqama.Trim()).ToList();
             return list;
-        }));
+        })).WithTags("Debts and advances").WithSummary("Read debts settlements");
 
         api.MapPost("/debts", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -248,7 +248,7 @@ public static class Debts
 
             Store.Audit(c, tx, "debt.created", d.S("id"), ctx.User.Identity!.Name!);
             return d;
-        }));
+        })).WithTags("Debts and advances").WithSummary("Submit debts");
 
         api.MapPut("/debts/{id}", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -278,7 +278,7 @@ public static class Debts
             Store.Save(c, "debt", d, tx);
             Store.Audit(c, tx, "debt.rescheduled", id, ctx.User.Identity!.Name!);
             return d;
-        }));
+        })).WithTags("Debts and advances").WithSummary("Update debts {id}");
 
         // تحصيل مباشر (نقدي أو بنكي، كلي أو جزئي) + إمكانية إعفاء إداري مشروط لجزء من المديونية + إيداع في صندوق أي سجل
         api.MapPost("/debts/{id}/collect", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -395,10 +395,10 @@ public static class Debts
 
             Store.Audit(c, tx, "debt.collected", id, ctx.User.Identity!.Name!);
             return new { debt = d, settlement, journal };
-        }));
+        })).WithTags("Debts and advances").WithSummary("Submit debts {id} collect");
 
         // شراء المديونية / ترحيل ملكية المديونية مالياً من سجل تجاري إلى سجل تجاري آخر
-        api.MapPost("/debts/{id}/transfer-sponsor",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>DebtTransfers.Post(c,tx,id,input,ctx.User)));
+        api.MapPost("/debts/{id}/transfer-sponsor",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>DebtTransfers.Post(c,tx,id,input,ctx.User))).WithTags("Debts and advances").WithSummary("Submit debts {id} transfer sponsor");
 
         // قالب إكسل التحصيل المجمع (بالإقامة والاسم والمبلغ المحصل والإعفاء والصندوق)
         api.MapGet("/debts/bulk-collect/template", (HttpContext ctx) => store.Read(c =>
@@ -435,7 +435,7 @@ public static class Debts
                 rows.Add(["2491234567", "مثال: محمد أحمد", 500m, 0m, "MAIN.BW.DEBT", "BLK-202610-001", "سداد دفعة نقدية للصندوق الداخلي"]);
             }
             return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "قالب_التحصيل_المجمع_للمديونيات.xlsx");
-        }));
+        })).WithTags("Debts and advances").WithSummary("Read debts bulk collect template");
 
         // معاينة ملف Excel أو CSV لشيت التحصيل المجمع قبل الحفظ
         api.MapPost("/debts/bulk-collect/preview-file", (JsonObject input,HttpContext ctx) => store.Read(c =>
@@ -503,7 +503,7 @@ public static class Debts
                 }
             }
             return new { filename, validCount = rows.Count, errorCount = errors.Count, rows, errors, fingerprint=errors.Count==0?FinancialImports.Issue(c,"bulk",rows,ctx.User.Identity!.Name!):"" };
-        }));
+        })).WithTags("Debts and advances").WithSummary("Submit debts bulk collect preview file");
 
         // اعتماد شيت التحصيل المجمع (سواء من جدول مباشر أو بعد قراءة ملف Excel/CSV)
         api.MapPost("/debts/bulk-collect/commit", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -630,7 +630,7 @@ public static class Debts
                 totalWaivedBatch,
                 settlements = results
             };
-        }));
+        })).WithTags("Debts and advances").WithSummary("Submit debts bulk collect commit");
 
         // ==========================================================================================================
         // شيت رفع واستيراد أرصدة أول المدة للمديونيات والبنود والحسابات مع بيان مالي تفصيلي قبل التحميل والاعتماد
@@ -671,7 +671,7 @@ public static class Debts
                 new object?[] { "2381122334", "مثال: فهد الحربي", "Rider", "TrafficFine", "TR", "OpeningBalance", "RiderFull", 900m, 0m, 0m, 300m, curMonth, "3101", "OB-2026-003", "رصيد أول المدة — مخالفة مرورية على سجل التجارية" }
             };
             return Results.File(ExcelFiles.Write(cols, rows.Select(r=>r.Concat(new object?[]{""}).ToArray()).ToList()), ExcelFiles.Mime, "قالب_استيراد_أرصدة_أول_المدة_والمديونيات_v3.xlsx");
-        });
+        }).WithTags("Debts and advances").WithSummary("Read debts import opening template");
 
         api.MapPost("/debts/import-opening/preview", (JsonObject input,HttpContext ctx) => store.Read(c =>
         {
@@ -856,7 +856,7 @@ public static class Debts
                 rows = validRows,
                 errors
             };
-        }));
+        })).WithTags("Debts and advances").WithSummary("Submit debts import opening preview");
 
         api.MapPost("/debts/import-opening/commit", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -996,7 +996,7 @@ public static class Debts
                 totalRemainingImported,
                 totalCompanyExpenseImported
             };
-        }));
+        })).WithTags("Debts and advances").WithSummary("Submit debts import opening commit");
     }
 
     public static void Post(DbConnection c, DbTransaction tx, PayrollResult result, string runId)

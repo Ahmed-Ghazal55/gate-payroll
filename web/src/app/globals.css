@@ -1,0 +1,52 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+@font-face {
+  font-family: 'Cairo';
+  src: url('/app/fonts/cairo.ttf') format('truetype');
+  font-weight: 200 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Outfit';
+  src: url('/app/fonts/outfit.ttf') format('truetype');
+  font-weight: 200 900;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Cairo', Tahoma, Arial, sans-serif;
+  background-color: var(--bg);
+  color: var(--ink);
+  direction: rtl;
+  min-height: 100vh;
+}
+
+/* LTR tabular digits for numbers, currency, IDs, IBAN */
+.num {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+}
+
+/* Accessible visible focus outline */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Hide scrollbars when needed */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

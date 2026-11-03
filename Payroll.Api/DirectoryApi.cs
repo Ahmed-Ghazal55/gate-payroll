@@ -196,7 +196,7 @@ public static class RiderDirectory
                 return new { count = added.Count, updatedCount = updates.Count, alreadyImported = false, batchId = batch };
             }
             return input.S("mode") == "commit" ? store.Write((c, tx) => Process(c, tx)) : store.Read(c => Process(c, null));
-        });
+        }).WithTags("Riders").WithSummary("Submit riders sync baseline");
 
         // 2. استكمال وجلب البيانات المفقودة آلياً (Auto-Enrich Missing Fields) من المصادر المتاحة (الملف المرجعي + ردود المناديب + دفعات التشغيل)
         api.MapPost("/riders/enrich-missing", (HttpContext ctx) => store.Write((c, tx) =>
@@ -305,7 +305,7 @@ public static class RiderDirectory
 
             Store.Audit(c, tx, "rider.enriched_missing", $"enriched:{enrichedExisting},added:{addedFromSources}", ctx.User.Identity!.Name!);
             return new { enrichedExisting, addedFromSources, totalRidersNow = riders.Count };
-        }));
+        })).WithTags("Riders").WithSummary("Submit riders enrich missing");
 
         // 3. تشخيص جودة واكتمال بيانات المناديب (Data Completeness & Missing Fields Report)
         api.MapGet("/riders/data-quality", () => store.Read(c =>
@@ -324,7 +324,7 @@ public static class RiderDirectory
                 missingIbanCount = riders.Count(r => string.IsNullOrWhiteSpace(r.S("iban"))),
                 needsReviewCount = riders.Count(r => r.S("status") == "NeedsReview")
             };
-        }));
+        })).WithTags("Riders").WithSummary("Read riders data quality");
 
         // 4. الملف الشامل للمندوب 360° ومستنداته ومرفقاته الرسمية (متوافق مع EmployeeDocumentsController في البوابة)
         api.MapGet("/riders/{iqama}/profile-360", (string iqama, HttpContext ctx) => store.Read(c =>
@@ -369,7 +369,7 @@ public static class RiderDirectory
                 totalOrders = works.Sum(w => (int)w.N("orders")),
                 submissions
             };
-        }));
+        })).WithTags("Riders").WithSummary("Read riders {iqama} profile 360");
 
         // 5. رفع / تحديث وثيقة رسمية للمندوب (الإقامة، رخصة القيادة، بطاقة السائق، الكرت الصحي، عقد أجير...)
         api.MapPost("/riders/{iqama}/documents", (string iqama, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -425,7 +425,7 @@ public static class RiderDirectory
             Store.Save(c, "rider_document", doc, tx);
             Store.Audit(c, tx, "rider.document_saved", $"{iqama}:{dt.Code}", ctx.User.Identity!.Name!);
             return doc;
-        }));
+        })).WithTags("Riders").WithSummary("Submit riders {iqama} documents");
         api.MapGet("/riders/{iqama}/documents/{id}/download",(string iqama,string id,HttpContext ctx)=>store.Read(c=>
         {
             FinancialScopes.DemandRider(ctx.User,Store.Get(c,J.Iqama(iqama),"rider")??throw new ApiError("المندوب غير موجود.",404));
@@ -437,6 +437,6 @@ public static class RiderDirectory
             J.Need(path.StartsWith(Path.GetFullPath(store.DirectoryPath)+Path.DirectorySeparatorChar,StringComparison.Ordinal),"مسار مرفق غير صالح.");
             if(!File.Exists(path))throw new ApiError("المرفق غير متاح.",404);
             return Results.File(path,doc.S("contentType","application/octet-stream"),doc.S("fileName","document.pdf"));
-        }));
+        })).WithTags("Riders").WithSummary("Read riders {iqama} documents {id} download");
     }
 }

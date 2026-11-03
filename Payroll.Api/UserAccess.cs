@@ -15,6 +15,8 @@ public static class UserAccess
     // 1. كتالوج الصلاحيات الذرية الدقيقة (Atomic Permissions) مع الشرح التشغيلي لكل صلاحية
     public static readonly PermissionDef[] PermissionsCatalog =
     [
+        new("companies.view","Companies","الشركات والسجلات","عرض الشركات والسجلات","عرض الشركات والسجلات والوثائق ضمن النطاق."),
+        new("companies.manage","Companies","الشركات والسجلات","إدارة الشركات والسجلات","تعديل الشركات والسجلات والوثائق ضمن النطاق مع سجل مراجعة."),
         new("finance.bankfile.export","Treasury","الخزينة","معاينة وتصدير ملف البنك","تصدير الرواتب المعتمدة ضمن نطاق الشركة دون تسجيل دفع أو تعديل قيد."),
         new("treasury.opening","Treasury","الخزينة","اعتماد تسوية افتتاح موثقة","معاينة وتأكيد تسوية الأرصدة القديمة دون تعديل الوثائق الأصلية."),
         new("treasury.jahez.receive","Treasury","الخزينة","استلام عهدة جاهز بعد عدها","قرار مالي مستقل يطابق التصفيات والرسوم كلًا على حدة قبل ترحيلهما."),
@@ -326,9 +328,9 @@ public static class UserAccess
             permissions = PermissionsCatalog,
             departments = FinancialCore.DepartmentsCatalog,
             financialScopeCatalog=new{sponsors=FinancialCore.Sponsors,accounts=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault),categories=FinancialCore.CategoriesCatalog,platforms=new[]{"Jahez","Keeta","HungerStation","Ninja","Other"}}
-        });
+        }).WithTags("Administration").WithSummary("Read roles catalog");
 
-        api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(Public)));
+        api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(Public))).WithTags("Administration").WithSummary("Read users");
 
         api.MapPost("/users", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -344,9 +346,9 @@ public static class UserAccess
             Store.Save(c, "user", u, tx);
             Store.Audit(c, tx, "admin.user_create", u.S("id"), ctx.User.Identity!.Name!);
             return Public(u);
-        }));
+        })).WithTags("Administration").WithSummary("Submit users");
 
-        api.MapPut("/users/{id}/status", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
+        JsonObject UpdateUser(string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             var u = Store.Get(c, id, "user", tx) ?? throw new ApiError("الحساب غير موجود.", 404);
             string role = input.S("role", Role(u)), status = input.S("status", Status(u));
@@ -372,6 +374,8 @@ public static class UserAccess
             Store.Save(c, "user", u, tx);
             Store.Audit(c, tx, "admin.user_update", id, ctx.User.Identity!.Name!);
             return Public(u);
-        }));
+        });
+        api.MapPut("/users/{id}", UpdateUser).WithTags("Administration").WithSummary("Update a user and invalidate existing sessions");
+        api.MapPut("/users/{id}/status", UpdateUser).WithTags("Administration").WithSummary("Legacy alias for updating a user");
     }
 }

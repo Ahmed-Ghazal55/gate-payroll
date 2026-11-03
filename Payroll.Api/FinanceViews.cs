@@ -128,8 +128,8 @@ public static class FinanceViews
     }
     public static void Map(RouteGroupBuilder api,Store store)
     {
-        api.MapGet("/finance/coa/target",(HttpContext ctx)=>{AccessPolicy.Demand(ctx.User,"treasury.view");return Results.Json(TargetChart());});
-        api.MapGet("/finance/trial-balance",(HttpContext ctx,string? sponsorId,string? from,string? to,string? view)=>store.Read(c=>Results.Json(TrialBalance(c,ctx.User,sponsorId,from,to,view??"current"))));
-        api.MapGet("/finance/income-statement",(HttpContext ctx,string? sponsorId,string? from,string? to,string? view)=>store.Read(c=>Results.Json(IncomeStatement(c,ctx.User,sponsorId,from,to,view??"target"))));
+        api.MapGet("/finance/coa/target",(HttpContext ctx)=>{AccessPolicy.Demand(ctx.User,"treasury.view");return Results.Json(TargetChart());}).WithTags("Accounting and reports").WithSummary("Read finance coa target");
+        api.MapGet("/finance/trial-balance",(HttpContext ctx,string? sponsorId,string? from,string? to,string? view)=>store.Read(c=>Results.Json(TrialBalance(c,ctx.User,sponsorId,from,to,view??"current")))).WithTags("Accounting and reports").WithSummary("Read finance trial balance");
+        api.MapGet("/finance/income-statement",(HttpContext ctx,string? sponsorId,string? from,string? to,string? view)=>store.Read(c=>Results.Json(IncomeStatement(c,ctx.User,sponsorId,from,to,view??"target")))).WithTags("Accounting and reports").WithSummary("Read finance income statement");
     }
 }

@@ -36,6 +36,12 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Install pinned frontend dependencies
         run: npm ci --no-audit --no-fund --prefix RiderForm
+      - name: Build Next.js static export when present
+        if: ${{ hashFiles('web/package.json') != '' }}
+        working-directory: web
+        run: npm ci --no-audit --no-fund && npm run build
+      - name: Package optional Next.js export before build and publish
+        run: python3 scripts/package_web.py
       - name: Fetch pinned fonts and licenses
         run: python3 scripts/fetch_fonts.py
       - name: Verify release source boundaries
@@ -123,6 +129,7 @@ jobs:
           MONSTERASP_FTP_SERVER: ${{ secrets.MONSTERASP_FTP_SERVER }}
           MONSTERASP_FTP_USERNAME: ${{ secrets.MONSTERASP_FTP_USERNAME }}
           MONSTERASP_FTP_PASSWORD: ${{ secrets.MONSTERASP_FTP_PASSWORD }}
+          PAYROLL_REQUIRE_NEXT_APP: ${{ hashFiles('web/package.json') != '' && '1' || '0' }}
         run: python3 scripts/verify_deployed_payload.py
       - name: Save deployment verification evidence
         if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push' && needs['ftps-preflight'].result == 'success'

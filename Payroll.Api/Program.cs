@@ -32,16 +32,24 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     o.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
     o.ExpireTimeSpan = TimeSpan.FromHours(8); o.SlidingExpiration = false;
     o.Events.OnValidatePrincipal = UserAccess.ValidateCookie;
-    o.Events.OnRedirectToLogin = c => { c.Response.StatusCode = 401; return c.Response.WriteAsJsonAsync(new { error = "سجل الدخول للإدارة." }); };
-    o.Events.OnRedirectToAccessDenied = c => { c.Response.StatusCode = 403; return Task.CompletedTask; };
+    o.Events.OnRedirectToLogin = c => { c.Response.StatusCode = 401; return c.Response.WriteAsJsonAsync(ApiErrors.Body(401, "سجل الدخول للإدارة.")); };
+    o.Events.OnRedirectToAccessDenied = c => { c.Response.StatusCode = 403; return c.Response.WriteAsJsonAsync(ApiErrors.Body(403)); };
 });
 builder.Services.AddAuthorization();
+builder.Services.AddOpenApi(options=>options.AddOperationTransformer((operation,context,cancellation)=>
+{
+    operation.Deprecated=ApiDeprecations.IsDeprecated(context.Description.HttpMethod??"","/"+context.Description.RelativePath);
+    return Task.CompletedTask;
+}));
 builder.Services.AddMemoryCache(o => o.SizeLimit = 10000);
 builder.Services.AddSingleton<InquiryLimits>();
-builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
+builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
 CampaignLinks.Migrate(store);
+Companies.Seed(store);
+app.MapOpenApi("/openapi/{documentName}.json").WithTags("Administration").WithSummary("Administrator-only OpenAPI document").RequireAuthorization().AddEndpointFilter(async (context, next) =>
+    AccessPolicy.Administrator(context.HttpContext.User) ? await next(context) : Results.Json(new { error="التوثيق لمسؤول النظام فقط.", code="forbidden" }, statusCode:403));
 app.UseForwardedHeaders();
 
 app.Use(async (ctx, next) =>
@@ -63,13 +71,15 @@ app.Use(async (ctx, next) =>
         await next();
     }
     catch (Exception e) when (e is ApiError or JsonException or FormatException or BadHttpRequestException)
-    { ctx.Response.StatusCode = e is ApiError ae ? ae.Status : 400; await ctx.Response.WriteAsJsonAsync(new { error = e is ApiError ? e.Message : "بيانات الطلب غير صحيحة." }); }
+    { ctx.Response.StatusCode = e is ApiError ae ? ae.Status : 400; await ctx.Response.WriteAsJsonAsync(ApiErrors.Body(ctx.Response.StatusCode, e is ApiError ? e.Message : "بيانات الطلب غير صحيحة.")); }
     catch (Exception e)
-    { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(new { error = "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا." }); }
+    { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(ApiErrors.Body(500, "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا.")); }
 });
-app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
-app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent });
-app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName });
+app.UseStatusCodePages(async context => { if(context.HttpContext.Request.Path.StartsWithSegments("/api") || context.HttpContext.Request.Path.StartsWithSegments("/openapi")) await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(context.HttpContext.Response.StatusCode)); });
+app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
+NextApp.Map(app);
+app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent }).WithTags("Administration").WithSummary("Read  health");
+app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName }).WithTags("Administration").WithSummary("Read auth status");
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
 {
     bool local = app.Environment.IsDevelopment() && ctx.Connection.RemoteIpAddress is { } ip && IPAddress.IsLoopback(ip);
@@ -79,18 +89,18 @@ app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
     var created = UserAccess.Create(input.Required("username"), input.Required("password"), "Admin", "administrator");
     store.Write((c, tx) => { J.Need(Store.List(c, "user", tx).Count == 0, "تم إعداد المسؤول بالفعل."); Store.Save(c, "user", created, tx); Store.Audit(c, tx, "admin.setup", "administrator", created.S("username")); return true; });
     await SignIn(ctx, created); return Results.Ok(UserAccess.Public(created));
-}).RequireRateLimiting("sensitive");
+}).WithTags("Administration").WithSummary("Submit auth setup").RequireRateLimiting("sensitive");
 app.MapPost("/api/auth/login", async (JsonObject input, HttpContext ctx) =>
 {
     var user = store.Read(c => UserAccess.Find(c, input.S("username")));
     // Per-account lockout complements the per-IP rate limit: 5 failures lock the account for 15 minutes.
-    if (user != null && DateTimeOffset.TryParse(user.S("lockedUntil"), out var lockedUntil) && lockedUntil > DateTimeOffset.UtcNow) return Results.Json(new { error = "الحساب مقفل مؤقتًا بعد محاولات دخول خاطئة؛ حاول بعد 15 دقيقة أو راجع مسؤول النظام." }, statusCode: 423);
+    if (user != null && DateTimeOffset.TryParse(user.S("lockedUntil"), out var lockedUntil) && lockedUntil > DateTimeOffset.UtcNow) return Results.Json(ApiErrors.Body(423, "الحساب مقفل مؤقتًا بعد محاولات دخول خاطئة؛ حاول بعد 15 دقيقة أو راجع مسؤول النظام."), statusCode: 423);
     if (!UserAccess.Password(user, input.S("password")))
     {
         if (user != null) store.Write((c,tx) => { var current = Store.Get(c, user.S("id"), "user", tx)!; int failed = (int)current.N("failedLogins") + 1;
             current["failedLogins"] = failed >= 5 ? 0 : failed; if (failed >= 5) { current["lockedUntil"] = DateTimeOffset.UtcNow.AddMinutes(15).ToString("O"); Store.Audit(c,tx,"admin.login_locked",current.S("id"),current.S("username")); }
             Store.Save(c,"user",current,tx); return true; });
-        return Results.Json(new { error = "اسم المستخدم أو كلمة المرور غير صحيحة." }, statusCode: 401);
+        return Results.Json(ApiErrors.Body(401, "اسم المستخدم أو كلمة المرور غير صحيحة."), statusCode: 401);
     }
     var loggedIn = store.Write((c,tx) => {
         var current = Store.Get(c, user!.S("id"), "user", tx)!;
@@ -99,15 +109,21 @@ app.MapPost("/api/auth/login", async (JsonObject input, HttpContext ctx) =>
         current["lastLoginAt"]=Now(); Store.Save(c,"user",current,tx); Store.Audit(c,tx,"admin.login",current.S("id"),current.S("username"));return current;
     });
     await SignIn(ctx, loggedIn); return Results.Ok(UserAccess.Public(loggedIn));
-}).RequireRateLimiting("sensitive");
-app.MapPost("/api/auth/logout", async (HttpContext ctx) => { await ctx.SignOutAsync(); return Results.Ok(); });
+}).WithTags("Administration").WithSummary("Submit auth login").RequireRateLimiting("sensitive");
+app.MapPost("/api/auth/logout", async (HttpContext ctx) => { await ctx.SignOutAsync(); return Results.Ok(); }).WithTags("Administration").WithSummary("Submit auth logout");
 var api = app.MapGroup("/api").RequireAuthorization();
 api.AddEndpointFilter(async (context, next) => {
     var ctx=context.HttpContext;
     if (!AccessPolicy.Allowed(ctx.User,ctx.Request.Method,ctx.Request.Path.Value??"",context.Arguments.OfType<JsonObject>().FirstOrDefault()))
-        return Results.Json(new { error="ليست لديك صلاحية لهذا الإجراء." }, statusCode:403);
+        return Results.Json(ApiErrors.Body(403), statusCode:403);
+    if(ctx.Request.Path=="/api/riders/data-quality")Notifications.EnsureDataQuality(store,ctx.User);
     return await next(context);
 });
+api.AddEndpointFilter(ApiPagination.Filter);
+Notifications.Map(api,store);
+Companies.Map(api,store);
+GlobalSearch.Map(api,store);
+ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);
 UserAccess.Map(api, store);
 RiderDirectory.Map(api, store);
@@ -125,9 +141,9 @@ api.MapGet("/me", (HttpContext ctx) =>
     var u = store.Read(c => UserAccess.Find(c, ctx.User.Identity?.Name ?? ""));
     if (u != null) return Results.Ok(UserAccess.Public(u));
     return Results.Ok(new { username = ctx.User.Identity!.Name, role = ctx.User.FindFirstValue(ClaimTypes.Role), permissions=ctx.User.FindAll("permission").Select(p=>p.Value),department=ctx.User.FindFirstValue("department"),rankLevel=ctx.User.FindFirstValue("rankLevel"), id = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) });
-});
-api.MapGet("/dashboard", (HttpContext ctx) => store.Read(c => new { riders = Store.List(c, "rider").Count, imports = Store.List(c, "batch").Count, pendingResponses = Store.List(c, "submission").Count(x => x.S("status") == "pending"), approvedRuns = Store.List(c, "run").Count, balance = Store.List(c, "ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)).Sum(x => x.N("amount")), latestAudit = Store.List(c, "audit").Where(_=>AccessPolicy.Administrator(ctx.User)).Take(8) }));
-api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Select(r => !AccessPolicy.Has(ctx.User,"riders.view_360") ? UserAccess.RiderView(r) : r).ToList()));
+}).WithTags("Administration").WithSummary("Read me");
+api.MapGet("/dashboard", (HttpContext ctx) => store.Read(c => new { riders = Store.List(c, "rider").Count, imports = Store.List(c, "batch").Count, pendingResponses = Store.List(c, "submission").Count(x => x.S("status") == "pending"), approvedRuns = Store.List(c, "run").Count, balance = Store.List(c, "ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)).Sum(x => x.N("amount")), latestAudit = Store.List(c, "audit").Where(_=>AccessPolicy.Administrator(ctx.User)).Take(8) })).WithTags("Home").WithSummary("Read dashboard");
+api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Select(r => !AccessPolicy.Has(ctx.User,"riders.view_360") ? UserAccess.RiderView(r) : r).ToList())).WithTags("Riders").WithSummary("Read riders");
 api.MapPost("/riders", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var iqama = J.Iqama(input.Required("iqama")); var existing = Store.Get(c, iqama, "rider", tx);
@@ -139,16 +155,16 @@ api.MapPost("/riders", (JsonObject input, HttpContext ctx) => store.Write((c, tx
     if (input.ContainsKey("policyId")) { if (input.S("policyId") != "") J.Need(Store.Get(c, input.S("policyId"), "policy", tx)?.S("status") == "approved", "اختر سياسة معتمدة."); rider["policyId"] = input.S("policyId"); }
     else if (!rider.ContainsKey("policyId")) rider["policyId"]="";
     Store.Save(c, "rider", rider, tx); Store.Audit(c, tx, "rider.save", iqama, Actor(ctx)); return rider;
-}));
-api.MapGet("/policies", () => store.Read(c => Store.List(c, "policy")));
+})).WithTags("Riders").WithSummary("Submit riders");
+api.MapGet("/policies", () => store.Read(c => Store.List(c, "policy"))).WithTags("Payroll").WithSummary("Read policies");
 api.MapPost("/policies", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var kind = input.Required("kind"); J.Need(new[] { "commission", "tiers", "approved_pay" }.Contains(kind), "نوع سياسة غير صالح.");
     var config = input["config"] as JsonObject ?? new(); ValidatePolicy(kind, config);
     var doc = new JsonObject { ["id"] = Id(), ["name"] = input.Required("name"), ["kind"] = kind, ["platform"] = input.Required("platform"), ["effectiveFrom"] = J.Period(input.Required("effectiveFrom")), ["status"] = "draft", ["config"] = config.DeepClone(), ["createdAt"] = Now() };
     Store.Save(c, "policy", doc, tx); Store.Audit(c, tx, "policy.create", doc.S("id"), Actor(ctx)); return doc;
-}));
-api.MapPost("/policies/{id}/approve", (string id, HttpContext ctx) => store.Write((c, tx) => { var p = Store.Get(c, id, "policy", tx) ?? throw new ApiError("السياسة غير موجودة.", 404); J.Need(p.S("status") == "draft", "هذه النسخة معتمدة بالفعل."); ValidatePolicy(p.S("kind"), p["config"]!.AsObject()); p["status"] = "approved"; p["approvedAt"] = Now(); Store.Save(c, "policy", p, tx); Store.Audit(c, tx, "policy.approve", id, Actor(ctx)); return p; }));
+})).WithTags("Payroll").WithSummary("Submit policies");
+api.MapPost("/policies/{id}/approve", (string id, HttpContext ctx) => store.Write((c, tx) => { var p = Store.Get(c, id, "policy", tx) ?? throw new ApiError("السياسة غير موجودة.", 404); J.Need(p.S("status") == "draft", "هذه النسخة معتمدة بالفعل."); ValidatePolicy(p.S("kind"), p["config"]!.AsObject()); p["status"] = "approved"; p["approvedAt"] = Now(); Store.Save(c, "policy", p, tx); Store.Audit(c, tx, "policy.approve", id, Actor(ctx)); return p; })).WithTags("Payroll").WithSummary("Submit policies {id} approve");
 api.MapPost("/imports/inspect", (JsonObject input, HttpContext ctx) =>
 {
     var filename = Path.GetFileName(input.Required("filename")); byte[] bytes = Convert.FromBase64String(input.Required("dataBase64")); var sheets = Imports.Read(bytes, filename);
@@ -156,13 +172,13 @@ api.MapPost("/imports/inspect", (JsonObject input, HttpContext ctx) =>
     var doc = new JsonObject { ["id"] = id, ["filename"] = filename, ["sha256"] = Hash(bytes), ["path"] = file, ["createdAt"] = Now(), ["status"] = "preview" };
     store.Write((c, tx) => { Store.Save(c, "upload", doc, tx); Store.Audit(c, tx, "import.inspect", id, Actor(ctx)); return true; });
     return new { id, filename, sheets = sheets.Select(s => new { name = s.Name, rows = s.Rows.Count, columns = s.Rows.Select(r => r.Count).DefaultIfEmpty().Max() }) };
-});
+}).WithTags("Payroll").WithSummary("Submit imports inspect");
 api.MapGet("/imports/{id}/sheet", (string id, string sheet, int? headerRow) =>
 {
     var selected = LoadSheet(id, sheet); int header = headerRow ?? 1; J.Need(header >= 1 && header <= selected.Rows.Count, "صف عنوان غير صالح.");
     return new { headers = selected.Rows[header - 1].Select((text, index) => new { index, text }), sample = selected.Rows.Skip(header).Take(5), rowCount = selected.Rows.Count };
-});
-api.MapPost("/imports/{id}/preview", (string id, JsonObject spec) => Imports.Normalize(LoadSheet(id, spec.Required("sheet")), spec));
+}).WithTags("Payroll").WithSummary("Read imports {id} sheet");
+api.MapPost("/imports/{id}/preview", (string id, JsonObject spec) => Imports.Normalize(LoadSheet(id, spec.Required("sheet")), spec)).WithTags("Payroll").WithSummary("Submit imports {id} preview");
 api.MapPost("/imports/{id}/commit", (string id, JsonObject spec, HttpContext ctx) =>
 {
     var preview = Imports.Normalize(LoadSheet(id, spec.Required("sheet")), spec); J.Need(preview.Errors.Count == 0 && preview.Rows.Count > 0, "عالج أخطاء المعاينة قبل الحفظ.");
@@ -181,9 +197,9 @@ api.MapPost("/imports/{id}/commit", (string id, JsonObject spec, HttpContext ctx
         var batch = new JsonObject { ["id"] = Id(), ["uploadId"] = id, ["filename"] = upload.S("filename"), ["sourceSha256"] = upload.S("sha256"), ["period"] = spec.S("period"), ["platform"] = spec.S("platform"), ["sheet"] = spec.S("sheet"), ["mapping"] = spec["mapping"]?.DeepClone(), ["count"] = docs.Count, ["createdAt"] = Now() };
         Store.Save(c, "batch", batch, tx); Store.Audit(c, tx, "import.commit", batch.S("id"), Actor(ctx)); return new { count = docs.Count, batchId = batch.S("id") };
     });
-});
-api.MapGet("/imports", () => store.Read(c => Store.List(c, "batch")));
-api.MapGet("/template.csv", () => Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes("sourceRef,iqama,name,accountId,from,to,orders,platformRevenue,riderPay,isValid,company,city\r\n")).ToArray(), "text/csv; charset=utf-8", "payroll-template.csv"));
+}).WithTags("Payroll").WithSummary("Submit imports {id} commit");
+api.MapGet("/imports", () => store.Read(c => Store.List(c, "batch"))).WithTags("Payroll").WithSummary("Read imports");
+api.MapGet("/template.csv", () => Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes("sourceRef,iqama,name,accountId,from,to,orders,platformRevenue,riderPay,isValid,company,city\r\n")).ToArray(), "text/csv; charset=utf-8", "payroll-template.csv")).WithTags("Payroll").WithSummary("Read template.csv");
 api.MapPost("/adjustments", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     string iqama = J.Iqama(input.Required("iqama")); string period = J.Period(input.Required("period"));
@@ -194,9 +210,9 @@ api.MapPost("/adjustments", (JsonObject input, HttpContext ctx) => store.Write((
     var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = amount, ["category"] = input.Required("category"), ["description"] = input.Required("description"), ["sourceRef"] = input.Required("sourceRef"), ["createdAt"] = Now() };
     J.Need(!Store.List(c, "adjustment", tx).Any(a => a.S("sourceRef") == doc.S("sourceRef") && a.S("iqama") == iqama && a.S("period") == period), "مرجع هذا البند مسجل من قبل.");
     Store.Save(c, "adjustment", doc, tx); Store.Audit(c, tx, "adjustment.add", doc.S("id"), Actor(ctx)); return doc;
-}));
-api.MapGet("/payroll/preview", (string period,HttpContext ctx) => { J.Period(period); return store.Read(c => Store.List(c, "work").Where(w => w.S("period") == period).Select(w => w.S("iqama")).Distinct().Where(iq=>Store.Get(c,iq,"rider") is {} rider&&(FinancialScopes.Rider(ctx.User,rider)||FinancialScopes.AllCompanies(ctx.User))).Select(iq => { var doc = JsonSerializer.SerializeToNode(Preview(c, iq, period), JsonSerializerOptions.Web)!.AsObject(); doc["fingerprint"] = Fingerprint(c, iq, period); return doc; }).ToList()); });
-api.MapGet("/payroll/runs", (HttpContext ctx) => store.Read(c => Store.List(c, "run").Where(r=>FinancialScopes.Ledger(ctx.User,r))));
+})).WithTags("Payroll").WithSummary("Submit adjustments");
+api.MapGet("/payroll/preview", (string period,HttpContext ctx) => { J.Period(period); return store.Read(c => Store.List(c, "work").Where(w => w.S("period") == period).Select(w => w.S("iqama")).Distinct().Where(iq=>Store.Get(c,iq,"rider") is {} rider&&(FinancialScopes.Rider(ctx.User,rider)||FinancialScopes.AllCompanies(ctx.User))).Select(iq => { var doc = JsonSerializer.SerializeToNode(Preview(c, iq, period), JsonSerializerOptions.Web)!.AsObject(); doc["fingerprint"] = Fingerprint(c, iq, period); return doc; }).ToList()); }).WithTags("Payroll").WithSummary("Read payroll preview");
+api.MapGet("/payroll/runs", (HttpContext ctx) => store.Read(c => Store.List(c, "run").Where(r=>FinancialScopes.Ledger(ctx.User,r)))).WithTags("Payroll").WithSummary("Read payroll runs");
 api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     string iqama = J.Iqama(input.Required("iqama")); string period = J.Period(input.Required("period"));
@@ -211,10 +227,10 @@ api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Wri
     foreach(var deduction in result.Lines.Where(l=>l.Category=="debt_installment"))FinancialScopes.DemandDebt(ctx.User,Store.Get(c,deduction.Source,"debt",tx)!);
     AccountingEvents.PostPayroll(c,tx,result,doc,payrollSponsor.Id,Actor(ctx));
     Store.Save(c, "run", doc, tx); Store.Save(c, "ledger", new() { ["id"] = "run:" + doc.S("id"), ["iqama"] = iqama, ["period"] = period, ["sponsorId"]=payrollSponsor.Id,["accountingVersion"]=AccountingEvents.Version,["journalEntryId"]=doc.S("journalEntryId"),["amount"] = result.PeriodMovement - result.Lines.Where(x => x.Category is "debt_installment" or "already_paid").Sum(x => x.Amount), ["kind"] = "approved_payroll", ["sourceRef"] = doc.S("id"), ["createdAt"] = Now() }, tx); Debts.Post(c, tx, result, doc.S("id")); AccountingEvents.VerifyPayrollClosing(c,tx,result,payrollSponsor.Id); Store.Audit(c, tx, "payroll.approve", doc.S("id"), Actor(ctx)); return doc;
-}));
-api.MapGet("/payroll/fingerprint", (string iqama, string period,HttpContext ctx) => store.Read(c => {var rider=Store.Get(c,J.Iqama(iqama),"rider")??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(ctx.User,rider);return new { fingerprint = Fingerprint(c,iqama,J.Period(period)) };}));
-api.MapGet("/ledger", (HttpContext ctx) => store.Read(c => Store.List(c,"ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l))));
-api.MapGet("/ledger/{iqama}", (string iqama,HttpContext ctx) => store.Read(c => { J.Iqama(iqama); var rows = Store.List(c, "ledger").Where(x => x.S("iqama") == iqama&&FinancialScopes.Ledger(ctx.User,x)).OrderBy(x => x.S("period")).ThenBy(x => x.S("createdAt")).ToList(); return new { rows, balance = rows.Sum(x => x.N("amount")) }; }));
+})).WithTags("Payroll").WithSummary("Submit payroll approve");
+api.MapGet("/payroll/fingerprint", (string iqama, string period,HttpContext ctx) => store.Read(c => {var rider=Store.Get(c,J.Iqama(iqama),"rider")??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(ctx.User,rider);return new { fingerprint = Fingerprint(c,iqama,J.Period(period)) };})).WithTags("Payroll").WithSummary("Read payroll fingerprint");
+api.MapGet("/ledger", (HttpContext ctx) => store.Read(c => Store.List(c,"ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)))).WithTags("Payroll").WithSummary("Read ledger");
+api.MapGet("/ledger/{iqama}", (string iqama,HttpContext ctx) => store.Read(c => { J.Iqama(iqama); var rows = Store.List(c, "ledger").Where(x => x.S("iqama") == iqama&&FinancialScopes.Ledger(ctx.User,x)).OrderBy(x => x.S("period")).ThenBy(x => x.S("createdAt")).ToList(); return new { rows, balance = rows.Sum(x => x.N("amount")) }; })).WithTags("Payroll").WithSummary("Read ledger {iqama}");
 api.MapPost("/payments", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     string iqama = J.Iqama(input.Required("iqama")); string period = J.Period(input.Required("period")); var ledger = Store.List(c, "ledger", tx).Where(x => x.S("iqama") == iqama).ToList(); decimal amount = input.N("amount");
@@ -228,7 +244,7 @@ api.MapPost("/payments", (JsonObject input, HttpContext ctx) => store.Write((c, 
     var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = -amount, ["kind"] = "payment", ["sourceRef"] = reference, ["createdAt"] = Now(),["sponsorId"]=sponsor.Id,["paymentVaultCode"]=vault,["accountingVersion"]=AccountingEvents.Version,["onBehalf"]=input.B("onBehalf"),["onBehalfNote"]=input.S("onBehalfNote") };
     var journal=AccountingEvents.PostPayment(c,tx,doc,sponsor.Id,vault,Actor(ctx));doc["journalEntryId"]=journal.S("id");
     Store.Save(c, "ledger", doc, tx); Store.Audit(c, tx, "payment.record", doc.S("id"), Actor(ctx)); return doc;
-}));
+})).WithTags("Payroll").WithSummary("Submit payments");
 api.MapGet("/payroll/export.csv", (string period,HttpContext ctx) => store.Read(c =>
 {
     J.Period(period); var rows = Store.List(c, "run").Where(x => x.S("period") == period&&FinancialScopes.Ledger(ctx.User,x)).ToList();
@@ -236,11 +252,11 @@ api.MapGet("/payroll/export.csv", (string period,HttpContext ctx) => store.Read(
     var lines = new List<string> { "iqama,name,period,openingBalance,periodMovement,closingBalance,payable,debt" };
     lines.AddRange(rows.Select(r => string.Join(',', new[] { r.S("iqama"), r.S("name"), period, r["result"]!.S("openingBalance"), r["result"]!.S("periodMovement"), r["result"]!.S("closingBalance"), r["result"]!.S("payable"), r["result"]!.S("debt") }.Select(CsvCell))));
     return Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(string.Join("\r\n", lines))).ToArray(), "text/csv; charset=utf-8", $"payroll-{period}.csv");
-}));
+})).WithTags("Payroll").WithSummary("Read payroll export.csv");
 
 // Public forms are collection links, never a lookup endpoint for existing personal records.
-api.MapGet("/campaigns", (HttpContext ctx) => store.Read(c => Store.List(c, "campaign").Select(x => new { id=x.S("id"), title=x.S("title"), expiresAt=x.S("expiresAt"), status=x.S("status"), kind=x.S("kind","work-choice"), fields=CampaignOperations.Fields(x), cities=IbanChoices.Is(x)?IbanChoices.Cities(x):null, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+x.S("sharingToken"), qrCodeUrl="/api/campaigns/"+x.S("id")+"/qr.svg" })));
-api.MapGet("/campaigns/{id}/qr.svg", (string id, HttpContext ctx) => store.Read(c => { var d=Store.Get(c,id,"campaign")??throw new ApiError("الحملة غير موجودة.",404); return Results.Text(CampaignLinks.Svg(CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+d.S("sharingToken")),"image/svg+xml"); }));
+api.MapGet("/campaigns", (HttpContext ctx) => store.Read(c => Store.List(c, "campaign").Select(x => new { id=x.S("id"), title=x.S("title"), expiresAt=x.S("expiresAt"), status=x.S("status"), kind=x.S("kind","work-choice"), fields=CampaignOperations.Fields(x), cities=IbanChoices.Is(x)?IbanChoices.Cities(x):null, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+x.S("sharingToken"), qrCodeUrl="/api/campaigns/"+x.S("id")+"/qr.svg" }))).WithTags("Forms and responses").WithSummary("Read campaigns");
+api.MapGet("/campaigns/{id}/qr.svg", (string id, HttpContext ctx) => store.Read(c => { var d=Store.Get(c,id,"campaign")??throw new ApiError("الحملة غير موجودة.",404); return Results.Text(CampaignLinks.Svg(CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+d.S("sharingToken")),"image/svg+xml"); })).WithTags("Forms and responses").WithSummary("Read campaigns {id} qr.svg");
 api.MapPost("/campaigns", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     int days = (int)Math.Clamp(input.N("days", 14), 1, 30); string token = Token(); var doc = new JsonObject { ["id"] = Id(), ["tokenHash"] = Hash(Encoding.UTF8.GetBytes(token)), ["sharingToken"] = token, ["title"] = input.Required("title"), ["status"] = "open", ["expiresAt"] = DateTimeOffset.UtcNow.AddDays(days).ToString("O"), ["createdAt"] = Now() };
@@ -248,22 +264,22 @@ api.MapPost("/campaigns", (JsonObject input, HttpContext ctx) => store.Write((c,
     if(input.S("kind")==IbanChoices.Kind){J.Need(!input.ContainsKey("fields"),"حقول نموذج الآيبان ثابتة.");doc["kind"]=IbanChoices.Kind;if(input.ContainsKey("cities"))doc["cities"]=IbanChoices.ValidateCities(input["cities"]);}
     else{J.Need(!input.ContainsKey("cities"),"قائمة المدن لنموذج الآيبان فقط.");if(input.ContainsKey("fields"))doc["fields"]=CampaignOperations.ValidateFields(input["fields"]);}
     Store.Save(c, "campaign", doc, tx); Store.Audit(c, tx, "form.publish", doc.S("id"), Actor(ctx)); return new { id=doc.S("id"), path="/forms/"+token, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+token, qrCodeUrl="/api/campaigns/"+doc.S("id")+"/qr.svg", expiresAt=doc.S("expiresAt") };
-}));
-api.MapPost("/campaigns/{id}/close", (string id, HttpContext ctx) => store.Write((c, tx) => { var d = Store.Get(c, id, "campaign", tx) ?? throw new ApiError("النموذج غير موجود.", 404); d["status"] = "closed"; Store.Save(c, "campaign", d, tx); Store.Audit(c, tx, "form.close", id, Actor(ctx)); return new { ok = true }; }));
-api.MapGet("/submissions", () => store.Read(c => Store.List(c, "submission").Select(SubmissionChoices.PublicAdmin)));
+})).WithTags("Forms and responses").WithSummary("Submit campaigns");
+api.MapPost("/campaigns/{id}/close", (string id, HttpContext ctx) => store.Write((c, tx) => { var d = Store.Get(c, id, "campaign", tx) ?? throw new ApiError("النموذج غير موجود.", 404); d["status"] = "closed"; Store.Save(c, "campaign", d, tx); Store.Audit(c, tx, "form.close", id, Actor(ctx)); return new { ok = true }; })).WithTags("Forms and responses").WithSummary("Submit campaigns {id} close");
+api.MapGet("/submissions", () => store.Read(c => Store.List(c, "submission").Select(SubmissionChoices.PublicAdmin))).WithTags("Forms and responses").WithSummary("Read submissions");
 api.MapPost("/submissions/{id}/review", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var d=Store.Get(c,id,"submission",tx)??throw new ApiError("الرد غير موجود.",404);
     CampaignOperations.Review(c,tx,d,input,Actor(ctx));return SubmissionChoices.PublicAdmin(d);
-}));
-api.MapGet("/audit", () => store.Read(c => Store.List(c, "audit")));
-app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = IbanChoices.Is(d) ? IbanChoices.Schema : "work-choice-v1", fields=CampaignOperations.Fields(d), cities=IbanChoices.Is(d) ? IbanChoices.Cities(d) : null }); }).RequireRateLimiting("sensitive");
+})).WithTags("Forms and responses").WithSummary("Submit submissions {id} review");
+api.MapGet("/audit", () => store.Read(c => Store.List(c, "audit"))).WithTags("Administration").WithSummary("Read audit");
+app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = IbanChoices.Is(d) ? IbanChoices.Schema : "work-choice-v1", fields=CampaignOperations.Fields(d), cities=IbanChoices.Is(d) ? IbanChoices.Cities(d) : null }); }).WithTags("Forms and responses").WithSummary("Read public forms {token}").RequireRateLimiting("sensitive");
 SubmissionChoices.Map(app, store, Campaign);
 CampaignOperations.Map(api,store);
 FormDeletion.Map(api,store);
-app.MapGet("/forms/{token}", (string token) => { Campaign(token); return Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.html"), "text/html; charset=utf-8"); });
-app.MapGet("/rider-form.js", () => Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.js"), "text/javascript; charset=utf-8"));
-app.MapGet("/", () => Results.File(Path.Combine(app.Environment.WebRootPath, "index.html"), "text/html; charset=utf-8"));
+app.MapGet("/forms/{token}", (string token) => { Campaign(token); return Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.html"), "text/html; charset=utf-8"); }).WithTags("Forms and responses").WithSummary("Read  forms {token}");
+app.MapGet("/rider-form.js", () => Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.js"), "text/javascript; charset=utf-8")).WithTags("Administration").WithSummary("Read  rider form.js");
+app.MapGet("/", () => Results.File(Path.Combine(app.Environment.WebRootPath, "index.html"), "text/html; charset=utf-8")).WithTags("Administration").WithSummary("Read  ");
 app.Run();
 
 async Task SignIn(HttpContext ctx, JsonObject user) => await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, UserAccess.SessionPrincipal(user));

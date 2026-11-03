@@ -25,7 +25,7 @@ public static class TableExcelApi
 
     public static void Map(RouteGroupBuilder api, Store store)
     {
-        api.MapGet("/excel/{kind}/template", (string kind) => Results.File(ExcelFiles.Write(Columns(kind), []), ExcelFiles.Mime, $"{kind}-template-v3.xlsx"));
+        api.MapGet("/excel/{kind}/template", (string kind) => Results.File(ExcelFiles.Write(Columns(kind), []), ExcelFiles.Mime, $"{kind}-template-v3.xlsx")).WithTags("Payroll").WithSummary("Read excel {kind} template");
         api.MapPost("/excel/export", (JsonObject input) =>
         {
             var headers = (input["headers"] as JsonArray)?.Select(x => x?.ToString() ?? "").ToArray() ?? [];
@@ -39,8 +39,8 @@ public static class TableExcelApi
                 rows.Add(((JsonArray)item!).Select((value, i) => numbers.Contains(i) && decimal.TryParse(value?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out decimal n) ? (object)n : value?.ToString() ?? "").ToArray());
             }
             return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "table-export.xlsx");
-        });
-        api.MapPost("/excel/{kind}/preview", (string kind, JsonObject input) => store.Read(c => Preview(c, kind, input)));
+        }).WithTags("Payroll").WithSummary("Submit excel export");
+        api.MapPost("/excel/{kind}/preview", (string kind, JsonObject input) => store.Read(c => Preview(c, kind, input))).WithTags("Payroll").WithSummary("Submit excel {kind} preview");
         api.MapPost("/excel/{kind}/commit", (string kind, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             // Revalidate against current records inside the transaction. No partial batch writes.
@@ -59,8 +59,9 @@ public static class TableExcelApi
             }
             Store.Save(c, "table_import", new() { ["id"] = batchId, ["kind"] = kind, ["schemaVersion"] = 1, ["sourceFingerprint"] = preview.Fingerprint, ["filename"] = Path.GetFileName(input.S("filename")), ["campaignId"] = input.S("campaignId"), ["count"] = preview.Rows.Count, ["createdAt"] = now }, tx);
             Store.Audit(c, tx, "excel.import." + kind, batchId, ctx.User.Identity?.Name ?? "administrator");
+            if(kind=="choices")Notifications.Answers(c,tx,input.S("campaignId"),ctx.User.Identity?.Name??"administrator");
             return new { count = preview.Rows.Count, batchId };
-        }));
+        })).WithTags("Payroll").WithSummary("Submit excel {kind} commit");
     }
 
     public static ImportPreview Preview(DbConnection c, string kind, JsonObject input, DbTransaction? tx = null)

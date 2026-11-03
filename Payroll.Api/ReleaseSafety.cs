@@ -7,7 +7,7 @@ namespace Payroll;
 
 public static class ReleaseSafety
 {
-    public const string Version="0.9.3";
+    public const string Version="0.10.0";
     public static object Capture(DbConnection c,DbTransaction? tx=null)
     {
         using var cmd=Store.Command(c,tx,"SELECT id,kind,body FROM records ORDER BY id");using var reader=cmd.ExecuteReader();
@@ -66,6 +66,6 @@ public static class ReleaseSafety
             var riders=Store.List(c,"rider").Select(x=>x.S("iqama")).ToHashSet();
             string checkpoint=Path.Combine(store.DirectoryPath,"release-backups",Version,"checkpoint.json");
             return new{version=Version,provider=store.Provider,integrity,snapshot=Capture(c),checkpoint=File.Exists(checkpoint)?JsonDocument.Parse(File.ReadAllText(checkpoint)).RootElement.Clone():default(JsonElement?),orphanCampaignResponses=Store.List(c,"submission").Count(x=>!campaigns.Contains(x.S("campaignId"))),orphanDebts=Store.List(c,"debt").Count(x=>!riders.Contains(x.S("iqama")))};
-        }));
+        })).WithTags("Administration").WithSummary("Read system release check");
     }
 }
