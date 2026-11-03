@@ -3,14 +3,22 @@
 | Field | Value |
 |---|---|
 | Current writer | none |
-| Branch | feat/1.0-api from main d063230 |
-| Live | 0.9.3 (d063230); local work only |
-| Updated | 2026-11-03 by Codex |
+| Branch | feat/1.0-theme |
+| Live | 0.10.0 (3582faf, 2026-11-03); local work only |
+| Updated | 2026-11-03 by Antigravity |
 
 ## Goal now
-Fix Round 1 (Claude review of 229f7cc..20507f1) complete: NextApp deep links in /app fixed and verified. One commit: `fix(api): Next deep links (1.0-A)`. No push, PR, merge or deployment without Ghazal.
+Applied Gate-Payroll 1.0 Design System theme (`sand` default, `light`, `dim`, with legacy `dark` mapped to `dim`) across the legacy admin UI at `/` and public rider forms (`RiderForm/`, `/forms/{token}`, `/questionnaires/{token}`). All hardcoded hex overrides eliminated in favor of semantic CSS tokens. 12 screenshots captured and verified in `test-results/1.0-theme/`. All unit and browser suites pass. One commit: `feat(ui): 1.0 theme on legacy UI and rider forms`. No push, PR, merge or deployment without Ghazal.
 
 ## Done (latest first)
+- 1.0 Theme on legacy UI & rider forms (Antigravity):
+  - Tokens mapped from `web/THEME.md` and `web/src/styles/tokens.css` into `Payroll.Api/wwwroot/app.css` (`sand` default, `light`, `dim`, `dark` -> `dim`).
+  - Removed ~137 hardcoded hex overrides across `app.css`, replacing them with semantic tokens (`--bg`, `--surface`, `--raised`, `--ink`, `--muted`, `--line`, `--accent`, `--accent-ink`, `--success`, `--warning`, `--danger`, `--money-pos`, `--money-neg`). 0 hexes remain outside token definitions.
+  - Public rider form (`RiderForm/src/rider-form.ts`): defaults to `sand`, switches to `dim` on `prefers-color-scheme: dark`, supports AR/EN/UR dictionaries (`sand`: رملي / Sand / ریت), preserves 360px layout, RTL/LTR and .num rules without altering API payloads.
+  - Legacy admin topbar (`Frontend/src/enterprise.ts`): updated theme control to default to `sand`, providing `sand`, `light`, `dim`, and legacy `dark`.
+  - Contrast audit passed 100% WCAG AA compliance across text, muted text and badges.
+  - 12 screenshots captured at 1440 and 360 in `sand` and `dim` for dashboard, `#/debts`, and IBAN form under `test-results/1.0-theme/`.
+  - Tests passing: `tests/browser-iban.mjs`, `tests/browser.mjs`, `tests/browser-v05.mjs`, `tests/finance-views-ui.mjs`, `scripts/release_source.py --check`.
 - Web 1.0 (Antigravity d6597a9 + fix 58960e0, rebased by Claude onto feat/1.0-api as 6c209ba/73deaa8): Next.js 16 static export at /app; shell, home, notifications, forms and responses group; no silent mocks; permissions; live e2e. Old footer 0.10.0.
 - Fix Round 1 (Claude Review A1–A2):
   - A1 (blocking): Fixed `NextApp.Fallback(path, webRoot)` deep links resolution order:

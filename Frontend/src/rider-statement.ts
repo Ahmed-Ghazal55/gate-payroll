@@ -214,7 +214,7 @@ async function renderSimpleStatementView(): Promise<string> {
         transition: transform 0.15s ease;
       }
       .scope-limited-banner {
-        border-inline-start: 4px solid #d97706 !important;
+        border-inline-start: 4px solid var(--warning) !important;
         font-size: 13px !important;
         padding: 12px 16px !important;
         margin-bottom: 16px !important;
