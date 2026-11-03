@@ -2,6 +2,7 @@
 import {spawn} from 'node:child_process';
 import {mkdtempSync,rmSync,readFileSync,mkdirSync,writeFileSync} from 'node:fs';
 import http from 'node:http';
+import {DatabaseSync} from 'node:sqlite';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -24,6 +25,9 @@ try{
  await req('/openapi/v1.json',undefined,'GET',401);
  const password=randomBytes(24).toString('hex');
  await req('/api/auth/setup',{username:'synthetic-admin',password});admin=cookie;
+ const db=new DatabaseSync(path.join(data,'payroll.db'));const administrativeId='2'+String(77).padStart(9,'0');
+ db.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?)').run(administrativeId,'rider',JSON.stringify({id:administrativeId,iqama:administrativeId,name:'SYNTHETIC_ADMIN_PROFILE',erpSource:'rider',personRole:'administrative',isEmployee:true}));db.close();
+ assert.ok(!(await req('/api/riders')).some(r=>r.id===administrativeId));assert.equal((await req('/api/dashboard')).riders,0);assert.equal((await req('/api/riders/data-quality')).totalRiders,0);assert.equal((await req('/api/search?q=SYNTHETIC_ADMIN_PROFILE')).length,0);
  const doc=await req('/openapi/v1.json');
  for(const [method,p] of [['get','/api/template.csv'],['get','/api/payroll/fingerprint'],['get','/api/imports'],['get','/api/debts/settlements'],['post','/api/public/forms/{token}/resume'],['get','/api/system/release-check']]){assert.equal(doc.paths[p][method].deprecated,true);checks++;}
  assert.ok(!doc.paths['/api/riders'].get.deprecated);

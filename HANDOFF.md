@@ -3,57 +3,38 @@
 | Field | Value |
 |---|---|
 | Current writer | none |
-| Branch | feat/1.0-api from main d063230 |
-| Live | 0.9.3 (d063230); local work only |
-| Updated | 2026-11-03 by Codex |
+| Branch | release/0.10.1 (theme 06a2414 + data 1db2089 on main 3582faf) |
+| Live | 0.10.0 (3582faf, 2026-11-03) → this release 0.10.1 |
+| Updated | 2026-11-03 by Claude Code (release merge) |
 
 ## Goal now
-Fix Round 1 (Claude review of 229f7cc..20507f1) complete: NextApp deep links in /app fixed and verified. One commit: `fix(api): Next deep links (1.0-A)`. No push, PR, merge or deployment without Ghazal.
+Prompt B completed: ERP map, additive staging importer and approved staging load. Ghazal confirmed prerequisites, off-hours read-only access and explicitly approved «حمّل». Production storage/deployment remains unchanged.
 
 ## Done (latest first)
-- Web 1.0 (Antigravity d6597a9 + fix 58960e0, rebased by Claude onto feat/1.0-api as 6c209ba/73deaa8): Next.js 16 static export at /app; shell, home, notifications, forms and responses group; no silent mocks; permissions; live e2e. Old footer 0.10.0.
-- Fix Round 1 (Claude Review A1–A2):
-  - A1 (blocking): Fixed `NextApp.Fallback(path, webRoot)` deep links resolution order:
-    1. `app/<path>/index.html`
-    2. `app/<path>.html`
-    3. `app/404.html` (returned with HTTP 404)
-    4. `app/index.html` (SPA fallback)
-    Enforced extension rule (unknown assets with extensions return 404) and path traversal guard rejecting `..` and `\`.
-    - Unit tests in `NextAppTests.cs` verify synthetic webroot with `index.html`, `forms/index.html`, and `404.html`.
-    - HTTP checks in `tests/api-cleanup.mjs` verify `/app/forms/` returns the forms file and traversal `/app/x/../../appsettings.json` is refused.
-  - A2 (minor): Noted that `/health` reports 0.10.0 while old UI footer stays 0.9.3 (Frontend/ kept untouched per Ghazal's instruction; Antigravity handles UI version bump).
-- Task 9: optional Next build/copy before publish, required /app/index.html payload checks, physical static files before explicit routing, extensionless-only SPA fallback. Packaging tested with synthetic exports and clean skip when web/ is absent; backend/test/deploy release metadata now 0.10.0; API_CONTRACT points to ENDPOINTS.md.
-- Final checks: build 0 warnings/errors; .NET 140 passed / 0 failed / 6 SQL skipped; Python 24 passed (network mocked); all 10 HTTP suites and 5 Chromium suites passed. API cleanup alone: 251 checks. Screenshots in ignored test-results/.
-- Inventory: 155 API operations (24 new), 6 deprecated; 166 total including HTML/health/OpenAPI. Every /api operation and its tags/summary verified in both directions against OpenAPI. Caller inventory also handles the old UI API helper.
-- Final compatibility fixes: duplicate-409 tests preserve the previous fields plus error/code; answer notices use a rolling hour and include Excel answers; static file/fallback HTTP checks use a temporary webroot. Shared learning entry recorded.
-- Task 8: six legacy operations explicitly deprecated in the human index and OpenAPI (including test-only release-check); all routes retained. HTTP verifies deprecation metadata.
-- Task 7: unified campaign/custom responses inbox with one row shape, source/status/parent filters and opt-in pagination; review mutations remain on existing endpoints. Synthetic permission/shape/filter and HTTP tests.
-- Task 6: global search over four collections, minimum query length and twenty-result cap, same collection gates and company/debt scope; synthetic permission/scope and HTTP tests.
-- Task 5: additive company/registration/document CRUD, private attachments and expiry listing; idempotent startup seed for existing databases, companies permissions in live role catalog, read-only finance sponsor alias and audit on every write. DELETE archives; financial references/files remain.
-- Task 4: notification inbox/read/summary with per-user state and category permissions; transactional approval/import/answer notices, hourly answer throttle and daily quality notices. Synthetic tests cover isolation, visibility, throttle and rollback.
-- Task 3: one opt-in pagination/filter/sort helper for all nine lists; legacy response bytes tested unchanged, page bounds/search/sort tested with synthetic rows.
-- Task 2: policy/handler agreement, user PUT alias, owner/view permission for todo, plain broadcast route, JSON errors including duplicate submissions; two policy behavior tests and HTTP checks pass.
-- Task 1: built-in admin-only OpenAPI, tags/summaries, generated docs/api/ENDPOINTS.md, bidirectional inventory/OpenAPI HTTP coverage. Includes dynamic deletion and inquiry routes.
-- Generator --check, source boundary (134 allowlisted files), and whitespace checks passed. No Frontend/, RiderForm/ or web/ source changes; no push, PR, merge, deployment or production connection.
-- Restore used only local NuGet cache; no source change or network restore. Frontend compiled from unchanged source using existing TypeScript, output only under Payroll.Api/wwwroot. SkipFrontendBuild supports backend-only builds.
+- 0.10.1 release: sand theme on the old UI and rider forms (Antigravity 06a2414); ERP → staging importer, data map, idempotent indexes (Codex 1db2089; staging holds 6451 docs, production keeps SQLite).
+- Final independent dry-run: 0 new, 0 changed, 6451 unchanged after role correction. The separate second commit run and automatic same-snapshot checks also returned zero changes.
+- Actual staging: 6451 domain documents, 8581 erp-import audit rows, eight ERP indexes. People/profile records: 2092 delivery riders (394 sponsored, 1698 external) plus 38 administrative references, excluded from rider lists/search/stats/quality views.
+- Live read changed during the first commit attempt, safely refused before writes. Restored the authorized backup locally into SQL Server 2025, verified original bytes, set erp_copy READ_ONLY, then loaded its stable snapshot. The preserved container is stopped after reconciliation.
+- docs/data/ERP-DATA-MAP.md combines 224-table metadata with 29 scoped tables and code/routes/pages. TARGET-KINDS.md defines 12 kinds and source keys; SQLite/SQL Server indexes apply to existing stores.
+- tools/ErpImport defaults to SELECT-only dry-run. Approved commit uses normal Store Save/Audit with atomic buffered transport, concurrent-target checks, private checkpoints, no deletion and bounded import-target SQL timeout.
+- Verified build: zero warnings/errors; .NET 149 passed / 0 failed / 6 optional SQL-backed cases skipped; nine synthetic importer tests included. Standalone synthetic HTTP: 255 checks. Source boundaries: 149 files; whitespace and new/added sensitive-literal checks passed.
+- docs/data/README.md explains the preserved local source and localhost API review against staging. Existing static web assets copied into ignored output; no UI source edits. Shared learning entry recorded.
+- Earlier commits: b989fc0 (map/kinds), 6c51ab1 (importer/tests). Final branch commit records backup load, classification and reconciliation. No push, PR, merge or deployment.
 
 ## Next step (exact)
-Claude or Ghazal review of feat/1.0-api fix round 1. No push, PR, merge or deployment without Ghazal.
+Claude reviews feat/1.0-data and docs/data/RECONCILE-2026-11-03.md. Ghazal can use docs/data/README.md to run the local API against staging. Accept/resolve source gaps and the older-backup drift before claiming complete current data or considering production migration.
 
 ## Open problems / decisions
-- UI release labels remain 0.9.3 under the explicit no-UI-edit rule; Antigravity handles them.
-- SQL provider and production are unverified; only synthetic temporary SQLite was used. Real Next build/export is skipped here because web/ is absent on this branch; the conditional CI path and packaging contract are tested with synthetic fixtures.
+- Backup loaded 38 fewer documents than the prior live dry-run: 10 people/profiles, 10 vehicle assignments, 18 custody events. Nested history also differs; exact counts are documented. No schema column/key/FK drift across the 224 tables; row counts changed.
+- Missing three CR numbers and sponsorship-period source table; 14 invalid identities and 16 employees without required profiles excluded; two non-custody events excluded. No dates/values invented. ERP production and Payroll production SQLite were never written.
+- Six optional SQL-backed suite cases were skipped; actual approved importer execution on staging was verified separately. Production remains SQLite.
 
 ## How to verify
 ```bash
-python3 tools/api_inventory.py
-python3 tools/generate_target_coa.py --check
-python3 scripts/release_source.py --check
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p 'test_*.py'
-dotnet build tests/Engine.Tests/Engine.Tests.csproj --no-restore -p:SkipFrontendBuild=true
+dotnet build tests/Engine.Tests/Engine.Tests.csproj --no-restore -p:SkipFrontendBuild=true -m:1
 env -u PAYROLL_TEST_SQL_CONNECTION ConnectionStrings__DefaultConnection= dotnet test tests/Engine.Tests/Engine.Tests.csproj --no-build --no-restore
-node tests/iban-form.mjs
 node tests/api-cleanup.mjs
-env ConnectionStrings__DefaultConnection= PLAYWRIGHT_MODULE=/tmp/gate-browser/node_modules/playwright/index.mjs node tests/browser.mjs
-# Also browser-v05, browser-iban, rider-statement-ui, finance-views-ui (same environment).
+python3 scripts/release_source.py --check
+git diff --check
+# Preserved local-copy start and SELECT-only comparison: see docs/data/README.md.
 ```

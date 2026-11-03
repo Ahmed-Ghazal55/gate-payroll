@@ -6,7 +6,7 @@ using Microsoft.Data.Sqlite;
 namespace Payroll;
 
 // Additive document schema. Existing records and SQLite files remain readable by v0.4.
-public sealed class Store
+public sealed partial class Store
 {
     public string DirectoryPath { get; }
     public string Provider { get; }
@@ -47,13 +47,16 @@ public sealed class Store
               CREATE INDEX ix_records_kind ON dbo.records(kind);
             """;
         cmd.ExecuteNonQuery();
+        ErpDataIndexes.Ensure(c);
         if(beforeUpgrade!=null&&beforeUpgrade!=System.Text.Json.JsonSerializer.Serialize(ReleaseSafety.Capture(c)))throw new InvalidOperationException("Startup document preservation verification failed.");
         DataPreservationVerified=true;
     }
     private DbConnection Open()
     {
         DbConnection c = Provider == "sqlite" ? new SqliteConnection(connection) : new SqlConnection(connection);
-        c.Open(); return c;
+        c.Open();
+        if(c is SqlConnection){using var session=c.CreateCommand();session.CommandText="SET ARITHABORT ON; SET NUMERIC_ROUNDABORT OFF;";session.ExecuteNonQuery();}
+        return c;
     }
     // WAL allows independent reads while a write transaction is open.
     public T Read<T>(Func<DbConnection, T> action) { using var c = Open(); return action(c); }
@@ -91,6 +94,7 @@ public sealed class Store
     }
     public static void Save(DbConnection c, string kind, JsonObject doc, DbTransaction tx)
     {
+        if(TryBuffer(tx,kind,doc))return;
         string id = doc.Required("id");
         using var update = Command(c, tx, "UPDATE records SET body=@body WHERE id=@id AND kind=@kind",("@id",id),("@kind",kind),("@body",doc.ToJsonString()));
         if (update.ExecuteNonQuery() == 0)

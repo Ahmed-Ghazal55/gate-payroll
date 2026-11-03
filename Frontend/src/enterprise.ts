@@ -1,6 +1,6 @@
-const themeNames={dark:'داكن',light:'فاتح',dim:'متوسط'};
-function setTheme(value:string){const theme=Object.hasOwn(themeNames,value)?value:'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem('gate-theme',theme)}catch{}}
-try{setTheme(localStorage.getItem('gate-theme')||'light')}catch{setTheme('light')}
+const themeNames={sand:'رملي',light:'فاتح',dim:'متوسط',dark:'داكن'};
+function setTheme(value:string){const theme=Object.hasOwn(themeNames,value)?value:'sand';document.documentElement.dataset.theme=theme;try{localStorage.setItem('gate-theme',theme)}catch{}}
+try{setTheme(localStorage.getItem('gate-theme')||'sand')}catch{setTheme('sand')}
 function themeControl(){return `<select class="theme-control" aria-label="مظهر الواجهة" data-theme-select>${options(Object.entries(themeNames),document.documentElement.dataset.theme)}</select>`;}
 function can(permission:string){return userRole==='Admin'||userRole==='SuperAdmin'||userPermissions.includes(permission)}
 function defaultView(){return ['dashboard','responses','riders','debts'].find(visibleView)||'riders'}

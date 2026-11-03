@@ -1344,16 +1344,10 @@ async function renderFinanceViewsTab(subTab: string): Promise<string> {
         border-bottom: 1px solid var(--line);
       }
       .money-positive {
-        color: #0f766e;
+        color: var(--money-pos);
       }
       .money-negative {
-        color: #b91c1c;
-      }
-      [data-theme="dark"] .money-positive {
-        color: #2dd4bf;
-      }
-      [data-theme="dark"] .money-negative {
-        color: #f87171;
+        color: var(--money-neg);
       }
       @media (max-width: 768px) {
         .stats {
