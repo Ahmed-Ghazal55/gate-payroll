@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.6" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" /><PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.5" /><PackageReference Include="QRCoder" Version="1.7.0" /><PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <!-- Include generated assets explicitly, including on the first clean build. -->
@@ -9,7 +10,7 @@
     <Content Update="App_Data/**;appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
   </ItemGroup>
   <ItemGroup><EmbeddedResource Include="Resources/target-coa.v1.json" LogicalName="Payroll.TargetCoa.v1.json" /></ItemGroup>
-  <Target Name="BuildChoiceFrontend" BeforeTargets="PrepareForBuild">
+  <Target Name="BuildChoiceFrontend" BeforeTargets="PrepareForBuild" Condition="'$(SkipFrontendBuild)' != 'true'">
     <Exec WorkingDirectory="../RiderForm" Command="npm run build:all" />
     <Copy SourceFiles="../RiderForm/web/rider-form.html" DestinationFiles="wwwroot/rider-form.html" />
   </Target>

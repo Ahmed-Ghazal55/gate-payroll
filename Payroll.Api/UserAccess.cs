@@ -326,9 +326,9 @@ public static class UserAccess
             permissions = PermissionsCatalog,
             departments = FinancialCore.DepartmentsCatalog,
             financialScopeCatalog=new{sponsors=FinancialCore.Sponsors,accounts=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault),categories=FinancialCore.CategoriesCatalog,platforms=new[]{"Jahez","Keeta","HungerStation","Ninja","Other"}}
-        });
+        }).WithTags("Administration").WithSummary("Read roles catalog");
 
-        api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(Public)));
+        api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(Public))).WithTags("Administration").WithSummary("Read users");
 
         api.MapPost("/users", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -344,7 +344,7 @@ public static class UserAccess
             Store.Save(c, "user", u, tx);
             Store.Audit(c, tx, "admin.user_create", u.S("id"), ctx.User.Identity!.Name!);
             return Public(u);
-        }));
+        })).WithTags("Administration").WithSummary("Submit users");
 
         api.MapPut("/users/{id}/status", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -372,6 +372,6 @@ public static class UserAccess
             Store.Save(c, "user", u, tx);
             Store.Audit(c, tx, "admin.user_update", id, ctx.User.Identity!.Name!);
             return Public(u);
-        }));
+        })).WithTags("Administration").WithSummary("Update users {id} status");
     }
 }

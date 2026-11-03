@@ -42,7 +42,7 @@ public static class InquiryApi
             string code=CampaignLinks.NewToken();string expiry=DateTimeOffset.UtcNow.AddMinutes(10).ToString("O");
             Store.Save(c,"inquiry_code",new(){["id"]="inquiry:"+Hash(code),["iqama"]=iqama,["scope"]=scope,["expiresAt"]=expiry,["used"]=false},tx);Store.Audit(c,tx,"inquiry.access_issued",iqama,ctx.User.Identity!.Name!);
             return new{iqama,scope,code,expiresAt=expiry,url=CampaignLinks.Base(app.Configuration,ctx)+(scope=="mobile"?"/rider-app#access_code="+code+"&iqama="+iqama:"/inquiry")};
-        },false));
+        },false)).WithTags("Riders").WithSummary("Submit inquiry access");
         foreach(string scope in new[]{"payslip","debt"})
         {
             string currentScope=scope;
@@ -70,8 +70,8 @@ public static class InquiryApi
                 })!;
                 ctx.Response.Headers.CacheControl="private, max-age=300";ctx.Response.Headers.ETag="\""+Hash(payload)+"\"";
                 return Results.Text(payload,"application/json");
-            });
+            }).WithTags("Riders").WithSummary("Submit public inquiry ");
         }
-        app.MapGet("/inquiry",()=>Results.File(Path.Combine(AppContext.BaseDirectory,"wwwroot","rider-form.html"),"text/html; charset=utf-8"));
+        app.MapGet("/inquiry",()=>Results.File(Path.Combine(AppContext.BaseDirectory,"wwwroot","rider-form.html"),"text/html; charset=utf-8")).WithTags("Riders").WithSummary("Read  inquiry");
     }
 }

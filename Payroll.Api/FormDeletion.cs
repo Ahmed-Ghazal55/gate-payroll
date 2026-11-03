@@ -25,7 +25,7 @@ public static class FormDeletion
         api.MapGet(path+"/{id}/delete-preview",(string id,HttpContext ctx)=>
         {
             Admin(ctx);return store.Read(c=>{var s=Snapshot(c,null,id,custom);return new{id,title=s.Form.S(custom?"titleAr":"title"),responseCount=s.Rows.Count,fingerprint=s.Fingerprint};});
-        });
+        }).WithTags("Forms and responses").WithSummary("Preview permanent form deletion");
         api.MapDelete(path+"/{id}",(string id,[FromBody] JsonObject input,HttpContext ctx)=>
         {
             Admin(ctx);J.Need(input.B("confirm"),"أكد حذف النموذج وردوده نهائيًا.");string fingerprint=input.Required("fingerprint");
@@ -44,7 +44,7 @@ public static class FormDeletion
                 Store.Audit(c,tx,custom?"builder.deleted":"campaign.deleted",id,actor);
                 return new{ok=true,deletedResponses=s.Rows.Count,message="تم حذف النموذج وردوده نهائيًا."};
             });
-        });
+        }).WithTags("Forms and responses").WithSummary("Delete a form after confirming its current fingerprint");
     }
     public static void Map(RouteGroupBuilder api,Store store)
     {

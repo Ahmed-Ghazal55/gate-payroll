@@ -57,7 +57,7 @@ public static class SubmissionChoices
         {
             J.Need(input.All(p=>p.Key=="iqama"),"حقول الاستعلام غير صحيحة.");string iqama=Iqama(input);var campaign=campaignLookup(token);
             return store.Write<IResult>((c,tx)=>{campaign=Open(c,tx,campaign);var d=Find(c,tx,campaign,iqama);return Results.Ok(d==null?new JsonObject { ["alreadySubmitted"]=false,["iqama"]=iqama }:IbanChoices.Is(campaign)?IbanChoices.View(d):ChoiceView(d,campaign));},invalidateSummaries:false);
-        }).RequireRateLimiting("sensitive");
+        }).WithTags("Forms and responses").WithSummary("Submit public forms {token} lookup").RequireRateLimiting("sensitive");
         app.MapPost("/api/public/forms/{token}",(string token,JsonObject input)=>
         {
             var campaign=campaignLookup(token);if(IbanChoices.Is(campaign))return IbanChoices.Create(store,campaign,input);
@@ -71,13 +71,13 @@ public static class SubmissionChoices
                 foreach(var field in answers)d[field.Key]=field.Value?.DeepClone();
                 Store.Save(c,"submission",d,tx);Store.Audit(c,tx,"submission.received",d.S("id"),"public-form");return Results.Ok(Receipt(d));
             });
-        }).RequireRateLimiting("sensitive");
+        }).WithTags("Forms and responses").WithSummary("Submit public forms {token}").RequireRateLimiting("sensitive");
         // Retain the v0.5.1 recovery route for already-loaded legacy clients only.
         app.MapPost("/api/public/forms/{token}/resume",(string token,JsonObject input)=>
         {
             J.Need(input.All(p=>p.Key is "receipt" or "editToken"),"حقول طلب التعديل غير صحيحة.");var campaign=campaignLookup(token);
             return store.Write((c,tx)=>{Open(c,tx,campaign);var d=Owned(c,tx,campaign,input);var result=Receipt(d);result["editToken"]=input.S("editToken");return Results.Ok(result);},invalidateSummaries:false);
-        }).RequireRateLimiting("sensitive");
+        }).WithTags("Forms and responses").WithSummary("Submit public forms {token} resume").RequireRateLimiting("sensitive");
         app.MapPost("/api/public/forms/{token}/edit",(string token,JsonObject input)=>
         {
             var campaign=campaignLookup(token);if(IbanChoices.Is(campaign))return IbanChoices.Edit(store,campaign,input);
@@ -92,6 +92,6 @@ public static class SubmissionChoices
                 if(changed){ArchiveAndEdit(d,choice);foreach(var field in answers)d[field.Key]=field.Value?.DeepClone();Store.Audit(c,tx,"submission.edited",d.S("id"),"public-form");Store.Save(c,"submission",d,tx);}
                 return Results.Ok(Receipt(d));
             });
-        }).RequireRateLimiting("sensitive");
+        }).WithTags("Forms and responses").WithSummary("Submit public forms {token} edit").RequireRateLimiting("sensitive");
     }
 }

@@ -43,7 +43,7 @@ public static class LegacyCashAllocation
     }
     public static void Map(RouteGroupBuilder api,Store store)
     {
-        api.MapPost("/finance/legacy-cash-allocation/preview",(JsonObject input,HttpContext ctx)=>store.Read(c=>{var rows=new JsonArray(Validate(c,null,input,ctx.User));return new{rows,fingerprint=FinancialImports.Issue(c,"legacy-cash-allocation",rows,ctx.User.Identity!.Name!)};}));
-        api.MapPost("/finance/legacy-cash-allocation/commit",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>{FinancialImports.Verify(c,tx,input,"legacy-cash-allocation",ctx.User.Identity!.Name!);J.Need(input["rows"] is JsonArray{Count:1},"معاينة توزيع واحدة مطلوبة.");return Post(c,tx,input["rows"]![0]!.AsObject(),ctx.User);}));
+        api.MapPost("/finance/legacy-cash-allocation/preview",(JsonObject input,HttpContext ctx)=>store.Read(c=>{var rows=new JsonArray(Validate(c,null,input,ctx.User));return new{rows,fingerprint=FinancialImports.Issue(c,"legacy-cash-allocation",rows,ctx.User.Identity!.Name!)};})).WithTags("Banks and treasury").WithSummary("Submit finance legacy cash allocation preview");
+        api.MapPost("/finance/legacy-cash-allocation/commit",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>{FinancialImports.Verify(c,tx,input,"legacy-cash-allocation",ctx.User.Identity!.Name!);J.Need(input["rows"] is JsonArray{Count:1},"معاينة توزيع واحدة مطلوبة.");return Post(c,tx,input["rows"]![0]!.AsObject(),ctx.User);})).WithTags("Banks and treasury").WithSummary("Submit finance legacy cash allocation commit");
     }
 }

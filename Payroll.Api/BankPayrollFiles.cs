@@ -113,7 +113,7 @@ public static class BankPayrollFiles
     }
     public static void Map(RouteGroupBuilder api,Store store)
     {
-        api.MapPost("/finance/bank-file/preview",(HttpContext ctx,JsonObject input)=>store.Read(c=>Results.Json(Preview(c,ctx.User,input))));
-        api.MapPost("/finance/bank-file/export",(HttpContext ctx,JsonObject input)=>{var file=store.Write((c,tx)=>Export(c,tx,ctx.User,input),false);return Results.File(file.Bytes,"text/csv; charset=utf-8",file.Filename);});
+        api.MapPost("/finance/bank-file/preview",(HttpContext ctx,JsonObject input)=>store.Read(c=>Results.Json(Preview(c,ctx.User,input)))).WithTags("Banks and treasury").WithSummary("Submit finance bank file preview");
+        api.MapPost("/finance/bank-file/export",(HttpContext ctx,JsonObject input)=>{var file=store.Write((c,tx)=>Export(c,tx,ctx.User,input),false);return Results.File(file.Bytes,"text/csv; charset=utf-8",file.Filename);}).WithTags("Banks and treasury").WithSummary("Submit finance bank file export");
     }
 }

@@ -49,7 +49,7 @@ public static class TreasuryEntries
         api.MapPost("/debts/{id}/reconcile-opening/preview",(string id,JsonObject input,HttpContext ctx)=>store.Read(c=>
         {
             var row=LegacyDebtOpening(c,null,id,input);FinancialScopes.DemandSponsor(ctx.User,row.S("sponsorId"));J.Need(FinancialScopes.Category(ctx.User,row.S("category")),"الفئة خارج نطاقك.");var rows=new JsonArray(row);return new{rows,fingerprint=FinancialImports.Issue(c,"legacy-debt-opening",rows,ctx.User.Identity!.Name!)};
-        }));
+        })).WithTags("Debts and advances").WithSummary("Submit debts {id} reconcile opening preview");
         api.MapPost("/debts/{id}/reconcile-opening/commit",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
         {
             FinancialImports.Verify(c,tx,input,"legacy-debt-opening",ctx.User.Identity!.Name!);J.Need(input["rows"] is JsonArray {Count:1}&&input["rows"]![0].S("id")==id,"معاينة الافتتاح لا تخص الدين المطلوب.");
@@ -59,8 +59,8 @@ public static class TreasuryEntries
                 FinancialCore.CreateJournalLine(row.S("accountCode"),sponsor,Math.Max(0,delta),Math.Max(0,-delta),row.S("notes"),row.S("iqama"),id),FinancialCore.CreateJournalLine("3101",sponsor,Math.Max(0,-delta),Math.Max(0,delta),"مقابل افتتاح الدين المراجع",row.S("iqama"),id)),ctx.User.Identity!.Name!,row.S("iqama"),id,sponsor,sponsor);debt["journalEntryId"]=journal.S("id");row["journalEntryId"]=journal.S("id");}
             row["id"]="debt-opening:"+id;row["createdBy"]=ctx.User.Identity!.Name!;row["createdAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,"opening_reconciliation",row,tx);
             debt["openingReconciliationId"]=row.S("id");debt["platform"]=row.S("platform");debt["receivableAccountCode"]=row.S("accountCode");debt["creditorSponsorId"]=sponsor;debt["creditorSponsorNameAr"]=FinancialCore.ResolveSponsor(sponsor).ShortNameAr;Store.Save(c,"debt",debt,tx);Store.Audit(c,tx,"debt.opening_reconciled",id,ctx.User.Identity!.Name!);return new{debt,reconciliation=row};
-        }));
-        api.MapGet("/finance/opening/template",()=>Results.File(ExcelFiles.Write(OpeningColumns,[]),ExcelFiles.Mime,"treasury-opening-v1.xlsx"));
+        })).WithTags("Debts and advances").WithSummary("Submit debts {id} reconcile opening commit");
+        api.MapGet("/finance/opening/template",()=>Results.File(ExcelFiles.Write(OpeningColumns,[]),ExcelFiles.Mime,"treasury-opening-v1.xlsx")).WithTags("Banks and treasury").WithSummary("Read finance opening template");
         api.MapPost("/finance/opening/preview",(JsonObject input,HttpContext ctx)=>store.Read(c=>
         {
             JsonArray rows;
@@ -74,7 +74,7 @@ public static class TreasuryEntries
             }
             var validated=ValidateOpening(c,null,rows);foreach(var row in validated.OfType<JsonObject>()){FinancialScopes.DemandSponsor(ctx.User,row.S("sponsorId"));if(FinancialCore.ResolveAccount(row.S("accountCode")).IsVault)FinancialScopes.DemandAccount(ctx.User,row.S("accountCode"));}
             return new{rows=validated,fingerprint=FinancialImports.Issue(c,"treasury-opening",validated,ctx.User.Identity!.Name!),message="هذه تسوية افتتاح يدوية؛ راجع كل رصيد مع مستنده، ولا تمثل إيرادًا جديدًا."};
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Submit finance opening preview");
         api.MapPost("/finance/opening/commit",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
         {
             FinancialImports.Verify(c,tx,input,"treasury-opening",ctx.User.Identity!.Name!);var rows=ValidateOpening(c,tx,input["rows"]!.AsArray());
@@ -87,7 +87,7 @@ public static class TreasuryEntries
                 row["createdBy"]=ctx.User.Identity!.Name!;row["createdAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,"opening_reconciliation",row,tx);
             }
             Store.Audit(c,tx,"treasury.opening_reconciled","rows:"+rows.Count,ctx.User.Identity!.Name!);return new{ok=true,importedCount=rows.Count};
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Submit finance opening commit");
         api.MapPost("/finance/liability-payment",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
         {
             string debtId=input.Required("debtId");var debt=Store.Get(c,debtId,"debt",tx)??throw new ApiError("الالتزام غير موجود.",404);FinancialScopes.DemandDebt(ctx.User,debt);
@@ -99,6 +99,6 @@ public static class TreasuryEntries
             var journal=FinancialCore.PostJournal(c,tx,"supplier_payment","سداد التزام خدمة مثبت",J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM"))),input.Required("sourceRef"),AccountingEvents.CompanyPaymentLines("2130",owner,vault,amount,debt.S("iqama"),debtId,input),ctx.User.Identity!.Name!,debt.S("iqama"),debtId,account.DefaultSponsorId!,owner);
             debt["supplierPaidAmount"]=J.Money(debt.N("supplierPaidAmount")+amount);Store.Save(c,"debt",debt,tx);
             Store.Audit(c,tx,"supplier.paid",debtId,ctx.User.Identity!.Name!);return journal;
-        }));
+        })).WithTags("Banks and treasury").WithSummary("Submit finance liability payment");
     }
 }
