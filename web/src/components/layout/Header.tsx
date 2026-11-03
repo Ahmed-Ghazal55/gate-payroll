@@ -27,10 +27,10 @@ function BreadcrumbsNav() {
   const searchParams = useSearchParams();
 
   const parts = pathname.split('/').filter(Boolean);
-  const crumbs = [{ label: 'الرئيسية', href: '/app/' }];
+  const crumbs = [{ label: 'الرئيسية', href: '/' }];
 
-  if (parts.length > 1) {
-    const section = parts[1];
+  if (parts.length > 0) {
+    const section = parts[0];
     const sectionLabels: Record<string, string> = {
       riders: 'المناديب',
       companies: 'الشركات والسجلات',
@@ -44,7 +44,7 @@ function BreadcrumbsNav() {
       admin: 'الإدارة',
     };
     if (sectionLabels[section]) {
-      crumbs.push({ label: sectionLabels[section], href: `/app/${section}/` });
+      crumbs.push({ label: sectionLabels[section], href: `/${section}/` });
     }
   }
 
@@ -262,7 +262,7 @@ export function Header({
           {/* Approvals Count Link */}
           {approvalCount > 0 && (
             <Link
-              href="/app/debts/"
+              href="/debts/"
               title={`${approvalCount} معاملات بانتظار الاعتماد`}
               className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-[var(--warning)]/15 text-[var(--warning)] hover:bg-[var(--warning)]/25 transition"
             >
@@ -389,7 +389,7 @@ export function Header({
                 </div>
 
                 <Link
-                  href="/app/admin/"
+                  href="/admin/"
                   onClick={() => setUserMenuOpen(false)}
                   className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-[var(--row-hover)] text-[var(--ink)]"
                 >

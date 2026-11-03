@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { NotificationItem, NotificationCategory } from '../../lib/types';
+import { inApp } from '@/lib/paths';
 
 export interface NotificationsPanelProps {
   open: boolean;
@@ -247,7 +248,7 @@ export function NotificationsPanel({
                 <div className="flex items-center justify-between gap-2 mt-2">
                   {item.link ? (
                     <Link
-                      href={item.link}
+                      href={inApp(item.link)}
                       onClick={onClose}
                       className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--accent)] hover:underline"
                     >
@@ -279,7 +280,7 @@ export function NotificationsPanel({
       {/* Panel Footer */}
       <div className="p-2.5 border-t border-[var(--line)] bg-[var(--surface)] text-center">
         <Link
-          href="/app/notifications/"
+          href="/notifications/"
           onClick={onClose}
           className="inline-flex items-center justify-center w-full py-1.5 text-xs font-bold text-[var(--accent)] hover:bg-[var(--raised)] rounded-lg transition"
         >

@@ -118,7 +118,7 @@ function FormsWorkspace() {
         onChange={(tabId) => {
           const params = new URLSearchParams(searchParams?.toString() || '');
           params.set('tab', tabId);
-          router.push(`/app/forms/?${params.toString()}`);
+          router.push(`/forms/?${params.toString()}`);
         }}
       />
 

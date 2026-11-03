@@ -55,21 +55,21 @@ export function Sidebar({
   const navItems: NavItem[] = [
     {
       id: 'dashboard',
-      href: '/app/',
+      href: '/',
       label: 'الرئيسية',
       icon: <LayoutDashboard size={19} />,
       permission: 'payroll.view',
     },
     {
       id: 'riders',
-      href: '/app/riders/',
+      href: '/riders/',
       label: 'المناديب',
       icon: <Users size={19} />,
       permission: 'riders.view',
     },
     {
       id: 'companies',
-      href: '/app/companies/',
+      href: '/companies/',
       label: 'الشركات والسجلات',
       icon: <Building2 size={19} />,
       isNew: true,
@@ -77,7 +77,7 @@ export function Sidebar({
     },
     {
       id: 'operations',
-      href: '/app/operations/',
+      href: '/operations/',
       label: 'التشغيل والأصول',
       icon: <Truck size={19} />,
       isNew: true,
@@ -85,14 +85,14 @@ export function Sidebar({
     },
     {
       id: 'payroll',
-      href: '/app/payroll/',
+      href: '/payroll/',
       label: 'الرواتب',
       icon: <Calculator size={19} />,
       permission: 'payroll.view',
     },
     {
       id: 'debts',
-      href: '/app/debts/',
+      href: '/debts/',
       label: 'المديونيات والسلف',
       icon: <Receipt size={19} />,
       badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
@@ -100,21 +100,21 @@ export function Sidebar({
     },
     {
       id: 'treasury',
-      href: '/app/treasury/',
+      href: '/treasury/',
       label: 'البنوك والصناديق والخزن',
       icon: <Landmark size={19} />,
       permission: 'treasury.view',
     },
     {
       id: 'accounting',
-      href: '/app/accounting/',
+      href: '/accounting/',
       label: 'المحاسبة والتقارير',
       icon: <FileSpreadsheet size={19} />,
       permission: 'payroll.view',
     },
     {
       id: 'forms',
-      href: '/app/forms/',
+      href: '/forms/',
       label: 'النماذج والردود',
       icon: <ClipboardList size={19} />,
       badge: pendingResponsesCount > 0 ? pendingResponsesCount : undefined,
@@ -122,7 +122,7 @@ export function Sidebar({
     },
     {
       id: 'admin',
-      href: '/app/admin/',
+      href: '/admin/',
       label: 'الإدارة',
       icon: <ShieldCheck size={19} />,
       permission: 'users.manage',
@@ -140,7 +140,7 @@ export function Sidebar({
     <div className="flex flex-col h-full bg-[var(--surface)] text-[var(--ink)] border-e border-[var(--line)]">
       {/* Brand Header */}
       <div className="flex items-center justify-between p-4 border-b border-[var(--line)] min-h-[64px]">
-        <Link href="/app/" className="flex items-center gap-3 overflow-hidden">
+        <Link href="/" className="flex items-center gap-3 overflow-hidden">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xl shadow-xs shrink-0">
             ب
           </div>
@@ -177,9 +177,9 @@ export function Sidebar({
 
         {visibleNavItems.map((item) => {
           const isActive =
-            item.href === '/app/'
-              ? pathname === '/app' || pathname === '/app/'
-              : pathname.startsWith(item.href);
+            item.href === '/'
+              ? pathname === '/'
+              : pathname.startsWith(item.href.replace(/\/$/, ''));
 
           return (
             <Link
@@ -229,13 +229,13 @@ export function Sidebar({
       <div className="p-3 border-t border-[var(--line)] bg-[var(--surface)] shrink-0 space-y-2">
         <a
           href="/#/dashboard"
-          title={collapsed ? 'الواجهة السابقة 0.9.3' : undefined}
+          title={collapsed ? 'الواجهة السابقة' : undefined}
           className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--raised)] border border-[var(--line)] transition ${
             collapsed ? 'justify-center px-2' : ''
           }`}
         >
           <ExternalLink size={15} className="shrink-0" />
-          {!collapsed && <span>الواجهة السابقة (0.9.3)</span>}
+          {!collapsed && <span>الواجهة السابقة</span>}
         </a>
 
         {/* Collapse toggle button for desktop */}
