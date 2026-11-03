@@ -21,8 +21,13 @@ Kinds are `platform_invoice`, `platform_invoice_line`, `platform_dispute` and `p
 
 ## CAR and TGA
 
-A nonzero CAR Deduction creates a formal open dispute with source line, month and amount, a company/platform-scoped notification and invoice status `disputed`. It is never charged to a rider or expense. The accounting behavior of a disputed invoice is awaiting Ghazal's explicit decision before task M2.4.
+A nonzero CAR Deduction creates a formal open dispute with source line, month and amount, a company/platform-scoped notification and invoice status `disputed`. It is never charged to a rider or expense. BR §23.2 explicitly keeps the disputed balance in its receivable account until the platform replies. Accounting approval is therefore separate from the open dispute/settlement hold: when posting is enabled, the disputed part uses 112803 and the operational dispute remains open.
 
 Every nonzero TGA allocation amount starts `pending_allocation`. The core split operation accepts either an explicit `riderPercent` (with a rider for a positive rider share), explicit `riderAmount` plus `companyAmount`, or `riders:[{riderId,amount}]` plus `companyAmount`. Methods cannot be mixed. Shares must equal the complete amount; no default split is applied. A company-level line can allocate to several explicitly selected riders. Proposals are retained by revision; only the latest pending revision can be approved, and an approved split requires a later correction/reversal workflow rather than overwrite.
 
 The proposer cannot approve his own split, including an administrator. Approval uses the existing AccessPolicy checker with HS approval permission; nonadministrators also need the finance department/rank and company/platform scope. Approval updates workflow metadata and audit only; import/allocation still do not post with the gate closed. The review HTTP routes are added in M2.6.
+
+## Stage-2 double-deduction protection (M2.3)
+Approved facts create append-only `platform_deduction` documents whose `platformDeducted` key is `{category,rider,month}`. TGA rider shares require independently approved allocations; penalties and positive Rider Balance facts require the actual rider and an approved invoice. An unapproved invoice/proposal and a raw negative application balance create no active tags or rider debt. Repeating confirmation creates no new tags/audits.
+
+The monthly Engine skips a matching negative adjustment or debt installment once the key is confirmed. Canonical categories map TGA/TrafficFine, platform penalties/AdministrativeDeduction, and RiderBalance/PlatformTransferredDebt. An explicit other-platform deduction is retained; another rider/month, a pending tag, an unrelated advance and a positive adjustment are also retained. Payroll preview fingerprints include the relevant tags so a change invalidates approval of stale output. Tags classify actual platform deductions; they do not open a wallet ledger or post journals.

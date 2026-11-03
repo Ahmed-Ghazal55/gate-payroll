@@ -318,12 +318,12 @@ PayrollResult Preview(System.Data.Common.DbConnection c, string iqama, string pe
     var rows = Store.List(c, "work", tx).Where(w => w.S("iqama") == iqama && w.S("period") == period).Select(w => w.Deserialize<WorkLine>(JsonSerializerOptions.Web)!).ToList();
     var adjustments = Store.List(c, "adjustment", tx).Where(a => a.S("iqama") == iqama && a.S("period") == period).ToList();
     var opening = Store.List(c, "ledger", tx).Where(a => a.S("iqama") == iqama && string.CompareOrdinal(a.S("period"), period) < 0).Sum(a => a.N("amount"));
-    return Engine.Calculate(iqama, period, policy, rows, adjustments, opening, Store.List(c,"debt",tx),Store.List(c,"ledger",tx).Where(l=>l.S("iqama")==iqama&&l.S("period")==period&&l.S("kind")=="payment").ToList());
+    return Engine.Calculate(iqama, period, policy, rows, adjustments, opening, Store.List(c,"debt",tx),Store.List(c,"ledger",tx).Where(l=>l.S("iqama")==iqama&&l.S("period")==period&&l.S("kind")=="payment").ToList(),Store.List(c,PlatformDeductions.Kind,tx));
 }
 string Fingerprint(System.Data.Common.DbConnection c, string iqama, string period, System.Data.Common.DbTransaction? tx = null)
 {
     var rider = Store.Get(c, iqama, "rider", tx); var policy = rider == null ? null : Store.Get(c, rider.S("policyId"), "policy", tx);
-    return Hash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { rider, policy, debts = Store.List(c,"debt",tx).Where(x=>x.S("iqama")==iqama).OrderBy(x=>x.S("id")), result = Preview(c, iqama, period, tx), rows = Store.List(c, "work", tx).Where(x => x.S("iqama") == iqama && x.S("period") == period).OrderBy(x => x.S("id")) })));
+    return Hash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { rider, policy, platformDeductions=Store.List(c,PlatformDeductions.Kind,tx).Where(x=>x["platformDeducted"] is JsonObject key&&key.S("rider")==iqama&&key.S("month")==period).OrderBy(x=>x.S("id")), debts = Store.List(c,"debt",tx).Where(x=>x.S("iqama")==iqama).OrderBy(x=>x.S("id")), result = Preview(c, iqama, period, tx), rows = Store.List(c, "work", tx).Where(x => x.S("iqama") == iqama && x.S("period") == period).OrderBy(x => x.S("id")) })));
 }
 static void ValidatePolicy(string kind, JsonObject config)
 {
