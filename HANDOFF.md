@@ -17,6 +17,8 @@ R2 backend: M1 0.11.0 on feat/r2-m1, then M2 0.12.0 on stacked feat/r2-m2. Backe
 - COA --check failed as expected (resource 396 versus approved spec 403); assigned to M2.0.
 
 ## Done
+- M1.5 complete: release 0.11.0 prepared locally, including allowed footer/package/deploy version touchpoints; route inventory regenerated (157 API routes, six existing deprecations retained). No push/merge/deploy.
+- M1 final: .NET 158 passed / 0 failed / 6 optional SQL-backed cases skipped; Python 26 passed; all 11 standalone HTTP and six browser suites passed. Build clean; source boundary 163 files. COA expected mismatch remains assigned to M2.0.
 - M1.4 complete: shared SVG favicon and ICO alias on legacy/forms/questionnaires/inquiry/rider app; both payload assets required and hashed. Protected legacy index is verified by FTPS, not unsigned HTTP.
 - M1.4 checks: build clean, Python 26 passed, 34 R2 HTTP checks plus legacy browser smoke passed; source boundary 163 files.
 - M1.3 complete: two ordered reads per source table, at most three attempts; >10% change / >2% drop refusal before writes; private counts-only logs (700/600), no deletes and preserved certificate fields.
@@ -27,7 +29,7 @@ R2 backend: M1 0.11.0 on feat/r2-m1, then M2 0.12.0 on stacked feat/r2-m2. Backe
 - M1.1 checks: .NET 151 passed / 0 failed / 6 SQL skipped; 26 R2 HTTP checks and all six browser suites passed.
 
 ## Next step (exact)
-M1.5: bump backend/deploy/test/footer/RiderForm version to 0.11.0 using only the permitted UI version touchpoints, regenerate the route inventory, run the full suite and record the M1 milestone before creating feat/r2-m2. Certificate staging load remains pending «حمّل».
+Create feat/r2-m2 from this M1 head and start M2.0 (403-account regeneration), then implement the ordered HS intake tasks. Claude reviews feat/r2-m1 before feat/r2-m2; combine the separate Antigravity login frontend before any release merge. Certificate staging load remains pending fresh «حمّل»; no timer installed/enabled.
 
 ## How to verify
 ```bash
