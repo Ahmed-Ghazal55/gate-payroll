@@ -184,7 +184,7 @@ export function BuilderTab({
                     type="button"
                     onClick={() =>
                       copyToClipboard(
-                        `${window.location.origin}/app/forms/${form.id}`,
+                        (form as { publicUrl?: string }).publicUrl || '',
                         form.title
                       )
                     }

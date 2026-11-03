@@ -65,7 +65,7 @@ export function UnderMigration({
           </a>
 
           <Link
-            href="/app/"
+            href="/"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--raised)] rounded-xl border border-[var(--line)] transition"
           >
             <span>العودة للرئيسية</span>

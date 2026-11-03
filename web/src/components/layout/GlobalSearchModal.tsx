@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Search, X, User, Building2, Receipt, ClipboardList, Loader2, ExternalLink } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { SearchResult } from '../../lib/types';
+import { inApp } from '@/lib/paths';
 
 export interface GlobalSearchModalProps {
   open: boolean;
@@ -70,7 +71,7 @@ export function GlobalSearchModal({ open, onClose }: GlobalSearchModalProps) {
   const handleSelect = (item: SearchResult) => {
     onClose();
     if (item.url.startsWith('/app/')) {
-      router.push(item.url);
+      router.push(inApp(item.url));
     } else {
       window.location.href = item.url;
     }

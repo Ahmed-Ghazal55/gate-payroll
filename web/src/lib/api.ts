@@ -575,7 +575,14 @@ export const api = {
     const query = qs.toString() ? `?${qs.toString()}` : '';
 
     try {
-      return await handleRequest<Submission[]>(`/responses${query}`);
+      // The unified inbox nests the answer fields under `answers`; flatten them into the
+      // Submission shape the screens read (row fields win over answer fields).
+      const rows = await handleRequest<Array<Record<string, unknown> & { answers?: Record<string, unknown> }>>(`/responses${query}`);
+      return rows.map(({ answers, ...row }) => ({
+        ...(answers || {}),
+        ...row,
+        createdAt: (row.submittedAt as string) || (row.createdAt as string),
+      })) as unknown as Submission[];
     } catch (err: any) {
       if (err.status === 404) {
         return await handleRequest<Submission[]>(`/submissions${query}`);

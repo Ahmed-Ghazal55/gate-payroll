@@ -23,6 +23,7 @@ import { Toolbar } from '../../components/ui/Toolbar';
 import { Tabs } from '../../components/ui/Tabs';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
+import { inApp } from '@/lib/paths';
 
 export default function NotificationsPage() {
   const { toast } = useToast();
@@ -235,7 +236,7 @@ export default function NotificationsPage() {
               <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                 {item.link && (
                   <Link
-                    href={item.link}
+                    href={inApp(item.link)}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] hover:opacity-90 transition shadow-2xs"
                   >
                     <span>{item.actionText || 'عرض التفاصيل'}</span>
