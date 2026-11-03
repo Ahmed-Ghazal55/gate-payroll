@@ -63,3 +63,15 @@ Review at `http://127.0.0.1:19480/app/` (the old UI remains at `/`). This worktr
 Production keeps its existing SQLite. Switching production storage, resetting balances, posting opening entries, publishing or merging are separate decisions.
 
 The Docker image is `mcr.microsoft.com/mssql/server:2025-latest` (SQL major 17). The original backup was copied with docker cp and hash-verified; restore used FILELISTONLY/MOVE to local files, then ALTER DATABASE erp_copy SET READ_ONLY. The container is stopped after reconciliation to release memory; its private volume and backup remain intact. SA is loaded internally only from `~/Private/gate-data/mssql/.env`; `--local-copy` avoids putting it in command arguments.
+
+## R2 company certificates (M1.2)
+
+`POST /api/companies/import/preview` accepts `{companies:[...]}`. An administrator receives normalized `rows`, a process-signed `fingerprint` and counts per kind. Confirm with `POST /api/companies/import/commit` and `{rows,fingerprint,confirm:true}`. A changed company/registration state, actor or row invalidates the preview. Every changed document uses Store Save/Audit; an unchanged repeat creates no audit rows.
+
+Rows map `code` to the existing BW/EX/TR sponsor key and upsert by `unifiedNumber`. Identity conflicts stop for review. Fields include the CR number/type/version, entity type/characteristic, Gregorian/Hijri issue and annual-confirmation dates, city/address/capital, and ISIC activities with an explicit incomplete flag. Other fields survive the merge. Expiry reminders prefer `annualConfirmation`, retaining the legacy expiry fallback.
+
+Private file review, counts only (no record values in stdout or report):
+```bash
+dotnet tools/ErpImport/bin/Debug/net10.0/ErpImport.dll --companies-input "$HOME/Private/gate-data/companies-2026-11-04.json" --dry-run
+```
+The 2026-11-04 dry-run proposed 3 changed companies and 3 new registrations; zero DB writes. **A fresh «حمّل» approval for this certificate load is pending.** Only after that approval may the operator replace `--dry-run` with `--commit`. No production target is accepted.

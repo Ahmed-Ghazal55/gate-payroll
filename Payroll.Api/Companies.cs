@@ -49,6 +49,7 @@ public static class Companies
         if(!AccessPolicy.Administrator(user)&&!FinancialScopes.Sponsor(user,key))throw new ApiError("الشركة خارج نطاقك.",403);
         var doc=previous?.Clone()??new JsonObject{["id"]=key,["sponsorId"]=key,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};
         foreach(string field in new[]{"nameAr","shortNameAr","code","unifiedNumber","commercialReg","city"})doc[field]=Text(input,field,doc.S(field));
+        CompanyRegistryImport.Extend(doc,input);
         J.Need(doc.S("nameAr")!="","اسم الشركة مطلوب.");
         string status=Text(input,"status",doc.S("status","active"));J.Need(status is "active" or "inactive" or "archived","حالة الشركة غير صالحة.");doc["status"]=status;doc["updatedAt"]=DateTimeOffset.UtcNow.ToString("O");
         Store.Save(c,"company",doc,tx);Store.Audit(c,tx,previous==null?"company.created":"company.updated",key,Actor(user));return doc;
@@ -63,6 +64,7 @@ public static class Companies
         AccessPolicy.Demand(user,"companies.manage");Get(c,tx,companyId,user);
         var doc=id==null?new JsonObject{["id"]="cr:"+Guid.NewGuid().ToString("N"),["companyId"]=companyId,["company"]=companyId,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")}:Child(c,tx,companyId,id,"commercial_registration",user).Clone();
         foreach(string field in new[]{"number","city"})doc[field]=Text(input,field,doc.S(field),100);
+        CompanyRegistryImport.Extend(doc,input);
         J.Need(doc.S("number")!="","رقم السجل مطلوب.");
         if(Store.List(c,"commercial_registration",tx).Any(r=>r.S("number")==doc.S("number")&&r.S("id")!=doc.S("id")&&r.S("status")!="archived"))throw new ApiError("رقم السجل موجود بالفعل.",409);
         doc["issueDate"]=Date(input,"issueDate",doc.S("issueDate"));doc["expiryDate"]=Date(input,"expiryDate",doc.S("expiryDate"));Dates(doc);
@@ -98,7 +100,7 @@ public static class Companies
         {
             int window=days??60;J.Need(window is >=0 and <=3650,"عدد الأيام غير صالح.");var end=DateOnly.FromDateTime(DateTime.UtcNow).AddDays(window);
             var visible=List(c,ctx.User).Where(x=>x.S("status")!="archived").Select(x=>x.S("id")).ToHashSet();
-            return new[]{"commercial_registration","company_document"}.SelectMany(kind=>Store.List(c,kind).Where(x=>visible.Contains(x.S("companyId"))&&x.S("status")!="archived"&&DateOnly.TryParseExact(x.S("expiryDate"),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var expiry)&&expiry<=end).Select(x=>{var row=x.Clone();row["kind"]=kind;return row;})).ToList();
+            return new[]{"commercial_registration","company_document"}.SelectMany(kind=>Store.List(c,kind).Where(x=>visible.Contains(x.S("companyId"))&&x.S("status")!="archived"&&DateOnly.TryParseExact(x.S("annualConfirmation",x.S("expiryDate")),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var expiry)&&expiry<=end).Select(x=>{var row=x.Clone();row["kind"]=kind;return row;})).ToList();
         })).WithTags("Companies and registrations").WithSummary("List expired or soon-expiring company records and documents");
         api.MapGet("/companies/{id}",(string id,HttpContext ctx)=>store.Read(c=>Get(c,null,id,ctx.User))).WithTags("Companies and registrations").WithSummary("Read one company within scope");
         api.MapPost("/companies",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>SaveCompany(c,tx,ctx.User,input))).WithTags("Companies and registrations").WithSummary("Create and audit a company");

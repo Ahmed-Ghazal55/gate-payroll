@@ -17,11 +17,13 @@ R2 backend: M1 0.11.0 on feat/r2-m1, then M2 0.12.0 on stacked feat/r2-m2. Backe
 - COA --check failed as expected (resource 396 versus approved spec 403); assigned to M2.0.
 
 ## Done
+- M1.2 complete: additive company/CR fields, signed administrator-only preview/commit, identity checks, audit and annual-confirmation reminders. Dry-run: 3 changed companies + 3 new registrations, zero writes; fresh «حمّل» approval pending.
+- M1.2 checks: .NET 154 passed / 0 failed / 6 SQL skipped; 3 certificate behavior tests and 32 R2 HTTP checks passed.
 - M1.1 complete: root 302 to /app/, session-only /legacy/, safe returnUrl validation and direct-index guard; public routes unchanged. Restart test verifies every existing record body byte-identical.
 - M1.1 checks: .NET 151 passed / 0 failed / 6 SQL skipped; 26 R2 HTTP checks and all six browser suites passed.
 
 ## Next step (exact)
-M1.2: add certificate fields and signed admin company import; inspect the private input in memory, dry-run against staging, report counts and wait for a fresh «حمّل» before writing.
+M1.3: implement double-read consistent ERP sync, count/change guards and private counts-only run logs; ship disabled user timer/service. Company certificate staging load stays pending Ghazal's fresh «حمّل»; do not treat the earlier Prompt B approval as authorization for this new load.
 
 ## How to verify
 ```bash

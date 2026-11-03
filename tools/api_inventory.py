@@ -11,6 +11,7 @@ def permission(method,p):
  if p.startswith('/api/notifications/center/') and p.endswith('/toggle-todo'):return 'approvals.view OR owner; department visibility'
  if p=='/api/notifications/center':return 'approvals.view' if method=='GET' else 'mobile.broadcast'
  if p in ('/api/me','/api/roles-catalog','/api/search') or p.startswith('/api/notifications'):return 'authenticated; category/owner visibility in handler'
+ if p.startswith('/api/companies/import/'): return 'Admin / SuperAdmin; signed preview + audit'
  if p.startswith('/api/companies'): return 'companies.view' if method=='GET' else 'companies.manage'
  if p.startswith(('/api/users','/api/system','/api/rider-mobile/firebase')) or method=='DELETE' or p=='/api/submissions/bulk-delete' or p.endswith('/delete-preview') or method=='PUT' and p.startswith('/api/campaigns/'):return 'Admin / SuperAdmin'
  if p.startswith('/api/riders/sync') or p.startswith('/api/riders/enrich'):return 'Admin / SuperAdmin'

@@ -43,6 +43,20 @@ try{
  const form=await json('/api/forms/builder',{titleAr:'Synthetic questionnaire',expiresAt:new Date(Date.now()+86400000).toISOString(),maxSubmissions:10,fields:[{id:'identity',labelAr:'Identity',type:'iqama',required:true}]});
  const published=await json('/api/forms/builder/'+form.id+'/publish',{});
  for(const route of [campaign.path,new URL(published.publicUrl).pathname,'/inquiry','/rider-app','/health'])await request(route,{auth:false});
+ const existingCompanies=await json('/api/companies');
+ const setupDb=new DatabaseSync(path.join(data,'payroll.db'));
+ const companyRows=existingCompanies.map((company,i)=>{
+  const unifiedNumber='7'+String(i+1).padStart(9,'0');
+  setupDb.prepare('UPDATE records SET body=? WHERE id=? AND kind=?').run(JSON.stringify({...company,nameAr:'Synthetic Company',unifiedNumber}),company.id,'company');
+  return {code:company.code,nameAr:'Synthetic certificate',unifiedNumber,crNumber:'4'+String(i+1).padStart(9,'0'),annualConfirmation:'2028-01-01',activitiesIncomplete:true,activities:[{isic:'492311',nameAr:'Synthetic activity'}]};
+ });setupDb.close();
+ const preview=await json('/api/companies/import/preview',{companies:companyRows});
+ assert.equal(preview.counts.company.changed,3);assert.equal(preview.counts.commercial_registration.new,3);
+ const confirmation={rows:preview.rows,fingerprint:preview.fingerprint,confirm:true};
+ const tampered=structuredClone(confirmation);tampered.rows[0].nameAr='Tampered';await json('/api/companies/import/commit',tampered,409);
+ await json('/api/companies/import/commit',confirmation);
+ const repeated=await json('/api/companies/import/preview',{companies:companyRows});assert.equal(repeated.counts.company.unchanged,3);assert.equal(repeated.counts.commercial_registration.unchanged,3);
+ const expiring=await json('/api/companies/expiring?days=3650');assert.equal(expiring.length,3);assert.ok(expiring.every(row=>row.annualConfirmation==='2028-01-01'));
  const db=new DatabaseSync(path.join(data,'payroll.db'));
  for(const kind of ['custom_response','submission','user','audit','journal']){
   const raw=' { "id": "synthetic-preserve-'+kind+'", "name": "Synthetic", "iban": "SYNTHETIC_ONLY", "extra": [ 1, 2 ] } ';

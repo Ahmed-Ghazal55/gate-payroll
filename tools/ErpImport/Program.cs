@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ErpImport;
 using Payroll;
 
@@ -8,11 +9,29 @@ try
     string? Arg(string name)=>args.SkipWhile(a=>a!=name).Skip(1).FirstOrDefault();
     if(args.Contains("--help"))
     {
-        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy] [--target-env FILE] [--dry-run | --commit] [--report COUNTS_JSON] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities]");return 0;
+        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--report COUNTS_JSON] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities]");return 0;
     }
     if(args.Contains("--commit")&&args.Contains("--dry-run"))throw new ImportFailure("conflicting_modes");
     string home=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     string targetEnv=Arg("--target-env")??Path.Combine(home,"Private/gate-data/staging.env");
+    if(Arg("--companies-input") is {} companyFile)
+    {
+        phase="previewing_companies";
+        using var read=Connections.Target(targetEnv);string connection=read.ConnectionString;read.Open();
+        var input=JsonNode.Parse(File.ReadAllText(companyFile)) as JsonObject??throw new ImportFailure("invalid_company_input");
+        var actor=UserAccess.Principal(new JsonObject{["username"]="erp-company-import",["role"]="Admin"});
+        var preview=CompanyRegistryImport.Preview(read,actor,input);JsonObject result=new(){["committed"]=false,["counts"]=preview["counts"]!.DeepClone()};
+        if(args.Contains("--commit"))
+        {
+            phase="saving_companies";
+            var store=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),connection);
+            var confirmed=new JsonObject{["rows"]=preview["rows"]!.DeepClone(),["fingerprint"]=preview.S("fingerprint"),["confirm"]=true};
+            result=store.Write((c,tx)=>CompanyRegistryImport.Commit(c,tx,actor,confirmed));result["committed"]=true;
+        }
+        string counts=result.ToJsonString(new JsonSerializerOptions{WriteIndented=true});
+        if(Arg("--report") is {} companyReport)File.WriteAllText(companyReport,counts);
+        Console.WriteLine(counts);return 0;
+    }
     if(Arg("--target-schema") is {} targetSchema)
     {using var target=Connections.Target(targetEnv);target.Open();SchemaInspector.Write(target,targetSchema);Console.WriteLine("PASS target schema metadata exported (no row values)");return 0;}
     string sourceFile=Arg("--source-env")??Path.Combine(home,"Private/gate-data/erp-readonly.env");
