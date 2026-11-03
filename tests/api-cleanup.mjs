@@ -18,6 +18,8 @@ try{
  const password=randomBytes(24).toString('hex');
  await req('/api/auth/setup',{username:'synthetic-admin',password});admin=cookie;
  const doc=await req('/openapi/v1.json');
+ for(const [method,p] of [['get','/api/template.csv'],['get','/api/payroll/fingerprint'],['get','/api/imports'],['get','/api/debts/settlements'],['post','/api/public/forms/{token}/resume'],['get','/api/system/release-check']]){assert.equal(doc.paths[p][method].deprecated,true);checks++;}
+ assert.ok(!doc.paths['/api/riders'].get.deprecated);
  const index=readFileSync(path.join(root,'docs/api/ENDPOINTS.md'),'utf8');
  for(const line of index.split('\n')){const m=line.match(/^\| (GET|POST|PUT|DELETE|PATCH) \| `(\/api\/[^`]+)`/);if(m){assert.ok(doc.paths[m[2]]?.[m[1].toLowerCase()],`OpenAPI missing ${m[1]} ${m[2]}`);assert.ok(doc.paths[m[2]][m[1].toLowerCase()].tags?.length);assert.ok(doc.paths[m[2]][m[1].toLowerCase()].summary);checks++;}}
  for(const [p,methods] of Object.entries(doc.paths)){if(p.startsWith('/api/'))for(const m of Object.keys(methods)){if(['get','post','put','delete','patch'].includes(m))assert.ok(index.includes(`| ${m.toUpperCase()} | \`${p}\``),`Inventory missing ${m} ${p}`);}}

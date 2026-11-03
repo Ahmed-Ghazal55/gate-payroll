@@ -72,6 +72,16 @@ def main():
   for g,m,p,f,perm,c,st in sorted(rows):
    if g==group:out.append(f'| {m} | `{p}` | {f} | {perm} | {c} | {st} |')
   out.append('')
+ out += ['## Compatibility and deprecations', '', '| Route | Replacement / reason |', '|---|---|',
+ '| `GET /api/template.csv` | Prefer `/api/excel/work/template`; keep the CSV compatibility template. |',
+ '| `GET /api/payroll/fingerprint` | Use the fingerprint returned by payroll preview. |',
+ '| `GET /api/imports` | Legacy batch history; keep available while the new imports UI lands. |',
+ '| `GET /api/debts/settlements` | Legacy settlement list; existing rider statement and journals remain authoritative. |',
+ '| `POST /api/public/forms/{token}/resume` | New callers use `/lookup` and `/edit`; retain the receipt-based legacy route. |',
+ '| `GET /api/system/release-check` | Tests/diagnostics only, administrator access; public deployment metadata is `/health`. |', '',
+ 'No route is removed. OpenAPI flags the same six operations as deprecated. HTML/static routes and `/health` are included in the inventory but remain outside `/api`.', '',
+ 'Company DELETE actions archive metadata and retain financial references and attachments. New companies do not create new treasury accounts or change posting policy. The finance sponsor read alias keeps its balance fields.', '',
+ 'Unified response rows: `id,source,campaignId,title,status,submittedAt,updatedAt,iqama,name,answers,version,reviewUrl`. For custom forms, `campaignId` is the form ID and `reviewUrl` is null because no custom review mutation exists. Campaign reviews continue on the original POST route.', '']
  (ROOT/'docs/api/ENDPOINTS.md').write_text('\n'.join(out))
  print(f'Routes: {len(rows)} total, {sum(p.startswith("/api/") for _,_,p,*_ in rows)} API, {sum(r[-1]=="new" for r in rows)} new, {sum(r[-1]=="deprecated" for r in rows)} deprecated')
 if __name__=='__main__':main()
