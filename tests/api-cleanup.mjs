@@ -30,6 +30,8 @@ try{
  assert.equal(company.sponsorId,company.id);
  await req(`/api/companies/${company.id}`,{nameAr:'شركة اختبار مصطنعة'},'PUT');
  assert.equal((await req('/api/finance/sponsors')).find(x=>x.id===company.id).nameAr,'شركة اختبار مصطنعة');
+ await req('/api/search?q=x',undefined,'GET',400);
+ const matches=await req('/api/search?q='+encodeURIComponent('اختبار'));assert.ok(matches.some(x=>x.type==='company'&&x.id===company.id&&x.url.includes('/app/companies')));assert.ok(matches.length<=20);
  const registration=await req(`/api/companies/${company.id}/registrations`,{number:'SYN-CR',city:'Synthetic City',issueDate:'2026-01-01',expiryDate:'2026-11-04'});
  assert.equal((await req(`/api/companies/${company.id}/registrations/${registration.id}`)).companyId,company.id);
  await req(`/api/companies/${company.id}/registrations/${registration.id}`,{number:'SYN-CR-UPDATED'},'PUT');

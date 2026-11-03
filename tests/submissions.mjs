@@ -29,7 +29,8 @@ try{
  const receipt=await req(pub,form,200,false);assert.equal(receipt.version,1);assert.equal(receipt.editToken,undefined);assert.equal(receipt.status,'pending');assert.ok(!Number.isNaN(Date.parse(receipt.submittedAt)));assert.equal(receipt.name,form.name);
  const duplicate=await req(pub,{...form,name:'Another Person'},409,false);assert.equal(duplicate.alreadySubmitted,true);assert.equal(duplicate.name,form.name);assert.equal(duplicate.currentChoice,'tiers');assert.equal(duplicate.iqama,form.iqama);assert.equal(duplicate.version,1);
  for(const key of ['receipt','editToken','history','reviewNote','phone','iban','policyId','debt'])assert.equal(duplicate[key],undefined);
- assert.deepEqual(await req(pub+'/lookup',{iqama:form.iqama},200,false),duplicate);
+ const {code:duplicateCode,error:duplicateError,...duplicateView}=duplicate;assert.equal(duplicateCode,'already_submitted');assert.equal(typeof duplicateError,'string');
+ assert.deepEqual(await req(pub+'/lookup',{iqama:form.iqama},200,false),duplicateView);
  await req(otherPub+'/edit',form,404,false);await req(pub+'/edit',{...form,iqama:'2000000889'},404,false);await req(pub+'/edit',{...form,receipt:'wrong'},400,false);
  await req('/api/auth/login',{username:'test-accountant',password});await req('/api/submissions',undefined,403);await req('/api/submissions/'+receipt.receipt+'/review',{status:'approved'},403);
  await req('/api/auth/login',{username:'test-reviewer',password});

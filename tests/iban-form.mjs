@@ -36,7 +36,8 @@ try{
  const receipt=await req(pub,form,200,false);assert.equal(receipt.ibanLast4,'7519');assert.equal(receipt.bankCode,'80');assert.deepEqual(receipt.platforms,['keeta','jahez']);assert.equal(receipt.status,'pending');assert.equal(receipt.iban,undefined);
  const duplicate=await req(pub,{...form,name:'Another Person'},409,false);assert.equal(duplicate.alreadySubmitted,true);
  for(const key of ['iban','phone','history','id','receipt'])assert.equal(duplicate[key],undefined);assert.ok(!JSON.stringify(duplicate).includes('500000901'));
- assert.deepEqual(await req(pub+'/lookup',{iqama:form.iqama},200,false),duplicate);
+ const {code:duplicateCode,error:duplicateError,...duplicateView}=duplicate;assert.equal(duplicateCode,'already_submitted');assert.equal(typeof duplicateError,'string');
+ assert.deepEqual(await req(pub+'/lookup',{iqama:form.iqama},200,false),duplicateView);
  let rows=await req('/api/submissions');let row=rows.find(r=>r.id===receipt.receipt);assert.equal(row.iban,'SA0380000000608010167519');assert.equal(row.bank,'RJHI');assert.equal(row.phone,'+966500000901');assert.equal(row.schema,'iban-v1');
  await req(pub+'/edit',{...form,iban:IBAN10,bankCode:'10',version:2},409,false);
  const edited=await req(pub+'/edit',{...form,iban:IBAN10,bankCode:'10',city:'جدة',platforms:['ninja'],version:1},200,false);assert.equal(edited.version,2);assert.equal(edited.isEdited,true);assert.equal(edited.bankCode,'10');
