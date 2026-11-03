@@ -40,12 +40,12 @@ public static class SourceReader
         using var cmd=source.CreateCommand();cmd.CommandText="SELECT snapshot_isolation_state FROM sys.databases WHERE name=DB_NAME()";
         return Convert.ToInt32(cmd.ExecuteScalar())==1;
     }
-    public static SourceSnapshot Read(DbConnection connection)
+    public static SourceSnapshot Read(DbConnection connection,bool requireStableRowversion=true)
     {
         DateTimeOffset started=DateTimeOffset.UtcNow;
         bool sql=connection is SqlConnection;
         byte[]? Stamp(){if(!sql)return null;using var cmd=connection.CreateCommand();cmd.CommandText="SELECT @@DBTS";return (byte[]?)cmd.ExecuteScalar();}
-        var before=Stamp();
+        var before=requireStableRowversion?Stamp():null;
         var tables=new Dictionary<string,List<JsonObject>>(StringComparer.Ordinal);
         foreach(var table in Catalog)
         {
@@ -64,7 +64,7 @@ public static class SourceReader
             }
             tables.Add(table.Name,rows);
         }
-        var after=Stamp();
+        var after=requireStableRowversion?Stamp():null;
         if(before!=null&&after!=null&&!before.SequenceEqual(after))throw new ImportFailure("source_changed_during_read");
         return new(tables,started,DateTimeOffset.UtcNow,sql?(connection.Database=="erp_copy"?"local_read_only_copy":"read_committed_database_rowversion_stable"):"synthetic_sqlite");
     }

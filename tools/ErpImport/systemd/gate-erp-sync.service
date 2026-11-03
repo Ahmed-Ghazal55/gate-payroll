@@ -1,0 +1,12 @@
+[Unit]
+Description=Read-only ERP facts to Gate staging (counts-only audit log)
+ConditionPathExists=%h/Private/gate-data/erp-readonly.env
+ConditionPathExists=%h/Private/gate-data/staging.env
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Projects/active/gate-payroll
+ExecStart=/usr/bin/env dotnet %h/Projects/active/gate-payroll/tools/ErpImport/bin/Release/net10.0/ErpImport.dll --live --commit --consistent
+UMask=0077
+NoNewPrivileges=true
+TimeoutStartSec=30min

@@ -109,6 +109,13 @@ public sealed class ImportPlan
     static bool Dates(JsonObject row,string start,string end)=>row.S(end)==""||StringComparer.Ordinal.Compare(row.S(start),row.S(end))<=0;
     public static JsonObject Merge(JsonObject? existing,JsonObject proposed)
     {
-        var merged=existing?.Clone()??new JsonObject();foreach(var field in proposed)merged[field.Key]=field.Value?.DeepClone();return merged;
+        var merged=existing?.Clone()??new JsonObject();
+        string[] certificateFields=["nameAr","nameEn","nameOnCertificateAr","unifiedNumber","commercialReg","crNumber","crType","entityType","characteristic","crVersion","issueDate","issueDateHijri","annualConfirmation","annualConfirmationHijri","city","address","capitalSar","activities","activitiesIncomplete"];
+        foreach(var field in proposed)
+        {
+            if(existing?.S("registrySource")=="company-certificates"&&certificateFields.Contains(field.Key)&&existing.ContainsKey(field.Key))continue;
+            merged[field.Key]=field.Value?.DeepClone();
+        }
+        return merged;
     }
 }
