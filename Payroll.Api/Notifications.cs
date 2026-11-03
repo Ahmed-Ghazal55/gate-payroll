@@ -72,7 +72,7 @@ public static class Notifications
         if(store.Read(c=>Store.Get(c,id,"sys_notification")!=null))return;
         store.Write((c,tx)=>
         {
-            var riders=Store.List(c,"rider",tx);
+            var riders=Store.List(c,"rider",tx).Where(ErpRiderClassification.ListedAsRider);
             if(riders.Any(r=>r.S("phone")==""||r.S("city")==""||r.S("iban")==""||r.S("sponsor")==""&&r.S("sponsorId")==""&&r.S("financeSponsorId")==""))
                 Raise(c,tx,id,"system","بيانات المناديب تحتاج استكمال الجوال أو المدينة أو الشركة أو الآيبان.","riders.view","system");
             return true;

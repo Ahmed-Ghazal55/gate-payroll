@@ -35,6 +35,11 @@ public static class SourceReader
         new("app","HrLegalCases","Id CaseNumber PersonName PersonType EmployeeId RiderProfileId SponsorId SponsorPartyRole CaseDate CaseTime Status Details IsDeleted"),
         new("app","HrLegalCaseHearings","Id LegalCaseId HearingNumber HearingDate HearingTime Status Details Location IsDeleted")
     ];
+    public static bool SnapshotAvailable(SqlConnection source)
+    {
+        using var cmd=source.CreateCommand();cmd.CommandText="SELECT snapshot_isolation_state FROM sys.databases WHERE name=DB_NAME()";
+        return Convert.ToInt32(cmd.ExecuteScalar())==1;
+    }
     public static SourceSnapshot Read(DbConnection connection)
     {
         DateTimeOffset started=DateTimeOffset.UtcNow;
@@ -61,7 +66,7 @@ public static class SourceReader
         }
         var after=Stamp();
         if(before!=null&&after!=null&&!before.SequenceEqual(after))throw new ImportFailure("source_changed_during_read");
-        return new(tables,started,DateTimeOffset.UtcNow,sql?"read_committed_database_rowversion_stable":"synthetic_sqlite");
+        return new(tables,started,DateTimeOffset.UtcNow,sql?(connection.Database=="erp_copy"?"local_read_only_copy":"read_committed_database_rowversion_stable"):"synthetic_sqlite");
     }
     static JsonNode? Value(object? value)=>value switch
     {

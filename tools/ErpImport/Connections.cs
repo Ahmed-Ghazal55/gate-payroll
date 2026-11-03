@@ -21,9 +21,14 @@ public static class Connections
         if(!local&&!live)throw new ImportFailure("unapproved_source");
         b.ApplicationIntent=ApplicationIntent.ReadOnly;b.Encrypt=true;return new SqlConnection(b.ConnectionString);
     }
+    public static SqlConnection LocalCopy()
+    {
+        string password=Env(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Private/gate-data/mssql/.env"),"MSSQL_SA_PASSWORD");
+        return Source(new SqlConnectionStringBuilder{DataSource="127.0.0.1,15443",InitialCatalog="erp_copy",UserID="sa",Password=password,Encrypt=true,TrustServerCertificate=true}.ConnectionString);
+    }
     public static SqlConnection Target(string envPath)
     {
-        var b=new SqlConnectionStringBuilder(Env(envPath,"STAGING_DB")){ConnectTimeout=20,ApplicationName="GateERP.StagingImport"};
+        var b=new SqlConnectionStringBuilder(Env(envPath,"STAGING_DB")){ConnectTimeout=20,CommandTimeout=120,ApplicationName="GateERP.StagingImport"};
         // Ghazal approved this exact catalog; never accept a production/other target.
         if(b.InitialCatalog!="db77738")throw new ImportFailure("unapproved_target");
         b.Encrypt=true;return new SqlConnection(b.ConnectionString);

@@ -310,7 +310,7 @@ public static class RiderDirectory
         // 3. تشخيص جودة واكتمال بيانات المناديب (Data Completeness & Missing Fields Report)
         api.MapGet("/riders/data-quality", () => store.Read(c =>
         {
-            var riders = Store.List(c, "rider");
+            var riders = Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider).ToList();
             string? baselinePath = FindLocalBaselineFile();
             return new
             {

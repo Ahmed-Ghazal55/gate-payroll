@@ -26,7 +26,7 @@ public sealed class ErpImportTests
             Add("OperatingCities",new(){["Id"]="operation-city",["GlobalCityId"]="city",["Status"]=1});
             for(int i=1;i<=3;i++)
             {
-                Add("Employees",new(){["Id"]="employee"+i,["IqamaNo"]=Identity(i),["FullNameAr"]="DO_NOT_EMIT_PERSON_"+i,["PrimaryPhone"]="DO_NOT_EMIT_PHONE",["Iban"]="SA0380000000608010167519",["IsEmployee"]=1,["EngagementType"]=i==2?2:1,["Status"]=3,["SponsorId"]="sponsor",["OperatingCityId"]="operation-city"});
+                Add("Employees",new(){["Id"]="employee"+i,["IqamaNo"]=Identity(i),["FullNameAr"]="DO_NOT_EMIT_PERSON_"+i,["PrimaryPhone"]="DO_NOT_EMIT_PHONE",["Iban"]="SA0380000000608010167519",["IsEmployee"]=i==3?1:0,["EngagementType"]=i==2?2:1,["Status"]=3,["SponsorId"]="sponsor",["OperatingCityId"]="operation-city"});
                 if(i<3)Add("RiderProfiles",new(){["Id"]="profile"+i,["EmployeeId"]="employee"+i});
             }
             Add("Housing",new(){["Id"]="housing",["CityId"]="city",["NameAr"]="سكن مصطنع"});
@@ -131,6 +131,17 @@ public sealed class ErpImportTests
         Assert.AreEqual("target_changed_retry_dry_run",Assert.ThrowsExactly<ImportFailure>(()=>ImportExecutor.Run(source,plan,before,target)).Code);
         Assert.AreEqual(0,target.Read(c=>Store.List(c,"company").Count));Assert.AreEqual(0,target.Read(c=>Store.List(c,"audit").Count));
         Assert.IsTrue(target.Read(c=>Store.Get(c,Identity(1),"rider")!.B("bankVerified")));
+    }
+    [TestMethod]
+    public void AdministrativeAccountProfilesStayAsReferencesButOutOfTheRiderDirectory()
+    {
+        using var f=new Fixture();f.Add("RiderProfiles",new(){["Id"]="administrative-profile",["EmployeeId"]="employee3"});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);
+        var people=plan.Documents.Where(d=>d.Kind=="rider").Select(d=>d.Body).ToList();
+        Assert.AreEqual(3,people.Count);Assert.AreEqual(2,people.Count(ErpRiderClassification.ListedAsRider));
+        var admin=people.Single(d=>d.S("id")==Identity(3));Assert.AreEqual("administrative",admin.S("personRole"));Assert.IsFalse(admin.B("isDeliveryRider"));
+        Assert.AreEqual(1,plan.Observations["administrative_rider_profiles"]);Assert.AreEqual(1,plan.Observations["sponsored_riders"]);
+        Assert.IsTrue(ErpRiderClassification.ListedAsRider(new JsonObject{["id"]="legacy",["isEmployee"]=true})); // Legacy contract unchanged.
     }
     [TestMethod]
     public void ExistingDatabaseGetsIndexesWithoutChangingItsDocuments()

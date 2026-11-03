@@ -13,7 +13,7 @@ public static class GlobalSearch
         var hits=new List<Hit>();
         // Use the same policy gates, projections and record scope as each collection.
         if(AccessPolicy.Allowed(user,"GET","/api/riders"))
-            hits.AddRange(Store.List(c,"rider").Where(r=>Match(r.S("iqama"),r.S("name"))).Select(r=>new Hit("rider",r.S("iqama",r.S("id")),r.S("name"),r.S("iqama"),"/app/riders?iqama="+Uri.EscapeDataString(r.S("iqama",r.S("id"))))));
+            hits.AddRange(Store.List(c,"rider").Where(ErpRiderClassification.ListedAsRider).Where(r=>Match(r.S("iqama"),r.S("name"))).Select(r=>new Hit("rider",r.S("iqama",r.S("id")),r.S("name"),r.S("iqama"),"/app/riders?iqama="+Uri.EscapeDataString(r.S("iqama",r.S("id"))))));
         if(AccessPolicy.Allowed(user,"GET","/api/companies"))
             hits.AddRange(Companies.List(c,user).Where(r=>r.S("status")!="archived"&&Match(r.S("nameAr"),r.S("shortNameAr"),r.S("code"))).Select(r=>new Hit("company",r.S("id"),r.S("nameAr"),r.S("code"),"/app/companies?id="+Uri.EscapeDataString(r.S("id")))));
         if(AccessPolicy.Allowed(user,"GET","/api/debts"))

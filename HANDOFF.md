@@ -8,30 +8,32 @@
 | Updated | 2026-11-03 by Codex |
 
 ## Goal now
-Prompt B: ERP data map and additive staging importer. Ghazal confirmed FTP rotation, staging readiness and off-hours live read. Source is approved live read-only SQL; backup restore is optional under the latest prompt amendment. Never load until the explicit «حمّل» after dry-run review.
+Prompt B completed: ERP map, additive staging importer and approved staging load. Ghazal confirmed prerequisites, off-hours read-only access and explicitly approved «حمّل». Production storage/deployment remains unchanged.
 
 ## Done (latest first)
-- Importer uses the normal Save/Audit path with optional same-transaction SQL Server bulk transport; one target-state recheck guards concurrent changes. Commit also verifies the exact in-memory source snapshot without rereading live data.
-- Final checks: .NET 148 passed / 0 failed / 6 SQL skipped, including eight importer behavior tests. Build 0 warnings/errors; generator, source boundaries (148 files), whitespace and new-file sensitive-literal checks passed. SQL Server provider execution remains unverified.
-- Read live schema metadata (224 tables), current ERP entities/configurations/controllers/pages and reference-only SQL/model history. docs/data/ERP-DATA-MAP.md covers 29 visible tables and the absent sponsorship-period table. Reports contain metadata/counts only.
-- docs/data/TARGET-KINDS.md defines 12 kinds, source/natural keys, relations and existing-database indexes for SQLite/SQL Server; company reuses Prompt A's existing sponsor keys.
-- Final dry-run: 6489 new documents, zero target writes; 432 sponsored + 1708 external riders. Stable database rowversion over the eight-second read. Counts/reasons/read window in docs/data/RECONCILE-2026-11-03.md.
-- Explicit gaps: all three CR numbers missing; sponsorship periods absent; 14 invalid rider identities; 16 employees lack rider profiles; two custody events are not handover/return. No dates or classification guessed.
-- Shared learning entry recorded. Source archives, production SQLite, ERP production write access and config files were untouched. No push, PR, merge or deployment.
+- Final independent dry-run: 0 new, 0 changed, 6451 unchanged after role correction. The separate second commit run and automatic same-snapshot checks also returned zero changes.
+- Actual staging: 6451 domain documents, 8581 erp-import audit rows, eight ERP indexes. People/profile records: 2092 delivery riders (394 sponsored, 1698 external) plus 38 administrative references, excluded from rider lists/search/stats/quality views.
+- Live read changed during the first commit attempt, safely refused before writes. Restored the authorized backup locally into SQL Server 2025, verified original bytes, set erp_copy READ_ONLY, then loaded its stable snapshot. The preserved container is stopped after reconciliation.
+- docs/data/ERP-DATA-MAP.md combines 224-table metadata with 29 scoped tables and code/routes/pages. TARGET-KINDS.md defines 12 kinds and source keys; SQLite/SQL Server indexes apply to existing stores.
+- tools/ErpImport defaults to SELECT-only dry-run. Approved commit uses normal Store Save/Audit with atomic buffered transport, concurrent-target checks, private checkpoints, no deletion and bounded import-target SQL timeout.
+- Verified build: zero warnings/errors; .NET 149 passed / 0 failed / 6 optional SQL-backed cases skipped; nine synthetic importer tests included. Standalone synthetic HTTP: 255 checks. Source boundaries: 149 files; whitespace and new/added sensitive-literal checks passed.
+- docs/data/README.md explains the preserved local source and localhost API review against staging. Existing static web assets copied into ignored output; no UI source edits. Shared learning entry recorded.
+- Earlier commits: b989fc0 (map/kinds), 6c51ab1 (importer/tests). Final branch commit records backup load, classification and reconciliation. No push, PR, merge or deployment.
 
 ## Next step (exact)
-Claude reviews feat/1.0-data code; Ghazal reviews docs/data/RECONCILE-2026-11-03.md and decides «حمّل». Only then Codex loads staging and records actual counts plus a zero-change second comparison. Current staging is untouched; post-load reconciliation remains pending.
+Claude reviews feat/1.0-data and docs/data/RECONCILE-2026-11-03.md. Ghazal can use docs/data/README.md to run the local API against staging. Accept/resolve source gaps and the older-backup drift before claiming complete current data or considering production migration.
 
 ## Open problems / decisions
-- Accept/resolve the explicit gaps before claiming a complete dataset. Source reads use a rowversion-stability check, not snapshot isolation; live-versus-backup drift is unverified because restore was not needed.
-- SQL Server indexes are implemented but provider execution is not verified by the synthetic SQLite tests. Production storage remains unchanged.
+- Backup loaded 38 fewer documents than the prior live dry-run: 10 people/profiles, 10 vehicle assignments, 18 custody events. Nested history also differs; exact counts are documented. No schema column/key/FK drift across the 224 tables; row counts changed.
+- Missing three CR numbers and sponsorship-period source table; 14 invalid identities and 16 employees without required profiles excluded; two non-custody events excluded. No dates/values invented. ERP production and Payroll production SQLite were never written.
+- Six optional SQL-backed suite cases were skipped; actual approved importer execution on staging was verified separately. Production remains SQLite.
 
 ## How to verify
 ```bash
 dotnet build tests/Engine.Tests/Engine.Tests.csproj --no-restore -p:SkipFrontendBuild=true -m:1
 env -u PAYROLL_TEST_SQL_CONNECTION ConnectionStrings__DefaultConnection= dotnet test tests/Engine.Tests/Engine.Tests.csproj --no-build --no-restore
+node tests/api-cleanup.mjs
 python3 scripts/release_source.py --check
 git diff --check
-# Approved off-hours only; default is SELECT-only dry-run:
-dotnet tools/ErpImport/bin/Debug/net10.0/ErpImport.dll --dry-run
+# Preserved local-copy start and SELECT-only comparison: see docs/data/README.md.
 ```

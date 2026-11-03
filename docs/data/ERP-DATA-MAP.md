@@ -1,20 +1,22 @@
 # ERP data map — 2026-11-03
 
-Source: approved live read-only SQL account; schema metadata exposes 224 tables. Source code: gate-erp sync `d343d63`, verified clone provenance `4eab10c`. Runtime data is newer evidence than historical migration scripts. No source/production writes. No backup restore was needed: the prompt update explicitly replaces it with direct live reads.
+Source loaded into staging: local READ_ONLY `erp_copy`, restored from the approved 2026-11-03 backup in SQL Server 2025 (major 17). Backup header: started 2026-11-03 11:05:49, finished 11:05:55 (server-clock timezone is not recorded). Both local and prior live schema expose 224 tables. Source code: gate-erp sync `d343d63`, verified clone provenance `4eab10c`. Runtime data is newer evidence than historical migration scripts. No source/production writes. The live commit attempt was safely refused after a changing read; snapshot isolation was already disabled and was not altered. The prompt explicitly permits a local backup fallback in this case. The original backup remained unchanged; docker cp bytes were verified by SHA-256. Local volume and SA env remain only beneath Private/gate-data/mssql.
 
-Source rows were read once per allowlisted table, ordered by primary key. Read window: 2026-11-03T17:33:48.155657+00:00 to 2026-11-03T17:33:55.9823992+00:00 (UTC); approximately 8 seconds. Between the first and final dry-runs, assignments increased by one and custody events by three; this is live-source movement between runs, not a destination write. Database rowversion was unchanged across the read; this is a read-committed consistency check, not a transactional snapshot or proof against hard deletes. Target schema was empty before dry-run; no Store construction or target DDL/DML occurred.
+Source rows were read once per allowlisted table, ordered by primary key. Read window: 2026-11-03T17:58:31.0969517+00:00 to 2026-11-03T17:58:31.2474698+00:00 (UTC); approximately 0.15 seconds. The local database was READ_ONLY before the read, so the loaded dataset is stable. Under Ghazal’s prior explicit load approval, the first transaction saved 6451 domain documents and 6451 audit rows. Earlier live dry-runs used a database-rowversion stability check; a later unstable read was refused before any staging writes.
 
 ## Classification rules
 
-- `Entities/Workforce/Employee.cs:26` (`IsEmployee`) and `:27` (`EngagementType`); `Entities/Workforce/RiderProfile.cs:8` links the employee to a rider profile. A rider requires an existing rider profile; administrative employees without one are not fabricated into riders. `IsEmployee` is preserved as a separate flag and never used alone to discard a sponsored rider.
-- `Enums/WorkforceEnums.cs:16`: code `1=SponsoredInternal`, `2=OutsideRider`; target maps the latter to `External`. Current SponsorId does not override this enum. Valid candidates include 432 sponsored and 1708 external riders; 14 invalid identities and 16 employees without rider profiles are excluded.
-- A platform account owner is `PlatformRiderAccounts.RegisteredEmployeeId`. Operators come from dated `RiderClientAssignments.RiderProfileId`; they are not inferred from the owner. PaymentModel and NinjaRiderType are preserved as codes, not interpreted as payroll rules.
-- `EmployeeSponsorshipPeriods` is absent in the visible live schema and absent from the current Application model snapshot. It appears in historical `database/scripts/application.sql:3585`, with an eventual DROP at `:6344`. No historical sponsorship dates are inferred from HireDate or current SponsorId.
-- Sponsors match the existing Payroll sponsor catalog only by an unambiguous registration/employer/unified identity. All three match existing keys. All three Sponsor commercial registration numbers are missing: target CR rows are rejected rather than invented; sponsor active dates are not CR issue/expiry dates.
+- `src/LogisticsERP.Domain/Entities/Workforce/Employee.cs:26` defines `IsEmployee`; it means administrative staff, not sponsorship. `WorkforceService.cs:180` records Administrative/Rider roles; `:347` excludes staff from the dedicated rider list. `Gate-Front-master/src/app/admin/employees/[employeeId]/page.tsx:680` requires both a rider profile and `!isEmployee` for rider UI.
+- A profile is not proof of delivery work: `src/LogisticsERP.Infrastructure/Hr/WorkforceService.cs:128-158` allows opening vehicle/account profiles for administrative employees. `Gate-Front-master/src/components/employees/EmployeePlatformAccounts.tsx:569` explicitly explains that staff keep `isEmployee: true` while owning/using platform accounts and remain outside the dedicated rider list.
+- Source aggregates: 394 sponsored delivery-rider profiles; 1712 external delivery-rider profiles (14 invalid identities excluded, leaving 1698); 38 administrative profiles; 15 external employees and one administrator have no profile. Loaded people/profile records therefore total 2130: **2092 delivery riders and 38 administrative profiles**. They remain separate roles; administrative references are retained rather than deleted.
+- `Enums/WorkforceEnums.cs:16`: relationship code `1=SponsoredInternal`, `2=OutsideRider` (target `External`) is independent of the staff/delivery role. Current SponsorId does not override either field. Source `IsEmployee` remains intact; `personRole` and `isDeliveryRider` make it explicit. The rider directory/search/dashboard/data-quality views exclude only imported administrative profiles; legacy records keep their behavior.
+- Platform account ownership is `PlatformRiderAccounts.RegisteredEmployeeId`; dated operators come from `RiderClientAssignments.RiderProfileId`. Ownership does not identify the working rider or imply payroll eligibility. PaymentModel and NinjaRiderType remain codes, not assumed payroll policies.
+- `EmployeeSponsorshipPeriods` is absent in the live/restored schema and current model. Historical `database/scripts/application.sql:3585` creates it and `:6344` drops it. No historical dates are inferred from HireDate/current SponsorId.
+- Sponsors match existing Payroll company keys only through unambiguous registration/employer/unified identities. All three keys match. All Sponsor CR numbers are missing: no CR rows or issue/expiry dates are invented; sponsor activity dates are not CR dates.
 
 ## Schema and source evidence
 
-Counts marked `exact` came from the single-pass reader; other counts are `sys.partitions` metadata estimates. PK/unique/FK definitions below are read from the live SQL catalog. Soft deletion is preserved, not physically applied.
+Counts marked `exact` came from the single-pass reader; other counts are `sys.partitions` metadata estimates. PK/unique-index key membership and FKs below come from the restored SQL catalog, compared with the prior live catalog. A unique label identifies an index component, not unconditional uniqueness of that column. Filter predicates were not exported; in particular, ClientConfigurations.cs:122-135 limits some RiderClientAssignments indexes to current, non-deleted rows. The importer preserves dated history rather than assuming one account/operator for all time. Soft deletion is preserved, not physically applied.
 
 ## Riders / employees
 
@@ -26,11 +28,11 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 - Page: `Gate-Front-master/src/app/admin/employees/page.tsx:126`.
 - Page: `Gate-Front-master/src/app/admin/employees/[employeeId]/page.tsx:460`.
 
-### app.Employees — 2170 rows (exact)
+### app.Employees — 2160 rows (exact)
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
+| Id | uniqueidentifier | no | PK PK_Employees #1 |
 | FullNameAr | nvarchar(200) | no |  |
 | FullNameEn | nvarchar(200) | yes |  |
 | WorkingForMeAs | nvarchar(200) | yes |  |
@@ -59,7 +61,7 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 | EmergencyContactRelationship | nvarchar(100) | yes |  |
 | EngagementType | int | no |  |
 | Gender | int | yes |  |
-| IqamaNo | varchar(10) | yes | unique |
+| IqamaNo | varchar(10) | yes | unique-index IX_Employees_IqamaNo #1 |
 | IsEmployee | bit | no |  |
 | Nationality | nvarchar(100) | yes |  |
 | OperatingCityId | uniqueidentifier | yes | FK → app.OperatingCities.Id |
@@ -79,12 +81,12 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 | AddressPostalCode | nvarchar(32) | yes |  |
 | AddressStreet | nvarchar(200) | yes |  |
 
-### app.RiderProfiles — 2154 rows (exact)
+### app.RiderProfiles — 2144 rows (exact)
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | unique; PK |
-| EmployeeId | uniqueidentifier | no | unique; unique; FK → app.Employees.Id |
+| Id | uniqueidentifier | no | unique-index AK_RiderProfiles_Id_EmployeeId #1; PK PK_RiderProfiles #1 |
+| EmployeeId | uniqueidentifier | no | unique-index AK_RiderProfiles_Id_EmployeeId #2; unique-index IX_RiderProfiles_EmployeeId #1; FK → app.Employees.Id |
 | OperationalNotes | nvarchar(4000) | yes |  |
 | CreatedAtUtc | datetimeoffset | no |  |
 | CreatedByUserId | uniqueidentifier | yes |  |
@@ -97,11 +99,11 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 | DeletionReason | nvarchar(500) | yes |  |
 | TShirtSize | int | yes |  |
 
-### app.EmployeeWorkHistory — 2727 rows (metadata estimate)
+### app.EmployeeWorkHistory — 2677 rows (metadata estimate)
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
+| Id | uniqueidentifier | no | PK PK_EmployeeWorkHistory #1 |
 | EmployeeId | uniqueidentifier | no | FK → app.Employees.Id |
 | ChangeType | int | no |  |
 | OldValue | nvarchar(1000) | yes |  |
@@ -116,13 +118,13 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| Number | int | no | unique |
+| Id | uniqueidentifier | no | PK PK_PayrollEmployees #1 |
+| Number | int | no | unique-index IX_PayrollEmployees_Number #1 |
 | Name | nvarchar(200) | no |  |
-| NationalId | varchar(10) | no | unique |
+| NationalId | varchar(10) | no | unique-index IX_PayrollEmployees_NationalId #1 |
 | Country | nvarchar(100) | no |  |
 | JoiningDate | date | no |  |
-| PersonalIban | varchar(24) | no | unique |
+| PersonalIban | varchar(24) | no | unique-index IX_PayrollEmployees_PersonalIban #1 |
 | Salary | decimal(18,2) | no |  |
 | Status | nvarchar(100) | no |  |
 | CreatedAtUtc | datetimeoffset | no |  |
@@ -148,12 +150,12 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
+| Id | uniqueidentifier | no | PK PK_Sponsors #1 |
 | CompanyProfileId | uniqueidentifier | no | FK → platform.CompanyProfile.Id |
-| EmployerIdentityNumber | nvarchar(100) | no | unique |
+| EmployerIdentityNumber | nvarchar(100) | no | unique-index IX_Sponsors_EmployerIdentityNumber #1 |
 | RegistryNameAr | nvarchar(200) | no |  |
 | RegistryNameEn | nvarchar(200) | yes |  |
-| CommercialRegistrationNumber | nvarchar(100) | yes | unique |
+| CommercialRegistrationNumber | nvarchar(100) | yes | unique-index IX_Sponsors_CommercialRegistrationNumber #1 |
 | UnifiedNationalNumber | nvarchar(100) | yes |  |
 | SponsorType | int | no |  |
 | Status | int | no |  |
@@ -183,8 +185,8 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| Code | nvarchar(32) | no | unique |
+| Id | uniqueidentifier | no | PK PK_CompanyProfile #1 |
+| Code | nvarchar(32) | no | unique-index IX_CompanyProfile_Code #1 |
 | LegalNameAr | nvarchar(200) | no |  |
 | LegalNameEn | nvarchar(200) | no |  |
 | DisplayNameAr | nvarchar(200) | no |  |
@@ -230,8 +232,8 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| Code | nvarchar(32) | no | unique |
+| Id | uniqueidentifier | no | PK PK_GlobalCities #1 |
+| Code | nvarchar(32) | no | unique-index IX_GlobalCities_Code #1 |
 | NameAr | nvarchar(200) | no |  |
 | NameEn | nvarchar(200) | no |  |
 | RegionAr | nvarchar(200) | no |  |
@@ -255,8 +257,8 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| GlobalCityId | uniqueidentifier | no | unique; FK → platform.GlobalCities.Id |
+| Id | uniqueidentifier | no | PK PK_OperatingCities #1 |
+| GlobalCityId | uniqueidentifier | no | unique-index IX_OperatingCities_GlobalCityId #1; FK → platform.GlobalCities.Id |
 | EnabledFrom | date | no |  |
 | DisabledAt | date | yes |  |
 | Status | int | no |  |
@@ -284,8 +286,8 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| Code | nvarchar(32) | no | unique |
+| Id | uniqueidentifier | no | PK PK_Housing #1 |
+| Code | nvarchar(32) | no | unique-index IX_Housing_Code #1 |
 | NameAr | nvarchar(200) | no |  |
 | NameEn | nvarchar(200) | no |  |
 | CityId | uniqueidentifier | no | FK → platform.GlobalCities.Id |
@@ -317,9 +319,9 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| HousingId | uniqueidentifier | no | unique; FK → app.Housing.Id |
-| Name | nvarchar(100) | no | unique |
+| Id | uniqueidentifier | no | PK PK_HousingFloors #1 |
+| HousingId | uniqueidentifier | no | unique-index IX_HousingFloors_HousingId_Name #1; FK → app.Housing.Id |
+| Name | nvarchar(100) | no | unique-index IX_HousingFloors_HousingId_Name #2 |
 | CreatedAtUtc | datetimeoffset | no |  |
 | CreatedByUserId | uniqueidentifier | yes |  |
 | UpdatedAtUtc | datetimeoffset | yes |  |
@@ -334,9 +336,9 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
+| Id | uniqueidentifier | no | PK PK_HousingRooms #1 |
 | HousingId | uniqueidentifier | no | FK → app.Housing.Id |
-| Name | nvarchar(100) | no | unique |
+| Name | nvarchar(100) | no | unique-index IX_HousingRooms_FloorId_Name #2 |
 | Capacity | int | no |  |
 | CurrentOccupancy | int | no |  |
 | CreatedAtUtc | datetimeoffset | no |  |
@@ -348,15 +350,15 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 | DeletedAtUtc | datetimeoffset | yes |  |
 | DeletedByUserId | uniqueidentifier | yes |  |
 | DeletionReason | nvarchar(500) | yes |  |
-| FloorId | uniqueidentifier | no | unique; FK → app.HousingFloors.Id |
+| FloorId | uniqueidentifier | no | unique-index IX_HousingRooms_FloorId_Name #1; FK → app.HousingFloors.Id |
 | Notes | nvarchar(2000) | yes |  |
 
 ### app.HousingResidencePeriods — 200 rows (exact)
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| EmployeeId | uniqueidentifier | no | unique; FK → app.Employees.Id |
+| Id | uniqueidentifier | no | PK PK_HousingResidencePeriods #1 |
+| EmployeeId | uniqueidentifier | no | unique-index IX_HousingResidencePeriods_EmployeeId #1; FK → app.Employees.Id |
 | EffectiveFrom | date | no |  |
 | EffectiveTo | date | yes |  |
 | MoveInReason | nvarchar(1000) | yes |  |
@@ -377,7 +379,7 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
+| Id | uniqueidentifier | no | PK PK_HousingExternalOccupants #1 |
 | RoomId | uniqueidentifier | no | FK → app.HousingRooms.Id |
 | Name | nvarchar(200) | no |  |
 | CreatedAtUtc | datetimeoffset | no |  |
@@ -394,9 +396,9 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
+| Id | uniqueidentifier | no | PK PK_HousingPendingOccupants #1 |
 | RoomId | uniqueidentifier | no | FK → app.HousingRooms.Id |
-| IqamaNo | nvarchar(20) | no | unique |
+| IqamaNo | nvarchar(20) | no | unique-index IX_HousingPendingOccupants_IqamaNo #1 |
 | Name | nvarchar(200) | no |  |
 | SourceRow | int | no |  |
 | CreatedAtUtc | datetimeoffset | no |  |
@@ -423,17 +425,17 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
+| Id | uniqueidentifier | no | PK PK_Vehicles #1 |
 | AssetNumber | nvarchar(64) | no |  |
-| NormalizedAssetNumber | nvarchar(64) | no | unique |
+| NormalizedAssetNumber | nvarchar(64) | no | unique-index IX_Vehicles_NormalizedAssetNumber #1 |
 | PlateNumberAr | nvarchar(32) | yes |  |
-| NormalizedPlateNumberAr | nvarchar(32) | yes | unique |
+| NormalizedPlateNumberAr | nvarchar(32) | yes | unique-index IX_Vehicles_NormalizedPlateNumberAr #1 |
 | PlateNumberEn | nvarchar(32) | yes |  |
-| NormalizedPlateNumberEn | nvarchar(32) | yes | unique |
+| NormalizedPlateNumberEn | nvarchar(32) | yes | unique-index IX_Vehicles_NormalizedPlateNumberEn #1 |
 | PlateLettersAr | nvarchar(8) | yes |  |
 | PlateLettersEn | nvarchar(8) | yes |  |
 | PlateDigits | nvarchar(8) | yes |  |
-| Vin | nvarchar(64) | yes | unique |
+| Vin | nvarchar(64) | yes | unique-index IX_Vehicles_Vin #1 |
 | ChassisNumber | nvarchar(100) | yes |  |
 | EngineNumber | nvarchar(100) | yes |  |
 | VehicleManufacturerId | uniqueidentifier | no | FK → app.VehicleManufacturers.Id; FK → app.VehicleModels.VehicleManufacturerId |
@@ -466,8 +468,8 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 | DeletionReason | nvarchar(500) | yes |  |
 | OperatingCityId | uniqueidentifier | yes | FK → app.OperatingCities.Id |
 | SponsorId | uniqueidentifier | yes | FK → app.Sponsors.Id |
-| NormalizedChassisNumber | nvarchar(100) | yes | unique |
-| NormalizedSerialNumber | nvarchar(100) | yes | unique |
+| NormalizedChassisNumber | nvarchar(100) | yes | unique-index IX_Vehicles_NormalizedChassisNumber #1 |
+| NormalizedSerialNumber | nvarchar(100) | yes | unique-index IX_Vehicles_NormalizedSerialNumber #1 |
 | PurchasedFromSupplierId | uniqueidentifier | yes | FK → app.VehicleSuppliers.Id |
 | RegistrationType | int | yes |  |
 | SerialNumber | nvarchar(100) | yes |  |
@@ -479,8 +481,8 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| VehicleId | uniqueidentifier | no | unique; FK → app.Vehicles.Id |
+| Id | uniqueidentifier | no | PK PK_VehicleRegistrations #1 |
+| VehicleId | uniqueidentifier | no | unique-index IX_VehicleRegistrations_VehicleId #1; FK → app.Vehicles.Id |
 | RegistrationNumber | nvarchar(150) | no |  |
 | IssuingAuthority | nvarchar(200) | no |  |
 | IssueDate | date | no |  |
@@ -504,10 +506,10 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| VehicleId | uniqueidentifier | no | unique; unique; FK → app.Vehicles.Id |
+| Id | uniqueidentifier | no | PK PK_VehicleInsurancePolicies #1 |
+| VehicleId | uniqueidentifier | no | unique-index IX_VehicleInsurancePolicies_VehicleId #1; unique-index IX_VehicleInsurancePolicies_VehicleId_PolicyNumber #1; FK → app.Vehicles.Id |
 | ProviderName | nvarchar(200) | no |  |
-| PolicyNumber | nvarchar(150) | no | unique |
+| PolicyNumber | nvarchar(150) | no | unique-index IX_VehicleInsurancePolicies_VehicleId_PolicyNumber #2 |
 | CoverageType | nvarchar(200) | yes |  |
 | EffectiveFrom | date | no |  |
 | ExpiryDate | date | no |  |
@@ -532,8 +534,8 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| VehicleId | uniqueidentifier | no | unique; FK → app.Vehicles.Id |
+| Id | uniqueidentifier | no | PK PK_VehicleOperationCards #1 |
+| VehicleId | uniqueidentifier | no | unique-index IX_VehicleOperationCards_VehicleId #1; FK → app.Vehicles.Id |
 | CardNumber | nvarchar(150) | no |  |
 | IssuingAuthority | nvarchar(200) | no |  |
 | IssueDate | date | no |  |
@@ -553,12 +555,12 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 | DeletedByUserId | uniqueidentifier | yes |  |
 | DeletionReason | nvarchar(500) | yes |  |
 
-### app.VehicleOperationalStatusPeriods — 2785 rows (metadata estimate)
+### app.VehicleOperationalStatusPeriods — 2768 rows (metadata estimate)
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| VehicleId | uniqueidentifier | no | unique; FK → app.Vehicles.Id |
+| Id | uniqueidentifier | no | PK PK_VehicleOperationalStatusPeriods #1 |
+| VehicleId | uniqueidentifier | no | unique-index IX_VehicleOperationalStatusPeriods_VehicleId #1; FK → app.Vehicles.Id |
 | Status | int | no |  |
 | EffectiveFromUtc | datetimeoffset | no |  |
 | EffectiveToUtc | datetimeoffset | yes |  |
@@ -585,13 +587,13 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 - Page: `Gate-Front-master/src/app/admin/fleet/vehicles/[id]/history/page.tsx:1`.
 - Page: `Gate-Front-master/src/app/admin/fleet/vehicles/[id]/events/page.tsx:11`.
 
-### app.RiderVehicleAssignments — 810 rows (exact)
+### app.RiderVehicleAssignments — 800 rows (exact)
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| RiderProfileId | uniqueidentifier | no | unique; FK → app.RiderProfiles.Id |
-| VehicleId | uniqueidentifier | no | unique; FK → app.Vehicles.Id |
+| Id | uniqueidentifier | no | PK PK_RiderVehicleAssignments #1 |
+| RiderProfileId | uniqueidentifier | no | unique-index IX_RiderVehicleAssignments_RiderProfileId #1; FK → app.RiderProfiles.Id |
+| VehicleId | uniqueidentifier | no | unique-index IX_RiderVehicleAssignments_VehicleId #1; FK → app.Vehicles.Id |
 | OperationId | uniqueidentifier | no |  |
 | PreviousAssignmentId | uniqueidentifier | yes | FK → app.RiderVehicleAssignments.Id |
 | StartedAtUtc | datetimeoffset | no |  |
@@ -628,11 +630,11 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 | StartLocationSnapshot | nvarchar(400) | yes |  |
 | IsRealRider | bit | no |  |
 
-### app.RiderVehicleAssignmentEvents — 881 rows (exact)
+### app.RiderVehicleAssignmentEvents — 863 rows (exact)
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
+| Id | uniqueidentifier | no | PK PK_RiderVehicleAssignmentEvents #1 |
 | RiderVehicleAssignmentId | uniqueidentifier | no | FK → app.RiderVehicleAssignments.Id |
 | OperationId | uniqueidentifier | no |  |
 | EventType | int | no |  |
@@ -648,8 +650,8 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| RiderVehicleAssignmentId | uniqueidentifier | no | unique; FK → app.RiderVehicleAssignments.Id |
+| Id | uniqueidentifier | no | PK PK_RealRiders #1 |
+| RiderVehicleAssignmentId | uniqueidentifier | no | unique-index IX_RealRiders_RiderVehicleAssignmentId #1; FK → app.RiderVehicleAssignments.Id |
 | Name | nvarchar(200) | no |  |
 | IqamaNo | varchar(10) | no |  |
 | RelationshipToAssignedRider | nvarchar(200) | no |  |
@@ -670,8 +672,8 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| Code | nvarchar(32) | no | unique |
+| Id | uniqueidentifier | no | PK PK_ClientPlatforms #1 |
+| Code | nvarchar(32) | no | unique-index IX_ClientPlatforms_Code #1 |
 | NameAr | nvarchar(200) | no |  |
 | NameEn | nvarchar(200) | no |  |
 | DescriptionAr | nvarchar(500) | yes |  |
@@ -694,10 +696,10 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| ClientPlatformId | uniqueidentifier | no | unique; unique; FK → platform.ClientPlatforms.Id |
-| Code | nvarchar(32) | no | unique |
-| ExternalAccountId | nvarchar(150) | no | unique |
+| Id | uniqueidentifier | no | PK PK_PlatformRiderAccounts #1 |
+| ClientPlatformId | uniqueidentifier | no | unique-index IX_PlatformRiderAccounts_ClientPlatformId_ExternalAccountId #1; unique-index IX_PlatformRiderAccounts_RegisteredEmployeeId_ClientPlatformId_OperatingCityId_SponsorId #2; FK → platform.ClientPlatforms.Id |
+| Code | nvarchar(32) | no | unique-index IX_PlatformRiderAccounts_Code #1 |
+| ExternalAccountId | nvarchar(150) | no | unique-index IX_PlatformRiderAccounts_ClientPlatformId_ExternalAccountId #2 |
 | UserName | nvarchar(150) | yes |  |
 | Status | int | no |  |
 | StatusReason | nvarchar(500) | yes |  |
@@ -715,19 +717,19 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 | DeletedAtUtc | datetimeoffset | yes |  |
 | DeletedByUserId | uniqueidentifier | yes |  |
 | DeletionReason | nvarchar(500) | yes |  |
-| OperatingCityId | uniqueidentifier | no | unique; FK → app.OperatingCities.Id |
-| RegisteredEmployeeId | uniqueidentifier | yes | unique; FK → app.Employees.Id |
+| OperatingCityId | uniqueidentifier | no | unique-index IX_PlatformRiderAccounts_RegisteredEmployeeId_ClientPlatformId_OperatingCityId_SponsorId #3; FK → app.OperatingCities.Id |
+| RegisteredEmployeeId | uniqueidentifier | yes | unique-index IX_PlatformRiderAccounts_RegisteredEmployeeId_ClientPlatformId_OperatingCityId_SponsorId #1; FK → app.Employees.Id |
 | PaymentModel | int | no |  |
-| SponsorId | uniqueidentifier | yes | unique; FK → app.Sponsors.Id |
+| SponsorId | uniqueidentifier | yes | unique-index IX_PlatformRiderAccounts_RegisteredEmployeeId_ClientPlatformId_OperatingCityId_SponsorId #4; FK → app.Sponsors.Id |
 
-### app.RiderClientAssignments — 1033 rows (exact)
+### app.RiderClientAssignments — 1024 rows (exact)
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| RiderProfileId | uniqueidentifier | no | unique; unique; FK → app.RiderProfiles.Id |
+| Id | uniqueidentifier | no | PK PK_RiderClientAssignments #1 |
+| RiderProfileId | uniqueidentifier | no | unique-index IX_RiderClientAssignments_RiderProfileId_PaymentModel #1; unique-index IX_RiderClientAssignments_RiderProfileId_RiderAccountSlot #1; FK → app.RiderProfiles.Id |
 | ClientContractId | uniqueidentifier | no | FK → app.ClientContracts.Id |
-| PlatformRiderAccountId | uniqueidentifier | no | unique; FK → app.PlatformRiderAccounts.Id |
+| PlatformRiderAccountId | uniqueidentifier | no | unique-index IX_RiderClientAssignments_PlatformRiderAccountId #1; FK → app.PlatformRiderAccounts.Id |
 | EffectiveFrom | date | no |  |
 | EffectiveTo | date | yes |  |
 | Status | int | no |  |
@@ -748,15 +750,15 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 | DeletedAtUtc | datetimeoffset | yes |  |
 | DeletedByUserId | uniqueidentifier | yes |  |
 | DeletionReason | nvarchar(500) | yes |  |
-| PaymentModel | int | no | unique |
-| RiderAccountSlot | int | no | unique |
+| PaymentModel | int | no | unique-index IX_RiderClientAssignments_RiderProfileId_PaymentModel #2 |
+| RiderAccountSlot | int | no | unique-index IX_RiderClientAssignments_RiderProfileId_RiderAccountSlot #2 |
 | NinjaRiderType | nvarchar(32) | yes |  |
 
-### app.PlatformAccountRegistrations — 294 rows (exact)
+### app.PlatformAccountRegistrations — 290 rows (exact)
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
+| Id | uniqueidentifier | no | PK PK_PlatformAccountRegistrations #1 |
 | RegisteredEmployeeId | uniqueidentifier | no | FK → app.Employees.Id; FK → app.RiderProfiles.EmployeeId |
 | RiderProfileId | uniqueidentifier | no | FK → app.RiderProfiles.Id |
 | ClientPlatformId | uniqueidentifier | no | FK → app.ClientContracts.ClientPlatformId; FK → platform.ClientPlatforms.Id |
@@ -768,7 +770,7 @@ Counts marked `exact` came from the single-pass reader; other counts are `sys.pa
 | StatusReason | nvarchar(1000) | yes |  |
 | RequestedAtUtc | datetimeoffset | yes |  |
 | ActivatedAtUtc | datetimeoffset | yes |  |
-| PlatformRiderAccountId | uniqueidentifier | yes | unique; FK → app.PlatformRiderAccounts.Id |
+| PlatformRiderAccountId | uniqueidentifier | yes | unique-index IX_PlatformAccountRegistrations_PlatformRiderAccountId #1; FK → app.PlatformRiderAccounts.Id |
 | Notes | nvarchar(4000) | yes |  |
 | CreatedAtUtc | datetimeoffset | no |  |
 | CreatedByUserId | uniqueidentifier | yes |  |
@@ -800,8 +802,8 @@ No visible source table; no fabricated import.
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| CaseNumber | nvarchar(100) | no | unique |
+| Id | uniqueidentifier | no | PK PK_HrLegalCases #1 |
+| CaseNumber | nvarchar(100) | no | unique-index IX_HrLegalCases_CaseNumber #1 |
 | PersonName | nvarchar(250) | no |  |
 | PersonType | int | no |  |
 | EmployeeId | uniqueidentifier | yes | FK → app.Employees.Id |
@@ -828,9 +830,9 @@ No visible source table; no fabricated import.
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
-| LegalCaseId | uniqueidentifier | no | unique; FK → app.HrLegalCases.Id |
-| HearingNumber | int | no | unique |
+| Id | uniqueidentifier | no | PK PK_HrLegalCaseHearings #1 |
+| LegalCaseId | uniqueidentifier | no | unique-index IX_HrLegalCaseHearings_LegalCaseId_HearingNumber #1; FK → app.HrLegalCases.Id |
+| HearingNumber | int | no | unique-index IX_HrLegalCaseHearings_LegalCaseId_HearingNumber #2 |
 | HearingDate | date | no |  |
 | HearingTime | time | no |  |
 | Status | int | no |  |
@@ -851,7 +853,7 @@ No visible source table; no fabricated import.
 
 | Column | SQL type | Nullable | Key / relation |
 |---|---|---|---|
-| Id | uniqueidentifier | no | PK |
+| Id | uniqueidentifier | no | PK PK_HrLegalCaseHearingFiles #1 |
 | HearingId | uniqueidentifier | no | FK → app.HrLegalCaseHearings.Id |
 | OriginalFileName | nvarchar(255) | no |  |
 | StoredFileName | nvarchar(255) | no |  |
@@ -880,11 +882,71 @@ No visible source table; no fabricated import.
 
 Snapshot comparison is structural and includes owned-property column names; it does not prove migration history/application order. The live metadata is authoritative for the fields actually read. Compare the table/column lists above with the cited EF configurations when evolving the adapter.
 
-A backup-versus-live drift comparison was not run because the authorized live-source update made restore optional. No claim is made that the .bak matches the live source.
+Backup versus prior live metadata: same 224 table names, zero column-definition differences, zero PK/unique-index key-column differences, and zero FK-definition differences. Metadata row counts differ for 55 tables. The counts below are snapshot observations, not claims about the current live state or individual field equality.
 
-Reference-only context: `docs/rider-chefz-jahez-assignment-limits.md:11` distinguishes ownership from dated assignment slots; `tools/LogisticsERP.NinjaPerformance/Program.cs:18` separates inspection/rehearsal from applying changes. These tools were read, never executed.
+Reference-only context: `docs/rider-chefz-jahez-assignment-limits.md:11` distinguishes ownership from dated assignment slots; `tools/LogisticsERP.NinjaPerformance/Program.cs:18` separates inspect/rehearse/apply. Those tools were read, never executed.
 
 Additional reference-only schema files: `~/Projects/ref/erp-github/Logistic-ERP/database/scripts/application.sql` (CREATE/ALTER/DROP definitions only). Operational scripts in tools/ and database/scripts/ are not executed or copied. Ninja/Chefz docs are context for account/payment-model codes; no settlement rules or individual amounts are imported.
+
+### Live versus backup metadata row-count drift
+
+| Table | Earlier live metadata | Restored backup metadata |
+|---|---:|---:|
+| app.EmployeeDocuments | 2564 | 2540 |
+| app.EmployeeDocumentVersions | 2048 | 2024 |
+| app.Employees | 2170 | 2160 |
+| app.EmployeeWorkHistory | 2727 | 2677 |
+| app.FleetCommandReceipts | 537 | 522 |
+| app.FuelCardImports | 29 | 27 |
+| app.FuelCardRiderAssignments | 666 | 660 |
+| app.Notifications | 39074 | 38008 |
+| app.PlatformAccountCredentialVersions | 269 | 266 |
+| app.PlatformAccountDayUsages | 1360 | 1343 |
+| app.PlatformAccountRegistrations | 294 | 290 |
+| app.RiderAssignmentEvents | 1625 | 1607 |
+| app.RiderClientAssignments | 1033 | 1024 |
+| app.RiderProfiles | 2154 | 2144 |
+| app.RiderVehicleAssignmentEvents | 878 | 863 |
+| app.RiderVehicleAssignments | 809 | 800 |
+| app.VehicleDailyDistances | 9770 | 9757 |
+| app.VehicleOdometerReadings | 12620 | 12583 |
+| app.VehicleOperationalStatusPeriods | 2785 | 2768 |
+| audit.AuditEntries | 349673 | 331025 |
+| chefz.DailyPerformance | 5035 | 4912 |
+| chefz.DailyPerformanceSources | 5029 | 4906 |
+| chefz.ImportedOrderRows | 9574 | 0 |
+| chefz.OrderSettlementImports | 6 | 3 |
+| chefz.PerformanceImports | 33 | 32 |
+| chefz.WalletSettlements | 496 | 241 |
+| identity.UserSessions | 13422 | 13138 |
+| jahez_v2.AccountFees | 87 | 83 |
+| jahez_v2.AccountingEntries | 30010 | 27619 |
+| jahez_v2.AccountSessions | 400 | 396 |
+| jahez_v2.CashboxHandoverMovements | 617 | 568 |
+| jahez_v2.CashboxHandovers | 15 | 14 |
+| jahez_v2.CommandReceipts | 1770 | 1690 |
+| jahez_v2.ImportBatches | 72 | 71 |
+| jahez_v2.ImportFiles | 72 | 71 |
+| jahez_v2.ImportRows | 47459 | 46405 |
+| jahez_v2.MoneyMovements | 563 | 532 |
+| jahez_v2.Operations | 577 | 543 |
+| jahez_v2.PlatformTransactions | 15076 | 14022 |
+| jahez_v2.RequestDecisions | 27 | 24 |
+| jahez_v2.Requests | 29 | 26 |
+| jahez_v2.TransferredDebts | 24 | 21 |
+| jahez_v3.Ownership | 1250 | 1178 |
+| maintenance.MaterialUsages | 1353 | 1341 |
+| maintenance.OilBarrelLosses | 14 | 13 |
+| maintenance.OilBarrelUsageAllocations | 1353 | 1341 |
+| maintenance.OilChangeOperations | 1324 | 1313 |
+| maintenance.OilChangeRevisions | 10 | 9 |
+| maintenance.StockCostAllocations | 1367 | 1354 |
+| maintenance.StockMovementLines | 1386 | 1373 |
+| maintenance.StockMovements | 1375 | 1362 |
+| maintenance.VehicleExpenses | 1355 | 1343 |
+| maintenance.VehicleSchedules | 370 | 367 |
+| ninja.NinjaAccountUpdateRows | 481 | 293 |
+| ninja.NinjaAccountUpdateUploads | 3 | 2 |
 
 ### Other visible tables absent from current snapshot models
 
@@ -900,12 +962,12 @@ Additional reference-only schema files: `~/Projects/ref/erp-github/Logistic-ERP/
 - `identity.UserRoleAssignments` (metadata rows: 144).
 - `identity.UserRoles` (metadata rows: 0).
 - `identity.Users` (metadata rows: 36).
-- `identity.UserSessions` (metadata rows: 13422).
+- `identity.UserSessions` (metadata rows: 13138).
 - `identity.UserTokens` (metadata rows: 0).
 - `migration.__ApplicationMigrationsHistory` (metadata rows: 106).
 - `migration.__IdentityMigrationsHistory` (metadata rows: 25).
 
-These are outside the imported areas; historical migrations may describe them. Their presence is not a claim that a pending migration should be applied.
+These are outside the imported areas; historical migrations may describe them. No migration was applied to ERP.
 
 ## Enum code definitions (from source, no row values)
 
