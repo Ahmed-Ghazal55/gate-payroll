@@ -31,6 +31,16 @@ try{
   const paged=await req('/api/'+suffix+'?page=1&pageSize=999');assert.ok(Array.isArray(paged.items));assert.equal(paged.pageSize,200);assert.equal(paged.total,JSON.parse(original).length);checks++;
  }
  await req('/api/riders?page=0',undefined,'GET',400);
+ // Read state belongs to the user; personal and permission-gated notifications stay private.
+ const general=await req('/api/notifications/center',{titleAr:'إشعار عام مصطنع',bodyAr:'اختبار'});
+ const personal=await req('/api/notifications/center',{titleAr:'إشعار خاص مصطنع',bodyAr:'اختبار',assignedTo:'synthetic-admin'});
+ let inbox=await req('/api/notifications?category=general&unread=true&page=1');assert.ok(inbox.items.some(x=>x.id===general.id));
+ await req(`/api/notifications/${general.id}/read`,{});assert.ok(!(await req('/api/notifications?unread=true')).some(x=>x.id===general.id));
+ await req('/api/auth/login',{username:'synthetic-reader',password});
+ inbox=await req('/api/notifications?unread=true');assert.ok(inbox.some(x=>x.id===general.id));assert.ok(!inbox.some(x=>x.id===personal.id));
+ await req(`/api/notifications/${personal.id}/read`,{},'POST',404);
+ await req('/api/notifications/read-all',{});assert.equal((await req('/api/notifications/summary')).general,0);
+ cookie=admin;assert.ok((await req('/api/notifications?category=personal')).some(x=>x.id===personal.id));
  // Appendix B: edit alias, ownership, errors, lockout and rate limiting.
  const reader=(await req('/api/users')).find(x=>x.username==='synthetic-reader');
  await req(`/api/users/${reader.id}`,{department:'OPS'},'PUT');

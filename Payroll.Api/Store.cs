@@ -98,5 +98,9 @@ public sealed class Store
             insert.ExecuteNonQuery();
         }
     }
-    public static void Audit(DbConnection c, DbTransaction tx, string action, string entity, string actor) => Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = action, ["entityId"] = entity, ["actor"] = actor, ["at"] = DateTimeOffset.UtcNow.ToString("O") }, tx);
+    public static void Audit(DbConnection c, DbTransaction tx, string action, string entity, string actor)
+    {
+        Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = action, ["entityId"] = entity, ["actor"] = actor, ["at"] = DateTimeOffset.UtcNow.ToString("O") }, tx);
+        Notifications.OnAudit(c,tx,action,entity,actor);
+    }
 }

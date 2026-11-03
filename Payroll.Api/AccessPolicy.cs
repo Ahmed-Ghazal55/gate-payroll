@@ -80,6 +80,8 @@ public static class AccessPolicy
         if(path.StartsWith("/api/approvals",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&path.EndsWith("/decide",StringComparison.Ordinal)&&Has("approvals.decide");
         if(method=="DELETE"||path.EndsWith("/delete-preview",StringComparison.Ordinal)||path=="/api/submissions/bulk-delete"||method=="PUT"&&path.StartsWith("/api/campaigns/",StringComparison.Ordinal))return false;
         if(method=="POST"&&path.StartsWith("/api/notifications/center/",StringComparison.Ordinal)&&path.EndsWith("/toggle-todo",StringComparison.Ordinal))return true; // Handler checks view permission or ownership and visibility.
+        if(path=="/api/notifications"||path=="/api/notifications/summary")return method=="GET";
+        if(method=="POST"&&(path=="/api/notifications/read-all"||path.StartsWith("/api/notifications/",StringComparison.Ordinal)&&path.EndsWith("/read",StringComparison.Ordinal)))return true;
         if(path.StartsWith("/api/notifications",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&Has("mobile.broadcast");
         if(path=="/api/inquiry-access")return method=="POST"&&Has("inquiry.issue");
         if(path.StartsWith("/api/rider-mobile/firebase-config",StringComparison.Ordinal))return false;

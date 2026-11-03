@@ -110,9 +110,11 @@ api.AddEndpointFilter(async (context, next) => {
     var ctx=context.HttpContext;
     if (!AccessPolicy.Allowed(ctx.User,ctx.Request.Method,ctx.Request.Path.Value??"",context.Arguments.OfType<JsonObject>().FirstOrDefault()))
         return Results.Json(ApiErrors.Body(403), statusCode:403);
+    if(ctx.Request.Path=="/api/riders/data-quality")Notifications.EnsureDataQuality(store,ctx.User);
     return await next(context);
 });
 api.AddEndpointFilter(ApiPagination.Filter);
+Notifications.Map(api,store);
 TableExcelApi.Map(api, store);
 UserAccess.Map(api, store);
 RiderDirectory.Map(api, store);

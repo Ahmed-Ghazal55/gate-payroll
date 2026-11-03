@@ -440,6 +440,8 @@ public static class FinancialCore
             ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
         };
         Store.Save(c, "sys_notification", notif, tx);
+        Store.Audit(c,tx,"approval.request_created",req.S("id"),actor);
+        Store.Audit(c,tx,"notification.system_created",notif.S("id"),actor);
         return req;
     }
 
