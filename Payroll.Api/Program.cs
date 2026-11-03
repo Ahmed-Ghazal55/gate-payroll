@@ -112,6 +112,7 @@ api.AddEndpointFilter(async (context, next) => {
         return Results.Json(ApiErrors.Body(403), statusCode:403);
     return await next(context);
 });
+api.AddEndpointFilter(ApiPagination.Filter);
 TableExcelApi.Map(api, store);
 UserAccess.Map(api, store);
 RiderDirectory.Map(api, store);

@@ -24,6 +24,13 @@ try{
  await req('/api/users',{username:'synthetic-reader',password,role:'Reviewer'});
  await req('/api/auth/login',{username:'synthetic-reader',password});
  await req('/openapi/v1.json',undefined,'GET',403);cookie=admin;
+ // Opt-in pagination: untouched legacy bytes, bounded pages, search and sorting.
+ for(const suffix of ['riders','debts','finance/journals','submissions','audit','ledger','approvals','campaigns','forms/builder']){
+  const a=await fetch(base+'/api/'+suffix,{headers:{Cookie:admin}});const original=await a.text();assert.equal(a.status,200);
+  const b=await fetch(base+'/api/'+suffix+'?q=nonexistent&sort=-name&pageSize=invalid',{headers:{Cookie:admin}});assert.equal(await b.text(),original,'Legacy bytes changed: '+suffix);
+  const paged=await req('/api/'+suffix+'?page=1&pageSize=999');assert.ok(Array.isArray(paged.items));assert.equal(paged.pageSize,200);assert.equal(paged.total,JSON.parse(original).length);checks++;
+ }
+ await req('/api/riders?page=0',undefined,'GET',400);
  // Appendix B: edit alias, ownership, errors, lockout and rate limiting.
  const reader=(await req('/api/users')).find(x=>x.username==='synthetic-reader');
  await req(`/api/users/${reader.id}`,{department:'OPS'},'PUT');
