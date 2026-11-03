@@ -8,6 +8,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomBytes} from 'node:crypto';
 import assert from 'node:assert/strict';
+import {syntheticWorkbook} from './financial-fixtures.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const data=mkdtempSync(path.join(tmpdir(),'gate-r2-'));
@@ -64,7 +65,19 @@ try{
  await json('/api/companies/import/commit',confirmation);
  const repeated=await json('/api/companies/import/preview',{companies:companyRows});assert.equal(repeated.counts.company.unchanged,3);assert.equal(repeated.counts.commercial_registration.unchanged,3);
  const expiring=await json('/api/companies/expiring?days=3650');assert.equal(expiring.length,3);assert.ok(expiring.every(row=>row.annualConfirmation==='2028-01-01'));
+ const hsFile=syntheticWorkbook([
+  {name:'Co LVL',rows:[['Company CR','Contract Name','completed_orders','basic_payment','COURIER_BASIC_PAYMENT','Amount Excl VAT','VAT','Amount Incl VAT','Net FTR','CAR Deduction October 2026','TGA Deduction October 2026'],[companyRows[0].crNumber,'Synthetic HS contract',10,100,100,100,15,115,115,5,20]]},
+  {name:'Rider LVL',rows:[['rider_id','Contract Name','completed_orders','basic_payment','COURIER_BASIC_PAYMENT','scheme'],['SYN-HS-API','Synthetic HS contract',10,100,100,'salary']]},
+  {name:'Breakdown',rows:[['rider_id','completed_orders'],['SYN-HS-API',10]]}
+ ]);
+ const hsInput={period:'2026-10',files:[{fileName:'synthetic-hs.xlsx',dataBase64:hsFile}]};
+ const hsPreview=await json('/api/platforms/hs/invoices/import/preview',hsInput);assert.equal(hsPreview.canCommit,true);
+ const hsConfirmed={...hsInput,rows:hsPreview.rows,fingerprint:hsPreview.fingerprint,confirm:true};await json('/api/platforms/hs/invoices/import/commit',hsConfirmed);
+ const hsRepeated=await json('/api/platforms/hs/invoices/import/preview',hsInput);assert.equal(hsRepeated.counts.unchangedInvoices,1);
  const db=new DatabaseSync(path.join(data,'payroll.db'));
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind='platform_dispute'").get().n,1);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind='platform_invoice_line' AND json_extract(body,'$.status')='pending_allocation'").get().n,1);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind IN ('journal','debt')").get().n,0);
  for(const kind of ['custom_response','submission','user','audit','journal']){
   const raw=' { "id": "synthetic-preserve-'+kind+'", "name": "Synthetic", "iban": "SYNTHETIC_ONLY", "extra": [ 1, 2 ] } ';
   db.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?)').run('synthetic-preserve-'+kind,kind,raw);

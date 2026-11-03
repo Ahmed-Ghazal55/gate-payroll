@@ -104,9 +104,9 @@ public static class AccessPolicy
         if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))return Has("forms.manage");
         return false;
     }
-    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input)
+    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide")
     {
-        Demand(actor,"approvals.decide");
+        Demand(actor,permission);
         string name=actor.Identity?.Name??"";
         bool same=string.Equals(request.S("requestedBy",request.S("createdBy")),name,StringComparison.OrdinalIgnoreCase);
         if(same&&(!Administrator(actor)||!input.B("overrideSelf")||string.IsNullOrWhiteSpace(input.S("note"))))throw new ApiError("لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو تجاوز إداري معلل وصريح.",403);

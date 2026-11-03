@@ -49,6 +49,7 @@ public static class FinancialScopes
     }
     private static bool Has(ClaimsPrincipal user,string key,string value)=>AccessPolicy.Administrator(user)||user.HasClaim("finance."+key,value);
     public static bool Sponsor(ClaimsPrincipal user,string? id)=>!string.IsNullOrEmpty(id)&&Has(user,"sponsorIds",FinancialCore.FindSponsor(id)?.Id??id);
+    public static bool Platform(ClaimsPrincipal user,string platform)=>Has(user,"platforms",platform);
     public static bool AllCompanies(ClaimsPrincipal user)=>FinancialCore.Sponsors.All(s=>Sponsor(user,s.Id));
     public static bool Account(ClaimsPrincipal user,string code)
     {
