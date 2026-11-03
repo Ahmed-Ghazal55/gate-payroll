@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": "2026-10-28.1",
-  "source": "gate-finance-spec/docs/02-chart-of-accounts.md §§4,6; BUSINESS_RULES §20",
+  "version": "2026-11-03.1",
+  "source": "gate-finance-spec/docs/02-chart-of-accounts.md §§1,4,6; BUSINESS_RULES §§20,22",
   "accounts": [
     {
       "code": "1",
@@ -13,7 +13,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "11",
@@ -25,7 +29,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "111",
@@ -37,7 +45,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1111",
@@ -49,7 +61,11 @@
       "type": "cash",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "111101",
@@ -61,7 +77,11 @@
       "type": "cash",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "111102",
@@ -73,7 +93,11 @@
       "type": "cash",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "111103",
@@ -85,7 +109,11 @@
       "type": "cash",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "111104",
@@ -97,7 +125,11 @@
       "type": "cash",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "1112",
@@ -109,7 +141,11 @@
       "type": "bank",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "111201",
@@ -121,7 +157,11 @@
       "type": "bank",
       "direction": "both",
       "company": "حسب الإعداد",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "111202",
@@ -133,7 +173,11 @@
       "type": "bank",
       "direction": "both",
       "company": "حسب الإعداد",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "111203",
@@ -145,7 +189,11 @@
       "type": "bank",
       "direction": "both",
       "company": "حسب الإعداد",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "111204",
@@ -157,7 +205,11 @@
       "type": "bank",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "112",
@@ -169,7 +221,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1121",
@@ -181,7 +237,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "عميل",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112101",
@@ -193,7 +253,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "عميل",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112102",
@@ -205,7 +269,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "عميل",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112103",
@@ -217,7 +285,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "عميل",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1122",
@@ -229,7 +301,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112201",
@@ -241,7 +317,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112202",
@@ -253,7 +333,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1123",
@@ -265,7 +349,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "موظف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112301",
@@ -277,7 +365,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "موظف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112302",
@@ -289,7 +381,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "موظف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112303",
@@ -301,7 +397,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "موظف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112304",
@@ -313,7 +413,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "موظف (مشرف)",
+      "source": "modified",
+      "sourceNote": "منقول (كان `111401`)"
     },
     {
       "code": "112305",
@@ -325,7 +429,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "موظف (مشرف)",
+      "source": "modified",
+      "sourceNote": "منقول (كان `111402`)"
     },
     {
       "code": "1124",
@@ -337,7 +445,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112401",
@@ -349,7 +461,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112402",
@@ -361,7 +477,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112403",
@@ -373,7 +493,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1125",
@@ -385,7 +509,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112501",
@@ -397,7 +525,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112502",
@@ -409,7 +541,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112503",
@@ -421,7 +557,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112504",
@@ -433,7 +573,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "stopped"
+      "status": "stopped",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "112505",
@@ -445,7 +589,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112506",
@@ -457,7 +605,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "112507",
@@ -469,7 +621,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "112508",
@@ -481,7 +637,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "112509",
@@ -493,11 +653,31 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "112510",
       "nameAr": "فروق وقود على المناديب",
+      "parent": "1125",
+      "level": 5,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "stopped",
+      "statusNote": "راجع §22.9",
+      "subledger": "مندوب",
+      "source": "new",
+      "sourceNote": "جديد"
+    },
+    {
+      "code": "112511",
+      "nameAr": "سلف بنزين مناديب",
       "parent": "1125",
       "level": 5,
       "posting": true,
@@ -505,7 +685,27 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "new",
+      "sourceNote": "جديد"
+    },
+    {
+      "code": "112512",
+      "nameAr": "إيرادات مستحقة - رسوم فتح حساب",
+      "parent": "1125",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "1126",
@@ -517,7 +717,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112601",
@@ -529,7 +733,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "112602",
@@ -541,7 +749,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1127",
@@ -553,7 +765,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "شركة",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "112701",
@@ -565,7 +781,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل، إلا دفتر نفس الشركة",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "شركة",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "112702",
@@ -577,7 +797,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل، إلا دفتر نفس الشركة",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "شركة",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "112703",
@@ -589,11 +813,15 @@
       "type": "other",
       "direction": "both",
       "company": "الكل، إلا دفتر نفس الشركة",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "شركة",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "1128",
-      "nameAr": "ذمم المنصات",
+      "nameAr": "ذمم المنصات (المنصات عملاء، BR §22.6)",
       "parent": "112",
       "level": 4,
       "posting": false,
@@ -601,7 +829,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "حساب منصة",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "112801",
@@ -613,7 +845,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "حساب منصة",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "112802",
@@ -625,7 +861,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "حساب منصة",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "113",
@@ -637,7 +877,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1131",
@@ -649,7 +893,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "113101",
@@ -661,7 +909,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "113102",
@@ -673,7 +925,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1132",
@@ -685,7 +941,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "113201",
@@ -697,7 +957,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "113202",
@@ -709,7 +973,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1133",
@@ -721,7 +989,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "113301",
@@ -733,7 +1005,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "113302",
@@ -745,7 +1021,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "113303",
@@ -757,7 +1037,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1134",
@@ -769,7 +1053,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "113401",
@@ -781,7 +1069,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "113402",
@@ -793,7 +1085,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1135",
@@ -805,7 +1101,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "113501",
@@ -817,7 +1117,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "صنف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "114",
@@ -829,7 +1133,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1141",
@@ -841,7 +1149,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "114101",
@@ -853,7 +1165,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "114102",
@@ -865,7 +1181,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "114103",
@@ -877,7 +1197,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "114104",
@@ -889,7 +1213,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "114105",
@@ -901,7 +1229,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "114106",
@@ -913,7 +1245,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "115",
@@ -925,7 +1261,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "1151",
@@ -937,7 +1277,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "منقول (كان `1113`)"
     },
     {
       "code": "115101",
@@ -949,7 +1293,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "منقول (كان `111301`)"
     },
     {
       "code": "115102",
@@ -961,7 +1309,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "منقول (كان `111302`)"
     },
     {
       "code": "12",
@@ -973,7 +1325,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121",
@@ -985,7 +1341,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1211",
@@ -997,7 +1357,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121101",
@@ -1009,7 +1373,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1212",
@@ -1021,7 +1389,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121201",
@@ -1033,7 +1405,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121202",
@@ -1045,7 +1421,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1213",
@@ -1057,7 +1437,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121301",
@@ -1069,7 +1453,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121302",
@@ -1081,7 +1469,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1214",
@@ -1093,7 +1485,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121401",
@@ -1105,7 +1501,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121402",
@@ -1117,7 +1517,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1215",
@@ -1129,7 +1533,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مركبة",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121501",
@@ -1141,7 +1549,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مركبة",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121502",
@@ -1153,7 +1565,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مركبة",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121503",
@@ -1165,7 +1581,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مركبة",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121504",
@@ -1177,7 +1597,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مركبة",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121505",
@@ -1189,7 +1613,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مركبة",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "1216",
@@ -1201,7 +1629,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121601",
@@ -1213,7 +1645,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121602",
@@ -1225,7 +1661,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1217",
@@ -1237,7 +1677,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "121701",
@@ -1249,7 +1693,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "122",
@@ -1261,7 +1709,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1221",
@@ -1273,7 +1725,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "122101",
@@ -1285,7 +1741,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1222",
@@ -1297,7 +1757,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "122201",
@@ -1309,7 +1773,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "122202",
@@ -1321,7 +1789,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1223",
@@ -1333,7 +1805,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "122301",
@@ -1345,7 +1821,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "122302",
@@ -1357,7 +1837,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "123",
@@ -1369,7 +1853,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1231",
@@ -1381,7 +1869,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "123101",
@@ -1393,7 +1885,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "123102",
@@ -1405,7 +1901,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "124",
@@ -1417,7 +1917,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1241",
@@ -1429,7 +1933,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "124101",
@@ -1441,7 +1949,11 @@
       "type": "other",
       "direction": "pay",
       "company": "حسب الإعداد",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "124102",
@@ -1453,7 +1965,11 @@
       "type": "other",
       "direction": "pay",
       "company": "حسب الإعداد",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "125",
@@ -1465,7 +1981,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1251",
@@ -1477,7 +1997,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "125101",
@@ -1489,7 +2013,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "1252",
@@ -1501,7 +2029,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "125201",
@@ -1513,7 +2045,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2",
@@ -1525,7 +2061,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "21",
@@ -1537,7 +2077,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "211",
@@ -1549,7 +2093,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مورد",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2111",
@@ -1561,7 +2109,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مورد",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "211101",
@@ -1573,7 +2125,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مورد",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "211102",
@@ -1585,7 +2141,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مورد",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2112",
@@ -1597,7 +2157,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مورد",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "211201",
@@ -1609,7 +2173,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مورد",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "212",
@@ -1621,7 +2189,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2121",
@@ -1633,7 +2205,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "212101",
@@ -1645,7 +2221,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "موظف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "212102",
@@ -1657,7 +2237,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "212103",
@@ -1669,7 +2253,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2122",
@@ -1681,7 +2269,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "212201",
@@ -1693,7 +2285,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2123",
@@ -1705,7 +2301,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "212301",
@@ -1717,7 +2317,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "212302",
@@ -1729,7 +2333,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "212303",
@@ -1741,7 +2349,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "212304",
@@ -1753,7 +2365,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "موظف",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "212305",
@@ -1765,7 +2381,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2124",
@@ -1777,7 +2397,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "display"
+      "status": "display",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "212401",
@@ -1789,7 +2413,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "stopped"
+      "status": "stopped",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "212402",
@@ -1801,7 +2429,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "stopped"
+      "status": "stopped",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "2126",
@@ -1813,7 +2445,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "حساب منصة",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "212601",
@@ -1825,7 +2461,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "حساب منصة",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "212602",
@@ -1837,7 +2477,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "حساب منصة",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "213",
@@ -1849,7 +2493,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2131",
@@ -1861,7 +2509,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "213101",
@@ -1873,7 +2525,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "213102",
@@ -1885,7 +2541,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2132",
@@ -1897,7 +2557,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "213201",
@@ -1909,7 +2573,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "213202",
@@ -1921,7 +2589,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2133",
@@ -1933,7 +2605,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "213301",
@@ -1945,7 +2621,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2134",
@@ -1957,7 +2637,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "213401",
@@ -1969,7 +2653,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2135",
@@ -1981,7 +2669,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "213501",
@@ -1993,7 +2685,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "214",
@@ -2005,7 +2701,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2141",
@@ -2017,7 +2717,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "214101",
@@ -2029,7 +2733,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2142",
@@ -2041,7 +2749,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "214201",
@@ -2053,7 +2765,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "214202",
@@ -2065,7 +2781,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "214203",
@@ -2077,7 +2797,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "عقد تمويل",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "22",
@@ -2089,7 +2813,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "221",
@@ -2101,7 +2829,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2211",
@@ -2113,7 +2845,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "221101",
@@ -2125,7 +2861,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2212",
@@ -2137,7 +2877,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "عقد تمويل",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "221201",
@@ -2149,7 +2893,11 @@
       "type": "other",
       "direction": "both",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "عقد تمويل",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "222",
@@ -2161,7 +2909,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2221",
@@ -2173,7 +2925,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "222101",
@@ -2185,7 +2941,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "223",
@@ -2197,7 +2957,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2231",
@@ -2209,7 +2973,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "223101",
@@ -2221,7 +2989,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "224",
@@ -2233,7 +3005,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "2241",
@@ -2245,7 +3021,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "224101",
@@ -2257,7 +3037,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "224102",
@@ -2269,7 +3053,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "3",
@@ -2281,7 +3069,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "31",
@@ -2293,7 +3085,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "311",
@@ -2305,7 +3101,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "3111",
@@ -2317,7 +3117,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "311101",
@@ -2329,7 +3133,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "32",
@@ -2341,7 +3149,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "321",
@@ -2353,7 +3165,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "3211",
@@ -2365,7 +3181,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "321101",
@@ -2377,7 +3197,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "322",
@@ -2389,7 +3213,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "3221",
@@ -2401,7 +3229,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "322101",
@@ -2413,7 +3245,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "3222",
@@ -2425,7 +3261,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "322201",
@@ -2437,7 +3277,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "33",
@@ -2449,7 +3293,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "331",
@@ -2461,7 +3309,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "3311",
@@ -2473,7 +3325,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "331101",
@@ -2485,7 +3341,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "3312",
@@ -2497,7 +3357,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "331201",
@@ -2509,7 +3373,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "331202",
@@ -2521,7 +3389,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "3313",
@@ -2533,7 +3405,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "331301",
@@ -2545,7 +3421,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "331302",
@@ -2557,7 +3437,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "34",
@@ -2569,7 +3453,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "شريك",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "341",
@@ -2581,7 +3469,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "شريك",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "3411",
@@ -2593,7 +3485,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "شريك",
+      "source": "modified",
+      "sourceNote": "منقول (كان `2125`)"
     },
     {
       "code": "341101",
@@ -2605,7 +3501,11 @@
       "type": "other",
       "direction": "both",
       "company": "حسب الإعداد",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "شريك",
+      "source": "modified",
+      "sourceNote": "منقول (كان `212501`)"
     },
     {
       "code": "341102",
@@ -2617,7 +3517,11 @@
       "type": "other",
       "direction": "both",
       "company": "حسب الإعداد",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "شريك",
+      "source": "modified",
+      "sourceNote": "منقول (كان `212502`)"
     },
     {
       "code": "4",
@@ -2629,7 +3533,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "41",
@@ -2641,7 +3549,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "411",
@@ -2653,7 +3565,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "4111",
@@ -2665,7 +3581,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "411101",
@@ -2677,7 +3597,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "411102",
@@ -2689,7 +3613,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "411103",
@@ -2701,7 +3629,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "411104",
@@ -2713,7 +3645,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "411105",
@@ -2725,7 +3661,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "411106",
@@ -2737,7 +3677,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "stopped"
+      "status": "stopped",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "4112",
@@ -2749,7 +3693,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "411201",
@@ -2761,7 +3709,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "4113",
@@ -2773,7 +3725,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "411301",
@@ -2785,7 +3741,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "4114",
@@ -2797,7 +3757,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "411401",
@@ -2809,19 +3773,27 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "411402",
       "nameAr": "إيراد رسوم فتح حسابات جاهز",
       "parent": "4114",
       "level": 5,
-      "posting": true,
+      "posting": false,
       "nature": "credit",
       "type": "other",
-      "direction": "receive",
+      "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "stopped",
+      "statusNote": "راجع §22.1",
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "411403",
@@ -2833,43 +3805,59 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "411404",
       "nameAr": "رد رسوم توصيل - من العمولة",
       "parent": "4114",
       "level": 5,
-      "posting": true,
+      "posting": false,
       "nature": "debit",
       "type": "other",
-      "direction": "pay",
+      "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "stopped",
+      "statusNote": "راجع §22.2",
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "411405",
       "nameAr": "إعفاء/رد رسوم فتح الحساب",
       "parent": "4114",
       "level": 5,
-      "posting": true,
+      "posting": false,
       "nature": "debit",
       "type": "other",
-      "direction": "pay",
+      "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "stopped",
+      "statusNote": "راجع §22.2",
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "411406",
       "nameAr": "رد رسوم توصيل - من رسوم فتح الحساب",
       "parent": "4114",
       "level": 5,
-      "posting": true,
+      "posting": false,
       "nature": "debit",
       "type": "other",
-      "direction": "pay",
+      "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "stopped",
+      "statusNote": "راجع §22.2",
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "4115",
@@ -2881,7 +3869,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "411501",
@@ -2893,7 +3885,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "42",
@@ -2905,7 +3901,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "421",
@@ -2917,7 +3917,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "4211",
@@ -2929,7 +3933,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "421101",
@@ -2941,7 +3949,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "421102",
@@ -2953,7 +3965,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "4212",
@@ -2965,7 +3981,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "421201",
@@ -2977,7 +3997,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "4213",
@@ -2989,7 +4013,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "421301",
@@ -3001,7 +4029,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "4214",
@@ -3013,7 +4045,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "421401",
@@ -3025,7 +4061,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "422",
@@ -3037,7 +4077,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "4221",
@@ -3049,7 +4093,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "422101",
@@ -3061,7 +4109,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "422102",
@@ -3073,7 +4125,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "4222",
@@ -3085,7 +4141,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "422201",
@@ -3097,7 +4157,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "422202",
@@ -3109,7 +4173,11 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "4223",
@@ -3121,7 +4189,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "422301",
@@ -3133,7 +4205,27 @@
       "type": "other",
       "direction": "receive",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
+    },
+    {
+      "code": "422302",
+      "nameAr": "دخل آخر - رسوم فتح حساب",
+      "parent": "4223",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "5",
@@ -3145,7 +4237,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "51",
@@ -3157,7 +4253,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "511",
@@ -3169,7 +4269,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5111",
@@ -3181,7 +4285,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "511101",
@@ -3193,7 +4301,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "511102",
@@ -3205,7 +4317,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "511103",
@@ -3217,7 +4333,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "512",
@@ -3229,7 +4349,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5121",
@@ -3241,7 +4365,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "512101",
@@ -3253,7 +4381,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "512102",
@@ -3265,7 +4397,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "512103",
@@ -3277,7 +4413,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "512104",
@@ -3289,7 +4429,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "512105",
@@ -3301,7 +4445,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "512106",
@@ -3313,7 +4461,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "512107",
@@ -3325,7 +4477,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "512108",
@@ -3337,7 +4493,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "512109",
@@ -3349,7 +4509,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "512110",
@@ -3361,7 +4525,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "512111",
@@ -3373,7 +4541,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512112",
@@ -3385,7 +4557,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512113",
@@ -3397,7 +4573,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512114",
@@ -3409,7 +4589,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512115",
@@ -3421,7 +4605,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512116",
@@ -3433,7 +4621,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512117",
@@ -3445,7 +4637,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512118",
@@ -3457,7 +4653,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512119",
@@ -3469,7 +4669,27 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
+    },
+    {
+      "code": "512120",
+      "nameAr": "حوافز مناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "5122",
@@ -3481,7 +4701,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512201",
@@ -3493,7 +4717,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512202",
@@ -3505,7 +4733,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512203",
@@ -3517,7 +4749,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512204",
@@ -3529,7 +4765,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512205",
@@ -3541,7 +4781,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512206",
@@ -3553,7 +4797,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512207",
@@ -3565,7 +4813,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "512208",
@@ -3577,7 +4829,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "52",
@@ -3589,7 +4845,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "521",
@@ -3601,7 +4861,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5211",
@@ -3613,7 +4877,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "521101",
@@ -3625,7 +4893,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "521102",
@@ -3637,7 +4909,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "521103",
@@ -3649,7 +4925,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "521104",
@@ -3661,7 +4941,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "521105",
@@ -3673,7 +4957,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "521106",
@@ -3685,7 +4973,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5212",
@@ -3697,7 +4989,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "521201",
@@ -3709,7 +5005,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "521202",
@@ -3721,7 +5021,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "521203",
@@ -3733,7 +5037,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "521204",
@@ -3745,7 +5053,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "522",
@@ -3757,7 +5069,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5221",
@@ -3769,7 +5085,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "522101",
@@ -3781,7 +5101,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5222",
@@ -3793,7 +5117,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "522201",
@@ -3805,7 +5133,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "523",
@@ -3817,7 +5149,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5231",
@@ -3829,7 +5165,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "523101",
@@ -3841,7 +5181,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "523102",
@@ -3853,7 +5197,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "524",
@@ -3865,7 +5213,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5241",
@@ -3877,7 +5229,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "524101",
@@ -3889,7 +5245,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "524102",
@@ -3901,7 +5261,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "524103",
@@ -3913,7 +5277,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "524104",
@@ -3925,7 +5293,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "525",
@@ -3937,7 +5309,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5251",
@@ -3949,7 +5325,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "525101",
@@ -3961,7 +5341,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "525102",
@@ -3973,7 +5357,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "526",
@@ -3985,7 +5373,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5261",
@@ -3997,7 +5389,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "526101",
@@ -4009,7 +5405,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5262",
@@ -4021,7 +5421,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "526201",
@@ -4033,7 +5437,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5263",
@@ -4045,7 +5453,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "526301",
@@ -4057,7 +5469,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5264",
@@ -4069,7 +5485,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "526401",
@@ -4081,7 +5501,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "526402",
@@ -4093,7 +5517,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "5265",
@@ -4105,7 +5533,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "526501",
@@ -4117,7 +5549,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "526502",
@@ -4129,7 +5565,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "526503",
@@ -4141,7 +5581,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "526504",
@@ -4153,7 +5597,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "reserved"
+      "status": "reserved",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "526505",
@@ -4165,7 +5613,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "reserved"
+      "status": "reserved",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "526506",
@@ -4177,7 +5629,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "reserved"
+      "status": "reserved",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "Excel معدّل"
     },
     {
       "code": "5266",
@@ -4189,7 +5645,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "526601",
@@ -4201,7 +5661,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "526602",
@@ -4213,7 +5677,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "526603",
@@ -4225,7 +5693,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "5267",
@@ -4237,7 +5709,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "526701",
@@ -4249,7 +5725,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "53",
@@ -4261,7 +5741,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "531",
@@ -4273,7 +5757,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5311",
@@ -4285,7 +5773,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "531101",
@@ -4297,7 +5789,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "532",
@@ -4309,7 +5805,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5321",
@@ -4321,7 +5821,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "532101",
@@ -4333,7 +5837,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5322",
@@ -4345,7 +5853,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "532201",
@@ -4357,7 +5869,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5323",
@@ -4369,7 +5885,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "532301",
@@ -4381,7 +5901,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "modified",
+      "sourceNote": "منقول (كان `411302`)"
     },
     {
       "code": "54",
@@ -4393,7 +5917,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "541",
@@ -4405,7 +5933,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5411",
@@ -4417,7 +5949,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "541101",
@@ -4429,7 +5965,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5412",
@@ -4441,7 +5981,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "541201",
@@ -4453,7 +5997,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5413",
@@ -4465,7 +6013,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "541301",
@@ -4477,7 +6029,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
     },
     {
       "code": "542",
@@ -4489,7 +6045,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5421",
@@ -4501,7 +6061,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "542101",
@@ -4513,7 +6077,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "542102",
@@ -4525,7 +6093,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "55",
@@ -4537,7 +6109,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "551",
@@ -4549,7 +6125,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5511",
@@ -4561,7 +6141,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "551101",
@@ -4573,7 +6157,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "552",
@@ -4585,7 +6173,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "5521",
@@ -4597,7 +6189,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "552101",
@@ -4609,7 +6205,11 @@
       "type": "other",
       "direction": "pay",
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "6",
@@ -4621,7 +6221,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "61",
@@ -4633,7 +6237,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "611",
@@ -4645,7 +6253,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "6111",
@@ -4657,7 +6269,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "611101",
@@ -4669,7 +6285,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "612",
@@ -4681,7 +6301,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "6121",
@@ -4693,7 +6317,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     },
     {
       "code": "612101",
@@ -4705,7 +6333,11 @@
       "type": "other",
       "direction": null,
       "company": "الكل",
-      "status": "active"
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "excel",
+      "sourceNote": "Excel"
     }
   ],
   "mapping": [
@@ -4983,9 +6615,9 @@
         "112505",
         "112506",
         "112509",
-        "112510"
+        "112511"
       ],
-      "ruleAr": "تقسيم: `112501`، `112502`، `112505`، `112506`، `112509`، `112510`",
+      "ruleAr": "تقسيم: `112501`، `112502`، `112505`، `112506`، `112509`، `112511`",
       "noteAr": "حسب الفئة؛ 03 §ربط الفئات"
     },
     {
@@ -5125,10 +6757,10 @@
     {
       "currentCode": "4101",
       "targetCodes": [
-        "411402"
+        "422302"
       ],
-      "ruleAr": "`411402`",
-      "noteAr": ""
+      "ruleAr": "`422302`",
+      "noteAr": "دخل آخر (BR §22.1)"
     },
     {
       "currentCode": "4102",
