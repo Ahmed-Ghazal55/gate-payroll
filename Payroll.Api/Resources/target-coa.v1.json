@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": "2026-11-03.1",
-  "source": "gate-finance-spec/docs/02-chart-of-accounts.md §§1,4,6; BUSINESS_RULES §§20,22",
+  "version": "2026-11-04.1",
+  "source": "gate-finance-spec/docs/02-chart-of-accounts.md §§1,4,6; BUSINESS_RULES §§20,22,23",
   "accounts": [
     {
       "code": "1",
@@ -436,6 +436,22 @@
       "sourceNote": "منقول (كان `111402`)"
     },
     {
+      "code": "112306",
+      "nameAr": "عهدة شحن محافظ هنقرستيشن - مشرف",
+      "parent": "1123",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "موظف (مشرف)",
+      "source": "new",
+      "sourceNote": "جديد"
+    },
+    {
       "code": "1124",
       "nameAr": "أرصدة مدينة أخرى",
       "parent": "112",
@@ -708,6 +724,22 @@
       "sourceNote": "جديد"
     },
     {
+      "code": "112513",
+      "nameAr": "تحصيلات شحن محافظ معلقة - مناديب",
+      "parent": "1125",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "new",
+      "sourceNote": "جديد"
+    },
+    {
       "code": "1126",
       "nameAr": "ضريبة القيمة المضافة - مدين",
       "parent": "112",
@@ -854,6 +886,22 @@
     {
       "code": "112802",
       "nameAr": "مستحق على المنصات الأخرى",
+      "parent": "1128",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "حساب منصة",
+      "source": "new",
+      "sourceNote": "جديد"
+    },
+    {
+      "code": "112803",
+      "nameAr": "مبالغ فواتير متنازع عليها مع المنصات",
       "parent": "1128",
       "level": 5,
       "posting": true,
@@ -1248,6 +1296,22 @@
       "status": "active",
       "statusNote": null,
       "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
+    },
+    {
+      "code": "114107",
+      "nameAr": "مقاصة سحوبات محافظ المنصات",
+      "parent": "1141",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "حساب منصة",
       "source": "new",
       "sourceNote": "جديد"
     },
@@ -3892,6 +3956,38 @@
       "sourceNote": "جديد"
     },
     {
+      "code": "4116",
+      "nameAr": "إيرادات هنقرستيشن - نظام العمولة (وكيل)",
+      "parent": "411",
+      "level": 4,
+      "posting": false,
+      "nature": "credit",
+      "type": "other",
+      "direction": null,
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
+    },
+    {
+      "code": "411601",
+      "nameAr": "إيراد عمولة هنقرستيشن",
+      "parent": "4116",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
+    },
+    {
       "code": "42",
       "nameAr": "إيرادات أخرى",
       "parent": "4",
@@ -4688,6 +4784,22 @@
       "status": "active",
       "statusNote": null,
       "subledger": "—",
+      "source": "new",
+      "sourceNote": "جديد"
+    },
+    {
+      "code": "512121",
+      "nameAr": "تكاليف مناديب غير مستردة",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
       "source": "new",
       "sourceNote": "جديد"
     },
