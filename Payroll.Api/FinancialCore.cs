@@ -458,9 +458,10 @@ public static class FinancialCore
         {
             var journals = Store.List(c, "journal");
             var debts = Store.List(c, "debt").Where(d=>FinancialScopes.Debt(ctx.User,d)).ToList();
-            return Sponsors.Where(sp=>FinancialScopes.Sponsor(ctx.User,sp.Id)).Select(sp =>
+            return Companies.List(c,ctx.User).Select(company =>
             {
-                var spLines = journals.SelectMany(j => j["lines"]?.AsArray() ?? []).Select(x => x!.AsObject()).Where(l => l.S("sponsorId") == sp.Id && FinancialScopes.Line(ctx.User,l)).ToList();
+                string spId=company.S("id");
+                var spLines = journals.SelectMany(j => j["lines"]?.AsArray() ?? []).Select(x => x!.AsObject()).Where(l => l.S("sponsorId") == spId && FinancialScopes.Line(ctx.User,l)).ToList();
                 // Held cash includes restricted Jahez custody; fuel clearing is not physical cash.
                 decimal vaultBalance = spLines.Where(l => l.S("accountCode").StartsWith("MAIN.", StringComparison.Ordinal) || l.S("accountCode").StartsWith("SUP.", StringComparison.Ordinal) || l.S("accountCode").StartsWith("BANK.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
                 decimal mainVaultBalance = spLines.Where(l => l.S("accountCode").StartsWith("MAIN.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
@@ -468,7 +469,7 @@ public static class FinancialCore
                 decimal bankBalance = spLines.Where(l => l.S("accountCode").StartsWith("BANK.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
                 decimal petroBalance = spLines.Where(l => l.S("accountCode").StartsWith("PETRO.", StringComparison.Ordinal)).Sum(l => l.N("debit") - l.N("credit"));
                 decimal receivableFromJournals = spLines.Where(l => l.S("accountCode") is "1210" or "1220" or "1230").Sum(l => l.N("debit") - l.N("credit"));
-                decimal activeDebtRemaining = debts.Where(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == sp.Id).Sum(d => d.N("remainingBalance"));
+                decimal activeDebtRemaining = debts.Where(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == spId).Sum(d => d.N("remainingBalance"));
                 decimal expensesTotal = spLines.Where(l => l.S("accountType") == "Expense").Sum(l => l.N("debit") - l.N("credit"));
                 decimal waivesTotal = spLines.Where(l => l.S("accountCode") == "5202").Sum(l => l.N("debit") - l.N("credit"));
                 decimal interCompanyNet = spLines.Where(l => l.S("accountType") == "InterCompany").Sum(l => l.N("debit") - l.N("credit"));
@@ -476,12 +477,14 @@ public static class FinancialCore
 
                 return new
                 {
-                    id = sp.Id,
-                    code = sp.Code,
-                    unifiedNumber = sp.UnifiedNumber,
-                    commercialReg = sp.CommercialReg,
-                    nameAr = sp.NameAr,
-                    shortNameAr = sp.ShortNameAr,
+                    id = spId,
+                    sponsorId=spId,
+                    status=company.S("status"),
+                    code = company.S("code"),
+                    unifiedNumber = company.S("unifiedNumber"),
+                    commercialReg = company.S("commercialReg"),
+                    nameAr = company.S("nameAr"),
+                    shortNameAr = company.S("shortNameAr"),
                     vaultBalance = J.Money(vaultBalance),
                     mainVaultBalance = J.Money(mainVaultBalance),
                     jahezBoxBalance = J.Money(jahezBoxBalance),
@@ -490,7 +493,7 @@ public static class FinancialCore
                     receivablesBalance = J.Money(activeDebtRemaining),
                     receivablesFromJournals = J.Money(receivableFromJournals),
                     receivablesReconciliationDifference = J.Money(receivableFromJournals - activeDebtRemaining),
-                    activeDebtsCount = debts.Count(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == sp.Id),
+                    activeDebtsCount = debts.Count(d => d.S("status") is "active" or "paused" && AssignedDebtSponsor(d)?.Id == spId),
                     payablesBalance = J.Money(payablesTotal),
                     expensesTotal = J.Money(expensesTotal),
                     waiversTotal = J.Money(waivesTotal),

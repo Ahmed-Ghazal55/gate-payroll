@@ -36,6 +36,7 @@ public static class AccessPolicy
         bool Has(string permission)=>AccessPolicy.Has(user,permission);
         if(path is "/api/me" or "/api/roles-catalog")return method=="GET";
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return false; // User administration remains administrator-only.
+        if(path=="/api/companies"||path.StartsWith("/api/companies/",StringComparison.Ordinal))return method=="GET"?Has("companies.view"):method is "POST" or "PUT" or "DELETE"&&Has("companies.manage");
         if(path=="/api/excel/export")return method=="POST"&&Has("riders.view");
         if(path.StartsWith("/api/excel/",StringComparison.Ordinal))
         {

@@ -24,6 +24,25 @@ try{
  await req('/api/users',{username:'synthetic-reader',password,role:'Reviewer'});
  await req('/api/auth/login',{username:'synthetic-reader',password});
  await req('/openapi/v1.json',undefined,'GET',403);cookie=admin;
+ // Company CRUD, registrations, attachments, scope and audit all use synthetic input.
+ assert.equal((await req('/api/companies')).length,3);
+ const company=await req('/api/companies',{id:'SYNTHETIC-CO',nameAr:'شركة مصطنعة'});
+ assert.equal(company.sponsorId,company.id);
+ await req(`/api/companies/${company.id}`,{nameAr:'شركة اختبار مصطنعة'},'PUT');
+ assert.equal((await req('/api/finance/sponsors')).find(x=>x.id===company.id).nameAr,'شركة اختبار مصطنعة');
+ const registration=await req(`/api/companies/${company.id}/registrations`,{number:'SYN-CR',city:'Synthetic City',issueDate:'2026-01-01',expiryDate:'2026-11-04'});
+ assert.equal((await req(`/api/companies/${company.id}/registrations/${registration.id}`)).companyId,company.id);
+ await req(`/api/companies/${company.id}/registrations/${registration.id}`,{number:'SYN-CR-UPDATED'},'PUT');
+ const attachment=await req(`/api/companies/${company.id}/documents`,{type:'tax',number:'SYN-DOC',expiryDate:'2026-11-04',fileName:'synthetic.pdf',dataBase64:Buffer.from('%PDF-1.4 synthetic').toString('base64')});
+ await req(`/api/companies/${company.id}/documents/${attachment.id}`,{number:'SYN-DOC-UPDATED'},'PUT');
+ const download=await fetch(base+attachment.file,{headers:{Cookie:admin}});assert.equal(download.status,200);assert.equal(await download.text(),'%PDF-1.4 synthetic');checks++;
+ assert.ok((await req('/api/companies/expiring?days=3650')).some(x=>x.id===registration.id));
+ await req(`/api/companies/${company.id}/registrations/${registration.id}`,undefined,'DELETE');
+ await req(`/api/companies/${company.id}/documents/${attachment.id}`,undefined,'DELETE');
+ assert.equal((await req(`/api/companies/${company.id}/registrations`)).length,0);assert.equal((await req(`/api/companies/${company.id}/documents`)).length,0);
+ await req(`/api/companies/${company.id}`,undefined,'DELETE');assert.equal((await req(`/api/companies/${company.id}`)).status,'archived');
+ assert.ok((await req('/api/audit')).some(x=>x.action==='company_document.archived'));
+ await req('/api/auth/login',{username:'synthetic-reader',password});await req('/api/companies',undefined,'GET',403);cookie=admin;
  // Opt-in pagination: untouched legacy bytes, bounded pages, search and sorting.
  for(const suffix of ['riders','debts','finance/journals','submissions','audit','ledger','approvals','campaigns','forms/builder']){
   const a=await fetch(base+'/api/'+suffix,{headers:{Cookie:admin}});const original=await a.text();assert.equal(a.status,200);

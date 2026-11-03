@@ -43,6 +43,7 @@ builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; 
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
 CampaignLinks.Migrate(store);
+Companies.Seed(store);
 app.MapOpenApi("/openapi/{documentName}.json").RequireAuthorization().AddEndpointFilter(async (context, next) =>
     AccessPolicy.Administrator(context.HttpContext.User) ? await next(context) : Results.Json(new { error="التوثيق لمسؤول النظام فقط.", code="forbidden" }, statusCode:403));
 app.UseForwardedHeaders();
@@ -115,6 +116,7 @@ api.AddEndpointFilter(async (context, next) => {
 });
 api.AddEndpointFilter(ApiPagination.Filter);
 Notifications.Map(api,store);
+Companies.Map(api,store);
 TableExcelApi.Map(api, store);
 UserAccess.Map(api, store);
 RiderDirectory.Map(api, store);
