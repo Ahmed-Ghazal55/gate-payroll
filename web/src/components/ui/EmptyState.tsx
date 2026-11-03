@@ -87,29 +87,5 @@ export function ErrorState({
   );
 }
 
-export function Skeleton({
-  className = '',
-  rows = 1,
-}: {
-  className?: string;
-  rows?: number;
-}) {
-  if (rows > 1) {
-    return (
-      <div className="space-y-2.5 w-full">
-        {Array.from({ length: rows }).map((_, i) => (
-          <div
-            key={i}
-            className={`animate-pulse rounded-lg bg-[var(--raised)] h-4 w-full ${className}`}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={`animate-pulse rounded-lg bg-[var(--raised)] ${className}`}
-    />
-  );
-}
+export { Skeleton } from './Skeleton';
+export type { SkeletonProps } from './Skeleton';

@@ -1,5 +1,6 @@
 :root,
-html[data-theme="sand"] {
+html[data-theme="sand"],
+[data-theme="sand"] {
   --bg: #E9E1D3;
   --surface: #F3EDE2;
   --raised: #DDD2C0;
@@ -19,7 +20,8 @@ html[data-theme="sand"] {
   --money-neg: #991B1B;
 }
 
-html[data-theme="light"] {
+html[data-theme="light"],
+[data-theme="light"] {
   --bg: #F7F5F0;
   --surface: #FFFFFF;
   --raised: #EFECE4;
@@ -39,7 +41,8 @@ html[data-theme="light"] {
   --money-neg: #B91C1C;
 }
 
-html[data-theme="dim"] {
+html[data-theme="dim"],
+[data-theme="dim"] {
   --bg: #181B20;
   --surface: #22262E;
   --raised: #2C313B;

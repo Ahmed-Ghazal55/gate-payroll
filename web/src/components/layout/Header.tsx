@@ -323,7 +323,7 @@ export function Header({
                   className="flex w-full items-center justify-between px-3 py-1.5 text-start hover:bg-[var(--row-hover)]"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-[#E9E1D3] border border-[#C9BAA2]" />
+                    <span data-theme="sand" className="h-3 w-3 rounded-full bg-[var(--bg)] border border-[var(--line)]" />
                     <span>رملي (افتراضي)</span>
                   </div>
                   {currentTheme === 'sand' && <Check size={14} className="text-[var(--accent)]" />}
@@ -334,7 +334,7 @@ export function Header({
                   className="flex w-full items-center justify-between px-3 py-1.5 text-start hover:bg-[var(--row-hover)]"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-[#FFFFFF] border border-[#DDD7CC]" />
+                    <span data-theme="light" className="h-3 w-3 rounded-full bg-[var(--bg)] border border-[var(--line)]" />
                     <span>فاتح</span>
                   </div>
                   {currentTheme === 'light' && <Check size={14} className="text-[var(--accent)]" />}
@@ -345,7 +345,7 @@ export function Header({
                   className="flex w-full items-center justify-between px-3 py-1.5 text-start hover:bg-[var(--row-hover)]"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-[#181B20] border border-[#363C48]" />
+                    <span data-theme="dim" className="h-3 w-3 rounded-full bg-[var(--bg)] border border-[var(--line)]" />
                     <span>داكن هادئ</span>
                   </div>
                   {currentTheme === 'dim' && <Check size={14} className="text-[var(--accent)]" />}

@@ -204,49 +204,44 @@ let mockForms: CustomForm[] = [
 ];
 
 async function handleRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  // If mock mode is on, return synthetic data
+  // Use mock store only when NEXT_PUBLIC_MOCK_API is explicitly set to '1' at build time
   if (isMock) {
     return handleMockRequest<T>(endpoint, options);
   }
 
   const url = endpoint.startsWith('http') ? endpoint : `/api${endpoint}`;
-  try {
-    const res = await fetch(url, {
-      ...options,
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
+  const res = await fetch(url, {
+    ...options,
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
 
-    if (res.status === 401) {
-      if (typeof window !== 'undefined') {
-        const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-        window.location.href = `/?returnUrl=${returnUrl}`;
-      }
-      throw new ApiError('انتهت الجلسة؛ يرجى تسجيل الدخول مجدداً.', 401, 'unauthorized');
+  if (res.status === 401) {
+    if (typeof window !== 'undefined') {
+      const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.href = `/?returnUrl=${returnUrl}`;
     }
-
-    if (!res.ok) {
-      const payload: ApiErrorPayload = await res.json().catch(() => ({ error: 'حدث خطأ في معالجة الطلب' }));
-      throw new ApiError(payload.error || 'فشل الطلب', res.status, payload.code);
-    }
-
-    // If blob response
-    if (res.headers.get('content-type')?.includes('application/octet-stream') ||
-        res.headers.get('content-type')?.includes('text/csv')) {
-      return (await res.blob()) as unknown as T;
-    }
-
-    return (await res.json()) as T;
-  } catch (err: any) {
-    // If backend endpoint is missing (404/500/failed fetch), fallback to mock in development
-    if (isMock || err.status === 404 || err.message?.includes('Failed to fetch')) {
-      return handleMockRequest<T>(endpoint, options);
-    }
-    throw err;
+    throw new ApiError('انتهت الجلسة؛ يرجى تسجيل الدخول مجدداً.', 401, 'unauthorized');
   }
+
+  if (!res.ok) {
+    const payload: ApiErrorPayload = await res.json().catch(() => ({ error: 'حدث خطأ في معالجة الطلب' }));
+    throw new ApiError(payload.error || 'فشل الطلب', res.status, payload.code);
+  }
+
+  // If blob response
+  if (
+    res.headers.get('content-type')?.includes('application/octet-stream') ||
+    res.headers.get('content-type')?.includes('application/vnd.openxmlformats') ||
+    res.headers.get('content-type')?.includes('text/csv')
+  ) {
+    return (await res.blob()) as unknown as T;
+  }
+
+  return (await res.json()) as T;
 }
 
 // Mock resolver for new 1.0 routes
@@ -402,11 +397,26 @@ async function handleMockRequest<T>(endpoint: string, options: RequestInit = {})
     return { ok: true } as unknown as T;
   }
 
+  // Delete preview campaign
+  if (path.match(/\/campaigns\/[^/]+\/delete-preview/) && method === 'GET') {
+    const id = path.split('/')[2];
+    const camp = mockCampaigns.find(c => c.id === id);
+    if (!camp) throw new ApiError('النموذج غير موجود.', 404);
+    return {
+      id,
+      title: camp.title,
+      responseCount: camp.responseCount,
+      fingerprint: 'mock-fp-' + id + '-' + camp.responseCount,
+    } as unknown as T;
+  }
+
   // Delete campaign
   if (path.match(/\/campaigns\/[^/]+$/) && method === 'DELETE') {
     const id = path.split('/')[2];
+    if (!body?.confirm) throw new ApiError('أكد حذف النموذج وردوده نهائيًا.', 400);
+    const camp = mockCampaigns.find(c => c.id === id);
     mockCampaigns = mockCampaigns.filter(c => c.id !== id);
-    return { ok: true } as unknown as T;
+    return { ok: true, deletedResponses: camp?.responseCount || 0, message: 'تم حذف النموذج وردوده نهائيًا.' } as unknown as T;
   }
 
   // Submissions
@@ -494,12 +504,25 @@ async function handleMockRequest<T>(endpoint: string, options: RequestInit = {})
     return { ok: true } as unknown as T;
   }
 
-  // Custom form close
-  if (path.match(/\/forms\/builder\/[^/]+\/close/) && method === 'POST') {
+  // Custom form delete preview
+  if (path.match(/\/forms\/builder\/[^/]+\/delete-preview/) && method === 'GET') {
     const id = path.split('/')[3];
     const form = mockForms.find(f => f.id === id);
-    if (form) form.status = 'closed';
-    return { ok: true } as unknown as T;
+    if (!form) throw new ApiError('النموذج غير موجود.', 404);
+    return {
+      id,
+      title: form.title,
+      responseCount: form.responsesCount,
+      fingerprint: 'mock-form-fp-' + id,
+    } as unknown as T;
+  }
+
+  // Custom form delete
+  if (path.match(/\/forms\/builder\/[^/]+$/) && method === 'DELETE') {
+    const id = path.split('/')[3];
+    if (!body?.confirm) throw new ApiError('أكد حذف النموذج وردوده نهائيًا.', 400);
+    mockForms = mockForms.filter(f => f.id !== id);
+    return { ok: true, deletedResponses: 0, message: 'تم حذف النموذج وردوده نهائيًا.' } as unknown as T;
   }
 
   // Excel export
@@ -531,14 +554,34 @@ export const api = {
   getCampaigns: () => handleRequest<Campaign[]>('/campaigns'),
   createCampaign: (data: Partial<Campaign> & { days?: number }) => handleRequest<Campaign>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
   closeCampaign: (id: string) => handleRequest<{ ok: boolean }>(`/campaigns/${id}/close`, { method: 'POST' }),
-  deleteCampaign: (id: string) => handleRequest<{ ok: boolean }>(`/campaigns/${id}`, { method: 'DELETE' }),
+  getCampaignDeletePreview: (id: string) =>
+    handleRequest<{ id: string; title: string; responseCount: number; fingerprint: string }>(
+      `/campaigns/${id}/delete-preview`
+    ),
+  deleteCampaign: (id: string, fingerprint: string) =>
+    handleRequest<{ ok: boolean; deletedResponses: number; message: string }>(
+      `/campaigns/${id}`,
+      {
+        method: 'DELETE',
+        body: JSON.stringify({ confirm: true, fingerprint }),
+      }
+    ),
 
-  // Submissions
-  getSubmissions: (params?: { campaignId?: string; status?: string }) => {
+  // Submissions & Responses (Unified inbox with fallback)
+  getSubmissions: async (params?: { campaignId?: string; status?: string }) => {
     const qs = new URLSearchParams();
     if (params?.campaignId) qs.set('campaignId', params.campaignId);
     if (params?.status) qs.set('status', params.status);
-    return handleRequest<Submission[]>(`/submissions?${qs.toString()}`);
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+
+    try {
+      return await handleRequest<Submission[]>(`/responses${query}`);
+    } catch (err: any) {
+      if (err.status === 404) {
+        return await handleRequest<Submission[]>(`/submissions${query}`);
+      }
+      throw err;
+    }
   },
   bulkApproveSubmissions: (campaignId: string | undefined, ids: string[]) =>
     handleRequest<{ ok: boolean; count: number }>('/submissions/bulk-approve', {
@@ -550,7 +593,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ campaignId, ids, confirm: true }),
     }),
-  reviewSubmission: (id: string, data: { status: string; note?: string; version: number }) =>
+  reviewSubmission: (
+    id: string,
+    data: {
+      status: 'approved' | 'rejected';
+      note?: string;
+      version: number;
+      identityReviewed?: boolean;
+      ibanOwnershipReviewed?: boolean;
+    }
+  ) =>
     handleRequest<{ ok: boolean }>(`/submissions/${id}/review`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -562,17 +614,37 @@ export const api = {
   createCustomForm: (data: Partial<CustomForm>) => handleRequest<CustomForm>('/forms/builder', { method: 'POST', body: JSON.stringify(data) }),
   publishCustomForm: (id: string) => handleRequest<{ ok: boolean }>(`/forms/builder/${id}/publish`, { method: 'POST' }),
   closeCustomForm: (id: string) => handleRequest<{ ok: boolean }>(`/forms/builder/${id}/close`, { method: 'POST' }),
+  getCustomFormDeletePreview: (id: string) =>
+    handleRequest<{ id: string; title: string; responseCount: number; fingerprint: string }>(
+      `/forms/builder/${id}/delete-preview`
+    ),
+  deleteCustomForm: (id: string, fingerprint: string) =>
+    handleRequest<{ ok: boolean; deletedResponses: number; message: string }>(
+      `/forms/builder/${id}`,
+      {
+        method: 'DELETE',
+        body: JSON.stringify({ confirm: true, fingerprint }),
+      }
+    ),
 
-  // Table Export
-  exportExcel: async (payload: { kind: string; columns: string[]; rows: any[][]; filename?: string }) => {
+  // Table Export (Strictly adhering to Frontend/src/table-tools.ts:33-38)
+  exportExcel: async (payload: { headers: string[]; rows: (string | number)[][]; numericColumns: number[]; filename?: string }) => {
+    if (isMock) {
+      return new Blob(['Mock Excel Binary'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
     const res = await fetch('/api/excel/export', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        headers: payload.headers,
+        rows: payload.rows,
+        numericColumns: payload.numericColumns,
+      }),
     });
     if (!res.ok) {
-      // Return synthetic blob if server endpoint not present
-      return new Blob(['test-export'], { type: 'text/csv' });
+      const err = await res.json().catch(() => ({ error: 'تعذر تصدير Excel' }));
+      throw new ApiError(err.error || 'تعذر تصدير Excel', res.status);
     }
     return res.blob();
   },

@@ -68,7 +68,12 @@ function startStaticServer(port = 39821) {
         ]));
         return;
       }
-      if (reqPath === '/api/submissions') {
+      if (reqPath.match(/\/api\/campaigns\/[^/]+\/delete-preview/)) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ id: 'camp-101', title: 'تحديث بيانات الآيبان 2026', responseCount: 24, fingerprint: 'mock-fp-101' }));
+        return;
+      }
+      if (reqPath === '/api/submissions' || reqPath === '/api/responses') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify([
           {

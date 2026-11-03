@@ -20,6 +20,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
+import { useAuth } from '../../lib/auth-context';
 
 export interface NavItem {
   id: string;
@@ -28,6 +29,7 @@ export interface NavItem {
   icon: React.ReactNode;
   badge?: number | string;
   isNew?: boolean;
+  permission?: string;
 }
 
 export interface SidebarProps {
@@ -48,6 +50,7 @@ export function Sidebar({
   pendingResponsesCount = 0,
 }: SidebarProps) {
   const pathname = usePathname();
+  const { can, isAdmin, user } = useAuth();
 
   const navItems: NavItem[] = [
     {
@@ -55,12 +58,14 @@ export function Sidebar({
       href: '/app/',
       label: 'الرئيسية',
       icon: <LayoutDashboard size={19} />,
+      permission: 'payroll.view',
     },
     {
       id: 'riders',
       href: '/app/riders/',
       label: 'المناديب',
       icon: <Users size={19} />,
+      permission: 'riders.view',
     },
     {
       id: 'companies',
@@ -68,6 +73,7 @@ export function Sidebar({
       label: 'الشركات والسجلات',
       icon: <Building2 size={19} />,
       isNew: true,
+      permission: 'companies.view',
     },
     {
       id: 'operations',
@@ -75,12 +81,14 @@ export function Sidebar({
       label: 'التشغيل والأصول',
       icon: <Truck size={19} />,
       isNew: true,
+      permission: 'operations.view',
     },
     {
       id: 'payroll',
       href: '/app/payroll/',
       label: 'الرواتب',
       icon: <Calculator size={19} />,
+      permission: 'payroll.view',
     },
     {
       id: 'debts',
@@ -88,18 +96,21 @@ export function Sidebar({
       label: 'المديونيات والسلف',
       icon: <Receipt size={19} />,
       badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
+      permission: 'debts.view',
     },
     {
       id: 'treasury',
       href: '/app/treasury/',
       label: 'البنوك والصناديق والخزن',
       icon: <Landmark size={19} />,
+      permission: 'treasury.view',
     },
     {
       id: 'accounting',
       href: '/app/accounting/',
       label: 'المحاسبة والتقارير',
       icon: <FileSpreadsheet size={19} />,
+      permission: 'payroll.view',
     },
     {
       id: 'forms',
@@ -107,14 +118,23 @@ export function Sidebar({
       label: 'النماذج والردود',
       icon: <ClipboardList size={19} />,
       badge: pendingResponsesCount > 0 ? pendingResponsesCount : undefined,
+      permission: 'forms.view',
     },
     {
       id: 'admin',
       href: '/app/admin/',
       label: 'الإدارة',
       icon: <ShieldCheck size={19} />,
+      permission: 'users.manage',
     },
   ];
+
+  const visibleNavItems = navItems.filter((item) => {
+    if (!user) return true; // optimistic while auth loading
+    if (isAdmin) return true;
+    if (!item.permission) return true;
+    return can(item.permission);
+  });
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[var(--surface)] text-[var(--ink)] border-e border-[var(--line)]">
@@ -155,7 +175,7 @@ export function Sidebar({
           </div>
         )}
 
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive =
             item.href === '/app/'
               ? pathname === '/app' || pathname === '/app/'

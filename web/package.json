@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "test:e2e": "node tests/e2e.mjs"
+    "build": "node scripts/check-env.mjs && next build",
+    "test:e2e": "node tests/e2e.mjs",
+    "test:e2e:live": "node tests/e2e-live.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.67.1",
