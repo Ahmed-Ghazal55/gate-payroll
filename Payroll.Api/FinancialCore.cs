@@ -746,7 +746,9 @@ public static class FinancialCore
         api.MapPost("/notifications/center/{id}/toggle-todo", (string id, HttpContext ctx) => store.Write((c, tx) =>
         {
             var notif = Store.Get(c, id, "sys_notification", tx) ?? throw new ApiError("المهمة غير موجودة.", 404);
-            J.Need(AccessPolicy.Administrator(ctx.User)||notif.S("targetDepartment") is var dept&&(dept=="ALL"||dept==ctx.User.FindFirst("department")?.Value),"المهمة خارج قسمك.");
+            bool owner=notif.S("assignedTo")==ctx.User.Identity?.Name||notif.S("createdBy")==ctx.User.Identity?.Name;
+            if(!owner&&!AccessPolicy.Has(ctx.User,"approvals.view"))throw new ApiError("ليست لديك صلاحية لهذه المهمة.",403);
+            J.Need(owner||AccessPolicy.Administrator(ctx.User)||notif.S("targetDepartment") is var dept&&(dept=="ALL"||dept==ctx.User.FindFirst("department")?.Value),"المهمة خارج قسمك.");
             bool done = !notif.B("completed");
             notif["completed"] = done;
             notif["status"] = done ? "acknowledged" : "unread";
@@ -775,7 +777,7 @@ public static class FinancialCore
             }, false);
         }).WithTags("Riders").WithSummary("Submit rider mobile login").RequireRateLimiting("sensitive");
 
-        api.MapPost("/api/rider-mobile/broadcast".Replace("/api/", "/"), (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
+        api.MapPost("/rider-mobile/broadcast", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             string category = input.S("category", "operational"); // financial | operational | administrative | form_link
             string titleAr = input.Required("titleAr");

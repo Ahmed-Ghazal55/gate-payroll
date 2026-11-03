@@ -69,7 +69,6 @@ public static class AccessPolicy
         if(path.StartsWith("/api/finance/opening/",StringComparison.Ordinal))return Has("treasury.opening");
         if(path.StartsWith("/api/finance/legacy-cash-allocation/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
         if(path.StartsWith("/api/finance/jahez-handovers/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.jahez.receive")&&(path.EndsWith("/confirm",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal));
-        if(path.StartsWith("/api/debts/",StringComparison.Ordinal)&&path.Contains("/reconcile-opening/",StringComparison.Ordinal))return Has("treasury.opening");
         if(path.StartsWith("/api/finance/",StringComparison.Ordinal))return method=="GET"?Has("treasury.view"):method=="POST"&&(path switch{
             "/api/finance/vault-transfer"=>Has("treasury.transfer"),
             "/api/finance/liability-payment"=>Has("treasury.liability.settle"),
@@ -79,6 +78,8 @@ public static class AccessPolicy
             "/api/finance/jahez-fee"=>Has("treasury.jahez.manage"),
             "/api/finance/jahez-handover"=>Has("treasury.jahez.handover"),_=>false});
         if(path.StartsWith("/api/approvals",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&path.EndsWith("/decide",StringComparison.Ordinal)&&Has("approvals.decide");
+        if(method=="DELETE"||path.EndsWith("/delete-preview",StringComparison.Ordinal)||path=="/api/submissions/bulk-delete"||method=="PUT"&&path.StartsWith("/api/campaigns/",StringComparison.Ordinal))return false;
+        if(method=="POST"&&path.StartsWith("/api/notifications/center/",StringComparison.Ordinal)&&path.EndsWith("/toggle-todo",StringComparison.Ordinal))return true; // Handler checks view permission or ownership and visibility.
         if(path.StartsWith("/api/notifications",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&Has("mobile.broadcast");
         if(path=="/api/inquiry-access")return method=="POST"&&Has("inquiry.issue");
         if(path.StartsWith("/api/rider-mobile/firebase-config",StringComparison.Ordinal))return false;
@@ -91,8 +92,6 @@ public static class AccessPolicy
         if(path.StartsWith("/api/policies",StringComparison.Ordinal))return method=="GET"?Has("policies.view"):Has("policies.manage");
         if(Get("/api/imports")||path=="/api/template.csv")return Has("imports.view");
         if(path.StartsWith("/api/imports/",StringComparison.Ordinal))return method=="POST"&&(path.EndsWith("/commit",StringComparison.Ordinal)?Has("imports.commit"):Has("imports.view"));
-        if(path.StartsWith("/api/excel/choices/",StringComparison.Ordinal))return method=="GET"&&Has("forms.view");
-        if(path.StartsWith("/api/excel/riders/",StringComparison.Ordinal))return method=="GET"&&Has("riders.view");
         if(path.StartsWith("/api/campaigns",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="DELETE"?Has("forms.delete"):Has("forms.manage");
         if(path.StartsWith("/api/submissions",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="POST"&&(path.EndsWith("/review",StringComparison.Ordinal)||path=="/api/submissions/bulk-approve")&&Has("forms.review");
         if(Get("/api/forms/catalog")||Get("/api/forms/analytics")||Get("/api/forms/responses"))return Has("forms.view");

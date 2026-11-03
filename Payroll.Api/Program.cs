@@ -32,14 +32,14 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     o.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
     o.ExpireTimeSpan = TimeSpan.FromHours(8); o.SlidingExpiration = false;
     o.Events.OnValidatePrincipal = UserAccess.ValidateCookie;
-    o.Events.OnRedirectToLogin = c => { c.Response.StatusCode = 401; return c.Response.WriteAsJsonAsync(new { error = "سجل الدخول للإدارة." }); };
-    o.Events.OnRedirectToAccessDenied = c => { c.Response.StatusCode = 403; return Task.CompletedTask; };
+    o.Events.OnRedirectToLogin = c => { c.Response.StatusCode = 401; return c.Response.WriteAsJsonAsync(ApiErrors.Body(401, "سجل الدخول للإدارة.")); };
+    o.Events.OnRedirectToAccessDenied = c => { c.Response.StatusCode = 403; return c.Response.WriteAsJsonAsync(ApiErrors.Body(403)); };
 });
 builder.Services.AddAuthorization();
 builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache(o => o.SizeLimit = 10000);
 builder.Services.AddSingleton<InquiryLimits>();
-builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
+builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
 CampaignLinks.Migrate(store);
@@ -66,10 +66,11 @@ app.Use(async (ctx, next) =>
         await next();
     }
     catch (Exception e) when (e is ApiError or JsonException or FormatException or BadHttpRequestException)
-    { ctx.Response.StatusCode = e is ApiError ae ? ae.Status : 400; await ctx.Response.WriteAsJsonAsync(new { error = e is ApiError ? e.Message : "بيانات الطلب غير صحيحة." }); }
+    { ctx.Response.StatusCode = e is ApiError ae ? ae.Status : 400; await ctx.Response.WriteAsJsonAsync(ApiErrors.Body(ctx.Response.StatusCode, e is ApiError ? e.Message : "بيانات الطلب غير صحيحة.")); }
     catch (Exception e)
-    { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(new { error = "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا." }); }
+    { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(ApiErrors.Body(500, "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا.")); }
 });
+app.UseStatusCodePages(async context => { if(context.HttpContext.Request.Path.StartsWithSegments("/api") || context.HttpContext.Request.Path.StartsWithSegments("/openapi")) await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(context.HttpContext.Response.StatusCode)); });
 app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
 app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent }).WithTags("Administration").WithSummary("Read  health");
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName }).WithTags("Administration").WithSummary("Read auth status");
@@ -87,13 +88,13 @@ app.MapPost("/api/auth/login", async (JsonObject input, HttpContext ctx) =>
 {
     var user = store.Read(c => UserAccess.Find(c, input.S("username")));
     // Per-account lockout complements the per-IP rate limit: 5 failures lock the account for 15 minutes.
-    if (user != null && DateTimeOffset.TryParse(user.S("lockedUntil"), out var lockedUntil) && lockedUntil > DateTimeOffset.UtcNow) return Results.Json(new { error = "الحساب مقفل مؤقتًا بعد محاولات دخول خاطئة؛ حاول بعد 15 دقيقة أو راجع مسؤول النظام." }, statusCode: 423);
+    if (user != null && DateTimeOffset.TryParse(user.S("lockedUntil"), out var lockedUntil) && lockedUntil > DateTimeOffset.UtcNow) return Results.Json(ApiErrors.Body(423, "الحساب مقفل مؤقتًا بعد محاولات دخول خاطئة؛ حاول بعد 15 دقيقة أو راجع مسؤول النظام."), statusCode: 423);
     if (!UserAccess.Password(user, input.S("password")))
     {
         if (user != null) store.Write((c,tx) => { var current = Store.Get(c, user.S("id"), "user", tx)!; int failed = (int)current.N("failedLogins") + 1;
             current["failedLogins"] = failed >= 5 ? 0 : failed; if (failed >= 5) { current["lockedUntil"] = DateTimeOffset.UtcNow.AddMinutes(15).ToString("O"); Store.Audit(c,tx,"admin.login_locked",current.S("id"),current.S("username")); }
             Store.Save(c,"user",current,tx); return true; });
-        return Results.Json(new { error = "اسم المستخدم أو كلمة المرور غير صحيحة." }, statusCode: 401);
+        return Results.Json(ApiErrors.Body(401, "اسم المستخدم أو كلمة المرور غير صحيحة."), statusCode: 401);
     }
     var loggedIn = store.Write((c,tx) => {
         var current = Store.Get(c, user!.S("id"), "user", tx)!;
@@ -108,7 +109,7 @@ var api = app.MapGroup("/api").RequireAuthorization();
 api.AddEndpointFilter(async (context, next) => {
     var ctx=context.HttpContext;
     if (!AccessPolicy.Allowed(ctx.User,ctx.Request.Method,ctx.Request.Path.Value??"",context.Arguments.OfType<JsonObject>().FirstOrDefault()))
-        return Results.Json(new { error="ليست لديك صلاحية لهذا الإجراء." }, statusCode:403);
+        return Results.Json(ApiErrors.Body(403), statusCode:403);
     return await next(context);
 });
 TableExcelApi.Map(api, store);

@@ -65,7 +65,7 @@ public static class SubmissionChoices
             return store.Write<IResult>((c,tx)=>
             {
                 campaign=Open(c,tx,campaign);var existing=Find(c,tx,campaign,choice.Iqama);
-                if(existing!=null)return Results.Json(ChoiceView(existing,campaign),statusCode:409);
+                if(existing!=null)return Results.Json(ApiErrors.Duplicate(ChoiceView(existing,campaign)),statusCode:409);
                 var answers=CampaignOperations.Answers(campaign,input);
                 var d=new JsonObject { ["id"]=Guid.NewGuid().ToString("N"),["campaignId"]=campaign.S("id"),["schema"]="work-choice-v1",["iqama"]=choice.Iqama,["name"]=choice.Name,["workSystem"]=choice.WorkSystem,["status"]="pending",["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["version"]=1,["isEdited"]=false,["history"]=new JsonArray() };
                 foreach(var field in answers)d[field.Key]=field.Value?.DeepClone();

@@ -11,12 +11,13 @@
 Prompt A: API cleanup for 0.10.0 / 1.0. Preserve Minimal APIs and document storage. Antigravity owns web/ in its separate worktree. Never edit Frontend/, RiderForm/ or web/ (Ghazal confirmed version files stay excluded).
 
 ## Done (latest first)
+- Task 2: policy/handler agreement, user PUT alias, owner/view permission for todo, plain broadcast route, JSON errors including duplicate submissions; two policy behavior tests and HTTP checks pass.
 - Task 1: built-in admin-only OpenAPI, tags/summaries, generated docs/api/ENDPOINTS.md, bidirectional inventory/OpenAPI HTTP coverage. Includes dynamic deletion and inquiry routes.
 - Baseline: .NET 128 passed / 0 failed / 6 SQL skipped; new API HTTP 137 checks passed. Python 21 passed (mocked network); generator/source/whitespace checks passed.
 - Restore used only local NuGet cache; no source change or network restore. Frontend compiled from unchanged source using existing TypeScript, output only under Payroll.Api/wwwroot. SkipFrontendBuild supports backend-only builds.
 
 ## Next step (exact)
-Continue prompt A tasks 2–9, one commit per task. Final next = Claude review of feat/1.0-api; no push, PR, merge or deploy.
+Continue prompt A tasks 3–9, one commit per task. Final next = Claude review of feat/1.0-api; no push, PR, merge or deploy.
 
 ## Open problems / decisions
 - UI release labels remain 0.9.3 under the explicit no-UI-edit rule; Antigravity handles them.

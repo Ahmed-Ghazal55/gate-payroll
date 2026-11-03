@@ -24,5 +24,25 @@ try{
  await req('/api/users',{username:'synthetic-reader',password,role:'Reviewer'});
  await req('/api/auth/login',{username:'synthetic-reader',password});
  await req('/openapi/v1.json',undefined,'GET',403);cookie=admin;
+ // Appendix B: edit alias, ownership, errors, lockout and rate limiting.
+ const reader=(await req('/api/users')).find(x=>x.username==='synthetic-reader');
+ await req(`/api/users/${reader.id}`,{department:'OPS'},'PUT');
+ await req(`/api/users/${reader.id}/status`,{department:'OPS'},'PUT');
+ const task=await req('/api/notifications/center',{tab:'todo',titleAr:'مهمة مصطنعة',bodyAr:'اختبار',assignedTo:'synthetic-reader'});
+ await req('/api/auth/login',{username:'synthetic-reader',password});
+ assert.equal((await req(`/api/notifications/center/${task.id}/toggle-todo`,{})).completed,true);
+ assert.equal((await req('/api/campaigns/missing',{},'PUT',403)).code,'forbidden');
+ assert.equal((await req('/api/users',undefined,'GET',403)).code,'forbidden');
+ cookie=''; assert.equal((await req('/api/me',undefined,'GET',401)).code,'unauthorized');
+ cookie=admin;
+ assert.equal((await req('/api/rider-mobile/broadcast',{},'POST',400)).code,'invalid_request');
+ assert.equal((await req('/api/not-a-route',undefined,'GET',404)).code,'not_found');
+ for(let i=0;i<5;i++) assert.equal((await req('/api/auth/login',{username:'synthetic-reader',password:'invalid'},'POST',401)).code,'unauthorized');
+ assert.equal((await req('/api/auth/login',{username:'synthetic-reader',password:'invalid'},'POST',423)).code,'account_locked');
+ const campaign=await req('/api/campaigns',{title:'Synthetic responses',days:2});
+ const token=campaign.path.split("/").at(-1);const answer={iqama:'2000000099',name:'Synthetic Answer',workSystem:'commission'};
+ await req(`/api/public/forms/${token}`,answer);
+ const duplicate=await req(`/api/public/forms/${token}`,answer,'POST',409);assert.equal(duplicate.code,'already_submitted');assert.equal(duplicate.alreadySubmitted,true);assert.equal(duplicate.iqama,answer.iqama);
+ let limited=false;for(let i=0;i<35;i++){const r=await fetch(base+'/api/public/forms/missing');if(r.status===429){assert.equal((await r.json()).code,'rate_limited');limited=true;break;}}assert.ok(limited);checks++;
  console.log(`PASS API cleanup: ${checks} checks`);
 }finally{proc.kill();await new Promise(resolve=>{if(proc.exitCode!==null||proc.signalCode!==null)resolve();else proc.once('exit',resolve);});rmSync(data,{recursive:true,force:true});}

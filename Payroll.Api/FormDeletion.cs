@@ -11,7 +11,7 @@ public static class FormDeletion
 {
     static void Admin(HttpContext ctx)
     {
-        if(ctx.User.FindFirstValue(ClaimTypes.Role)!="Admin")throw new ApiError("حذف النموذج لمسؤول النظام فقط.",403);
+        if(!AccessPolicy.Administrator(ctx.User))throw new ApiError("حذف النموذج لمسؤول النظام فقط.",403);
     }
     static (JsonObject Form,List<JsonObject> Rows,string Fingerprint) Snapshot(DbConnection c,DbTransaction? tx,string id,bool custom)
     {

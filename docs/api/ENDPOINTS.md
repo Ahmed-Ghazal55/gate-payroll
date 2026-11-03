@@ -11,7 +11,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
 | GET | `/api/approvals` | Payroll.Api/FinancialCore.cs:646 | approvals.view | none | keep |
-| GET | `/api/dashboard` | Payroll.Api/Program.cs:132 | payroll.view | none | keep |
+| GET | `/api/dashboard` | Payroll.Api/Program.cs:133 | payroll.view | none | keep |
 | GET | `/api/notifications/center` | Payroll.Api/FinancialCore.cs:707 | authenticated; notifications: category/owner visibility | none | keep |
 | POST | `/api/approvals/{id}/decide` | Payroll.Api/FinancialCore.cs:654 | approvals.decide + department/rank + maker-checker | none | keep |
 | POST | `/api/notifications/center` | Payroll.Api/FinancialCore.cs:722 | authenticated; notifications: category/owner visibility | none | keep |
@@ -21,24 +21,24 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/api/rider-mobile/broadcasts` | Payroll.Api/FinancialCore.cs:810 | mobile.broadcast | none | keep |
-| GET | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:813 | Admin / SuperAdmin | none | keep |
-| GET | `/api/rider-mobile/portal/{iqama}` | Payroll.Api/FinancialCore.cs:856 | mobile.broadcast | rider app | keep |
-| GET | `/api/riders` | Payroll.Api/Program.cs:133 | riders.view | none | keep |
+| GET | `/api/rider-mobile/broadcasts` | Payroll.Api/FinancialCore.cs:812 | mobile.broadcast | none | keep |
+| GET | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:815 | Admin / SuperAdmin | none | keep |
+| GET | `/api/rider-mobile/portal/{iqama}` | Payroll.Api/FinancialCore.cs:858 | mobile.broadcast | rider app | keep |
+| GET | `/api/riders` | Payroll.Api/Program.cs:134 | riders.view | none | keep |
 | GET | `/api/riders/data-quality` | Payroll.Api/DirectoryApi.cs:311 | riders.view | none | keep |
 | GET | `/api/riders/{iqama}/documents/{id}/download` | Payroll.Api/DirectoryApi.cs:429 | riders.view_360 | none | keep |
 | GET | `/api/riders/{iqama}/profile-360` | Payroll.Api/DirectoryApi.cs:330 | riders.view_360 + debts.view | none | keep |
 | GET | `/inquiry` | Payroll.Api/InquiryApi.cs:75 | public (rider portal: own authenticated rider) | old UI | keep |
-| GET | `/rider-app` | Payroll.Api/FinancialCore.cs:919 | public (rider portal: own authenticated rider) | old UI | keep |
-| GET | `/rider-app.js` | Payroll.Api/FinancialCore.cs:920 | public (rider portal: own authenticated rider) | none | keep |
+| GET | `/rider-app` | Payroll.Api/FinancialCore.cs:921 | public (rider portal: own authenticated rider) | old UI | keep |
+| GET | `/rider-app.js` | Payroll.Api/FinancialCore.cs:922 | public (rider portal: own authenticated rider) | none | keep |
 | POST | `/api/inquiry-access` | Payroll.Api/InquiryApi.cs:37 | see AccessPolicy + handler | none | keep |
 | POST | `/api/public/inquiry/debt` | Payroll.Api/InquiryApi.cs:49 | public (rider portal: own authenticated rider) | none | keep |
 | POST | `/api/public/inquiry/payslip` | Payroll.Api/InquiryApi.cs:49 | public (rider portal: own authenticated rider) | none | keep |
-| POST | `/api/rider-mobile/broadcast` | Payroll.Api/FinancialCore.cs:778 | mobile.broadcast | none | keep |
-| POST | `/api/rider-mobile/broadcasts/{id}/ack` | Payroll.Api/FinancialCore.cs:903 | mobile.broadcast | rider app | keep |
-| POST | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:835 | Admin / SuperAdmin | none | keep |
-| POST | `/api/rider-mobile/login` | Payroll.Api/FinancialCore.cs:760 | mobile.broadcast | rider app | keep |
-| POST | `/api/riders` | Payroll.Api/Program.cs:134 | riders.edit (+ riders.financial_edit for financial fields) | none | keep |
+| POST | `/api/rider-mobile/broadcast` | Payroll.Api/FinancialCore.cs:780 | mobile.broadcast | none | keep |
+| POST | `/api/rider-mobile/broadcasts/{id}/ack` | Payroll.Api/FinancialCore.cs:905 | mobile.broadcast | rider app | keep |
+| POST | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:837 | Admin / SuperAdmin | none | keep |
+| POST | `/api/rider-mobile/login` | Payroll.Api/FinancialCore.cs:762 | mobile.broadcast | rider app | keep |
+| POST | `/api/riders` | Payroll.Api/Program.cs:135 | riders.edit (+ riders.financial_edit for financial fields) | none | keep |
 | POST | `/api/riders/enrich-missing` | Payroll.Api/DirectoryApi.cs:202 | Admin / SuperAdmin | none | keep |
 | POST | `/api/riders/sync-baseline` | Payroll.Api/DirectoryApi.cs:115 | Admin / SuperAdmin | none | keep |
 | POST | `/api/riders/{iqama}/documents` | Payroll.Api/DirectoryApi.cs:375 | riders.edit (+ riders.financial_edit for financial fields) | none | keep |
@@ -53,27 +53,27 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
 | GET | `/api/excel/{kind}/template` | Payroll.Api/TableExcelApi.cs:28 | imports.view | none | keep |
-| GET | `/api/imports` | Payroll.Api/Program.cs:188 | imports.view | none | deprecated |
-| GET | `/api/imports/{id}/sheet` | Payroll.Api/Program.cs:163 | imports.view | none | keep |
-| GET | `/api/ledger` | Payroll.Api/Program.cs:219 | payroll.view | none | keep |
-| GET | `/api/ledger/{iqama}` | Payroll.Api/Program.cs:220 | payroll.view | none | keep |
-| GET | `/api/payroll/export.csv` | Payroll.Api/Program.cs:235 | payroll.view | old UI | keep |
-| GET | `/api/payroll/fingerprint` | Payroll.Api/Program.cs:218 | payroll.view | none | deprecated |
-| GET | `/api/payroll/preview` | Payroll.Api/Program.cs:201 | payroll.view | none | keep |
-| GET | `/api/payroll/runs` | Payroll.Api/Program.cs:202 | payroll.view | none | keep |
-| GET | `/api/policies` | Payroll.Api/Program.cs:146 | policies.view | none | keep |
-| GET | `/api/template.csv` | Payroll.Api/Program.cs:189 | imports.view | none | deprecated |
-| POST | `/api/adjustments` | Payroll.Api/Program.cs:190 | adjustments.create | none | keep |
+| GET | `/api/imports` | Payroll.Api/Program.cs:189 | imports.view | none | deprecated |
+| GET | `/api/imports/{id}/sheet` | Payroll.Api/Program.cs:164 | imports.view | none | keep |
+| GET | `/api/ledger` | Payroll.Api/Program.cs:220 | payroll.view | none | keep |
+| GET | `/api/ledger/{iqama}` | Payroll.Api/Program.cs:221 | payroll.view | none | keep |
+| GET | `/api/payroll/export.csv` | Payroll.Api/Program.cs:236 | payroll.view | old UI | keep |
+| GET | `/api/payroll/fingerprint` | Payroll.Api/Program.cs:219 | payroll.view | none | deprecated |
+| GET | `/api/payroll/preview` | Payroll.Api/Program.cs:202 | payroll.view | none | keep |
+| GET | `/api/payroll/runs` | Payroll.Api/Program.cs:203 | payroll.view | none | keep |
+| GET | `/api/policies` | Payroll.Api/Program.cs:147 | policies.view | none | keep |
+| GET | `/api/template.csv` | Payroll.Api/Program.cs:190 | imports.view | none | deprecated |
+| POST | `/api/adjustments` | Payroll.Api/Program.cs:191 | adjustments.create | none | keep |
 | POST | `/api/excel/export` | Payroll.Api/TableExcelApi.cs:29 | riders.view | old UI | keep |
 | POST | `/api/excel/{kind}/commit` | Payroll.Api/TableExcelApi.cs:44 | imports.commit | none | keep |
 | POST | `/api/excel/{kind}/preview` | Payroll.Api/TableExcelApi.cs:43 | imports.view | none | keep |
-| POST | `/api/imports/inspect` | Payroll.Api/Program.cs:155 | imports.view | none | keep |
-| POST | `/api/imports/{id}/commit` | Payroll.Api/Program.cs:169 | imports.commit | none | keep |
-| POST | `/api/imports/{id}/preview` | Payroll.Api/Program.cs:168 | imports.view | none | keep |
-| POST | `/api/payments` | Payroll.Api/Program.cs:221 | payments.record | none | keep |
-| POST | `/api/payroll/approve` | Payroll.Api/Program.cs:203 | payroll.approve | none | keep |
-| POST | `/api/policies` | Payroll.Api/Program.cs:147 | policies.manage | none | keep |
-| POST | `/api/policies/{id}/approve` | Payroll.Api/Program.cs:154 | policies.manage | none | keep |
+| POST | `/api/imports/inspect` | Payroll.Api/Program.cs:156 | imports.view | none | keep |
+| POST | `/api/imports/{id}/commit` | Payroll.Api/Program.cs:170 | imports.commit | none | keep |
+| POST | `/api/imports/{id}/preview` | Payroll.Api/Program.cs:169 | imports.view | none | keep |
+| POST | `/api/payments` | Payroll.Api/Program.cs:222 | payments.record | none | keep |
+| POST | `/api/payroll/approve` | Payroll.Api/Program.cs:204 | payroll.approve | none | keep |
+| POST | `/api/policies` | Payroll.Api/Program.cs:148 | policies.manage | none | keep |
+| POST | `/api/policies/{id}/approve` | Payroll.Api/Program.cs:155 | policies.manage | none | keep |
 
 ## المديونيات والسلف
 
@@ -83,7 +83,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/debts/bulk-collect/template` | Payroll.Api/Debts.cs:404 | debts.view | old UI | keep |
 | GET | `/api/debts/import-opening/template` | Payroll.Api/Debts.cs:638 | debts.view | old UI | keep |
 | GET | `/api/debts/settlements` | Payroll.Api/Debts.cs:106 | debts.view | none | deprecated |
-| GET | `/api/promissory-notes` | Payroll.Api/FinancialCore.cs:938 | debts.view (promissory writes: Admin + feature enabled) | none | keep |
+| GET | `/api/promissory-notes` | Payroll.Api/FinancialCore.cs:940 | debts.view (promissory writes: Admin + feature enabled) | none | keep |
 | POST | `/api/debts` | Payroll.Api/Debts.cs:114 | debts.create.<category> (+ treasury.opening for opening balances) | old UI | keep |
 | POST | `/api/debts/bulk-collect/commit` | Payroll.Api/Debts.cs:509 | debts.collect (+ debts.waive when waived) | none | keep |
 | POST | `/api/debts/bulk-collect/preview-file` | Payroll.Api/Debts.cs:441 | debts.collect (+ debts.waive when waived) | none | keep |
@@ -93,8 +93,8 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/debts/{id}/reconcile-opening/commit` | Payroll.Api/TreasuryEntries.cs:53 | treasury.opening | none | keep |
 | POST | `/api/debts/{id}/reconcile-opening/preview` | Payroll.Api/TreasuryEntries.cs:49 | treasury.opening | none | keep |
 | POST | `/api/debts/{id}/transfer-sponsor` | Payroll.Api/Debts.cs:401 | debts.transfer_sponsor | none | keep |
-| POST | `/api/finance/features/promissory-notes` | Payroll.Api/FinancialCore.cs:923 | Admin / SuperAdmin | none | keep |
-| POST | `/api/promissory-notes` | Payroll.Api/FinancialCore.cs:944 | debts.view (promissory writes: Admin + feature enabled) | none | keep |
+| POST | `/api/finance/features/promissory-notes` | Payroll.Api/FinancialCore.cs:925 | Admin / SuperAdmin | none | keep |
+| POST | `/api/promissory-notes` | Payroll.Api/FinancialCore.cs:946 | debts.view (promissory writes: Admin + feature enabled) | none | keep |
 | PUT | `/api/debts/{id}` | Payroll.Api/Debts.cs:253 | debts.reschedule | old UI | keep |
 
 ## البنوك والصناديق والخزن
@@ -140,23 +140,23 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | DELETE | `/api/campaigns/{id}` | Payroll.Api/FormDeletion.cs:29 | Admin / SuperAdmin | old UI | keep |
 | DELETE | `/api/forms/builder/{id}` | Payroll.Api/FormDeletion.cs:29 | Admin / SuperAdmin | old UI | keep |
 | DELETE | `/api/submissions/{id}` | Payroll.Api/CampaignOperations.cs:108 | Admin / SuperAdmin | none | keep |
-| GET | `/api/campaigns` | Payroll.Api/Program.cs:245 | forms.view | none | keep |
+| GET | `/api/campaigns` | Payroll.Api/Program.cs:246 | forms.view | none | keep |
 | GET | `/api/campaigns/{id}/analytics` | Payroll.Api/CampaignOperations.cs:107 | forms.view | none | keep |
 | GET | `/api/campaigns/{id}/delete-preview` | Payroll.Api/FormDeletion.cs:25 | Admin / SuperAdmin | old UI | keep |
-| GET | `/api/campaigns/{id}/qr.svg` | Payroll.Api/Program.cs:246 | forms.view | none | keep |
+| GET | `/api/campaigns/{id}/qr.svg` | Payroll.Api/Program.cs:247 | forms.view | none | keep |
 | GET | `/api/forms/analytics/{id}` | Payroll.Api/FormBuilder.cs:98 | forms.view | none | keep |
 | GET | `/api/forms/builder` | Payroll.Api/FormBuilder.cs:85 | forms.manage | none | keep |
 | GET | `/api/forms/builder/{id}/delete-preview` | Payroll.Api/FormDeletion.cs:25 | Admin / SuperAdmin | old UI | keep |
 | GET | `/api/forms/builder/{id}/qr.svg` | Payroll.Api/FormBuilder.cs:96 | forms.manage | none | keep |
 | GET | `/api/forms/catalog` | Payroll.Api/FormBuilder.cs:84 | forms.view | none | keep |
 | GET | `/api/forms/responses/{id}` | Payroll.Api/FormBuilder.cs:97 | forms.view | none | keep |
-| GET | `/api/public/forms/{token}` | Payroll.Api/Program.cs:263 | public (rider portal: own authenticated rider) | rider form | keep |
+| GET | `/api/public/forms/{token}` | Payroll.Api/Program.cs:264 | public (rider portal: own authenticated rider) | rider form | keep |
 | GET | `/api/public/questionnaires/{token}` | Payroll.Api/FormBuilder.cs:101 | public (rider portal: own authenticated rider) | none | keep |
-| GET | `/api/submissions` | Payroll.Api/Program.cs:256 | forms.view | none | keep |
-| GET | `/forms/{token}` | Payroll.Api/Program.cs:267 | public (rider portal: own authenticated rider) | old UI | keep |
+| GET | `/api/submissions` | Payroll.Api/Program.cs:257 | forms.view | none | keep |
+| GET | `/forms/{token}` | Payroll.Api/Program.cs:268 | public (rider portal: own authenticated rider) | old UI | keep |
 | GET | `/questionnaires/{token}` | Payroll.Api/FormBuilder.cs:110 | public (rider portal: own authenticated rider) | none | keep |
-| POST | `/api/campaigns` | Payroll.Api/Program.cs:247 | forms.manage | none | keep |
-| POST | `/api/campaigns/{id}/close` | Payroll.Api/Program.cs:255 | forms.manage | none | keep |
+| POST | `/api/campaigns` | Payroll.Api/Program.cs:248 | forms.manage | none | keep |
+| POST | `/api/campaigns/{id}/close` | Payroll.Api/Program.cs:256 | forms.manage | none | keep |
 | POST | `/api/forms/builder` | Payroll.Api/FormBuilder.cs:86 | forms.manage | none | keep |
 | POST | `/api/forms/builder/{id}/close` | Payroll.Api/FormBuilder.cs:95 | forms.manage | none | keep |
 | POST | `/api/forms/builder/{id}/publish` | Payroll.Api/FormBuilder.cs:92 | forms.manage | none | keep |
@@ -167,7 +167,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/public/questionnaires/{token}` | Payroll.Api/FormBuilder.cs:104 | public (rider portal: own authenticated rider) | none | keep |
 | POST | `/api/submissions/bulk-approve` | Payroll.Api/CampaignOperations.cs:110 | forms.review | none | keep |
 | POST | `/api/submissions/bulk-delete` | Payroll.Api/CampaignOperations.cs:109 | Admin / SuperAdmin | none | keep |
-| POST | `/api/submissions/{id}/review` | Payroll.Api/Program.cs:257 | forms.review | none | keep |
+| POST | `/api/submissions/{id}/review` | Payroll.Api/Program.cs:258 | forms.review | none | keep |
 | PUT | `/api/campaigns/{id}` | Payroll.Api/CampaignOperations.cs:101 | Admin / SuperAdmin | none | keep |
 | PUT | `/api/forms/builder/{id}` | Payroll.Api/FormBuilder.cs:89 | forms.manage | none | keep |
 
@@ -175,17 +175,18 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/` | Payroll.Api/Program.cs:269 | public (rider portal: own authenticated rider) | old UI | keep |
-| GET | `/api/audit` | Payroll.Api/Program.cs:262 | Admin / SuperAdmin | none | keep |
-| GET | `/api/auth/status` | Payroll.Api/Program.cs:75 | public (rider portal: own authenticated rider) | none | keep |
-| GET | `/api/me` | Payroll.Api/Program.cs:126 | authenticated; notifications: category/owner visibility | old UI | keep |
+| GET | `/` | Payroll.Api/Program.cs:270 | public (rider portal: own authenticated rider) | old UI | keep |
+| GET | `/api/audit` | Payroll.Api/Program.cs:263 | Admin / SuperAdmin | none | keep |
+| GET | `/api/auth/status` | Payroll.Api/Program.cs:76 | public (rider portal: own authenticated rider) | none | keep |
+| GET | `/api/me` | Payroll.Api/Program.cs:127 | authenticated; notifications: category/owner visibility | old UI | keep |
 | GET | `/api/roles-catalog` | Payroll.Api/UserAccess.cs:323 | authenticated; notifications: category/owner visibility | none | keep |
 | GET | `/api/system/release-check` | Payroll.Api/ReleaseSafety.cs:62 | Admin / SuperAdmin | none | deprecated |
 | GET | `/api/users` | Payroll.Api/UserAccess.cs:331 | Admin / SuperAdmin | none | keep |
-| GET | `/health` | Payroll.Api/Program.cs:74 | public (rider portal: own authenticated rider) | none | keep |
-| GET | `/rider-form.js` | Payroll.Api/Program.cs:268 | public (rider portal: own authenticated rider) | none | keep |
-| POST | `/api/auth/login` | Payroll.Api/Program.cs:86 | public (rider portal: own authenticated rider) | none | keep |
-| POST | `/api/auth/logout` | Payroll.Api/Program.cs:106 | public (rider portal: own authenticated rider) | none | keep |
-| POST | `/api/auth/setup` | Payroll.Api/Program.cs:76 | public (rider portal: own authenticated rider) | none | keep |
+| GET | `/health` | Payroll.Api/Program.cs:75 | public (rider portal: own authenticated rider) | none | keep |
+| GET | `/rider-form.js` | Payroll.Api/Program.cs:269 | public (rider portal: own authenticated rider) | none | keep |
+| POST | `/api/auth/login` | Payroll.Api/Program.cs:87 | public (rider portal: own authenticated rider) | none | keep |
+| POST | `/api/auth/logout` | Payroll.Api/Program.cs:107 | public (rider portal: own authenticated rider) | none | keep |
+| POST | `/api/auth/setup` | Payroll.Api/Program.cs:77 | public (rider portal: own authenticated rider) | none | keep |
 | POST | `/api/users` | Payroll.Api/UserAccess.cs:333 | Admin / SuperAdmin | none | keep |
-| PUT | `/api/users/{id}/status` | Payroll.Api/UserAccess.cs:349 | Admin / SuperAdmin | none | keep |
+| PUT | `/api/users/{id}` | Payroll.Api/UserAccess.cs:376 | Admin / SuperAdmin | none | new |
+| PUT | `/api/users/{id}/status` | Payroll.Api/UserAccess.cs:377 | Admin / SuperAdmin | none | keep |

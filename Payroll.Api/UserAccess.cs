@@ -346,7 +346,7 @@ public static class UserAccess
             return Public(u);
         })).WithTags("Administration").WithSummary("Submit users");
 
-        api.MapPut("/users/{id}/status", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
+        JsonObject UpdateUser(string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             var u = Store.Get(c, id, "user", tx) ?? throw new ApiError("الحساب غير موجود.", 404);
             string role = input.S("role", Role(u)), status = input.S("status", Status(u));
@@ -372,6 +372,8 @@ public static class UserAccess
             Store.Save(c, "user", u, tx);
             Store.Audit(c, tx, "admin.user_update", id, ctx.User.Identity!.Name!);
             return Public(u);
-        })).WithTags("Administration").WithSummary("Update users {id} status");
+        });
+        api.MapPut("/users/{id}", UpdateUser).WithTags("Administration").WithSummary("Update a user and invalidate existing sessions");
+        api.MapPut("/users/{id}/status", UpdateUser).WithTags("Administration").WithSummary("Legacy alias for updating a user");
     }
 }
