@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 ROOT = Path(__file__).resolve().parents[1]
 DEPRECATED = {'/api/template.csv', '/api/payroll/fingerprint', '/api/imports', '/api/debts/settlements', '/api/public/forms/{token}/resume', '/api/system/release-check'}
-GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Companies and registrations':'الشركات والسجلات', 'Payroll':'الرواتب', 'Debts and advances':'المديونيات والسلف', 'Banks and treasury':'البنوك والصناديق والخزن', 'Accounting and reports':'المحاسبة والتقارير', 'Forms and responses':'النماذج والردود', 'Administration':'الإدارة'}
+GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Companies and registrations':'الشركات والسجلات', 'Platforms':'المنصات', 'Payroll':'الرواتب', 'Debts and advances':'المديونيات والسلف', 'Banks and treasury':'البنوك والصناديق والخزن', 'Accounting and reports':'المحاسبة والتقارير', 'Forms and responses':'النماذج والردود', 'Administration':'الإدارة'}
 def permission(method,p):
  if p.startswith(('/api/public/', '/api/auth/')) or not p.startswith('/api/'): return 'public (rider portal: own authenticated rider)'
  if p.startswith(('/api/rider-mobile/login','/api/rider-mobile/portal/')) or p.startswith('/api/rider-mobile/broadcasts/') and p.endswith('/ack'):return 'own rider session / one-time inquiry code'
@@ -11,6 +11,7 @@ def permission(method,p):
  if p.startswith('/api/notifications/center/') and p.endswith('/toggle-todo'):return 'approvals.view OR owner; department visibility'
  if p=='/api/notifications/center':return 'approvals.view' if method=='GET' else 'mobile.broadcast'
  if p in ('/api/me','/api/roles-catalog','/api/search') or p.startswith('/api/notifications'):return 'authenticated; category/owner visibility in handler'
+ if p.startswith('/api/platforms/') and p.endswith('/posting'): return 'Admin / SuperAdmin; audited platform gate'
  if p.startswith('/api/companies/import/'): return 'Admin / SuperAdmin; signed preview + audit'
  if p.startswith('/api/companies'): return 'companies.view' if method=='GET' else 'companies.manage'
  if p.startswith(('/api/users','/api/system','/api/rider-mobile/firebase')) or method=='DELETE' or p=='/api/submissions/bulk-delete' or p.endswith('/delete-preview') or method=='PUT' and p.startswith('/api/campaigns/'):return 'Admin / SuperAdmin'
@@ -62,8 +63,8 @@ def routes():
     variants={prefix,prefix.removeprefix('/api')}
     if any(any(v and any(quote+v in x.read_text() for quote in ['\"',"'",'`']) for v in variants) for x in (ROOT/'Frontend/src').glob('*.ts')):caller='old UI'
     if p.startswith('/api/auth/') or p.startswith('/api/submissions/bulk-'):caller='old UI'
-    if p.startswith(('/api/companies','/api/search','/api/responses')) or p.startswith('/api/notifications') and '/center' not in p or p=='/api/users/{id}':caller='none'
-   status='deprecated' if p in DEPRECATED and (p!='/api/imports' or method=='GET') else 'new' if p.startswith(('/api/companies','/api/search','/api/responses')) or p.startswith('/api/notifications') and '/center' not in p else 'keep'
+    if p.startswith(('/api/companies','/api/search','/api/responses','/api/platforms')) or p.startswith('/api/notifications') and '/center' not in p or p=='/api/users/{id}':caller='none'
+   status='deprecated' if p in DEPRECATED and (p!='/api/imports' or method=='GET') else 'new' if p.startswith(('/api/companies','/api/search','/api/responses','/api/platforms')) or p.startswith('/api/notifications') and '/center' not in p else 'keep'
    if p in ('/api/users/{id}','/app','/app/{**path}'):status='new'
    for actual in (['/api/public/inquiry/payslip','/api/public/inquiry/debt'] if p=='/api/public/inquiry/' else [p]):
     rows.append((group,method,actual,f'{f.relative_to(ROOT)}:{s[:m.start()].count(chr(10))+1}',permission(method,actual),caller,status))
