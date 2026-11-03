@@ -13,6 +13,8 @@ public static class Notifications
     public static string Category(JsonObject item)=>item.S("category")!=""?item.S("category"):item.S("assignedTo")!=""?"personal":item.S("tab")=="approvals"?"approvals":"general";
     public static bool Visible(DbConnection c,ClaimsPrincipal user,JsonObject item,DbTransaction? tx=null)
     {
+        if(item.S("companyId")!=""&&!FinancialScopes.Sponsor(user,item.S("companyId")))return false;
+        if(item.S("platform")!=""&&!FinancialScopes.Platform(user,item.S("platform")))return false;
         string category=Category(item);
         if(category=="personal")return Own(user,item.S("assignedTo"));
         if(!AccessPolicy.Administrator(user)&&item.S("targetDepartment","ALL") is var department&&department!="ALL"&&department!=user.FindFirstValue("department"))return false;
@@ -35,10 +37,12 @@ public static class Notifications
         string id=ReadId(user,item.S("id"));if(Store.Get(c,id,"notification_read",tx)!=null)return;
         Store.Save(c,"notification_read",new(){["id"]=id,["userId"]=Identity(user),["notificationId"]=item.S("id"),["readAt"]=DateTimeOffset.UtcNow.ToString("O")},tx);
     }
-    public static void Raise(DbConnection c,DbTransaction tx,string id,string category,string title,string permission,string actor,string? approvalId=null,DateTimeOffset? clock=null,string eventKey="")
+    public static void Raise(DbConnection c,DbTransaction tx,string id,string category,string title,string permission,string actor,string? approvalId=null,DateTimeOffset? clock=null,string eventKey="",string? companyId=null,string? platform=null)
     {
         if(Store.Get(c,id,"sys_notification",tx)!=null)return;
-        Store.Save(c,"sys_notification",new(){["id"]=id,["category"]=category,["tab"]=category,["titleAr"]=title,["bodyAr"]="راجع قائمة العمليات للمزيد.",["requiredPermission"]=permission,["targetDepartment"]="ALL",["approvalId"]=approvalId??"",["status"]="unread",["createdAt"]=(clock??DateTimeOffset.UtcNow).ToString("O"),["eventKey"]=eventKey,["createdBy"]=actor},tx);
+        var notification=new JsonObject{["id"]=id,["category"]=category,["tab"]=category,["titleAr"]=title,["bodyAr"]="راجع قائمة العمليات للمزيد.",["requiredPermission"]=permission,["targetDepartment"]="ALL",["approvalId"]=approvalId??"",["status"]="unread",["createdAt"]=(clock??DateTimeOffset.UtcNow).ToString("O"),["eventKey"]=eventKey,["createdBy"]=actor};
+        if(companyId!=null)notification["companyId"]=companyId;if(platform!=null)notification["platform"]=platform;
+        Store.Save(c,"sys_notification",notification,tx);
         Store.Audit(c,tx,"notification.system_created",id,actor);
     }
     // Invoked inside the original write transaction; the notification cannot outlive a rollback.
