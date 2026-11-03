@@ -132,6 +132,7 @@ api.AddEndpointFilter(ApiPagination.Filter);
 Notifications.Map(api,store);
 Companies.Map(api,store);
 CompanyRegistryImport.Map(api,store);
+PlatformPosting.Map(api,store);
 GlobalSearch.Map(api,store);
 ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);

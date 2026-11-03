@@ -18,6 +18,8 @@ public static class AccountingPolicy
     }
     public static FinancialCore.AccountDef ValidateOperation(string code,string category,string operation,string? platform=null)
     {
+        if(operation=="platform_posting")
+        {J.Need(platform=="HungerStation"&&category=="PlatformInvoice","مسار ترحيل منصة غير معتمد.");return PlatformPosting.TargetAccount(code);}
         J.Need(operation is "disbursement" or "collection","نوع حركة غير صالح.");
         var account=FinancialCore.ResolveVault(code);var item=FinancialCore.ResolveCategory(category);
         J.Need(account.VaultPurpose!="JahezFee","رسوم جاهز تُعالج في مسار الرسوم والتسليم فقط.");

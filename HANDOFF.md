@@ -21,6 +21,7 @@ R2 ordered backend milestones: M1 0.11.0 is complete on feat/r2-m1; M2 0.12.0 HS
 - 0f86fa4 M1.5: 0.11.0 version touchpoints + generated inventory (157 API routes, six existing deprecations). Final .NET 158 passed / 0 failed / 6 SQL skipped; Python 26 passed; eleven HTTP and six browser suites passed; source boundary 163 files.
 
 ## M2 done
+- M2.1: default-off per-platform settings (administrator + audit); explicit HS target-chart path reuses FinancialCore/AccountingPolicy, refuses legacy 1241/2141 and preserves legacy behavior. Sixteen posting/report tests plus 38 R2 HTTP checks passed.
 - M2.0: regenerated approved COA: 403 accounts, 227 active posting, sources 294 excel / 28 modified / 81 new, including all seven approved additions. Generator --check, 14 finance behavior tests, HTTP and browser finance suites passed.
 
 ## Pending staging / integration
@@ -28,7 +29,7 @@ R2 ordered backend milestones: M1 0.11.0 is complete on feat/r2-m1; M2 0.12.0 HS
 - Antigravity's separate Next login branch must be combined before release. No push, PR, merge, FTP upload or deployment by Codex.
 
 ## Next step (exact)
-M2.1: per-platform posting gates default off, audited administrator setting and target-account HS journal path using existing FinancialCore/AccountingPolicy. Then continue M2.2–M2.7 in order. Claude reviews feat/r2-m1, then feat/r2-m2.
+M2.2: signed HungerStation workbook preview/commit with reconciliation, CAR disputes and pending TGA allocation, followed by M2.3 double-deduction tags. Before M2.4, Ghazal must resolve the pending question: whether disputed CAR invoices may be accounted with 112803 while the dispute stays open, or all posting waits for resolution. Company staging approval also remains pending. Do not guess either decision or skip later ordered tasks.
 
 ## How to verify
 ```bash

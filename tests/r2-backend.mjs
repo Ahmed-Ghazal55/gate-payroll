@@ -47,6 +47,9 @@ try{
  await request('/health',{auth:false});
  const favicon=await request('/favicon.ico',{auth:false});assert.match(favicon.headers.get('content-type'),/image\/svg\+xml/);assert.equal(await favicon.text(),readFileSync(path.join(webroot,'favicon.svg'),'utf8'));
  assert.equal(await (await request('/favicon.svg',{auth:false})).text(),readFileSync(path.join(webroot,'favicon.svg'),'utf8'));
+ assert.equal((await json('/api/platforms/hs/posting')).enabled,false);
+ await json('/api/platforms/hs/posting',{enabled:true});assert.equal((await json('/api/platforms/hs/posting')).enabled,true);
+ await json('/api/platforms/hs/posting',{enabled:false});
  const existingCompanies=await json('/api/companies');
  const setupDb=new DatabaseSync(path.join(data,'payroll.db'));
  const companyRows=existingCompanies.map((company,i)=>{
