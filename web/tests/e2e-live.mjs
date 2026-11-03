@@ -117,6 +117,83 @@ try {
   assert.equal(meData.username, adminUsername);
   console.log(`✓ Live authenticated session confirmed for @${meData.username} (${meData.role})`);
 
+  // --- W1 Tests: Login, ReturnUrl, Logout, Lockout ---
+  console.log('\n--- Running W1 Live E2E Tests ---');
+
+  // Test 1: Unauthenticated 401 redirect preserves returnUrl
+  const unauthContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, bypassCSP: true });
+  const loginPage = await unauthContext.newPage();
+  await loginPage.goto(`${baseUrl}/app/notifications/`);
+  console.log('Navigated to notifications, current URL:', loginPage.url());
+  await loginPage.waitForURL(url => url.pathname.includes('/login'), { timeout: 8000 });
+  assert.ok(loginPage.url().includes('returnUrl='), 'Unauthenticated visit should redirect to login with returnUrl');
+  console.log('✓ W1: 401 redirect to /app/login/?returnUrl= confirmed');
+
+  // Test 2: Valid login with returnUrl redirects to destination
+  await loginPage.goto(`${baseUrl}/app/login/?returnUrl=/app/notifications/`);
+  await loginPage.locator('#username').fill(adminUsername);
+  await loginPage.locator('#password').fill(adminPassword);
+  await loginPage.locator('button[type="submit"]').click();
+  await loginPage.waitForURL(url => url.pathname.includes('/notifications'), { timeout: 8000 });
+  console.log('✓ W1: Login with safe returnUrl redirected to /app/notifications/');
+
+  // Test 3: Logout calls /api/auth/logout and redirects to /app/login/
+  await loginPage.evaluate(async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/app/login/';
+  });
+  await loginPage.waitForURL(url => url.pathname.includes('/login'), { timeout: 5000 });
+  console.log('✓ W1: Logout successful and redirected to /app/login/');
+
+  // Test 4: Open redirect prevention (unsafe returnUrl fallback to /app/)
+  await loginPage.goto(`${baseUrl}/app/login/?returnUrl=https://malicious-site.example/steal-token`);
+  await loginPage.locator('#username').fill(adminUsername);
+  await loginPage.locator('#password').fill(adminPassword);
+  await loginPage.locator('button[type="submit"]').click();
+  await loginPage.waitForURL(url => url.pathname.startsWith('/app') && !url.href.includes('malicious-site'), { timeout: 8000 });
+  console.log('✓ W1: Malicious returnUrl safely sanitized to default /app/');
+
+  // Test 5: Wrong password displays 401 error message
+  await unauthContext.clearCookies();
+  await loginPage.goto(`${baseUrl}/app/login/`);
+  await loginPage.locator('#username').fill(adminUsername);
+  await loginPage.locator('#password').fill('WrongPassword999!');
+  await loginPage.locator('button[type="submit"]').click();
+  const alertEl = loginPage.locator('#auth-error-alert');
+  await alertEl.waitFor({ timeout: 5000 });
+  const alertText = await alertEl.textContent();
+  assert.ok(alertText.includes('اسم المستخدم أو كلمة المرور غير صحيحة') || alertText.includes('unauthorized'), 'Should show wrong password error');
+  console.log('✓ W1: Wrong password error message verified');
+
+  // Test 6: Account lockout (423) after 5 failed attempts
+  const lockUsername = 'lock-' + randomBytes(3).toString('hex');
+  const lockPassword = 'StrongPassword123!';
+  const createLockUserRes = await page.request.post(`${baseUrl}/api/users`, {
+    data: { username: lockUsername, password: lockPassword, role: 'Accountant' },
+  });
+  assert.equal(createLockUserRes.status(), 200, 'User creation for lockout test should succeed');
+
+  for (let i = 1; i <= 5; i++) {
+    const failRes = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: lockUsername, password: 'WrongPassword!' }),
+    });
+    assert.equal(failRes.status, 401, `Failed attempt ${i} should return 401`);
+  }
+
+  // 6th attempt via UI should trigger 423
+  await loginPage.locator('#username').fill(lockUsername);
+  await loginPage.locator('#password').fill('WrongPassword!');
+  await loginPage.locator('button[type="submit"]').click();
+  const lockAlertEl = loginPage.locator('#auth-error-alert');
+  await lockAlertEl.waitFor({ timeout: 5000 });
+  const lockAlertText = await lockAlertEl.textContent();
+  assert.ok(lockAlertText.includes('مقفل') || lockAlertText.includes('account_locked'), 'Lockout alert must be displayed');
+  console.log('✓ W1: Account lockout (423) alert verified on 6th failed attempt');
+
+  await unauthContext.close();
+
   // 2. Create an IBAN Campaign via API or UI
   console.log('\nStep 2: Creating an IBAN campaign...');
   const campaignTitle = 'حملة تحديث الآيبان الحية';

@@ -221,10 +221,14 @@ async function handleRequest<T>(endpoint: string, options: RequestInit = {}): Pr
 
   if (res.status === 401) {
     if (typeof window !== 'undefined') {
-      const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-      window.location.href = `/?returnUrl=${returnUrl}`;
+      const p = window.location.pathname;
+      if (!p.startsWith('/app/login') && !p.startsWith('/app/setup')) {
+        const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `/app/login/?returnUrl=${returnUrl}`;
+      }
     }
-    throw new ApiError('انتهت الجلسة؛ يرجى تسجيل الدخول مجدداً.', 401, 'unauthorized');
+    const payload: ApiErrorPayload = await res.json().catch(() => ({ error: 'انتهت الجلسة؛ يرجى تسجيل الدخول مجدداً.' }));
+    throw new ApiError(payload.error || 'انتهت الجلسة؛ يرجى تسجيل الدخول مجدداً.', 401, payload.code || 'unauthorized');
   }
 
   if (!res.ok) {
@@ -251,7 +255,27 @@ async function handleMockRequest<T>(endpoint: string, options: RequestInit = {})
   const params = new URLSearchParams(queryString || '');
   const body = options.body ? JSON.parse(String(options.body)) : null;
 
-  // Me
+  // Auth & Me
+  if (path === '/auth/status') {
+    return {
+      needsSetup: false,
+      environment: 'Development',
+    } as unknown as T;
+  }
+
+  if (path === '/auth/setup' || path === '/auth/login') {
+    return {
+      username: body?.username || 'admin',
+      role: 'Admin',
+      displayNameAr: 'مدير مساحة الرواتب',
+      permissions: ['all'],
+    } as unknown as T;
+  }
+
+  if (path === '/auth/logout') {
+    return { ok: true } as unknown as T;
+  }
+
   if (path === '/me' || path === '/auth/me') {
     return {
       username: 'admin',
@@ -536,6 +560,14 @@ async function handleMockRequest<T>(endpoint: string, options: RequestInit = {})
 
 // Exported typed API methods
 export const api = {
+  // Auth
+  getAuthStatus: () => handleRequest<{ needsSetup: boolean; environment: string }>('/auth/status'),
+  setup: (data: { username: string; password: string; bootstrapKey?: string }) =>
+    handleRequest<UserProfile>('/auth/setup', { method: 'POST', body: JSON.stringify(data) }),
+  login: (data: { username: string; password: string }) =>
+    handleRequest<UserProfile>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  logout: () => handleRequest<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
+
   getMe: () => handleRequest<UserProfile>('/me'),
   getDashboard: () => handleRequest<DashboardMetrics>('/dashboard'),
   getNotificationsSummary: () => handleRequest<NotificationSummary>('/notifications/summary'),

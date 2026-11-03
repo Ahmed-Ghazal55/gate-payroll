@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { ToastProvider } from '../ui/Toast';
@@ -11,10 +12,31 @@ export interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [company, setCompany] = useState('all');
   const [period, setPeriod] = useState('2026-10');
+
+  const isAuthPage =
+    pathname === '/login' ||
+    pathname?.startsWith('/login/') ||
+    pathname === '/setup' ||
+    pathname?.startsWith('/setup/');
+
+  if (isAuthPage) {
+    return (
+      <AuthProvider>
+        <ToastProvider>
+          <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)] antialiased flex flex-col justify-center items-center p-4">
+            <main id="main-content" className="w-full max-w-md">
+              {children}
+            </main>
+          </div>
+        </ToastProvider>
+      </AuthProvider>
+    );
+  }
 
   return (
     <AuthProvider>

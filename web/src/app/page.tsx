@@ -80,7 +80,7 @@ export default function DashboardPage() {
         primaryAction={{
           label: 'استيراد بيانات تشغيل',
           onClick: () => {
-            window.location.href = '/#/imports';
+            window.location.href = '/legacy/#/imports';
           },
           icon: <Upload size={16} />,
         }}
