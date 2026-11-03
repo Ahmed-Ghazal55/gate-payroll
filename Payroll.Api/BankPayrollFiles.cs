@@ -43,7 +43,7 @@ public static class BankPayrollFiles
     private static string Kind((string Sponsor,string From,string To) request)=>"bank-file:"+request.Sponsor+":"+request.From+":"+request.To;
     // The closing posted 2110 liability includes prior approved dues and subtracts deductions/payments.
     // Never use an unapproved preview result, the legacy ledger, or the 121x debt accounts as payable.
-    private static JsonArray Rows(DbConnection c,DbTransaction? tx,ClaimsPrincipal user,(string Sponsor,string From,string To) request)
+    private static (JsonArray Payable,JsonArray Excluded) Rows(DbConnection c,DbTransaction? tx,ClaimsPrincipal user,(string Sponsor,string From,string To) request)
     {
         var riders=Store.List(c,"rider",tx).GroupBy(r=>r.S("iqama",r.S("id"))).ToDictionary(g=>g.Key,g=>g.First());
         var amounts=new Dictionary<string,decimal>();
@@ -56,28 +56,36 @@ public static class BankPayrollFiles
             if(string.CompareOrdinal(journal.S("period"),request.From)>=0)eligible.Add(iqama);
             amounts[iqama]=amounts.GetValueOrDefault(iqama)+line.N("credit")-line.N("debit");
         }
-        var rows=new JsonArray();foreach(var pair in amounts.Where(p=>p.Value>0&&eligible.Contains(p.Key)).OrderBy(p=>p.Key,StringComparer.Ordinal))
+        var rows=new JsonArray();var excluded=new JsonArray();foreach(string iqama in eligible.OrderBy(value=>value,StringComparer.Ordinal))
         {
-            riders.TryGetValue(pair.Key,out var rider);
+            riders.TryGetValue(iqama,out var rider);
             if(rider.B("isEmployee")||rider.S("personRole") is "Employee" or "employee" or "administrative")continue;
+            decimal balance=amounts.GetValueOrDefault(iqama);
+            if(balance<=0)
+            {
+                excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]=balance==0?"zero_balance":"rider_owes_company"});
+                continue;
+            }
             string iban=NormalizeIban(rider.S("verifiedIban"));if(iban=="")iban=NormalizeIban(rider.S("iban"));
             string code=iban.Length>=6?iban.Substring(4,2):"";
-            var row=new JsonObject{["bank"]=Banks.GetValueOrDefault(code,""),["iban"]=iban,["amount"]=pair.Value,["notes"]="",["name"]=rider.S("name"),["iqama"]=pair.Key,["address"]=rider.S("address",rider.S("nationalAddress"))};
+            var row=new JsonObject{["bank"]=Banks.GetValueOrDefault(code,""),["iban"]=iban,["amount"]=balance,["notes"]="",["name"]=rider.S("name"),["iqama"]=iqama,["address"]=rider.S("address",rider.S("nationalAddress"))};
             row["errors"]=Validate(row);rows.Add(row);
         }
-        return rows;
+        return(rows,excluded);
     }
     public static JsonObject Preview(DbConnection c,ClaimsPrincipal user,JsonObject input)
     {
-        var request=Request(user,input);var rows=Rows(c,null,user,request);
-        return new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To,["basis"]="posted_2110_closing_payable",["rows"]=rows,["previewToken"]=FinancialImports.Issue(c,Kind(request),rows,user.Identity?.Name??""),["expiresInSeconds"]=1200,["canExport"]=rows.Count>0&&rows.OfType<JsonObject>().All(r=>r["errors"]!.AsArray().Count==0)};
+        var request=Request(user,input);var(rows,excluded)=Rows(c,null,user,request);
+        return new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To,["basis"]="posted_2110_closing_payable",["rows"]=rows,["excludedRows"]=excluded,["previewToken"]=FinancialImports.Issue(c,Kind(request),rows,user.Identity?.Name??""),["expiresInSeconds"]=1200,["canExport"]=rows.Count>0&&rows.OfType<JsonObject>().All(r=>r["errors"]!.AsArray().Count==0)};
     }
     public static Download Export(DbConnection c,DbTransaction tx,ClaimsPrincipal user,JsonObject input)
     {
         var request=Request(user,input);string actor=user.Identity?.Name??"";
-        var baseline=Rows(c,tx,user,request);
+        var(baseline,excluded)=Rows(c,tx,user,request);
         FinancialImports.Verify(c,tx,new JsonObject{["rows"]=baseline.DeepClone(),["fingerprint"]=input.S("previewToken"),["confirm"]=true},Kind(request),actor);
         var rows=input["rows"] as JsonArray??throw new ApiError("صفوف التصدير مطلوبة.");
+        var excludedIds=excluded.OfType<JsonObject>().Select(row=>row.S("iqama")).ToHashSet(StringComparer.Ordinal);
+        J.Need(!rows.OfType<JsonObject>().Any(row=>excludedIds.Contains(row.S("iqama"))),"لا يمكن تصدير الصفوف المستبعدة ذات الرصيد الصفري أو المديونية على المندوب، حتى بعد تعديل المبلغ.");
         J.Need(rows.Count>0&&rows.Count==baseline.Count,"يجب تصدير جميع صفوف المعاينة دون إضافة أو حذف.");
         int edited=0;decimal total=0;var checkedRows=new List<JsonObject>();
         for(int i=0;i<rows.Count;i++)

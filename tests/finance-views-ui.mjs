@@ -1,12 +1,18 @@
 import {spawn} from 'node:child_process';
-import {mkdtempSync,rmSync,mkdirSync} from 'node:fs';
+import {mkdtempSync,rmSync,mkdirSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
+import {DatabaseSync} from 'node:sqlite';
 
-const {chromium} = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE || '/tmp/gate-browser/node_modules/playwright/index.mjs'));
+const playwrightPath = process.env.PLAYWRIGHT_MODULE ||
+  ['/tmp/gate-browser/node_modules/playwright/index.mjs',
+   '/home/ghazal/Projects/active/local-pdf-studio/node_modules/playwright/index.mjs'
+  ].find(p => p && existsSync(p));
+
+const {chromium} = await import(pathToFileURL(playwrightPath));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const data = mkdtempSync(path.join(tmpdir(), 'gate-finance-views-ui-'));
 const out = path.join(root, 'test-results');
@@ -86,6 +92,24 @@ try {
     iban
   });
 
+  // Seed 2 excluded riders for Task B
+  const zeroIqama = '2000000222';
+  const debtorIqama = '2000000333';
+  await apiPost('/api/riders', {
+    iqama: zeroIqama,
+    name: 'Synthetic Zero Rider',
+    financeSponsorId: 'BW',
+    policyId: policy.id,
+    iban
+  });
+  await apiPost('/api/riders', {
+    iqama: debtorIqama,
+    name: 'Synthetic Debtor Rider',
+    financeSponsorId: 'BW',
+    policyId: policy.id,
+    iban
+  });
+
   const csv = `sourceRef,iqama,name,accountId,from,to,orders,platformRevenue,isValid\r\nsynthetic-work,${iqama},Ahmed Test Rider,0000000000000001,2026-10-01,2026-10-31,600,1500,true\r\n`;
   const upload = await apiPost('/api/imports/inspect', {
     filename: 'synthetic.csv',
@@ -122,6 +146,32 @@ try {
     fingerprint: previewPay[0].fingerprint
   });
 
+  // Insert journal entries in SQLite database for the 2 excluded riders
+  const bwSponsorId = '019c18d5-62e1-7000-8000-000000000041';
+  const db = new DatabaseSync(path.join(data, 'payroll.db'));
+  const insertRecord = db.prepare('INSERT OR REPLACE INTO records (id, kind, body) VALUES (?, ?, ?)');
+  insertRecord.run('journal-zero', 'journal', JSON.stringify({
+    id: 'journal-zero',
+    period,
+    status: 'posted',
+    transactionType: 'synthetic',
+    lines: [
+      {accountCode: '2110', sponsorId: bwSponsorId, debit: 300, credit: 0, iqama: zeroIqama},
+      {accountCode: '2110', sponsorId: bwSponsorId, debit: 0, credit: 300, iqama: zeroIqama}
+    ]
+  }));
+  insertRecord.run('journal-negative', 'journal', JSON.stringify({
+    id: 'journal-negative',
+    period,
+    status: 'posted',
+    transactionType: 'synthetic',
+    lines: [
+      {accountCode: '2110', sponsorId: bwSponsorId, debit: 50, credit: 0, iqama: debtorIqama},
+      {accountCode: 'MAIN.BW.DEBT', sponsorId: bwSponsorId, debit: 0, credit: 50, iqama: debtorIqama}
+    ]
+  }));
+  db.close();
+
   // Navigate to Debts / Finance section
   await page.locator('aside.sidebar [data-view="debts"]').click();
   await page.locator('[data-subtab="debts-list"]').waitFor();
@@ -143,31 +193,52 @@ try {
   await coaTab.click();
   await page.locator('.table-wrap table').waitFor();
 
-  // Verify stats cards
+  // Verify stats cards: total 396, posting 221, header 175, sources: excel 294 / modified 28 / new 74
   const statsValues = await page.locator('.stats .stat strong').allInnerTexts();
-  assert.equal(statsValues[0].trim(), '392', 'Total accounts must be 392');
-  assert.equal(statsValues[1].trim(), '222', 'Posting accounts must be 222');
-  assert.equal(statsValues[2].trim(), '170', 'Header accounts must be 170');
-  assert.ok(statsValues[3].includes('317'), 'New accounts must be 317');
-  assert.ok(statsValues[3].includes('75'), 'Mapping must be 75');
+  assert.equal(statsValues[0].trim(), '396', 'Total accounts must be 396');
+  assert.equal(statsValues[1].trim(), '221', 'Posting accounts must be 221');
+  assert.equal(statsValues[2].trim(), '175', 'Header accounts must be 175');
+  assert.ok(statsValues[3].includes('294'), 'Excel source count must be 294');
+  assert.ok(statsValues[3].includes('28'), 'Modified source count must be 28');
+  assert.ok(statsValues[3].includes('74'), 'New source count must be 74');
 
-  // Verify badges: header/posting, nature, type, direction
+  // Verify source badges: header/posting, nature, type, direction
   const rows = page.locator('tbody tr.coa-row');
   assert.ok((await rows.count()) > 10, 'Multiple accounts rendered');
   const firstRowText = await rows.first().innerText();
   assert.ok(firstRowText.includes('مدين') || firstRowText.includes('دائن'), 'Nature badge must exist');
 
-  // Test search functionality
+  const sourceBadges = page.locator('.coa-row .source-tag');
+  assert.ok((await sourceBadges.count()) > 10, 'Source badges must be rendered in table rows');
+
+  // Test statusNote on stopped account 112510
   const searchInput = page.locator('#coa-search-input');
+  await searchInput.fill('112510');
+  await page.waitForTimeout(100);
+  const stoppedRow = page.locator('tbody tr.coa-row[data-code="112510"]');
+  assert.equal(await stoppedRow.count(), 1, 'Account 112510 must be found');
+  const stoppedText = await stoppedRow.innerText();
+  assert.ok(stoppedText.includes('موقوف'), 'Status must show موقوف');
+  assert.ok(stoppedText.includes('راجع §22.9'), 'statusNote must be shown as hint');
+
+  // Test search functionality
   await searchInput.fill('الصندوق الرئيسي');
   await page.waitForTimeout(100);
   const searchRowCount = await page.locator('tbody tr.coa-row').count();
-  assert.ok(searchRowCount >= 1 && searchRowCount < 392, 'Search filters accounts');
+  assert.ok(searchRowCount >= 1 && searchRowCount < 396, 'Search filters accounts');
   const searchRowTexts = await page.locator('tbody tr.coa-row').allInnerTexts();
   assert.ok(searchRowTexts.some(t => t.includes('الصندوق الرئيسي')), 'Matching account is present');
 
   await searchInput.fill('');
   await page.waitForTimeout(100);
+
+  // Take COA cards screenshots: desktop and 360px
+  await page.locator('.stats').first().screenshot({path: path.join(out, 'coa-cards-desktop.png')});
+  await page.setViewportSize({width: 360, height: 800});
+  await page.waitForTimeout(150);
+  await page.locator('.stats').first().screenshot({path: path.join(out, 'coa-cards-360px.png')});
+  await page.setViewportSize({width: 1440, height: 1000});
+  await page.waitForTimeout(150);
 
   // Test expand / collapse all
   await page.locator('#coa-collapse-all').click();
@@ -241,13 +312,65 @@ try {
   await page.locator('#bank-file-preview-btn').click();
   await page.locator('.bank-row').waitFor();
 
-  // Check cards: rows, total, errors
+  // Check cards: rows, total, errors, excluded
   const bankCards = await page.locator('.stats .stat strong').allInnerTexts();
   assert.equal(bankCards[0].trim(), '1', '1 row in bank preview');
   assert.ok(bankCards[1].includes('1,000.00'), 'Total amount 1,000.00');
   assert.equal(bankCards[2].trim(), '0', '0 errors initially');
+  assert.equal(bankCards[3].trim(), '2', '2 excluded rows in bank preview');
 
-  // Check read-only and editable fields
+  // Check excluded panel: closed by default
+  const excludedPanel = page.locator('.bank-excluded-panel');
+  assert.equal(await excludedPanel.count(), 1, 'Excluded panel must exist under table');
+  assert.equal(await excludedPanel.evaluate(el => el.open), false, 'Excluded panel must be closed by default');
+
+  const panelSummary = await excludedPanel.locator('summary').innerText();
+  assert.ok(panelSummary.includes('مستبعدين من الملف (2)'), 'Panel title must be «مستبعدين من الملف (2)»');
+
+  // Open the collapsible panel
+  await excludedPanel.locator('summary').click();
+  await page.waitForTimeout(100);
+  assert.equal(await excludedPanel.evaluate(el => el.open), true, 'Excluded panel must be open after click');
+
+  // Check excluded rows content and reasons
+  const excludedRowEls = page.locator('tr.bank-excluded-row');
+  assert.equal(await excludedRowEls.count(), 2, '2 excluded rows rendered');
+
+  // Zero balance row
+  const zeroRow = page.locator('tr.bank-excluded-row[data-iqama="2000000222"]');
+  assert.equal(await zeroRow.count(), 1, 'Zero balance row rendered');
+  const zeroRowText = await zeroRow.innerText();
+  assert.ok(zeroRowText.includes('رصيد صفر'), 'Zero balance reason must be «رصيد صفر»');
+  assert.ok(zeroRowText.includes('0.00'), 'Zero balance amount must be 0.00');
+
+  // Debtor row
+  const debtorRow = page.locator('tr.bank-excluded-row[data-iqama="2000000333"]');
+  assert.equal(await debtorRow.count(), 1, 'Debtor row rendered');
+  const debtorRowText = await debtorRow.innerText();
+  assert.ok(debtorRowText.includes('عليه للشركة'), 'Debtor reason must be «عليه للشركة»');
+  assert.ok(debtorRowText.includes('-50.00'), 'Debtor row must show signed balance -50.00');
+  const debtorBadge = debtorRow.locator('.tag.bad');
+  assert.equal(await debtorBadge.count(), 1, 'Debtor badge must be styled red (.tag.bad)');
+
+  // Verify excluded rows are NOT selectable/editable (0 inputs inside excluded panel)
+  assert.equal(await excludedPanel.locator('input').count(), 0, 'No inputs in excluded rows');
+
+  // Dismiss toast so it doesn't obscure the table in screenshots
+  await page.evaluate(() => {
+    const t = document.querySelector('#toast');
+    if (t) t.remove();
+  });
+  await page.waitForTimeout(50);
+
+  // Take Bank panel screenshots: desktop and 360px
+  await excludedPanel.screenshot({path: path.join(out, 'bank-panel-desktop.png')});
+  await page.setViewportSize({width: 360, height: 800});
+  await page.waitForTimeout(150);
+  await excludedPanel.screenshot({path: path.join(out, 'bank-panel-360px.png')});
+  await page.setViewportSize({width: 1440, height: 1000});
+  await page.waitForTimeout(150);
+
+  // Check read-only and editable fields of valid rows
   const row = page.locator('.bank-row').first();
   const bankCell = await row.locator('td').nth(3).innerText();
   assert.equal(bankCell.trim(), 'RJHI', 'Bank code RJHI is read-only');
@@ -263,7 +386,7 @@ try {
 
   // Check that export button is enabled
   const exportBtn = page.locator('#bank-file-export-btn');
-  assert.ok(!await exportBtn.isDisabled(), 'Export button must be enabled when no errors exist');
+  assert.ok(!await exportBtn.isDisabled(), 'Export button must be enabled when valid rows exist');
 
   // Test editing amount to 0 -> causes error and disables export button
   await amountInput.fill('0');
@@ -296,16 +419,19 @@ try {
   assert.ok(csvContent.startsWith('البنك,رقم الحساب,إجمالي الراتب,ملاحظات,اسم الموظف,رقم الهوية أو الإقامة,عنوان الموظف'));
   assert.ok(csvContent.includes('950.00'));
   assert.ok(csvContent.includes('ملاحظة تجريبية'));
+  // Ensure excluded riders were NOT exported
+  assert.ok(!csvContent.includes(zeroIqama), 'Excluded zero balance rider must not be exported');
+  assert.ok(!csvContent.includes(debtorIqama), 'Excluded debtor rider must not be exported');
 
-  // Test Mobile view responsiveness (width: 375px)
-  await page.setViewportSize({width: 375, height: 667});
+  // Test Mobile view responsiveness (width: 360px)
+  await page.setViewportSize({width: 360, height: 640});
   await page.waitForTimeout(100);
   assert.ok(await page.locator('.table-wrap').first().isVisible());
 
   // Confirm no uncaught JS errors
   assert.deepEqual(errors, [], `No page errors allowed: ${errors.join('; ')}`);
 
-  console.log('PASS finance views UI: Target COA tree/search/stats, Trial Balance current/target/balanced, Income Statement groups, Bank File editable amounts/notes/validation and raw CSV download.');
+  console.log('PASS finance views UI: Target COA tree/search/stats (294/28/74), Trial Balance, Income Statement, Bank File editable amounts/notes/validation, excluded panel (zero_balance & rider_owes_company) and raw CSV download.');
 } finally {
   if (browser) await browser.close();
   if (server.exitCode === null) {

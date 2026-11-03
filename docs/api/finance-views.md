@@ -1,4 +1,4 @@
-# Finance views API — 0.9.0
+# Finance views API — 0.9.3
 
 واجهات backend فقط. لا تعديل لشجرة الترحيل الحالية أو للقيود أو مخطط القاعدة.
 القراءة من `store.Read`؛ تصدير البنك يكتب حدث audit مختصرًا فقط، ولا يسجل دفعًا.
@@ -16,15 +16,15 @@
 
 `GET /api/finance/coa/target`
 
-المورد المضمّن `Payroll.Api/Resources/target-coa.v1.json` مولّد من `gate-finance-spec/docs/02-chart-of-accounts.md` §4 و§6، بقرارات BUSINESS_RULES §20. يحتوي 392 حسابًا و75 صف ربط من الشجرة الحالية. لا يغير الشجرة الحالية.
+المورد المضمّن `Payroll.Api/Resources/target-coa.v1.json` مولّد من `gate-finance-spec/docs/02-chart-of-accounts.md` §§1،4،6، بقرارات BUSINESS_RULES §§20،22. يحتوي 396 حسابًا، منها 221 حساب ترحيل فعال، و75 صف ربط من الشجرة الحالية. المصادر: 294 `excel` و28 `modified` و74 `new`. لا يغير الشجرة الحالية.
 
 ```json
 {
   "schemaVersion": 1,
-  "version": "2026-10-28.1",
-  "source": "gate-finance-spec/docs/02-chart-of-accounts.md §§4,6; BUSINESS_RULES §20",
+  "version": "2026-11-03.1",
+  "source": "gate-finance-spec/docs/02-chart-of-accounts.md §§1,4,6; BUSINESS_RULES §§20,22",
   "accounts": [
-    {"code":"111101","nameAr":"الصندوق الرئيسي","parent":"1111","level":5,"posting":true,"nature":"debit","type":"cash","direction":"both","company":"الكل","status":"active"}
+    {"code":"111101","nameAr":"الصندوق الرئيسي","parent":"1111","level":5,"posting":true,"nature":"debit","type":"cash","direction":"both","company":"الكل","status":"active","statusNote":null,"subledger":"—","source":"excel","sourceNote":"Excel"}
   ],
   "mapping": [
     {"currentCode":"MAIN.BW.DEBT","targetCodes":["111101"],"ruleAr":"111101","noteAr":""}
@@ -37,6 +37,9 @@
 `nature=debit|credit`؛ `type=bank|cash|other`؛ `direction=pay|receive|both` أو null حين لا ينطبق الاتجاه في الجدول.
 `company` وصف انطباق الحساب من المصدر، وليس ربطًا فعليًا بحساب بنك شركة.
 `status=active|stopped|reserved|display`. نسخة المورد مستقلة عن إصدار التطبيق.
+`status` من أول كلمة في عمود الحالة؛ مثل «موقوف — سبب» تصبح `stopped`، و`statusNote="سبب"`؛ بدون ملاحظة يكون الحقل null. «عرض فقط» تصبح `display` دون اعتبار «فقط» ملاحظة.
+`subledger` ينقل نص «دفتر مساعد» كما هو، بما فيه «—» عند عدم وجود دفتر. كل حساب يحتوي هذه الحقول.
+`source=excel|new|modified`؛ «Excel معدّل» و«منقول (كان …)» كلاهما `modified`. `sourceNote` يحتفظ بالنص الأصلي كاملًا، حتى لا يضيع سبب النقل أو الكود السابق.
 
 إعادة التوليد والتحقق، من جذر gate-payroll:
 
@@ -45,7 +48,7 @@ python3 tools/generate_target_coa.py
 python3 tools/generate_target_coa.py --check
 ```
 
-يمكن تمرير `--source` و`--output`. السكربت لا يقرأ ملفات تشغيل، ويتحقق من تفرّد الأكواد ووجود الآباء وعدم وجود أبناء لحساب ترحيل، ومن مراجع جدول الربط. لا يضيف تاريخ تشغيل متغيرًا إلى الملف.
+يمكن تمرير `--source` و`--output`. السكربت لا يقرأ ملفات تشغيل، ويتحقق من تفرّد الأكواد ووجود الآباء وعدم وجود أبناء لحساب ترحيل، ومن مراجع جدول الربط. يرفض الترحيل على حالة غير فعالة، ويطابق الإجمالي والترحيل الفعال وأعداد المصادر بملخص §1 قبل كتابة المورد؛ عند اختلافها يتوقف دون تعديل المواصفة أو كتابة نتيجة جزئية. `modified` يجمع المعدّل بنفس الكود والمنقول من Excel والمنقول الجديد. لا يضيف تاريخ تشغيل متغيرًا إلى الملف.
 
 ## ميزان المراجعة
 
@@ -55,7 +58,7 @@ python3 tools/generate_target_coa.py --check
 
 ```json
 {
-  "version":"2026-10-28.1","view":"target","from":"2026-10","to":"2026-10",
+  "version":"2026-11-03.1","view":"target","from":"2026-10","to":"2026-10",
   "companies":[{
     "sponsorId":"synthetic-company","companyCode":"BW",
     "rows":[{
@@ -107,7 +110,7 @@ python3 tools/generate_target_coa.py --check
 
 ```json
 {
-  "version":"2026-10-28.1","view":"target","from":"2026-10","to":"2026-10",
+  "version":"2026-11-03.1","view":"target","from":"2026-10","to":"2026-10",
   "companies":[{
     "sponsorId":"synthetic-company","companyCode":"BW",
     "revenueGroups":[{"code":"4","nameAr":"الإيرادات","parent":null,"posting":false,"amount":1500}],
@@ -133,16 +136,20 @@ python3 tools/generate_target_coa.py --check
 بديل الشهر الواحد: `from` و`to` بصيغة YYYY-MM؛ أولوية المعلمات الصريحة على period.
 المبلغ هو رصيد الالتزام 2110 المُرحّل لكل مندوب وشركة **حتى نهاية to**، شامل المستحقات المعتمدة السابقة وخصوماتها ومدفوعاتها؛ يُختار المندوب إذا له سطر 2110 مُرحّل أو مسير معتمد للشركة داخل from..to؛ لا نسحب مناديب فترات قديمة بلا نشاط أو مسير معتمد في الفترة المطلوبة. الافتتاح يظل داخل رصيد المختارين، ولا يسقط.
 لا نطرح ذمم 1210/1211/1230 مرة ثانية، ولا نستخدم payable من معاينة مسير غير معتمد.
-الموظفون المصنفون صراحةً في الدليل مستبعدون من ملف المناديب. الرصيد الصفري أو السالب يظهر بخطأ، ولا يختفي.
+الموظفون المصنفون صراحةً في الدليل خارج ملف المناديب. أصحاب الرصيد الصفري أو السالب يظهرون في `excludedRows`، بينما `rows` تحتوي المستحقات الموجبة فقط. المسير المعتمد بلا حركة 2110 يظهر كرصيد صفر، وليس مستحقًا للصرف.
 
 ```json
 {
   "sponsorId":"synthetic-company","from":"2026-10","to":"2026-10",
   "basis":"posted_2110_closing_payable",
   "rows":[{
-    "bank":"RJHI","iban":"SA9880000000000000000123","amount":1000.00,"notes":"",
+    "bank":"RJHI","iban":"SA0380000000608010167519","amount":1000.00,"notes":"",
     "name":"Synthetic Rider","iqama":"2000000111","address":"Synthetic City","errors":[]
   }],
+  "excludedRows":[
+    {"iqama":"2000000222","name":"Synthetic zero rider","balance":0,"reason":"zero_balance"},
+    {"iqama":"2000000333","name":"Synthetic debtor rider","balance":-50,"reason":"rider_owes_company"}
+  ],
   "previewToken":"synthetic-signed-token","expiresInSeconds":1200,"canExport":true
 }
 ```
@@ -161,6 +168,7 @@ python3 tools/generate_target_coa.py --check
 | invalid_iqama / missing_name | هوية غير صالحة أو اسم مفقود في المصدر |
 
 كود غير معروف: bank يُكتب يدويًا (أول 4 حروف من SWIFT) حسب BUSINESS_RULES §19، ويُحسب الصف ضمن editedRowCount. تعديل bank مرفوض لأي كود معروف. الصفوف اللي رصيد 2110 الختامي ليها صفر أو مدين لا تظهر في الملف.
+`excludedRows[].balance` هو الرصيد **بإشارته**: صفر = تمت التسوية، وسالب = المندوب مدين للشركة؛ ليس مبلغًا قابلًا للتعديل أو التحويل. سبب الاستبعاد ثابت `zero_balance` أو `rider_owes_company`. وجود المستبعدين لا يمنع تصدير صفوف `rows` الصالحة؛ عدم وجود صف موجب يجعل `canExport=false`. نفس نطاق الشركة والفترة وتصنيف المناديب يطبق على القائمتين.
 
 ## تصدير ملف البنك
 
@@ -171,13 +179,14 @@ python3 tools/generate_target_coa.py --check
   "sponsorId":"BW","period":"2026-10","previewToken":"synthetic-signed-token",
   "confirmBankCode40":false,
   "rows":[{
-    "bank":"RJHI","iban":"SA9880000000000000000123","amount":900.00,"notes":"Synthetic adjustment",
+    "bank":"RJHI","iban":"SA0380000000608010167519","amount":900.00,"notes":"Synthetic adjustment",
     "name":"Synthetic Rider","iqama":"2000000111","address":"Synthetic City","errors":[]
   }]
 }
 ```
 
 - إعادة جميع صفوف المعاينة بنفس ترتيبها وهويتها. التعديل المسموح: `amount` و`notes` فقط؛ المبلغ الرقمي موجب بدقة منزلتين كحد أقصى، والملاحظات نص ≤ 2000 حرف. عدم وجود صفوف يمنع التصدير.
+- لا تُرسل `excludedRows` ضمن صفوف التصدير. الخادم يعيد تحديد المستبعدين من المصدر ويمنع أي هوية مستبعدة برسالة عربية و400، حتى لو عدّل العميل مبلغها إلى موجب أو حذف errors أو استبدل بها صفًا مستحقًا؛ لا audit نجاح عند الرفض.
 - يُعاد فحص كل صف على الخادم، ولا يُعتمد errors القادمة من العميل. أي خطأ يمنع **الملف كله** بـ400، دون audit نجاح.
 - `confirmBankCode40=true` إقرار يدوي صريح للمجموعة ذات الكود 40، وليس تعديلًا لحقل البنك؛ الاختصار يظل NCBK. باقي الاختبارات تظل واجبة.
 - التوقيع يرتبط بالمستخدم والشركة والفترة والمصدر المالي لمدة 20 دقيقة. تغيير المصدر، أو المستخدم، أو انتهاء المعاينة/إعادة تشغيل الخادم: 409 وإعادة المعاينة. يجري التحقق والتدقيق في transaction واحدة دون تغيير مستندات التشغيل.

@@ -38,10 +38,12 @@ public sealed class FinanceViewsTests
     [TestMethod] public void GeneratedChartHasUniqueCodesValidParentsAndPostingLeaves()
     {
         var resource=FinanceViews.TargetChart();Assert.AreEqual(1m,resource.N("schemaVersion"));
-        var accounts=resource["accounts"]!.AsArray().OfType<JsonObject>().ToArray();Assert.AreEqual(392,accounts.Length);Assert.AreEqual(222,accounts.Count(a=>a.B("posting")));
+        var accounts=resource["accounts"]!.AsArray().OfType<JsonObject>().ToArray();Assert.AreEqual(396,accounts.Length);Assert.AreEqual(221,accounts.Count(a=>a.B("posting")&&a.S("status")=="active"));
+        Assert.AreEqual(294,accounts.Count(a=>a.S("source")=="excel"));Assert.AreEqual(28,accounts.Count(a=>a.S("source")=="modified"));Assert.AreEqual(74,accounts.Count(a=>a.S("source")=="new"));
+        foreach(var account in accounts)foreach(string field in new[]{"source","sourceNote","statusNote","subledger"})Assert.IsTrue(account.ContainsKey(field));
         var codes=accounts.Select(a=>a.S("code")).ToHashSet();Assert.AreEqual(accounts.Length,codes.Count);
         foreach(var account in accounts){if(account["parent"]!=null)Assert.IsTrue(codes.Contains(account.S("parent")));if(account.B("posting"))Assert.IsFalse(accounts.Any(a=>a.S("parent")==account.S("code")));}
-        resource["accounts"]=new JsonArray();Assert.AreEqual(392,FinanceViews.TargetChart()["accounts"]!.AsArray().Count);
+        resource["accounts"]=new JsonArray();Assert.AreEqual(396,FinanceViews.TargetChart()["accounts"]!.AsArray().Count);
     }
     [TestMethod] public void TrialBalancesRollUpAndKeepAmbiguousAndUnknownCodesPerCompanyWithoutWrites()
     {
@@ -115,6 +117,43 @@ public sealed class FinanceViewsTests
     {
         InStore(store=>{SalaryFixture(store);Journal(store,"paid-other","2026-10",Line("5301",Bw,300,0,"2000000222"),Line("2110",Bw,0,300,"2000000222"),Line("2110",Bw,300,0,"2000000222"),Line("MAIN.BW.DEBT",Bw,0,300,"2000000222"));
             var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));Assert.AreEqual(1,preview["rows"]!.AsArray().Count);Assert.AreEqual(Rider,preview["rows"]![0].S("iqama"));Assert.IsTrue(preview.B("canExport"));});
+    }
+    [TestMethod] public void MixedBankPreviewListsZeroAndNegativeBalancesButExportsOnlyPayableRows()
+    {
+        InStore(store=>{
+            SalaryFixture(store);
+            store.Write((c,tx)=>{foreach(string id in new[]{"2000000222","2000000333"})Store.Save(c,"rider",new(){["id"]=id,["iqama"]=id,["name"]="Synthetic excluded rider",["iban"]=FakeIban()},tx);return true;});
+            Journal(store,"zero-balance","2026-10",Line("2110",Bw,300,0,"2000000222"),Line("2110",Bw,0,300,"2000000222"));
+            Journal(store,"negative-balance","2026-10",Line("2110",Bw,50,0,"2000000333"),Line("MAIN.BW.DEBT",Bw,0,50,"2000000333"));
+            var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));
+            Assert.AreEqual(1,preview["rows"]!.AsArray().Count);Assert.IsTrue(preview.B("canExport"));
+            var excluded=preview["excludedRows"]!.AsArray().OfType<JsonObject>().ToArray();Assert.AreEqual(2,excluded.Length);
+            Assert.AreEqual("zero_balance",excluded[0].S("reason"));Assert.AreEqual(0m,excluded[0].N("balance"));
+            Assert.AreEqual("rider_owes_company",excluded[1].S("reason"));Assert.AreEqual(-50m,excluded[1].N("balance"));
+            Assert.AreEqual("Synthetic excluded rider",excluded[0].S("name"));
+            foreach(var row in excluded)
+            {
+                var forged=ExportInput(preview);var submitted=forged["rows"]![0]!.AsObject();
+                submitted["iqama"]=row.S("iqama");submitted["name"]=row.S("name");submitted["amount"]=100m;submitted["errors"]=new JsonArray();
+                var error=Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,forged)));
+                Assert.AreEqual(400,error.Status);StringAssert.Contains(error.Message,"الصفوف المستبعدة");
+            }
+            Assert.AreEqual(0,store.Read(c=>Store.List(c,"audit").Count));
+            string csv=Encoding.UTF8.GetString(store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,ExportInput(preview))).Bytes);
+            StringAssert.Contains(csv,Rider);foreach(var row in excluded)Assert.IsFalse(csv.Contains(row.S("iqama"),StringComparison.Ordinal));
+        });
+    }
+    [TestMethod] public void ApprovedZeroRunWithoutJournalIsExcludedAndCannotBeMadeExportable()
+    {
+        InStore(store=>{
+            store.Write((c,tx)=>{Store.Save(c,"rider",new(){["id"]=Rider,["iqama"]=Rider,["name"]="Synthetic zero rider",["iban"]=FakeIban()},tx);Store.Save(c,"run",new(){["id"]="zero-approved",["iqama"]=Rider,["sponsorId"]=Bw,["period"]="2026-10",["approvedAt"]="2026-10-31T12:00:00Z"},tx);return true;});
+            var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));
+            Assert.AreEqual(0,preview["rows"]!.AsArray().Count);Assert.IsFalse(preview.B("canExport"));
+            Assert.AreEqual("zero_balance",preview["excludedRows"]![0].S("reason"));Assert.AreEqual(0m,preview["excludedRows"]![0].N("balance"));
+            var input=ExportInput(preview);input["rows"]!.AsArray().Add(new JsonObject{["iqama"]=Rider,["name"]="Synthetic zero rider",["iban"]=FakeIban(),["bank"]="RJHI",["amount"]=100m,["notes"]="",["address"]="",["errors"]=new JsonArray()});
+            StringAssert.Contains(Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,input))).Message,"الصفوف المستبعدة");
+            Assert.AreEqual(0,store.Read(c=>Store.List(c,"audit").Count));
+        });
     }
     [TestMethod] public void CsvHasExactBomCrlfAndHeaderAndAuditContainsOnlyMetadata()
     {

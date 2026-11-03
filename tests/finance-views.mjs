@@ -18,10 +18,10 @@ async function req(route,body,status=200,auth=true){
 }
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(server.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}assert.ok(ready,logs);
- assert.equal((await req('/health',undefined,200,false)).version,'0.9.2');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.9.3');
  await req('/api/finance/coa/target',undefined,401,false);
  const password=randomBytes(24).toString('hex');await req('/api/auth/setup',{username:'synthetic-admin',password});const admin=cookie;
- const coa=await req('/api/finance/coa/target');assert.equal(coa.accounts.length,392);
+ const coa=await req('/api/finance/coa/target');assert.equal(coa.accounts.length,396);assert.equal(coa.accounts.filter(a=>a.posting&&a.status==='active').length,221);assert.deepEqual(Object.fromEntries(['excel','modified','new'].map(source=>[source,coa.accounts.filter(a=>a.source===source).length])),{excel:294,modified:28,new:74});assert.ok(coa.accounts.every(a=>['source','sourceNote','statusNote','subledger'].every(key=>Object.hasOwn(a,key))));
  const body='80'+'0'.repeat(15)+'123';let remainder=0;for(const d of body+'281000')remainder=(remainder*10+Number(d))%97;const iban='SA'+String(98-remainder).padStart(2,'0')+body;
  const iqama='2000000888',period='2026-10';
  const policy=await req('/api/policies',{name:'Synthetic commission',kind:'commission',platform:'all',effectiveFrom:period,config:{companyFee:500}});await req(`/api/policies/${policy.id}/approve`,{});
@@ -34,7 +34,7 @@ try{
  const before=(await req('/api/system/release-check')).snapshot;
  for(const view of ['current','target']){const trial=await req(`/api/finance/trial-balance?sponsorId=BW&from=${period}&to=${period}&view=${view}`);assert.equal(trial.companies.length,1);assert.ok(trial.companies[0].isBalanced);assert.equal(trial.companies[0].totals.periodDebit,trial.companies[0].totals.periodCredit);}
  const income=await req(`/api/finance/income-statement?sponsorId=BW&from=${period}&to=${period}`);assert.equal(income.companies[0].revenue,500);
- const preview=await req('/api/finance/bank-file/preview',{sponsorId:'BW',period});assert.ok(preview.canExport);assert.equal(preview.rows[0].amount,1000);assert.equal(preview.rows[0].bank,'RJHI');
+ const preview=await req('/api/finance/bank-file/preview',{sponsorId:'BW',period});assert.ok(preview.canExport);assert.equal(preview.rows[0].amount,1000);assert.equal(preview.rows[0].bank,'RJHI');assert.deepEqual(preview.excludedRows,[]);
  assert.deepEqual((await req('/api/system/release-check')).snapshot,before);
  const invalid=structuredClone(preview.rows);invalid[0].amount=0;await req('/api/finance/bank-file/export',{sponsorId:'BW',period,previewToken:preview.previewToken,rows:invalid},400);
  const rows=structuredClone(preview.rows);rows[0].amount=900;rows[0].notes='Synthetic';
