@@ -205,8 +205,8 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/roles-catalog` | Payroll.Api/UserAccess.cs:325 | authenticated; category/owner visibility in handler | old UI | keep |
 | GET | `/api/system/release-check` | Payroll.Api/ReleaseSafety.cs:62 | Admin / SuperAdmin | none | deprecated |
 | GET | `/api/users` | Payroll.Api/UserAccess.cs:333 | Admin / SuperAdmin | old UI | keep |
-| GET | `/app` | Payroll.Api/NextApp.cs:13 | public (rider portal: own authenticated rider) | old UI | new |
-| GET | `/app/{**path}` | Payroll.Api/NextApp.cs:14 | public (rider portal: own authenticated rider) | old UI | new |
+| GET | `/app` | Payroll.Api/NextApp.cs:28 | public (rider portal: own authenticated rider) | old UI | new |
+| GET | `/app/{**path}` | Payroll.Api/NextApp.cs:29 | public (rider portal: own authenticated rider) | old UI | new |
 | GET | `/health` | Payroll.Api/Program.cs:81 | public (rider portal: own authenticated rider) | none | keep |
 | GET | `/openapi/v1.json` | Payroll.Api/Program.cs:51 | Admin / SuperAdmin | none | new |
 | GET | `/rider-form.js` | Payroll.Api/Program.cs:281 | public (rider portal: own authenticated rider) | none | keep |
