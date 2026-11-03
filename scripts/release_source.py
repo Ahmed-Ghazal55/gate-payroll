@@ -13,8 +13,10 @@ EXACT = {'.gitignore', '.env.example', 'README_AR.md', 'DEPLOYMENT_AR.md',
          'RiderForm/tsconfig.json', 'RiderForm/web/rider-form.html',
          'Run-Local.ps1', 'Publish-MonsterASP.ps1', 'run-local.sh', 'publish-monsterasp.sh',
          '.github/workflows/build-and-deploy.yml'}
+DATA_DOCUMENTS = {'docs/data/ERP-DATA-MAP.md', 'docs/data/TARGET-KINDS.md', 'docs/data/README.md', 'docs/data/RECONCILE-2026-11-03.md'}
+EXACT |= DATA_DOCUMENTS
 PATTERNS = ['Payroll.Api/*.cs', 'Frontend/src/*.ts', 'RiderForm/src/*.ts',
-            'tools/StoreMigration/*.cs', 'tools/StoreMigration/*.csproj', 'tests/*.mjs', 'tests/Engine.Tests/*.cs', 'tests/Engine.Tests/*.csproj', 'scripts/*.py', 'scripts/fonts-manifest.json']
+            'tools/ErpImport/*.cs', 'tools/ErpImport/*.csproj', 'tools/StoreMigration/*.cs', 'tools/StoreMigration/*.csproj', 'tests/*.mjs', 'tests/Engine.Tests/*.cs', 'tests/Engine.Tests/*.csproj', 'scripts/*.py', 'scripts/fonts-manifest.json']
 
 def files():
     result = {ROOT / p for p in EXACT if (ROOT / p).is_file()}
@@ -33,7 +35,8 @@ def validate(selected):
     for path in selected:
         rel = path.relative_to(ROOT)
         assert not path.is_symlink(), 'Symlinks cannot enter a source bundle'
-        assert not set(rel.parts) & {'data', 'App_Data', 'node_modules', 'private-data', 'bin', 'obj'}
+        assert not set(rel.parts) & {'App_Data', 'node_modules', 'private-data', 'bin', 'obj'}
+        assert 'data' not in rel.parts or rel.as_posix() in DATA_DOCUMENTS, 'Operational data is not release source'
         assert path.suffix not in {'.db', '.xlsx', '.sql', '.csv', '.pfx', '.key', '.pem'}
         text = path.read_text(encoding='utf-8')
         assert not re.search(r'SA[0-9]{22}', text.replace('SA0380000000608010167519', '').replace('SA0080000000608010167519', '')), 'Unexpected bank account in release source: ' + str(rel)
