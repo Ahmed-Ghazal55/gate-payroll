@@ -76,7 +76,10 @@ app.Use(async (ctx, next) =>
     { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(ApiErrors.Body(500, "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا.")); }
 });
 app.UseStatusCodePages(async context => { if(context.HttpContext.Request.Path.StartsWithSegments("/api") || context.HttpContext.Request.Path.StartsWithSegments("/openapi")) await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(context.HttpContext.Response.StatusCode)); });
-app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
+app.UseAuthentication();
+LegacyUi.Protect(app);
+app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } });
+app.UseRouting(); app.UseAuthorization(); app.UseRateLimiter();
 NextApp.Map(app);
 app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent }).WithTags("Administration").WithSummary("Read  health");
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName }).WithTags("Administration").WithSummary("Read auth status");
@@ -279,7 +282,7 @@ CampaignOperations.Map(api,store);
 FormDeletion.Map(api,store);
 app.MapGet("/forms/{token}", (string token) => { Campaign(token); return Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.html"), "text/html; charset=utf-8"); }).WithTags("Forms and responses").WithSummary("Read  forms {token}");
 app.MapGet("/rider-form.js", () => Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.js"), "text/javascript; charset=utf-8")).WithTags("Administration").WithSummary("Read  rider form.js");
-app.MapGet("/", () => Results.File(Path.Combine(app.Environment.WebRootPath, "index.html"), "text/html; charset=utf-8")).WithTags("Administration").WithSummary("Read  ");
+LegacyUi.Map(app);
 app.Run();
 
 async Task SignIn(HttpContext ctx, JsonObject user) => await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, UserAccess.SessionPrincipal(user));

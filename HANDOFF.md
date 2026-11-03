@@ -2,39 +2,33 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none |
-| Branch | release/0.10.1 (theme 06a2414 + data 1db2089 on main 3582faf) |
-| Live | 0.10.0 (3582faf, 2026-11-03) → this release 0.10.1 |
-| Updated | 2026-11-03 by Claude Code (release merge) |
+| Current writer | Codex (R2 backend) |
+| Branch | feat/r2-m1 from main e776f78 |
+| Live | 0.10.2 (e776f78) |
+| Updated | 2026-11-04 by Codex |
 
 ## Goal now
-Prompt B completed: ERP map, additive staging importer and approved staging load. Ghazal confirmed prerequisites, off-hours read-only access and explicitly approved «حمّل». Production storage/deployment remains unchanged.
+R2 backend: M1 0.11.0 on feat/r2-m1, then M2 0.12.0 on stacked feat/r2-m2. Backend only; frontend work stays on its own branch. Production is never a target. New staging loads await a fresh «حمّل» after dry-run.
 
-## Done (latest first)
-- 0.10.1 release: sand theme on the old UI and rider forms (Antigravity 06a2414); ERP → staging importer, data map, idempotent indexes (Codex 1db2089; staging holds 6451 docs, production keeps SQLite).
-- Final independent dry-run: 0 new, 0 changed, 6451 unchanged after role correction. The separate second commit run and automatic same-snapshot checks also returned zero changes.
-- Actual staging: 6451 domain documents, 8581 erp-import audit rows, eight ERP indexes. People/profile records: 2092 delivery riders (394 sponsored, 1698 external) plus 38 administrative references, excluded from rider lists/search/stats/quality views.
-- Live read changed during the first commit attempt, safely refused before writes. Restored the authorized backup locally into SQL Server 2025, verified original bytes, set erp_copy READ_ONLY, then loaded its stable snapshot. The preserved container is stopped after reconciliation.
-- docs/data/ERP-DATA-MAP.md combines 224-table metadata with 29 scoped tables and code/routes/pages. TARGET-KINDS.md defines 12 kinds and source keys; SQLite/SQL Server indexes apply to existing stores.
-- tools/ErpImport defaults to SELECT-only dry-run. Approved commit uses normal Store Save/Audit with atomic buffered transport, concurrent-target checks, private checkpoints, no deletion and bounded import-target SQL timeout.
-- Verified build: zero warnings/errors; .NET 149 passed / 0 failed / 6 optional SQL-backed cases skipped; nine synthetic importer tests included. Standalone synthetic HTTP: 255 checks. Source boundaries: 149 files; whitespace and new/added sensitive-literal checks passed.
-- docs/data/README.md explains the preserved local source and localhost API review against staging. Existing static web assets copied into ignored output; no UI source edits. Shared learning entry recorded.
-- Earlier commits: b989fc0 (map/kinds), 6c51ab1 (importer/tests). Final branch commit records backup load, classification and reconciliation. No push, PR, merge or deployment.
+## Baseline before changes (2026-11-04)
+- main e776f78 / live 0.10.2; clean checkout, fast-forward pull already current.
+- Build zero warnings/errors; .NET 149 passed / 0 failed / 6 optional SQL-backed cases skipped. Local NuGet cache only.
+- Python 24 passed; ten standalone HTTP suites and six browser suites passed. Source boundary check: 150 files.
+- COA --check failed as expected (resource 396 versus approved spec 403); assigned to M2.0.
+
+## Done
+- M1.1 complete: root 302 to /app/, session-only /legacy/, safe returnUrl validation and direct-index guard; public routes unchanged. Restart test verifies every existing record body byte-identical.
+- M1.1 checks: .NET 151 passed / 0 failed / 6 SQL skipped; 26 R2 HTTP checks and all six browser suites passed.
 
 ## Next step (exact)
-Claude reviews feat/1.0-data and docs/data/RECONCILE-2026-11-03.md. Ghazal can use docs/data/README.md to run the local API against staging. Accept/resolve source gaps and the older-backup drift before claiming complete current data or considering production migration.
-
-## Open problems / decisions
-- Backup loaded 38 fewer documents than the prior live dry-run: 10 people/profiles, 10 vehicle assignments, 18 custody events. Nested history also differs; exact counts are documented. No schema column/key/FK drift across the 224 tables; row counts changed.
-- Missing three CR numbers and sponsorship-period source table; 14 invalid identities and 16 employees without required profiles excluded; two non-custody events excluded. No dates/values invented. ERP production and Payroll production SQLite were never written.
-- Six optional SQL-backed suite cases were skipped; actual approved importer execution on staging was verified separately. Production remains SQLite.
+M1.2: add certificate fields and signed admin company import; inspect the private input in memory, dry-run against staging, report counts and wait for a fresh «حمّل» before writing.
 
 ## How to verify
 ```bash
 dotnet build tests/Engine.Tests/Engine.Tests.csproj --no-restore -p:SkipFrontendBuild=true -m:1
 env -u PAYROLL_TEST_SQL_CONNECTION ConnectionStrings__DefaultConnection= dotnet test tests/Engine.Tests/Engine.Tests.csproj --no-build --no-restore
-node tests/api-cleanup.mjs
+python3 -m unittest discover -s scripts -p 'test_*.py'
 python3 scripts/release_source.py --check
+node tests/r2-backend.mjs
 git diff --check
-# Preserved local-copy start and SELECT-only comparison: see docs/data/README.md.
 ```

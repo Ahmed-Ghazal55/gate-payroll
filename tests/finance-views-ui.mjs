@@ -53,10 +53,8 @@ try {
 
   // 1. Initial setup
   const password = randomBytes(24).toString('hex');
-  await page.goto(base);
-  await page.locator('[name=username]').fill('finance-views-tester');
-  await page.locator('[name=password]').fill(password);
-  await page.locator('#auth-form button').click();
+  assert.equal((await page.request.post(base + '/api/auth/setup', {data: {username: 'finance-views-tester', password}})).status(), 200);
+  await page.goto(base + '/legacy/');
   await page.getByRole('heading', {name: 'كل مستحق في مكانه'}).waitFor();
 
   // Helper for API setup

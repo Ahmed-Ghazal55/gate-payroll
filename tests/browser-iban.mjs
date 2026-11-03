@@ -47,11 +47,11 @@ try{
  page.once('dialog',d=>d.accept());await page.click('#rider-choice button[type=submit]');await page.locator('.success-symbol').waitFor();
  const rows=await(await admin.request.get(base+'/api/submissions')).json();assert.equal(rows.length,1);assert.equal(rows[0].iban,'SA0380000000608010167519');assert.deepEqual(rows[0].platforms,['keeta','jahez']);assert.equal(rows[0].city,'جدة');assert.equal(rows[0].bankCode,'80');assert.equal(rows[0].phone,'+966500000911');
  await page.click('#btn-edit-choice');await page.locator('#edit-notice:not([hidden])').waitFor();assert.match(await page.locator('#edit-notice').textContent(),/•••• 7519/);assert.equal(await page.locator('[name=ibanBody]').inputValue(),'');assert.equal(await page.locator('[name=platforms][value=jahez]').isChecked(),true);
- const adminPage=await admin.newPage();adminPage.on('pageerror',e=>errors.push(String(e)));await adminPage.goto(base+'/#responses');await adminPage.locator('[data-response-id]').first().waitFor();
+ const adminPage=await admin.newPage();adminPage.on('pageerror',e=>errors.push(String(e)));await adminPage.goto(base+'/legacy/#responses');await adminPage.locator('[data-response-id]').first().waitFor();
  const rowText=await adminPage.locator('[data-response-id]').first().textContent();assert.match(rowText,/تحديث بيانات الآيبان/);assert.match(rowText,/SA0380000000608010167519/);assert.match(rowText,/RJHI/);
  await adminPage.click('[data-action=response-review]');await adminPage.locator('#review-form [name=ibanOwnershipReviewed]').waitFor();assert.match(await adminPage.locator('#modal').textContent(),/لا يغيّر آيبان المندوب/);
  if(shots)await adminPage.screenshot({path:path.join(shots,'iban-admin-review.png')});
- await adminPage.keyboard.press('Escape');await adminPage.goto(base+'/#forms');await adminPage.locator('[data-action=campaign-new]').click();await adminPage.locator('#campaign-form [name=kind]').waitFor();
+ await adminPage.keyboard.press('Escape');await adminPage.goto(base+'/legacy/#forms');await adminPage.locator('[data-action=campaign-new]').click();await adminPage.locator('#campaign-form [name=kind]').waitFor();
  await adminPage.selectOption('#campaign-form [name=kind]','iban');assert.equal(await adminPage.locator('#campaign-form [name=title]').inputValue(),'تحديث بيانات الآيبان');assert.match(await adminPage.locator('#campaign-kind-note').textContent(),/لا يغيّر آيبان ملف البنك/);
  await adminPage.locator('#campaign-form button').click();await adminPage.locator('#new-link .link-box').waitFor();
  const created=(await(await admin.request.get(base+'/api/campaigns')).json()).filter(c=>c.kind==='iban');assert.equal(created.length,2);

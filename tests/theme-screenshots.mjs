@@ -43,10 +43,8 @@ try {
   const browser = await chromium.launch({ headless: true });
   const adminContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const setupPage = await adminContext.newPage();
-  await setupPage.goto(base);
-  await setupPage.locator('[name=username]').fill('theme-admin');
-  await setupPage.locator('[name=password]').fill(randomBytes(24).toString('hex'));
-  await setupPage.locator('#auth-form button').click();
+  assert.equal((await setupPage.request.post(base + '/api/auth/setup', {data: {username: 'theme-tester', password: randomBytes(24).toString('hex')}})).status(), 200);
+  await setupPage.goto(base + '/legacy/');
   await setupPage.getByRole('heading', { name: 'كل مستحق في مكانه' }).waitFor();
 
   // Create sample rider & debts data for rich dashboard & debts screens
@@ -89,12 +87,12 @@ try {
   }
 
   // 1. Dashboard
-  await captureView('dashboard', base + '/#/dashboard', false, async (page, theme) => {
+  await captureView('dashboard', base + '/legacy/#/dashboard', false, async (page, theme) => {
     await page.locator('.stats, .panel').first().waitFor();
   });
 
   // 2. Debts
-  await captureView('debts', base + '/#/debts', false, async (page, theme) => {
+  await captureView('debts', base + '/legacy/#/debts', false, async (page, theme) => {
     await page.locator('[data-view="debts"]').first().click().catch(() => {});
     await page.waitForTimeout(400);
   });
