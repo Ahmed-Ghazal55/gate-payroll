@@ -50,3 +50,11 @@ Payroll.Api/wwwroot/fonts/
 
 # Next static export is packaged by CI, never committed as a second source.
 Payroll.Api/wwwroot/app/
+
+# Metadata-only ERP import documentation; operational data remains ignored.
+!docs/data/
+docs/data/*
+!docs/data/ERP-DATA-MAP.md
+!docs/data/TARGET-KINDS.md
+!docs/data/README.md
+!docs/data/RECONCILE-2026-11-03.md

@@ -2,58 +2,35 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none |
-| Branch | feat/1.0-api from main d063230 |
-| Live | 0.9.3 (d063230); local work only |
+| Current writer | Codex (feat/1.0-data) |
+| Branch | feat/1.0-data from main 3582faf |
+| Live | 0.10.0 (3582faf, 2026-11-03) |
 | Updated | 2026-11-03 by Codex |
 
 ## Goal now
-Fix Round 1 (Claude review of 229f7cc..20507f1) complete: NextApp deep links in /app fixed and verified. One commit: `fix(api): Next deep links (1.0-A)`. No push, PR, merge or deployment without Ghazal.
+Prompt B: ERP data map and additive staging importer. Ghazal confirmed FTP rotation, staging readiness and off-hours live read. Source is approved live read-only SQL; backup restore is optional under the latest prompt amendment. Never load until the explicit «حمّل» after dry-run review.
 
 ## Done (latest first)
-- Web 1.0 (Antigravity d6597a9 + fix 58960e0, rebased by Claude onto feat/1.0-api as 6c209ba/73deaa8): Next.js 16 static export at /app; shell, home, notifications, forms and responses group; no silent mocks; permissions; live e2e. Old footer 0.10.0.
-- Fix Round 1 (Claude Review A1–A2):
-  - A1 (blocking): Fixed `NextApp.Fallback(path, webRoot)` deep links resolution order:
-    1. `app/<path>/index.html`
-    2. `app/<path>.html`
-    3. `app/404.html` (returned with HTTP 404)
-    4. `app/index.html` (SPA fallback)
-    Enforced extension rule (unknown assets with extensions return 404) and path traversal guard rejecting `..` and `\`.
-    - Unit tests in `NextAppTests.cs` verify synthetic webroot with `index.html`, `forms/index.html`, and `404.html`.
-    - HTTP checks in `tests/api-cleanup.mjs` verify `/app/forms/` returns the forms file and traversal `/app/x/../../appsettings.json` is refused.
-  - A2 (minor): Noted that `/health` reports 0.10.0 while old UI footer stays 0.9.3 (Frontend/ kept untouched per Ghazal's instruction; Antigravity handles UI version bump).
-- Task 9: optional Next build/copy before publish, required /app/index.html payload checks, physical static files before explicit routing, extensionless-only SPA fallback. Packaging tested with synthetic exports and clean skip when web/ is absent; backend/test/deploy release metadata now 0.10.0; API_CONTRACT points to ENDPOINTS.md.
-- Final checks: build 0 warnings/errors; .NET 140 passed / 0 failed / 6 SQL skipped; Python 24 passed (network mocked); all 10 HTTP suites and 5 Chromium suites passed. API cleanup alone: 251 checks. Screenshots in ignored test-results/.
-- Inventory: 155 API operations (24 new), 6 deprecated; 166 total including HTML/health/OpenAPI. Every /api operation and its tags/summary verified in both directions against OpenAPI. Caller inventory also handles the old UI API helper.
-- Final compatibility fixes: duplicate-409 tests preserve the previous fields plus error/code; answer notices use a rolling hour and include Excel answers; static file/fallback HTTP checks use a temporary webroot. Shared learning entry recorded.
-- Task 8: six legacy operations explicitly deprecated in the human index and OpenAPI (including test-only release-check); all routes retained. HTTP verifies deprecation metadata.
-- Task 7: unified campaign/custom responses inbox with one row shape, source/status/parent filters and opt-in pagination; review mutations remain on existing endpoints. Synthetic permission/shape/filter and HTTP tests.
-- Task 6: global search over four collections, minimum query length and twenty-result cap, same collection gates and company/debt scope; synthetic permission/scope and HTTP tests.
-- Task 5: additive company/registration/document CRUD, private attachments and expiry listing; idempotent startup seed for existing databases, companies permissions in live role catalog, read-only finance sponsor alias and audit on every write. DELETE archives; financial references/files remain.
-- Task 4: notification inbox/read/summary with per-user state and category permissions; transactional approval/import/answer notices, hourly answer throttle and daily quality notices. Synthetic tests cover isolation, visibility, throttle and rollback.
-- Task 3: one opt-in pagination/filter/sort helper for all nine lists; legacy response bytes tested unchanged, page bounds/search/sort tested with synthetic rows.
-- Task 2: policy/handler agreement, user PUT alias, owner/view permission for todo, plain broadcast route, JSON errors including duplicate submissions; two policy behavior tests and HTTP checks pass.
-- Task 1: built-in admin-only OpenAPI, tags/summaries, generated docs/api/ENDPOINTS.md, bidirectional inventory/OpenAPI HTTP coverage. Includes dynamic deletion and inquiry routes.
-- Generator --check, source boundary (134 allowlisted files), and whitespace checks passed. No Frontend/, RiderForm/ or web/ source changes; no push, PR, merge, deployment or production connection.
-- Restore used only local NuGet cache; no source change or network restore. Frontend compiled from unchanged source using existing TypeScript, output only under Payroll.Api/wwwroot. SkipFrontendBuild supports backend-only builds.
+- Final checks: .NET 147 passed / 0 failed / 6 SQL skipped, including seven importer behavior tests. Build 0 warnings/errors; generator, source boundaries (147 files), whitespace and new-file sensitive-literal checks passed. SQL Server provider execution remains unverified.
+- Read live schema metadata (224 tables), current ERP entities/configurations/controllers/pages and reference-only SQL/model history. docs/data/ERP-DATA-MAP.md covers 29 visible tables and the absent sponsorship-period table. Reports contain metadata/counts only.
+- docs/data/TARGET-KINDS.md defines 12 kinds, source/natural keys, relations and existing-database indexes for SQLite/SQL Server; company reuses Prompt A's existing sponsor keys.
+- Final dry-run: 6489 new documents, zero target writes; 432 sponsored + 1708 external riders. Stable database rowversion over the eight-second read. Counts/reasons/read window in docs/data/RECONCILE-2026-11-03.md.
+- Explicit gaps: all three CR numbers missing; sponsorship periods absent; 14 invalid rider identities; 16 employees lack rider profiles; two custody events are not handover/return. No dates or classification guessed.
+- Source archives, production SQLite, ERP production write access and config files were untouched. No push, PR, merge or deployment.
 
 ## Next step (exact)
-Claude or Ghazal review of feat/1.0-api fix round 1. No push, PR, merge or deployment without Ghazal.
+Finish local commits, show Ghazal the reviewed counts and wait for «حمّل». Only then load staging and verify a second pass has zero changes. Current staging is untouched; post-load reconciliation remains pending.
 
 ## Open problems / decisions
-- UI release labels remain 0.9.3 under the explicit no-UI-edit rule; Antigravity handles them.
-- SQL provider and production are unverified; only synthetic temporary SQLite was used. Real Next build/export is skipped here because web/ is absent on this branch; the conditional CI path and packaging contract are tested with synthetic fixtures.
+- Accept/resolve the explicit gaps before claiming a complete dataset. Source reads use a rowversion-stability check, not snapshot isolation; live-versus-backup drift is unverified because restore was not needed.
+- SQL Server indexes are implemented but provider execution is not verified by the synthetic SQLite tests. Production storage remains unchanged.
 
 ## How to verify
 ```bash
-python3 tools/api_inventory.py
-python3 tools/generate_target_coa.py --check
-python3 scripts/release_source.py --check
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p 'test_*.py'
-dotnet build tests/Engine.Tests/Engine.Tests.csproj --no-restore -p:SkipFrontendBuild=true
+dotnet build tests/Engine.Tests/Engine.Tests.csproj --no-restore -p:SkipFrontendBuild=true -m:1
 env -u PAYROLL_TEST_SQL_CONNECTION ConnectionStrings__DefaultConnection= dotnet test tests/Engine.Tests/Engine.Tests.csproj --no-build --no-restore
-node tests/iban-form.mjs
-node tests/api-cleanup.mjs
-env ConnectionStrings__DefaultConnection= PLAYWRIGHT_MODULE=/tmp/gate-browser/node_modules/playwright/index.mjs node tests/browser.mjs
-# Also browser-v05, browser-iban, rider-statement-ui, finance-views-ui (same environment).
+python3 scripts/release_source.py --check
+git diff --check
+# Approved off-hours only; default is SELECT-only dry-run:
+dotnet tools/ErpImport/bin/Debug/net10.0/ErpImport.dll --dry-run
 ```
