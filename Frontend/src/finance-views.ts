@@ -63,11 +63,9 @@ async function renderCoaTargetView(): Promise<string> {
   const postingAccounts = accounts.filter((a: any) => a.posting).length;
   const headerAccounts = accounts.filter((a: any) => !a.posting).length;
 
-  const mappedTargetCodes = new Set<string>();
-  mappings.forEach((m: any) => {
-    (m.targetCodes || []).forEach((c: string) => mappedTargetCodes.add(c));
-  });
-  const newAccountsCount = totalAccounts - mappedTargetCodes.size;
+  const countExcel = accounts.filter((a: any) => a.source === 'excel').length;
+  const countModified = accounts.filter((a: any) => a.source === 'modified').length;
+  const countNew = accounts.filter((a: any) => a.source === 'new').length;
 
   const parentsSet = new Set<string>();
   accounts.forEach((a: any) => {
@@ -113,10 +111,16 @@ async function renderCoaTargetView(): Promise<string> {
         <strong>${headerAccounts}</strong>
         <div class="hint">حسابات تبويب ومستويات رقابية</div>
       </article>
-      <article class="stat">
-        <div class="label">جديدة vs المربوطة من Excel</div>
-        <strong>${newAccountsCount} <span style="font-size: 16px; color: var(--muted); font-weight: 400;">/ ${mappings.length}</span></strong>
-        <div class="hint">${newAccountsCount} حساب مستحدث · ${mappings.length} ربط من الشجرة الحالية</div>
+      <article class="stat" id="coa-stat-sources">
+        <div class="label">مصادر الحسابات (Source)</div>
+        <strong style="font-size: 16px; display: flex; gap: 6px; align-items: baseline; justify-content: flex-end; flex-wrap: wrap;">
+          <span class="source-excel">${countExcel} <small style="font-size: 12px; font-weight: 400; color: var(--muted);">من Excel</small></span>
+          <span style="color: var(--muted); font-weight: 400;">·</span>
+          <span class="source-modified">${countModified} <small style="font-size: 12px; font-weight: 400; color: var(--muted);">معدّلة</small></span>
+          <span style="color: var(--muted); font-weight: 400;">·</span>
+          <span class="source-new">${countNew} <small style="font-size: 12px; font-weight: 400; color: var(--muted);">جديدة</small></span>
+        </strong>
+        <div class="hint">${countExcel} من Excel · ${countModified} معدّلة · ${countNew} جديدة</div>
       </article>
     </div>
   `;
@@ -182,9 +186,25 @@ async function renderCoaTargetView(): Promise<string> {
       ? '<span class="tag good">حساب حركة</span>'
       : '<span class="tag">رئيسي</span>';
 
-    const statusBadge = a.status === 'active'
-      ? '<span class="tag good">فعال</span>'
-      : `<span class="tag">${esc(a.status)}</span>`;
+    const sourceBadge = a.source === 'excel'
+      ? `<span class="tag source-tag" style="font-size: 10px; padding: 1px 6px; margin-inline-start: 6px; background: var(--raised);" title="${esc(a.sourceNote || 'Excel')}">Excel</span>`
+      : a.source === 'modified'
+        ? `<span class="tag warn source-tag" style="font-size: 10px; padding: 1px 6px; margin-inline-start: 6px;" title="${esc(a.sourceNote || 'معدّلة')}">معدّلة</span>`
+        : a.source === 'new'
+          ? `<span class="tag good source-tag" style="font-size: 10px; padding: 1px 6px; margin-inline-start: 6px;" title="${esc(a.sourceNote || 'جديدة')}">جديدة</span>`
+          : '';
+
+    const statusLabel = a.status === 'active' ? 'فعال' :
+      a.status === 'stopped' ? 'موقوف' :
+      a.status === 'reserved' ? 'محجوز' :
+      a.status === 'display' ? 'عرض فقط' : esc(a.status);
+
+    const statusClass = a.status === 'active' ? 'tag good' : (a.status === 'stopped' ? 'tag bad' : 'tag');
+    const statusTitle = a.statusNote ? ` title="${esc(a.statusNote)}"` : '';
+    let statusBadge = `<span class="${statusClass}"${statusTitle}>${statusLabel}</span>`;
+    if (a.statusNote) {
+      statusBadge += ` <span class="hint small muted status-note-hint" title="${esc(a.statusNote)}" style="margin-inline-start: 4px; cursor: help;">(${esc(a.statusNote)})</span>`;
+    }
 
     rowsHtml.push(`
       <tr class="coa-row" data-code="${esc(a.code)}" data-parent="${esc(a.parent || '')}" data-level="${a.level}">
@@ -197,6 +217,7 @@ async function renderCoaTargetView(): Promise<string> {
         </td>
         <td>
           <span style="${a.posting ? '' : 'font-weight: 700;'}">${esc(a.nameAr)}</span>
+          ${sourceBadge}
           ${a.company && a.company !== 'الكل' ? `<span class="muted small" style="margin-inline-start: 6px;">(${esc(a.company)})</span>` : ''}
         </td>
         <td>${postingBadge}</td>
@@ -993,6 +1014,7 @@ async function renderBankFileView(): Promise<string> {
   }
 
   const rows = fvBankRows || [];
+  const excludedRows: any[] = fvBankPreviewData.excludedRows || [];
   const totalAmount = rows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
   const rowsWithErrors = rows.filter((r: any) => bankRowHasEffectiveErrors(r, fvBankConfirmCode40));
   const totalErrors = rowsWithErrors.length;
@@ -1001,7 +1023,7 @@ async function renderBankFileView(): Promise<string> {
   const hasCode40 = rows.some((r: any) => (r.errors || []).includes('bank_code_40_manual_confirmation_required'));
 
   const statsHtml = `
-    <div class="stats" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 18px;">
+    <div class="stats" style="grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 18px;">
       <article class="stat">
         <div class="label">عدد السجلات (Rows)</div>
         <strong>${rows.length}</strong>
@@ -1016,6 +1038,11 @@ async function renderBankFileView(): Promise<string> {
         <div class="label">سجلات بها أخطاء تدقيق (Errors)</div>
         <strong class="${totalErrors > 0 ? 'money-negative' : 'money-positive'}">${totalErrors}</strong>
         <div class="hint">${totalErrors > 0 ? 'يجب تصحيحها لتفعيل التصدير' : 'جميع السجلات سليمة ومحققة'}</div>
+      </article>
+      <article class="stat" id="bank-stat-excluded">
+        <div class="label">مستبعدين من الملف (Excluded)</div>
+        <strong class="${excludedRows.length > 0 ? 'money-negative' : ''}">${excludedRows.length}</strong>
+        <div class="hint">${excludedRows.length > 0 ? 'رصيد صفر أو مدينون للشركة' : 'لا يوجد مستبعدون لهذا الشهر'}</div>
       </article>
     </div>
   `;
@@ -1095,7 +1122,60 @@ async function renderBankFileView(): Promise<string> {
     </div>
   `;
 
-  return filtersHtml + statsHtml + code40Notice + tableHtml;
+  const excludedRowsHtml = excludedRows.map((r: any, idx: number) => {
+    const isZero = r.reason === 'zero_balance';
+    const isDebtor = r.reason === 'rider_owes_company';
+
+    let reasonBadge = '';
+    if (isZero) {
+      reasonBadge = '<span class="tag" style="background: var(--raised); color: var(--muted); border: 1px solid var(--line);">رصيد صفر</span>';
+    } else if (isDebtor) {
+      reasonBadge = `<span class="tag bad" style="font-weight: 700;">عليه للشركة</span> <span class="number money-negative" style="margin-inline-start: 6px; font-weight: 700;">(${Number(r.balance).toFixed(2)})</span>`;
+    } else {
+      reasonBadge = `<span class="tag">${esc(r.reason || '—')}</span>`;
+    }
+
+    const balanceHtml = isDebtor
+      ? `<span class="number money-negative" style="font-weight: 700;">${Number(r.balance).toFixed(2)}</span>`
+      : `<span class="number muted">${Number(r.balance).toFixed(2)}</span>`;
+
+    return `
+      <tr class="bank-excluded-row" data-iqama="${esc(r.iqama)}">
+        <td class="number">${idx + 1}</td>
+        <td><strong>${esc(r.name || '—')}</strong></td>
+        <td class="number">${esc(r.iqama)}</td>
+        <td>${balanceHtml}</td>
+        <td>${reasonBadge}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const excludedPanelHtml = `
+    <details class="panel bank-excluded-panel" style="margin-bottom: 24px; padding: 0; overflow: hidden;">
+      <summary style="padding: 14px 18px; cursor: pointer; font-weight: 700; user-select: none; display: flex; align-items: center; justify-content: space-between; background: var(--surface);">
+        <span>مستبعدين من الملف (${excludedRows.length})</span>
+        <span class="small muted" style="font-weight: 400;">انقر للفتح / الإغلاق</span>
+      </summary>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="جدول المستبعدين من ملف البنك" style="border-top: 1px solid var(--line); max-height: 350px; overflow: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col" style="width: 40px;">#</th>
+              <th scope="col">اسم الموظف / المندوب</th>
+              <th scope="col">رقم الهوية / الإقامة</th>
+              <th scope="col" style="width: 140px;">الرصيد</th>
+              <th scope="col">سبب الاستبعاد</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${excludedRowsHtml.length > 0 ? excludedRowsHtml : '<tr><td colspan="5" class="muted" style="text-align: center; padding: 18px;">لا يوجد مستبعدون من هذا الملف.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  `;
+
+  return filtersHtml + statsHtml + code40Notice + tableHtml + excludedPanelHtml;
 }
 
 function bindBankFileView(): void {
@@ -1279,6 +1359,12 @@ async function renderFinanceViewsTab(subTab: string): Promise<string> {
         .stats {
           grid-template-columns: 1fr !important;
         }
+      }
+      .bank-excluded-panel summary {
+        outline-offset: -2px;
+      }
+      .bank-excluded-panel summary:focus-visible {
+        outline: 2px solid var(--accent, #007e72);
       }
     </style>
   `;
