@@ -88,4 +88,8 @@ public sealed class PaySettingsTests
         var old=new JsonObject{["username"]="synthetic-existing",["role"]="FinancialAccountant"};string raw=old.ToJsonString();var principal=UserAccess.Principal(old);foreach(string p in new[]{"pay.view","pay.manage","pay.approve"})Assert.IsTrue(AccessPolicy.Has(principal,p));Assert.AreEqual(raw,old.ToJsonString());Assert.IsTrue(AccessPolicy.Allowed(principal,"POST","/api/pay/apps/hs/terms/synthetic/approve"));
         old["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(FinancialCore.Sponsors[0].Id),["platforms"]=new JsonArray("HungerStation")};principal=UserAccess.Principal(old);Assert.ThrowsExactly<ApiError>(()=>PaySettings.Scope(principal,"pay.manage","hs",true));Assert.ThrowsExactly<ApiError>(()=>PaySettings.Scope(principal,"pay.view","keeta"));PaySettings.Scope(principal,"pay.view","hs");
     }
+    [TestMethod]
+    public void FinancialRoundingPrecisionCannotDriftFromTheTwoDecimalPostingRule()
+    {using var f=new PayFixture();foreach(int precision in new[]{0,1,3,6}){var data=PaySettings.Defaults();data["values"]!["roundingDigits"]=precision;Assert.ThrowsExactly<ApiError>(()=>f.Global(values:data));}Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"pay_setting").Count));}
+
 }

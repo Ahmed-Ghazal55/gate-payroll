@@ -44,14 +44,14 @@ public static partial class Reporting
     {
         var documents=input.Where(d=>Tables.Any(t=>t.Kind==d.Kind)).GroupBy(d=>d.Id).Select(g=>g.Last()).ToList();if(documents.Count==0)return;
         bool ready=force||Transactions.GetValue(tx,_=>new(Initialized(c,tx))).Ready;if(!ready)return;if(c is not SqlConnection sql||tx is not SqlTransaction transaction)return;
-        var rows=documents.SelectMany(Project).ToList();var stateRows=new List<JsonObject>();
+        var rows=documents.SelectMany(Project).ToList();var bySource=rows.GroupBy(r=>r.Values.S("SourceRecordId")).ToDictionary(g=>g.Key,g=>g.ToList());var stateRows=new List<JsonObject>();
         foreach(var table in Tables.Where(t=>documents.Any(d=>d.Kind==t.Kind)))
         {
             string ids=System.Text.Json.JsonSerializer.Serialize(documents.Where(d=>d.Kind==table.Kind).Select(d=>d.Id));
             using(var remove=Store.Command(c,tx,$"DELETE p FROM rpt.[{table.Name}] p JOIN OPENJSON(@ids) i ON p.SourceRecordId=i.[value]",("@ids",ids)))remove.ExecuteNonQuery();
             Bulk(sql,transaction,table.Name,Common.Concat(table.Extra),rows.Where(r=>r.Table==table.Name).Select(r=>r.Values));
         }
-        foreach(var doc in documents)stateRows.Add(new(){["SourceRecordId"]=doc.Id,["Kind"]=doc.Kind,["SourceSha"]=Sha(doc.Body),["RowCount"]=rows.Count(r=>r.Kind==doc.Kind&&r.Values.S("SourceRecordId")==doc.Id),["ProjectionSha"]=RowsSha(rows.Where(r=>r.Values.S("SourceRecordId")==doc.Id))});
+        foreach(var doc in documents){var projected=bySource.GetValueOrDefault(doc.Id)??[];stateRows.Add(new(){["SourceRecordId"]=doc.Id,["Kind"]=doc.Kind,["SourceSha"]=Sha(doc.Body),["RowCount"]=projected.Count,["ProjectionSha"]=RowsSha(projected)}); }
         using(var remove=Store.Command(c,tx,"DELETE p FROM rpt.SourceState p JOIN OPENJSON(@ids) i ON p.SourceRecordId=i.[value]",("@ids",System.Text.Json.JsonSerializer.Serialize(documents.Select(d=>d.Id)))))remove.ExecuteNonQuery();
         Bulk(sql,transaction,"SourceState",[C("SourceRecordId"),C("Kind","nvarchar(40)"),C("SourceSha","char(64)"),C("RowCount","int"),C("ProjectionSha","char(64)")],stateRows);
     }

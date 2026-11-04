@@ -40,6 +40,10 @@ public static partial class Reporting
         if(source.S(key)=="")return null;
         if(!decimal.TryParse(source.S(key),NumberStyles.Number,CultureInfo.InvariantCulture,out var n)||n!=decimal.Round(n,4)||integer&&(n!=decimal.Truncate(n)||n>int.MaxValue||n<int.MinValue))throw new InvalidOperationException("report_projection_invalid_number");return integer?JsonValue.Create((int)n):JsonValue.Create(n);
     }
+    static JsonObject Context(JsonObject source)
+    {
+        var result=new JsonObject();foreach(string key in new[]{"companyId","creditorSponsorId","sponsorId","originSponsorId","rider","riderId","iqama","platform","app","platformCode","period","sourceRef","sourceId"})if(source.ContainsKey(key))result[key]=source[key]?.DeepClone();return result;
+    }
     public static ReportDocument Chart()=>new("@coa","@coa",new JsonArray(FinanceViews.Accounts.Select(a=>(JsonNode?)a.Clone()).ToArray()).ToJsonString());
     public static IReadOnlyList<ReportRow> Project(ReportDocument doc)
     {
@@ -59,14 +63,14 @@ public static partial class Reporting
             case "platform_account":
                 Add("PlatformAccounts",Fields(("ExternalAccountId","externalAccountId","s"),("RegisteredRiderId","registeredRiderId","s"),("CityId","cityId","s"),("StartAt","startDate","d"),("EndAt","endDate","d")));
                 int a=0;foreach(var child in (root["assignments"] as JsonArray??[]).OfType<JsonObject>())
-                {var owner=root.Clone();owner["riderId"]=child.S("riderId");Add("AccountAssignments",new(){["AccountId"]=doc.Id,["FromAt"]=Date(child,"RawEffectiveFrom"),["ToAt"]=Date(child,"RawEffectiveTo"),["Status"]=Text(child,"Status")},owner,(a++).ToString(CultureInfo.InvariantCulture));}break;
+                {var owner=Context(root);owner["riderId"]=child.S("riderId");Add("AccountAssignments",new(){["AccountId"]=doc.Id,["FromAt"]=Date(child,"RawEffectiveFrom"),["ToAt"]=Date(child,"RawEffectiveTo"),["Status"]=Text(child,"Status")},owner,(a++).ToString(CultureInfo.InvariantCulture));}break;
             case "vehicle":Add("Vehicles",Fields(("AssetNumber","assetNumber","s"),("PlateNumber","plateNumberAr","s"),("VehicleType","vehicleType","s"),("OwnershipType","ownershipType","s"),("CityId","cityId","s")));break;
             case "vehicle_assignment":Add("VehicleAssignments",Fields(("VehicleId","vehicleId","s"),("FromAt","startedAt","d"),("ToAt","endedAt","d"),("StartOdometer","startOdometer","n"),("EndOdometer","endOdometer","n")));break;
             case "debt":Add("Debts",Fields(("Category","category","s"),("Status","status","s"),("TotalAmount","totalAmount","n"),("PaidAmount","paidAmount","n"),("RemainingBalance","remainingBalance","n"),("MonthlyInstallment","monthlyInstallment","n")));break;
             case "debt_settlement":Add("DebtSettlements",Fields(("DebtId","debtId","s"),("JournalId","journalEntryId","s"),("Method","method","s"),("CollectedAmount","collectedAmount","n"),("WaivedAmount","waivedAmount","n"),("RemainingAfter","remainingAfter","n")));break;
             case "journal":
                 int j=0;foreach(var line in (root["lines"] as JsonArray??[]).OfType<JsonObject>())
-                {var owner=root.Clone();foreach(string key in new[]{"sponsorId","iqama","platform","sourceId"})if(line.S(key)!="")owner[key]=line[key]?.DeepClone();owner.Remove("companyId");owner.Remove("creditorSponsorId");Add("JournalLines",new(){["JournalId"]=doc.Id,["AccountCode"]=Text(line,"accountCode"),["PlatformAccountId"]=Text(line,"platformAccountId"),["DebtId"]=Text(line,"debtId"),["Debit"]=Number(line,"debit"),["Credit"]=Number(line,"credit"),["Chart"]=Text(root,"chart"),["SourceType"]=Text(root,"transactionType")},owner,(j++).ToString(CultureInfo.InvariantCulture));}break;
+                {var owner=Context(root);foreach(string key in new[]{"sponsorId","iqama","platform","sourceId"})if(line.S(key)!="")owner[key]=line[key]?.DeepClone();owner.Remove("companyId");owner.Remove("creditorSponsorId");Add("JournalLines",new(){["JournalId"]=doc.Id,["AccountCode"]=Text(line,"accountCode"),["PlatformAccountId"]=Text(line,"platformAccountId"),["DebtId"]=Text(line,"debtId"),["Debit"]=Number(line,"debit"),["Credit"]=Number(line,"credit"),["Chart"]=Text(root,"chart"),["SourceType"]=Text(root,"transactionType")},owner,(j++).ToString(CultureInfo.InvariantCulture));}break;
             case "pay_cycle":Add("PayCycles",Fields(("Stage","stage","i"),("Status","status","s"),("PostingPeriod","postingPeriod","s"),("JournalId","journalEntryId","s")));break;
             case "pay_cycle_line":Add("PayCycleLines",Fields(("CycleId","cycleId","s"),("SchemeId","schemeId","s"),("Orders","orders","i"),("Gross","gross","n"),("PlatformGross","platformGross","n"),("AccountDeduction","accountDeduction","n"),("Incentives","incentives","n"),("CompanyCommission","companyCommission","n"),("VehicleCharge","allocatedVehicleCharge","n"),("OperatingCost","operatingCost","n"),("Entitlement","entitlement","n"),("NetBeforePersonal","netBeforePersonal","n"),("Status","status","s")));break;
             case "platform_invoice":Add("PlatformInvoices",Fields(("ApprovalStatus","approvalStatus","s"),("Reference","reference","s"),("AmountExclVat","amountExclVat","n"),("Vat","vat","n"),("DeductionsTotal","deductionsTotal","n"),("JournalId","journalEntryId","s")));break;
