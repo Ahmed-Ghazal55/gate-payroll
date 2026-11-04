@@ -997,4 +997,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+
+  // Operations & Assets APIs (Codex R4.6)
+  getOperations: (kind: string) =>
+    handleRequest<any[]>(`/operations/${encodeURIComponent(kind)}`),
 };
