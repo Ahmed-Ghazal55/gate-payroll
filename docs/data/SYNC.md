@@ -4,18 +4,47 @@ The importer accepts `--live --consistent --dry-run` and `--live --consistent --
 
 Each attempt reads the explicit source-table allowlist twice, ordered by primary key. Per-table canonical fingerprints are compared in memory, covering every table that contributes to a kind, including nested history. At most three pairs are attempted. Any mismatch retries the complete pair; three mismatches refuse the run before Store creation or writes. No snapshot-isolation setting or ERP record is changed.
 
-The accepted plan is compared with the ERP-managed target baseline. More than 10% new/changed records in a kind, or more than 2% count loss, refuses the entire run before writes. A previously empty kind with new records also requires manual review. Manual/certificate records are excluded from the ERP baseline; certificate-verified registry fields survive subsequent ERP merges. Missing source records are retained; there is no DELETE path. The Store transaction checks concurrent target changes and writes records/audits atomically, then verifies the same source snapshot without rereading it.
+The accepted plan is compared with the ERP-managed target baseline. For an existing kind, the run is refused only when new + changed records exceed max(10% of its baseline, 5 rows), or when the count drop exceeds max(2% of its baseline, 1 row). Equality is allowed. Thus one changed row in a three-row company/city kind passes; eleven changes in a hundred-row kind refuse. A previously empty kind with proposed new rows is refused unless that exact kind is named in `--accept-new-kind <kind>`. Manual/certificate records are excluded from the ERP baseline; certificate-verified registry fields survive subsequent ERP merges. Missing source records are retained; there is no DELETE path. The Store transaction checks concurrent target changes and writes records/audits atomically, then verifies the same source snapshot without rereading it.
 
-Every `--live` run writes a uniquely named JSON log under `~/Private/gate-data/sync-logs/`, directories 700 and files 600. Its typed schema contains timestamps, attempts, fixed error codes and aggregate import counts/reasons only. Fingerprints, connection strings and record bodies are excluded. An inconsistent/refused run is logged with its available counts and refusal code. Inspect that result before replaying a failed commit; the `committed` flag and next dry-run establish the actual state.
+Every `--live` run writes a uniquely named JSON log under `~/Private/gate-data/sync-logs/`, directories 700 and files 600. Its typed schema contains timestamps, attempts, fixed error codes, aggregate import counts/reasons, and the validated kind lists `acceptNewKinds` / `acceptLargeChanges` (empty lists for the normal timer). Fingerprints, connection strings and record bodies are excluded. An inconsistent/refused run is logged with its available counts and refusal code. Inspect that result before replaying a failed commit; the `committed` flag and next dry-run establish the actual state.
+
+Build the Release importer before the first dry-run and after every code update; the unit executes this build output from `~/Projects/active/gate-payroll` after merge/review:
+```bash
+cd ~/Projects/active/gate-payroll
+dotnet build -c Release tools/ErpImport -p:SkipFrontendBuild=true
+```
+A Debug build does not create the binary required by the service.
 
 Review commands (SELECT-only):
 ```bash
 dotnet tools/ErpImport/bin/Release/net10.0/ErpImport.dll --live --consistent --dry-run
 ```
 
+## Reviewed manual overrides
+
+Both flags are repeatable and apply to exact allowlisted kind names. Unknown or missing names fail argument validation before connections are opened. They do not bypass the consistent source reads, target checks, immutable-fact checks, concurrent-write checks, audit, or the requirement for approval before staging writes.
+
+- `--accept-new-kind <kind>` permits initial rows for a previously empty ERP-managed kind. Acceptance applies only to that named kind and is required even if `--accept-large-change` names it too. Once loaded, later daily runs have a nonzero baseline.
+- `--accept-large-change <kind>` permits a reviewed change or count-drop threshold exceedance for an existing kind in that manual run. It does not remove any target records. Do not add this flag to the timer/service.
+
+For example, after inspecting the counts, a manual SELECT-only review can name multiple kinds:
+```bash
+dotnet tools/ErpImport/bin/Release/net10.0/ErpImport.dll --live --consistent --dry-run \
+  --accept-new-kind legal_case --accept-new-kind city --accept-large-change rider
+```
+These names are examples, not standing approval. New HS kinds become available with the M2 importer; accept them individually only after reviewing their source contract and proposed counts. A commit uses the same reviewed flags and additionally `--commit` instead of `--dry-run`, only after Ghazal's explicit staging-write approval. The run log records both flag lists for completed, refused and failed live runs. Normal unattended runs pass neither flag.
+
+## When a log says `refused`
+
+1. Read the private counts-only log's `errorCode`, affected kind, baseline/proposed counts and override lists. Do not blindly repeat a commit or enable the timer. If writes might already have committed before a verification failure, use `summary.committed` plus a new SELECT-only dry-run to establish the actual state first.
+2. For `source_inconsistent_after_three_attempts`, wait for an approved quieter read window and retry a dry-run. The overrides do not bypass inconsistent reads.
+3. For `new_kind_requires_acceptance`, review the new source contract and every proposed kind count, then dry-run with that exact `--accept-new-kind`. Other new kinds remain refused.
+4. For `kind_changes_over_threshold` or `source_count_drop_over_threshold`, check the cause with the source owner. Correct unexpected data/source problems. Only a confirmed legitimate change warrants a manual dry-run with `--accept-large-change` for that exact kind; missing target rows are retained even then.
+5. Review the successful dry-run and get approval for the manual staging load. Rebuild after code changes. Leave unattended units without overrides; if an anomaly recurs, stop the schedule and investigate rather than making an override permanent.
+
 The user units in `tools/ErpImport/systemd/` are delivered **disabled and uninstalled**. After merge/review, a successful dry-run and explicit approval for daily staging writes, Ghazal can build the Release importer, copy the two units to his user systemd directory and enable the timer himself:
 ```bash
-dotnet build tools/ErpImport/ErpImport.csproj -c Release -p:SkipFrontendBuild=true
+dotnet build -c Release tools/ErpImport -p:SkipFrontendBuild=true
 mkdir -p ~/.config/systemd/user
 cp tools/ErpImport/systemd/gate-erp-sync.{service,timer} ~/.config/systemd/user/
 systemctl --user daemon-reload
