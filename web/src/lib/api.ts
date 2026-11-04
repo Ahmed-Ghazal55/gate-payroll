@@ -1012,4 +1012,29 @@ export const api = {
   getFirebaseConfig: () => handleRequest<any>('/rider-mobile/firebase-config'),
   saveFirebaseConfig: (input: any) =>
     handleRequest<any>('/rider-mobile/firebase-config', { method: 'POST', body: JSON.stringify(input) }),
+
+  // Operational Data Imports APIs (/api/imports/*)
+  inspectImport: (data: { filename: string; dataBase64: string }) =>
+    handleRequest<{ id: string; filename: string; sheets: string[] }>('/imports/inspect', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getImportSheet: (id: string, sheet: string, headerRow?: number) => {
+    const q = new URLSearchParams({ sheet });
+    if (headerRow) q.set('headerRow', String(headerRow));
+    return handleRequest<{ sheet: string; headers: string[]; rowsCount: number; sampleRows: any[] }>(
+      `/imports/${encodeURIComponent(id)}/sheet?${q.toString()}`
+    );
+  },
+  previewImport: (id: string, spec: any) =>
+    handleRequest<any>(`/imports/${encodeURIComponent(id)}/preview`, {
+      method: 'POST',
+      body: JSON.stringify(spec),
+    }),
+  commitImport: (id: string, spec: any) =>
+    handleRequest<any>(`/imports/${encodeURIComponent(id)}/commit`, {
+      method: 'POST',
+      body: JSON.stringify(spec),
+    }),
+  getImportBatches: () => handleRequest<any[]>('/imports'),
 };
