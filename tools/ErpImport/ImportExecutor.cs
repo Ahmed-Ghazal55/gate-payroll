@@ -38,6 +38,7 @@ public static class ImportExecutor
         {
             existing.TryGetValue(doc.Body.S("id"),out var previous);
             if(previous!=null){previous=previous.Clone();previous.Remove("__targetKind");}
+            if(doc.Kind.StartsWith("hs_",StringComparison.Ordinal)&&previous!=null&&!JsonNode.DeepEquals(previous,doc.Body))throw new ImportFailure("hs_approved_fact_changed_requires_reversal:"+doc.Kind);
             var merged=ImportPlan.Merge(previous,doc.Body);
             if(previous==null){counters[doc.Kind][0]++;changes.Add(new(doc.Kind,merged));}
             else if(!JsonNode.DeepEquals(previous,merged)){counters[doc.Kind][1]++;changes.Add(new(doc.Kind,merged));}
@@ -66,7 +67,7 @@ public static class ImportExecutor
                 return true;
             });
         }
-        string SourceTable(string kind)=>kind switch{"company" or "commercial_registration"=>"Sponsors","city"=>"GlobalCities","rider"=>"Employees","housing"=>"Housing","housing_residence"=>"HousingResidencePeriods","vehicle"=>"Vehicles","vehicle_assignment"=>"RiderVehicleAssignments","custody_handover"=>"RiderVehicleAssignmentEvents","platform_account"=>"PlatformRiderAccounts","legal_case"=>"HrLegalCases",_=>""};
+        string SourceTable(string kind)=>kind switch{"company" or "commercial_registration"=>"Sponsors","city"=>"GlobalCities","rider"=>"Employees","housing"=>"Housing","housing_residence"=>"HousingResidencePeriods","vehicle"=>"Vehicles","vehicle_assignment"=>"RiderVehicleAssignments","custody_handover"=>"RiderVehicleAssignmentEvents","platform_account"=>"PlatformRiderAccounts","legal_case"=>"HrLegalCases",_=>HungerStationFacts.Kinds.Contains(kind)?HsFactsSource.Table(kind):""};
         var counts=ImportPlan.Kinds.Select(k=>new KindCount(k,source.Tables.GetValueOrDefault(SourceTable(k))?.Count??0,counters[k][0],counters[k][1],counters[k][2],plan.Rejected.GetValueOrDefault(k)?.Values.Sum()??0,existing.Values.Count(r=>r.S("__targetKind")==k))).ToList();
         return new(source.StartedAt,source.FinishedAt,source.Consistency,commitTarget!=null,counts,plan.Rejected,plan.Observations,plan.Unavailable,source.Tables.ToDictionary(t=>t.Key,t=>t.Value.Count));
     }

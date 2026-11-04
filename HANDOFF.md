@@ -21,6 +21,7 @@ R2 ordered backend milestones: M1 0.11.0 is complete on feat/r2-m1; M2 0.12.0 HS
 - 0f86fa4 M1.5: 0.11.0 version touchpoints + generated inventory (157 API routes, six existing deprecations). Final .NET 158 passed / 0 failed / 6 SQL skipped; Python 26 passed; eleven HTTP and six browser suites passed; source boundary 163 files.
 
 ## M2 done
+- M2.5: five optional CR-002 contracts discovered by columns, source-not-available counts, immutable approved-fact keys/reversal rows, preview-only account mapping and D20 unknown blockers. Eighteen import/consistency/facts tests passed; no live ERP pull or posting.
 - M2.4: signed independent facts approval and gated salary/commission/VAT/CAR/TGA journals; target blocks in Arabic. Append-only fact revisions, open-period independent reversal, explicit replacement and deduction cancellation; original journals/source lines retained. Four new behavior tests passed.
 - M2.3: approved platformDeducted category/rider/month tags, idempotent audit, stage-2 skip with rider/month/platform isolation and payroll fingerprint binding. Full .NET 172 passed / 0 failed / 6 SQL skipped, including three new deduction behavior tests.
 - M2.2: HS XLSX signed preview/commit, header/month matching, exact VAT/components/orders checks, flags-only V/Z and T-Z/AA, private original evidence, idempotent company/CR/period keys. CAR creates scoped dispute/notice; TGA requires explicit independently approved allocations; Car Damage remains separate.
@@ -33,7 +34,7 @@ R2 ordered backend milestones: M1 0.11.0 is complete on feat/r2-m1; M2 0.12.0 HS
 - Antigravity's separate Next login branch must be combined before release. No push, PR, merge, FTP upload or deployment by Codex.
 
 ## Next step (exact)
-M2.5: implement optional read-only HS source contracts and immutable approved-fact imports, explicit source-unavailable reporting and preview-only CR-002/D20 mappings; then M2.6–M2.7. Certificate load still awaits fresh «حمّل»; production and real posting gates are untouched.
+M2.6: expose scoped paginated HS review APIs, signed proposals, approvals/disputes/resolution, and live role-permission refresh for existing users; then M2.7 release validation. Certificate load still awaits fresh «حمّل»; production and real posting gates are untouched.
 
 ## How to verify
 ```bash
