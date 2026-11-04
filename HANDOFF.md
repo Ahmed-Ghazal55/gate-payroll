@@ -2,13 +2,44 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none |
-| Branch | feat/r2-m2 rebased on feat/r2-m1 5f9149d (main e776f78) |
-| Live | 0.10.2 (e776f78); local M1 0.11.0 / M2 0.12.0 ready for review |
-| Updated | 2026-11-04 by Codex |
+| Current writer | Claude (release 0.12.0) |
+| Branch | release/0.12.0 = feat/r2-m2 (f7afb5e) + feat/r2-web (ef7f9ea) + CAR rejected exception |
+| Live | 0.10.2 (e776f78) → releasing 0.12.0 |
+| Updated | 2026-11-04 by Claude |
 
 ## Goal now
-R2 ordered backend milestones: M1 0.11.0 is complete on feat/r2-m1; M2 0.12.0 HS finance intake is complete on this stacked branch. No web/Frontend/RiderForm source changes outside the prompt's favicon/version exceptions. Production is never written.
+Ship R2 as one release 0.12.0: M1 (/legacy, companies, sync, favicon), M2 (COA 403, HungerStation intake, posting gate off), W1 login/setup/logout, W2 companies. W3 (HS screens) and L2 (move old sections to /app) come next.
+
+## Next step (exact)
+1. Antigravity: `~/.agents/prompts/antigravity-R3-web.md` (W3 + L2 part 1) on a new branch from main.
+2. Ghazal: import the company certificates in production through /app/companies (preview → commit).
+3. Codex (after its limit renews): API gaps reported by Antigravity; 6.3 waits for «حوّل الإنتاج».
+
+## R2 frontend (Antigravity)
+- **W1 — Login, setup, logout (commit d7d4d06):**
+  - `/app/login/` with username/password, HTTP 423 (locked) and 429 (rate-limited) alerts.
+  - Safe `returnUrl` validation (rejects external/malicious URLs with 400 or fallback).
+  - `/app/setup/` with bootstrap key check and registration.
+  - 401 redirect handling across API and auth context to `/app/login/?returnUrl=...`.
+  - Logout calling `POST /api/auth/logout`.
+  - Legacy links updated to `/legacy/#/<view>` and sidebar footer to `/legacy/#/dashboard` («الشاشات القديمة (مؤقت)»).
+  - Live e2e suite covering safe returnUrl, unauth redirect, 423 lockout on 6th failed attempt, and logout.
+- **W2 — Companies & Commercial Registrations (commit 5651a10):**
+  - `/app/companies/` with 4 stat cards (companies, active CRs, confirmations due <= 60d, total capital).
+  - Sub-tab 1 «الشركات»: table with BW/EX/TR codes, 700 unified number, CR number, entity type, city, capital, riders count, next annual confirmation (Hijri/Gregorian) with <= 60d warning badge.
+  - Drawer with company details, ISIC activity chips (with «ناقص» for BW), documents list/upload/expiry, and audit log.
+  - Sub-tab 2 «السجلات التجارية» and Sub-tab 3 «الوثائق والانتهاءات».
+  - Toolbar with search, status and entity filters, 60-day expiry toggle, Excel/CSV export, and admin-only preview -> commit company import.
+  - Static e2e screenshots at 1440 and 360 in `test-results/r2-web/`.
+  - Live e2e suite with synthetic data validating import preview/commit, table rows, drawer, ISIC tags, and sub-tabs.
+
+## Tests & Verification Status
+- `npm run build`: Clean static build (16/16 routes), no `/app/app/` links, mock API disabled for production.
+- `npm run test:e2e`: All 6 test suites passed; 1440 and 360 screenshots generated.
+- `node tests/e2e-live.mjs`: Live authenticated session and end-to-end integration passed against real .NET API.
+- `node tests/browser-iban.mjs`: Passed.
+- `node tests/finance-views-ui.mjs`: Passed.
+
 
 ## Baseline before R2
 - Build clean; .NET 149 passed / 0 failed / 6 optional SQL-backed cases skipped; Python 24 passed; ten HTTP and six browser suites passed. NuGet local cache only. COA expected mismatch (396→403) assigned to M2.0.
@@ -36,9 +67,6 @@ R2 ordered backend milestones: M1 0.11.0 is complete on feat/r2-m1; M2 0.12.0 HS
 - M1.2: Ghazal approved «حمّل» on2026-11-04. Matching dry-run then staging load: 3 companies changed, 3 registrations added, 6 audits; 0 missing records / unexpected changes, all other raw bodies identical, repeat preview0changes. Counts-only evidence: ~/Private/gate-data/sync-logs/companies-2026-11-04-load-verification.json. Daily sync remains uninstalled/disabled.
 - HS ERP contracts remain unavailable per CR-002; no live ERP pull in R2. Review/month-close approvals and signed event/counterparty contracts still need ERP evidence. Car Damage auto-posting, credit-note reconciliation and target scheme remain explicitly blocked/pending.
 - Antigravity's separate Next login branch must be combined before release. No push, PR, merge, FTP upload or deployment by Codex.
-
-## Next step (exact)
-Claude reviews feat/r2-m1 (5fc433a–5f9149d, including F1/F2), then feat/r2-m2 (b7e38a9–HEAD), including fix1, the latest CAR hold decision and the earlier completed certificate staging load. Planner propagates the clarified CAR decision to the read-only finance spec. Combine separate Next login work before release. No production writes, real posting-gate changes, sync enablement or deployment occurred.
 
 ## How to verify
 ```bash

@@ -228,14 +228,14 @@ export function Sidebar({
       {/* Footer / Switch back to old UI */}
       <div className="p-3 border-t border-[var(--line)] bg-[var(--surface)] shrink-0 space-y-2">
         <a
-          href="/#/dashboard"
-          title={collapsed ? 'الواجهة السابقة' : undefined}
+          href="/legacy/#/dashboard"
+          title={collapsed ? 'الشاشات القديمة (مؤقت)' : undefined}
           className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--raised)] border border-[var(--line)] transition ${
             collapsed ? 'justify-center px-2' : ''
           }`}
         >
           <ExternalLink size={15} className="shrink-0" />
-          {!collapsed && <span>الواجهة السابقة</span>}
+          {!collapsed && <span>الشاشات القديمة (مؤقت)</span>}
         </a>
 
         {/* Collapse toggle button for desktop */}

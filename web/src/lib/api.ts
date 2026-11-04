@@ -4,6 +4,11 @@ import type {
   NotificationSummary,
   SearchResult,
   CompanySponsor,
+  Company,
+  CommercialRegistration,
+  CompanyDocument,
+  ExpiringRecord,
+  CompanyImportPlan,
   DashboardMetrics,
   Campaign,
   Submission,
@@ -221,10 +226,14 @@ async function handleRequest<T>(endpoint: string, options: RequestInit = {}): Pr
 
   if (res.status === 401) {
     if (typeof window !== 'undefined') {
-      const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-      window.location.href = `/?returnUrl=${returnUrl}`;
+      const p = window.location.pathname;
+      if (!p.startsWith('/app/login') && !p.startsWith('/app/setup')) {
+        const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `/app/login/?returnUrl=${returnUrl}`;
+      }
     }
-    throw new ApiError('انتهت الجلسة؛ يرجى تسجيل الدخول مجدداً.', 401, 'unauthorized');
+    const payload: ApiErrorPayload = await res.json().catch(() => ({ error: 'انتهت الجلسة؛ يرجى تسجيل الدخول مجدداً.' }));
+    throw new ApiError(payload.error || 'انتهت الجلسة؛ يرجى تسجيل الدخول مجدداً.', 401, payload.code || 'unauthorized');
   }
 
   if (!res.ok) {
@@ -251,7 +260,27 @@ async function handleMockRequest<T>(endpoint: string, options: RequestInit = {})
   const params = new URLSearchParams(queryString || '');
   const body = options.body ? JSON.parse(String(options.body)) : null;
 
-  // Me
+  // Auth & Me
+  if (path === '/auth/status') {
+    return {
+      needsSetup: false,
+      environment: 'Development',
+    } as unknown as T;
+  }
+
+  if (path === '/auth/setup' || path === '/auth/login') {
+    return {
+      username: body?.username || 'admin',
+      role: 'Admin',
+      displayNameAr: 'مدير مساحة الرواتب',
+      permissions: ['all'],
+    } as unknown as T;
+  }
+
+  if (path === '/auth/logout') {
+    return { ok: true } as unknown as T;
+  }
+
   if (path === '/me' || path === '/auth/me') {
     return {
       username: 'admin',
@@ -536,6 +565,14 @@ async function handleMockRequest<T>(endpoint: string, options: RequestInit = {})
 
 // Exported typed API methods
 export const api = {
+  // Auth
+  getAuthStatus: () => handleRequest<{ needsSetup: boolean; environment: string }>('/auth/status'),
+  setup: (data: { username: string; password: string; bootstrapKey?: string }) =>
+    handleRequest<UserProfile>('/auth/setup', { method: 'POST', body: JSON.stringify(data) }),
+  login: (data: { username: string; password: string }) =>
+    handleRequest<UserProfile>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  logout: () => handleRequest<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
+
   getMe: () => handleRequest<UserProfile>('/me'),
   getDashboard: () => handleRequest<DashboardMetrics>('/dashboard'),
   getNotificationsSummary: () => handleRequest<NotificationSummary>('/notifications/summary'),
@@ -549,6 +586,22 @@ export const api = {
   markAllNotificationsRead: () => handleRequest<{ success: boolean }>('/notifications/read-all', { method: 'POST' }),
   search: (query: string) => handleRequest<SearchResult[]>(`/search?q=${encodeURIComponent(query)}`),
   getCompanies: () => handleRequest<CompanySponsor[]>('/companies'),
+
+  // Companies & Registrations (Track L2 / M1.2)
+  getCompaniesList: () => handleRequest<Company[]>('/companies'),
+  getExpiringCompanies: (days = 60) => handleRequest<ExpiringRecord[]>(`/companies/expiring?days=${days}`),
+  getCompany: (id: string) => handleRequest<Company>(`/companies/${id}`),
+  getCompanyRegistrations: (id: string) => handleRequest<CommercialRegistration[]>(`/companies/${id}/registrations`),
+  getCompanyDocuments: (id: string) => handleRequest<CompanyDocument[]>(`/companies/${id}/documents`),
+  uploadCompanyDocument: (companyId: string, doc: { type: string; number?: string; expiryDate?: string; fileName: string; dataBase64: string }) =>
+    handleRequest<CompanyDocument>(`/companies/${companyId}/documents`, { method: 'POST', body: JSON.stringify(doc) }),
+  deleteCompanyDocument: (companyId: string, documentId: string) =>
+    handleRequest<{ ok: boolean }>(`/companies/${companyId}/documents/${documentId}`, { method: 'DELETE' }),
+  previewCompanyImport: (companies: any[]) =>
+    handleRequest<CompanyImportPlan>('/companies/import/preview', { method: 'POST', body: JSON.stringify({ companies }) }),
+  commitCompanyImport: (payload: { rows: any[]; fingerprint: string; confirm: boolean }) =>
+    handleRequest<{ counts: any }>('/companies/import/commit', { method: 'POST', body: JSON.stringify(payload) }),
+  getAuditLogs: () => handleRequest<Array<{ id: string; action: string; actor: string; at: string }>>('/audit'),
 
   // Campaigns
   getCampaigns: () => handleRequest<Campaign[]>('/campaigns'),

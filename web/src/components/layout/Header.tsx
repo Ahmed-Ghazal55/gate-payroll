@@ -130,9 +130,12 @@ export function Header({
         if (mounted) setUser(u);
       })
       .catch((err) => {
-        // If 401, redirect to legacy login
+        // If 401, redirect to login
         if (err.status === 401 && typeof window !== 'undefined') {
-          window.location.href = `/?returnUrl=${encodeURIComponent(window.location.pathname)}`;
+          const p = window.location.pathname;
+          if (!p.startsWith('/app/login') && !p.startsWith('/app/setup')) {
+            window.location.href = `/app/login/?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+          }
         }
       });
 
@@ -184,9 +187,11 @@ export function Header({
     setThemeMenuOpen(false);
   };
 
-  const handleLogout = () => {
-    // Redirect to root login
-    window.location.href = '/?logout=true';
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch (_) {}
+    window.location.href = '/app/login/';
   };
 
   return (
