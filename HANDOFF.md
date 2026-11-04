@@ -2,13 +2,17 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Claude (release 0.12.0) |
+| Current writer | none |
 | Branch | release/0.12.0 = feat/r2-m2 (f7afb5e) + feat/r2-web (ef7f9ea) + CAR rejected exception |
 | Live | 0.10.2 (e776f78) → releasing 0.12.0 |
 | Updated | 2026-11-04 by Claude |
 
 ## Goal now
 Ship R2 as one release 0.12.0: M1 (/legacy, companies, sync, favicon), M2 (COA 403, HungerStation intake, posting gate off), W1 login/setup/logout, W2 companies. W3 (HS screens) and L2 (move old sections to /app) come next.
+
+## Release 0.12.0 (Claude)
+- 98d7174: BR §23.2 exception: a platform-rejected CAR claim (`outcome=platform_rejected`, independent approver) stays `escalated`; the invoice may post with W held in 112803; other open disputes still block.
+- Full validation on release/0.12.0: .NET 190 passed / 0 failed / 6 SQL skipped; Python OK; COA --check; source boundary 179; 11 HTTP + 6 browser suites; web build, e2e and e2e-live passed.
 
 ## Next step (exact)
 1. Antigravity: `~/.agents/prompts/antigravity-R3-web.md` (W3 + L2 part 1) on a new branch from main.
