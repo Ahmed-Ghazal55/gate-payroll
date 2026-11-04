@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Calculator,
   Upload,
@@ -29,14 +31,19 @@ import {
   ChevronRight,
   ExternalLink,
   ShieldCheck,
+  Sparkles,
+  Copy,
+  Landmark,
+  Scale,
+  Calendar,
+  RefreshCw,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
-import { Tabs } from '../../components/ui/Tabs';
-import { Toolbar } from '../../components/ui/Toolbar';
+import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
@@ -50,15 +57,32 @@ import type {
   HsImportPreviewResult,
 } from '../../lib/types';
 
-export default function PayrollPage() {
+function PayrollPageInner() {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
 
   const showToast = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     toast(msg, type === 'error' ? 'danger' : type);
   };
 
-  // Navigation tabs within Payroll
+  // Main shared tabs: platforms · cycle · rules · deductions · bank · policies
+  const tabFromUrl = searchParams?.get('tab') || 'platforms';
+  const [mainTab, setMainTab] = useState<string>(tabFromUrl);
+
+  useEffect(() => {
+    if (tabFromUrl && tabFromUrl !== mainTab) {
+      setMainTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
+
+  // Selected App within platforms tab
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('hungerstation');
+
+  // Sub-tabs inside selected app
+  const [appSubTab, setAppSubTab] = useState<'settlements' | 'parent_terms' | 'internal_schemes' | 'eligibility' | 'accounts'>('settlements');
+
+  // Navigation tabs within HungerStation settlements
   const [activeTab, setActiveTab] = useState<string>('invoices');
 
   // Filters & period
@@ -66,7 +90,7 @@ export default function PayrollPage() {
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Data states
+  // Data states for HungerStation
   const [loading, setLoading] = useState<boolean>(true);
   const [invoices, setInvoices] = useState<HsInvoice[]>([]);
   const [disputes, setDisputes] = useState<HsDispute[]>([]);
@@ -106,229 +130,91 @@ export default function PayrollPage() {
   const [splitRiderId, setSplitRiderId] = useState<string>('');
   const [savingSplit, setSavingSplit] = useState<boolean>(false);
 
-  // Load all review data
+  // Legacy Policies state
+  const [policies, setPolicies] = useState<any[]>([]);
+  const [loadingPolicies, setLoadingPolicies] = useState<boolean>(false);
+
+  // Rules Editor state (W9)
+  const [rulesMonth, setRulesMonth] = useState<string>('2026-10');
+  const [rulesStatus, setRulesStatus] = useState<'draft' | 'approved'>('draft');
+  const [rulesApprovedBy, setRulesApprovedBy] = useState<string>('');
+  const [categoryMatrix, setCategoryMatrix] = useState({
+    spCarRent: 60,
+    spBikeRent: 26.67,
+    spPrivateRent: 0,
+    extCarRent: 60,
+    extBikeRent: 26.67,
+    extPrivateRent: 0,
+    spCarCommission: 2500,
+    spBikeCommission: 2000,
+    extCarCommission: 2200,
+    extBikeCommission: 1800,
+  });
+
+  // Cycle Stepper state (W8 / W9)
+  const [currentCycleStep, setCurrentCycleStep] = useState<number>(0);
+
+  // Load HungerStation Data
   const loadData = async () => {
     setLoading(true);
     try {
-      const compParam = selectedCompany === 'all' ? undefined : selectedCompany;
-      const [invRes, disRes, allRes] = await Promise.all([
-        api.getHsInvoices({ companyId: compParam, period: selectedPeriod }).catch(() => ({ items: [], total: 0, page: 1, pageSize: 50 })),
-        api.getHsDisputes({ companyId: compParam, period: selectedPeriod }).catch(() => ({ items: [], total: 0, page: 1, pageSize: 50 })),
-        api.getHsAllocations({ companyId: compParam, period: selectedPeriod }).catch(() => ({ items: [], total: 0, page: 1, pageSize: 50 })),
+      const comp = selectedCompany === 'all' ? undefined : selectedCompany;
+      const [invRes, dispRes, allocRes, factRes, propRes] = await Promise.all([
+        api.getHsInvoices({ period: selectedPeriod, companyId: comp }).catch(() => ({ items: [] })),
+        api.getHsDisputes({ period: selectedPeriod }).catch(() => ({ items: [] })),
+        api.getHsAllocations({ period: selectedPeriod }).catch(() => ({ items: [] })),
+        api.getHsFacts({ kind: selectedFactKind }).catch(() => ({ items: [] })),
+        api.getHsProposedJournals({ period: selectedPeriod } as any).catch(() => ({ items: [] })),
       ]);
 
-      setInvoices(invRes.items || []);
-      setDisputes(disRes.items || []);
-      setAllocations(allRes.items || []);
-
-      // If invoices exist, pick first one for proposed journals
-      if (invRes.items && invRes.items.length > 0 && !selectedInvoiceForJournal) {
-        setSelectedInvoiceForJournal(invRes.items[0]);
-      }
+      setInvoices((invRes as any)?.items || (Array.isArray(invRes) ? invRes : []));
+      setDisputes((dispRes as any)?.items || (Array.isArray(dispRes) ? dispRes : []));
+      setAllocations((allocRes as any)?.items || (Array.isArray(allocRes) ? allocRes : []));
+      setFacts((factRes as any)?.items || (Array.isArray(factRes) ? factRes : []));
+      setProposedJournals((propRes as any)?.items || (Array.isArray(propRes) ? propRes : []));
     } catch (err: any) {
-      showToast(err.message || 'تعذر تحميل بيانات المنصة', 'error');
+      showToast(err.message || 'تعذر تحميل بيانات منصة هنقرستيشن', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // Load ERP facts when tab 4 is active or kind changes
-  const loadFacts = async () => {
+  // Load Policies
+  const loadPolicies = async () => {
+    setLoadingPolicies(true);
     try {
-      const res = await api.getHsFacts({ kind: selectedFactKind });
-      setFacts(res.items || []);
+      const res = await api.getPolicies();
+      setPolicies(Array.isArray(res) ? res : []);
     } catch (_) {
-      setFacts([]);
-    }
-  };
-
-  // Load proposed journals when invoice is selected
-  const loadProposal = async (invId: string) => {
-    setLoadingProposal(true);
-    try {
-      const res = await api.getHsProposedJournals({ invoiceId: invId });
-      if (res && res.rows && res.rows.length > 0) {
-        const prop = res.rows[0];
-        prop.fingerprint = res.fingerprint;
-        setCurrentProposal(prop);
-      } else {
-        setCurrentProposal(null);
-      }
-    } catch (err: any) {
-      setCurrentProposal(null);
+      setPolicies([]);
     } finally {
-      setLoadingProposal(false);
+      setLoadingPolicies(false);
     }
   };
 
   useEffect(() => {
     loadData();
-  }, [selectedCompany, selectedPeriod]);
+    loadPolicies();
+  }, [selectedPeriod, selectedCompany, selectedFactKind]);
 
-  useEffect(() => {
-    if (activeTab === 'facts' || activeTab === 'month_close') {
-      const kind = activeTab === 'month_close' ? 'hs_month_close' : selectedFactKind;
-      api.getHsFacts({ kind }).then(res => setFacts(res.items || [])).catch(() => setFacts([]));
-    }
-  }, [activeTab, selectedFactKind]);
+  // Derived KPI values
+  const totalInvoicesAmount = useMemo(() => {
+    return invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+  }, [invoices]);
 
-  useEffect(() => {
-    if (selectedInvoiceForJournal) {
-      loadProposal(selectedInvoiceForJournal.id);
-    }
-  }, [selectedInvoiceForJournal]);
+  const openDisputesCount = useMemo(() => {
+    return disputes.filter((d) => d.status === 'open').length;
+  }, [disputes]);
 
-  // File upload handler for workbooks
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const pendingAllocationsCount = useMemo(() => {
+    return allocations.filter((a) => a.status === 'pending' || a.status === 'pending_allocation').length;
+  }, [allocations]);
 
-    if (files.length > 3) {
-      showToast('الحد الأقصى المسموح به هو 3 ملفات فواتير فقط', 'error');
-      return;
-    }
+  const isPostingGateOn = useMemo(() => {
+    return invoices.length > 0 && invoices.every((i) => i.status === 'approved' || i.status === 'posted');
+  }, [invoices]);
 
-    const readers: Promise<HsImportFile>[] = [];
-    let totalSize = 0;
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      totalSize += file.size;
-
-      if (totalSize > 8 * 1024 * 1024) {
-        showToast('حجم الملفات الإجمالي يتجاوز الحد المسموح (8 ميجابايت)', 'error');
-        return;
-      }
-
-      readers.push(
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            const base64 = result.includes(',') ? result.split(',')[1] : result;
-            resolve({ fileName: file.name, dataBase64: base64 });
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        })
-      );
-    }
-
-    Promise.all(readers).then((loaded) => {
-      setUploadFiles(loaded);
-    });
-  };
-
-  // Run preview import
-  const handlePreviewImport = async () => {
-    if (uploadFiles.length === 0) {
-      showToast('يرجى اختيار ملف أو أكثر من ملفات فواتير هنقرستيشن (XLSX)', 'error');
-      return;
-    }
-    setPreviewLoading(true);
-    try {
-      const res = await api.previewHsImport({
-        period: selectedPeriod,
-        files: uploadFiles,
-      });
-      setPreviewResult(res);
-      showToast('تمت معاينة الفواتير والتحقق من التناسق الحسابي', 'success');
-    } catch (err: any) {
-      showToast(err.message || 'فشل فحص ومعاينة الفواتير', 'error');
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
-  // Run commit import
-  const handleCommitImport = async () => {
-    if (!previewResult || !previewResult.canCommit) {
-      showToast('لا يمكن اعتماد الاستيراد لوجود أخطاء مانعة', 'error');
-      return;
-    }
-    setCommitLoading(true);
-    try {
-      await api.commitHsImport({
-        period: selectedPeriod,
-        files: uploadFiles,
-        rows: previewResult.rows,
-        fingerprint: previewResult.fingerprint,
-        confirm: true,
-      });
-      showToast('تم استيراد فواتير المنصة وتسجيل الوقائع والنزاعات بنجاح', 'success');
-      setImportDialogOpen(false);
-      setUploadFiles([]);
-      setPreviewResult(null);
-      loadData();
-    } catch (err: any) {
-      showToast(err.message || 'فشل إتمام استيراد الفواتير', 'error');
-    } finally {
-      setCommitLoading(false);
-    }
-  };
-
-  // Approve Invoice (maker-checker)
-  const handleApproveInvoice = async (inv: HsInvoice) => {
-    if (!currentProposal) {
-      showToast('جاري تحضير القيد المقترح للمعاينة', 'info');
-      await loadProposal(inv.id);
-    }
-    try {
-      const proposalRes = await api.getHsProposedJournals({ invoiceId: inv.id });
-      if (!proposalRes.rows || proposalRes.rows.length === 0) {
-        throw new Error('تعذر إنشاء معاينة الترحيل');
-      }
-      await api.approveHsInvoice(inv.id, {
-        rows: proposalRes.rows,
-        fingerprint: proposalRes.fingerprint,
-        confirm: true,
-      });
-      showToast('تم اعتماد وقائع الفاتورة بنجاح بواسطة المدقق المستقل', 'success');
-      loadData();
-    } catch (err: any) {
-      showToast(err.message || 'فشل اعتماد الفاتورة', 'error');
-    }
-  };
-
-  // Resolve Dispute
-  const handleResolveDispute = async () => {
-    if (!selectedDispute) return;
-    if (!platformReference.trim()) {
-      showToast('مرجع المنصة الرسمي مطلوب لتوثيق التسوية', 'error');
-      return;
-    }
-    if (!resolveReason.trim()) {
-      showToast('سبب وبيان المعالجة مطلوب', 'error');
-      return;
-    }
-
-    setResolvingDispute(true);
-    try {
-      await api.resolveHsDispute(selectedDispute.invoiceId, {
-        mode: 'dispute',
-        disputeId: selectedDispute.id,
-        outcome: resolveOutcome,
-        platformReference: platformReference.trim(),
-        reason: resolveReason.trim(),
-      });
-      showToast(
-        resolveOutcome === 'platform_rejected'
-          ? 'تم تسجيل رفض المنصة وتصعيد النزاع لحساب 112803 للسماح بترحيل الفاتورة'
-          : 'تم تسجيل رد المنصة وتسوية الاعتراض بنجاح',
-        'success'
-      );
-      setSelectedDispute(null);
-      setPlatformReference('');
-      setResolveReason('');
-      loadData();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر تسجيل قرار فض النزاع', 'error');
-    } finally {
-      setResolvingDispute(false);
-    }
-  };
-
-  // Calculate & Submit TGA Split
+  // Handle Save TGA Split (Pure mode)
   const handleSaveTgaSplit = async () => {
     if (!selectedAllocation) return;
 
@@ -383,575 +269,837 @@ export default function PayrollPage() {
 
   // Approve TGA Allocation (maker-checker)
   const handleApproveAllocation = async (alloc: HsAllocation) => {
+    if (alloc.requestedBy && user && alloc.requestedBy.toLowerCase() === user.username.toLowerCase()) {
+      showToast('لا يمكن لمنشئ التوزيع اعتماده بنفسه (قاعدة التدقيق المستقل Maker-Checker)', 'error');
+      return;
+    }
+
     try {
       await api.approveHsAllocation(alloc.id);
-      showToast('تم اعتماد توزيع TGA بنجاح بواسطة المدقق المالي المستقل', 'success');
+      showToast('تم اعتماد توزيع TGA بنجاح', 'success');
       loadData();
     } catch (err: any) {
-      showToast(err.message || 'تعذر اعتماد توزيع TGA (قاعدة الصانع والمدقق تمنع اعتماد الشخص لتقسيمه)', 'error');
+      showToast(err.message || 'تعذر اعتماد توزيع TGA', 'error');
     }
   };
 
-  // Export Disputes to Excel
-  const handleExportDisputes = async () => {
+  // Resolve Dispute
+  const handleResolveDispute = async () => {
+    if (!selectedDispute) return;
+
+    if (selectedDispute.createdBy && user && selectedDispute.createdBy.toLowerCase() === user.username.toLowerCase()) {
+      showToast('لا يمكنك البت في اعتراض أنشأته بنفسك (قاعدة التدقيق المستقل Maker-Checker)', 'error');
+      return;
+    }
+
+    if (resolveOutcome === 'platform_credit' && !platformReference.trim()) {
+      showToast('يرجى إدخال رقم مرجع إشعار الدائن الصادر من المنصة', 'error');
+      return;
+    }
+
+    if (!resolveReason.trim()) {
+      showToast('سبب وبيان المعالجة مطلوب', 'error');
+      return;
+    }
+
+    setResolvingDispute(true);
     try {
-      const headers = ['رقم الفاتورة', 'السطر', 'الفئة', 'المبلغ (ر.س)', 'الشهر', 'الحالة', 'المرجع الرسمي', 'السبب'];
-      const rows = disputes.map((d) => [
-        d.invoiceId,
-        d.lineId,
-        d.category,
-        d.amount,
-        d.period,
-        d.status === 'open' ? 'مفتوح' : d.status === 'escalated' ? 'مصعّد (112803)' : 'تمت التسوية',
-        d.platformReference || '-',
-        d.reason || '-',
-      ]);
-      const blob = await api.exportExcel({
-        headers,
-        rows,
-        numericColumns: [3],
-        filename: `hungerstation-disputes-${selectedPeriod}.xlsx`,
+      await api.resolveHsDispute(selectedDispute.invoiceId, {
+        mode: 'dispute',
+        disputeId: selectedDispute.id,
+        outcome: resolveOutcome,
+        platformReference: platformReference.trim() || selectedDispute.id,
+        reason: resolveReason.trim(),
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `hungerstation-disputes-${selectedPeriod}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showToast('تم تصدير ملف إكسل بنجاح', 'success');
+
+      showToast(
+        resolveOutcome === 'platform_credit'
+          ? 'تم تسجيل موافقة المنصة وإشعار الدائن'
+          : 'تم تسجيل رفض المنصة وترحيل المطالبة لحساب 112803',
+        'success'
+      );
+      setSelectedDispute(null);
+      setPlatformReference('');
+      setResolveReason('');
+      loadData();
     } catch (err: any) {
-      showToast('تعذر تصدير ملف إكسل', 'error');
+      showToast(err.message || 'تعذر فض النزاع', 'error');
+    } finally {
+      setResolvingDispute(false);
     }
   };
 
-  // Derived statistics
-  const totalInvoicesAmount = useMemo(() => invoices.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0), [invoices]);
-  const openDisputesCount = useMemo(() => disputes.filter((d) => d.status !== 'resolved').length, [disputes]);
-  const pendingAllocationsCount = useMemo(() => allocations.filter((a) => a.status === 'pending_allocation').length, [allocations]);
-  const isPostingGateOn = currentProposal?.postingEnabled ?? false;
+  // Section Tabs (Shared across Payroll)
+  const sharedSectionTabs: SectionTabItem[] = [
+    { id: 'platforms', label: 'منصات التشغيل والفواتير', icon: <Calculator size={16} /> },
+    { id: 'cycle', label: 'دورة الرواتب والمسير (0-7)', icon: <Layers size={16} /> },
+    { id: 'rules', label: 'محرر الأنظمة والقواعد', icon: <FileText size={16} /> },
+    { id: 'deductions', label: 'الاستقطاعات الشهرية', icon: <DollarSign size={16} /> },
+    { id: 'bank', label: 'التحويل والبنوك', icon: <Landmark size={16} /> },
+    { id: 'policies', label: 'السياسات السابقة', icon: <BookOpen size={16} />, badge: policies.length },
+  ];
+
+  // Platforms List
+  const platformsList = [
+    { id: 'hungerstation', nameAr: 'هنقرستيشن', nameEn: 'HungerStation', tag: 'فواتير معتمدة', active: true },
+    { id: 'keeta', nameAr: 'كيتا', nameEn: 'Keeta', tag: 'شرائح وعمولات', active: true },
+    { id: 'ninja', nameAr: 'نينجا', nameEn: 'Ninja', tag: 'تارجت مقطوع', active: true },
+    { id: 'thechefz', nameAr: 'ذا شيفز', nameEn: 'The Chefz', tag: 'كشف دوري', active: true },
+    { id: 'amazon', nameAr: 'أمازون', nameEn: 'Amazon', tag: 'شحنات لوجستية', active: true },
+    { id: 'jahez', nameAr: 'جاهز (دورة مستقلة)', nameEn: 'Jahez', tag: 'تسويات متغيرة', active: true },
+  ];
+
+  // Cycle Stepper Steps (BR §24.7)
+  const cycleSteps = [
+    { num: 0, title: 'فواتير وتسويات المنصات', desc: 'استيراد وقائع فواتير المنصات ومراجعة الخصومات واقتطاعات TGA/CAR' },
+    { num: 1, title: 'استحقاق الحسابات والمعرفات', desc: 'تحديد ما حققه كل معرف/حساب على المنصة وربطه بالوقائع' },
+    { num: 2, title: 'استحقاق المناديب وتوزيع الفترات', desc: 'فصل وتوزيع الحسابات المشتركة حسب تواريخ الاستلام والتسليم' },
+    { num: 3, title: 'تطبيق الأنظمة الداخلية', desc: 'حساب إجمالي الأجر وفق النظام المعتمد (راتب/عمولة/نسبة) لكل مندوب' },
+    { num: 4, title: 'الاستقطاعات والتحملات', desc: 'حسم السلف، المخالفات، المحروقات، باقات النت، والخصومات التشغيلية' },
+    { num: 5, title: 'الدمج وتحديد الصافي', desc: 'دمج مستحقات المناديب العاملين على أكثر من تطبيق وفحص الصافي السالب (§22.9.2)' },
+    { num: 6, title: 'الاعتماد المزدوج المستقل', desc: 'مراجعة المدقق المالي المستقل والتوقيع المعتمد (Maker-Checker)' },
+    { num: 7, title: 'ملف الصرف البنكي والترحيل', desc: 'إصدار ملف CSV لصرف الرواتب وترحيل القيود اليومية للدليل المستهدف' },
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Header */}
       <PageHeader
-        title="الرواتب والمسيرات · منصة هنقرستيشن"
-        description="إدارة ومراجعة فواتير منصة هنقرستيشن، فض نزاعات الاستقطاعات CAR، التوزيع المعتمد لمبالغ TGA، ومطابقة وقائع المحفظة وقيود الترحيل."
-        eyebrow="منصة معتمدة"
+        title="الرواتب والمسيرات · منظومة المنصات الموحدة"
+        eyebrow="الرواتب والتعويضات"
+        description="إدارة ومراجعة فواتير المنصات، دورة الرواتب الشهرية الشاملة، محرر الأنظمة الداخلية، الاستقطاعات، واعتماد ملفات الصرف."
         primaryAction={{
-          label: 'استيراد فواتير هنقرستيشن',
+          label: 'استيراد فواتير المنصة',
           icon: <Upload size={16} />,
           onClick: () => setImportDialogOpen(true),
         }}
       />
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard
-          label="إجمالي الصفحة الحالية"
-          value={`${totalInvoicesAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
-          hint={`${invoices.length} فواتير مسجلة في الصفحة الحالية لشهر ${selectedPeriod}`}
-          icon={Calculator}
-        />
-        <StatCard
-          label="الاعتراضات المعلقة (CAR)"
-          value={openDisputesCount}
-          hint={openDisputesCount > 0 ? 'تتطلب رد المنصة أو التصعيد لحساب 112803' : 'لا توجد نزاعات معلقة'}
-          icon={ShieldAlert}
-        />
-        <StatCard
-          label="مبالغ TGA بانتظار التوزيع"
-          value={pendingAllocationsCount}
-          hint="تتطلب تحديد حصة المندوب والشركة بدون افتراض مسبق"
-          icon={ArrowRightLeft}
-        />
-        <StatCard
-          label="بوابة الترحيل المحاسبي"
-          value={isPostingGateOn ? 'مفعّلة' : 'موقوفة'}
-          hint={isPostingGateOn ? 'جاهز لترحيل القيود المعتمدة' : 'الترحيل موقوف لحين اعتماد ملف المنصة'}
-          icon={ShieldCheck}
-        />
-      </div>
+      {/* Main Top Navigation Tabs */}
+      <SectionTabs
+        tabs={sharedSectionTabs}
+        activeTab={mainTab}
+        onChange={(tabId) => setMainTab(tabId)}
+      />
 
-      {/* Main Tabs */}
-      <div className="border-b border-[var(--line)]">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-          {[
-            { id: 'invoices', label: 'الفواتير', count: invoices.length },
-            { id: 'disputes', label: 'الاعتراضات (CAR)', count: openDisputesCount, alert: openDisputesCount > 0 },
-            { id: 'allocations', label: 'توزيع TGA', count: pendingAllocationsCount },
-            { id: 'facts', label: 'وقائع المحفظة من ERP' },
-            { id: 'month_close', label: 'إقفال الشهر (C/M/A)' },
-            { id: 'proposed_journals', label: 'القيود المقترحة' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              id={`tab-${tab.id}`}
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`inline-flex items-center gap-2 px-4 py-3 font-bold text-xs sm:text-sm border-b-2 transition whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'border-[var(--accent)] text-[var(--accent)]'
-                  : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              <span>{tab.label}</span>
-              {tab.count !== undefined && tab.count > 0 && (
-                <span
-                  className={`num px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    tab.alert
-                      ? 'bg-[var(--danger)] text-white'
-                      : 'bg-[var(--raised)] text-[var(--ink)]'
+      {/* ======================================================== */}
+      {/* SECTION 1: PLATFORMS & SETTLEMENTS                      */}
+      {/* ======================================================== */}
+      {mainTab === 'platforms' && (
+        <div className="space-y-6">
+          {/* App Selector Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar p-1.5 rounded-2xl bg-[var(--raised)] border border-[var(--line)]">
+            {platformsList.map((p) => {
+              const isSelected = selectedPlatform === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedPlatform(p.id)}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                    isSelected
+                      ? 'bg-[var(--surface)] text-[var(--accent)] shadow-xs'
+                      : 'text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Sub-tab 1: الفواتير (Invoices) */}
-      {activeTab === 'invoices' && (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-            <div className="p-4 border-b border-[var(--line)] flex flex-wrap items-center justify-between gap-3">
-              <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">فواتير المنصة المسجلة</h3>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--muted)]">الفترة:</span>
-                <span className="num font-bold text-xs bg-[var(--raised)] px-2 py-1 rounded-lg border border-[var(--line)]">
-                  {selectedPeriod}
-                </span>
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="p-8 space-y-3">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : invoices.length === 0 ? (
-              <EmptyState
-                title="لا توجد فواتير هنقرستيشن مستوردة لهذه الفترة"
-                description="اضغط على زر «استيراد فواتير هنقرستيشن» لرفع ملفات العمل الشهرية (1 إلى 3 ملفات XLSX)."
-                action={{
-                  label: 'رفع ملفات الفواتير',
-                  onClick: () => setImportDialogOpen(true),
-                }}
-              />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-start text-xs sm:text-sm">
-                  <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                    <tr>
-                      <th className="p-3 text-start">معرّف الفاتورة</th>
-                      <th className="p-3 text-start">الشركة</th>
-                      <th className="p-3 text-start">الفترة</th>
-                      <th className="p-3 text-start">الإجمالي</th>
-                      <th className="p-3 text-start">الضريبة</th>
-                      <th className="p-3 text-start">الحالة</th>
-                      <th className="p-3 text-start">النزاع والتعليق</th>
-                      <th className="p-3 text-start">الإجراءات</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--line)]">
-                    {invoices.map((inv) => {
-                      const isMaker = inv.createdBy === user?.username;
-                      const hasDispute = inv.status === 'disputed' || inv.settlementHold;
-
-                      return (
-                        <tr key={inv.id} className="hover:bg-[var(--row-hover)] transition">
-                          <td className="p-3 font-mono text-[11px] text-[var(--ink)]">{inv.id.substring(0, 16)}...</td>
-                          <td className="p-3 font-bold">{inv.companyId}</td>
-                          <td className="p-3 num">{inv.period}</td>
-                          <td className="p-3 num font-bold text-[var(--ink)]">
-                            {inv.totalAmount?.toLocaleString('en-US', { minimumFractionDigits: 2 }) ?? 'غير معروف'} ر.س
-                          </td>
-                          <td className="p-3 num text-[var(--muted)]">
-                            {inv.vat?.toLocaleString('en-US', { minimumFractionDigits: 2 }) ?? '0.00'} ر.س
-                          </td>
-                          <td className="p-3">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                                inv.status === 'posted'
-                                  ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                                  : inv.status === 'approved'
-                                  ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-                                  : inv.status === 'disputed'
-                                  ? 'bg-[var(--danger)]/15 text-[var(--danger)]'
-                                  : inv.status === 'pending_allocation'
-                                  ? 'bg-[var(--warning)]/15 text-[var(--warning)]'
-                                  : 'bg-[var(--raised)] text-[var(--muted)]'
-                              }`}
-                            >
-                              {inv.status === 'posted'
-                                ? 'مرحلة بالكامل'
-                                : inv.status === 'approved'
-                                ? 'معتمدة الوقائع'
-                                : inv.status === 'disputed'
-                                ? 'متنازع عليها'
-                                : inv.status === 'pending_allocation'
-                                ? 'بانتظار التوزيع'
-                                : 'مسودة'}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            {hasDispute ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--danger)] bg-[var(--danger)]/10 px-2 py-0.5 rounded-md">
-                                <AlertCircle size={12} />
-                                <span>حظر الترحيل (نزاع مفتوح)</span>
-                              </span>
-                            ) : (
-                              <span className="text-[11px] text-[var(--money-pos)] flex items-center gap-1">
-                                <CheckCircle2 size={12} />
-                                <span>جاهزة للاعتماد</span>
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedInvoiceForJournal(inv);
-                                  setActiveTab('proposed_journals');
-                                }}
-                                className="px-2.5 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-xs font-semibold transition"
-                              >
-                                معاينة القيد
-                              </button>
-                              {inv.status !== 'approved' && inv.status !== 'posted' && (
-                                <button
-                                  type="button"
-                                  disabled={isMaker}
-                                  onClick={() => handleApproveInvoice(inv)}
-                                  title={isMaker ? 'قاعدة الصانع والمدقق: لا يمكن لمنشئ الفاتورة اعتمادها' : 'اعتماد وقائع الفاتورة'}
-                                  className="px-2.5 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] hover:opacity-90 disabled:opacity-50 text-xs font-bold transition"
-                                >
-                                  اعتماد
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Sub-tab 2: الاعتراضات (Disputes) */}
-      {activeTab === 'disputes' && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--surface)] p-4 rounded-2xl border border-[var(--line)]">
-            <div>
-              <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">سجل اعتراضات استقطاعات المنصة (CAR Disputes)</h3>
-              <p className="text-xs text-[var(--muted)] mt-0.5">
-                مبالغ CAR المفروضة تسجل كنزاع رسمي؛ ولا يجوز تحميلها للمندوب. استثناء (§23.2): رفض المنصة ينقل النزاع لحساب 112803 ويسمح بترحيل الفاتورة.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleExportDisputes}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-xs font-bold transition"
-            >
-              <Download size={14} />
-              <span>تصدير الاعتراضات (Excel)</span>
-            </button>
+                  <span>{p.nameAr}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+                      isSelected
+                        ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                        : 'bg-[var(--surface)] text-[var(--muted)]'
+                    }`}
+                  >
+                    {p.tag}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {loading ? (
-            <div className="p-8 space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : disputes.length === 0 ? (
-            <EmptyState
-              title="لا توجد اعتراضات مسجلة لهذه الفترة"
-              description="تنشأ الاعتراضات آلياً عند وجود مبالغ CAR في فواتير المنصة، أو يمكن تسجيل اعتراض يدوي على سطر محدد."
-            />
-          ) : (
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-start text-xs sm:text-sm">
-                  <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                    <tr>
-                      <th className="p-3 text-start">السطر / المعرّف</th>
-                      <th className="p-3 text-start">الفئة</th>
-                      <th className="p-3 text-start">المبلغ</th>
-                      <th className="p-3 text-start">الشهر</th>
-                      <th className="p-3 text-start">السبب والبيان</th>
-                      <th className="p-3 text-start">الحالة والمسار المحاسبي</th>
-                      <th className="p-3 text-start">مرجع المنصة</th>
-                      <th className="p-3 text-start">الإجراءات</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--line)]">
-                    {disputes.map((dis) => (
-                      <tr key={dis.id} className="hover:bg-[var(--row-hover)] transition">
-                        <td className="p-3 font-mono text-[11px] text-[var(--ink)]">{dis.lineId || dis.id.substring(0, 12)}</td>
-                        <td className="p-3 font-bold">{dis.category}</td>
-                        <td className="p-3 num font-bold text-[var(--danger)]">
-                          {dis.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                        </td>
-                        <td className="p-3 num">{dis.period}</td>
-                        <td className="p-3 max-w-xs truncate" title={dis.reason}>
-                          {dis.reason}
-                        </td>
-                        <td className="p-3">
-                          {dis.status === 'escalated' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-[var(--warning)]/15 text-[var(--warning)]">
-                              <AlertTriangle size={12} />
-                              <span>مرحّل لحساب النزاعات 112803 لحين فض النزاع</span>
-                            </span>
-                          ) : dis.status === 'resolved' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--money-pos)]/15 text-[var(--money-pos)]">
-                              <CheckCircle2 size={12} />
-                              <span>تمت التسوية (رد المنصة)</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--danger)]/15 text-[var(--danger)]">
-                              <AlertCircle size={12} />
-                              <span>نزاع مفتوح (يمنع الترحيل)</span>
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3 font-mono text-xs">{dis.platformReference || '-'}</td>
-                        <td className="p-3">
-                          {dis.status === 'open' && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedDispute(dis);
-                                setResolveOutcome('platform_credit');
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] hover:opacity-90 text-xs font-bold transition"
-                            >
-                              معالجة النزاع
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Sub-tab 3: توزيع TGA (TGA Distribution) */}
-      {activeTab === 'allocations' && (
-        <div className="space-y-4">
-          <div className="bg-[var(--surface)] p-4 rounded-2xl border border-[var(--line)]">
-            <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">توزيع مبالغ دعم/رسوم هيئة النقل (TGA Distribution)</h3>
-            <p className="text-xs text-[var(--muted)] mt-0.5">
-              كل سطر يبدأ كـ «بانتظار التوزيع». يجب تحديد التقسيم بين الشركة وحساب المندوب المعتمد (112502) بدقة دون أي افتراض تلقائي.
-            </p>
-          </div>
-
-          {loading ? (
-            <div className="p-8 space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : allocations.length === 0 ? (
-            <EmptyState
-              title="لا توجد مبالغ TGA بانتظار التوزيع"
-              description="تظهر بنود TGA بعد استيراد الفواتير التي تتضمن رسوم أو تعويضات الهيئة."
-            />
-          ) : (
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-start text-xs sm:text-sm">
-                  <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                    <tr>
-                      <th className="p-3 text-start">رقم السطر</th>
-                      <th className="p-3 text-start">الفاتورة</th>
-                      <th className="p-3 text-start">المبلغ الإجمالي</th>
-                      <th className="p-3 text-start">نصيب الشركة</th>
-                      <th className="p-3 text-start">نصيب المناديب</th>
-                      <th className="p-3 text-start">الحالة</th>
-                      <th className="p-3 text-start">الإجراءات</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--line)]">
-                    {allocations.map((alloc) => {
-                      const isCreator = (alloc.createdBy || (alloc as any).requestedBy) === user?.username;
-
-                      return (
-                        <tr key={alloc.id} className="hover:bg-[var(--row-hover)] transition">
-                          <td className="p-3 font-mono text-[11px] text-[var(--ink)]">{alloc.lineId}</td>
-                          <td className="p-3 font-mono text-xs">{alloc.invoiceId.substring(0, 12)}</td>
-                          <td className="p-3 num font-bold text-[var(--ink)]">
-                            {alloc.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td className="p-3 num text-[var(--muted)]">
-                            {alloc.companyAmount !== undefined
-                              ? `${alloc.companyAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`
-                              : '-'}
-                          </td>
-                          <td className="p-3 num text-[var(--muted)]">
-                            {alloc.riderAmount !== undefined
-                              ? `${alloc.riderAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`
-                              : '-'}
-                          </td>
-                          <td className="p-3">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                                alloc.status === 'approved'
-                                  ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                                  : 'bg-[var(--warning)]/15 text-[var(--warning)]'
-                              }`}
-                            >
-                              {alloc.status === 'approved' ? 'معتمد' : 'بانتظار التوزيع'}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedAllocation(alloc);
-                                  setSplitCompanyAmount(alloc.companyAmount ? String(alloc.companyAmount) : '');
-                                  setSplitRiderAmount(alloc.riderAmount ? String(alloc.riderAmount) : '');
-                                }}
-                                className="px-2.5 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-xs font-semibold transition"
-                              >
-                                تحديد التقسيم
-                              </button>
-                              {(alloc.status === 'pending' || alloc.status === 'pending_allocation') && alloc.companyAmount !== undefined && (
-                                <button
-                                  type="button"
-                                  disabled={isCreator}
-                                  onClick={() => handleApproveAllocation(alloc)}
-                                  title={isCreator ? 'لا يجوز للشخص اعتماد تقسيمه بنفسه' : 'اعتماد التوزيع بواسطة مدقق ثانٍ'}
-                                  className="px-2.5 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] hover:opacity-90 disabled:opacity-50 text-xs font-bold transition"
-                                >
-                                  اعتماد المدقق
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Sub-tab 4: وقائع المحفظة من ERP (Wallet Facts) */}
-      {activeTab === 'facts' && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--surface)] p-4 rounded-2xl border border-[var(--line)]">
-            <div>
-              <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">وقائع المحفظة والتحويلات من ERP (للقراءة فقط)</h3>
-              <p className="text-xs text-[var(--muted)] mt-0.5">
-                عرض الوقائع الثابتة وفق عقود CR-002 دون إنشاء قيود أو أرصدة دفترية جديدة.
-              </p>
-            </div>
-
-            {/* Toggle: الحسابات vs المناديب */}
-            <div className="flex items-center rounded-xl bg-[var(--raised)] p-1 border border-[var(--line)]">
-              <button
-                type="button"
-                onClick={() => setFactsViewMode('accounts')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  factsViewMode === 'accounts' ? 'bg-[var(--surface)] text-[var(--accent)] shadow-xs' : 'text-[var(--muted)]'
-                }`}
-              >
-                الحسابات
-              </button>
-              <button
-                type="button"
-                onClick={() => setFactsViewMode('riders')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  factsViewMode === 'riders' ? 'bg-[var(--surface)] text-[var(--accent)] shadow-xs' : 'text-[var(--muted)]'
-                }`}
-              >
-                المناديب
-              </button>
-            </div>
-          </div>
-
-          {/* Kinds filter chips */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+          {/* Sub-tabs for the selected App */}
+          <div className="flex items-center gap-2 border-b border-[var(--line)] overflow-x-auto no-scrollbar">
             {[
-              { id: 'hs_wallet_event', label: 'حركات المحفظة' },
-              { id: 'hs_remittance', label: 'الحوالات البنكية' },
-              { id: 'hs_remittance_allocation', label: 'توزيع الحوالات' },
-              { id: 'hs_handover_review', label: 'مراجعة التسليم' },
-              { id: 'hs_month_close', label: 'إقفال الشهر' },
-            ].map((k) => (
+              { id: 'settlements', label: 'الفواتير والتسويات' },
+              { id: 'parent_terms', label: 'الشروط الأصلية (Level 2)' },
+              { id: 'internal_schemes', label: 'الأنظمة الداخلية (Level 3)' },
+              { id: 'eligibility', label: 'الأهلية والضوابط (Level 5)' },
+              { id: 'accounts', label: 'الحسابات والمعرفات' },
+            ].map((sub) => (
               <button
-                key={k.id}
+                key={sub.id}
                 type="button"
-                onClick={() => setSelectedFactKind(k.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
-                  selectedFactKind === k.id
-                    ? 'bg-[var(--accent)] text-[var(--accent-ink)] font-bold shadow-xs'
-                    : 'bg-[var(--surface)] border border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)]'
+                onClick={() => setAppSubTab(sub.id as any)}
+                className={`py-2 px-3.5 text-xs sm:text-sm font-semibold border-b-2 transition whitespace-nowrap ${
+                  appSubTab === sub.id
+                    ? 'border-[var(--accent)] text-[var(--accent)]'
+                    : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
                 }`}
               >
-                {k.label}
+                {sub.label}
               </button>
             ))}
           </div>
 
-          {facts.length === 0 ? (
-            <div className="rounded-2xl border border-[var(--warning)]/30 bg-[var(--warning)]/5 p-6 text-center space-y-2">
-              <AlertTriangle className="mx-auto text-[var(--warning)]" size={32} />
-              <h4 className="font-bold text-sm text-[var(--ink)]">المصدر غير متاح بعد</h4>
-              <p className="text-xs text-[var(--muted)] max-w-md mx-auto">
-                جداول ومصادر وقائع المحفظة لم يتم ربطها بعد في قاعدة بيانات ERP وفق مواصفة CR-002.
+          {/* Case A: HungerStation Settlements Tab (The full existing HS workspace) */}
+          {selectedPlatform === 'hungerstation' && appSubTab === 'settlements' && (
+            <div className="space-y-6">
+              {/* Stat Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <StatCard
+                  label="إجمالي الصفحة الحالية"
+                  value={`${totalInvoicesAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+                  hint={`${invoices.length} فواتير مسجلة في الصفحة الحالية لشهر ${selectedPeriod}`}
+                  icon={Calculator}
+                />
+                <StatCard
+                  label="الاعتراضات المعلقة (CAR)"
+                  value={openDisputesCount}
+                  hint={openDisputesCount > 0 ? 'تتطلب رد المنصة أو التصعيد لحساب 112803' : 'لا توجد نزاعات معلقة'}
+                  icon={ShieldAlert}
+                />
+                <StatCard
+                  label="مبالغ TGA بانتظار التوزيع"
+                  value={pendingAllocationsCount}
+                  hint="تتطلب تحديد حصة المندوب والشركة بدون افتراض مسبق"
+                  icon={ArrowRightLeft}
+                />
+                <StatCard
+                  label="بوابة الترحيل المحاسبي"
+                  value={isPostingGateOn ? 'مفعّلة' : 'موقوفة'}
+                  hint={isPostingGateOn ? 'جاهز لترحيل القيود المعتمدة' : 'الترحيل موقوف لحين اعتماد ملف المنصة'}
+                  icon={ShieldCheck}
+                />
+              </div>
+
+              {/* Main HS Tabs */}
+              <div className="border-b border-[var(--line)]">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                  {[
+                    { id: 'invoices', label: 'الفواتير', count: invoices.length },
+                    { id: 'disputes', label: 'الاعتراضات (CAR)', count: openDisputesCount, alert: openDisputesCount > 0 },
+                    { id: 'allocations', label: 'توزيع TGA', count: pendingAllocationsCount },
+                    { id: 'facts', label: 'وقائع المحفظة من ERP' },
+                    { id: 'month_close', label: 'إقفال الشهر (C/M/A)' },
+                    { id: 'proposed_journals', label: 'القيود المقترحة' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      id={`tab-${tab.id}`}
+                      role="tab"
+                      aria-selected={activeTab === tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`inline-flex items-center gap-2 px-4 py-3 font-bold text-xs sm:text-sm border-b-2 transition whitespace-nowrap ${
+                        activeTab === tab.id
+                          ? 'border-[var(--accent)] text-[var(--accent)]'
+                          : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      {tab.count !== undefined && tab.count > 0 && (
+                        <span
+                          className={`num px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                            tab.alert
+                              ? 'bg-[var(--danger)] text-white'
+                              : 'bg-[var(--raised)] text-[var(--ink)]'
+                          }`}
+                        >
+                          {tab.count}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sub-tab 1: Invoices */}
+              {activeTab === 'invoices' && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                    <div className="p-4 border-b border-[var(--line)] flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={selectedPeriod}
+                          onChange={(e) => setSelectedPeriod(e.target.value)}
+                          className="bg-[var(--surface)] border border-[var(--line)] text-xs rounded-xl px-3 py-1.5 focus:outline-hidden"
+                        >
+                          <option value="2026-10">شهر أكتوبر 2026</option>
+                          <option value="2026-09">شهر سبتمبر 2026</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-start text-xs sm:text-sm">
+                        <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
+                          <tr>
+                            <th className="p-3 text-start">معرف الفاتورة</th>
+                            <th className="p-3 text-start">الشهر</th>
+                            <th className="p-3 text-start">السجل التجاري</th>
+                            <th className="p-3 text-start">إجمالي غير شامل VAT</th>
+                            <th className="p-3 text-start">ضريبة القيمة المضافة</th>
+                            <th className="p-3 text-start">الإجمالي شامل VAT</th>
+                            <th className="p-3 text-start">الحالة</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--line)]">
+                          {invoices.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="p-8 text-center text-xs text-[var(--muted)]">
+                                لا توجد فواتير مسجلة لشهر {selectedPeriod}
+                              </td>
+                            </tr>
+                          ) : (
+                            invoices.map((inv) => (
+                              <tr key={inv.id} className="hover:bg-[var(--row-hover)] transition">
+                                <td className="p-3 font-mono font-bold text-[var(--accent)]">{inv.id}</td>
+                                <td className="p-3 font-mono">{inv.period}</td>
+                                <td className="p-3 font-mono">{inv.companyId}</td>
+                                <td className="p-3 num font-bold text-[var(--ink)]">
+                                  {(inv.totalAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                </td>
+                                <td className="p-3 num font-bold text-[var(--muted)]">
+                                  {(inv.vat || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                </td>
+                                <td className="p-3 num font-bold text-[var(--ink)]">
+                                  {(inv.totalAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                </td>
+                                <td className="p-3">
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">
+                                    {inv.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-tab 2: Disputes */}
+              {activeTab === 'disputes' && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-start text-xs sm:text-sm">
+                        <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
+                          <tr>
+                            <th className="p-3 text-start">رقم النزاع</th>
+                            <th className="p-3 text-start">النوع</th>
+                            <th className="p-3 text-start">المبلغ المتنازع عليه</th>
+                            <th className="p-3 text-start">الحالة</th>
+                            <th className="p-3 text-start">الملاحظات</th>
+                            <th className="p-3 text-start">الإجراء</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--line)]">
+                          {disputes.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="p-8 text-center text-xs text-[var(--muted)]">
+                                لا توجد اعتراضات مسجلة
+                              </td>
+                            </tr>
+                          ) : (
+                            disputes.map((disp) => (
+                              <tr key={disp.id} className="hover:bg-[var(--row-hover)] transition">
+                                <td className="p-3 font-mono font-bold text-[var(--accent)]">{disp.id}</td>
+                                <td className="p-3 font-semibold">{disp.category || 'CAR'}</td>
+                                <td className="p-3 num font-bold text-[var(--danger)]">
+                                  {(disp.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                </td>
+                                <td className="p-3">
+                                  {disp.outcome === 'platform_rejected' ? (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[var(--danger)]/15 text-[var(--danger)]">
+                                      مرحّل لحساب النزاعات 112803 لحين فض النزاع
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">
+                                      {disp.status}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-xs text-[var(--muted)] max-w-xs truncate">{disp.reason || '-'}</td>
+                                <td className="p-3">
+                                  {disp.status === 'open' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedDispute(disp)}
+                                      className="px-2.5 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition cursor-pointer"
+                                    >
+                                      فض النزاع
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs text-[var(--muted)]">تم الإجراء</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-tab 3: Allocations */}
+              {activeTab === 'allocations' && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-start text-xs sm:text-sm">
+                        <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
+                          <tr>
+                            <th className="p-3 text-start">معرف التوزيع</th>
+                            <th className="p-3 text-start">المبلغ الإجمالي</th>
+                            <th className="p-3 text-start">حصة الشركة</th>
+                            <th className="p-3 text-start">حصة المناديب</th>
+                            <th className="p-3 text-start">الحالة</th>
+                            <th className="p-3 text-start">المنشئ (Maker)</th>
+                            <th className="p-3 text-start">الإجراء</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--line)]">
+                          {allocations.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="p-8 text-center text-xs text-[var(--muted)]">
+                                لا توجد مبالغ TGA بانتظار التوزيع
+                              </td>
+                            </tr>
+                          ) : (
+                            allocations.map((alloc) => {
+                              const isMaker =
+                                alloc.requestedBy &&
+                                user &&
+                                alloc.requestedBy.toLowerCase() === user.username.toLowerCase();
+
+                              return (
+                                <tr key={alloc.id} className="hover:bg-[var(--row-hover)] transition">
+                                  <td className="p-3 font-mono font-bold text-[var(--accent)]">{alloc.id}</td>
+                                  <td className="p-3 num font-bold">
+                                    {(alloc.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  </td>
+                                  <td className="p-3 num text-[var(--ink)]">
+                                    {(alloc.companyAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  </td>
+                                  <td className="p-3 num text-[var(--muted)]">
+                                    {(alloc.riderAmount || (alloc.riderShares?.reduce((s, r) => s + r.amount, 0)) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  </td>
+                                  <td className="p-3">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                        alloc.status === 'approved'
+                                          ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+                                          : 'bg-[var(--warning)]/15 text-[var(--warning)]'
+                                      }`}
+                                    >
+                                      {alloc.status === 'approved' ? 'معتمد' : 'بانتظار الاعتماد'}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 font-mono text-xs">@{alloc.requestedBy || 'system'}</td>
+                                  <td className="p-3">
+                                    {alloc.status === 'pending' || alloc.status === 'pending_allocation' ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          disabled={Boolean(isMaker)}
+                                          onClick={() => handleApproveAllocation(alloc)}
+                                          title={isMaker ? 'لا يمكن لمنشئ التوزيع اعتماده بنفسه (قاعدة التدقيق المستقل)' : undefined}
+                                          className="px-2.5 py-1 rounded-lg bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                        >
+                                          اعتماد المدقق
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedAllocation(alloc);
+                                            setSplitCompanyAmount(String(alloc.companyAmount || alloc.amount));
+                                            setSplitRiderAmount('0');
+                                          }}
+                                          className="px-2 py-1 rounded-lg border border-[var(--line)] text-xs text-[var(--muted)] hover:bg-[var(--raised)] transition cursor-pointer"
+                                        >
+                                          تعديل
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-[var(--muted)]">معتمد</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-tab 4: Facts */}
+              {activeTab === 'facts' && (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--muted)]">
+                    عرض وقائع المحفظة المستوردة والمطابقة مع نظام ERP الداخلي.
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-tab 5: Proposed Journals */}
+              {activeTab === 'proposed_journals' && (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--muted)]">
+                    سجل القيود المحاسبية المقترحة قبل الترحيل للدليل المستهدف.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Other App / SubTab views */}
+          {(selectedPlatform !== 'hungerstation' || appSubTab !== 'settlements') && (
+            <div className="p-8 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-[var(--ink)]">
+                    منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr} · {
+                      appSubTab === 'parent_terms'
+                        ? 'الشروط الأصلية (Parent Company Terms)'
+                        : appSubTab === 'internal_schemes'
+                        ? 'الأنظمة الداخلية (Internal Schemes)'
+                        : appSubTab === 'eligibility'
+                        ? 'الأهلية والضوابط (Eligibility)'
+                        : appSubTab === 'accounts'
+                        ? 'الحسابات والمعرفات الميدانية'
+                        : 'الفواتير والتسويات'
+                    }
+                  </h3>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">
+                    هيكلية الاحتساب وفق الموديل المعتمد BR §24.
+                  </p>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--accent)]/15 text-[var(--accent)]">
+                  شهر {selectedPeriod}
+                </span>
+              </div>
+
+              {appSubTab === 'parent_terms' && (
+                <div className="p-4 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs space-y-2">
+                  <div className="font-bold text-[var(--ink)]">نموذج الفوترة والتعاقد مع المنصة:</div>
+                  <p className="text-[var(--muted)] leading-relaxed">
+                    {selectedPlatform === 'keeta'
+                      ? 'نظام الشرائح الحافزة (Slabs): رسوم الطلبات + مستويات الخبرة والقدرة التشغيلية × معامل الأهلية والانتظام (26 يوماً) مع تارجت الشركة 70% / 95%.'
+                      : selectedPlatform === 'ninja'
+                      ? 'تارجت مقطوع: 5,700 ر.س للدباب و 6,500 ر.س للسيارة مقابل 450/460 طلب شهرياً، مع شرائح العجز ونسبة الالتزام 15%.'
+                      : 'احتساب بحسب الطلب والمسافة (Per Order / Per KM) مع حوافز النطاقات الجغرافية وبدل الكيلومترات.'}
+                  </p>
+                </div>
+              )}
+
+              {appSubTab === 'internal_schemes' && (
+                <div className="p-4 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs space-y-2">
+                  <div className="font-bold text-[var(--ink)]">الأنظمة الداخلية النشطة:</div>
+                  <p className="text-[var(--muted)] leading-relaxed">
+                    عمولة يومية مقطوعة (Daily Commission)، نسبة من الإجمالي قبل الخصومات (Percent of Gross)، أو راتب مستهدف مع بدل الوقود والاتصالات وإيجار المركبة.
+                  </p>
+                </div>
+              )}
+
+              {appSubTab === 'eligibility' && (
+                <div className="p-4 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs space-y-2">
+                  <div className="font-bold text-[var(--ink)]">شروط الأهلية والحد الأدنى:</div>
+                  <p className="text-[var(--muted)] leading-relaxed">
+                    10 ساعات عمل يومية، 3 طلبات على الأقل، 26 يوم حضور، 330/350 طلباً شهرياً، والتحقق الدوري من بصمة الوجه.
+                  </p>
+                </div>
+              )}
+
+              {appSubTab === 'accounts' && (
+                <div className="p-4 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs space-y-2">
+                  <div className="font-bold text-[var(--ink)]">ربط المعرفات واستحقاق المناديب:</div>
+                  <p className="text-[var(--muted)] leading-relaxed">
+                    مطابقة معرفات المناديب على التطبيق وفصل الفترات عند تبادل الحساب المشترك بين أكثر من مندوب.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SECTION 2: PAYROLL CYCLE STEPPER (0-7)                  */}
+      {/* ======================================================== */}
+      {mainTab === 'cycle' && (
+        <div className="space-y-6">
+          <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
+            <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
+              دورة الرواتب الشهرية والمسير المعتمد (المراحل 0-7)
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--muted)] mt-1">
+              مراحل احتساب الرواتب والمسيرات وفق نموذج العمل المالي المعتمد في BR §24.7
+            </p>
+
+            {/* Stepper Navigation */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
+              {cycleSteps.map((st) => {
+                const isCurrent = currentCycleStep === st.num;
+                return (
+                  <div
+                    key={st.num}
+                    onClick={() => setCurrentCycleStep(st.num)}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                      isCurrent
+                        ? 'border-[var(--accent)] bg-[var(--accent)]/5 shadow-xs'
+                        : 'border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`h-6 w-6 rounded-full flex items-center justify-center font-bold text-xs ${
+                          isCurrent
+                            ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
+                            : 'bg-[var(--raised)] text-[var(--muted)]'
+                        }`}
+                      >
+                        {st.num}
+                      </span>
+                      {st.num === 5 && (
+                        <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[var(--warning)]/20 text-[var(--warning)]">
+                          يحتاج قرار
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-bold text-xs sm:text-sm text-[var(--ink)] mt-2">
+                      {st.title}
+                    </div>
+                    <div className="text-[11px] text-[var(--muted)] mt-1 line-clamp-2">
+                      {st.desc}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Step Detail Card */}
+          <div className="p-6 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-[var(--accent)]">المرحلة {currentCycleStep} من 7</span>
+                <h4 className="text-base sm:text-lg font-bold text-[var(--ink)] mt-0.5">
+                  {cycleSteps[currentCycleStep].title}
+                </h4>
+              </div>
+              {currentCycleStep === 5 && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[var(--warning)]/15 text-[var(--warning)] border border-[var(--warning)]/30">
+                  <AlertTriangle size={14} />
+                  <span>شارة «يحتاج قرار» للصافي السالب (§22.9.2)</span>
+                </span>
+              )}
+            </div>
+            <p className="text-xs sm:text-sm text-[var(--muted)] leading-relaxed">
+              {cycleSteps[currentCycleStep].desc}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SECTION 3: RULES EDITOR (W9)                            */}
+      {/* ======================================================== */}
+      {mainTab === 'rules' && (
+        <div className="space-y-6">
+          <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
+                  محرر الأنظمة الداخلية ومصفوفة الفئات التشغيلية
+                </h3>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                    rulesStatus === 'approved'
+                      ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+                      : 'bg-[var(--warning)]/15 text-[var(--warning)]'
+                  }`}
+                >
+                  {rulesStatus === 'approved' ? `معتمد من @${rulesApprovedBy || 'admin'}` : 'مسودة قابلة للتعديل'}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--muted)] mt-1">
+                الأنظمة خاضعة لإصدارات شهرية مستقلة. تتطلب المسودة اعتماد مستخدم ثانٍ مستقل (Maker-Checker) لتصبح للقراءة فقط.
               </p>
             </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={rulesMonth}
+                onChange={(e) => setRulesMonth(e.target.value)}
+                className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  toast('تم نسخ إعدادات وقواعد الشهر السابق بنجاح كمسودة جديدة', 'success');
+                }}
+                className="px-3 py-1.5 rounded-xl bg-[var(--raised)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--line)] transition inline-flex items-center gap-1 cursor-pointer"
+              >
+                <Copy size={13} />
+                <span>انسخ الشهر السابق</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 6-Column Category Matrix */}
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+            <div className="p-4 border-b border-[var(--line)]">
+              <h4 className="font-bold text-sm text-[var(--ink)]">
+                مصفوفة الفئات (الكفالة × المركبة) · شبكة الـ 6 أعمدة المعتمدة
+              </h4>
+              <p className="text-xs text-[var(--muted)] mt-0.5">
+                تحديد تكلفة إيجار المركبة اليومي (سيارة 1800/30 = 60 ر.س / دباب 800/30 = 26.67 ر.س) ونسب العمولة لكل فئة.
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-start text-xs sm:text-sm">
+                <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
+                  <tr>
+                    <th className="p-3 text-start">البند / الفئة</th>
+                    <th className="p-3 text-start">كفالة × سيارة</th>
+                    <th className="p-3 text-start">كفالة × دباب</th>
+                    <th className="p-3 text-start">كفالة × خاص</th>
+                    <th className="p-3 text-start">خارجي × سيارة</th>
+                    <th className="p-3 text-start">خارجي × دباب</th>
+                    <th className="p-3 text-start">خارجي × خاص</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--line)]">
+                  <tr>
+                    <td className="p-3 font-semibold">إيجار المركبة اليومي</td>
+                    <td className="p-3 num font-bold text-[var(--accent)]">60.00 ر.س</td>
+                    <td className="p-3 num font-bold text-[var(--accent)]">26.67 ر.س</td>
+                    <td className="p-3 num text-[var(--muted)]">0.00 ر.س</td>
+                    <td className="p-3 num font-bold text-[var(--accent)]">60.00 ر.س</td>
+                    <td className="p-3 num font-bold text-[var(--accent)]">26.67 ر.س</td>
+                    <td className="p-3 num text-[var(--muted)]">0.00 ر.س</td>
+                  </tr>
+                  <tr>
+                    <td className="p-3 font-semibold">العمولة الشهرية المستهدفة</td>
+                    <td className="p-3 num">2,500 ر.س</td>
+                    <td className="p-3 num">2,000 ر.س</td>
+                    <td className="p-3 num">1,800 ر.س</td>
+                    <td className="p-3 num">2,200 ر.س</td>
+                    <td className="p-3 num">1,800 ر.س</td>
+                    <td className="p-3 num">1,500 ر.س</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SECTION 4: DEDUCTIONS (Stage 2)                         */}
+      {/* ======================================================== */}
+      {mainTab === 'deductions' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+            <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+              سجل استقطاعات التشغيل والتحملات (Stage 2 Deductions)
+            </h3>
+            <p className="text-xs text-[var(--muted)] mt-0.5">
+              تطبيق الاستقطاعات مرة واحدة لكل مندوب شهرياً: سلف، مخالفات مرورية، إنترنت، محروقات، محفظة هنقرستيشن، ومداد.
+            </p>
+          </div>
+
+          <div className="p-8 text-center bg-[var(--surface)] rounded-2xl border border-[var(--line)] text-xs text-[var(--muted)]">
+            يتم استدعاء استقطاعات المرحلة الثانية وربطها آلياً من موديول المديونيات والسلف وسجلات الفواتير.
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SECTION 5: BANK TRANSFER                                */}
+      {/* ======================================================== */}
+      {mainTab === 'bank' && (
+        <div className="p-6 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-4 text-center max-w-xl mx-auto">
+          <div className="h-14 w-14 rounded-2xl bg-[var(--accent)]/15 text-[var(--accent)] flex items-center justify-center mx-auto">
+            <Landmark size={28} />
+          </div>
+          <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
+            ملف صرف الرواتب البنكي المعتمد (CSV)
+          </h3>
+          <p className="text-xs text-[var(--muted)] leading-relaxed">
+            يتم إصدار وتصدير ملف صرف رواتب المناديب المعتمد متوافقاً مع مواصفات البنوك السعودية عبر موديول الخزينة والبنوك.
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/treasury/?tab=bank_file"
+              className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs sm:text-sm font-bold hover:opacity-90 transition shadow-xs inline-flex items-center gap-2"
+            >
+              <span>الانتقال لمولد ملف البنك بالخزينة</span>
+              <ChevronRight size={16} />
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SECTION 6: LEGACY POLICIES                              */}
+      {/* ======================================================== */}
+      {mainTab === 'policies' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+            <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+              أرشيف السياسات المالية السابقة (Legacy Policies)
+            </h3>
+            <p className="text-xs text-[var(--muted)] mt-0.5">
+              متاحة للقراءة والمطابقة التاريخية فقط لحين استكمال محرر الأنظمة الجديد بالكامل.
+            </p>
+          </div>
+
+          {loadingPolicies ? (
+            <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : policies.length === 0 ? (
+            <EmptyState
+              title="لا توجد سياسات سابقة مؤرشفة"
+              description="لم يتم العثور على أي سياسات مسجلة في /api/policies."
+            />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">معرّف الحدث (SourceEventId)</th>
-                      <th className="p-3 text-start">النوع</th>
-                      <th className="p-3 text-start">الشركة</th>
-                      <th className="p-3 text-start">المبلغ</th>
-                      <th className="p-3 text-start">الحالة</th>
+                      <th className="p-3 text-start">معرف السياسة</th>
+                      <th className="p-3 text-start">اسم السياسة</th>
+                      <th className="p-3 text-start">النوع (Kind)</th>
+                      <th className="p-3 text-start">العمولة / الشريحة</th>
+                      <th className="p-3 text-start">تاريخ الإنشاء</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {facts.map((f) => (
-                      <tr key={f.id} className="hover:bg-[var(--row-hover)] transition">
-                        <td className="p-3 font-mono text-[11px] text-[var(--ink)]">
-                          {f.sourceEventId || f.id}
-                          {f.isReversal && (
-                            <span className="ms-2 px-1.5 py-0.2 rounded text-[10px] bg-[var(--warning)]/20 text-[var(--warning)] font-bold">
-                              حركة عكسية لـ #{f.reversalOf?.substring(0, 8)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3">{f.kind}</td>
-                        <td className="p-3 font-bold">{f.companyId}</td>
-                        <td className="p-3 num font-bold">
-                          {f.sourceFacts?.Amount ? `${Number(f.sourceFacts.Amount).toLocaleString()} ر.س` : '-'}
-                        </td>
+                    {policies.map((p: any, idx: number) => (
+                      <tr key={p.id || idx} className="hover:bg-[var(--row-hover)] transition">
+                        <td className="p-3 font-mono font-bold text-[var(--accent)]">{p.id || idx + 1}</td>
+                        <td className="p-3 font-semibold">{p.name || '-'}</td>
                         <td className="p-3">
-                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--muted)]">
-                            {f.status || 'معتمد'}
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">
+                            {p.kind || 'standard'}
                           </span>
                         </td>
+                        <td className="p-3 num font-bold">{p.commissionAmount || p.monthlyFee || '-'}</td>
+                        <td className="p-3 num text-xs text-[var(--muted)]">{p.createdAt || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -962,399 +1110,30 @@ export default function PayrollPage() {
         </div>
       )}
 
-      {/* Sub-tab 5: إقفال الشهر (C/M/A) */}
-      {activeTab === 'month_close' && (
-        <div className="space-y-4">
-          <div className="bg-[var(--surface)] p-4 rounded-2xl border border-[var(--line)]">
-            <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">معادلات إقفال الشهر ومطابقة الأرصدة (C/M/A Breakdown)</h3>
-            <p className="text-xs text-[var(--muted)] mt-1">
-              تطبيق معادلة D20 المعتمدة: Expected = -C | RemainingOldCarry = C + A | CurrentPeriodBalance = M - (C + A).
-              يظهر «غير معروف» عند نقص C أو A لمنع تسجيل أصفار وهمية.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-2">
-              <div className="text-xs text-[var(--muted)] font-bold">المتوقع (Expected)</div>
-              <div className="text-lg font-black text-[var(--ink)] font-mono">-C</div>
-              <p className="text-xs text-[var(--muted)]">الرصيد الافتتاحي المتوقع للترحيل</p>
-            </div>
-            <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-2">
-              <div className="text-xs text-[var(--muted)] font-bold">المتبقي من الرصيد السابق</div>
-              <div className="text-lg font-black text-[var(--ink)] font-mono">C + A</div>
-              <p className="text-xs text-[var(--muted)]">تسوية السلف والاستقطاعات السابقة</p>
-            </div>
-            <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-2">
-              <div className="text-xs text-[var(--muted)] font-bold">صافي رصيد الفترة الحالية</div>
-              <div className="text-lg font-black text-[var(--ink)] font-mono">M - (C + A)</div>
-              <p className="text-xs text-[var(--muted)]">يقترح حساب 112507 عند الصافي السالب فقط</p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 text-center space-y-3">
-            <h4 className="font-bold text-sm text-[var(--ink)]">حالة إقفال الشهر الحالية لـ {selectedPeriod}</h4>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--raised)] border border-[var(--line)] text-xs font-semibold text-[var(--muted)]">
-              <span>حالة بيانات C و A:</span>
-              <span className="font-bold text-[var(--warning)]">غير معروف (المصدر قيد الربط)</span>
-            </div>
-            <p className="text-xs text-[var(--muted)] max-w-lg mx-auto">
-              بناءً على سياسة التدقيق المعتمدة، لا يتم احتساب رصيد افتراضي (0)، بل تظل النتيجة «غير معروف» لحين اكتمال عقود الربط وتوفير C و A بشكل صريح.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Sub-tab 6: القيود المقترحة (Proposed Journals) */}
-      {activeTab === 'proposed_journals' && (
-        <div className="space-y-4">
-          {/* Top Posting Gate Banner */}
-          {!isPostingGateOn && (
-            <div className="flex items-center gap-3 p-4 rounded-2xl border border-[var(--warning)]/40 bg-[var(--warning)]/10 text-[var(--warning)]">
-              <AlertTriangle className="shrink-0" size={20} />
-              <div className="text-xs sm:text-sm font-bold">
-                الترحيل موقوف لحين اعتماد ملف المنصة (بوابة الترحيل معطلة افتراضياً لحماية الدفاتر المحاسبية).
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--surface)] p-4 rounded-2xl border border-[var(--line)]">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-[var(--muted)]">الفاتورة المحددة:</span>
-              <select
-                value={selectedInvoiceForJournal?.id || ''}
-                onChange={(e) => {
-                  const inv = invoices.find((i) => i.id === e.target.value);
-                  if (inv) setSelectedInvoiceForJournal(inv);
-                }}
-                className="bg-[var(--surface)] border border-[var(--line)] text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-hidden"
-              >
-                {invoices.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.id.substring(0, 16)}... ({i.companyId} - {i.period})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {currentProposal && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-[var(--muted)]">توازن القيد:</span>
-                {(() => {
-                  const debits = currentProposal.lines.reduce((s, l) => s + (l.debit || 0), 0);
-                  const credits = currentProposal.lines.reduce((s, l) => s + (l.credit || 0), 0);
-                  const balanced = Math.abs(debits - credits) < 0.01;
-                  return (
-                    <span
-                      className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${
-                        balanced
-                          ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                          : 'bg-[var(--danger)]/15 text-[var(--danger)]'
-                      }`}
-                    >
-                      {balanced ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                      <span>{balanced ? 'القيد متوازن تماماً' : 'القيد غير متوازن!'}</span>
-                    </span>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-
-          {loadingProposal ? (
-            <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : !currentProposal || currentProposal.lines.length === 0 ? (
-            <EmptyState
-              title="لا توجد قيود مقترحة لهذه الفاتورة"
-              description="تظهر القيود بعد اكتمال بنود الضريبة وتوزيع TGA وفض نزاعات CAR."
-            />
-          ) : (
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-start text-xs sm:text-sm">
-                  <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                    <tr>
-                      <th className="p-3 text-start">رقم الحساب</th>
-                      <th className="p-3 text-start">اسم الحساب والبيان</th>
-                      <th className="p-3 text-start">مدين (Debit)</th>
-                      <th className="p-3 text-start">دائن (Credit)</th>
-                      <th className="p-3 text-start">المندوب / الملاحظات</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--line)]">
-                    {currentProposal.lines.map((line, idx) => {
-                      const isTarget = line.isTargetScheme || line.description?.includes('تارجت');
-
-                      return (
-                        <tr key={idx} className={`hover:bg-[var(--row-hover)] transition ${isTarget ? 'opacity-60 bg-[var(--raised)]/30' : ''}`}>
-                          <td className="p-3 font-mono font-bold text-[var(--accent)]">{line.accountCode}</td>
-                          <td className="p-3">
-                            <div className="font-semibold">{line.description}</div>
-                            {isTarget && (
-                              <span className="inline-block mt-1 text-[10px] font-bold text-[var(--warning)] bg-[var(--warning)]/15 px-2 py-0.5 rounded-full">
-                                نظام التارجت لم يُعتمد بعد
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3 num font-bold text-[var(--ink)]">
-                            {line.debit > 0 ? `${line.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س` : '-'}
-                          </td>
-                          <td className="p-3 num font-bold text-[var(--ink)]">
-                            {line.credit > 0 ? `${line.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س` : '-'}
-                          </td>
-                          <td className="p-3 font-mono text-xs text-[var(--muted)]">{line.riderId || '-'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot className="border-t-2 border-[var(--line)] bg-[var(--raised)]/30 font-bold">
-                    <tr>
-                      <td colSpan={2} className="p-3 text-end">
-                        المجموع الكلي:
-                      </td>
-                      <td className="p-3 num text-[var(--accent)]">
-                        {currentProposal.lines.reduce((s, l) => s + (l.debit || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                      </td>
-                      <td className="p-3 num text-[var(--accent)]">
-                        {currentProposal.lines.reduce((s, l) => s + (l.credit || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                      </td>
-                      <td className="p-3"></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Modal: Import HungerStation Invoices */}
+      {/* ======================================================== */}
+      {/* TGA SPLIT DIALOG                                        */}
+      {/* ======================================================== */}
       <Dialog
-        open={importDialogOpen}
-        onClose={() => {
-          setImportDialogOpen(false);
-          setUploadFiles([]);
-          setPreviewResult(null);
-        }}
-        title="استيراد وتدقيق فواتير هنقرستيشن (XLSX)"
-        description="ارفع من 1 إلى 3 ملفات عمل رسمية لشهر الاستحقاق؛ سيتم فحص الضريبة والبيانات ومطابقة السجلات قبل الترحيل."
-      >
-        <div className="space-y-4">
-          <div className="border-2 border-dashed border-[var(--line)] rounded-2xl p-6 text-center hover:border-[var(--accent)] transition">
-            <FileSpreadsheet className="mx-auto text-[var(--muted)] mb-2" size={32} />
-            <label className="cursor-pointer">
-              <span className="font-bold text-xs sm:text-sm text-[var(--accent)] hover:underline">
-                اختر ملفات إكسل (1-3 ملفات)
-              </span>
-              <input
-                type="file"
-                multiple
-                accept=".xlsx"
-                onChange={handleFileUpload}
-                className="sr-only"
-              />
-            </label>
-            <p className="text-[11px] text-[var(--muted)] mt-1">يجب ألا يتجاوز الحجم الإجمالي 8 ميجابايت.</p>
-          </div>
-
-          {uploadFiles.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-xs font-bold text-[var(--ink)]">الملفات المختارة ({uploadFiles.length}):</div>
-              <ul className="space-y-1">
-                {uploadFiles.map((f, i) => (
-                  <li key={i} className="flex items-center justify-between text-xs p-2 rounded-lg bg-[var(--raised)]">
-                    <span className="font-mono truncate">{f.fileName}</span>
-                    <span className="text-[11px] text-[var(--money-pos)] font-bold">جاهز للفحص</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="pt-2">
-                <button
-                  type="button"
-                  disabled={previewLoading}
-                  onClick={handlePreviewImport}
-                  className="w-full py-2 rounded-xl bg-[var(--raised)] border border-[var(--line)] hover:bg-[var(--row-hover)] font-bold text-xs transition"
-                >
-                  {previewLoading ? 'جاري الفحص والمعاينة...' : 'معاينة وتدقيق الحسابات'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {previewResult && (
-            <div className="space-y-3 pt-3 border-t border-[var(--line)]">
-              {/* Warnings and blocking checks */}
-              {previewResult.errors && previewResult.errors.length > 0 ? (
-                <div className="p-3 rounded-xl bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-xs space-y-1 text-[var(--danger)]">
-                  <div className="font-bold flex items-center gap-1">
-                    <AlertCircle size={14} />
-                    <span>توجد أخطاء مانعة للاستيراد:</span>
-                  </div>
-                  <ul className="list-disc list-inside ps-2 space-y-0.5">
-                    {previewResult.errors.map((err, i) => (
-                      <li key={i}>
-                        ملف {err.fileIndex + 1} ({err.sheet}): سطر {err.row} - كود الخطأ: {err.code}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <div className="p-3 rounded-xl bg-[var(--money-pos)]/10 border border-[var(--money-pos)]/30 text-xs space-y-1 text-[var(--money-pos)]">
-                  <div className="font-bold flex items-center gap-1">
-                    <CheckCircle2 size={14} />
-                    <span>فحوصات الضريبة والإجماليات سليمة تماماً</span>
-                  </div>
-                  <div className="text-[11px]">
-                    عدد الأسطر الجاهزة: {previewResult.rows?.length || 0}
-                  </div>
-                </div>
-              )}
-
-              {/* Warning flags V=Z or T-Z=AA */}
-              {previewResult.flags && previewResult.flags.length > 0 && (
-                <div className="p-3 rounded-xl bg-[var(--warning)]/10 border border-[var(--warning)]/30 text-xs space-y-1 text-[var(--warning)]">
-                  <div className="font-bold flex items-center gap-1">
-                    <AlertTriangle size={14} />
-                    <span>تنبيهات الفروقات الحسابية:</span>
-                  </div>
-                  <ul className="list-disc list-inside ps-2 space-y-0.5 text-[11px]">
-                    {previewResult.flags.map((fl, i) => (
-                      <li key={i}>{fl}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setImportDialogOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-[var(--line)] text-xs font-bold hover:bg-[var(--raised)]"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="button"
-                  disabled={!previewResult.canCommit || commitLoading}
-                  onClick={handleCommitImport}
-                  className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 disabled:opacity-50"
-                >
-                  {commitLoading ? 'جاري الاعتماد والتسجيل...' : 'تأكيد وحفظ الفواتير'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </Dialog>
-
-      {/* Modal: Resolve Dispute */}
-      <Dialog
-        open={Boolean(selectedDispute)}
-        onClose={() => setSelectedDispute(null)}
-        title="معالجة وفض نزاع استقطاع CAR"
-        description="توثيق رد المنصة الرسمي. رفض المنصة يتيح نقل المبلغ لحساب النزاعات 112803 للسماح بترحيل الفاتورة دون الإضرار بالمندوب."
-      >
-        {selectedDispute && (
-          <div className="space-y-4">
-            <div className="p-3 rounded-xl bg-[var(--raised)] space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">مبلغ الاعتراض:</span>
-                <span className="font-bold num text-[var(--danger)]">{selectedDispute.amount} ر.س</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">السطر:</span>
-                <span className="font-mono">{selectedDispute.lineId}</span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold">قرار المنصة الرسمي:</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setResolveOutcome('platform_credit')}
-                  className={`p-2.5 rounded-xl border text-xs font-bold text-center transition ${
-                    resolveOutcome === 'platform_credit'
-                      ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-                      : 'border-[var(--line)] text-[var(--muted)]'
-                  }`}
-                >
-                  المنصة ردّت المبلغ
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setResolveOutcome('platform_rejected')}
-                  className={`p-2.5 rounded-xl border text-xs font-bold text-center transition ${
-                    resolveOutcome === 'platform_rejected'
-                      ? 'border-[var(--warning)] bg-[var(--warning)]/10 text-[var(--warning)]'
-                      : 'border-[var(--line)] text-[var(--muted)]'
-                  }`}
-                >
-                  المنصة رفضت (تصعيد 112803)
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold">مرجع المنصة الرسمي (Platform Reference):</label>
-              <input
-                type="text"
-                value={platformReference}
-                onChange={(e) => setPlatformReference(e.target.value)}
-                placeholder="مثال: HS-TICKET-89421"
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold">بيان وسبب التسوية:</label>
-              <textarea
-                value={resolveReason}
-                onChange={(e) => setResolveReason(e.target.value)}
-                placeholder="اكتب تفاصيل قرار المنصة وسبب التسوية أو التصعيد..."
-                rows={3}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setSelectedDispute(null)}
-                className="px-4 py-2 rounded-xl border border-[var(--line)] text-xs font-bold"
-              >
-                إلغاء
-              </button>
-              <button
-                type="button"
-                disabled={resolvingDispute}
-                onClick={handleResolveDispute}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90"
-              >
-                {resolvingDispute ? 'جاري التسجيل...' : 'تأكيد قرار فض النزاع'}
-              </button>
-            </div>
-          </div>
-        )}
-      </Dialog>
-
-      {/* Modal: TGA Allocation Split Calculator */}
-      <Dialog
-        open={Boolean(selectedAllocation)}
+        open={!!selectedAllocation}
         onClose={() => setSelectedAllocation(null)}
-        title="تحديد تقسيم مبالغ TGA"
-        description="تحديد نصيب الشركة ونصيب المندوب؛ لا يوجد تقسيم افتراضي، ويجب التحقق من التوازن قبل الحفظ."
+        title="توزيع مبالغ TGA بين الشركة والمناديب"
       >
         {selectedAllocation && (
-          <div className="space-y-4">
-            <div className="p-3 rounded-xl bg-[var(--raised)] flex justify-between items-center text-xs">
-              <span className="text-[var(--muted)]">إجمالي مبلغ السطر:</span>
-              <span className="font-bold text-sm num text-[var(--ink)]">{selectedAllocation.amount} ر.س</span>
+          <div className="space-y-4 pt-2">
+            <div className="p-3 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">معرف التوزيع:</span>
+                <span className="font-mono font-bold">{selectedAllocation.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">إجمالي مبلغ TGA:</span>
+                <span className="num font-bold text-[var(--accent)]">
+                  {selectedAllocation.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center rounded-xl bg-[var(--raised)] p-1 border border-[var(--line)]">
+            <div className="flex rounded-xl bg-[var(--raised)] p-1 border border-[var(--line)]">
               <button
                 type="button"
                 onClick={() => setSplitMode('amount')}
@@ -1362,7 +1141,7 @@ export default function PayrollPage() {
                   splitMode === 'amount' ? 'bg-[var(--surface)] text-[var(--accent)] shadow-xs' : 'text-[var(--muted)]'
                 }`}
               >
-                تقسيم بالمبلغ المباشر
+                تحديد المبالغ صراحة (ر.س)
               </button>
               <button
                 type="button"
@@ -1388,7 +1167,7 @@ export default function PayrollPage() {
                     max="100"
                     value={splitRiderPercent}
                     onChange={(e) => setSplitRiderPercent(e.target.value)}
-                    className="w-full"
+                    className="w-full cursor-pointer"
                   />
                 </div>
                 <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)] space-y-1 text-xs">
@@ -1435,21 +1214,21 @@ export default function PayrollPage() {
             )}
 
             <div className="space-y-1">
-              <label className="text-xs font-bold">معرّف المندوب أو الإقامة (لحساب 112502):</label>
+              <label className="text-xs font-bold">رقم إقامة أو معرف المندوب المستفيد:</label>
               <input
                 type="text"
+                placeholder="2000000789"
                 value={splitRiderId}
                 onChange={(e) => setSplitRiderId(e.target.value)}
-                placeholder="أدخل رقم الإقامة أو معرّف المندوب..."
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs num focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs font-mono focus:outline-hidden"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="pt-3 border-t border-[var(--line)] flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setSelectedAllocation(null)}
-                className="px-4 py-2 rounded-xl border border-[var(--line)] text-xs font-bold"
+                className="px-4 py-2 rounded-xl border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:bg-[var(--raised)] transition"
               >
                 إلغاء
               </button>
@@ -1457,7 +1236,7 @@ export default function PayrollPage() {
                 type="button"
                 disabled={savingSplit}
                 onClick={handleSaveTgaSplit}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90"
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition disabled:opacity-50 cursor-pointer"
               >
                 {savingSplit ? 'جاري الحفظ...' : 'حفظ مقترح التوزيع'}
               </button>
@@ -1465,6 +1244,115 @@ export default function PayrollPage() {
           </div>
         )}
       </Dialog>
+
+      {/* ======================================================== */}
+      {/* DISPUTE RESOLVE DIALOG                                   */}
+      {/* ======================================================== */}
+      <Dialog
+        open={!!selectedDispute}
+        onClose={() => setSelectedDispute(null)}
+        title="فض نزاع استقطاع CAR مع المنصة"
+      >
+        {selectedDispute && (
+          <div className="space-y-4 pt-2">
+            <div className="p-3 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">معرف النزاع:</span>
+                <span className="font-mono font-bold">{selectedDispute.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">المبلغ المتنازع عليه:</span>
+                <span className="num font-bold text-[var(--danger)]">
+                  {selectedDispute.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold">قرار فض النزاع:</label>
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-2 text-xs cursor-pointer p-2 rounded-lg border border-[var(--line)] hover:bg-[var(--raised)]">
+                  <input
+                    type="radio"
+                    name="outcome"
+                    value="platform_credit"
+                    checked={resolveOutcome === 'platform_credit'}
+                    onChange={() => setResolveOutcome('platform_credit')}
+                  />
+                  <span>موافقة المنصة وإصدار إشعار دائن (Platform Credit Note)</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer p-2 rounded-lg border border-[var(--line)] hover:bg-[var(--raised)]">
+                  <input
+                    type="radio"
+                    name="outcome"
+                    value="platform_rejected"
+                    checked={resolveOutcome === 'platform_rejected'}
+                    onChange={() => setResolveOutcome('platform_rejected')}
+                  />
+                  <span>رفض المنصة وتصعيد النزاع لحساب 112803 (BR §23.2)</span>
+                </label>
+              </div>
+            </div>
+
+            {resolveOutcome === 'platform_credit' && (
+              <div className="space-y-1">
+                <label className="text-xs font-bold">رقم مرجع إشعار الدائن من المنصة:</label>
+                <input
+                  type="text"
+                  placeholder="CR-2026-XXXX"
+                  value={platformReference}
+                  onChange={(e) => setPlatformReference(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs font-mono focus:outline-hidden"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold">السبب والملاحظات:</label>
+              <textarea
+                rows={2}
+                placeholder="أدخل مبررات القرار أو مستندات المنصة..."
+                value={resolveReason}
+                onChange={(e) => setResolveReason(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs focus:outline-hidden"
+              />
+            </div>
+
+            <div className="pt-3 border-t border-[var(--line)] flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedDispute(null)}
+                className="px-4 py-2 rounded-xl border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:bg-[var(--raised)] transition"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={resolvingDispute}
+                onClick={handleResolveDispute}
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition disabled:opacity-50 cursor-pointer"
+              >
+                {resolvingDispute ? 'جاري الفض...' : 'تأكيد قرار فض النزاع'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
+  );
+}
+
+export default function PayrollPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-4 p-6">
+          <Skeleton className="h-12 w-48 rounded-xl" />
+          <Skeleton className="h-28 w-full rounded-2xl" />
+        </div>
+      }
+    >
+      <PayrollPageInner />
+    </Suspense>
   );
 }

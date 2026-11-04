@@ -1037,4 +1037,7 @@ export const api = {
       body: JSON.stringify(spec),
     }),
   getImportBatches: () => handleRequest<any[]>('/imports'),
+
+  // Legacy Policies
+  getPolicies: () => handleRequest<any[]>('/policies'),
 };
