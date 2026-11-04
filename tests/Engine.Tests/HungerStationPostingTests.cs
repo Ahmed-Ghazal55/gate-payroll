@@ -44,6 +44,23 @@ public sealed class HungerStationPostingTests
         ResolveCar(f,id);Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.ApproveInvoice(c,tx,Checker,id,Confirm(preview))));var fresh=f.Store.Read(c=>HungerStationInvoices.Proposal(c,Checker,id));Assert.IsTrue(fresh["rows"]![0].B("postingAllowed"));Assert.AreEqual("posted",Approve(f,id).S("accountingStatus"));Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"journal").Count));
     }
     [TestMethod]
+    public void PlatformRejectedCarPostsWithTheAmountHeldInDisputesAndNoRiderCharge()
+    {
+        using var f=new HungerStationInvoiceTests.Fixture();string id=Import(f,f.Input(HungerStationInvoiceTests.Workbook(f.Cr(),car:50)));Gate(f,true);
+        Assert.ThrowsExactly<ApiError>(()=>Approve(f,id));
+        var claim=f.Store.Read(c=>Store.List(c,"platform_dispute").Single(d=>d.S("invoiceId")==id&&d.S("category")=="CAR"));
+        JsonObject Reject()=>new(){["mode"]="dispute",["disputeId"]=claim.S("id"),["outcome"]="platform_rejected",["platformReference"]="synthetic-platform-rejection",["reason"]="Synthetic platform rejected the claim"};
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,Maker,id,Reject())));
+        var escalated=f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,Checker,id,Reject()));Assert.AreEqual("escalated",escalated.S("status"));
+        var posted=Approve(f,id);Assert.AreEqual("posted",posted.S("accountingStatus"));Assert.IsTrue(posted.B("settlementHold"));
+        var lines=f.Store.Read(c=>Store.Get(c,posted.S("journalEntryId"),"journal")!["lines"]!.AsArray().OfType<JsonObject>().ToList());
+        Assert.AreEqual(lines.Sum(l=>l.N("debit")),lines.Sum(l=>l.N("credit")));Assert.AreEqual(50m,lines.Where(l=>l.S("accountCode")=="112803").Sum(l=>l.N("debit")));
+        Assert.IsFalse(lines.Any(l=>l.S("accountCode") is "112502" or "212103"&&l.N("debit")>0));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
+        Assert.AreEqual("escalated",f.Store.Read(c=>Store.Get(c,claim.S("id"),"platform_dispute")!.S("status")));
+        var other=f.Store.Write((c,tx)=>HungerStationInvoices.Dispute(c,tx,Maker,id,new(){["lineId"]=claim.S("lineId"),["category"]="OTHER",["amount"]=10,["reason"]="Synthetic other claim"}));
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,Checker,id,new(){["mode"]="dispute",["disputeId"]=other.S("id"),["outcome"]="platform_rejected",["platformReference"]="x",["reason"]="Synthetic"})));
+    }
+    [TestMethod]
     public void TargetAndMissingFactsBlockUntilIndependentFactRevision()
     {
         using var f=new HungerStationInvoiceTests.Fixture();var input=f.Input(HungerStationInvoiceTests.Workbook(f.Cr()));input["lineFacts"]=new JsonArray(new JsonObject{["platformId"]="SYN-ACCOUNT-1",["scheme"]="target"});string id=Import(f,input);var error=Assert.ThrowsExactly<ApiError>(()=>Approve(f,id));StringAssert.Contains(error.Message,"التارجت");

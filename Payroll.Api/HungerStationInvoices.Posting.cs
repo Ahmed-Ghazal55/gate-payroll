@@ -15,13 +15,17 @@ public static partial class HungerStationInvoices
         {var line=lines.Single(l=>l.S("id")==patch.S("lineId"));foreach(var field in patch.Where(p=>p.Key!="lineId"))line[field.Key]=field.Value?.DeepClone();}
         return lines;
     }
+    // BR §23.2 exception: a CAR claim the platform rejected stays open but lets the invoice post with W held in 112803.
+    static bool RejectedCar(JsonObject d)=>d.S("category")=="CAR"&&d.S("status")=="escalated"&&d.S("outcome")=="platform_rejected"&&d.S("rejectionRecordedBy")!=""&&d.S("platformReference")!="";
+    static bool CreditedCar(JsonObject d)=>d.S("category")=="CAR"&&d.S("status")=="resolved"&&d.S("outcome")=="platform_credit"&&d.S("resolvedBy")!=""&&d.S("platformReference")!="";
+    static bool EscalatedCar(DbConnection c,DbTransaction? tx,string id)=>Store.List(c,"platform_dispute",tx).Any(d=>d.S("invoiceId")==id&&RejectedCar(d));
     static bool HasUnresolvedDispute(DbConnection c,DbTransaction? tx,string id)
     {
         var disputes=Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==id).ToList();
-        if(disputes.Any(d=>d.S("status")!="resolved"))return true;
-        // A nonzero CAR source needs positive resolution evidence, even if a claim is missing.
+        if(disputes.Any(d=>d.S("status")!="resolved"&&!RejectedCar(d)))return true;
+        // A nonzero CAR source needs a platform credit or a recorded platform rejection, even if a claim is missing.
         return Store.List(c,"platform_invoice_line",tx).Where(l=>l.S("invoiceId")==id&&l.S("lineType")=="company"&&l.N("carDeduction")!=0)
-            .Any(l=>!disputes.Any(d=>d.S("lineId")==l.S("id")&&d.S("category")=="CAR"&&d.S("status")=="resolved"&&d.S("outcome")=="platform_credit"&&d.S("resolvedBy")!=""&&d.S("platformReference")!=""));
+            .Any(l=>!disputes.Any(d=>d.S("lineId")==l.S("id")&&(CreditedCar(d)||RejectedCar(d))));
     }
     public static void DemandResolvedDisputes(DbConnection c,DbTransaction? tx,string id)
     {if(HasUnresolvedDispute(c,tx,id))throw new ApiError("ترحيل الفاتورة متوقف بالكامل حتى حسم الاعتراض؛ فتح بوابة الترحيل لا يتجاوز الاعتراض.",409);}
@@ -57,7 +61,7 @@ public static partial class HungerStationInvoices
         {
             Add("112802",invoice.N("amountExclVat")+invoice.N("vat"),0,"فاتورة الخدمة والضريبة");Add("411102",0,salary,"إيراد نظام الراتب");
             foreach(var row in work.Where(l=>l.S("scheme")=="commission")){Add("212103",0,row.N("riderNet"),"مستحق المندوب المعتمد",row.S("riderId"));Add("411601",0,row.N("companyCommission"),"عمولة هنقر المعتمدة");}
-            Add("213201",0,invoice.N("vat"),"ضريبة الفاتورة");Add("112803",disputed,0,"مطالبة CAR بعد حسم الاعتراض دون تحميل أي طرف");Add("112802",0,disputed,"فصل المبلغ المتنازع عليه");
+            Add("213201",0,invoice.N("vat"),"ضريبة الفاتورة");Add("112803",disputed,0,"مبلغ CAR في حساب النزاعات دون تحميل أي طرف");Add("112802",0,disputed,"فصل المبلغ المتنازع عليه");
             foreach(var allocation in allocations)
             {
                 foreach(var share in allocation["riderShares"]!.AsArray().OfType<JsonObject>())Add("112502",share.N("amount"),0,"نصيب المندوب المعتمد من TGA",share.S("riderId"));
@@ -79,7 +83,7 @@ public static partial class HungerStationInvoices
         if(proposal.B("postingEnabled"))DemandResolvedDisputes(c,tx,id);
         bool first=invoice.S("approvalStatus")!="approved";
         if(first){invoice["approvalStatus"]="approved";invoice["approvedBy"]=actor.Identity!.Name;invoice["approvedAt"]=DateTimeOffset.UtcNow.ToString("O");}
-        bool hold=HasUnresolvedDispute(c,tx,id);invoice["settlementHold"]=hold;invoice["status"]=hold?"disputed":"approved";
+        bool hold=HasUnresolvedDispute(c,tx,id);invoice["settlementHold"]=hold||EscalatedCar(c,tx,id);invoice["status"]=hold?"disputed":"approved";
         if(proposal.B("postingEnabled"))
         {var journal=PlatformPosting.Post(c,tx,proposal.S("period"),"HS-INVOICE:"+id,proposal["lines"]!.DeepClone().AsArray(),actor.Identity!.Name!);invoice["journalEntryId"]=journal.S("id");invoice["accountingStatus"]="posted";invoice["postedBy"]=actor.Identity!.Name;
             foreach(var claim in Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==id&&d.S("status")=="resolved"&&d.S("outcome")=="platform_credit"))

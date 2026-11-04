@@ -23,9 +23,18 @@ public static partial class HungerStationInvoices
     {
         string mode=input.Required("mode");if(mode=="facts")return ReviseFacts(c,tx,actor,id,input);if(mode=="request_reversal")return RequestReversal(c,tx,actor,id,input);
         J.Need(mode=="dispute","نوع معالجة غير معروف.");Scope(actor,"platforms.hs.approve");var invoice=GetInvoice(c,tx,actor,id).Clone();var dispute=Store.Get(c,input.Required("disputeId"),"platform_dispute",tx)?.Clone()??throw new ApiError("الاعتراض غير موجود.",404);J.Need(dispute.S("invoiceId")==id,"الاعتراض لا يخص الفاتورة.");Independent(actor,dispute);
-        if(dispute.S("status")=="resolved")return dispute;J.Need(input.S("outcome")=="platform_credit"&&input.S("platformReference").Length is >0 and <=120&&input.S("reason").Length is >0 and <=500,"إثبات رد المنصة الدائن ومرجعه وسببه مطلوب؛ لا يحمل CAR لأي طرف.");
+        if(dispute.S("status")=="resolved")return dispute;string outcome=input.S("outcome");J.Need(outcome is "platform_credit" or "platform_rejected"&&input.S("platformReference").Length is >0 and <=120&&input.S("reason").Length is >0 and <=500,"إثبات رد المنصة ومرجعه وسببه مطلوب؛ لا يحمل CAR لأي طرف.");
+        if(outcome=="platform_rejected")
+        {
+            // BR §23.2 exception: the platform rejected the claim. The dispute stays open (escalated); the invoice may post with W held in 112803.
+            J.Need(dispute.S("category")=="CAR","رفض المنصة يسمح بالترحيل لاعتراض CAR فقط؛ باقي الاعتراضات تنتظر الحسم.");
+            if(dispute.S("status")=="escalated")return dispute;
+            dispute["status"]="escalated";dispute["outcome"]="platform_rejected";dispute["platformReference"]=input.S("platformReference");dispute["rejectionReason"]=input.S("reason");dispute["rejectionRecordedBy"]=actor.Identity!.Name;dispute["rejectionRecordedAt"]=DateTimeOffset.UtcNow.ToString("O");dispute["accountingReconciliation"]="held_in_disputes_112803";
+            Store.Save(c,"platform_dispute",dispute,tx);Store.Audit(c,tx,"platform.hs.dispute_rejected_by_platform",dispute.S("id"),actor.Identity!.Name!);
+            invoice["settlementHold"]=true;invoice["status"]=HasUnresolvedDispute(c,tx,id)?"disputed":invoice.S("approvalStatus")=="approved"?"approved":"pending_review";Store.Save(c,"platform_invoice",invoice,tx);Store.Audit(c,tx,"platform.hs.invoice_response_recorded",id,actor.Identity!.Name!);return dispute;
+        }
         dispute["status"]="resolved";dispute["outcome"]="platform_credit";dispute["platformReference"]=input.S("platformReference");dispute["resolutionReason"]=input.S("reason");dispute["resolvedBy"]=actor.Identity!.Name;dispute["resolvedAt"]=DateTimeOffset.UtcNow.ToString("O");dispute["accountingReconciliation"]=invoice.S("journalEntryId")==""?"no_posted_claim":"pending_reversal_or_credit_note";Store.Save(c,"platform_dispute",dispute,tx);Store.Audit(c,tx,"platform.hs.dispute_resolved",dispute.S("id"),actor.Identity!.Name!);
-        bool open=Store.List(c,"platform_dispute",tx).Any(d=>d.S("invoiceId")==id&&d.S("status")!="resolved");invoice["settlementHold"]=open||invoice.S("journalEntryId")!="";invoice["status"]=open?"disputed":invoice.S("approvalStatus")=="approved"?"approved":"pending_review";Store.Save(c,"platform_invoice",invoice,tx);Store.Audit(c,tx,"platform.hs.invoice_response_recorded",id,actor.Identity!.Name!);return dispute;
+        bool open=HasUnresolvedDispute(c,tx,id);invoice["settlementHold"]=open||EscalatedCar(c,tx,id)||invoice.S("journalEntryId")!="";invoice["status"]=open?"disputed":invoice.S("approvalStatus")=="approved"?"approved":"pending_review";Store.Save(c,"platform_invoice",invoice,tx);Store.Audit(c,tx,"platform.hs.invoice_response_recorded",id,actor.Identity!.Name!);return dispute;
     }
     public static void MapReview(RouteGroupBuilder api,Store store)
     {
@@ -42,7 +51,7 @@ public static partial class HungerStationInvoices
         })).WithTags("Platforms").WithSummary("Read signed invoice proposals or unpostable CR-002 fact mappings");
         api.MapPost("/platforms/hs/invoices/{id}/approve",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>input.S("reversalRequestId")!=""?ApproveReversal(c,tx,ctx.User,id,input.S("reversalRequestId")):ApproveInvoice(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Independently approve signed HS facts or an open-period reversal; gated posting");
         api.MapPost("/platforms/hs/invoices/{id}/dispute",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Dispute(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Raise an audited formal HS line dispute without charging a rider");
-        api.MapPost("/platforms/hs/invoices/{id}/resolve",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Resolve(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Propose immutable fact correction/reversal or independently record platform credit response");
+        api.MapPost("/platforms/hs/invoices/{id}/resolve",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Resolve(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Propose immutable fact correction/reversal or independently record the platform credit or rejection response");
         api.MapPost("/platforms/hs/allocations/{lineId}",(string lineId,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Split(c,tx,ctx.User,lineId,input))).WithTags("Platforms").WithSummary("Propose an explicit TGA company/rider split; no default");
         api.MapPost("/platforms/hs/allocations/{id}/approve",(string id,HttpContext ctx)=>store.Write((c,tx)=>ApproveAllocation(c,tx,ctx.User,id))).WithTags("Platforms").WithSummary("Approve latest TGA split with independent finance checker");
     }
