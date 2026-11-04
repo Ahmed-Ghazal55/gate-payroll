@@ -14,8 +14,8 @@ public sealed class ConsistentSyncTests
         Assert.AreEqual(4,calls);Assert.AreEqual(2,attempts);Assert.AreEqual("ordered_double_read_stable",result.Consistency);
         calls=0;Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Read(()=>Snapshot(++calls),out _));Assert.AreEqual(6,calls);
     }
-    static Dictionary<string,JsonObject> Existing(int n)=>Enumerable.Range(0,n).ToDictionary(i=>"synthetic-"+i,i=>new JsonObject{["id"]="synthetic-"+i,["__targetKind"]="rider",["erpSource"]="rider",["erpSourceId"]="source-"+i});
-    static ImportSummary Summary(int added,int changed,int unchanged)=>new(DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,"synthetic",false,[new("rider",added+changed+unchanged,added,changed,unchanged,0,100)],[],[],[],[]);
+    static Dictionary<string,JsonObject> Existing(int n,string kind="rider")=>Enumerable.Range(0,n).ToDictionary(i=>"synthetic-"+i,i=>new JsonObject{["id"]="synthetic-"+i,["__targetKind"]=kind,["erpSource"]=kind,["erpSourceId"]="source-"+i});
+    static ImportSummary Summary(int added,int changed,int unchanged,string kind="rider")=>new(DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,"synthetic",false,[new(kind,added+changed+unchanged,added,changed,unchanged,0,100)],[],[],[],[]);
     [TestMethod]
     public void CountAndChangeThresholdsAreInclusiveAndManualRecordsAreExcluded()
     {
@@ -24,6 +24,50 @@ public sealed class ConsistentSyncTests
         Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(Summary(0,11,89),existing));
         Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(Summary(0,0,97),existing));
         Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(Summary(1,0,0),[]));
+    }
+    [TestMethod]
+    public void SmallKindsAndAbsoluteBoundariesAllowNormalDailyChanges()
+    {
+        foreach(string kind in new[]{"company","commercial_registration","city"})
+        {ConsistentSync.Validate(Summary(0,1,2,kind),Existing(3,kind));ConsistentSync.Validate(Summary(0,0,2,kind),Existing(3,kind));Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(Summary(0,0,1,kind),Existing(3,kind)));}
+        ConsistentSync.Validate(Summary(0,5,25),Existing(30));Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(Summary(0,6,24),Existing(30)));
+        ConsistentSync.Validate(Summary(0,0,49),Existing(50));Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(Summary(0,0,48),Existing(50)));
+    }
+    [TestMethod]
+    public void NewKindAcceptanceIsExplicitPerKindAndSeparateFromLargeChangeAcceptance()
+    {
+        foreach(string kind in new[]{"legal_case","city"}.Concat(ImportPlan.Kinds.Where(k=>k.StartsWith("hs_",StringComparison.Ordinal))))
+        {
+            var summary=Summary(6,0,0,kind);Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(summary,[]));
+            Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(summary,[],SyncOverrides.Parse(["--accept-large-change",kind])));
+            ConsistentSync.Validate(summary,[],SyncOverrides.Parse(["--accept-new-kind",kind]));
+        }
+        Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(Summary(1,0,0,"legal_case"),[],SyncOverrides.Parse(["--accept-new-kind","city"])));
+        ConsistentSync.Validate(Summary(0,0,0),[]);
+    }
+    [TestMethod]
+    public void ReviewedLargeChangesArePerKindAndDoNotRemoveMissingTargetRows()
+    {
+        var options=SyncOverrides.Parse(["--accept-large-change","rider"]);var before=Existing(100);
+        ConsistentSync.Validate(Summary(0,11,89),before,options);ConsistentSync.Validate(Summary(0,0,97),before,options);
+        Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(Summary(0,11,89),before,SyncOverrides.Parse(["--accept-large-change","city"])));
+        string directory=Path.Combine(Path.GetTempPath(),"gate-sync-retain-"+Guid.NewGuid().ToString("N"));
+        try
+        {
+            var target=new Store(directory);target.Write((c,tx)=>{foreach(var row in before.Values){var doc=row.Clone();doc.Remove("__targetKind");Store.Save(c,"rider",doc,tx);}return true;});
+            var source=Snapshot(1);var plan=new ImportPlan();var existing=target.Read(ImportExecutor.Target);string raw=System.Text.Json.JsonSerializer.Serialize(existing);
+            var preview=ImportExecutor.Run(source,plan,existing);ConsistentSync.Validate(preview,existing,options);
+            var committed=ImportExecutor.Run(source,plan,existing,target);Assert.IsTrue(committed.Committed);Assert.AreEqual(raw,System.Text.Json.JsonSerializer.Serialize(target.Read(ImportExecutor.Target)));
+        }
+        finally{Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();if(Directory.Exists(directory))Directory.Delete(directory,true);}
+
+    }
+    [TestMethod]
+    public void OverrideArgumentsAreRepeatableDeduplicatedAndValidatedBeforeConnections()
+    {
+        var options=SyncOverrides.Parse(["--live","--accept-new-kind","city","--accept-new-kind","legal_case","--accept-new-kind","city","--accept-large-change","rider","--accept-large-change","city"]);
+        CollectionAssert.AreEqual(new[]{"city","legal_case"},options.AcceptNewKinds.ToArray());CollectionAssert.AreEqual(new[]{"city","rider"},options.AcceptLargeChanges.ToArray());
+        foreach(string[] invalid in new[]{new[]{"--accept-new-kind"},new[]{"--accept-large-change"},new[]{"--accept-new-kind","unknown"},new[]{"--accept-large-change","--live"}})Assert.AreEqual("invalid_sync_override_kind",Assert.ThrowsExactly<ImportFailure>(()=>SyncOverrides.Parse(invalid)).Code);
     }
     [TestMethod]
     public void VerifiedCertificateFieldsSurviveAnOperationalRefresh()
@@ -38,9 +82,10 @@ public sealed class ConsistentSyncTests
         string directory=Path.Combine(Path.GetTempPath(),"gate-sync-log-"+Guid.NewGuid().ToString("N"));
         try
         {
-            SyncRunLog.Write(directory,"completed",Summary(0,0,100),1);SyncRunLog.Write(directory,"refused",null,3,"source_inconsistent_after_three_attempts");
+            var options=SyncOverrides.Parse(["--accept-new-kind","city","--accept-large-change","rider"]);
+            SyncRunLog.Write(directory,"completed",Summary(0,0,100),1,overrides:options);SyncRunLog.Write(directory,"refused",null,3,"source_inconsistent_after_three_attempts",options);
             Assert.AreEqual(2,Directory.GetFiles(directory).Length);
-            foreach(string path in Directory.GetFiles(directory)){var json=JsonNode.Parse(File.ReadAllText(path))!.AsObject();Assert.IsFalse(json.ContainsKey("rows"));Assert.IsFalse(json.ContainsKey("fingerprints"));if(!OperatingSystem.IsWindows())Assert.AreEqual(UnixFileMode.UserRead|UnixFileMode.UserWrite,File.GetUnixFileMode(path));}
+            foreach(string path in Directory.GetFiles(directory)){var json=JsonNode.Parse(File.ReadAllText(path))!.AsObject();Assert.IsFalse(json.ContainsKey("rows"));Assert.IsFalse(json.ContainsKey("fingerprints"));Assert.AreEqual("city",json["acceptNewKinds"]![0]!.ToString());Assert.AreEqual("rider",json["acceptLargeChanges"]![0]!.ToString());if(!OperatingSystem.IsWindows())Assert.AreEqual(UnixFileMode.UserRead|UnixFileMode.UserWrite,File.GetUnixFileMode(path));}
             if(!OperatingSystem.IsWindows())Assert.AreEqual(UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute,File.GetUnixFileMode(directory));
         }
         finally{Directory.Delete(directory,true);}

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Codex (R2 backend) |
+| Current writer | Codex (R2 fix1) |
 | Branch | feat/r2-m1 from main e776f78 |
 | Live | 0.10.2 (e776f78) |
 | Updated | 2026-11-04 by Codex |
@@ -17,6 +17,7 @@ R2 backend: M1 0.11.0 on feat/r2-m1, then M2 0.12.0 on stacked feat/r2-m2. Backe
 - COA --check failed as expected (resource 396 versus approved spec 403); assigned to M2.0.
 
 ## Done
+- Fix1 F1: per-kind absolute/percentage sync thresholds, explicit repeatable new-kind/large-change acceptance and allowlisted overrides in private counts-only logs. Seventeen synthetic import/guard tests and CLI validation passed; staging is untouched in fix1.
 - M1.5 complete: release 0.11.0 prepared locally, including allowed footer/package/deploy version touchpoints; route inventory regenerated (157 API routes, six existing deprecations retained). No push/merge/deploy.
 - M1 final: .NET 158 passed / 0 failed / 6 optional SQL-backed cases skipped; Python 26 passed; all 11 standalone HTTP and six browser suites passed. Build clean; source boundary 163 files. COA expected mismatch remains assigned to M2.0.
 - M1.4 complete: shared SVG favicon and ICO alias on legacy/forms/questionnaires/inquiry/rider app; both payload assets required and hashed. Protected legacy index is verified by FTPS, not unsigned HTTP.

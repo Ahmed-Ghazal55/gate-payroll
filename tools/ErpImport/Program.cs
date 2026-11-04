@@ -4,11 +4,11 @@ using ErpImport;
 using Payroll;
 
 string phase="arguments";
-bool live=args.Contains("--live");int attempts=0;ImportSummary? lastSummary=null;
+bool live=args.Contains("--live");int attempts=0;ImportSummary? lastSummary=null;SyncOverrides overrides=SyncOverrides.None;
 bool Log(string status,string? code=null)
 {
     if(!live)return true;
-    try {SyncRunLog.Write(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Private/gate-data/sync-logs"),status,lastSummary,attempts,code);return true;}
+    try {SyncRunLog.Write(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Private/gate-data/sync-logs"),status,lastSummary,attempts,code,overrides);return true;}
     catch {Console.Error.WriteLine("ERROR sync_log_unavailable");return false;}
 }
 try
@@ -16,8 +16,9 @@ try
     string? Arg(string name)=>args.SkipWhile(a=>a!=name).Skip(1).FirstOrDefault();
     if(args.Contains("--help"))
     {
-        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--report COUNTS_JSON] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities]");return 0;
+        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities]");return 0;
     }
+    overrides=SyncOverrides.Parse(args);
     if(args.Contains("--commit")&&args.Contains("--dry-run"))throw new ImportFailure("conflicting_modes");
     if(live&&(args.Contains("--local-copy")||args.Contains("--source")||args.Contains("--companies-input")))throw new ImportFailure("conflicting_source_modes");
     if(live&&args.Contains("--commit")&&!args.Contains("--consistent"))throw new ImportFailure("live_commit_requires_consistent");
@@ -56,7 +57,7 @@ try
     var snapshot=args.Contains("--consistent")?ConsistentSync.Read(()=>SourceReader.Read(source,false),out attempts):SourceReader.Read(source);
     var plan=ImportPlan.Build(snapshot);
     lastSummary=ImportExecutor.Run(snapshot,plan,existing);
-    if(live||args.Contains("--consistent"))ConsistentSync.Validate(lastSummary,existing);
+    if(live||args.Contains("--consistent"))ConsistentSync.Validate(lastSummary,existing,overrides);
     Store? targetStore=null;
     phase="initializing_target_store";
     if(args.Contains("--commit"))targetStore=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),targetConnection);
