@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Codex (R2 backend) |
-| Branch | feat/r2-m2 rebased on feat/r2-m1 5f9149d (main e776f78) |
-| Live | 0.10.2 (e776f78); local M1 prepared at 0.11.0 |
+| Current writer | Codex (R2 fix1) |
+| Branch | feat/r2-m2 from feat/r2-m1 5f9149d (main e776f78) |
+| Live | 0.10.2 (e776f78); local M1 0.11.0 / M2 0.12.0 ready for review |
 | Updated | 2026-11-04 by Codex |
 
 ## Goal now
-R2 ordered backend milestones: M1 0.11.0 is complete on feat/r2-m1; M2 0.12.0 HS finance intake is in progress on this stacked branch. No web/Frontend/RiderForm source changes outside the prompt's favicon/version exceptions. Production is never written.
+R2 ordered backend milestones: M1 0.11.0 is complete on feat/r2-m1; M2 0.12.0 HS finance intake is complete on this stacked branch. No web/Frontend/RiderForm source changes outside the prompt's favicon/version exceptions. Production is never written.
 
 ## Baseline before R2
 - Build clean; .NET 149 passed / 0 failed / 6 optional SQL-backed cases skipped; Python 24 passed; ten HTTP and six browser suites passed. NuGet local cache only. COA expected mismatch (396→403) assigned to M2.0.
@@ -21,21 +21,23 @@ R2 ordered backend milestones: M1 0.11.0 is complete on feat/r2-m1; M2 0.12.0 HS
 - 0f86fa4 M1.5: 0.11.0 version touchpoints + generated inventory (157 API routes, six existing deprecations). Final .NET 158 passed / 0 failed / 6 SQL skipped; Python 26 passed; eleven HTTP and six browser suites passed; source boundary 163 files.
 
 ## M2 done
-- M2.6: ten scoped paginated review routes, signed approvals, formal disputes/responses, explicit TGA split/reversal actions; live role defaults for existing users and target-journal read scope. Twenty-three focused .NET tests and 82 R2 HTTP checks passed; inventory 171 API routes / six existing deprecations.
-- M2.5: five optional CR-002 contracts discovered by columns, source-not-available counts, immutable approved-fact keys/reversal rows, preview-only account mapping and D20 unknown blockers. Eighteen import/consistency/facts tests passed; no live ERP pull or posting.
-- M2.4: signed independent facts approval and gated salary/commission/VAT/CAR/TGA journals; target blocks in Arabic. Append-only fact revisions, open-period independent reversal, explicit replacement and deduction cancellation; original journals/source lines retained. Four new behavior tests passed.
-- M2.3: approved platformDeducted category/rider/month tags, idempotent audit, stage-2 skip with rider/month/platform isolation and payroll fingerprint binding. Full .NET 172 passed / 0 failed / 6 SQL skipped, including three new deduction behavior tests.
-- M2.2: HS XLSX signed preview/commit, header/month matching, exact VAT/components/orders checks, flags-only V/Z and T-Z/AA, private original evidence, idempotent company/CR/period keys. CAR creates scoped dispute/notice; TGA requires explicit independently approved allocations; Car Damage remains separate.
+- M2.7: 0.12.0 prepared; build zero warnings/errors; final .NET 184 passed / 0 failed / 6 optional SQL cases skipped, Python 26 passed, eleven HTTP and six browser suites passed. COA --check, 179-file source boundary, frontend scope and diff checks passed.
+- c528e42 M2.6: ten scoped paginated review routes, signed approvals, formal disputes/responses, explicit TGA split/reversal actions; live role defaults for existing users and target-journal read scope. Twenty-three focused .NET tests and 82 R2 HTTP checks passed; inventory 171 API routes / six existing deprecations.
+- 7b74edd M2.5: five optional CR-002 contracts discovered by columns, source-not-available counts, immutable approved-fact keys/reversal rows, preview-only account mapping and D20 unknown blockers. Eighteen import/consistency/facts tests passed; no live ERP pull or posting.
+- bbe0aee M2.4: signed independent facts approval and gated salary/commission/VAT/CAR/TGA journals; target blocks in Arabic. Append-only fact revisions, open-period independent reversal, explicit replacement and deduction cancellation; original journals/source lines retained. Four new behavior tests passed.
+- ef237d4 M2.3: approved platformDeducted category/rider/month tags, idempotent audit, stage-2 skip with rider/month/platform isolation and payroll fingerprint binding. Full .NET 172 passed / 0 failed / 6 SQL skipped, including three new deduction behavior tests.
+- d561758 M2.2: HS XLSX signed preview/commit, header/month matching, exact VAT/components/orders checks, flags-only V/Z and T-Z/AA, private original evidence, idempotent company/CR/period keys. CAR creates scoped dispute/notice; TGA requires explicit independently approved allocations; Car Damage remains separate.
 - M2.2 checks: full .NET 169 passed / 0 failed / 6 SQL skipped; nine HS workbook/rollback/scope/operator tests and 41 R2 HTTP checks passed. Import/allocation never creates journals or rider debts.
-- M2.1: default-off per-platform settings (administrator + audit); explicit HS target-chart path reuses FinancialCore/AccountingPolicy, refuses legacy 1241/2141 and preserves legacy behavior. Sixteen posting/report tests plus 38 R2 HTTP checks passed.
-- M2.0: regenerated approved COA: 403 accounts, 227 active posting, sources 294 excel / 28 modified / 81 new, including all seven approved additions. Generator --check, 14 finance behavior tests, HTTP and browser finance suites passed.
+- 3fa7c63 M2.1: default-off per-platform settings (administrator + audit); explicit HS target-chart path reuses FinancialCore/AccountingPolicy, refuses legacy 1241/2141 and preserves legacy behavior. Sixteen posting/report tests plus 38 R2 HTTP checks passed.
+- d429d1a M2.0: regenerated approved COA: 403 accounts, 227 active posting, sources 294 excel / 28 modified / 81 new, including all seven approved additions. Generator --check, 14 finance behavior tests, HTTP and browser finance suites passed.
 
 ## Pending staging / integration
 - M1.2 SELECT-only dry-run proposed 3 changed companies + 3 new registrations. Fresh «حمّل» approval pending; zero new staging writes in R2. Daily sync not run/installed/enabled.
+- HS ERP contracts remain unavailable per CR-002; no live ERP pull in R2. Review/month-close approvals and signed event/counterparty contracts still need ERP evidence. Car Damage auto-posting, credit-note reconciliation and target scheme remain explicitly blocked/pending.
 - Antigravity's separate Next login branch must be combined before release. No push, PR, merge, FTP upload or deployment by Codex.
 
 ## Next step (exact)
-M2.7: bump permitted version touchpoints to 0.12.0, regenerate inventory, build and run all local synthetic .NET/Python/HTTP/browser suites, COA/source checks. Finish handoff for Claude M1 then M2 review. Certificate load still awaits fresh «حمّل»; production and real posting gates are untouched.
+Claude reviews feat/r2-m1 (5fc433a–0f86fa4), then feat/r2-m2 (d429d1a–HEAD). Ghazal combines the separate Next login work before any release. Certificate staging load still requires fresh «حمّل» after its dry-run (3 company changes + 3 new registrations); no staging/production writes, sync enablement, posting-gate changes or deployment occurred.
 
 ## How to verify
 ```bash
@@ -45,6 +47,8 @@ python3 -m unittest discover -s scripts -p 'test_*.py'
 python3 tools/generate_target_coa.py --check
 python3 scripts/release_source.py --check
 node tests/r2-backend.mjs
+# Full validation also ran every executable HTTP/browser tests/*.mjs; financial-fixtures.mjs is a helper.
+# Browsers used PLAYWRIGHT_MODULE=/tmp/gate-browser/node_modules/playwright/index.mjs
 git diff --check
 ```
 
