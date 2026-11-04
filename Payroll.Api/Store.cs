@@ -94,6 +94,7 @@ public sealed partial class Store
     }
     public static void Save(DbConnection c, string kind, JsonObject doc, DbTransaction tx)
     {
+        if(kind=="run")PayCycles.GuardLegacyRun(c,tx,doc);
         if(TryBuffer(tx,kind,doc))return;
         string id = doc.Required("id");
         using var update = Command(c, tx, "UPDATE records SET body=@body WHERE id=@id AND kind=@kind",("@id",id),("@kind",kind),("@body",doc.ToJsonString()));

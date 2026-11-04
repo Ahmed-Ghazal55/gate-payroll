@@ -69,7 +69,7 @@ public static class FinancialScopes
     public static bool Line(ClaimsPrincipal user,JsonObject line)
     {
         if(!Sponsor(user,line.S("sponsorId")))return false;
-        if(line.S("chart")=="target")return AccessPolicy.Has(user,"treasury.journals")&&Platform(user,"HungerStation")&&FinanceViews.Accounts.Any(a=>a.S("code")==line.S("accountCode")&&a.B("posting")&&a.S("status")=="active");
+        if(line.S("chart")=="target")return AccessPolicy.Has(user,"treasury.journals")&&(line["platforms"] is JsonArray apps&&apps.Count>0?apps.All(p=>Platform(user,p!.ToString())):Platform(user,line.S("platform","HungerStation")))&&FinanceViews.Accounts.Any(a=>a.S("code")==line.S("accountCode")&&a.B("posting")&&a.S("status")=="active");
         return FinancialCore.ResolveAccount(line.S("accountCode")).IsVault?Account(user,line.S("accountCode")):AccessPolicy.Has(user,"treasury.journals");
     }
     public static JsonObject? Journal(ClaimsPrincipal user,JsonObject journal)

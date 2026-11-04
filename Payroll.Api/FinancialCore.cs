@@ -318,9 +318,9 @@ public static class FinancialCore
         return false;
     }
 
-    public static JsonObject CreateJournalLine(string accountCode, string sponsorId, decimal debit, decimal credit, string note = "", string iqama = "", string debtId = "", bool targetChart = false)
+    public static JsonObject CreateJournalLine(string accountCode, string sponsorId, decimal debit, decimal credit, string note = "", string iqama = "", string debtId = "", bool targetChart = false, bool payChart = false)
     {
-        var acc = targetChart?AccountingPolicy.ValidateOperation(accountCode,"PlatformInvoice","platform_posting","HungerStation"):ResolveAccount(accountCode);
+        var acc = payChart?PayPosting.Account(accountCode):targetChart?AccountingPolicy.ValidateOperation(accountCode,"PlatformInvoice","platform_posting","HungerStation"):ResolveAccount(accountCode);
         J.Need(AccountingPolicy.PostingAccount(acc.Code),"الحساب تجميعي؛ اختر حساب ترحيل فرعيًا.");
         J.Need(acc.DefaultSponsorId==null||ResolveSponsor(sponsorId).Id==acc.DefaultSponsorId,"السجل لا يطابق ملكية الحساب.");
         var sp = ResolveSponsor(acc.DefaultSponsorId ?? sponsorId);
@@ -354,8 +354,9 @@ public static class FinancialCore
         if(targetChart)line["chart"]="target";return line;
     }
 
-    public static JsonObject PostJournal(DbConnection c, DbTransaction tx, string transactionType, string description, string period, string reference, JsonArray lines, string actor, string iqama = "", string debtId = "", string? originSponsorId = null, string? creditorSponsorId = null, bool targetChart = false,string? reversesJournalId=null)
+    public static JsonObject PostJournal(DbConnection c, DbTransaction tx, string transactionType, string description, string period, string reference, JsonArray lines, string actor, string iqama = "", string debtId = "", string? originSponsorId = null, string? creditorSponsorId = null, bool targetChart = false,string? reversesJournalId=null,bool payChart=false)
     {
+        PayCycles.GuardInvoicePosting(c,tx,reference);
         J.Need(lines.Count >= 2, "القيد المحاسبي المزدوج يتطلب طرفين على الأقل.");
         J.Need(lines.OfType<JsonObject>().Count(l=>l.B("closingLegacyGroup"))<=1,"إقفال الرصيد التاريخي سطر واحد فقط.");
         decimal totalDebit = 0m, totalCredit = 0m;
@@ -365,7 +366,7 @@ public static class FinancialCore
             var l = node!.AsObject();
             JsonObject canonical;
             if(l.B("closingLegacyGroup")){LegacyCashAllocation.ValidateClosing(c,tx,l,transactionType);canonical=l;}
-            else canonical=CreateJournalLine(l.Required("accountCode"),l.Required("sponsorId"),l.N("debit"),l.N("credit"),targetChart:targetChart);
+            else canonical=CreateJournalLine(l.Required("accountCode"),l.Required("sponsorId"),l.N("debit"),l.N("credit"),targetChart:targetChart,payChart:payChart);
             J.Need(canonical.N("debit")==l.N("debit")&&canonical.N("credit")==l.N("credit"),"مبلغ القيد يحتاج تصحيح دقة الهللة.");
             l["lineNo"] = idx++;
             totalDebit = J.Money(totalDebit + l.N("debit"));

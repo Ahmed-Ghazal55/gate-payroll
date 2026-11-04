@@ -46,6 +46,14 @@ try{
  assert.equal((await req('/api/pay/apps/hs/assignments?period=2026-10')).total,1);
  const repeatedChoice=await req('/api/pay/apps/hs/assignments/import/preview',choiceInput);assert.equal((await req('/api/pay/apps/hs/assignments/import/commit',{period:'2026-10',...confirm(repeatedChoice)})).imported,0);
  const unchangedSource=new DatabaseSync(path.join(data,'payroll.db'));assert.equal(unchangedSource.prepare('SELECT body FROM records WHERE id=?').get('synthetic-approved-choice').body,sourceRaw);unchangedSource.close();
+ await req('/api/platforms/hs/posting',{enabled:true});
+ const cycleDb=new DatabaseSync(path.join(data,'payroll.db'));const cyclePut=(id,kind,body)=>cycleDb.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?)').run(id,kind,JSON.stringify({...body,id}));
+ cyclePut('synthetic-cycle-account','platform_account',{companyId:companyList[0].id,platformCode:'hs',assignments:[{riderId,RawEffectiveFrom:'2026-10-01T00:00:00Z'}]});
+ cyclePut('synthetic-cycle-invoice','platform_invoice',{companyId:companyList[0].id,platform:'HungerStation',period:'2026-10',approvalStatus:'approved',amountExclVat:100,vat:15,deductionsTotal:0});
+ cyclePut('synthetic-cycle-line','platform_invoice_line',{invoiceId:'synthetic-cycle-invoice',platformAccountId:'synthetic-cycle-account',lineType:'rider'});cycleDb.close();
+ const cycle=await req('/api/pay/cycles',{period:'2026-10',companyId:companyList[0].id,invoices:[{app:'hs',invoiceId:'synthetic-cycle-invoice',deductions:[],accounts:[{accountId:'synthetic-cycle-account',sourceLineId:'synthetic-cycle-line',baseGross:100,incentives:0,orders:10,riders:[{rider:riderId,orders:10,baseGross:100,deduction:0,category:'sponsored_private',days:1,metrics:{}}]}]}]});
+ const advance='/api/pay/cycles/'+encodeURIComponent(cycle.id)+'/advance';await req(advance,{stage:2},400);for(let stage=1;stage<=6;stage++)await req(advance,{stage});await req(advance,{stage:7},403);cookie=checkerCookie;assert.equal((await req(advance,{stage:7})).status,'approved');await req(advance,{stage:7});
+ assert.equal((await req('/api/pay/cycles?period=2026-10')).total,1);assert.equal((await req('/api/pay/cycles/'+encodeURIComponent(cycle.id)+'/lines')).total,1);cookie=makerCookie;
  const companies=await req('/api/companies');await req('/api/users',{username:'synthetic-r4-scoped',password,role:'FinancialAccountant',financialScope:{sponsorIds:[companies[0].id],platforms:['HungerStation'],accountCodes:[],categoryCodes:[]}});
  await req('/api/auth/login',{username:'synthetic-r4-scoped',password});await req('/api/pay/apps/hs/terms?period=2026-10');await req('/api/pay/apps/keeta/terms?period=2026-10',undefined,403);await req('/api/pay/settings',{effectiveFrom:'2026-11-01',fromDefaults:true},403);
  cookie=makerCookie;const openapi=await req('/openapi/v1.json');assert.ok(openapi.paths['/api/pay/apps/{app}/terms']);assert.ok(openapi.paths['/api/pay/settings/{id}/approve']);

@@ -38,6 +38,7 @@ public static class AccessPolicy
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return false; // User administration remains administrator-only.
         if(path=="/api/responses")return method=="GET"&&Has("forms.view");
         if(path=="/api/search")return method=="GET";
+        if(path.StartsWith("/api/pay/cycles/",StringComparison.Ordinal)&&path.EndsWith("/advance",StringComparison.Ordinal))return method=="POST"&&(Has("pay.manage")||Has("pay.approve"));
         if(path.StartsWith("/api/pay/",StringComparison.Ordinal))
         {if(method=="GET")return Has("pay.view");return method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");}
         if(path.StartsWith("/api/platforms/hs/",StringComparison.Ordinal))
