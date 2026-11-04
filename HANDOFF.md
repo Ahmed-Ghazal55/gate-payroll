@@ -3,53 +3,64 @@
 | Field | Value |
 |---|---|
 | Current writer | none |
-| Next writer | Claude reviews `feat/r3-web` |
-| Branch | feat/r3-web from main 5fe403b |
+| Next writer | Claude reviews `feat/r3-web` (Part 0), then `feat/r4-web` |
+| Branch | feat/r4-web from feat/r3-web d106714 |
 | Live | 0.12.1 (5fe403b) |
 | Updated | 2026-11-04 by Antigravity |
 
 ## Goal completed
-Release train R3 web completed on `feat/r3-web`:
-1. **Part A (HungerStation review workspace under `/app/payroll/`)**:
-   - A1 Invoices: 1-3 XLSX upload, signed preview with blocking checks in red, warning flags for V=Z and T-Z=AA, maker-checker approval.
-   - A2 Disputes: CAR disputes table, resolve dialog with `platform_credit` and `platform_rejected` (CAR exception per BR §23.2), escalated badge «مرحّل لحساب النزاعات 112803 لحين فض النزاع», Excel export.
-   - A3 TGA Distribution: starts as «بانتظار التوزيع», split calculator dialog by amount/percent, live sum check against total, maker-checker second-user approval.
-   - A4 ERP Wallet Facts: read-only, toggle between accounts and riders, allowlisted kinds, reversal badges, missing source banner.
-   - A5 Month Close (C/M/A): formula cards with `Expected = -C`, `RemainingOldCarry = C + A`, `CurrentPeriodBalance = M - (C + A)`, renders «غير معروف» when C or A is missing.
-   - A6 Proposed Journals: balance check, banner «الترحيل موقوف لحين اعتماد ملف المنصة» when gate is off, target scheme lines disabled with «نظام التارجت لم يُعتمد بعد» badge.
-   - A7 Live E2E: synthetic workbook import, CAR dispute rejection -> escalated 112803 badge, TGA split by User A, refusal when User A approves own split, and User B (independent checker) approval.
-2. **Part B (Track L2 Part 1: move first old sections to `/app`)**:
-   - B1 Treasury & Banks (`/app/treasury/`): cash boxes, bank accounts, balances, period CSV bank payroll preview/export, journals list, account details drawer.
-   - B2 Debts & Advances (`/app/debts/`): debts/advances/costs table with category filters, rider statement (Detailed 360 & Simple), mutual approvals with decision modal, promissory note archive.
-   - B3 Accounting & Reports (`/app/accounting/`): Target COA tree (403 accounts: 294 excel, 28 modified, 81 new; active vs posting), double-entry journals with reversal linkages, trial balance (Target & Current view, 6 columns, balanced check), income statement (revenue & expense groups, net income, netIsComplete status).
-   - B4 Dashboard (`/app/page.tsx`): «استيراد بيانات تشغيل (مؤقت)» button points to `/legacy/#/imports` with label «مؤقت».
+Release train R4 web completed on `feat/r4-web`:
+1. **Part 0 (R3 fixes on `feat/r3-web`, commit `d106714`)**:
+   - 0.1 TGA Split: isolated percent mode payload `{ riderPercent, riderId }` vs amount mode `{ companyAmount, riderAmount, riderId }`, labeled preview «تقريبي — المبلغ النهائي من الخادم». Live test verifies mixed mode 400 rejection.
+   - 0.2 Swallowed errors: replaced `.catch(() => [])` with `<ErrorState onRetry={...} />` in treasury, debts, companies.
+   - 0.3 HS card: labeled invoices card «إجمالي الصفحة الحالية».
+2. **Part A (Sidebar IA & SectionTabs, commit `3f21ca5`)**:
+   - Collapsible groups matching spec 09 lines 37–50, including «تطبيق المناديب», active group persistence, 360px drawer.
+   - Reusable `SectionTabs` component (`?tab=`, ARIA tabs keyboard navigation, deep linking).
+3. **Part B & C (All workspaces, commits `ff2a679` to `7acb033`)**:
+   - W3 Riders (`/app/riders/`): دليل المناديب · ملف 360 · جودة واكتمال البيانات · المزامنة.
+   - W4 Statement (`/app/riders/statement/`): Plan §3 layout (header, monthly cards, timeline table, له/عليه badge, PDF print, CSV export).
+   - W5 Operations (`/app/operations/`): المدن · السكن · المركبات · العهد · الكفالات · القضايا · حسابات المنصات («غير متاح بعد»).
+   - W6 Admin (`/app/admin/`): المستخدمين والصلاحيات (`/api/users`), سجل التدقيق (`/api/audit`), إعدادات المنظومة.
+   - W7 Imports (`/app/imports/`): معالج استيراد من 5 خطوات ومحفوظات الدفعات.
+   - W8 & W9 Payroll (`/app/payroll/`): هيكل متعدد المنصات (6 منصات)، دورة رواتب 0–7 مع شارة «يحتاج قرار» للصافي السالب، محرر أنظمة مُمرحل شهرياً ومصفوفة فئات (6 أعمدة).
+   - W10 Rider App Admin (`/app/rider-app/`): الإشعارات والإرسال، إعدادات Firebase، معاينة كشف التطبيق.
+4. **Part D (Retirement Check, commit `047d43d`)**:
+   - `grep -rn "/legacy" web/` confirmed zero legacy links in source (only allowed login `returnUrl` check remains).
+   - Legacy views in `Frontend/` with no `/app` screen: **NONE** (100% of legacy screens migrated to `/app`).
 
 ## Verification summary
-- **Static build:** `npm run build` cleanly compiled 16/16 pages statically without any `/app/app/` links.
-- **Static E2E & screenshots:** `npm run test:e2e` passed all 7 suites; captured 1440 desktop (sand, light, dim) and 360 mobile screenshots in `test-results/r3-web/` for all workspaces.
-- **Live E2E suite:** `node web/tests/e2e-live.mjs` passed 10/10 test blocks against the real .NET server and database under the real server CSP (zero blocked inline scripts).
-- **Regression tests:** `node tests/browser-iban.mjs` and `node tests/finance-views-ui.mjs` both passed with zero regressions.
+- **Static build:** `npm run build` compiled 19/19 routes cleanly without any `/app/app/` links.
+- **Static E2E & screenshots:** `npm run test:e2e` passed all 8 suites; 16 screenshots at 1440 and 360 in `test-results/r4-web/`.
+- **Live E2E suite:** `node web/tests/e2e-live.mjs` passed all 10 steps against real .NET API and live database.
+- **Regression tests:** `node tests/browser-iban.mjs` and `node tests/finance-views-ui.mjs` both passed cleanly.
 
-## Commits on `feat/r3-web`
-1. `a7f67ab` — `feat(web): HungerStation platform review workspace (R3-A)`
-2. `ea9f53b` — `feat(web): treasury and banks workspace (R3-B1)`
-3. `4f3b3cb` — `feat(web): debts and advances workspace (R3-B2)`
-4. `51ea710` — `feat(web): accounting and financial reports workspace (R3-B3)`
-5. `a440e71` — `feat(web): dashboard temporary import link (R3-B4)`
-6. `0567722` — `test(web): live and static e2e tests with screenshots (R3-A7)`
+## Commits on `feat/r4-web`
+1. `3f21ca5` — `feat(web): sidebar groups and SectionTabs component (R4-W1)`
+2. `ff2a679` — `feat(web): riders directory workspace (R4-W3)`
+3. `8e6f651` — `feat(web): rider financial statement view (R4-W4)`
+4. `c7a3170` — `feat(web): operations and assets workspace (R4-W5)`
+5. `7e140a9` — `feat(web): admin and audit workspace (R4-W6)`
+6. `cc28779` — `feat(web): operational data imports workspace (R4-W7)`
+7. `51f13ba` — `feat(web): payroll multi-platform framework and rules editor (R4-W8)`
+8. `7acb033` — `feat(web): rider mobile app admin workspace (R4-W10)`
+9. `047d43d` — `feat(web): complete legacy links removal (R4-W11)`
+10. `7a6e4e4` — `test(web): e2e static and live verification for R4 workspaces (R4-verify)`
 
 ## API gaps for Codex
-- **Zero blocking gaps for R3:** All endpoints (`/api/platforms/hs/*`, `/api/finance/accounts`, `/api/finance/journals`, `/api/finance/bank-file/*`, `/api/debts`, `/api/approvals`, `/api/promissory-notes`, `/api/finance/coa/target`, `/api/finance/trial-balance`, `/api/finance/income-statement`) functioned cleanly and returned expected structures.
-- **Note for Track L3 (future enhancement):** When importing an invoice with TGA deductions, the lines exist in `platform_invoice_line` with `status: "pending_allocation"`. Currently, `/api/platforms/hs/allocations` only lists records after a split proposal is created (`platform_allocation`). Providing a dedicated query for unallocated TGA invoice lines or including them in invoice details will make initial discovery smoother in L3.
+- `GET /api/operations/{kind}`: query parameters and data models for cities, housing, vehicles, custody, guarantees, cases, platform accounts (Codex R4.6).
+- `GET /api/rider-mobile/sessions`: rider active mobile sessions and device fingerprints.
+- `GET /api/finance/statement/rider/{iqama}/monthly`: monthly multi-platform aggregated statement view (Codex R4.8).
+- Database reporting views/tables in `rpt` schema (Codex R4.7).
 
 ## Capacity status
-- Before R3: 35% weekly limit used (~65% remaining).
-- After R3: ~48% weekly limit used (~52% remaining).
-- Safe margin maintained within weekly quota.
+- Before session: ~48% weekly limit used (~52% remaining).
+- After session: ~62% weekly limit used (~38% remaining).
 
 ## How to verify
 ```bash
-git -C /home/ghazal/Projects/active/gate-payroll-r3web status
-cd /home/ghazal/Projects/active/gate-payroll-r3web/web && npm run build && npm run test:e2e && node tests/e2e-live.mjs
-cd /home/ghazal/Projects/active/gate-payroll-r3web && node tests/browser-iban.mjs && node tests/finance-views-ui.mjs
+git -C /home/ghazal/Projects/active/gate-payroll-r4web status
+cd /home/ghazal/Projects/active/gate-payroll-r4web/web && npm run build && npm run test:e2e
+cd /home/ghazal/Projects/active/gate-payroll-r4web && node web/tests/e2e-live.mjs
+cd /home/ghazal/Projects/active/gate-payroll-r4web && node tests/browser-iban.mjs && node tests/finance-views-ui.mjs
 ```
