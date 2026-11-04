@@ -35,7 +35,7 @@ public static partial class HungerStationInvoices
             index++;List<Imports.Sheet> sheets;
             try {sheets=Imports.Read(file.Bytes,"invoice.xlsx");}
             catch(Exception e) when(e is InvalidDataException or System.Xml.XmlException or FormatException or ApiError){errors.Add(new(index,"workbook",0,"invalid_workbook"));continue;}
-            var invoice=Parse(c,actor,sheets,input,file.Hash,index,errors);if(invoice!=null)rows.Add(invoice);
+            var invoice=Parse(c,actor,sheets,input,file.Hash,index,errors);if(invoice!=null){PrepareRevision(c,actor,input,invoice);rows.Add(invoice);}
         }
         if(rows.OfType<JsonObject>().GroupBy(r=>r.S("id")).Any(g=>g.Count()>1))errors.Add(new(0,"workbook",0,"duplicate_invoice_key"));
         int fresh=0,unchanged=0;

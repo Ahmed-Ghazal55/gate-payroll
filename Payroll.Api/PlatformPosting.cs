@@ -27,11 +27,11 @@ public static class PlatformPosting
         string type=code[0] switch{'1'=>"Asset",'2'=>"Liability",'3'=>"Equity",'4'=>"Revenue",_=>"Expense"};
         return new(code,row!.S("nameAr"),type,row.S("nature")=="debit"?"Debit":"Credit",row["parent"]?.ToString());
     }
-    public static JsonObject Post(DbConnection c,DbTransaction tx,string period,string reference,JsonArray lines,string actor,string description="وقائع هنقر المعتمدة")
+    public static JsonObject Post(DbConnection c,DbTransaction tx,string period,string reference,JsonArray lines,string actor,string description="وقائع هنقر المعتمدة",string? reversesJournalId=null)
     {
         Demand(c,"hs",tx);
         foreach(var line in lines.OfType<JsonObject>())AccountingPolicy.ValidateOperation(line.S("accountCode"),"PlatformInvoice","platform_posting","HungerStation");
-        var doc=FinancialCore.PostJournal(c,tx,"hs_approved_facts",description,period,reference,lines,actor,targetChart:true);
+        var doc=FinancialCore.PostJournal(c,tx,"hs_approved_facts",description,period,reference,lines,actor,targetChart:true,reversesJournalId:reversesJournalId);
         Store.Audit(c,tx,"platform.hs.journal_posted",doc.S("id"),actor);return doc;
     }
     public static void Map(RouteGroupBuilder api,Store store)
