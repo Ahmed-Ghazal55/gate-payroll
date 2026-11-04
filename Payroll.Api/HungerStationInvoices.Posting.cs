@@ -15,6 +15,16 @@ public static partial class HungerStationInvoices
         {var line=lines.Single(l=>l.S("id")==patch.S("lineId"));foreach(var field in patch.Where(p=>p.Key!="lineId"))line[field.Key]=field.Value?.DeepClone();}
         return lines;
     }
+    static bool HasUnresolvedDispute(DbConnection c,DbTransaction? tx,string id)
+    {
+        var disputes=Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==id).ToList();
+        if(disputes.Any(d=>d.S("status")!="resolved"))return true;
+        // A nonzero CAR source needs positive resolution evidence, even if a claim is missing.
+        return Store.List(c,"platform_invoice_line",tx).Where(l=>l.S("invoiceId")==id&&l.S("lineType")=="company"&&l.N("carDeduction")!=0)
+            .Any(l=>!disputes.Any(d=>d.S("lineId")==l.S("id")&&d.S("category")=="CAR"&&d.S("status")=="resolved"&&d.S("outcome")=="platform_credit"&&d.S("resolvedBy")!=""&&d.S("platformReference")!=""));
+    }
+    public static void DemandResolvedDisputes(DbConnection c,DbTransaction? tx,string id)
+    {if(HasUnresolvedDispute(c,tx,id))throw new ApiError("ترحيل الفاتورة متوقف بالكامل حتى حسم الاعتراض؛ فتح بوابة الترحيل لا يتجاوز الاعتراض.",409);}
     static bool Closed(DbConnection c,DbTransaction? tx,string company,string period)=>Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==company&&p.S("period")==period&&p.S("status")=="closed");
     static void Independent(ClaimsPrincipal actor,JsonObject facts,string makerField="createdBy")
     {var request=new JsonObject{["requestedBy"]=facts.S(makerField),["targetDepartment"]="FIN",["requiredRankLevel"]=1};AccessPolicy.ValidateApproval(actor,request,new JsonObject(),"platforms.hs.approve");}
@@ -40,14 +50,14 @@ public static partial class HungerStationInvoices
         var allocations=Store.List(c,"platform_allocation",tx).Where(a=>a.S("invoiceId")==id&&a.S("status")=="approved").ToList();
         foreach(var line in all.Where(l=>l.N("tgaAmount")!=0))
             if(!allocations.Any(a=>a.S("lineId")==line.S("id")&&a.N("amount")==Math.Abs(line.N("tgaAmount"))))blockers.Add("tga_pending_allocation");
-        decimal disputed=all.Where(l=>l.S("lineType")=="company").Sum(l=>Math.Abs(l.N("carDeduction")));
+        decimal disputed=all.Where(l=>l.S("lineType")=="company").Sum(l=>Math.Abs(l.N("carDeduction")));bool openDispute=HasUnresolvedDispute(c,tx,id),enabled=PlatformPosting.Enabled(c,"hs",tx);
         void Add(string code,decimal debit,decimal credit,string note,string rider="")
         {if(debit==0&&credit==0)return;var line=FinancialCore.CreateJournalLine(code,company,debit,credit,note,rider,targetChart:true);line["platform"]="HungerStation";lines.Add(line);}
         if(blockers.Count==0)
         {
             Add("112802",invoice.N("amountExclVat")+invoice.N("vat"),0,"فاتورة الخدمة والضريبة");Add("411102",0,salary,"إيراد نظام الراتب");
             foreach(var row in work.Where(l=>l.S("scheme")=="commission")){Add("212103",0,row.N("riderNet"),"مستحق المندوب المعتمد",row.S("riderId"));Add("411601",0,row.N("companyCommission"),"عمولة هنقر المعتمدة");}
-            Add("213201",0,invoice.N("vat"),"ضريبة الفاتورة");Add("112803",disputed,0,"مطالبة CAR مفتوحة دون تحميل أي طرف");Add("112802",0,disputed,"فصل المبلغ المتنازع عليه");
+            Add("213201",0,invoice.N("vat"),"ضريبة الفاتورة");Add("112803",disputed,0,"مطالبة CAR بعد حسم الاعتراض دون تحميل أي طرف");Add("112802",0,disputed,"فصل المبلغ المتنازع عليه");
             foreach(var allocation in allocations)
             {
                 foreach(var share in allocation["riderShares"]!.AsArray().OfType<JsonObject>())Add("112502",share.N("amount"),0,"نصيب المندوب المعتمد من TGA",share.S("riderId"));
@@ -55,7 +65,7 @@ public static partial class HungerStationInvoices
             }
             if(lines.Count==0)blockers.Add("no_postable_amount");
         }
-        return new(){["invoiceId"]=id,["companyId"]=company,["period"]=period,["lines"]=lines,["blockers"]=new JsonArray(blockers.Distinct().Select(b=>(JsonNode?)JsonValue.Create(b)).ToArray()),["readyForApproval"]=blockers.Count==0,["postingEnabled"]=PlatformPosting.Enabled(c,"hs",tx),["disputedAmount"]=disputed};
+        return new(){["invoiceId"]=id,["companyId"]=company,["period"]=period,["lines"]=lines,["blockers"]=new JsonArray(blockers.Distinct().Select(b=>(JsonNode?)JsonValue.Create(b)).ToArray()),["readyForApproval"]=blockers.Count==0,["postingEnabled"]=enabled,["postingBlockedByDispute"]=openDispute,["postingAllowed"]=enabled&&!openDispute&&blockers.Count==0,["postingBlockers"]=new JsonArray((!enabled?new[]{"posting_gate_disabled"}:Array.Empty<string>()).Concat(openDispute?new[]{"unresolved_invoice_dispute"}:Array.Empty<string>()).Select(b=>(JsonNode?)JsonValue.Create(b)).ToArray()),["disputedAmount"]=disputed};
     }
     public static JsonObject Proposal(DbConnection c,ClaimsPrincipal actor,string id)
     {Scope(actor,"platforms.hs.view");var rows=new JsonArray(PostingRow(c,null,actor,id));return new(){["rows"]=rows,["fingerprint"]=FinancialImports.Issue(c,PostingPreview,rows,actor.Identity!.Name!)};}
@@ -66,11 +76,15 @@ public static partial class HungerStationInvoices
         if(invoice.S("approvalStatus")=="approved"&&(invoice.S("journalEntryId")!=""||!PlatformPosting.Enabled(c,"hs",tx)))return invoice;
         FinancialImports.Verify(c,tx,input,PostingPreview,actor.Identity!.Name!);J.Need(input["rows"] is JsonArray {Count:1}&&input["rows"]![0].S("invoiceId")==id,"المعاينة لا تخص الفاتورة.");var proposal=PostingRow(c,tx,actor,id);
         if(!proposal.B("readyForApproval"))throw new ApiError(proposal["blockers"]!.AsArray().Any(x=>x!.ToString()=="target_scheme_undefined")?"نظام التارجت موقوف حتى يحدد غزال التسلسل المعتمد.":"الوقائع أو توزيع TGA أو الفترة غير مكتملة للاعتماد.",409);
+        if(proposal.B("postingEnabled"))DemandResolvedDisputes(c,tx,id);
         bool first=invoice.S("approvalStatus")!="approved";
         if(first){invoice["approvalStatus"]="approved";invoice["approvedBy"]=actor.Identity!.Name;invoice["approvedAt"]=DateTimeOffset.UtcNow.ToString("O");}
-        bool hold=Store.List(c,"platform_dispute",tx).Any(d=>d.S("invoiceId")==id&&d.S("status")!="resolved");invoice["settlementHold"]=hold;invoice["status"]=hold?"disputed":"approved";
+        bool hold=HasUnresolvedDispute(c,tx,id);invoice["settlementHold"]=hold;invoice["status"]=hold?"disputed":"approved";
         if(proposal.B("postingEnabled"))
-        {var journal=PlatformPosting.Post(c,tx,proposal.S("period"),"HS-INVOICE:"+id,proposal["lines"]!.DeepClone().AsArray(),actor.Identity!.Name!);invoice["journalEntryId"]=journal.S("id");invoice["accountingStatus"]="posted";invoice["postedBy"]=actor.Identity!.Name;}
+        {var journal=PlatformPosting.Post(c,tx,proposal.S("period"),"HS-INVOICE:"+id,proposal["lines"]!.DeepClone().AsArray(),actor.Identity!.Name!);invoice["journalEntryId"]=journal.S("id");invoice["accountingStatus"]="posted";invoice["postedBy"]=actor.Identity!.Name;
+            foreach(var claim in Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==id&&d.S("status")=="resolved"&&d.S("outcome")=="platform_credit"))
+            {var pending=claim.Clone();pending["accountingReconciliation"]="pending_reversal_or_credit_note";Store.Save(c,"platform_dispute",pending,tx);Store.Audit(c,tx,"platform.hs.credit_reconciliation_pending",pending.S("id"),actor.Identity!.Name!);invoice["settlementHold"]=true;}
+        }
         else invoice["accountingStatus"]="blocked_by_gate";
         Store.Save(c,"platform_invoice",invoice,tx);Store.Audit(c,tx,first?"platform.hs.invoice_approved":"platform.hs.invoice_posted",id,actor.Identity!.Name!);
         if(revision!=null&&revision.S("status")=="pending"){var approved=revision.Clone();approved["status"]="approved";approved["approvedBy"]=actor.Identity!.Name;Store.Save(c,ActionKind,approved,tx);Store.Audit(c,tx,"platform.hs.facts_approved",approved.S("id"),actor.Identity!.Name!);}

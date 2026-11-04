@@ -30,6 +30,7 @@ public static class PlatformPosting
     public static JsonObject Post(DbConnection c,DbTransaction tx,string period,string reference,JsonArray lines,string actor,string description="وقائع هنقر المعتمدة",string? reversesJournalId=null)
     {
         Demand(c,"hs",tx);
+        if(reference.StartsWith("HS-INVOICE:",StringComparison.Ordinal))HungerStationInvoices.DemandResolvedDisputes(c,tx,reference["HS-INVOICE:".Length..]);
         foreach(var line in lines.OfType<JsonObject>())AccountingPolicy.ValidateOperation(line.S("accountCode"),"PlatformInvoice","platform_posting","HungerStation");
         var doc=FinancialCore.PostJournal(c,tx,"hs_approved_facts",description,period,reference,lines,actor,targetChart:true,reversesJournalId:reversesJournalId);
         Store.Audit(c,tx,"platform.hs.journal_posted",doc.S("id"),actor);return doc;
