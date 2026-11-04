@@ -591,7 +591,7 @@ function PayrollPageInner() {
                             <th className="p-3 text-start">رقم النزاع</th>
                             <th className="p-3 text-start">النوع</th>
                             <th className="p-3 text-start">المبلغ المتنازع عليه</th>
-                            <th className="p-3 text-start">الحالة</th>
+                            <th className="p-3 text-start">الحالة والمسار المحاسبي</th>
                             <th className="p-3 text-start">الملاحظات</th>
                             <th className="p-3 text-start">الإجراء</th>
                           </tr>
@@ -630,7 +630,7 @@ function PayrollPageInner() {
                                       onClick={() => setSelectedDispute(disp)}
                                       className="px-2.5 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition cursor-pointer"
                                     >
-                                      فض النزاع
+                                      معالجة النزاع
                                     </button>
                                   ) : (
                                     <span className="text-xs text-[var(--muted)]">تم الإجراء</span>
@@ -1251,7 +1251,8 @@ function PayrollPageInner() {
       <Dialog
         open={!!selectedDispute}
         onClose={() => setSelectedDispute(null)}
-        title="فض نزاع استقطاع CAR مع المنصة"
+        title="معالجة وفض نزاع استقطاع CAR"
+        description="توثيق رد المنصة الرسمي. رفض المنصة يتيح نقل المبلغ لحساب النزاعات 112803 للسماح بترحيل الفاتورة دون الإضرار بالمندوب."
       >
         {selectedDispute && (
           <div className="space-y-4 pt-2">
@@ -1269,49 +1270,49 @@ function PayrollPageInner() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold">قرار فض النزاع:</label>
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-2 text-xs cursor-pointer p-2 rounded-lg border border-[var(--line)] hover:bg-[var(--raised)]">
-                  <input
-                    type="radio"
-                    name="outcome"
-                    value="platform_credit"
-                    checked={resolveOutcome === 'platform_credit'}
-                    onChange={() => setResolveOutcome('platform_credit')}
-                  />
-                  <span>موافقة المنصة وإصدار إشعار دائن (Platform Credit Note)</span>
-                </label>
-                <label className="flex items-center gap-2 text-xs cursor-pointer p-2 rounded-lg border border-[var(--line)] hover:bg-[var(--raised)]">
-                  <input
-                    type="radio"
-                    name="outcome"
-                    value="platform_rejected"
-                    checked={resolveOutcome === 'platform_rejected'}
-                    onChange={() => setResolveOutcome('platform_rejected')}
-                  />
-                  <span>رفض المنصة وتصعيد النزاع لحساب 112803 (BR §23.2)</span>
-                </label>
+              <label className="text-xs font-bold">قرار المنصة الرسمي:</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResolveOutcome('platform_credit')}
+                  className={`p-2.5 rounded-xl border text-xs font-bold text-center transition cursor-pointer ${
+                    resolveOutcome === 'platform_credit'
+                      ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
+                      : 'border-[var(--line)] text-[var(--muted)] hover:bg-[var(--raised)]'
+                  }`}
+                >
+                  المنصة ردّت المبلغ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResolveOutcome('platform_rejected')}
+                  className={`p-2.5 rounded-xl border text-xs font-bold text-center transition cursor-pointer ${
+                    resolveOutcome === 'platform_rejected'
+                      ? 'border-[var(--warning)] bg-[var(--warning)]/10 text-[var(--warning)]'
+                      : 'border-[var(--line)] text-[var(--muted)] hover:bg-[var(--raised)]'
+                  }`}
+                >
+                  المنصة رفضت (تصعيد 112803)
+                </button>
               </div>
             </div>
 
-            {resolveOutcome === 'platform_credit' && (
-              <div className="space-y-1">
-                <label className="text-xs font-bold">رقم مرجع إشعار الدائن من المنصة:</label>
-                <input
-                  type="text"
-                  placeholder="CR-2026-XXXX"
-                  value={platformReference}
-                  onChange={(e) => setPlatformReference(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs font-mono focus:outline-hidden"
-                />
-              </div>
-            )}
+            <div className="space-y-1">
+              <label className="text-xs font-bold">مرجع المنصة الرسمي (Platform Reference):</label>
+              <input
+                type="text"
+                placeholder="مثال: HS-TICKET-89421"
+                value={platformReference}
+                onChange={(e) => setPlatformReference(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs font-mono focus:outline-hidden"
+              />
+            </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold">السبب والملاحظات:</label>
+              <label className="text-xs font-bold">بيان وسبب التسوية أو قرار المنصة:</label>
               <textarea
-                rows={2}
-                placeholder="أدخل مبررات القرار أو مستندات المنصة..."
+                rows={3}
+                placeholder="اكتب تفاصيل أو حيثيات قرار المنصة وسبب التسوية أو التصعيد..."
                 value={resolveReason}
                 onChange={(e) => setResolveReason(e.target.value)}
                 className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs focus:outline-hidden"

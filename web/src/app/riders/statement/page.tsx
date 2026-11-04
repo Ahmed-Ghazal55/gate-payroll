@@ -130,7 +130,7 @@ function RiderStatementPageInner() {
     }
 
     const headers = ['التاريخ', 'نوع الحركة', 'البيان', 'المرجع', 'مدين (ر.س)', 'دائن (ر.س)', 'الرصيد التراكمي (ر.س)'];
-    const rows = statement.entries.map((e) => [
+    const rows = (statement.entries || []).map((e) => [
       e.date,
       e.entryType,
       `"${(e.description || '').replace(/"/g, '""')}"`,
@@ -145,7 +145,9 @@ function RiderStatementPageInner() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `statement-${statement.iqama}-${statement.period.from}-to-${statement.period.to}.csv`;
+    const pFrom = statement.period?.from || fromDate;
+    const pTo = statement.period?.to || toDate;
+    a.download = `statement-${statement.iqama}-${pFrom}-to-${pTo}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast('تم تصدير كشف الحساب بصيغة CSV بنجاح', 'success');
@@ -290,7 +292,7 @@ function RiderStatementPageInner() {
               <div className="text-start sm:text-end shrink-0">
                 <div className="text-xs text-[var(--muted)] font-medium">فترة كشف الحساب</div>
                 <div className="text-sm font-bold num text-[var(--ink)] mt-0.5">
-                  {statement.period.from} ➔ {statement.period.to}
+                  {(statement.period?.from || fromDate)} ➔ {(statement.period?.to || toDate)}
                 </div>
               </div>
             </div>
@@ -300,7 +302,7 @@ function RiderStatementPageInner() {
               <div className="p-3.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)] print:bg-white">
                 <div className="text-xs text-[var(--muted)] font-medium">الرصيد الافتتاحي</div>
                 <div className="text-lg font-bold num text-[var(--ink)] mt-1">
-                  {statement.openingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {(statement.openingBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                 </div>
                 <div className="text-[10px] text-[var(--muted)] mt-0.5">الرصيد المرحل قبل هذه الفترة</div>
               </div>
@@ -311,7 +313,7 @@ function RiderStatementPageInner() {
                   <span>مدين: {totals.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   <span>دائن: {totals.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="text-[10px] text-[var(--muted)] mt-0.5">{statement.entries.length} حركات مالية مسجلة</div>
+                <div className="text-[10px] text-[var(--muted)] mt-0.5">{(statement.entries || []).length} حركات مالية مسجلة</div>
               </div>
 
               <div className={`p-3.5 rounded-xl border print:bg-white ${
@@ -323,7 +325,7 @@ function RiderStatementPageInner() {
               }`}>
                 <div className="text-xs font-medium">الرصيد الختامي المعتمد</div>
                 <div className="text-xl font-black num mt-1">
-                  {Math.abs(statement.closingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {Math.abs(statement.closingBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                 </div>
                 <div className="text-xs font-bold mt-0.5">
                   {isDueToRider ? 'مستحق للمندوب (له)' : isDueToCompany ? 'مستحق على المندوب (عليه)' : 'حساب مطابق (صفر)'}
@@ -357,14 +359,14 @@ function RiderStatementPageInner() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)] print:divide-gray-300">
-                  {statement.entries.length === 0 ? (
+                  {(statement.entries || []).length === 0 ? (
                     <tr>
                       <td colSpan={7} className="p-6 text-center text-xs text-[var(--muted)]">
                         لا توجد حركات مالية مسجلة خلال الفترة المحددة.
                       </td>
                     </tr>
                   ) : (
-                    statement.entries.map((entry, idx) => (
+                    (statement.entries || []).map((entry, idx) => (
                       <tr key={idx} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono text-xs text-[var(--muted)] whitespace-nowrap">
                           {entry.date}

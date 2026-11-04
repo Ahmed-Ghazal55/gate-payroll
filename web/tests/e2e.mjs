@@ -144,6 +144,193 @@ function startStaticServer(port = 39821) {
         res.end(JSON.stringify({ period: '2026-10', totalAmount: 0, validRecordsCount: 0, excludedRecordsCount: 0, records: [] }));
         return;
       }
+      if (reqPath === '/api/riders/data-quality') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          totalRiders: 294,
+          withIban: 290,
+          withPlatformAccount: 285,
+          withCompleteDocs: 270,
+          missingIbanCount: 4,
+          duplicateIbanCount: 0,
+          expiredDocsCount: 12
+        }));
+        return;
+      }
+      if (reqPath === '/api/riders/sync-baseline') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ matched: 294, newFromBaseline: 5, changed: 2, conflicts: 0 }));
+        return;
+      }
+      if (reqPath.match(/\/api\/riders\/[^/]+\/profile-360/)) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          iqama: '2000000789',
+          name: 'سالم فهد القحطاني',
+          phone: '0552223344',
+          city: 'جدة',
+          platform: 'hungerstation',
+          status: 'active',
+          sponsorshipType: 'internal',
+          vehicleType: 'car',
+          iban: 'SA4410000001234567890123',
+          documents: [
+            { typeCode: 'national_id', titleAr: 'الهوية / الإقامة', isVerified: true, status: 'valid', documentNumber: '2000000789' }
+          ],
+          kpis: {
+            totalOrders: 420,
+            completionRate: 98,
+            activeMonths: 14
+          }
+        }));
+        return;
+      }
+      if (reqPath === '/api/riders') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([
+          {
+            iqama: '2000000789',
+            name: 'سالم فهد القحطاني',
+            phone: '0552223344',
+            city: 'جدة',
+            platform: 'hungerstation',
+            vehicleType: 'car',
+            sponsorshipType: 'internal',
+            status: 'active',
+            iban: 'SA4410000001234567890123',
+          },
+          {
+            iqama: '2000000111',
+            name: 'أحمد صالح المحمدي',
+            phone: '0501112233',
+            city: 'الرياض',
+            platform: 'keeta',
+            vehicleType: 'motorcycle',
+            sponsorshipType: 'internal',
+            status: 'active',
+            iban: 'SA0380000000608010167519',
+          }
+        ]));
+        return;
+      }
+      if (reqPath.startsWith('/api/finance/statement/rider/')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          iqama: '2000000789',
+          riderName: 'سالم فهد القحطاني',
+          period: { from: '2026-01-01', to: '2026-10-31' },
+          openingBalance: 0,
+          closingBalance: 4250,
+          entries: [
+            {
+              date: '2026-10-15',
+              entryType: 'مكافأة أداء',
+              description: 'مكافأة تحقيق الهدف الأسبوعي',
+              reference: 'BON-101',
+              debit: 300,
+              credit: 0,
+              balance: 2300
+            },
+            {
+              date: '2026-10-31',
+              entryType: 'راتب شهري',
+              description: 'صافي مستحقات شهر أكتوبر 2026',
+              reference: 'PAY-102',
+              debit: 3950,
+              credit: 0,
+              balance: 4250
+            }
+          ]
+        }));
+        return;
+      }
+      if (reqPath === '/api/users') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([
+          {
+            id: 'usr-1',
+            username: 'admin',
+            role: 'Admin',
+            displayNameAr: 'غزال',
+            isActive: true,
+            createdAt: '2026-10-01T00:00:00Z',
+            lastLoginAt: new Date().toISOString()
+          },
+          {
+            id: 'usr-2',
+            username: 'auditor_fahad',
+            role: 'FinancialAccountant',
+            displayNameAr: 'فهد المحاسب',
+            isActive: true,
+            createdAt: '2026-10-15T00:00:00Z'
+          }
+        ]));
+        return;
+      }
+      if (reqPath === '/api/audit') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([
+          {
+            id: 'aud-1',
+            action: 'اعتماد مسير رواتب',
+            actor: 'admin',
+            target: 'دورة 2026-10',
+            timestamp: new Date().toISOString(),
+            details: 'تم الاعتماد المالي النهائي'
+          },
+          {
+            id: 'aud-2',
+            action: 'تعديل آيبان',
+            actor: 'auditor_fahad',
+            target: '2000000789',
+            timestamp: new Date(Date.now() - 3600000).toISOString(),
+            details: 'تحديث الحساب البنكي'
+          }
+        ]));
+        return;
+      }
+      if (reqPath.startsWith('/api/rider-mobile/broadcast')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([
+          {
+            id: 'bc-1',
+            category: 'system',
+            titleAr: 'تحديث الشروط والأحكام',
+            bodyAr: 'يرجى مراجعة وتحديث وثائق التأمين',
+            createdAt: new Date().toISOString()
+          }
+        ]));
+        return;
+      }
+      if (reqPath.includes('firebase-config')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          projectId: 'gate-payroll-prod',
+          clientEmail: 'service@gate-payroll.iam.gserviceaccount.com',
+          privateKey: '-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQD...masked...\n-----END PRIVATE KEY-----'
+        }));
+        return;
+      }
+      if (reqPath === '/api/imports') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([
+          {
+            id: 'imp-1',
+            filename: 'operations_october.xlsx',
+            uploadedBy: 'admin',
+            status: 'committed',
+            createdAt: new Date().toISOString(),
+            rowsCount: 1500
+          }
+        ]));
+        return;
+      }
+      if (reqPath.startsWith('/api/operations/')) {
+        // Return 404 to trigger the graceful "غير متاح بعد — بانتظار اكتمال واجهات خادم التشغيل (Codex R4.6)" fallback
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Endpoint not implemented yet' }));
+        return;
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end('[]');
       return;
@@ -370,9 +557,9 @@ async function run() {
     }
 
     // -------------------------------------------------------------
-    // Test 4: Under Migration stub pages (e.g. Riders)
+    // Test 4: Verified active Riders workspace (migrated in R4)
     // -------------------------------------------------------------
-    console.log('\n[4/5] Testing Under Migration Pages (المناديب)...');
+    console.log('\n[4/5] Testing Riders Workspace (active workspace, no under migration)...');
     {
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
       const page = await context.newPage();
@@ -380,10 +567,11 @@ async function run() {
       await page.waitForLoadState('networkidle');
 
       const text = await page.textContent('body');
-      assert.ok(text.includes('قيد النقل التدريجي'), 'Missing under migration tag');
-      assert.ok(text.includes('الشاشات القديمة (مؤقت)') || text.includes('فتح الشاشة في الواجهة السابقة'), 'Missing legacy link');
+      assert.ok(!text.includes('قيد النقل التدريجي'), 'Riders workspace must be active, not under migration');
+      assert.ok(!text.includes('الشاشات القديمة (مؤقت)'), 'Riders workspace must not contain legacy link');
+      assert.ok(text.includes('دليل المناديب'), 'Riders directory header missing');
 
-      const shot = path.join(resultsDir, 'desktop-sand-unmigrated-riders.png');
+      const shot = path.join(resultsDir, 'desktop-sand-migrated-riders.png');
       await page.screenshot({ path: shot });
       console.log(`  ✓ Saved screenshot: ${path.basename(shot)}`);
       await context.close();
@@ -490,6 +678,58 @@ async function run() {
       const mobShot = path.join(r3ResultsDir, `mobile-sand-${p}.png`);
       await mobPage.screenshot({ path: mobShot });
       console.log(`  ✓ Saved screenshot: ${path.basename(mobShot)}`);
+      await mobContext.close();
+    }
+
+    // -------------------------------------------------------------
+    // Test 8: R4 Workspaces (riders, statement, operations, admin, imports, rider-app, payroll rules)
+    // -------------------------------------------------------------
+    console.log('\n[8/8] Testing R4 Workspaces at 1440 & 360 (RTL & no horizontal scroll)...');
+    const r4ResultsDir = path.join(webDir, '../test-results/r4-web');
+    if (!fs.existsSync(r4ResultsDir)) {
+      fs.mkdirSync(r4ResultsDir, { recursive: true });
+    }
+
+    const r4Targets = [
+      { name: 'riders', url: `${baseUrl}/riders/` },
+      { name: 'riders-statement', url: `${baseUrl}/riders/statement/?iqama=2000000789` },
+      { name: 'operations', url: `${baseUrl}/operations/` },
+      { name: 'admin', url: `${baseUrl}/admin/` },
+      { name: 'imports', url: `${baseUrl}/imports/` },
+      { name: 'rider-app', url: `${baseUrl}/rider-app/` },
+      { name: 'payroll-rules', url: `${baseUrl}/payroll/?tab=rules` },
+      { name: 'payroll-cycle', url: `${baseUrl}/payroll/?tab=cycle` },
+    ];
+
+    for (const target of r4Targets) {
+      // 1440 Desktop
+      const deskContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      const deskPage = await deskContext.newPage();
+      await deskPage.goto(target.url);
+      await deskPage.waitForLoadState('networkidle');
+
+      // Check RTL
+      const dir = await deskPage.evaluate(() => document.documentElement.getAttribute('dir') || document.body.getAttribute('dir'));
+      assert.equal(dir, 'rtl', `${target.name} page must be RTL`);
+
+      const deskShot = path.join(r4ResultsDir, `desktop-sand-${target.name}.png`);
+      await deskPage.screenshot({ path: deskShot });
+      console.log(`  ✓ Saved R4 screenshot: ${path.basename(deskShot)}`);
+      await deskContext.close();
+
+      // 360 Mobile
+      const mobContext = await browser.newContext({ viewport: { width: 360, height: 740 }, isMobile: true });
+      const mobPage = await mobContext.newPage();
+      await mobPage.goto(target.url);
+      await mobPage.waitForLoadState('networkidle');
+
+      // Check horizontal scroll
+      const hasHScroll = await mobPage.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+      assert.ok(!hasHScroll, `${target.name} page has horizontal scroll at 360px (scrollWidth: ${await mobPage.evaluate(() => document.documentElement.scrollWidth)})`);
+
+      const mobShot = path.join(r4ResultsDir, `mobile-sand-${target.name}.png`);
+      await mobPage.screenshot({ path: mobShot });
+      console.log(`  ✓ Saved R4 screenshot: ${path.basename(mobShot)}`);
       await mobContext.close();
     }
 

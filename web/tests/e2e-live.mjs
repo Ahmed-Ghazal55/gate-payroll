@@ -588,9 +588,20 @@ try {
   console.log('✓ Step 9d: Maker-checker verified: User B (checker) approved TGA split successfully');
   await checkerContext.close();
 
-  // Step 10: Verify moved workspaces load cleanly without UnderMigration
-  console.log('\nStep 10: Verifying moved workspaces (/app/treasury/, /app/debts/, /app/accounting/)...');
-  for (const pagePath of ['/app/treasury/', '/app/debts/', '/app/accounting/']) {
+  // Step 10: Verify all workspaces load cleanly without UnderMigration
+  console.log('\nStep 10: Verifying active workspaces (/app/treasury/, /app/debts/, /app/accounting/, /app/riders/, /app/operations/, /app/admin/, /app/imports/, /app/rider-app/)...');
+  const allWorkspacePaths = [
+    '/app/treasury/',
+    '/app/debts/',
+    '/app/accounting/',
+    '/app/riders/',
+    '/app/riders/statement/?iqama=2000000789',
+    '/app/operations/',
+    '/app/admin/',
+    '/app/imports/',
+    '/app/rider-app/',
+  ];
+  for (const pagePath of allWorkspacePaths) {
     await page.goto(`${baseUrl}${pagePath}`);
     await page.waitForLoadState('networkidle');
     const content = await page.textContent('body');
