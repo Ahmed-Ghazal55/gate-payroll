@@ -47,3 +47,22 @@ Each document's normalized `sourceEventId` is its contract identity: SourceEvent
 Wallet approval needs ApprovedAt/ApprovedBy; remittance needs ConfirmedAt/ConfirmedBy; allocation also needs its confirmed parent batch and approved source event. The current review/month-close contracts do not guarantee an approver: they stay rejected with `approval_not_available` unless the source exposes ApprovedAt/ApprovedBy too. Missing/ambiguous legal company relations also block those facts. This is an ERP integration gap rather than invented approval.
 
 Review-only proposals expose the CR-002 account mapping (112306,112501,112513,114107,114101,112802,112803,411601,411102,112507); they remain unpostable until signed event directions, counterpart legs, actual rider/company attribution and independent approval are supplied. Confirmed receipt additionally requires the exact company cashbox/bank. No source sign convention is guessed. D20 returns Expected=-C, RemainingOldCarry=C+A, CurrentPeriodBalance=M-(C+A); a missing C, A or M returns `unknown` and no posting. Only an attributed negative current-period result may propose112507; a raw negative application balance never becomes debt.
+
+## Review API (M2.6)
+All HS routes require a current authenticated user, explicit permission, legal-company scope and HungerStation platform scope. Existing users receive current role defaults on every cookie validation without rewriting their stored documents. Accountant gets view/manage; FinancialAccountant gets view/manage/approve; FinancialManager gets view; administrator gets all. Explicit denied permissions still win for nonadministrators. Approval also requires FIN/rank and an independent identity. Platform gate settings remain administrator-only.
+
+| Method / path below `/api/platforms/hs` | Behavior |
+|---|---|
+| GET `/invoices`, `/disputes`, `/allocations` | Scoped review with items/total/page/pageSize; optional companyId/period/status, pageSize capped at200 |
+| GET `/facts?kind=&page=` | Five CR-002 kinds only; never arbitrary document kinds; empty means no imported facts, not proof of current source availability |
+| GET `/proposed-journals?invoiceId=` | One signed rows/fingerprint proposal, bound to the requesting approver |
+| GET `/proposed-journals` | Paginated signed invoice proposals; `kind=` instead selects preview-only ERP fact projections |
+| POST `/invoices/{id}/approve` | rows/fingerprint/confirm for independent facts approval/posting; alternatively reversalRequestId for independent reversal |
+| POST `/invoices/{id}/dispute` | lineId/category/amount/reason; audited formal claim and scoped notice, no automatic journal or rider charge |
+| POST `/invoices/{id}/resolve` | mode=facts appends lineFacts/reason; mode=request_reversal requires open period/reason; mode=dispute requires approval permission, disputeId/outcome=platform_credit/platformReference/reason |
+| POST `/allocations/{lineId}` | Explicit TGA split, retained by revision |
+| POST `/allocations/{id}/approve` | Independent approval of the latest pending TGA split |
+
+Recording a platform credit response resolves the formal dispute but never rewrites the original source lines/journal or assumes receipt. An already posted claim retains its settlement hold and `pending_reversal_or_credit_note` reconciliation until an approved correction supplies the accounting evidence; no cash receipt or credit-note journal is invented. Corrected workbook/reversal mechanics remain separate. Car Damage automatic posting and source-approved review/month-close contracts remain integration gaps.
+
+Behavior checks cover signed tamper rejection, gate-off facts approval then gate-on posting, two users, company/platform denials, current-cookie scope refresh, closed-period reversal, original journal byte preservation, readable target journals in existing finance endpoints, OpenAPI routes and byte-identical restart of every synthetic document.

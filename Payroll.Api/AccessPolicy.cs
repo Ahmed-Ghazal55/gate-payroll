@@ -38,6 +38,15 @@ public static class AccessPolicy
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return false; // User administration remains administrator-only.
         if(path=="/api/responses")return method=="GET"&&Has("forms.view");
         if(path=="/api/search")return method=="GET";
+        if(path.StartsWith("/api/platforms/hs/",StringComparison.Ordinal))
+        {
+            if(path.EndsWith("/posting",StringComparison.Ordinal))return false;
+            if(method=="GET")return Has("platforms.hs.view");
+            if(method!="POST")return false;
+            if(path.EndsWith("/approve",StringComparison.Ordinal))return Has("platforms.hs.approve");
+            if(path.EndsWith("/resolve",StringComparison.Ordinal))return Has(input?.S("mode")=="dispute"?"platforms.hs.approve":"platforms.hs.manage");
+            return Has("platforms.hs.manage");
+        }
         if(path.StartsWith("/api/companies/import/",StringComparison.Ordinal))return false; // administrators returned above
         if(path=="/api/companies"||path.StartsWith("/api/companies/",StringComparison.Ordinal))return method=="GET"?Has("companies.view"):method is "POST" or "PUT" or "DELETE"&&Has("companies.manage");
         if(path=="/api/excel/export")return method=="POST"&&Has("riders.view");
