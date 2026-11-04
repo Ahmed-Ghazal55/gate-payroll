@@ -64,11 +64,12 @@ public static class SourceReader
             }
             tables.Add(table.Name,rows);
         }
+        HsFactsSource.Read(connection,tables);
         var after=requireStableRowversion?Stamp():null;
         if(before!=null&&after!=null&&!before.SequenceEqual(after))throw new ImportFailure("source_changed_during_read");
         return new(tables,started,DateTimeOffset.UtcNow,sql?(connection.Database=="erp_copy"?"local_read_only_copy":"read_committed_database_rowversion_stable"):"synthetic_sqlite");
     }
-    static JsonNode? Value(object? value)=>value switch
+    internal static JsonNode? Value(object? value)=>value switch
     {
         null=>null,Guid g=>JsonValue.Create(g.ToString("D")), DateTimeOffset d=>JsonValue.Create(d.ToString("O")),DateTime d=>JsonValue.Create(d.ToString("yyyy-MM-ddTHH:mm:ss.fffffff")),TimeSpan t=>JsonValue.Create(t.ToString("c")),byte[]=>throw new ImportFailure("binary_source_field_not_allowed"),_=>System.Text.Json.JsonSerializer.SerializeToNode(value)
     };
