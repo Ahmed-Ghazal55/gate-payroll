@@ -66,12 +66,17 @@ public static class FinancialScopes
     public static void DemandSponsor(ClaimsPrincipal user,string id){if(!Sponsor(user,id))throw new ApiError("السجل التجاري خارج النطاق المالي للمستخدم.",403);}
     public static void DemandAccount(ClaimsPrincipal user,string code){if(!Account(user,code))throw new ApiError("الحساب المالي خارج النطاق المسند للمستخدم.",403);}
     public static void DemandDebt(ClaimsPrincipal user,JsonObject debt){if(!Debt(user,debt))throw new ApiError("المديونية خارج نطاق الشركة أو الفئة أو المنصة المسندة للمستخدم.",403);}
-    public static bool Line(ClaimsPrincipal user,JsonObject line)=>Sponsor(user,line.S("sponsorId"))&&(FinancialCore.ResolveAccount(line.S("accountCode")).IsVault?Account(user,line.S("accountCode")):AccessPolicy.Has(user,"treasury.journals"));
+    public static bool Line(ClaimsPrincipal user,JsonObject line)
+    {
+        if(!Sponsor(user,line.S("sponsorId")))return false;
+        if(line.S("chart")=="target")return AccessPolicy.Has(user,"treasury.journals")&&Platform(user,"HungerStation")&&FinanceViews.Accounts.Any(a=>a.S("code")==line.S("accountCode")&&a.B("posting")&&a.S("status")=="active");
+        return FinancialCore.ResolveAccount(line.S("accountCode")).IsVault?Account(user,line.S("accountCode")):AccessPolicy.Has(user,"treasury.journals");
+    }
     public static JsonObject? Journal(ClaimsPrincipal user,JsonObject journal)
     {
         var lines=(journal["lines"] as JsonArray)?.OfType<JsonObject>().Where(l=>Line(user,l)).ToList()??[];
         bool financial=AccessPolicy.Has(user,"treasury.journals");
-        if(!financial&&!lines.Any(l=>FinancialCore.ResolveAccount(l.S("accountCode")).IsVault))return null;
+        if(!financial&&!lines.Any(l=>l.S("chart")!="target"&&FinancialCore.ResolveAccount(l.S("accountCode")).IsVault))return null;
         if(lines.Count==0)return null;
         var result=journal.Clone();result["lines"]=new JsonArray(lines.Select(l=>(JsonNode?)l.Clone()).ToArray());
         result["totalDebit"]=J.Money(lines.Sum(l=>l.N("debit")));result["totalCredit"]=J.Money(lines.Sum(l=>l.N("credit")));

@@ -12,6 +12,7 @@ def permission(method,p):
  if p=='/api/notifications/center':return 'approvals.view' if method=='GET' else 'mobile.broadcast'
  if p in ('/api/me','/api/roles-catalog','/api/search') or p.startswith('/api/notifications'):return 'authenticated; category/owner visibility in handler'
  if p.startswith('/api/platforms/hs/invoices/import/'): return 'platforms.hs.manage; signed preview + company/platform scope'
+ if p.startswith('/api/platforms/hs/') and not p.endswith('/posting'): return ('platforms.hs.view' if method=='GET' else 'platforms.hs.approve; independent maker-checker' if p.endswith('/approve') else 'platforms.hs.manage (resolve dispute response: platforms.hs.approve)') + '; company/platform scope'
  if p.startswith('/api/platforms/') and p.endswith('/posting'): return 'Admin / SuperAdmin; audited platform gate'
  if p.startswith('/api/companies/import/'): return 'Admin / SuperAdmin; signed preview + audit'
  if p.startswith('/api/companies'): return 'companies.view' if method=='GET' else 'companies.manage'

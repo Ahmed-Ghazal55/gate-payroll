@@ -25,6 +25,7 @@ public static class FinanceViews
     public static bool Visible(ClaimsPrincipal user,JsonObject line)
     {
         if(!FinancialScopes.Sponsor(user,line.S("sponsorId")))return false;
+        if(line.S("chart")=="target")return FinancialScopes.Line(user,line);
         var account=FinancialCore.ChartOfAccounts.FirstOrDefault(a=>a.Code==line.S("accountCode"));
         return account==null?AccessPolicy.Has(user,"treasury.journals"):FinancialScopes.Line(user,line);
     }

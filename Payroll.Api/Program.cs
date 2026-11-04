@@ -134,6 +134,7 @@ Companies.Map(api,store);
 CompanyRegistryImport.Map(api,store);
 PlatformPosting.Map(api,store);
 HungerStationInvoices.MapImports(api,store);
+HungerStationInvoices.MapReview(api,store);
 GlobalSearch.Map(api,store);
 ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);
