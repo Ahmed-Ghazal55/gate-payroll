@@ -55,4 +55,17 @@ public sealed class NextAppTests
         }
         finally { Directory.Delete(root, true); }
     }
+    [TestMethod]
+    public void PolicyAllowsOnlyTheInlineScriptsOfThePageByHash()
+    {
+        string html = "<html><head><script>boot()</script><script src=\"/app/_next/a.js\"></script></head><body><script id=\"x\">self.__next_f.push([1])</script></body></html>";
+        string policy = NextApp.PolicyFor(html);
+        string Hash(string v) => "'sha256-" + Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(v))) + "'";
+        StringAssert.Contains(policy, Hash("boot()"));
+        StringAssert.Contains(policy, Hash("self.__next_f.push([1])"));
+        Assert.IsFalse(policy.Contains("unsafe-inline'; img") && policy.Contains("script-src 'self' 'unsafe-inline'"));
+        Assert.IsFalse(policy.Contains("script-src 'unsafe-inline'"));
+        StringAssert.Contains(policy, "frame-ancestors 'none'");
+        Assert.AreEqual(NextApp.BasePolicy, NextApp.PolicyFor("<html><script src=\"/a.js\"></script></html>"));
+    }
 }
