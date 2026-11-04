@@ -28,6 +28,10 @@ import type {
   DebtRecord,
   ApprovalRequest,
   PromissoryNote,
+  RiderRecord,
+  RiderProfile360,
+  RidersDataQuality,
+  RidersBaselineSyncResult,
   RiderStatement,
   TargetCoaResponse,
   TrialBalanceResponse,
@@ -947,4 +951,50 @@ export const api = {
     const qs = q.toString() ? `?${q.toString()}` : '';
     return handleRequest<IncomeStatementResponse>(`/finance/income-statement${qs}`);
   },
+
+  // Riders Directory APIs (Track L & Spec 09)
+  getRiders: (params?: { search?: string; status?: string; sponsorId?: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.status) q.set('status', params.status);
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<RiderRecord[]>(`/riders${qs}`);
+  },
+
+  getRiderProfile360: (iqama: string) =>
+    handleRequest<RiderProfile360>(`/riders/${encodeURIComponent(iqama)}/profile-360`),
+
+  getRidersDataQuality: () =>
+    handleRequest<RidersDataQuality>('/riders/data-quality'),
+
+  syncRidersBaseline: (payload: { mode: 'preview' | 'commit'; useLocalBaseline?: boolean; fingerprint?: string; riders?: any[] }) =>
+    handleRequest<RidersBaselineSyncResult>('/riders/sync-baseline', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  enrichRidersMissing: () =>
+    handleRequest<{ enrichedExisting: number; addedFromSources: number; totalRidersNow: number }>('/riders/enrich-missing', {
+      method: 'POST',
+    }),
+
+  uploadRiderDocument: (
+    iqama: string,
+    input: {
+      documentTypeCode: string;
+      documentNumber?: string;
+      issueDate?: string;
+      expiryDate?: string;
+      fileName?: string;
+      dataBase64?: string;
+      notes?: string;
+    }
+  ) =>
+    handleRequest<any>(`/riders/${encodeURIComponent(iqama)}/documents`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 };

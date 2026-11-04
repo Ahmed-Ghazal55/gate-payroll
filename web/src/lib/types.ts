@@ -470,6 +470,80 @@ export interface PromissoryNote {
   createdAt: string;
 }
 
+export interface RiderRecord {
+  id: string;
+  iqama: string;
+  name: string;
+  phone?: string;
+  nationality?: string;
+  sponsor?: string;
+  sponsorId?: string;
+  city?: string;
+  engagementType?: 'SponsoredInternal' | 'External' | string;
+  operationalRole?: 'Car' | 'Motorcycle' | string;
+  drivingLicense?: string;
+  platforms?: string;
+  iban?: string;
+  status: string;
+  policyId?: string;
+  createdAt?: string;
+}
+
+export interface RiderDocumentChecklistItem {
+  documentTypeId: string;
+  code: string;
+  nameAr: string;
+  requiresExpiry: boolean;
+  isUploaded: boolean;
+  documentId: string;
+  documentNumber: string;
+  issueDate: string;
+  expiryDate: string;
+  fileName: string;
+  storagePath: string;
+  status: string;
+}
+
+export interface RiderProfile360 {
+  rider: RiderRecord;
+  documentChecklist: RiderDocumentChecklistItem[];
+  documentsCount: number;
+  activeDebtsCount: number;
+  totalRemainingDebt: number;
+  workRecordsCount: number;
+  totalOrders: number;
+  submissions: any[];
+}
+
+export interface RidersDataQuality {
+  totalRiders: number;
+  localBaselineAvailable: boolean;
+  missingPhoneCount: number;
+  missingCityCount: number;
+  missingSponsorCount: number;
+  missingNationalityCount: number;
+  missingPolicyCount: number;
+  missingIbanCount: number;
+  needsReviewCount: number;
+}
+
+export interface RidersBaselineSyncResult {
+  fingerprint?: string;
+  sourceFingerprint?: string;
+  total?: number;
+  excludedAdministrative?: number;
+  addCount?: number;
+  updateCount?: number;
+  existingCount?: number;
+  conflicts?: any[];
+  errors?: any[];
+  rows?: any[];
+  count?: number;
+  updatedCount?: number;
+  alreadyImported?: boolean;
+  batchId?: string;
+}
+
 export interface RiderStatementEntry {
   date: string;
   entryType: string;
