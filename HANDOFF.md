@@ -14,6 +14,9 @@ Ship R2 as one release 0.12.0: M1 (/legacy, companies, sync, favicon), M2 (COA 4
 - 98d7174: BR §23.2 exception: a platform-rejected CAR claim (`outcome=platform_rejected`, independent approver) stays `escalated`; the invoice may post with W held in 112803; other open disputes still block.
 - Full validation on release/0.12.0: .NET 190 passed / 0 failed / 6 SQL skipped; Python OK; COA --check; source boundary 179; 11 HTTP + 6 browser suites; web build, e2e and e2e-live passed.
 
+## 0.12.1 hotfix (Claude, 2026-11-04)
+- Production /app never hydrated: CSP `script-src 'self'` blocked the Next.js inline boot scripts, so header icons, theme and SPA navigation were dead and every click reloaded the page. Fix: /app HTML gets a CSP with the exact sha256 of its inline scripts (NextApp.PolicyFor), no `unsafe-inline`; /app routes accept HEAD (Next prefetch); fonts under /app/fonts cached 1 day, /app/_next/static immutable; Cairo font preloaded. e2e-live no longer uses `bypassCSP` and asserts zero CSP errors.
+
 ## Next step (exact)
 1. Antigravity: `~/.agents/prompts/antigravity-R3-web.md` (W3 + L2 part 1) on a new branch from main.
 2. Ghazal: import the company certificates in production through /app/companies (preview → commit).

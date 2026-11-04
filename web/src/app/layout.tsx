@@ -15,6 +15,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" data-theme="sand" suppressHydrationWarning>
       <head>
+        <link rel="preload" href="/app/fonts/cairo.ttf" as="font" type="font/ttf" crossOrigin="anonymous" />
         <script
           dangerouslySetInnerHTML={{
             __html: `

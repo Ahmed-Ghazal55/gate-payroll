@@ -56,7 +56,7 @@ app.Use(async (ctx, next) =>
 {
     ctx.Response.Headers["X-Content-Type-Options"] = "nosniff"; ctx.Response.Headers["X-Frame-Options"] = "DENY";
     ctx.Response.Headers["Referrer-Policy"] = "no-referrer"; ctx.Response.Headers["Cache-Control"] = "no-store";
-    ctx.Response.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+    ctx.Response.Headers["Content-Security-Policy"] = NextApp.BasePolicy;
 
     try
     {
@@ -84,7 +84,7 @@ app.Use(async (ctx,next)=>
     {await Results.File(Path.Combine(app.Environment.WebRootPath,"favicon.svg"),"image/svg+xml").ExecuteAsync(ctx);return;}
     await next();
 });
-app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } });
+app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { var p = context.Context.Request.Path; if (p.StartsWithSegments("/app/_next/static")) context.Context.Response.Headers.CacheControl="public, max-age=31536000, immutable"; else if (p.StartsWithSegments("/fonts") || p.StartsWithSegments("/app/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; if (p.StartsWithSegments("/app") && context.File.PhysicalPath is { } html && html.EndsWith(".html", StringComparison.OrdinalIgnoreCase)) context.Context.Response.Headers["Content-Security-Policy"]=NextApp.PolicyForFile(html); } });
 app.UseRouting(); app.UseAuthorization(); app.UseRateLimiter();
 NextApp.Map(app);
 app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent }).WithTags("Administration").WithSummary("Read  health");

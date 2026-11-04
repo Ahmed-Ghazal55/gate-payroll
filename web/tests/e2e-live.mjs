@@ -90,7 +90,6 @@ try {
 
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
-    bypassCSP: true,
     extraHTTPHeaders: {
       Cookie: setCookie.split(';')[0],
     },
@@ -121,13 +120,17 @@ try {
   console.log('\n--- Running W1 Live E2E Tests ---');
 
   // Test 1: Unauthenticated 401 redirect preserves returnUrl
-  const unauthContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, bypassCSP: true });
+  const unauthContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const loginPage = await unauthContext.newPage();
+  const cspErrors = [];
+  loginPage.on('console', (m) => { if (m.type() === 'error' && m.text().includes('Content Security Policy')) cspErrors.push(m.text()); });
   await loginPage.goto(`${baseUrl}/app/notifications/`);
   console.log('Navigated to notifications, current URL:', loginPage.url());
   await loginPage.waitForURL(url => url.pathname.includes('/login'), { timeout: 8000 });
   assert.ok(loginPage.url().includes('returnUrl='), 'Unauthenticated visit should redirect to login with returnUrl');
   console.log('✓ W1: 401 redirect to /app/login/?returnUrl= confirmed');
+  assert.equal(cspErrors.length, 0, 'The real CSP must allow the Next.js inline boot scripts (hashes)');
+  console.log('✓ CSP: no blocked inline scripts with the real server policy');
 
   // Test 2: Valid login with returnUrl redirects to destination
   await loginPage.goto(`${baseUrl}/app/login/?returnUrl=/app/notifications/`);
