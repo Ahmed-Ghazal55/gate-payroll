@@ -25,7 +25,7 @@ import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { Drawer } from '../../components/ui/Drawer';
-import { Skeleton, EmptyState } from '../../components/ui/EmptyState';
+import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import type {
   FinanceAccount,
   FinanceJournal,
@@ -44,10 +44,12 @@ export default function TreasuryPage() {
 
   // Data states
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<FinanceAccount[]>([]);
   const [journals, setJournals] = useState<FinanceJournal[]>([]);
   const [bankFilePreview, setBankFilePreview] = useState<BankPayrollFilePreview | null>(null);
   const [loadingBankFile, setLoadingBankFile] = useState<boolean>(false);
+  const [bankFileError, setBankFileError] = useState<string | null>(null);
   const [exportingBankFile, setExportingBankFile] = useState<boolean>(false);
 
   // Drawer state for account details
@@ -56,16 +58,19 @@ export default function TreasuryPage() {
 
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const sp = selectedSponsor === 'all' ? undefined : selectedSponsor;
       const [accRes, jrnRes] = await Promise.all([
-        api.getFinanceAccounts(sp).catch(() => []),
-        api.getFinanceJournals({ sponsorId: sp }).catch(() => []),
+        api.getFinanceAccounts(sp),
+        api.getFinanceJournals({ sponsorId: sp }),
       ]);
       setAccounts(accRes || []);
       setJournals(jrnRes || []);
     } catch (err: any) {
-      toast(err.message || 'تعذر تحميل بيانات الخزينة', 'danger');
+      const msg = err.message || 'تعذر تحميل بيانات الخزينة';
+      setError(msg);
+      toast(msg, 'danger');
     } finally {
       setLoading(false);
     }
@@ -73,11 +78,14 @@ export default function TreasuryPage() {
 
   const loadBankFile = async () => {
     setLoadingBankFile(true);
+    setBankFileError(null);
     try {
       const sp = selectedSponsor === 'all' ? undefined : selectedSponsor;
       const res = await api.previewBankFile({ period: selectedPeriod, sponsorId: sp });
       setBankFilePreview(res);
     } catch (err: any) {
+      const msg = err.message || 'تعذر تحميل معاينة ملف البنك';
+      setBankFileError(msg);
       setBankFilePreview(null);
     } finally {
       setLoadingBankFile(false);
@@ -260,7 +268,9 @@ export default function TreasuryPage() {
             </div>
           </div>
 
-          {loading ? (
+          {error ? (
+            <ErrorState title="تعذر تحميل بيانات الخزينة" message={error} onRetry={loadData} />
+          ) : loading ? (
             <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
@@ -381,7 +391,9 @@ export default function TreasuryPage() {
             </div>
           </div>
 
-          {loadingBankFile ? (
+          {bankFileError ? (
+            <ErrorState title="تعذر معاينة ملف الصرف البنكي" message={bankFileError} onRetry={loadBankFile} />
+          ) : loadingBankFile ? (
             <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
@@ -481,7 +493,14 @@ export default function TreasuryPage() {
             </p>
           </div>
 
-          {journals.length === 0 ? (
+          {error ? (
+            <ErrorState title="تعذر تحميل سجل القيود" message={error} onRetry={loadData} />
+          ) : loading ? (
+            <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : journals.length === 0 ? (
             <EmptyState
               title="لا توجد قيود مسجلة"
               description="تظهر القيود اليومية بعد ترحيل المسيرات أو تسجيل التحويلات والإيداعات."

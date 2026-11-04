@@ -31,7 +31,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
-import { Skeleton, EmptyState } from '../../components/ui/EmptyState';
+import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import type {
   DebtRecord,
   ApprovalRequest,
@@ -50,6 +50,7 @@ export default function DebtsPage() {
 
   // Data states
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [debts, setDebts] = useState<DebtRecord[]>([]);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [promissoryNotes, setPromissoryNotes] = useState<PromissoryNote[]>([]);
@@ -62,6 +63,7 @@ export default function DebtsPage() {
   const [statementMode, setStatementMode] = useState<'detailed' | 'simple'>('detailed');
   const [statementData, setStatementData] = useState<RiderStatement | null>(null);
   const [loadingStatement, setLoadingStatement] = useState<boolean>(false);
+  const [statementError, setStatementError] = useState<string | null>(null);
 
   // Approval decision dialog
   const [selectedApproval, setSelectedApproval] = useState<ApprovalRequest | null>(null);
@@ -75,18 +77,21 @@ export default function DebtsPage() {
 
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const [debtsRes, approvalsRes, pNotesRes] = await Promise.all([
-        api.getDebts().catch(() => []),
-        api.getApprovals().catch(() => []),
-        api.getPromissoryNotes().catch(() => ({ featureEnabled: false, items: [] })),
+        api.getDebts(),
+        api.getApprovals(),
+        api.getPromissoryNotes(),
       ]);
       setDebts(debtsRes || []);
       setApprovals(approvalsRes || []);
       setPromissoryNotes(pNotesRes.items || []);
       setPromissoryFeatureEnabled(pNotesRes.featureEnabled || false);
     } catch (err: any) {
-      toast(err.message || 'تعذر تحميل بيانات المديونيات', 'danger');
+      const msg = err.message || 'تعذر تحميل بيانات المديونيات';
+      setError(msg);
+      toast(msg, 'danger');
     } finally {
       setLoading(false);
     }
@@ -98,6 +103,7 @@ export default function DebtsPage() {
       return;
     }
     setLoadingStatement(true);
+    setStatementError(null);
     try {
       if (statementMode === 'simple') {
         const simple = await api.getRiderStatementSimple(statementIqama.trim(), statementFrom, statementTo);
@@ -115,7 +121,9 @@ export default function DebtsPage() {
       }
       toast('تم استرجاع كشف الحساب بنجاح', 'success');
     } catch (err: any) {
-      toast(err.message || 'تعذر استرجاع كشف حساب المندوب', 'danger');
+      const msg = err.message || 'تعذر استرجاع كشف حساب المندوب';
+      setStatementError(msg);
+      toast(msg, 'danger');
       setStatementData(null);
     } finally {
       setLoadingStatement(false);
@@ -289,7 +297,9 @@ export default function DebtsPage() {
             </div>
           </div>
 
-          {loading ? (
+          {error ? (
+            <ErrorState title="تعذر تحميل بيانات المديونيات" message={error} onRetry={loadData} />
+          ) : loading ? (
             <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
@@ -469,7 +479,9 @@ export default function DebtsPage() {
             </div>
           </div>
 
-          {loadingStatement ? (
+          {statementError ? (
+            <ErrorState title="تعذر استرجاع كشف الحساب" message={statementError} onRetry={handleFetchStatement} />
+          ) : loadingStatement ? (
             <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
@@ -555,7 +567,14 @@ export default function DebtsPage() {
             </p>
           </div>
 
-          {approvals.length === 0 ? (
+          {error ? (
+            <ErrorState title="تعذر تحميل سجل طلبات الاعتماد" message={error} onRetry={loadData} />
+          ) : loading ? (
+            <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : approvals.length === 0 ? (
             <EmptyState
               title="لا توجد طلبات اعتماد معلقة حالياً"
               description="تظهر الطلبات هنا عندما تتطلب إجراءات التشغيل أو الموارد البشرية توقيعاً مالياً معتمداً."
@@ -650,7 +669,14 @@ export default function DebtsPage() {
             </div>
           )}
 
-          {promissoryNotes.length === 0 ? (
+          {error ? (
+            <ErrorState title="تعذر تحميل سندات الأمر" message={error} onRetry={loadData} />
+          ) : loading ? (
+            <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : promissoryNotes.length === 0 ? (
             <EmptyState
               title="لا توجد سندات أمر مؤرشفة"
               description="سندات الأمر التنفيذية المسجلة ضد المناديب للضمان المالي والعهد."

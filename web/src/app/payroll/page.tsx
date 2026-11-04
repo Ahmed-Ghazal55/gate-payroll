@@ -360,12 +360,17 @@ export default function PayrollPage() {
 
     setSavingSplit(true);
     try {
-      await api.splitHsAllocation(selectedAllocation.lineId, {
-        companyAmount: compAmt,
-        riderAmount: riderAmt,
-        riderId: splitRiderId.trim() || undefined,
-        riderPercent: splitMode === 'percent' ? parseFloat(splitRiderPercent) : undefined,
-      });
+      const payload: { companyAmount?: number; riderAmount?: number; riderId?: string; riderPercent?: number } = {};
+      if (splitMode === 'percent') {
+        payload.riderPercent = parseFloat(splitRiderPercent);
+        if (splitRiderId.trim()) payload.riderId = splitRiderId.trim();
+      } else {
+        payload.companyAmount = compAmt;
+        payload.riderAmount = riderAmt;
+        if (splitRiderId.trim()) payload.riderId = splitRiderId.trim();
+      }
+
+      await api.splitHsAllocation(selectedAllocation.lineId, payload);
       showToast('تم حفظ مقترح تقسيم TGA بنجاح وفي انتظار اعتماد المدقق المستقل', 'success');
       setSelectedAllocation(null);
       loadData();
@@ -442,9 +447,9 @@ export default function PayrollPage() {
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
-          label="إجمالي مبالغ الفواتير"
+          label="إجمالي الصفحة الحالية"
           value={`${totalInvoicesAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
-          hint={`${invoices.length} فواتير مسجلة لشهر ${selectedPeriod}`}
+          hint={`${invoices.length} فواتير مسجلة في الصفحة الحالية لشهر ${selectedPeriod}`}
           icon={Calculator}
         />
         <StatCard
@@ -1398,6 +1403,9 @@ export default function PayrollPage() {
                     <span className="num font-bold">
                       {(selectedAllocation.amount - ((selectedAllocation.amount * Number(splitRiderPercent)) / 100)).toFixed(2)} ر.س
                     </span>
+                  </div>
+                  <div className="text-[10px] text-[var(--muted)] text-center pt-1 border-t border-[var(--line)]">
+                    تقريبي — المبلغ النهائي من الخادم
                   </div>
                 </div>
               </div>

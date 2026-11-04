@@ -797,7 +797,7 @@ export const api = {
 
   splitHsAllocation: (
     lineId: string,
-    input: { companyAmount: number; riderAmount: number; riderId?: string; riderPercent?: number }
+    input: { companyAmount?: number; riderAmount?: number; riderId?: string; riderPercent?: number }
   ) =>
     handleRequest<HsAllocation>(`/platforms/hs/allocations/${encodeURIComponent(lineId)}`, {
       method: 'POST',

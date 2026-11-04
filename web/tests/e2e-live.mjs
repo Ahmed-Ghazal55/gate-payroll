@@ -473,14 +473,24 @@ try {
   const tgaLine = hsPreview.rows[0].lines.find((l) => l.tgaAmount !== 0);
   assert.ok(tgaLine, 'TGA line must exist in preview');
 
-  // Step 8c: User A proposes TGA split
-  console.log('\nStep 8c: User A proposing TGA split...');
-  const splitRes = await page.request.post(`${baseUrl}/api/platforms/hs/allocations/${encodeURIComponent(tgaLine.id)}`, {
-    data: { companyAmount: 20, riderAmount: 0 },
+  // Step 8c: User A proposes TGA split (verifying percent mode and rejection of mixed mode)
+  console.log('\nStep 8c: User A proposing TGA split in percent mode...');
+
+  // Mixed mode must be rejected with 400
+  const mixedRes = await page.request.post(`${baseUrl}/api/platforms/hs/allocations/${encodeURIComponent(tgaLine.id)}`, {
+    data: { riderPercent: 50, companyAmount: 10 },
   });
-  assert.equal(splitRes.status(), 200, 'TGA split proposal should return 200');
+  assert.equal(mixedRes.status(), 400, 'Mixed mode (percent + amount) must be rejected with HTTP 400');
+  console.log('✓ Step 8c-1: Mixed mode rejection verified (HTTP 400)');
+
+  // Pure percent mode proposal
+  const splitRes = await page.request.post(`${baseUrl}/api/platforms/hs/allocations/${encodeURIComponent(tgaLine.id)}`, {
+    data: { riderPercent: 0 },
+  });
+  assert.equal(splitRes.status(), 200, 'TGA split proposal in percent mode should return 200');
   const splitData = await splitRes.json();
-  console.log(`✓ Step 8c: TGA split proposed by User A: id=${splitData.id}`);
+  assert.equal(splitData.companyAmount, 20, '0% rider percent means 100% to company');
+  console.log(`✓ Step 8c-2: TGA split proposed in percent mode by User A: id=${splitData.id}`);
 
   // Step 8d: Verify User A refusal when attempting to approve own split (Maker-checker rule)
   const selfApproveRes = await page.request.post(`${baseUrl}/api/platforms/hs/allocations/${encodeURIComponent(splitData.id)}/approve`, {
