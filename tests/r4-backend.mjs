@@ -34,6 +34,18 @@ try{
  assert.equal((await req('/api/pay/apps/hs/terms?period=2026-10')).total,2);
  const copied=await req('/api/pay/apps/hs/copy?from=2026-10&to=2026-11',{});assert.equal(copied.created,3);assert.ok(copied.drafts.every(d=>d.status==='draft'));
  assert.equal((await req('/api/pay/apps/hs/copy?from=2026-10&to=2026-11',{})).created,0);
+ const companyList=await req('/api/companies'),riderId='2'+String(1).padStart(9,'0');
+ const choicesDb=new DatabaseSync(path.join(data,'payroll.db'));const put=(id,kind,body)=>choicesDb.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?)').run(id,kind,JSON.stringify({...body,id}));
+ put(riderId,'rider',{iqama:riderId,name:'Synthetic R4 rider',isDeliveryRider:true,status:'Active',sponsorId:companyList[0].id});put('synthetic-choice-campaign','campaign',{});
+ put('synthetic-approved-choice','submission',{iqama:riderId,campaignId:'synthetic-choice-campaign',workSystem:'commission',status:'approved',reviewedAt:'2026-09-30T20:00:00Z',reviewedBy:'synthetic-source-checker',version:1});const sourceRaw=choicesDb.prepare('SELECT body FROM records WHERE id=?').get('synthetic-approved-choice').body;choicesDb.close();
+ const choiceInput={period:'2026-10',sourceType:'campaign',formId:'synthetic-choice-campaign',fieldId:'workSystem',mapping:{commission:scheme.id}};
+ const choicePreview=await req('/api/pay/apps/hs/assignments/import/preview',choiceInput);assert.equal(choicePreview.canCommit,true);
+ const invalidChoice=structuredClone(choicePreview);invalidChoice.rows[0].schemeId=terms.id;await req('/api/pay/apps/hs/assignments/import/commit',{period:'2026-10',...confirm(invalidChoice)},409);
+ cookie=checkerCookie;await req('/api/pay/apps/hs/assignments/import/preview',choiceInput,403);cookie=makerCookie;
+ assert.equal((await req('/api/pay/apps/hs/assignments/import/commit',{period:'2026-10',...confirm(choicePreview)})).imported,1);
+ assert.equal((await req('/api/pay/apps/hs/assignments?period=2026-10')).total,1);
+ const repeatedChoice=await req('/api/pay/apps/hs/assignments/import/preview',choiceInput);assert.equal((await req('/api/pay/apps/hs/assignments/import/commit',{period:'2026-10',...confirm(repeatedChoice)})).imported,0);
+ const unchangedSource=new DatabaseSync(path.join(data,'payroll.db'));assert.equal(unchangedSource.prepare('SELECT body FROM records WHERE id=?').get('synthetic-approved-choice').body,sourceRaw);unchangedSource.close();
  const companies=await req('/api/companies');await req('/api/users',{username:'synthetic-r4-scoped',password,role:'FinancialAccountant',financialScope:{sponsorIds:[companies[0].id],platforms:['HungerStation'],accountCodes:[],categoryCodes:[]}});
  await req('/api/auth/login',{username:'synthetic-r4-scoped',password});await req('/api/pay/apps/hs/terms?period=2026-10');await req('/api/pay/apps/keeta/terms?period=2026-10',undefined,403);await req('/api/pay/settings',{effectiveFrom:'2026-11-01',fromDefaults:true},403);
  cookie=makerCookie;const openapi=await req('/openapi/v1.json');assert.ok(openapi.paths['/api/pay/apps/{app}/terms']);assert.ok(openapi.paths['/api/pay/settings/{id}/approve']);
