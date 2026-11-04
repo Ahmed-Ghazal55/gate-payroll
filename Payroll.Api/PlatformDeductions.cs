@@ -16,9 +16,11 @@ public static class PlatformDeductions
         "riderbalance" or "platformtransferreddebt"=>"rider_balance",
         var other=>other
     };
-    public static HashSet<string> Categories(IEnumerable<JsonObject>? tags,string rider,string month)=>
-        (tags??[]).Where(t=>t.S("status")=="confirmed"&&t.S("platform")=="HungerStation"&&t["platformDeducted"] is JsonObject key&&key.S("rider")==rider&&key.S("month")==month)
-        .Select(t=>Category(t["platformDeducted"].S("category"))).ToHashSet(StringComparer.Ordinal);
+    public static HashSet<string> Categories(IEnumerable<JsonObject>? tags,string rider,string month)
+    {
+        var all=(tags??[]).ToList();var reversed=all.Where(t=>t.S("status")=="source_reversal"&&t.S("reversesTagId")!="").Select(t=>t.S("reversesTagId")).ToHashSet();
+        return all.Where(t=>t.S("status")=="confirmed"&&!reversed.Contains(t.S("id"))&&t.S("platform")=="HungerStation"&&t["platformDeducted"] is JsonObject key&&key.S("rider")==rider&&key.S("month")==month).Select(t=>Category(t["platformDeducted"].S("category"))).ToHashSet(StringComparer.Ordinal);
+    }
     public static bool Skip(HashSet<string> categories,JsonObject deduction)
     {
         string platform=deduction.S("platform");
@@ -43,7 +45,7 @@ public static class PlatformDeductions
         var invoice=HungerStationInvoices.GetInvoice(c,tx,actor,invoiceId);J.Need(invoice.S("approvalStatus")=="approved","وسوم الخصم تتطلب وقائع فاتورة معتمدة.");
         var request=invoice.Clone();request["requestedBy"]=invoice.S("createdBy");request["targetDepartment"]="FIN";request["requiredRankLevel"]=1;
         AccessPolicy.ValidateApproval(actor,request,new JsonObject(),"platforms.hs.approve");int created=0;
-        var lines=Store.List(c,"platform_invoice_line",tx).Where(l=>l.S("invoiceId")==invoiceId).ToList();
+        var lines=HungerStationInvoices.EffectiveLines(c,tx,invoiceId);
         var allocations=Store.List(c,"platform_allocation",tx).Where(a=>a.S("invoiceId")==invoiceId&&a.S("status")=="approved").ToList();
         J.Need(lines.Where(l=>l.N("tgaAmount")!=0).All(l=>allocations.Any(a=>a.S("lineId")==l.S("id")&&a.N("amount")==Math.Abs(l.N("tgaAmount")))),"لا يمكن تثبيت وسوم TGA قبل اعتماد التوزيع الكامل.");
         foreach(var line in lines.Where(l=>l.S("lineType")=="rider"&&l.S("riderId")!=""))
@@ -57,5 +59,16 @@ public static class PlatformDeductions
         foreach(var share in (allocation["riderShares"] as JsonArray??[]).OfType<JsonObject>())
             if(Tag(c,tx,actor,invoice,allocation.S("id"),share.S("riderId"),"tga",share.N("amount")))created++;
         return created;
+    }
+    public static void ReverseSource(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string originalId,JsonObject replacement)
+    {
+        AccessPolicy.Demand(actor,"platforms.hs.approve");var original=HungerStationInvoices.GetInvoice(c,tx,actor,originalId);
+        J.Need(original.S("reversalJournalEntryId")!=""&&replacement.S("replacesInvoiceId")==originalId&&replacement.S("approvalStatus")=="approved","تصحيح الوسوم يحتاج نسخة معتمدة بعد عكس الأصل.");
+        foreach(var tag in Store.List(c,Kind,tx).Where(t=>t.S("invoiceId")==originalId&&t.S("status")=="confirmed"))
+        {
+            string id="platform-deduction-reversal:"+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(replacement.S("id")+"\n"+tag.S("id"))));if(Store.Get(c,id,Kind,tx)!=null)continue;
+            var reversal=new JsonObject{["id"]=id,["platform"]="HungerStation",["companyId"]=original.S("companyId"),["invoiceId"]=replacement.S("id"),["reversesTagId"]=tag.S("id"),["platformDeducted"]=tag["platformDeducted"]!.DeepClone(),["status"]="source_reversal",["createdBy"]=actor.Identity!.Name};
+            Store.Save(c,Kind,reversal,tx);Store.Audit(c,tx,"platform.hs.deduction_source_reversed",id,actor.Identity!.Name!);
+        }
     }
 }

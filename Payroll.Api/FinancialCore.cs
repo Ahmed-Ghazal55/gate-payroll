@@ -354,7 +354,7 @@ public static class FinancialCore
         if(targetChart)line["chart"]="target";return line;
     }
 
-    public static JsonObject PostJournal(DbConnection c, DbTransaction tx, string transactionType, string description, string period, string reference, JsonArray lines, string actor, string iqama = "", string debtId = "", string? originSponsorId = null, string? creditorSponsorId = null, bool targetChart = false)
+    public static JsonObject PostJournal(DbConnection c, DbTransaction tx, string transactionType, string description, string period, string reference, JsonArray lines, string actor, string iqama = "", string debtId = "", string? originSponsorId = null, string? creditorSponsorId = null, bool targetChart = false,string? reversesJournalId=null)
     {
         J.Need(lines.Count >= 2, "القيد المحاسبي المزدوج يتطلب طرفين على الأقل.");
         J.Need(lines.OfType<JsonObject>().Count(l=>l.B("closingLegacyGroup"))<=1,"إقفال الرصيد التاريخي سطر واحد فقط.");
@@ -403,6 +403,7 @@ public static class FinancialCore
             ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
         };
         if(targetChart)doc["chart"]="target";
+        if(reversesJournalId!=null)doc["reversesJournalId"]=reversesJournalId;
         Store.Save(c, "journal", doc, tx);
         return doc;
     }
