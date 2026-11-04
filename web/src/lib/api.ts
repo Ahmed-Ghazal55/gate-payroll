@@ -1040,4 +1040,12 @@ export const api = {
 
   // Legacy Policies
   getPolicies: () => handleRequest<any[]>('/policies'),
+
+  // Rider Mobile App APIs (Track M)
+  getRiderBroadcasts: () => handleRequest<any[]>('/rider-mobile/broadcasts'),
+  sendRiderBroadcast: (input: { category?: string; titleAr: string; bodyAr: string; iqama?: string; actionUrl?: string; requiresAck?: boolean }) =>
+    handleRequest<any>('/rider-mobile/broadcast', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 };
