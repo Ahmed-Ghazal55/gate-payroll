@@ -1001,4 +1001,15 @@ export const api = {
   // Operations & Assets APIs (Codex R4.6)
   getOperations: (kind: string) =>
     handleRequest<any[]>(`/operations/${encodeURIComponent(kind)}`),
+
+  // Admin & Security APIs
+  getUsers: () => handleRequest<any[]>('/users'),
+  createUser: (input: any) =>
+    handleRequest<any>('/users', { method: 'POST', body: JSON.stringify(input) }),
+  updateUser: (id: string, input: any) =>
+    handleRequest<any>(`/users/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }),
+  getRolesCatalog: () => handleRequest<any>('/roles-catalog'),
+  getFirebaseConfig: () => handleRequest<any>('/rider-mobile/firebase-config'),
+  saveFirebaseConfig: (input: any) =>
+    handleRequest<any>('/rider-mobile/firebase-config', { method: 'POST', body: JSON.stringify(input) }),
 };
