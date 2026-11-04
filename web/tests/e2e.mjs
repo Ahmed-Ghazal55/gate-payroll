@@ -111,6 +111,39 @@ function startStaticServer(port = 39821) {
         ]));
         return;
       }
+      if (reqPath === '/api/finance/coa/target') {
+        const coaPath = path.resolve(webDir, '../Payroll.Api/Resources/target-coa.v1.json');
+        if (fs.existsSync(coaPath)) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(fs.readFileSync(coaPath));
+          return;
+        }
+      }
+      if (reqPath === '/api/platforms/hs/posting') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ enabled: false }));
+        return;
+      }
+      if (reqPath === '/api/promissory-notes') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ featureEnabled: true, items: [] }));
+        return;
+      }
+      if (reqPath.startsWith('/api/finance/trial-balance')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ version: '1.0', view: 'target', companies: [] }));
+        return;
+      }
+      if (reqPath.startsWith('/api/finance/income-statement')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ version: '1.0', view: 'target', companies: [] }));
+        return;
+      }
+      if (reqPath.startsWith('/api/finance/bank-file/preview')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ period: '2026-10', totalAmount: 0, validRecordsCount: 0, excludedRecordsCount: 0, records: [] }));
+        return;
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end('[]');
       return;
@@ -410,6 +443,51 @@ async function run() {
       await mobPage.goto(`${baseUrl}/${p}/`);
       await mobPage.waitForLoadState('networkidle');
       const mobShot = path.join(r2ResultsDir, `mobile-sand-${p}.png`);
+      await mobPage.screenshot({ path: mobShot });
+      console.log(`  ✓ Saved screenshot: ${path.basename(mobShot)}`);
+      await mobContext.close();
+    }
+
+    // -------------------------------------------------------------
+    // Test 7: R3 Workspaces (payroll, treasury, debts, accounting)
+    // -------------------------------------------------------------
+    console.log('\n[7/7] Testing R3 Workspaces (payroll, treasury, debts, accounting at 1440 & 360 across themes)...');
+    const r3ResultsDir = path.join(webDir, '../test-results/r3-web');
+    if (!fs.existsSync(r3ResultsDir)) {
+      fs.mkdirSync(r3ResultsDir, { recursive: true });
+    }
+
+    const r3Pages = ['payroll', 'treasury', 'debts', 'accounting'];
+    for (const p of r3Pages) {
+      // 1440 desktop across themes
+      for (const theme of themes) {
+        const deskContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+        const deskPage = await deskContext.newPage();
+        await deskPage.goto(`${baseUrl}/${p}/`);
+        await deskPage.waitForLoadState('networkidle');
+        await deskPage.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme);
+
+        // Verify RTL
+        const dir = await deskPage.evaluate(() => document.documentElement.getAttribute('dir') || document.body.getAttribute('dir'));
+        assert.equal(dir, 'rtl', `${p} page must be RTL`);
+
+        const deskShot = path.join(r3ResultsDir, `desktop-${theme}-${p}.png`);
+        await deskPage.screenshot({ path: deskShot });
+        console.log(`  ✓ Saved screenshot: ${path.basename(deskShot)}`);
+        await deskContext.close();
+      }
+
+      // 360 mobile
+      const mobContext = await browser.newContext({ viewport: { width: 360, height: 740 }, isMobile: true });
+      const mobPage = await mobContext.newPage();
+      await mobPage.goto(`${baseUrl}/${p}/`);
+      await mobPage.waitForLoadState('networkidle');
+
+      // Check horizontal scroll
+      const hasHScroll = await mobPage.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+      assert.ok(!hasHScroll, `${p} page has horizontal scroll at 360px`);
+
+      const mobShot = path.join(r3ResultsDir, `mobile-sand-${p}.png`);
       await mobPage.screenshot({ path: mobShot });
       console.log(`  ✓ Saved screenshot: ${path.basename(mobShot)}`);
       await mobContext.close();

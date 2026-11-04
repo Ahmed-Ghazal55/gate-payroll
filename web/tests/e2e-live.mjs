@@ -418,6 +418,176 @@ try {
   assert.ok(blob.length > 50, 'Export binary should have valid length');
   console.log(`✓ Step 7: Excel export verified (${blob.length} bytes received)`);
 
+  // --- R3 Tests: HungerStation Review Screens & Workspaces (A7) ---
+  console.log('\n--- Running R3 Live E2E Tests (HungerStation Review & L2 Workspaces) ---');
+
+  // Load syntheticWorkbook fixture
+  const fixturePath = pathToFileURL(path.join(rootDir, 'tests/financial-fixtures.mjs'));
+  const { syntheticWorkbook } = await import(fixturePath);
+
+  // Generate synthetic workbook for HS import
+  const hsFile = syntheticWorkbook([
+    {
+      name: 'Co LVL',
+      rows: [
+        ['Company CR', 'Contract Name', 'completed_orders', 'basic_payment', 'COURIER_BASIC_PAYMENT', 'Amount Excl VAT', 'VAT', 'Amount Incl VAT', 'Net FTR', 'CAR Deduction October 2026', 'TGA Deduction October 2026'],
+        ['4030362130', 'Synthetic HS contract', 10, 100, 100, 100, 15, 115, 115, 5, 20],
+      ],
+    },
+    {
+      name: 'Rider LVL',
+      rows: [
+        ['rider_id', 'Contract Name', 'completed_orders', 'basic_payment', 'COURIER_BASIC_PAYMENT', 'scheme'],
+        ['SYN-HS-LIVE', 'Synthetic HS contract', 10, 100, 100, 'salary'],
+      ],
+    },
+    {
+      name: 'Breakdown',
+      rows: [
+        ['rider_id', 'completed_orders'],
+        ['SYN-HS-LIVE', 10],
+      ],
+    },
+  ]);
+
+  console.log('\nStep 8: Testing HungerStation Import (Preview & Commit)...');
+  const hsInput = {
+    period: '2026-10',
+    files: [{ fileName: 'synthetic-hs.xlsx', dataBase64: hsFile }],
+  };
+  const hsPreviewRes = await page.request.post(`${baseUrl}/api/platforms/hs/invoices/import/preview`, {
+    data: hsInput,
+  });
+  assert.equal(hsPreviewRes.status(), 200, 'HS import preview should succeed');
+  const hsPreview = await hsPreviewRes.json();
+  assert.equal(hsPreview.canCommit, true, 'HS preview must be committable');
+  console.log('✓ Step 8a: HS import preview verified with canCommit: true');
+
+  const hsCommitRes = await page.request.post(`${baseUrl}/api/platforms/hs/invoices/import/commit`, {
+    data: { ...hsInput, rows: hsPreview.rows, fingerprint: hsPreview.fingerprint, confirm: true },
+  });
+  assert.equal(hsCommitRes.status(), 200, 'HS import commit should succeed');
+  console.log('✓ Step 8b: HS import committed successfully');
+
+  // Grab the TGA line ID from preview
+  const tgaLine = hsPreview.rows[0].lines.find((l) => l.tgaAmount !== 0);
+  assert.ok(tgaLine, 'TGA line must exist in preview');
+
+  // Step 8c: User A proposes TGA split
+  console.log('\nStep 8c: User A proposing TGA split...');
+  const splitRes = await page.request.post(`${baseUrl}/api/platforms/hs/allocations/${encodeURIComponent(tgaLine.id)}`, {
+    data: { companyAmount: 20, riderAmount: 0 },
+  });
+  assert.equal(splitRes.status(), 200, 'TGA split proposal should return 200');
+  const splitData = await splitRes.json();
+  console.log(`✓ Step 8c: TGA split proposed by User A: id=${splitData.id}`);
+
+  // Step 8d: Verify User A refusal when attempting to approve own split (Maker-checker rule)
+  const selfApproveRes = await page.request.post(`${baseUrl}/api/platforms/hs/allocations/${encodeURIComponent(splitData.id)}/approve`, {
+    data: {},
+  });
+  assert.equal(selfApproveRes.status(), 403, 'User A self-approval of split must be rejected with 403');
+  console.log('✓ Step 8d: Maker-checker verified: User A self-approval refused with HTTP 403');
+
+  console.log('\nStep 9: Testing HungerStation Review Workspace (/app/payroll/)...');
+  await page.goto(`${baseUrl}/app/payroll/`);
+  await page.waitForLoadState('networkidle');
+
+  // Verify invoice row by period and total amount
+  const invoiceRow = page.locator('tbody tr').filter({ hasText: '2026-10' }).first();
+  await invoiceRow.waitFor({ timeout: 8000 });
+  console.log('✓ Step 9a: Invoice row visible in invoices sub-tab');
+
+  // Verify TGA allocation in allocations sub-tab for User A
+  const allocTabBtn = page.locator('#tab-allocations');
+  await allocTabBtn.click();
+  await page.waitForSelector('th:has-text("المبلغ الإجمالي")', { timeout: 5000 });
+
+  // In UI, User A's approve button should be disabled
+  const userAApproveBtn = page.locator('tbody tr button:has-text("اعتماد المدقق")').first();
+  await userAApproveBtn.waitFor({ timeout: 5000 });
+  assert.ok(await userAApproveBtn.isDisabled(), 'Maker-checker UI: Approve button must be disabled for maker (User A)');
+  console.log('✓ Step 9b: Maker-checker UI verified: Approve button is disabled for maker in UI');
+
+  // Create User B (independent financial checker)
+  const checkerUsername = 'checker-' + randomBytes(4).toString('hex');
+  const checkerPassword = 'CheckerPass123!' + randomBytes(4).toString('hex');
+  const createUserBRes = await page.request.post(`${baseUrl}/api/users`, {
+    data: { username: checkerUsername, password: checkerPassword, role: 'FinancialAccountant' },
+  });
+  assert.equal(createUserBRes.status(), 200, 'User B creation should succeed');
+
+  // Login as User B in a separate browser context
+  const checkerContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const checkerPage = await checkerContext.newPage();
+  await checkerPage.goto(`${baseUrl}/app/login/`);
+  await checkerPage.locator('#username').fill(checkerUsername);
+  await checkerPage.locator('#password').fill(checkerPassword);
+  await checkerPage.locator('button[type="submit"]').click();
+  await checkerPage.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 8000 });
+
+  // User B opens /app/payroll/ and resolves CAR dispute as platform_rejected
+  await checkerPage.goto(`${baseUrl}/app/payroll/`);
+  await checkerPage.waitForLoadState('networkidle');
+
+  const disputesTabBtn = checkerPage.locator('#tab-disputes');
+  await disputesTabBtn.click();
+  await checkerPage.waitForSelector('th:has-text("الحالة والمسار المحاسبي")', { timeout: 5000 });
+
+  // User B clicks "معالجة النزاع"
+  const resolveBtn = checkerPage.locator('tbody tr button:has-text("معالجة النزاع")').first();
+  await resolveBtn.waitFor({ timeout: 5000 });
+  await resolveBtn.click();
+
+  const resolveModal = checkerPage.locator('div[role="dialog"]:has-text("معالجة وفض نزاع")');
+  await resolveModal.waitFor({ timeout: 5000 });
+
+  // Click outcome: المنصة رفضت (تصعيد 112803)
+  const rejectBtn = resolveModal.locator('button:has-text("المنصة رفضت")');
+  await rejectBtn.click();
+
+  // Enter platform reference and reason
+  await resolveModal.locator('input[placeholder*="HS-TICKET"]').fill('REF-CAR-E2E-999');
+  await resolveModal.locator('textarea[placeholder*="قرار المنصة"]').fill('Platform rejected CAR claim');
+
+  // Confirm resolution
+  const confirmResolveBtn = resolveModal.locator('button:has-text("تأكيد قرار فض النزاع")');
+  await confirmResolveBtn.click();
+  await checkerPage.waitForSelector('div[role="alert"]:has-text("تم تسجيل رفض المنصة")', { timeout: 5000 });
+
+  // Verify escalated badge
+  const escalatedBadge = checkerPage.locator('span:has-text("مرحّل لحساب النزاعات 112803 لحين فض النزاع")').first();
+  await escalatedBadge.waitFor({ timeout: 5000 });
+  assert.ok(await escalatedBadge.isVisible(), 'Escalated badge 112803 must be visible');
+  console.log('✓ Step 9c: CAR dispute resolved as platform_rejected by User B and escalated badge (112803) verified');
+
+  // User B switches to TGA Allocations tab and approves split
+  const checkerAllocTab = checkerPage.locator('#tab-allocations');
+  await checkerAllocTab.click();
+
+  const checkerApproveBtn = checkerPage.locator('tbody tr button:has-text("اعتماد المدقق")').first();
+  await checkerApproveBtn.waitFor({ timeout: 5000 });
+  assert.ok(!await checkerApproveBtn.isDisabled(), 'Checker (User B) should have active approve button');
+  await checkerApproveBtn.click();
+  await checkerPage.waitForSelector('div[role="alert"]:has-text("تم اعتماد توزيع TGA")', { timeout: 5000 });
+
+  // Verify status is now "معتمد"
+  const approvedBadge = checkerPage.locator('tbody tr span:has-text("معتمد")').first();
+  await approvedBadge.waitFor({ timeout: 5000 });
+  assert.ok(await approvedBadge.isVisible(), 'Allocation status must become "معتمد"');
+  console.log('✓ Step 9d: Maker-checker verified: User B (checker) approved TGA split successfully');
+  await checkerContext.close();
+
+  // Step 10: Verify moved workspaces load cleanly without UnderMigration
+  console.log('\nStep 10: Verifying moved workspaces (/app/treasury/, /app/debts/, /app/accounting/)...');
+  for (const pagePath of ['/app/treasury/', '/app/debts/', '/app/accounting/']) {
+    await page.goto(`${baseUrl}${pagePath}`);
+    await page.waitForLoadState('networkidle');
+    const content = await page.textContent('body');
+    assert.ok(!content.includes('قيد النقل التدريجي'), `${pagePath} must be an active workspace, not UnderMigration`);
+    console.log(`✓ Step 10: ${pagePath} loaded cleanly as real workspace`);
+  }
+
   console.log('\n🎉 ALL LIVE E2E INTEGRATION TESTS PASSED AGAINST REAL .NET API!');
 } finally {
   if (browser) await browser.close();
