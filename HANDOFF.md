@@ -15,6 +15,7 @@ Implement codex-R4-api.md in numbered commits: additive pay framework, platform 
 Preflight main5fe403b clean/current; build clean. Baseline .NET191 passed/0failed/6SQL skipped; Python26; eleven HTTP and six browser suites passed; source179. COA --check failed as expected403→408. No source/store data loaded.
 
 ## Done
+- R4.4: pure category/scheme evaluator, capped Riyadh billing days, data-driven rent, exact order-share incentives, own-app eligibility and explain lines; negative/missing evidence needs_decision. Forty-four evaluator/settings cases passed; build clean, source191.
 - R4.3: admin-mapped signed choice import, approved current/history versions before Riyadh month start; source/rider bodies unchanged, later versions append, company visibility historical, ambiguous/unmapped latest choices block. Twenty-seven focused tests and35 R4 HTTP checks passed.
 - R4.2: versioned terms/schemes/own-app eligibility and effective-dated global settings; drafts never auto-approve, approved versions immutable, exact eligibility snapshots survive copy. Forty-one focused tests (15 settings behaviors) and27 R4 HTTP checks passed; source187.
 - Ghazal decisions: billed days capped30/28 including31-day/leap-February months; existing debts update only at actual cycle approval via Debts.Post, never in previews.
@@ -23,7 +24,7 @@ Preflight main5fe403b clean/current; build clean. Baseline .NET191 passed/0faile
 - Read current prompt, HANDOFF/rules/capacity, BR17/22/23/24 and platform/ERP mapping specs; ERP14:00 Riyadh logic inspected read-only. Start permitted after Ghazal confirmed100% renewed capacity.
 
 ## Next step (exact)
-R4.4: pure days/rent, order-share incentives and five scheme evaluators with explain lines, own-app eligibility and needs_decision for negative net. Continue ordered R4.2–R4.8 and R4.10; R4.9 waits for explicit «حوّل الإنتاج». No staging writes without fresh «حمّل».
+R4.5: monthly stages0–7, target posting and once-per-month deductions; existing debt balances update only on independent approval. Continue R4.6–R4.8 and R4.10; R4.9 waits for explicit «حوّل الإنتاج». No staging writes without fresh «حمّل».
 
 ## How to verify
 ```bash

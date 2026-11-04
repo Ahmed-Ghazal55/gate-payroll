@@ -61,19 +61,20 @@ public static partial class PaySettings
         {
             var cell=PayValues.Object(pair.Value);J.Need(cell.S("enabled")==""||cell["enabled"] is JsonValue,"حالة الخلية غير صالحة.");bool enabled=PayValues.Flag(cell,"enabled");
             if(!enabled){PayValues.Fields(cell,"enabled");continue;}
-            PayValues.Fields(cell,"enabled","dailyCommission","monthlyCommission","companyPercent","prorate","chargeCompanyVehicle","bands","fallbackRate","operatingCost","fuelCap","internet");PayValues.Flag(cell,"chargeCompanyVehicle");
+            PayValues.Fields(cell,"enabled","dailyCommission","monthlyCommission","companyPercent","prorate","chargeCompanyVehicle","bands","fallbackRate","operatingCost","fuelCap","internet","operatingCostAccount");PayValues.Flag(cell,"chargeCompanyVehicle");
             if(type=="daily_commission")PayValues.Number(cell,"dailyCommission");
             if(type is "percent_of_gross" or "percent_monthly_with_vehicle")PayValues.Number(cell,"companyPercent",0,100);
             if(type=="monthly_commission"){PayValues.Number(cell,"monthlyCommission");PayValues.Flag(cell,"prorate");}
             if(type=="target_salary")Bands(cell["bands"]);
             if(type=="percent_monthly_with_vehicle"&&!pair.Key.EndsWith("_private",StringComparison.Ordinal))J.Need(cell.B("chargeCompanyVehicle"),"هذا النظام يشمل مركبة الشركة صراحة.");
             foreach(string key in new[]{"dailyCommission","monthlyCommission","companyPercent","fallbackRate","operatingCost","fuelCap","internet"})if(cell.ContainsKey(key))PayValues.Number(cell,key,0,key=="companyPercent"?100:1000000000);
+            if(cell.ContainsKey("operatingCostAccount")){string account=PayPlatforms.Active(cell.S("operatingCostAccount"));J.Need(account.StartsWith('4'),"تكلفة التشغيل المستردة تحتاج حساب دخل محددًا.");}
             if(cell.ContainsKey("prorate"))PayValues.Flag(cell,"prorate");if(type!="target_salary"&&cell.ContainsKey("bands"))Bands(cell["bands"]);
         }
     }
     static void ValidateEligibility(JsonObject data,string app)
     {
-        PayValues.Fields(data,"name","rules");var rules=PayValues.Array(data["rules"]);
+        PayValues.Fields(data,"name","rules");var rules=PayValues.Array(data["rules"]);if(app=="jahez")J.Need(rules.Count==0,"جاهز بلا شروط أهلية وله دورة تصفيات منفصلة.");
         foreach(var rule in rules.OfType<JsonObject>())
         {
             PayValues.Fields(rule,"metric","operator","threshold","effect","app");if(rule.ContainsKey("app"))J.Need(PayPlatforms.App(rule.S("app"))==app,"الأهلية تخص تطبيقًا واحدًا؛ المشاركة بين التطبيقات ممنوعة.");PayValues.Name(rule.Required("metric"));J.Need(Operators.Contains(rule.S("operator")),"عامل مقارنة غير مدعوم.");PayValues.Number(rule,"threshold",-1000000000);
