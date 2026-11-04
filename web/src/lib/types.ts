@@ -209,3 +209,444 @@ export interface ApiErrorPayload {
   error: string;
   code?: string;
 }
+
+// ==========================================
+// HungerStation Platform Types (R3 Part A)
+// ==========================================
+
+export interface HsInvoice {
+  id: string;
+  companyId: string;
+  period: string;
+  platform: string;
+  status: 'draft' | 'pending_allocation' | 'disputed' | 'approved' | 'posted';
+  settlementHold?: boolean;
+  approvalStatus?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  createdBy?: string;
+  createdAt?: string;
+  journalEntryId?: string;
+  reversalJournalEntryId?: string;
+  totalAmount?: number;
+  vat?: number;
+  linesCount?: number;
+  disputesCount?: number;
+  allocationsCount?: number;
+  flags?: string[];
+  blockers?: string[];
+}
+
+export interface HsDispute {
+  id: string;
+  invoiceId: string;
+  lineId: string;
+  companyId: string;
+  period: string;
+  platform: string;
+  category: string;
+  amount: number;
+  reason: string;
+  status: 'open' | 'escalated' | 'resolved';
+  outcome?: 'platform_credit' | 'platform_rejected';
+  platformReference?: string;
+  resolutionReason?: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  createdBy: string;
+  createdAt: string;
+  accountingReconciliation?: string;
+}
+
+export interface HsAllocationRiderShare {
+  riderId: string;
+  amount: number;
+}
+
+export interface HsAllocation {
+  id: string;
+  invoiceId: string;
+  lineId: string;
+  companyId: string;
+  period: string;
+  amount: number;
+  status: 'pending_allocation' | 'pending' | 'approved';
+  companyAmount?: number;
+  riderAmount?: number;
+  splitPercent?: number;
+  riderShares?: HsAllocationRiderShare[];
+  createdBy?: string;
+  requestedBy?: string;
+  createdAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  revision?: number;
+}
+
+export interface HsFact {
+  id: string;
+  companyId: string;
+  period?: string;
+  kind: 'hs_wallet_event' | 'hs_remittance' | 'hs_remittance_allocation' | 'hs_handover_review' | 'hs_month_close';
+  sourceFacts?: Record<string, any>;
+  status?: string;
+  sourceEventId?: string;
+  linkedSourceEventId?: string;
+  isReversal?: boolean;
+  reversalOf?: string;
+}
+
+export interface HsJournalLine {
+  accountCode: string;
+  accountNameAr?: string;
+  debit: number;
+  credit: number;
+  description: string;
+  riderId?: string;
+  isTargetScheme?: boolean;
+}
+
+export interface HsProposedJournal {
+  invoiceId: string;
+  companyId: string;
+  period: string;
+  lines: HsJournalLine[];
+  blockers: string[];
+  readyForApproval: boolean;
+  postingEnabled: boolean;
+  postingBlockedByDispute: boolean;
+  postingAllowed: boolean;
+  postingBlockers: string[];
+  disputedAmount?: number;
+  fingerprint?: string;
+}
+
+export interface HsImportFile {
+  fileName: string;
+  dataBase64: string;
+}
+
+export interface HsImportPreviewResult {
+  rows: any[];
+  canCommit: boolean;
+  fingerprint: string;
+  errors: Array<{ fileIndex: number; sheet: string; row: number; code: string; message?: string }>;
+  counts: Record<string, number>;
+  flags?: string[];
+  blockers?: string[];
+}
+
+// ==========================================
+// Treasury & Banks Types (R3 Part B1)
+// ==========================================
+
+export interface FinanceAccount {
+  code: string;
+  nameAr: string;
+  accountType: string;
+  naturalSide: 'Debit' | 'Credit';
+  naturalSideAr: string;
+  parentCode?: string;
+  isGroup: boolean;
+  isVault: boolean;
+  vaultKind?: 'MainInternal' | 'CashBox' | 'Bank' | 'Custody' | string;
+  vaultPurpose?: string;
+  allowedDirections?: string;
+  allowedDirectionsAr?: string;
+  allowedSectors?: string[];
+  debit: number;
+  credit: number;
+  netBalance: number;
+}
+
+export interface FinanceJournalLine {
+  accountCode: string;
+  accountNameAr?: string;
+  debit: number;
+  credit: number;
+  description?: string;
+  sponsorId?: string;
+  iqama?: string;
+  reference?: string;
+}
+
+export interface FinanceJournal {
+  id: string;
+  journalNumber?: string;
+  transactionType?: string;
+  sourceKind?: string;
+  sourceRef?: string;
+  period?: string;
+  date?: string;
+  entryDate?: string;
+  description: string;
+  sponsorId?: string;
+  originSponsorId?: string;
+  originSponsorNameAr?: string;
+  creditorSponsorId?: string;
+  creditorSponsorNameAr?: string;
+  iqama?: string;
+  debtId?: string;
+  totalDebit?: number;
+  totalCredit?: number;
+  chart?: string;
+  lines: FinanceJournalLine[];
+  reversesJournalId?: string;
+  reversalOf?: string;
+  reversedBy?: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface BankPayrollFileRow {
+  riderIqama: string;
+  riderName: string;
+  iban: string;
+  bankName: string;
+  amount: number;
+  status: 'valid' | 'invalid_iban' | 'missing_data' | 'zero_balance';
+  validationMessage?: string;
+}
+
+export interface BankPayrollFilePreview {
+  period: string;
+  companyId?: string;
+  totalAmount: number;
+  validRecordsCount: number;
+  excludedCount: number;
+  records: BankPayrollFileRow[];
+  canExport: boolean;
+}
+
+// ==========================================
+// Debts & Advances Types (R3 Part B2)
+// ==========================================
+
+export interface DebtRecord {
+  id: string;
+  iqama: string;
+  riderName?: string;
+  category: 'advance' | 'traffic_fine' | 'equipment' | 'hr_cost' | 'loan' | string;
+  categoryAr?: string;
+  originalAmount: number;
+  remainingAmount: number;
+  monthlyDeduction?: number;
+  status: 'active' | 'settled' | 'waived' | 'disputed';
+  sponsorId?: string;
+  createdAt: string;
+  notes?: string;
+  installments?: Array<{ period: string; amount: number; settled: boolean }>;
+}
+
+export interface ApprovalRequest {
+  id: string;
+  fromDepartment: string;
+  targetDepartment: string;
+  requestType: string;
+  requestTypeAr?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  amount?: number;
+  iqama?: string;
+  riderName?: string;
+  reason: string;
+  requestedBy: string;
+  requestedAt: string;
+  decisionBy?: string;
+  decisionAt?: string;
+  decisionNote?: string;
+}
+
+export interface PromissoryNote {
+  id: string;
+  noteNumber: string;
+  iqama: string;
+  riderName?: string;
+  beneficiarySponsorId: string;
+  amount: number;
+  issueDate: string;
+  dueDate?: string;
+  status: 'active' | 'settled' | 'cancelled';
+  fileAttachmentUrl?: string;
+  createdAt: string;
+}
+
+export interface RiderStatementEntry {
+  date: string;
+  entryType: string;
+  description: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  reference?: string;
+}
+
+export interface RiderStatement {
+  iqama: string;
+  riderName: string;
+  period: { from: string; to: string };
+  openingBalance: number;
+  closingBalance: number;
+  entries: RiderStatementEntry[];
+}
+
+// ==========================================
+// Accounting & Reports Types (R3 Part B3)
+// ==========================================
+
+export interface TargetCoaAccount {
+  code: string;
+  nameAr: string;
+  level: number;
+  parent?: string | null;
+  parentCode?: string;
+  posting?: boolean;
+  isPosting?: boolean;
+  status?: string;
+  statusNote?: string | null;
+  isActive?: boolean;
+  nature?: string;
+  type?: string;
+  company?: string;
+  subledger?: string;
+  source?: string;
+  sourceNote?: string;
+  sourceType?: 'excel2024' | 'modified' | 'new' | string;
+  balance?: number;
+}
+
+export interface TargetCoaSummary {
+  total: number;
+  activePosting: number;
+  sourceBreakdown: {
+    excel2024: number;
+    modified: number;
+    newAccounts: number;
+  };
+}
+
+export interface TargetCoaResponse {
+  schemaVersion?: number;
+  version?: string;
+  source?: string;
+  accounts: TargetCoaAccount[];
+  summary?: TargetCoaSummary;
+  mapping?: any[];
+}
+
+export interface TrialBalanceCompanyRow {
+  code: string;
+  nameAr?: string;
+  name?: string;
+  parent?: string | null;
+  posting?: boolean;
+  level?: number;
+  openingDebit?: number;
+  openingCredit?: number;
+  periodDebit?: number;
+  periodCredit?: number;
+  closingDebit?: number;
+  closingCredit?: number;
+  [key: string]: any;
+}
+
+export interface TrialBalanceCompany {
+  sponsorId: string;
+  companyCode: string;
+  rows: TrialBalanceCompanyRow[];
+  unmapped?: any[];
+  totals?: {
+    openingDebit?: number;
+    openingCredit?: number;
+    periodDebit?: number;
+    periodCredit?: number;
+    closingDebit?: number;
+    closingCredit?: number;
+  };
+  mappedTotals?: any;
+  unmappedTotals?: any;
+  mappingComplete?: boolean;
+  scopeLimited?: boolean;
+  excludedLineCount?: number;
+  isComplete?: boolean;
+  isBalanced?: boolean;
+}
+
+export interface TrialBalanceItem {
+  accountCode: string;
+  accountNameAr: string;
+  parentCode?: string;
+  level: number;
+  isGroup: boolean;
+  openingDebit: number;
+  openingCredit: number;
+  movementDebit: number;
+  movementCredit: number;
+  closingDebit: number;
+  closingCredit: number;
+  netBalance: number;
+}
+
+export interface TrialBalanceResponse {
+  version?: string;
+  view?: string;
+  from?: string;
+  to?: string;
+  companies?: TrialBalanceCompany[];
+  period?: { from?: string; to?: string };
+  sponsorId?: string;
+  items?: TrialBalanceItem[];
+  totals?: {
+    movementDebit?: number;
+    movementCredit?: number;
+    closingDebit?: number;
+    closingCredit?: number;
+  };
+}
+
+export interface IncomeStatementCompany {
+  sponsorId: string;
+  companyCode: string;
+  revenueGroups?: Array<{
+    code: string;
+    nameAr: string;
+    parent?: string | null;
+    posting?: boolean;
+    amount: number;
+  }>;
+  expenseGroups?: Array<{
+    code: string;
+    nameAr: string;
+    parent?: string | null;
+    posting?: boolean;
+    amount: number;
+  }>;
+  revenue?: number;
+  expense?: number;
+  net?: number;
+  netIsComplete?: boolean;
+  scopeLimited?: boolean;
+  excludedLineCount?: number;
+  unmapped?: any[];
+}
+
+export interface IncomeStatementGroup {
+  code: string;
+  nameAr: string;
+  amount: number;
+  subAccounts?: Array<{ code: string; nameAr: string; amount: number }>;
+}
+
+export interface IncomeStatementResponse {
+  version?: string;
+  view?: string;
+  from?: string;
+  to?: string;
+  companies?: IncomeStatementCompany[];
+  period?: { from?: string; to?: string };
+  sponsorId?: string;
+  revenues?: IncomeStatementGroup[];
+  totalRevenues?: number;
+  expenses?: IncomeStatementGroup[];
+  totalExpenses?: number;
+  netIncome?: number;
+}

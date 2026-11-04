@@ -15,6 +15,23 @@ import type {
   CustomForm,
   PaginatedResult,
   ApiErrorPayload,
+  HsInvoice,
+  HsDispute,
+  HsAllocation,
+  HsFact,
+  HsProposedJournal,
+  HsImportFile,
+  HsImportPreviewResult,
+  FinanceAccount,
+  FinanceJournal,
+  BankPayrollFilePreview,
+  DebtRecord,
+  ApprovalRequest,
+  PromissoryNote,
+  RiderStatement,
+  TargetCoaResponse,
+  TrialBalanceResponse,
+  IncomeStatementResponse,
 } from './types';
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
@@ -707,5 +724,227 @@ export const api = {
       throw new ApiError(err.error || 'تعذر تصدير Excel', res.status);
     }
     return res.blob();
+  },
+
+  // ==========================================
+  // HungerStation Platform Review (R3 Part A)
+  // ==========================================
+  getHsInvoices: (params?: { companyId?: string; period?: string; status?: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.period) q.set('period', params.period);
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<PaginatedResult<HsInvoice>>(`/platforms/hs/invoices${qs}`);
+  },
+
+  previewHsImport: (input: { period: string; files: HsImportFile[] }) =>
+    handleRequest<HsImportPreviewResult>('/platforms/hs/invoices/import/preview', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  commitHsImport: (input: { period: string; files: HsImportFile[]; rows: any[]; fingerprint: string; confirm: boolean }) =>
+    handleRequest<{ ok: boolean; count: number; invoiceId?: string }>('/platforms/hs/invoices/import/commit', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  approveHsInvoice: (id: string, input: { rows: any[]; fingerprint: string; confirm: boolean }) =>
+    handleRequest<HsInvoice>(`/platforms/hs/invoices/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  getHsDisputes: (params?: { companyId?: string; period?: string; status?: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.period) q.set('period', params.period);
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<PaginatedResult<HsDispute>>(`/platforms/hs/disputes${qs}`);
+  },
+
+  createHsDispute: (invoiceId: string, input: { lineId: string; category: string; amount: number; reason: string }) =>
+    handleRequest<HsDispute>(`/platforms/hs/invoices/${encodeURIComponent(invoiceId)}/dispute`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  resolveHsDispute: (
+    invoiceId: string,
+    input: { mode: 'dispute'; disputeId: string; outcome: 'platform_credit' | 'platform_rejected'; platformReference: string; reason: string }
+  ) =>
+    handleRequest<HsDispute>(`/platforms/hs/invoices/${encodeURIComponent(invoiceId)}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  getHsAllocations: (params?: { companyId?: string; period?: string; status?: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.period) q.set('period', params.period);
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<PaginatedResult<HsAllocation>>(`/platforms/hs/allocations${qs}`);
+  },
+
+  splitHsAllocation: (
+    lineId: string,
+    input: { companyAmount: number; riderAmount: number; riderId?: string; riderPercent?: number }
+  ) =>
+    handleRequest<HsAllocation>(`/platforms/hs/allocations/${encodeURIComponent(lineId)}`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  approveHsAllocation: (id: string) =>
+    handleRequest<HsAllocation>(`/platforms/hs/allocations/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+    }),
+
+  getHsFacts: (params: { kind: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams({ kind: params.kind });
+    if (params.page) q.set('page', String(params.page));
+    if (params.pageSize) q.set('pageSize', String(params.pageSize));
+    return handleRequest<PaginatedResult<HsFact>>(`/platforms/hs/facts?${q.toString()}`);
+  },
+
+  getHsProposedJournals: (params?: { invoiceId?: string; kind?: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.invoiceId) q.set('invoiceId', params.invoiceId);
+    if (params?.kind) q.set('kind', params.kind);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<any>(`/platforms/hs/proposed-journals${qs}`);
+  },
+
+  // ==========================================
+  // Treasury & Banks (R3 Part B1)
+  // ==========================================
+  getFinanceAccounts: (sponsorId?: string) => {
+    const qs = sponsorId ? `?sponsorId=${encodeURIComponent(sponsorId)}` : '';
+    return handleRequest<FinanceAccount[]>(`/finance/accounts${qs}`);
+  },
+
+  getFinanceJournals: (params?: { sponsorId?: string; iqama?: string; accountCode?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.iqama) q.set('iqama', params.iqama);
+    if (params?.accountCode) q.set('accountCode', params.accountCode);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<FinanceJournal[]>(`/finance/journals${qs}`);
+  },
+
+  previewBankFile: (input: { period: string; sponsorId?: string }) =>
+    handleRequest<BankPayrollFilePreview>('/finance/bank-file/preview', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  exportBankFile: async (input: { period: string; sponsorId?: string }) => {
+    if (isMock) {
+      return new Blob(['Mock Bank CSV File'], { type: 'text/csv' });
+    }
+    const res = await fetch('/api/finance/bank-file/export', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'تعذر تصدير ملف البنك' }));
+      throw new ApiError(err.error || 'تعذر تصدير ملف البنك', res.status);
+    }
+    return res.blob();
+  },
+
+  transferVault: (input: {
+    sourceAccountCode: string;
+    targetAccountCode: string;
+    amount: number;
+    description: string;
+    sponsorId?: string;
+  }) =>
+    handleRequest<{ ok: boolean; journalId: string }>('/finance/vault-transfer', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  // ==========================================
+  // Debts & Advances (R3 Part B2)
+  // ==========================================
+  getDebts: (params?: { sponsorId?: string; category?: string; status?: string; iqama?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.category) q.set('category', params.category);
+    if (params?.status) q.set('status', params.status);
+    if (params?.iqama) q.set('iqama', params.iqama);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<DebtRecord[]>(`/debts${qs}`);
+  },
+
+  getRiderStatement: (iqama: string, from?: string, to?: string, sponsorId?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    if (sponsorId) q.set('sponsorId', sponsorId);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<RiderStatement>(`/finance/statement/rider/${encodeURIComponent(iqama)}${qs}`);
+  },
+
+  getRiderStatementSimple: (iqama: string, from: string, to: string, sponsorId?: string) => {
+    const q = new URLSearchParams({ from, to });
+    if (sponsorId) q.set('sponsorId', sponsorId);
+    return handleRequest<any>(`/finance/statement/rider/${encodeURIComponent(iqama)}/simple?${q.toString()}`);
+  },
+
+  getApprovals: (params?: { department?: string; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.department) q.set('department', params.department);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<ApprovalRequest[]>(`/approvals${qs}`);
+  },
+
+  decideApproval: (id: string, input: { decision: 'approved' | 'rejected' | 'suspended'; note?: string }) =>
+    handleRequest<{ ok: boolean }>(`/approvals/${id}/decide`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  getPromissoryNotes: () =>
+    handleRequest<{ featureEnabled: boolean; items: PromissoryNote[] }>('/promissory-notes'),
+
+  // ==========================================
+  // Accounting & Reports (R3 Part B3)
+  // ==========================================
+  getTargetCoa: () => handleRequest<TargetCoaResponse>('/finance/coa/target'),
+
+  getTrialBalance: (params?: { sponsorId?: string; from?: string; to?: string; view?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    if (params?.view) q.set('view', params.view);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<TrialBalanceResponse>(`/finance/trial-balance${qs}`);
+  },
+
+  getIncomeStatement: (params?: { sponsorId?: string; from?: string; to?: string; view?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    if (params?.view) q.set('view', params.view);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<IncomeStatementResponse>(`/finance/income-statement${qs}`);
   },
 };
