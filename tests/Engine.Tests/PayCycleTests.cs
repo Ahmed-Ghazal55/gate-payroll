@@ -7,7 +7,7 @@ public sealed class PayCycleTests
 {
     static string Rider(int i)=>"2"+i.ToString("D9");
     static JsonObject Source(string rider,int orders,decimal gross)=>new(){["rider"]=rider,["orders"]=orders,["baseGross"]=gross,["deduction"]=0,["category"]="sponsored_private",["days"]=1,["metrics"]=new JsonObject()};
-    static (PayFixture F,JsonObject Input,string Debt) Setup(bool debt=true)
+    internal static (PayFixture F,JsonObject Input,string Debt) Setup(bool debt=true)
     {
         var f=new PayFixture();f.Approve("pay_setting","global",f.Global());string company=FinancialCore.Sponsors[0].Id,period="2026-10";
         foreach(string app in new[]{"keeta","hs"}){f.Approve("pay_terms",app,f.Draft("pay_terms",app,PayFixture.Terms()));var scheme=f.Approve("pay_scheme",app,f.Draft("pay_scheme",app,PayFixture.Scheme(),"synthetic"));f.Store.Write((c,tx)=>{foreach(int i in new[]{1,2}){string rider=Rider(i);Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic cycle rider",["isDeliveryRider"]=true,["sponsorId"]=company,["status"]="Active"},tx);Store.Save(c,"pay_assignment",new(){["id"]="synthetic-choice-"+app+i,["rider"]=rider,["app"]=app,["period"]=period,["status"]="approved",["schemeId"]=scheme.S("id"),["choiceApprovedAt"]="2026-09-29T00:00:00.0000000+00:00"},tx);}PlatformPosting.Set(c,tx,PayFixture.Maker,app,new(){["enabled"]=true});return true;});}
@@ -22,8 +22,8 @@ public sealed class PayCycleTests
         return(f,new(){["period"]=period,["companyId"]=company,["invoices"]=invoices},"synthetic-cycle-debt");
     }
     static JsonObject Create(PayFixture f,JsonObject input)=>f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input));
-    static JsonObject Advance(PayFixture f,string id,int stage,bool checker=false)=>f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,checker?PayFixture.Checker:PayFixture.Maker,id,new(){["stage"]=stage}));
-    static JsonObject Through(PayFixture f,JsonObject input,int stage=6){var d=Create(f,input);for(int s=1;s<=stage;s++)d=Advance(f,d.S("id"),s);return d;}
+    internal static JsonObject Advance(PayFixture f,string id,int stage,bool checker=false)=>f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,checker?PayFixture.Checker:PayFixture.Maker,id,new(){["stage"]=stage}));
+    internal static JsonObject Through(PayFixture f,JsonObject input,int stage=6){var d=Create(f,input);for(int s=1;s<=stage;s++)d=Advance(f,d.S("id"),s);return d;}
     [TestMethod]
     public void TwoAppsSharedAccountCompanyCostAndOneMonthlyDebtReconcileWithoutMutatingPreviews()
     {

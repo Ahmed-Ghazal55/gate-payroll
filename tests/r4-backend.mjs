@@ -6,11 +6,11 @@ import {DatabaseSync} from 'node:sqlite';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {randomBytes} from 'node:crypto';
+import {randomBytes,createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),data=mkdtempSync(path.join(tmpdir(),'gate-r4-')),base='http://127.0.0.1:19492';
 let child,cookie='',checks=0;
-async function start(){child=spawn('dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ConnectionStrings__DefaultConnection:'',PAYROLL_DATA_DIR:data,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base},stdio:'ignore'});for(let n=0;n<150;n++){if(child.exitCode!==null)throw Error('Synthetic R4 API exited');try{if((await fetch(base+'/health')).ok)return;}catch{}await new Promise(r=>setTimeout(r,100));}throw Error('Synthetic R4 API timeout');}
+async function start(){child=spawn('dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ConnectionStrings__DefaultConnection:'',PAYROLL_DATA_DIR:data,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base},stdio:process.env.R4_TEST_DIAGNOSTICS==='1'?'inherit':'ignore'});for(let n=0;n<150;n++){if(child.exitCode!==null)throw Error('Synthetic R4 API exited');try{if((await fetch(base+'/health')).ok)return;}catch{}await new Promise(r=>setTimeout(r,100));}throw Error('Synthetic R4 API timeout');}
 async function req(route,body,status=200,auth=true){const r=await fetch(base+route,{method:body===undefined?'GET':'POST',redirect:'manual',headers:{...(cookie&&auth?{Cookie:cookie}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body)});assert.equal(r.status,status,route);checks++;if(r.headers.get('set-cookie'))cookie=r.headers.get('set-cookie').split(';')[0];return r.headers.get('content-type')?.includes('application/json')?r.json():r.text();}
 const confirm=p=>({rows:p.rows,fingerprint:p.fingerprint,confirm:true});
 try{
@@ -55,6 +55,12 @@ try{
  const advance='/api/pay/cycles/'+encodeURIComponent(cycle.id)+'/advance';await req(advance,{stage:2},400);for(let stage=1;stage<=6;stage++)await req(advance,{stage});await req(advance,{stage:7},403);cookie=checkerCookie;assert.equal((await req(advance,{stage:7})).status,'approved');await req(advance,{stage:7});
  const operations=await req('/api/operations/platform_account?page=1&q=synthetic-cycle');assert.equal(operations.total,1);assert.equal((await req('/api/riders/'+riderId+'/accounts?page=1')).total,1);await req('/api/operations/user',undefined,404);
  assert.equal((await req('/api/pay/cycles?period=2026-10')).total,1);assert.equal((await req('/api/pay/cycles/'+encodeURIComponent(cycle.id)+'/lines')).total,1);cookie=makerCookie;
+ const monthly=await req('/api/finance/statement/rider/'+riderId+'/monthly?period=2026-10');assert.equal(monthly.source,'pay_cycle');assert.equal(monthly.net,90);
+ await req('/api/rider-mobile/statement?period=2026-10',undefined,401,false);
+ const riderToken='rmob_'+randomBytes(32).toString('hex'),sessionId='mobile:'+createHash('sha256').update(riderToken).digest('hex').toUpperCase();
+ const sessionDb=new DatabaseSync(path.join(data,'payroll.db'));sessionDb.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?)').run(sessionId,'mobile_session',JSON.stringify({id:sessionId,iqama:riderId,expiresAtUtc:new Date(Date.now()+3600000).toISOString()}));sessionDb.close();
+ const mobileResponse=await fetch(base+'/api/rider-mobile/statement?period=2026-10',{headers:{Authorization:'Bearer '+riderToken}});assert.equal(mobileResponse.status,200);checks++;const ownStatement=await mobileResponse.json();assert.equal(ownStatement.header.rider,riderId);assert.equal(ownStatement.approvedOnly,true);assert.equal(ownStatement.cards.length,1);
+ const swapResponse=await fetch(base+'/api/rider-mobile/statement?period=2026-10&iqama=synthetic-other',{headers:{Authorization:'Bearer '+riderToken}});assert.equal(swapResponse.status,400);checks++;
  const companies=await req('/api/companies');await req('/api/users',{username:'synthetic-r4-scoped',password,role:'FinancialAccountant',financialScope:{sponsorIds:[companies[0].id],platforms:['HungerStation'],accountCodes:[],categoryCodes:[]}});
  await req('/api/auth/login',{username:'synthetic-r4-scoped',password});await req('/api/pay/apps/hs/terms?period=2026-10');await req('/api/pay/apps/keeta/terms?period=2026-10',undefined,403);await req('/api/pay/settings',{effectiveFrom:'2026-11-01',fromDefaults:true},403);
  cookie=makerCookie;const openapi=await req('/openapi/v1.json');assert.ok(openapi.paths['/api/pay/apps/{app}/terms']);assert.ok(openapi.paths['/api/pay/settings/{id}/approve']);

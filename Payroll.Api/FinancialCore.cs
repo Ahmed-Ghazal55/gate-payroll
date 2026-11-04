@@ -269,6 +269,14 @@ public static class FinancialCore
         return session;
     }
 
+    public static string AuthenticatedMobileRider(DbConnection c,HttpContext ctx)
+    {
+        string header=ctx.Request.Headers.Authorization.ToString();
+        if(!header.StartsWith("Bearer rmob_",StringComparison.Ordinal)||header.Length!=76)throw new ApiError("جلسة المندوب غير صالحة.",401);
+        var session=Store.Get(c,"mobile:"+TokenHash(header[7..]),"mobile_session")??throw new ApiError("جلسة المندوب غير صالحة.",401);
+        string rider=session.S("iqama");MobileSession(c,ctx,rider);return rider;
+    }
+
     public static AccountDef ResolveAccount(string code) =>
         ChartOfAccounts.FirstOrDefault(a => string.Equals(a.Code, code, StringComparison.OrdinalIgnoreCase))
         ?? throw new ApiError("رمز الحساب المالي أو الصندوق غير صالح: " + code);

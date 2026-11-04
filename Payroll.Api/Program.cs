@@ -137,6 +137,7 @@ PaySettings.Map(api,store);
 PayAssignments.Map(api,store);
 PayCycles.Map(api,store);
 Operations.Map(api,store);
+PayStatements.Map(app,api,store);
 HungerStationInvoices.MapImports(api,store);
 HungerStationInvoices.MapReview(api,store);
 GlobalSearch.Map(api,store);
