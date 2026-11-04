@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily ERP staging sync at 03:15 Riyadh
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Asia/Riyadh
+Persistent=true
+Unit=gate-erp-sync.service
+
+[Install]
+WantedBy=timers.target

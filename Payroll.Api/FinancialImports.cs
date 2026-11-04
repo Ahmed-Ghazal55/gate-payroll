@@ -9,7 +9,7 @@ namespace Payroll;
 public static class FinancialImports
 {
     private static readonly byte[] Key=RandomNumberGenerator.GetBytes(32);
-    private static string Canonical(JsonNode? node)=>node switch {
+    public static string Canonical(JsonNode? node)=>node switch {
         JsonObject o=>"{"+string.Join(",",o.OrderBy(x=>x.Key,StringComparer.Ordinal).Select(x=>System.Text.Json.JsonSerializer.Serialize(x.Key)+":"+Canonical(x.Value)))+"}",
         JsonArray a=>"["+string.Join(",",a.Select(Canonical))+"]",
         JsonValue v when v.TryGetValue<decimal>(out var n)=>n.ToString("G29",CultureInfo.InvariantCulture),
@@ -18,7 +18,12 @@ public static class FinancialImports
     private static string Signature(DbConnection c,DbTransaction? tx,string kind,JsonArray rows,string actor,string expiry)
     {
         var state=new JsonArray();
-        foreach(string k in new[]{"debt","rider","debt_settlement","journal","run","ledger","opening_reconciliation","debt_transfer"})
+        string[] kinds=kind switch{
+            "company-certificates"=>["company","commercial_registration"],
+            "hs-invoice"=>["company","commercial_registration","rider","platform_account","platform_invoice","platform_invoice_line","platform_dispute","platform_allocation"],
+            "hs-invoice-posting"=>["platform_invoice","platform_invoice_line","platform_invoice_action","platform_dispute","platform_allocation","platform_deduction","rider","setting","accounting_period","journal"],
+            _=>["debt","rider","debt_settlement","journal","run","ledger","opening_reconciliation","debt_transfer"]};
+        foreach(string k in kinds)
             foreach(var d in Store.List(c,k,tx).OrderBy(x=>x.S("id"),StringComparer.Ordinal))state.Add(d.Clone());
         string value=kind+"\n"+actor+"\n"+expiry+"\n"+Canonical(rows)+"\n"+Canonical(state);
         return Convert.ToHexString(HMACSHA256.HashData(Key,Encoding.UTF8.GetBytes(value)));

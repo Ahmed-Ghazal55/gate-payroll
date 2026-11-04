@@ -76,7 +76,16 @@ app.Use(async (ctx, next) =>
     { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(ApiErrors.Body(500, "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا.")); }
 });
 app.UseStatusCodePages(async context => { if(context.HttpContext.Request.Path.StartsWithSegments("/api") || context.HttpContext.Request.Path.StartsWithSegments("/openapi")) await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(context.HttpContext.Response.StatusCode)); });
-app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } }); app.UseRouting(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
+app.UseAuthentication();
+LegacyUi.Protect(app);
+app.Use(async (ctx,next)=>
+{
+    if(ctx.Request.Path=="/favicon.ico")
+    {await Results.File(Path.Combine(app.Environment.WebRootPath,"favicon.svg"),"image/svg+xml").ExecuteAsync(ctx);return;}
+    await next();
+});
+app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { if (context.Context.Request.Path.StartsWithSegments("/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; } });
+app.UseRouting(); app.UseAuthorization(); app.UseRateLimiter();
 NextApp.Map(app);
 app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent }).WithTags("Administration").WithSummary("Read  health");
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName }).WithTags("Administration").WithSummary("Read auth status");
@@ -122,6 +131,10 @@ api.AddEndpointFilter(async (context, next) => {
 api.AddEndpointFilter(ApiPagination.Filter);
 Notifications.Map(api,store);
 Companies.Map(api,store);
+CompanyRegistryImport.Map(api,store);
+PlatformPosting.Map(api,store);
+HungerStationInvoices.MapImports(api,store);
+HungerStationInvoices.MapReview(api,store);
 GlobalSearch.Map(api,store);
 ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);
@@ -279,7 +292,7 @@ CampaignOperations.Map(api,store);
 FormDeletion.Map(api,store);
 app.MapGet("/forms/{token}", (string token) => { Campaign(token); return Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.html"), "text/html; charset=utf-8"); }).WithTags("Forms and responses").WithSummary("Read  forms {token}");
 app.MapGet("/rider-form.js", () => Results.File(Path.Combine(AppContext.BaseDirectory, "wwwroot", "rider-form.js"), "text/javascript; charset=utf-8")).WithTags("Administration").WithSummary("Read  rider form.js");
-app.MapGet("/", () => Results.File(Path.Combine(app.Environment.WebRootPath, "index.html"), "text/html; charset=utf-8")).WithTags("Administration").WithSummary("Read  ");
+LegacyUi.Map(app);
 app.Run();
 
 async Task SignIn(HttpContext ctx, JsonObject user) => await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, UserAccess.SessionPrincipal(user));
@@ -306,12 +319,12 @@ PayrollResult Preview(System.Data.Common.DbConnection c, string iqama, string pe
     var rows = Store.List(c, "work", tx).Where(w => w.S("iqama") == iqama && w.S("period") == period).Select(w => w.Deserialize<WorkLine>(JsonSerializerOptions.Web)!).ToList();
     var adjustments = Store.List(c, "adjustment", tx).Where(a => a.S("iqama") == iqama && a.S("period") == period).ToList();
     var opening = Store.List(c, "ledger", tx).Where(a => a.S("iqama") == iqama && string.CompareOrdinal(a.S("period"), period) < 0).Sum(a => a.N("amount"));
-    return Engine.Calculate(iqama, period, policy, rows, adjustments, opening, Store.List(c,"debt",tx),Store.List(c,"ledger",tx).Where(l=>l.S("iqama")==iqama&&l.S("period")==period&&l.S("kind")=="payment").ToList());
+    return Engine.Calculate(iqama, period, policy, rows, adjustments, opening, Store.List(c,"debt",tx),Store.List(c,"ledger",tx).Where(l=>l.S("iqama")==iqama&&l.S("period")==period&&l.S("kind")=="payment").ToList(),Store.List(c,PlatformDeductions.Kind,tx));
 }
 string Fingerprint(System.Data.Common.DbConnection c, string iqama, string period, System.Data.Common.DbTransaction? tx = null)
 {
     var rider = Store.Get(c, iqama, "rider", tx); var policy = rider == null ? null : Store.Get(c, rider.S("policyId"), "policy", tx);
-    return Hash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { rider, policy, debts = Store.List(c,"debt",tx).Where(x=>x.S("iqama")==iqama).OrderBy(x=>x.S("id")), result = Preview(c, iqama, period, tx), rows = Store.List(c, "work", tx).Where(x => x.S("iqama") == iqama && x.S("period") == period).OrderBy(x => x.S("id")) })));
+    return Hash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { rider, policy, platformDeductions=Store.List(c,PlatformDeductions.Kind,tx).Where(x=>x["platformDeducted"] is JsonObject key&&key.S("rider")==iqama&&key.S("month")==period).OrderBy(x=>x.S("id")), debts = Store.List(c,"debt",tx).Where(x=>x.S("iqama")==iqama).OrderBy(x=>x.S("id")), result = Preview(c, iqama, period, tx), rows = Store.List(c, "work", tx).Where(x => x.S("iqama") == iqama && x.S("period") == period).OrderBy(x => x.S("id")) })));
 }
 static void ValidatePolicy(string kind, JsonObject config)
 {

@@ -21,14 +21,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchMe = useCallback(async () => {
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      if (p.includes('/login') || p.includes('/setup')) {
+        setLoading(false);
+        return;
+      }
+    }
     try {
       const u = await api.getMe();
       setUser(u);
     } catch (err: any) {
       if (err instanceof ApiError && err.status === 401) {
         if (typeof window !== 'undefined') {
-          const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-          window.location.href = `/?returnUrl=${returnUrl}`;
+          const p = window.location.pathname;
+          if (!p.startsWith('/app/login') && !p.startsWith('/app/setup')) {
+            const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+            window.location.href = `/app/login/?returnUrl=${returnUrl}`;
+          }
         }
       }
       setUser(null);

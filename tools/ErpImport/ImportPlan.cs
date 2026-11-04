@@ -7,12 +7,12 @@ namespace ErpImport;
 public sealed record PlannedDocument(string Kind,JsonObject Body);
 public sealed class ImportPlan
 {
-    public static readonly string[] Kinds=["company","commercial_registration","city","rider","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","platform_account","sponsorship_period","legal_case"];
+    public static readonly string[] Kinds=["company","commercial_registration","city","rider","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","platform_account","sponsorship_period","legal_case","hs_wallet_event","hs_remittance","hs_remittance_allocation","hs_handover_review","hs_month_close"];
     public List<PlannedDocument> Documents { get; }=[];
     public Dictionary<string,Dictionary<string,int>> Rejected { get; }=[];
     public Dictionary<string,int> Observations { get; }=[];
     public Dictionary<string,string> Unavailable { get; }=new(){["sponsorship_period"]="source_table_absent"};
-    void Reject(string kind,string reason){if(!Rejected.TryGetValue(kind,out var counts))Rejected[kind]=counts=[];counts[reason]=counts.GetValueOrDefault(reason)+1;}
+    internal void Reject(string kind,string reason){if(!Rejected.TryGetValue(kind,out var counts))Rejected[kind]=counts=[];counts[reason]=counts.GetValueOrDefault(reason)+1;}
     void Observe(string reason)=>Observations[reason]=Observations.GetValueOrDefault(reason)+1;
     static string Key(string kind,string source)=>"erp:"+kind+":"+source;
     static JsonArray Array(IEnumerable<JsonObject> rows)=>new(rows.Select(x=>(JsonNode?)x.Clone()).ToArray());
@@ -104,11 +104,19 @@ public sealed class ImportPlan
             string company=Company(row.S("SponsorId"));if(company==""){plan.Reject("legal_case","missing_company_relation");continue;}
             var doc=Doc("legal_case",row);doc["companyId"]=company;doc["number"]=row.S("CaseNumber");doc["personName"]=row.S("PersonName");doc["personTypeCode"]=row["PersonType"]?.DeepClone();doc["employeeSourceId"]=row.S("EmployeeId");doc["riderId"]=Rider(row.S("EmployeeId")) is var legalRider&&legalRider!=""?legalRider:profileRiders.GetValueOrDefault(row.S("RiderProfileId"))??"";doc["riderProfileSourceId"]=row.S("RiderProfileId");doc["partyRoleCode"]=row["SponsorPartyRole"]?.DeepClone();doc["caseDate"]=Date(row,"CaseDate");doc["caseTime"]=row.S("CaseTime");doc["details"]=row.S("Details");doc["hearings"]=Array(Rows("HrLegalCaseHearings").Where(h=>h.S("LegalCaseId")==row.S("Id")));plan.Documents.Add(new("legal_case",doc));
         }
+        HsFactsSource.AddToPlan(snapshot,plan,companies);
         return plan;
     }
     static bool Dates(JsonObject row,string start,string end)=>row.S(end)==""||StringComparer.Ordinal.Compare(row.S(start),row.S(end))<=0;
     public static JsonObject Merge(JsonObject? existing,JsonObject proposed)
     {
-        var merged=existing?.Clone()??new JsonObject();foreach(var field in proposed)merged[field.Key]=field.Value?.DeepClone();return merged;
+        var merged=existing?.Clone()??new JsonObject();
+        string[] certificateFields=["nameAr","nameEn","nameOnCertificateAr","unifiedNumber","commercialReg","crNumber","crType","entityType","characteristic","crVersion","issueDate","issueDateHijri","annualConfirmation","annualConfirmationHijri","city","address","capitalSar","activities","activitiesIncomplete"];
+        foreach(var field in proposed)
+        {
+            if(existing?.S("registrySource")=="company-certificates"&&certificateFields.Contains(field.Key)&&existing.ContainsKey(field.Key))continue;
+            merged[field.Key]=field.Value?.DeepClone();
+        }
+        return merged;
     }
 }

@@ -348,7 +348,7 @@ async function run() {
 
       const text = await page.textContent('body');
       assert.ok(text.includes('قيد النقل التدريجي'), 'Missing under migration tag');
-      assert.ok(text.includes('فتح الشاشة في الواجهة السابقة'), 'Missing legacy link');
+      assert.ok(text.includes('الشاشات القديمة (مؤقت)') || text.includes('فتح الشاشة في الواجهة السابقة'), 'Missing legacy link');
 
       const shot = path.join(resultsDir, 'desktop-sand-unmigrated-riders.png');
       await page.screenshot({ path: shot });
@@ -382,6 +382,37 @@ async function run() {
 
       console.log('  ✓ Focus and keyboard shortcuts (Ctrl+K, Esc) working as expected');
       await context.close();
+    }
+
+    // -------------------------------------------------------------
+    // Test 6: W1 Auth Pages (Login & Setup at 1440 and 360)
+    // -------------------------------------------------------------
+    console.log('\n[6/6] Testing W1 & W2 Pages (Login, Setup, Companies at 1440 & 360)...');
+    const r2ResultsDir = path.join(webDir, '../test-results/r2-web');
+    if (!fs.existsSync(r2ResultsDir)) {
+      fs.mkdirSync(r2ResultsDir, { recursive: true });
+    }
+
+    for (const p of ['login', 'setup', 'companies']) {
+      // 1440 desktop
+      const deskContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      const deskPage = await deskContext.newPage();
+      await deskPage.goto(`${baseUrl}/${p}/`);
+      await deskPage.waitForLoadState('networkidle');
+      const deskShot = path.join(r2ResultsDir, `desktop-sand-${p}.png`);
+      await deskPage.screenshot({ path: deskShot });
+      console.log(`  ✓ Saved screenshot: ${path.basename(deskShot)}`);
+      await deskContext.close();
+
+      // 360 mobile
+      const mobContext = await browser.newContext({ viewport: { width: 360, height: 740 } });
+      const mobPage = await mobContext.newPage();
+      await mobPage.goto(`${baseUrl}/${p}/`);
+      await mobPage.waitForLoadState('networkidle');
+      const mobShot = path.join(r2ResultsDir, `mobile-sand-${p}.png`);
+      await mobPage.screenshot({ path: mobShot });
+      console.log(`  ✓ Saved screenshot: ${path.basename(mobShot)}`);
+      await mobContext.close();
     }
 
     console.log('\n✅ All Gate Payroll 1.0 Web E2E Tests Passed Successfully!');

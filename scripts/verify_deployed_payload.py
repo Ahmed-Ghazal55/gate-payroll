@@ -18,6 +18,15 @@ def selected_files(root):
             raise RuntimeError('Protected runtime content must not enter the public payload.')
     return files
 
+REQUIRED_FAVICONS = ('wwwroot/favicon.svg', 'wwwroot/favicon.ico')
+
+def required_favicons(root):
+    root=Path(root)
+    for name in REQUIRED_FAVICONS:
+        if not (root/name).is_file():raise RuntimeError('Missing required favicon: '+name)
+    if (root/REQUIRED_FAVICONS[0]).read_bytes()!=(root/REQUIRED_FAVICONS[1]).read_bytes():
+        raise RuntimeError('Favicon alias differs from SVG')
+
 def digest_file(path):
     digest=hashlib.sha256()
     with path.open('rb') as source:
@@ -53,11 +62,13 @@ def verify_http_assets(root,base='https://payroll.marketingalbawaba.com'):
     for path in selected_files(root):
         relative=path.relative_to(root)
         if not relative.parts or relative.parts[0]!='wwwroot':continue
+        # Legacy HTML is session-protected; verify its exact bytes by FTPS above.
+        if relative.as_posix()=='wwwroot/index.html':continue
         # Publish emits compression sidecars. UseStaticFiles serves the original URL;
         # a .br download URL is not promised. All sidecars remain fully hashed by FTPS.
         if path.suffix in {'.br','.gz'} and path.with_suffix('').is_file():continue
         route='/'+'/'.join(urllib.parse.quote(p) for p in relative.parts[1:])
-        request=urllib.request.Request(base+route+'?release=0.10.2',headers={'Cache-Control':'no-cache','Accept-Encoding':'identity'})
+        request=urllib.request.Request(base+route+'?release=0.12.0',headers={'Cache-Control':'no-cache','Accept-Encoding':'identity'})
         try:
             with urllib.request.urlopen(request,timeout=30) as response:
                 actual=hashlib.sha256(response.read()).hexdigest()
@@ -69,15 +80,15 @@ def verify_http_assets(root,base='https://payroll.marketingalbawaba.com'):
     return verified
 
 def main():
-    root=Path('artifacts/monsterasp');selected_files(root)
+    root=Path('artifacts/monsterasp');selected_files(root);required_favicons(root)
     ftp=lifecycle.connect()
     try:
         if lifecycle.read_marker(ftp) is not None:raise RuntimeError('An IIS maintenance marker remains active.')
         proof=verify_bundle(ftp,root)
         # Only release metadata is read from App_Data. No record bodies or secret contents are downloaded.
-        checkpoint=io.BytesIO();ftp.retrbinary('RETR App_Data/release-backups/0.10.2/checkpoint.json',checkpoint.write)
+        checkpoint=io.BytesIO();ftp.retrbinary('RETR App_Data/release-backups/0.12.0/checkpoint.json',checkpoint.write)
         metadata=json.loads(checkpoint.getvalue());before=metadata.get('before',{})
-        if metadata.get('version')!='0.10.2' or not before.get('recordsSha256'):raise RuntimeError('Release checkpoint metadata is incomplete.')
+        if metadata.get('version')!='0.12.0' or not before.get('recordsSha256'):raise RuntimeError('Release checkpoint metadata is incomplete.')
         proof['checkpoint']={'version':metadata['version'],'counts':before.get('counts',{}),'recordsSha256':before['recordsSha256']}
     finally:ftp.close()
     target=Path('artifacts/deployment-verification-v070.json')

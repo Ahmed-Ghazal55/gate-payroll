@@ -57,10 +57,10 @@ export function UnderMigration({
 
         <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
           <a
-            href={`/#/${legacyHash}`}
+            href={`/legacy/#/${legacyHash}`}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-xl hover:opacity-95 active:scale-95 transition shadow-xs"
           >
-            <span>فتح الشاشة في الواجهة السابقة</span>
+            <span>فتح الشاشة في الشاشات القديمة (مؤقت)</span>
             <ExternalLink size={16} />
           </a>
 

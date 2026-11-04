@@ -32,6 +32,90 @@ export interface SearchResult {
   url: string;
 }
 
+export interface IsicActivity {
+  isic: string;
+  nameAr: string;
+}
+
+export interface Company {
+  id: string;
+  sponsorId?: string;
+  code: string;
+  nameAr: string;
+  nameEn?: string;
+  shortNameAr?: string;
+  unifiedNumber?: string;
+  commercialReg?: string;
+  crNumber?: string;
+  crType?: string;
+  entityType?: string;
+  characteristic?: string;
+  city?: string;
+  address?: string;
+  capitalSar?: number;
+  crVersion?: number;
+  issueDate?: string;
+  issueDateHijri?: string;
+  annualConfirmation?: string;
+  annualConfirmationHijri?: string;
+  activities?: IsicActivity[];
+  activitiesIncomplete?: boolean;
+  sponsoredRidersCount?: number;
+  status: 'active' | 'inactive' | 'archived';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CommercialRegistration {
+  id: string;
+  companyId: string;
+  company?: string;
+  number: string;
+  city?: string;
+  issueDate?: string;
+  issueDateHijri?: string;
+  annualConfirmation?: string;
+  annualConfirmationHijri?: string;
+  expiryDate?: string;
+  crVersion?: number;
+  status: 'active' | 'inactive' | 'expired' | 'archived';
+  createdAt?: string;
+}
+
+export interface CompanyDocument {
+  id: string;
+  companyId: string;
+  type: string;
+  number?: string;
+  expiryDate?: string;
+  fileName?: string;
+  fileRelativePath?: string;
+  file?: string;
+  contentType?: string;
+  status: 'active' | 'archived';
+  createdAt?: string;
+}
+
+export interface ExpiringRecord {
+  id: string;
+  companyId: string;
+  kind: 'commercial_registration' | 'company_document';
+  number?: string;
+  type?: string;
+  annualConfirmation?: string;
+  expiryDate?: string;
+  status: string;
+}
+
+export interface CompanyImportPlan {
+  rows: any[];
+  fingerprint: string;
+  counts: {
+    company: { new: number; changed: number; unchanged: number };
+    commercial_registration: { new: number; changed: number; unchanged: number };
+  };
+}
+
 export interface CompanySponsor {
   id: string;
   code: string;

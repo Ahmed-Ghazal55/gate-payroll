@@ -16,7 +16,7 @@
 
 `GET /api/finance/coa/target`
 
-المورد المضمّن `Payroll.Api/Resources/target-coa.v1.json` مولّد من `gate-finance-spec/docs/02-chart-of-accounts.md` §§1،4،6، بقرارات BUSINESS_RULES §§20،22. يحتوي 396 حسابًا، منها 221 حساب ترحيل فعال، و75 صف ربط من الشجرة الحالية. المصادر: 294 `excel` و28 `modified` و74 `new`. لا يغير الشجرة الحالية.
+المورد المضمّن `Payroll.Api/Resources/target-coa.v1.json` مولّد من `gate-finance-spec/docs/02-chart-of-accounts.md` §§1،4،6، بقرارات BUSINESS_RULES §§20،22،23. يحتوي 403 حسابًا، منها 227 حساب ترحيل فعال، و75 صف ربط من الشجرة الحالية. المصادر: 294 `excel` و28 `modified` و81 `new`. لا يغير الشجرة الحالية.
 
 ```json
 {
@@ -212,3 +212,8 @@ git diff --check
 ```
 
 اختبارات C# وHTTP ببيانات مصطنعة: هيكل الشجرة، ربط الحسابات، توازن الشركتين بالعرضين، تجميع الآباء، الدخل دون تكرار، عزل الشركة والخزائن، القراءة دون تعديل، مصدر 2110، الآيبان المعتمد، mod-97، بنك غير معروف وكود 40، منع التلاعب وتغير المصدر، بايتات CSV ورأسه، وخصوصية audit.
+
+## R2 — platform posting gates
+`GET/POST /api/platforms/{code}/posting` are administrator-only; POST accepts `{enabled:boolean}` and audits a state change. Missing settings default off. Codes: hs, jahez, keeta, ninja, chefz, amazon. These gates govern the new platform-facts posting pipeline; the established legacy posting flows are retained.
+
+HS target journals use the approved posting accounts through the existing FinancialCore and AccountingPolicy validators. The target path is explicit on each new journal (`chart=target`); direct legacy account resolution and historical records are unchanged. The target trial balance consumes those native account codes directly. The HS path rejects legacy 1241/2141 and cannot post while its gate is off.

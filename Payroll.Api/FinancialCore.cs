@@ -318,9 +318,9 @@ public static class FinancialCore
         return false;
     }
 
-    public static JsonObject CreateJournalLine(string accountCode, string sponsorId, decimal debit, decimal credit, string note = "", string iqama = "", string debtId = "")
+    public static JsonObject CreateJournalLine(string accountCode, string sponsorId, decimal debit, decimal credit, string note = "", string iqama = "", string debtId = "", bool targetChart = false)
     {
-        var acc = ResolveAccount(accountCode);
+        var acc = targetChart?AccountingPolicy.ValidateOperation(accountCode,"PlatformInvoice","platform_posting","HungerStation"):ResolveAccount(accountCode);
         J.Need(AccountingPolicy.PostingAccount(acc.Code),"الحساب تجميعي؛ اختر حساب ترحيل فرعيًا.");
         J.Need(acc.DefaultSponsorId==null||ResolveSponsor(sponsorId).Id==acc.DefaultSponsorId,"السجل لا يطابق ملكية الحساب.");
         var sp = ResolveSponsor(acc.DefaultSponsorId ?? sponsorId);
@@ -334,7 +334,7 @@ public static class FinancialCore
             ? $"زيادة رصيد ({acc.NameAr}) بمقدار {(debit > 0 ? debit : credit):0.00} ر.س لأن الحساب طبيعته ({(acc.NaturalSide == "Debit" ? "مدين" : "دائن")}) وجاء في الطرف ({(debit > 0 ? "المدين" : "الدائن")})."
             : $"نقص رصيد ({acc.NameAr}) بمقدار {(debit > 0 ? debit : credit):0.00} ر.س لأن الحساب طبيعته ({(acc.NaturalSide == "Debit" ? "مدين" : "دائن")}) وجاء في الطرف ({(debit > 0 ? "المدين" : "الدائن")}).";
 
-        return new JsonObject
+        var line = new JsonObject
         {
             ["accountCode"] = acc.Code,
             ["accountNameAr"] = acc.NameAr,
@@ -351,9 +351,10 @@ public static class FinancialCore
             ["debtId"] = debtId,
             ["note"] = note
         };
+        if(targetChart)line["chart"]="target";return line;
     }
 
-    public static JsonObject PostJournal(DbConnection c, DbTransaction tx, string transactionType, string description, string period, string reference, JsonArray lines, string actor, string iqama = "", string debtId = "", string? originSponsorId = null, string? creditorSponsorId = null)
+    public static JsonObject PostJournal(DbConnection c, DbTransaction tx, string transactionType, string description, string period, string reference, JsonArray lines, string actor, string iqama = "", string debtId = "", string? originSponsorId = null, string? creditorSponsorId = null, bool targetChart = false,string? reversesJournalId=null)
     {
         J.Need(lines.Count >= 2, "القيد المحاسبي المزدوج يتطلب طرفين على الأقل.");
         J.Need(lines.OfType<JsonObject>().Count(l=>l.B("closingLegacyGroup"))<=1,"إقفال الرصيد التاريخي سطر واحد فقط.");
@@ -364,7 +365,7 @@ public static class FinancialCore
             var l = node!.AsObject();
             JsonObject canonical;
             if(l.B("closingLegacyGroup")){LegacyCashAllocation.ValidateClosing(c,tx,l,transactionType);canonical=l;}
-            else canonical=CreateJournalLine(l.Required("accountCode"),l.Required("sponsorId"),l.N("debit"),l.N("credit"));
+            else canonical=CreateJournalLine(l.Required("accountCode"),l.Required("sponsorId"),l.N("debit"),l.N("credit"),targetChart:targetChart);
             J.Need(canonical.N("debit")==l.N("debit")&&canonical.N("credit")==l.N("credit"),"مبلغ القيد يحتاج تصحيح دقة الهللة.");
             l["lineNo"] = idx++;
             totalDebit = J.Money(totalDebit + l.N("debit"));
@@ -401,6 +402,8 @@ public static class FinancialCore
             ["createdBy"] = actor,
             ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
         };
+        if(targetChart)doc["chart"]="target";
+        if(reversesJournalId!=null)doc["reversesJournalId"]=reversesJournalId;
         Store.Save(c, "journal", doc, tx);
         return doc;
     }
@@ -986,6 +989,7 @@ public static class FinancialCore
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>تطبيق مندوب البوابة — الكشوف والمديونيات والإشعارات</title>

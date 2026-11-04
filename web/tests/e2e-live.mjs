@@ -117,6 +117,168 @@ try {
   assert.equal(meData.username, adminUsername);
   console.log(`✓ Live authenticated session confirmed for @${meData.username} (${meData.role})`);
 
+  // --- W1 Tests: Login, ReturnUrl, Logout, Lockout ---
+  console.log('\n--- Running W1 Live E2E Tests ---');
+
+  // Test 1: Unauthenticated 401 redirect preserves returnUrl
+  const unauthContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, bypassCSP: true });
+  const loginPage = await unauthContext.newPage();
+  await loginPage.goto(`${baseUrl}/app/notifications/`);
+  console.log('Navigated to notifications, current URL:', loginPage.url());
+  await loginPage.waitForURL(url => url.pathname.includes('/login'), { timeout: 8000 });
+  assert.ok(loginPage.url().includes('returnUrl='), 'Unauthenticated visit should redirect to login with returnUrl');
+  console.log('✓ W1: 401 redirect to /app/login/?returnUrl= confirmed');
+
+  // Test 2: Valid login with returnUrl redirects to destination
+  await loginPage.goto(`${baseUrl}/app/login/?returnUrl=/app/notifications/`);
+  await loginPage.locator('#username').fill(adminUsername);
+  await loginPage.locator('#password').fill(adminPassword);
+  await loginPage.locator('button[type="submit"]').click();
+  await loginPage.waitForURL(url => url.pathname.includes('/notifications'), { timeout: 8000 });
+  console.log('✓ W1: Login with safe returnUrl redirected to /app/notifications/');
+
+  // Test 3: Logout calls /api/auth/logout and redirects to /app/login/
+  await loginPage.evaluate(async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/app/login/';
+  });
+  await loginPage.waitForURL(url => url.pathname.includes('/login'), { timeout: 8000 });
+  await loginPage.waitForSelector('#username', { timeout: 10000 });
+  console.log('✓ W1: Logout successful and redirected to /app/login/');
+
+  // Test 4: Open redirect protection (unsafe returnUrl blocked with 400, safe /legacy/ returnUrl succeeds)
+  const badReturnRes = await fetch(`${baseUrl}/app/login/?returnUrl=${encodeURIComponent('https://malicious-site.example/steal-token')}`);
+  assert.equal(badReturnRes.status, 400, 'Unsafe returnUrl must be rejected with 400');
+  console.log('✓ W1: Malicious returnUrl blocked with HTTP 400 by security guard');
+
+  await unauthContext.clearCookies();
+  await loginPage.goto(`${baseUrl}/app/login/?returnUrl=/legacy/#/dashboard`);
+  await loginPage.waitForSelector('#username', { timeout: 10000 });
+  await loginPage.locator('#username').fill(adminUsername);
+  await loginPage.locator('#password').fill(adminPassword);
+  await loginPage.locator('button[type="submit"]').click();
+  await loginPage.waitForURL(url => url.pathname.includes('/legacy'), { timeout: 8000 });
+  console.log('✓ W1: Safe returnUrl redirected to /legacy/#/dashboard');
+
+  // Test 5: Wrong password displays 401 error message
+  await unauthContext.clearCookies();
+  await loginPage.goto(`${baseUrl}/app/login/`);
+  await loginPage.locator('#username').fill(adminUsername);
+  await loginPage.locator('#password').fill('WrongPassword999!');
+  await loginPage.locator('button[type="submit"]').click();
+  const alertEl = loginPage.locator('#auth-error-alert');
+  await alertEl.waitFor({ timeout: 5000 });
+  const alertText = await alertEl.textContent();
+  assert.ok(alertText.includes('اسم المستخدم أو كلمة المرور غير صحيحة') || alertText.includes('unauthorized'), 'Should show wrong password error');
+  console.log('✓ W1: Wrong password error message verified');
+
+  // Test 6: Account lockout (423) after 5 failed attempts
+  const lockUsername = 'lock-' + randomBytes(3).toString('hex');
+  const lockPassword = 'StrongPassword123!';
+  const createLockUserRes = await page.request.post(`${baseUrl}/api/users`, {
+    data: { username: lockUsername, password: lockPassword, role: 'Accountant' },
+  });
+  assert.equal(createLockUserRes.status(), 200, 'User creation for lockout test should succeed');
+
+  for (let i = 1; i <= 5; i++) {
+    const failRes = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: lockUsername, password: 'WrongPassword!' }),
+    });
+    assert.equal(failRes.status, 401, `Failed attempt ${i} should return 401`);
+  }
+
+  // 6th attempt via UI should trigger 423
+  await loginPage.locator('#username').fill(lockUsername);
+  await loginPage.locator('#password').fill('WrongPassword!');
+  await loginPage.locator('button[type="submit"]').click();
+  const lockAlertEl = loginPage.locator('#auth-error-alert');
+  await lockAlertEl.waitFor({ timeout: 5000 });
+  const lockAlertText = await lockAlertEl.textContent();
+  assert.ok(lockAlertText.includes('مقفل') || lockAlertText.includes('account_locked'), 'Lockout alert must be displayed');
+  console.log('✓ W1: Account lockout (423) alert verified on 6th failed attempt');
+
+  await unauthContext.close();
+
+  // --- W2 Tests: Companies and Commercial Registrations ---
+  console.log('\n--- Running W2 Live E2E Tests (Companies & Registrations) ---');
+
+  // Test 1: Open /app/companies/ and verify stat cards and tables
+  await page.goto(`${baseUrl}/app/companies/`);
+  await page.waitForLoadState('networkidle');
+  await page.waitForSelector('h1:has-text("الشركات والسجلات التجارية")', { timeout: 8000 });
+  console.log('✓ W2: /app/companies/ loaded successfully');
+
+  // Verify stat cards
+  const statText = await page.textContent('body');
+  assert.ok(statText.includes('الشركات والمنشآت'), 'Stat card for companies count must be present');
+  assert.ok(statText.includes('السجلات التجارية النشطة'), 'Stat card for active CRs must be present');
+  assert.ok(statText.includes('استحقاقات التأكيد'), 'Stat card for confirmations must be present');
+  assert.ok(statText.includes('إجمالي رأس المال'), 'Stat card for capital must be present');
+
+  // Test 2: Import certificates via Admin Preview -> Commit flow
+  console.log('Testing Admin import flow (Preview -> Commit)...');
+  const importBtn = page.locator('button:has-text("استيراد بيانات الشركات")');
+  await importBtn.waitFor({ timeout: 5000 });
+  await importBtn.click();
+
+  // Wait for import dialog and preview plan
+  const importDialog = page.locator('div[role="dialog"]:has-text("استيراد وتحديث بيانات الشركات والسجلات")');
+  await importDialog.waitFor({ timeout: 5000 });
+  await importDialog.locator('strong:has-text("الشركات:")').waitFor({ timeout: 8000 });
+  console.log('✓ W2: Import preview plan generated with valid fingerprint');
+
+  // Commit import
+  const commitBtn = importDialog.locator('button:has-text("تأكيد الاستيراد والاعتماد النهائي")');
+  await commitBtn.click();
+  await page.waitForSelector('div[role="alert"]:has-text("تم اعتماد وتحديث شهادات الشركات بنجاح")', { timeout: 8000 });
+  console.log('✓ W2: Companies certificates import committed successfully');
+
+  // Test 3: Verify Companies Table rows (BW, EX, TR)
+  const bwRow = page.locator('tbody tr').filter({ has: page.locator('td:nth-child(1)', { hasText: 'BW' }) });
+  await bwRow.waitFor({ timeout: 5000 });
+  const exRow = page.locator('tbody tr').filter({ has: page.locator('td:nth-child(1)', { hasText: 'EX' }) });
+  const trRow = page.locator('tbody tr').filter({ has: page.locator('td:nth-child(1)', { hasText: 'TR' }) });
+  assert.ok(await exRow.count() > 0, 'EX company row must exist');
+  assert.ok(await trRow.count() > 0, 'TR company row must exist');
+
+  // Verify unified number for BW (7015658094) and CR (4030362130)
+  const bwRowText = await bwRow.textContent();
+  assert.ok(bwRowText.includes('7015658094'), 'BW unified number 7015658094 must be present');
+  assert.ok(bwRowText.includes('4030362130'), 'BW CR number 4030362130 must be present');
+  console.log('✓ W2: Companies table rows verified with official unified and CR numbers');
+
+  // Test 4: Open Drawer and verify ISIC activities and «ناقص» chip
+  await bwRow.click();
+  const drawer = page.locator('div[role="dialog"]:has-text("شركة البوابة المقبلة")');
+  await drawer.waitFor({ timeout: 5000 });
+  console.log('✓ W2: Company details drawer opened');
+
+  // Switch to Activities tab
+  const actTabBtn = drawer.locator('button:has-text("الأنشطة المعتمدة")');
+  await actTabBtn.click();
+  await drawer.locator('span:has-text("ناقص")').waitFor({ timeout: 5000 });
+  assert.ok(await drawer.locator('span:has-text("410010")').count() > 0, 'ISIC activity 410010 must be rendered');
+  console.log('✓ W2: ISIC activity chips and «ناقص» tag verified in drawer');
+
+  // Close drawer
+  await page.keyboard.press('Escape');
+  await drawer.waitFor({ state: 'detached', timeout: 5000 });
+
+  // Test 5: Sub-tab «السجلات التجارية»
+  const regTabBtn = page.locator('button[role="tab"]:has-text("السجلات التجارية")');
+  await regTabBtn.click();
+  await page.locator('th:has-text("رقم السجل التجاري")').waitFor({ timeout: 5000 });
+  assert.ok(await page.locator('td:has-text("4030362130")').count() > 0, 'CR 4030362130 must exist in registrations tab');
+  console.log('✓ W2: Commercial registrations sub-tab verified');
+
+  // Test 6: Sub-tab «الوثائق والانتهاءات»
+  const docTabBtn = page.locator('button[role="tab"]:has-text("الوثائق والانتهاءات")');
+  await docTabBtn.click();
+  await page.locator('h3:has-text("السجلات والوثائق مستحقة التجديد والتأكيد")').waitFor({ timeout: 5000 });
+  console.log('✓ W2: Expiring documents and annual confirmations sub-tab verified');
+
   // 2. Create an IBAN Campaign via API or UI
   console.log('\nStep 2: Creating an IBAN campaign...');
   const campaignTitle = 'حملة تحديث الآيبان الحية';

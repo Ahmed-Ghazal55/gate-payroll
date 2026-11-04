@@ -3,7 +3,7 @@ using System.Security.Claims;
 using System.Text.Json.Nodes;
 namespace Payroll;
 
-// Projections only: the resource describes the proposed tree, not a replacement posting chart.
+// Read projections retain the legacy tree; new HS journals explicitly identify the approved target chart.
 public static class FinanceViews
 {
     private static readonly JsonObject Resource = JsonNode.Parse(typeof(FinanceViews).Assembly.GetManifestResourceStream("Payroll.TargetCoa.v1.json")!)!.AsObject();
@@ -25,6 +25,7 @@ public static class FinanceViews
     public static bool Visible(ClaimsPrincipal user,JsonObject line)
     {
         if(!FinancialScopes.Sponsor(user,line.S("sponsorId")))return false;
+        if(line.S("chart")=="target")return FinancialScopes.Line(user,line);
         var account=FinancialCore.ChartOfAccounts.FirstOrDefault(a=>a.Code==line.S("accountCode"));
         return account==null?AccessPolicy.Has(user,"treasury.journals"):FinancialScopes.Line(user,line);
     }
@@ -37,6 +38,7 @@ public static class FinanceViews
     private static string First(params string[] values)=>values.FirstOrDefault(v=>v!="")??"";
     public static string? MapAccount(JsonObject line,JsonObject journal,JsonObject? debt,JsonObject? rider,JsonObject? run)
     {
+        if(journal.S("chart")=="target")return Accounts.Any(a=>a.S("code")==line.S("accountCode")&&a.B("posting")&&a.S("status")=="active")?line.S("accountCode"):null;
         string code=line.S("accountCode");if(!Mappings.TryGetValue(code,out var rule))return null;
         string[] targets=rule["targetCodes"]!.AsArray().Select(v=>v!.ToString()).Distinct().ToArray();
         if(targets.Length==1)return targets[0];

@@ -53,10 +53,8 @@ try {
 
   // 1. Initial setup
   const password = randomBytes(24).toString('hex');
-  await page.goto(base);
-  await page.locator('[name=username]').fill('finance-views-tester');
-  await page.locator('[name=password]').fill(password);
-  await page.locator('#auth-form button').click();
+  assert.equal((await page.request.post(base + '/api/auth/setup', {data: {username: 'finance-views-tester', password}})).status(), 200);
+  await page.goto(base + '/legacy/');
   await page.getByRole('heading', {name: 'كل مستحق في مكانه'}).waitFor();
 
   // Helper for API setup
@@ -193,14 +191,14 @@ try {
   await coaTab.click();
   await page.locator('.table-wrap table').waitFor();
 
-  // Verify stats cards: total 396, posting 221, header 175, sources: excel 294 / modified 28 / new 74
+  // Verify stats cards: total 403, posting 227, header 176, sources: excel 294 / modified 28 / new 81
   const statsValues = await page.locator('.stats .stat strong').allInnerTexts();
-  assert.equal(statsValues[0].trim(), '396', 'Total accounts must be 396');
-  assert.equal(statsValues[1].trim(), '221', 'Posting accounts must be 221');
-  assert.equal(statsValues[2].trim(), '175', 'Header accounts must be 175');
+  assert.equal(statsValues[0].trim(), '403', 'Total accounts must be 403');
+  assert.equal(statsValues[1].trim(), '227', 'Posting accounts must be 227');
+  assert.equal(statsValues[2].trim(), '176', 'Header accounts must be 176');
   assert.ok(statsValues[3].includes('294'), 'Excel source count must be 294');
   assert.ok(statsValues[3].includes('28'), 'Modified source count must be 28');
-  assert.ok(statsValues[3].includes('74'), 'New source count must be 74');
+  assert.ok(statsValues[3].includes('81'), 'New source count must be 81');
 
   // Verify source badges: header/posting, nature, type, direction
   const rows = page.locator('tbody tr.coa-row');
@@ -225,7 +223,7 @@ try {
   await searchInput.fill('الصندوق الرئيسي');
   await page.waitForTimeout(100);
   const searchRowCount = await page.locator('tbody tr.coa-row').count();
-  assert.ok(searchRowCount >= 1 && searchRowCount < 396, 'Search filters accounts');
+  assert.ok(searchRowCount >= 1 && searchRowCount < 403, 'Search filters accounts');
   const searchRowTexts = await page.locator('tbody tr.coa-row').allInnerTexts();
   assert.ok(searchRowTexts.some(t => t.includes('الصندوق الرئيسي')), 'Matching account is present');
 
@@ -431,7 +429,7 @@ try {
   // Confirm no uncaught JS errors
   assert.deepEqual(errors, [], `No page errors allowed: ${errors.join('; ')}`);
 
-  console.log('PASS finance views UI: Target COA tree/search/stats (294/28/74), Trial Balance, Income Statement, Bank File editable amounts/notes/validation, excluded panel (zero_balance & rider_owes_company) and raw CSV download.');
+  console.log('PASS finance views UI: Target COA tree/search/stats (294/28/81), Trial Balance, Income Statement, Bank File editable amounts/notes/validation, excluded panel (zero_balance & rider_owes_company) and raw CSV download.');
 } finally {
   if (browser) await browser.close();
   if (server.exitCode === null) {

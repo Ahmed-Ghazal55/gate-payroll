@@ -58,3 +58,5 @@ docs/data/*
 !docs/data/TARGET-KINDS.md
 !docs/data/README.md
 !docs/data/RECONCILE-2026-11-03.md
+
+!docs/data/SYNC.md

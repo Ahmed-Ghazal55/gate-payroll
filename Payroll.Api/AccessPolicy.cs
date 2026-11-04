@@ -38,6 +38,16 @@ public static class AccessPolicy
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return false; // User administration remains administrator-only.
         if(path=="/api/responses")return method=="GET"&&Has("forms.view");
         if(path=="/api/search")return method=="GET";
+        if(path.StartsWith("/api/platforms/hs/",StringComparison.Ordinal))
+        {
+            if(path.EndsWith("/posting",StringComparison.Ordinal))return false;
+            if(method=="GET")return Has("platforms.hs.view");
+            if(method!="POST")return false;
+            if(path.EndsWith("/approve",StringComparison.Ordinal))return Has("platforms.hs.approve");
+            if(path.EndsWith("/resolve",StringComparison.Ordinal))return Has(input?.S("mode")=="dispute"?"platforms.hs.approve":"platforms.hs.manage");
+            return Has("platforms.hs.manage");
+        }
+        if(path.StartsWith("/api/companies/import/",StringComparison.Ordinal))return false; // administrators returned above
         if(path=="/api/companies"||path.StartsWith("/api/companies/",StringComparison.Ordinal))return method=="GET"?Has("companies.view"):method is "POST" or "PUT" or "DELETE"&&Has("companies.manage");
         if(path=="/api/excel/export")return method=="POST"&&Has("riders.view");
         if(path.StartsWith("/api/excel/",StringComparison.Ordinal))
@@ -103,9 +113,9 @@ public static class AccessPolicy
         if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))return Has("forms.manage");
         return false;
     }
-    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input)
+    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide")
     {
-        Demand(actor,"approvals.decide");
+        Demand(actor,permission);
         string name=actor.Identity?.Name??"";
         bool same=string.Equals(request.S("requestedBy",request.S("createdBy")),name,StringComparison.OrdinalIgnoreCase);
         if(same&&(!Administrator(actor)||!input.B("overrideSelf")||string.IsNullOrWhiteSpace(input.S("note"))))throw new ApiError("لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو تجاوز إداري معلل وصريح.",403);
