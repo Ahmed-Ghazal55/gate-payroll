@@ -20,7 +20,7 @@ public static class FinancialScopes
                 if(key=="sponsorIds")FinancialCore.ResolveSponsor(value);
                 if(key=="accountCodes")FinancialCore.ResolveVault(value);
                 if(key=="categoryCodes")FinancialCore.ResolveCategory(value);
-                if(key=="platforms")J.Need(new[]{"Jahez","Keeta","HungerStation","Ninja","Other"}.Contains(value),"منصة غير صالحة في النطاق.");
+                if(key=="platforms")J.Need(new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}.Contains(value),"منصة غير صالحة في النطاق.");
             }
             if(key=="accountCodes")values=values.Select(v=>FinancialCore.ResolveVault(v).Code).Distinct().ToList();
             if(key=="categoryCodes")values=values.Select(v=>FinancialCore.ResolveCategory(v).Code).Distinct().ToList();
@@ -38,7 +38,7 @@ public static class FinancialScopes
         return new JsonObject{
             ["sponsorIds"]=new JsonArray((finance?FinancialCore.Sponsors.Select(s=>s.Id):[]).Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray()),
             ["accountCodes"]=new JsonArray((finance?FinancialCore.ChartOfAccounts.Where(a=>a.IsVault).Select(a=>a.Code):role=="PlatformsSupervisor"?FinancialCore.ChartOfAccounts.Where(a=>a.VaultKind=="JahezCashbox").Select(a=>a.Code):[]).Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray()),
-            ["platforms"]=new JsonArray((role=="PlatformsSupervisor"?new[]{"Jahez"}:new[]{"Jahez","Keeta","HungerStation","Ninja","Other"}).Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray()),
+            ["platforms"]=new JsonArray((role=="PlatformsSupervisor"?new[]{"Jahez"}:new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}).Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray()),
             ["categoryCodes"]=new JsonArray(categories.Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray())
         };
     }

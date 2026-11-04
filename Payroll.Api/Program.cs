@@ -133,6 +133,7 @@ Notifications.Map(api,store);
 Companies.Map(api,store);
 CompanyRegistryImport.Map(api,store);
 PlatformPosting.Map(api,store);
+PaySettings.Map(api,store);
 HungerStationInvoices.MapImports(api,store);
 HungerStationInvoices.MapReview(api,store);
 GlobalSearch.Map(api,store);
