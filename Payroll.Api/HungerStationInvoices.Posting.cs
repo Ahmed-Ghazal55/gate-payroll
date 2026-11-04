@@ -59,13 +59,13 @@ public static partial class HungerStationInvoices
         {if(debit==0&&credit==0)return;var line=FinancialCore.CreateJournalLine(code,company,debit,credit,note,rider,targetChart:true);line["platform"]="HungerStation";lines.Add(line);}
         if(blockers.Count==0)
         {
-            Add("112802",invoice.N("amountExclVat")+invoice.N("vat"),0,"فاتورة الخدمة والضريبة");Add("411102",0,salary,"إيراد نظام الراتب");
+            Add(PayPlatforms.For("hs").Receivable,invoice.N("amountExclVat")+invoice.N("vat"),0,"فاتورة الخدمة والضريبة");Add("411102",0,salary,"إيراد نظام الراتب");
             foreach(var row in work.Where(l=>l.S("scheme")=="commission")){Add("212103",0,row.N("riderNet"),"مستحق المندوب المعتمد",row.S("riderId"));Add("411601",0,row.N("companyCommission"),"عمولة هنقر المعتمدة");}
-            Add("213201",0,invoice.N("vat"),"ضريبة الفاتورة");Add("112803",disputed,0,"مبلغ CAR في حساب النزاعات دون تحميل أي طرف");Add("112802",0,disputed,"فصل المبلغ المتنازع عليه");
+            Add("213201",0,invoice.N("vat"),"ضريبة الفاتورة");Add("112803",disputed,0,"مبلغ CAR في حساب النزاعات دون تحميل أي طرف");Add(PayPlatforms.For("hs").Receivable,0,disputed,"فصل المبلغ المتنازع عليه");
             foreach(var allocation in allocations)
             {
                 foreach(var share in allocation["riderShares"]!.AsArray().OfType<JsonObject>())Add("112502",share.N("amount"),0,"نصيب المندوب المعتمد من TGA",share.S("riderId"));
-                Add("526402",allocation.N("companyAmount"),0,"نصيب الشركة المعتمد من TGA");Add("112802",0,allocation.N("amount"),"TGA المخصوم من المنصة");
+                Add("526402",allocation.N("companyAmount"),0,"نصيب الشركة المعتمد من TGA");Add(PayPlatforms.For("hs").Receivable,0,allocation.N("amount"),"TGA المخصوم من المنصة");
             }
             if(lines.Count==0)blockers.Add("no_postable_amount");
         }

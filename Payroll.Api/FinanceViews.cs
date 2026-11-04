@@ -40,6 +40,9 @@ public static class FinanceViews
     {
         if(journal.S("chart")=="target")return Accounts.Any(a=>a.S("code")==line.S("accountCode")&&a.B("posting")&&a.S("status")=="active")?line.S("accountCode"):null;
         string code=line.S("accountCode");if(!Mappings.TryGetValue(code,out var rule))return null;
+        string sourcePlatform=First(line.S("platform"),debt.S("platform"),journal.S("platform"));
+        if(sourcePlatform==""&&run?["sourceRows"] is JsonArray sourceRows){var apps=sourceRows.OfType<JsonObject>().Select(r=>r.S("platform")).Where(p=>p!="").Distinct().ToArray();if(apps.Length==1)sourcePlatform=apps[0];}
+        if(code=="1241"&&sourcePlatform!="")return PayPlatforms.For(sourcePlatform).Receivable;
         string[] targets=rule["targetCodes"]!.AsArray().Select(v=>v!.ToString()).Distinct().ToArray();
         if(targets.Length==1)return targets[0];
         string category=First(line.S("category"),debt.S("category"),journal.S("category"));
@@ -65,7 +68,7 @@ public static class FinanceViews
         {
             string platform=First(line.S("platform"),debt.S("platform"),journal.S("platform"));
             if(platform==""&&run?["sourceRows"] is JsonArray sources){var platforms=sources.OfType<JsonObject>().Select(s=>s.S("platform")).Where(p=>p!="").Distinct().ToArray();if(platforms.Length==1)platform=platforms[0];}
-            return platform switch {"Jahez"=>"411401","Keeta"=>"411501",_=>null};
+            return platform!=""?PayPlatforms.For(platform).Agent:null;
         }
         if(code is "5101" or "5102" or "5103" or "5104" or "5105" or "5106" or "5109" or "5301")
         {

@@ -6,7 +6,7 @@ public static class HungerStationFacts
 {
     public static readonly string[] Kinds=["hs_wallet_event","hs_remittance","hs_remittance_allocation","hs_handover_review","hs_month_close"];
     public static readonly IReadOnlyDictionary<string,string> AccountMapping=new Dictionary<string,string>{
-        ["SupervisorChargingFund"]="112306",["RiderAdvance"]="112501",["PendingCollection"]="112513",["PlatformWalletWithdrawal"]="114107",["RemittanceInTransit"]="114101",["InvoiceReceivable"]="112802",["DisputedInvoiceAmount"]="112803",["CommissionRevenue"]="411601",["SalaryRevenue"]="411102",["NegativeRiderNet"]="112507"
+        ["SupervisorChargingFund"]="112306",["RiderAdvance"]="112501",["PendingCollection"]="112513",["PlatformWalletWithdrawal"]="114107",["RemittanceInTransit"]="114101",["InvoiceReceivable"]=PayPlatforms.For("hs").Receivable,["DisputedInvoiceAmount"]="112803",["CommissionRevenue"]="411601",["SalaryRevenue"]="411102",["NegativeRiderNet"]="112507"
     };
     static bool Number(JsonObject facts,string key,out decimal value)
     {value=0;return facts[key]!=null&&decimal.TryParse(facts.S(key),System.Globalization.NumberStyles.Number,System.Globalization.CultureInfo.InvariantCulture,out value)&&value==J.Money(value);}

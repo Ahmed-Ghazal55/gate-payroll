@@ -15,11 +15,12 @@ Implement codex-R4-api.md in numbered commits: additive pay framework, platform 
 Preflight main5fe403b clean/current; build clean. Baseline .NET191 passed/0failed/6SQL skipped; Python26; eleven HTTP and six browser suites passed; source179. COA --check failed as expected403→408. No source/store data loaded.
 
 ## Done
+- R4.1: shared PayPlatforms table; new HS invoices use112805, old target112802 records/projections/reversals stay unchanged. Twenty-four focused tests and86 R2 HTTP checks passed. Jahez principal411106 is stopped in the binding chart and remains blocked (agent411401 valid; separate Jahez cycle).
 - R4.0: COA regenerated408/232 active posting/86new; source metadata BR24 updated. Twenty-one finance/generator tests plus finance HTTP/browser suites passed; --check now passes.
 - Read current prompt, HANDOFF/rules/capacity, BR17/22/23/24 and platform/ERP mapping specs; ERP14:00 Riyadh logic inspected read-only. Start permitted after Ghazal confirmed100% renewed capacity.
 
 ## Next step (exact)
-R4.1: shared per-platform account table and new HS112805 postings; keep old journals unchanged. Continue ordered R4.2–R4.8 and R4.10; R4.9 waits for explicit «حوّل الإنتاج». No staging writes without fresh «حمّل».
+R4.2: versioned app terms/schemes/eligibility and global settings with strict validation and independent approvals. Continue ordered R4.2–R4.8 and R4.10; R4.9 waits for explicit «حوّل الإنتاج». No staging writes without fresh «حمّل».
 
 ## How to verify
 ```bash
