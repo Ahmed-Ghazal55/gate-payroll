@@ -12,6 +12,7 @@ def permission(method,p):
  if p=='/api/notifications/center':return 'approvals.view' if method=='GET' else 'mobile.broadcast'
  if p in ('/api/me','/api/roles-catalog','/api/search') or p.startswith('/api/notifications'):return 'authenticated; category/owner visibility in handler'
  if '/assignments/import/' in p and p.startswith('/api/pay/'): return 'Admin / SuperAdmin + pay.manage; signed source-approved pre-month choices'
+ if p.startswith('/api/operations/') or p.startswith('/api/riders/') and p.endswith('/accounts'):return 'operations.view; company/platform scope; always paginated'
  if p.startswith('/api/pay/cycles'):
   return ('pay.view' if method=='GET' else 'pay.manage or pay.approve; handler checks next stage; independent FIN approval') + '; company and every app scope'
  if p.startswith('/api/pay/'): return ('pay.view' if method=='GET' else 'pay.approve + independent FIN checker' if p.endswith('/approve') else 'pay.manage') + '; app scope; shared writes need all companies'

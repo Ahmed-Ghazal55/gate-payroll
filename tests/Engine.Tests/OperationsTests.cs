@@ -1,0 +1,19 @@
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Text.Json.Nodes;
+using Payroll;
+
+[TestClass]
+public sealed class OperationsTests
+{
+    static string Rider(int n)=>"2"+n.ToString("D9");
+    [TestMethod]
+    public void CompanyPlatformAndParentRelationsFilterEveryOperationWithoutRewritingSources()
+    {
+        using var f=new PayFixture();string own=FinancialCore.Sponsors[0].Id,other=FinancialCore.Sponsors[1].Id;var actor=UserAccess.Principal(new JsonObject{["username"]="synthetic-operations",["role"]="FinancialAccountant",["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(own),["platforms"]=new JsonArray("Keeta"),["accountCodes"]=new JsonArray(),["categoryCodes"]=new JsonArray()}});
+        f.Store.Write((c,tx)=>{foreach(int n in new[]{1,2}){string company=n==1?own:other;Store.Save(c,"rider",new(){["id"]=Rider(n),["sponsorId"]=company},tx);Store.Save(c,"vehicle",new(){["id"]="synthetic-vehicle-"+n,["companyId"]=company,["assetNumber"]="Synthetic asset"},tx);Store.Save(c,"vehicle_assignment",new(){["id"]="synthetic-assignment-"+n,["vehicleId"]="synthetic-vehicle-"+n,["riderId"]=Rider(n)},tx);Store.Save(c,"custody_handover",new(){["id"]="synthetic-event-"+n,["assignmentId"]="synthetic-assignment-"+n},tx);Store.Save(c,"housing_residence",new(){["id"]="synthetic-residence-"+n,["housingId"]="synthetic-shared-housing",["riderId"]=Rider(n)},tx);Store.Save(c,"platform_account",new(){["id"]="synthetic-account-"+n,["platformCode"]="keeta",["companyId"]=company,["registeredRiderId"]=Rider(2),["assignments"]=new JsonArray(new JsonObject{["riderId"]=Rider(1),["RawEffectiveFrom"]="2026-10-01",["RawEffectiveTo"]="2026-10-15",["unrelatedSensitiveField"]="synthetic-omitted"})},tx);}Store.Save(c,"housing",new(){["id"]="synthetic-shared-housing",["rooms"]=new JsonArray(new JsonObject{["Code"]="Synthetic room",["UnrelatedField"]="synthetic-omitted"}),["externalOccupants"]=new JsonArray(new JsonObject{["Name"]="Synthetic external occupant"})},tx);return true;});
+        string raw=f.Store.Read(c=>Store.Get(c,"synthetic-account-1","platform_account")!.ToJsonString());foreach(string kind in new[]{"vehicle","vehicle_assignment","custody_handover","housing_residence","platform_account"})Assert.AreEqual(1,f.Store.Read(c=>Operations.List(c,actor,kind).Count()));var housing=f.Store.Read(c=>Operations.List(c,actor,"housing").Single());Assert.IsNull(housing["externalOccupants"]);Assert.IsFalse(housing.ToJsonString().Contains("synthetic-omitted"));var accounts=f.Store.Read(c=>Operations.RiderAccounts(c,actor,Rider(1)).ToList());Assert.AreEqual(1,accounts.Count);Assert.AreEqual("2026-10-15",accounts[0]["assignments"]![0]!.S("RawEffectiveTo"));Assert.IsFalse(accounts[0].ToJsonString().Contains("unrelatedSensitiveField"));Assert.AreEqual(raw,f.Store.Read(c=>Store.Get(c,"synthetic-account-1","platform_account")!.ToJsonString()));Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>Operations.RiderAccounts(c,actor,Rider(2)).ToList()));Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>Operations.List(c,actor,"user").ToList()));
+    }
+    [TestMethod]
+    public void OwnerOnlyRelationshipNeverPretendsToBeAnOperatingAssignment()
+    {using var f=new PayFixture();string id=Rider(1);f.Store.Write((c,tx)=>{Store.Save(c,"rider",new(){["id"]=id,["sponsorId"]=FinancialCore.Sponsors[0].Id},tx);Store.Save(c,"platform_account",new(){["id"]="synthetic-owner-only",["companyId"]=FinancialCore.Sponsors[0].Id,["platformCode"]="hs",["registeredRiderId"]=id,["assignments"]=new JsonArray()},tx);return true;});Assert.AreEqual(0,f.Store.Read(c=>Operations.RiderAccounts(c,PayFixture.Maker,id).Count()));Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Checker,"GET","/api/operations/vehicle"));Assert.IsFalse(AccessPolicy.Allowed(PayFixture.Checker,"POST","/api/operations/vehicle"));Assert.IsFalse(AccessPolicy.Allowed(PayFixture.Actor("synthetic-reviewer","Reviewer"),"GET","/api/operations/vehicle"));}
+}

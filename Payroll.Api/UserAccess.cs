@@ -15,6 +15,7 @@ public static class UserAccess
     // 1. كتالوج الصلاحيات الذرية الدقيقة (Atomic Permissions) مع الشرح التشغيلي لكل صلاحية
     public static readonly PermissionDef[] PermissionsCatalog =
     [
+        new("operations.view","Operations","العمليات","عرض العمليات","عرض العمليات وحسابات المناديب ضمن الشركة والمنصة."),
         new("pay.view","Payroll","الرواتب","عرض إطار الرواتب","عرض إعدادات التطبيقات والدورات والكشوف ضمن النطاق."),
         new("pay.manage","Payroll","الرواتب","تحضير الرواتب","إنشاء مسودات الإعدادات وتحضير الدورات دون اعتماد ذاتي."),
         new("pay.approve","Payroll","الرواتب","اعتماد الرواتب","اعتماد مستقل لإعدادات ودورات المسار الجديد."),
@@ -93,13 +94,13 @@ public static class UserAccess
 
         new("FinancialManager", "المدير المالي", "FIN", 4,
             "قراءة التقارير المالية ومعاينة وتصدير ملف البنك ضمن النطاق.",
-            ["treasury.view","treasury.journals","payroll.view","riders.view","debts.view","finance.bankfile.export","platforms.hs.view","pay.view"]),
+            ["treasury.view","treasury.journals","payroll.view","riders.view","debts.view","finance.bankfile.export","platforms.hs.view","pay.view","operations.view"]),
 
         new("Accountant", "محاسب مالي ومسؤول خزينة", "FIN", 3,
             "إدارة الصندوق الداخلي والبنوك، تسجيل وتحصيل المديونيات والسلف وطلبات HR، التحويل بين الصناديق، واستيراد أرصدة أول المدة.",
             [
                 "pay.view", "pay.manage", "platforms.hs.view", "platforms.hs.manage",
-                "riders.view", "riders.view_360",
+                "operations.view", "riders.view", "riders.view_360",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
                 "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
                 "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
@@ -110,7 +111,7 @@ public static class UserAccess
             "الإشراف المالي الكامل على الخزينة المركزية (MAIN) والبنوك (BANK)، مطابقة وتصديق تحصيلات HR وتصفيات جاهز، واعتماد القيود.",
             [
                 "pay.view", "pay.manage", "platforms.hs.view", "platforms.hs.manage", "platforms.hs.approve", "pay.approve",
-                "riders.view", "riders.view_360",
+                "operations.view", "riders.view", "riders.view_360",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
                 "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
                 "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
@@ -120,7 +121,7 @@ public static class UserAccess
         new("HRSpecialist", "أخصائي الموارد البشرية والعلاقات الحكومية", "HR", 2,
             "إنشاء طلبات خدمات الموارد البشرية (رخص العمل، الإقامات، نقل الكفالة، التأشيرات، التأمين)، تحديد نسب التحمل، وتوثيق ملفات المناديب.",
             [
-                "riders.view", "riders.view_360", "riders.edit",
+                "operations.view", "riders.view", "riders.view_360", "riders.edit",
                 "debts.view", "debts.create.hr", "debts.create.advance",
                 "approvals.view", "approvals.decide", "mobile.broadcast", "forms.review"
             ]),
@@ -128,7 +129,7 @@ public static class UserAccess
         new("OperationsManager", "مدير التشغيل والمنصات", "OPS", 4,
             "الإشراف التشغيلي على المناديب والمنصات، متابعة المديونيات وكشوف الحساب، ومراجعة الاعتمادات والتقارير.",
             [
-                "riders.view", "riders.view_360", "riders.edit",
+                "operations.view", "riders.view", "riders.view_360", "riders.edit",
                 "debts.view", "debts.create.platform", "debts.create.fleet", "debts.reschedule",
                 "treasury.view", "treasury.jahez.manage", "treasury.jahez.handover",
                 "approvals.view", "approvals.decide", "mobile.broadcast", "payroll.view", "forms.review"
@@ -137,7 +138,7 @@ public static class UserAccess
         new("PlatformsSupervisor", "مشرف منصات وعهدة صندوق جاهز", "OPS", 2,
             "إدارة معاملات تطبيق جاهز، تحصيل مديونيات كاش جاهز ورسوم فتح الحسابات (SUP.*)، وتسليم وتصفير العهدة للصندوق الداخلي.",
             [
-                "riders.view", "riders.view_360",
+                "operations.view", "riders.view", "riders.view_360",
                 "debts.view", "debts.create.platform", "debts.collect",
                 "treasury.view", "treasury.jahez.manage", "treasury.jahez.handover",
                 "approvals.view", "mobile.broadcast"
@@ -146,7 +147,7 @@ public static class UserAccess
         new("FleetSupervisor", "مشرف الحركة والأسطول والورشة", "FLT", 2,
             "تسجيل المخالفات المرورية وتلفيات الحوادث وأقساط المركبات وفروقات الوقود ومتابعة مديونيات الأسطول.",
             [
-                "riders.view", "riders.view_360", "riders.edit",
+                "operations.view", "riders.view", "riders.view_360", "riders.edit",
                 "debts.view", "debts.create.fleet",
                 "approvals.view"
             ]),
