@@ -15,6 +15,7 @@ Implement codex-R4-api.md in numbered commits: additive pay framework, platform 
 Preflight main5fe403b clean/current; build clean. Baseline .NET191 passed/0failed/6SQL skipped; Python26; eleven HTTP and six browser suites passed; source179. COA --check failed as expected403→408. No source/store data loaded.
 
 ## Done
+- R4.7 implementation: typed rpt projections, same-transaction immediate/buffered refresh, guarded dry-run/rebuild/SHA check and SQLite no-op. Ten focused tests passed, one isolated SQL test skipped. Staging read-only dry-run:6797 rows (2130 riders,3 companies,1874 accounts,1024 account assignments,558 vehicles,800 vehicle assignments,408 COA); rpt absent. Fresh reporting «حمّل» requested; no staging writes.
 - R4.6: operations.view, nine allowlisted/paginated operations kinds and actual rider-account dates; company/platform/parent scoping and safe nested projections. Two scope/ownership behavior tests and52 R4 HTTP checks passed.
 - R4.5: audited stages0–7, actual account/operator evidence, normalized pending invoice upload, merged app net, rent/debt once monthly, independent target posting and append-only reversals; legacy duplicate guards. Fifty-one focused tests and49 HTTP checks passed; source197. No real data loaded.
 - R4.4: pure category/scheme evaluator, capped Riyadh billing days, data-driven rent, exact order-share incentives, own-app eligibility and explain lines; negative/missing evidence needs_decision. Forty-four evaluator/settings cases passed; build clean, source191.
@@ -26,7 +27,7 @@ Preflight main5fe403b clean/current; build clean. Baseline .NET191 passed/0faile
 - Read current prompt, HANDOFF/rules/capacity, BR17/22/23/24 and platform/ERP mapping specs; ERP14:00 Riyadh logic inspected read-only. Start permitted after Ghazal confirmed100% renewed capacity.
 
 ## Next step (exact)
-R4.7: typed SQL reporting projections, transaction refresh and guarded staging dry-run/rebuild; then R4.8 statement and R4.10 release. R4.9 waits for explicit «حوّل الإنتاج». No staging writes without fresh «حمّل».
+R4.8: monthly/admin and rider-token statement; then R4.10 release/full suite. R4.7 staging initialization remains pending fresh reporting approval; dry-run passed. R4.9 waits for explicit «حوّل الإنتاج». No staging writes without fresh «حمّل».
 
 ## How to verify
 ```bash

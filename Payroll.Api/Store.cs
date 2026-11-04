@@ -103,6 +103,7 @@ public sealed partial class Store
             using var insert = Command(c,tx,"INSERT INTO records(id,kind,body) VALUES(@id,@kind,@body)",("@id",id),("@kind",kind),("@body",doc.ToJsonString()));
             insert.ExecuteNonQuery();
         }
+        Reporting.Refresh(c,tx,kind,doc);
     }
     public static void Audit(DbConnection c, DbTransaction tx, string action, string entity, string actor)
     {

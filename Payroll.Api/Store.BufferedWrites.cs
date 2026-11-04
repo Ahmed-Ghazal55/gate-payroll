@@ -35,6 +35,7 @@ public sealed partial class Store
                     SELECT s.id,s.kind,s.body FROM #GateStoreBuffered s WHERE NOT EXISTS(SELECT 1 FROM dbo.records r WHERE r.id=s.id);
                 DROP TABLE #GateStoreBuffered;
                 """);apply.CommandTimeout=120;apply.ExecuteNonQuery();
+            Reporting.RefreshMany(c,tx,buffered.Rows.Select(row=>new ReportDocument(row.Key,row.Value.Kind,row.Value.Body)));
         }
         finally{BufferedTransactions.Remove(tx);}
     }
