@@ -81,7 +81,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/platforms/hs/facts` | Payroll.Api/HungerStationInvoices.Review.cs:35 | platforms.hs.view; company/platform scope | none | new |
 | GET | `/api/platforms/hs/invoices` | Payroll.Api/HungerStationInvoices.Review.cs:32 | platforms.hs.view; company/platform scope | none | new |
 | GET | `/api/platforms/hs/proposed-journals` | Payroll.Api/HungerStationInvoices.Review.cs:37 | platforms.hs.view; company/platform scope | none | new |
-| GET | `/api/platforms/{code}/posting` | Payroll.Api/PlatformPosting.cs:39 | Admin / SuperAdmin; audited platform gate | none | new |
+| GET | `/api/platforms/{code}/posting` | Payroll.Api/PlatformPosting.cs:40 | Admin / SuperAdmin; audited platform gate | none | new |
 | POST | `/api/platforms/hs/allocations/{id}/approve` | Payroll.Api/HungerStationInvoices.Review.cs:47 | platforms.hs.approve; independent maker-checker; company/platform scope | none | new |
 | POST | `/api/platforms/hs/allocations/{lineId}` | Payroll.Api/HungerStationInvoices.Review.cs:46 | platforms.hs.manage (resolve dispute response: platforms.hs.approve); company/platform scope | none | new |
 | POST | `/api/platforms/hs/invoices/import/commit` | Payroll.Api/HungerStationInvoices.Import.cs:92 | platforms.hs.manage; signed preview + company/platform scope | none | new |
@@ -89,7 +89,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/platforms/hs/invoices/{id}/approve` | Payroll.Api/HungerStationInvoices.Review.cs:43 | platforms.hs.approve; independent maker-checker; company/platform scope | none | new |
 | POST | `/api/platforms/hs/invoices/{id}/dispute` | Payroll.Api/HungerStationInvoices.Review.cs:44 | platforms.hs.manage (resolve dispute response: platforms.hs.approve); company/platform scope | none | new |
 | POST | `/api/platforms/hs/invoices/{id}/resolve` | Payroll.Api/HungerStationInvoices.Review.cs:45 | platforms.hs.manage (resolve dispute response: platforms.hs.approve); company/platform scope | none | new |
-| POST | `/api/platforms/{code}/posting` | Payroll.Api/PlatformPosting.cs:41 | Admin / SuperAdmin; audited platform gate | none | new |
+| POST | `/api/platforms/{code}/posting` | Payroll.Api/PlatformPosting.cs:42 | Admin / SuperAdmin; audited platform gate | none | new |
 
 ## الرواتب
 
