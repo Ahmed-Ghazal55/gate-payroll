@@ -1018,6 +1018,10 @@ public static class FinancialCore
     .mob-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
     .mob-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
     .mob-kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center; }
+    .mob-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
+    .mob-tabs button { padding: 9px 4px; font-size: 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+    .mob-tabs button.active { background: var(--accent, #8a6d3b); color: #fff; border-color: transparent; }
+    #mob-period { margin-inline-start: 8px; }
   </style>
 </head>
 <body>
@@ -1100,72 +1104,168 @@ public static class FinancialCore
     };
   }
 
+  // Track M (R6): tabs in Ghazal's order — statement → notifications → devices; debts stay one tap away.
+  const LABELS = { debt_installment: 'قسط مديونية', vehicle_charge: 'إيجار المركبة', account_deduction: 'خصم الحساب', penalty: 'غرامة', adjustment: 'تسوية' };
+  const prevMonth = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); };
+  let tab = 'statement', period = prevMonth(), portal = null;
+
+  function signOut(msg) {
+    session = null; portal = null;
+    try { sessionStorage.removeItem('gate_rider_mob'); } catch {}
+    renderLogin(msg || '');
+  }
+
   async function renderPortal() {
     if (!session?.iqama) return renderLogin();
     try {
-      const data = await api('/api/rider-mobile/portal/' + encodeURIComponent(session.iqama));
-      const r = data.rider || {};
-      root.innerHTML = `
-        <div class="mob-head">
-          <div>
-            <strong>${esc(r.name || session.iqama)}</strong>
-            <div class="muted small number">${esc(r.iqama)} · ${esc(r.sponsor || 'شركة البوابة')}</div>
-          </div>
-          <button class="secondary small" id="mob-logout">خروج</button>
-        </div>
-        <div class="mob-kpis">
-          <div class="mob-kpi"><div class="muted small">المديونية المتبقية</div><strong class="number money-negative">${money(data.totalRemainingDebt)}</strong><div class="small muted">ر.س</div></div>
-          <div class="mob-kpi"><div class="muted small">إجمالي المسدد</div><strong class="number money-positive">${money(data.totalPaidDebt)}</strong><div class="small muted">ر.س</div></div>
-          <div class="mob-kpi"><div class="muted small">إعفاءات ممنوحة</div><strong class="number">${money(data.totalWaivedDebt)}</strong><div class="small muted">ر.س</div></div>
-        </div>
-        <div class="mob-card">
-          <h3 style="margin-top:0">📲 الإشعارات الإدارية والتشغيلية والنماذج (${(data.broadcasts || []).length})</h3>
-          ${(data.broadcasts || []).map(b => `
-            <div class="notice ${b.acknowledged ? 'good' : 'warn'}" style="margin-bottom:10px">
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <strong>${esc(b.titleAr)}</strong>
-                <span class="small number muted">${esc((b.createdAt || '').slice(0, 10))}</span>
-              </div>
-              <p style="margin:6px 0">${esc(b.bodyAr)}</p>
-              <div class="actions">
-                ${b.actionUrl ? `<a class="button small secondary" href="${esc(b.actionUrl)}" target="_blank">فتح الرابط / الفورم ↗</a>` : ''}
-                ${b.requiresAck && !b.acknowledged ? `<button class="small good" data-ack="${esc(b.id)}">✓ قرأت وأوافق على الإشعار</button>` : b.acknowledged ? `<span class="tag good">تم التأكيد ✓</span>` : ''}
-              </div>
-            </div>
-          `).join('') || '<p class="muted">لا توجد إشعارات جديدة حالياً.</p>'}
-        </div>
-        <div class="mob-card">
-          <h3 style="margin-top:0">💳 بيان المديونيات والأقساط (${(data.debts || []).length})</h3>
-          ${(data.debts || []).map(d => `
-            <div style="border-bottom:1px solid var(--line);padding:10px 0">
-              <div style="display:flex;justify-content:space-between">
-                <strong>${esc(d.categoryAr)}</strong>
-                <span class="tag ${d.status === 'settled' ? 'good' : 'warn'}">${esc(d.status === 'settled' ? 'مسدد' : 'نشط')}</span>
-              </div>
-              <div class="small muted">السجل الدائن: ${esc(d.creditorSponsorNameAr)} · بداية الاستقطاع: ${esc(d.effectiveFrom)}</div>
-              <div class="small number" style="margin-top:4px">
-                الإجمالي: <b>${money(d.totalAmount)}</b> · المسدد: <b class="money-positive">${money(d.paidAmount)}</b> · الإعفاء: <b>${money(d.waivedAmount)}</b> · المتبقي: <b class="money-negative">${money(d.remainingBalance)} ر.س</b> (القسط: ${money(d.monthlyInstallment)})
-              </div>
-            </div>
-          `).join('') || '<p class="muted">لا توجد مديونيات مسجلة على حسابك.</p>'}
-        </div>
-      `;
-      document.getElementById('mob-logout').onclick = () => {
-        session = null;
-        try { sessionStorage.removeItem('gate_rider_mob'); } catch {}
-        renderLogin();
-      };
-      root.querySelectorAll('[data-ack]').forEach(btn => {
-        btn.onclick = async () => {
-          btn.disabled = true;
-          await api('/api/rider-mobile/broadcasts/' + encodeURIComponent(btn.dataset.ack) + '/ack', { iqama: session.iqama });
-          await renderPortal();
-        };
-      });
+      portal = await api('/api/rider-mobile/portal/' + encodeURIComponent(session.iqama));
     } catch (ex) {
-      session = null;
-      renderLogin(ex.message);
+      return signOut(ex.message);
     }
+    const r = portal.rider || {};
+    const unread = (portal.broadcasts || []).filter(b => b.requiresAck && !b.acknowledged).length;
+    const tabs = [['statement', 'كشف الحساب'], ['notifications', 'الإشعارات' + (unread ? ` (${unread})` : '')], ['debts', 'المديونيات'], ['devices', 'أجهزتي']];
+    root.innerHTML = `
+      <div class="mob-head">
+        <div>
+          <strong>${esc(r.name || session.iqama)}</strong>
+          <div class="muted small number">${esc(r.iqama)} · ${esc(r.sponsor || 'شركة البوابة')}</div>
+        </div>
+        <button class="secondary small" id="mob-logout">خروج</button>
+      </div>
+      <div class="mob-tabs" role="tablist">
+        ${tabs.map(([id, label]) => `<button role="tab" data-tab="${id}" aria-selected="${tab === id}" class="${tab === id ? 'active' : ''}">${esc(label)}</button>`).join('')}
+      </div>
+      <div id="mob-body"><div class="mob-card muted">جاري التحميل...</div></div>
+    `;
+    document.getElementById('mob-logout').onclick = async () => {
+      try { await api('/api/rider-mobile/logout', {}); } catch {}
+      signOut();
+    };
+    root.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { tab = b.dataset.tab; renderPortal(); }; });
+    await renderTab();
+  }
+
+  async function renderTab() {
+    const body = document.getElementById('mob-body');
+    try {
+      if (tab === 'statement') body.innerHTML = await statementHtml();
+      else if (tab === 'notifications') body.innerHTML = notificationsHtml();
+      else if (tab === 'debts') body.innerHTML = debtsHtml();
+      else body.innerHTML = await devicesHtml();
+    } catch (ex) {
+      if (/جلسة|401/.test(ex.message)) return signOut(ex.message);
+      body.innerHTML = `<div class="mob-card"><div class="notice error">${esc(ex.message)}</div></div>`;
+    }
+    const p = document.getElementById('mob-period');
+    if (p) p.onchange = () => { period = p.value; renderTab(); };
+    root.querySelectorAll('[data-ack]').forEach(btn => {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try { await api('/api/rider-mobile/broadcasts/' + encodeURIComponent(btn.dataset.ack) + '/ack', { iqama: session.iqama }); }
+        catch (ex) { btn.disabled = false; alertBox(ex.message); return; }
+        await renderPortal();
+      };
+    });
+  }
+
+  function alertBox(msg) {
+    const body = document.getElementById('mob-body');
+    body.insertAdjacentHTML('afterbegin', `<div class="notice error">${esc(msg)}</div>`);
+  }
+
+  async function statementHtml() {
+    const picker = `<div class="mob-card"><label class="small muted">الشهر <input type="month" id="mob-period" value="${esc(period)}" max="${new Date().toISOString().slice(0, 7)}"></label></div>`;
+    let s;
+    try { s = await api('/api/rider-mobile/statement?period=' + encodeURIComponent(period)); }
+    catch (ex) {
+      if (/جلسة/.test(ex.message)) throw ex;
+      return picker + `<div class="mob-card muted" id="mob-statement-empty">لا يوجد كشف معتمد لهذا الشهر بعد. ${esc(ex.message)}</div>`;
+    }
+    const cards = s.cards || [], ded = s.deductions || [];
+    if (!cards.length && !ded.length) return picker + `<div class="mob-card muted" id="mob-statement-empty">لا يوجد كشف معتمد لهذا الشهر بعد.</div>`;
+    const net = Number(s.closing ?? s.net ?? 0);
+    return picker + `
+      <div class="mob-kpis" id="mob-statement">
+        <div class="mob-kpi"><div class="muted small">الصافي</div><strong class="number ${Number(s.net) < 0 ? 'money-negative' : 'money-positive'}">${money(s.net)}</strong></div>
+        <div class="mob-kpi"><div class="muted small">مرحّل</div><strong class="number">${money(s.carried)}</strong></div>
+        <div class="mob-kpi"><div class="muted small">الرصيد الختامي</div><strong class="number ${net < 0 ? 'money-negative' : 'money-positive'}">${money(net)}</strong></div>
+      </div>
+      ${cards.map(c => `
+        <div class="mob-card">
+          <div style="display:flex;justify-content:space-between"><strong>${esc(c.platform || c.app)}</strong><span class="small muted">${esc(c.schemeName || '')}</span></div>
+          <div class="small number" style="margin-top:6px;line-height:1.9">
+            ${c.orders != null ? `الطلبات: <b>${esc(c.orders)}</b><br>` : ''}
+            الإجمالي: <b>${money(c.gross)}</b>
+            ${Number(c.incentives) ? ` · الحوافز: <b class="money-positive">${money(c.incentives)}</b>` : ''}
+            ${Number(c.companyCommission) ? `<br>عمولة الشركة: <b class="money-negative">${money(c.companyCommission)}</b>` : ''}
+            ${Number(c.vehicleCharge) ? ` · المركبة: <b class="money-negative">${money(c.vehicleCharge)}</b>` : ''}
+          </div>
+        </div>`).join('')}
+      ${ded.length ? `<div class="mob-card"><h3 style="margin-top:0">الاستقطاعات</h3>${ded.map(d => `
+        <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:6px 0" class="small">
+          <span>${esc(d.description || LABELS[d.category] || d.category)}</span><b class="number money-negative">${money(Math.abs(Number(d.amount)))}</b>
+        </div>`).join('')}</div>` : ''}
+      <p class="small muted" style="text-align:center">${s.status === 'approved' || s.approvedOnly ? 'كشف معتمد' : esc(s.status || '')}</p>
+    `;
+  }
+
+  function notificationsHtml() {
+    const list = portal.broadcasts || [];
+    return `<div class="mob-card" id="mob-notifications">
+      <h3 style="margin-top:0">الإشعارات الإدارية والتشغيلية والنماذج (${list.length})</h3>
+      ${list.map(b => `
+        <div class="notice ${b.acknowledged || !b.requiresAck ? 'good' : 'warn'}" style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>${esc(b.titleAr)}</strong>
+            <span class="small number muted">${esc((b.createdAt || '').slice(0, 10))}</span>
+          </div>
+          <p style="margin:6px 0">${esc(b.bodyAr)}</p>
+          <div class="actions">
+            ${b.actionUrl && /^https?:\/\//i.test(b.actionUrl) ? `<a class="button small secondary" href="${esc(b.actionUrl)}" target="_blank" rel="noopener noreferrer">فتح الرابط / الفورم ↗</a>` : ''}
+            ${b.requiresAck && !b.acknowledged ? `<button class="small good" data-ack="${esc(b.id)}">✓ قرأت وأوافق على الإشعار</button>` : b.acknowledged ? `<span class="tag good">تم التأكيد ✓</span>` : ''}
+          </div>
+        </div>`).join('') || '<p class="muted">لا توجد إشعارات جديدة حالياً.</p>'}
+    </div>`;
+  }
+
+  function debtsHtml() {
+    const d0 = portal;
+    return `
+      <div class="mob-kpis">
+        <div class="mob-kpi"><div class="muted small">المديونية المتبقية</div><strong class="number money-negative">${money(d0.totalRemainingDebt)}</strong><div class="small muted">ر.س</div></div>
+        <div class="mob-kpi"><div class="muted small">إجمالي المسدد</div><strong class="number money-positive">${money(d0.totalPaidDebt)}</strong><div class="small muted">ر.س</div></div>
+        <div class="mob-kpi"><div class="muted small">إعفاءات ممنوحة</div><strong class="number">${money(d0.totalWaivedDebt)}</strong><div class="small muted">ر.س</div></div>
+      </div>
+      <div class="mob-card" id="mob-debts">
+        <h3 style="margin-top:0">بيان المديونيات والأقساط (${(d0.debts || []).length})</h3>
+        ${(d0.debts || []).map(d => `
+          <div style="border-bottom:1px solid var(--line);padding:10px 0">
+            <div style="display:flex;justify-content:space-between">
+              <strong>${esc(d.categoryAr)}</strong>
+              <span class="tag ${d.status === 'settled' ? 'good' : 'warn'}">${esc(d.status === 'settled' ? 'مسدد' : 'نشط')}</span>
+            </div>
+            <div class="small muted">السجل الدائن: ${esc(d.creditorSponsorNameAr)} · بداية الاستقطاع: ${esc(d.effectiveFrom)}</div>
+            <div class="small number" style="margin-top:4px">
+              الإجمالي: <b>${money(d.totalAmount)}</b> · المسدد: <b class="money-positive">${money(d.paidAmount)}</b> · الإعفاء: <b>${money(d.waivedAmount)}</b> · المتبقي: <b class="money-negative">${money(d.remainingBalance)} ر.س</b> (القسط: ${money(d.monthlyInstallment)})
+            </div>
+          </div>`).join('') || '<p class="muted">لا توجد مديونيات مسجلة على حسابك.</p>'}
+      </div>`;
+  }
+
+  async function devicesHtml() {
+    const rows = await api('/api/rider-mobile/sessions/mine');
+    const list = Array.isArray(rows) ? rows : rows.items || [];
+    const st = { active: ['نشطة', 'good'], expired: ['منتهية', ''], revoked: ['ملغاة', 'bad'] };
+    return `<div class="mob-card" id="mob-devices">
+      <h3 style="margin-top:0">الأجهزة التي سجلت الدخول</h3>
+      <p class="small muted">لو شفت جهاز مش بتاعك، كلم الإدارة لإلغاء جلسته فورًا.</p>
+      ${list.map(s => `
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:8px 0" class="small">
+          <div><b class="number">${esc(s.deviceFingerprint || 'جهاز')}</b><div class="muted number">${esc((s.createdAt || '').slice(0, 16).replace('T', ' '))} · آخر استخدام ${esc((s.lastSeenAt || '').slice(0, 16).replace('T', ' '))}</div></div>
+          <span class="tag ${(st[s.status] || ['', ''])[1]}">${esc((st[s.status] || [s.status])[0])}</span>
+        </div>`).join('') || '<p class="muted">لا توجد أجهزة.</p>'}
+    </div>`;
   }
 
   renderPortal();
