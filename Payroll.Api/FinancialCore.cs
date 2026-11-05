@@ -260,22 +260,10 @@ public static class FinancialCore
     private static readonly InquiryLimits MobileLimits = new();
     private static string TokenHash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
     private static JsonObject MobileSession(DbConnection c, HttpContext ctx, string iqama, DbTransaction? tx = null)
-    {
-        string header = ctx.Request.Headers.Authorization.ToString();
-        if (!header.StartsWith("Bearer rmob_", StringComparison.Ordinal) || header.Length != 7 + 5 + 64) throw new ApiError("جلسة المندوب غير صالحة.", 401);
-        var session = Store.Get(c, "mobile:" + TokenHash(header[7..]), "mobile_session", tx);
-        var rider = Store.Get(c, iqama, "rider", tx);
-        if (session == null || session.S("iqama") != iqama || !DateTimeOffset.TryParse(session.S("expiresAtUtc"), out var expiry) || expiry <= DateTimeOffset.UtcNow || rider == null || !rider.S("status").Equals("Active", StringComparison.OrdinalIgnoreCase)) throw new ApiError("جلسة المندوب منتهية أو الحساب موقوف.", 401);
-        return session;
-    }
+        => MobileSessions.Validate(c, ctx, iqama, tx);
 
-    public static string AuthenticatedMobileRider(DbConnection c,HttpContext ctx)
-    {
-        string header=ctx.Request.Headers.Authorization.ToString();
-        if(!header.StartsWith("Bearer rmob_",StringComparison.Ordinal)||header.Length!=76)throw new ApiError("جلسة المندوب غير صالحة.",401);
-        var session=Store.Get(c,"mobile:"+TokenHash(header[7..]),"mobile_session")??throw new ApiError("جلسة المندوب غير صالحة.",401);
-        string rider=session.S("iqama");MobileSession(c,ctx,rider);return rider;
-    }
+    public static string AuthenticatedMobileRider(DbConnection c, HttpContext ctx)
+        => MobileSessions.Validate(c, ctx).S("iqama");
 
     public static AccountDef ResolveAccount(string code) =>
         ChartOfAccounts.FirstOrDefault(a => string.Equals(a.Code, code, StringComparison.OrdinalIgnoreCase))
@@ -788,7 +776,7 @@ public static class FinancialCore
                 string token = "rmob_" + CampaignLinks.NewToken(), lang = input.S("language", "ar");
                 if (lang is not ("ar" or "en" or "ur" or "bn")) lang = "ar";
                 string fcm = input.S("fcmDeviceToken"); J.Need(fcm.Length <= 4096, "رمز جهاز طويل جدًا.");
-                var session = new JsonObject { ["id"] = "mobile:" + TokenHash(token), ["iqama"] = iqama, ["language"] = lang, ["fcmDeviceToken"] = fcm, ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"), ["expiresAtUtc"] = DateTimeOffset.UtcNow.AddHours(8).ToString("O") };
+                var session = new JsonObject { ["id"] = "mobile:" + TokenHash(token), ["iqama"] = iqama, ["language"] = lang, ["fcmDeviceToken"] = fcm, ["lastSeenAt"] = DateTimeOffset.UtcNow.ToString("O"), ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"), ["expiresAtUtc"] = DateTimeOffset.UtcNow.AddHours(8).ToString("O") };
                 Store.Save(c, "mobile_session", session, tx); Store.Audit(c, tx, "mobile.login", iqama, "rider");
                 return Results.Ok(new { accessToken = token, tokenType = "Bearer", expiresAtUtc = session.S("expiresAtUtc"), language = lang, fcmRegistered = false, fcmTokenStored = fcm.Length > 0, rider = UserAccess.RiderView(rider) });
             }, false);
@@ -826,7 +814,22 @@ public static class FinancialCore
             return msg;
         })).WithTags("Riders").WithSummary("Submit rider mobile broadcast");
 
-        api.MapGet("/rider-mobile/broadcasts", (HttpContext ctx) => store.Read(c => Store.List(c, "mobile_broadcast").Where(b=>b.S("targetIqama")=="ALL"||Store.Get(c,b.S("targetIqama"),"rider") is {} rider&&FinancialScopes.Rider(ctx.User,rider)||AccessPolicy.Administrator(ctx.User)))).WithTags("Riders").WithSummary("Read rider mobile broadcasts");
+        // This shared read supports the existing staff cookie and the rider's bearer session.
+        app.MapGet("/api/rider-mobile/broadcasts", (HttpContext ctx) =>
+        {
+            if (!string.IsNullOrEmpty(ctx.Request.Headers.Authorization))
+            {
+                MobileSessions.Authenticate(store, ctx);
+                return store.Read(c =>
+                {
+                    string iqama = AuthenticatedMobileRider(c, ctx);
+                    return Store.List(c, "mobile_broadcast").Where(b => b.S("targetIqama") == "ALL" || b.S("targetIqama") == iqama).ToList();
+                });
+            }
+            if (ctx.User.Identity?.IsAuthenticated != true) throw new ApiError("سجل الدخول.", 401);
+            AccessPolicy.Demand(ctx.User, "mobile.broadcast");
+            return store.Read(c => Store.List(c, "mobile_broadcast").Where(b => b.S("targetIqama") == "ALL" || Store.Get(c, b.S("targetIqama"), "rider") is {} rider && FinancialScopes.Rider(ctx.User, rider) || AccessPolicy.Administrator(ctx.User)).ToList());
+        }).WithTags("Riders").WithSummary("Read scoped broadcasts with a staff cookie or active rider bearer token");
 
         // إعدادات ربط Firebase Cloud Messaging (FCM) وتطبيق Google Play
         api.MapGet("/rider-mobile/firebase-config", (HttpContext ctx) => store.Read(c =>
@@ -872,7 +875,10 @@ public static class FinancialCore
         })).WithTags("Riders").WithSummary("Submit rider mobile firebase config");
 
         // واجهة بيانات تطبيق المندوب (يستدعيها تطبيق الجوال بعد تسجيل الدخول بـ rmob_ token)
-        app.MapGet("/api/rider-mobile/portal/{iqama}", (string iqama, HttpContext ctx) => store.Read(c =>
+        app.MapGet("/api/rider-mobile/portal/{iqama}", (string iqama, HttpContext ctx) =>
+        {
+            MobileSessions.Authenticate(store, ctx, iqama);
+            return store.Read(c =>
         {
             J.Iqama(iqama);
             MobileSession(c, ctx, iqama);
@@ -917,7 +923,8 @@ public static class FinancialCore
                 debts,
                 broadcasts
             };
-        })).WithTags("Riders").WithSummary("Read rider mobile portal {iqama}");
+        });
+        }).WithTags("Riders").WithSummary("Read rider mobile portal {iqama}");
 
         app.MapPost("/api/rider-mobile/broadcasts/{id}/ack", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {

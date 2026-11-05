@@ -7,6 +7,9 @@ GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Companies and
 def permission(method,p):
  if p.startswith(('/api/public/', '/api/auth/')) or not p.startswith('/api/'): return 'public (rider portal: own authenticated rider)'
  if p.startswith(('/api/rider-mobile/login','/api/rider-mobile/portal/')) or p.startswith('/api/rider-mobile/broadcasts/') and p.endswith('/ack'):return 'own rider session / one-time inquiry code'
+ if p in ('/api/rider-mobile/sessions/mine','/api/rider-mobile/logout'):return 'Active rider bearer token; own sessions only'
+ if p.startswith('/api/rider-mobile/sessions'):return 'mobile.sessions (Admin / SuperAdmin); company or sponsor scope; safe hash prefix only'
+ if p=='/api/rider-mobile/broadcasts':return 'mobile.broadcast + company scope OR active rider bearer token (own and ALL)'
  if p=='/api/inquiry-access':return 'inquiry.issue + full company/category scope (+ payroll.view for payslip/mobile)'
  if p.startswith('/api/notifications/center/') and p.endswith('/toggle-todo'):return 'approvals.view OR owner; department visibility'
  if p=='/api/notifications/center':return 'approvals.view' if method=='GET' else 'mobile.broadcast'
@@ -70,7 +73,7 @@ def routes():
    # Metadata belongs to the declaration before the next route.
    end=re.search(r'\b(?:app|api)\.Map(?:Get|Post|Put|Delete|Patch)\(',s[m.end():]);tail=s[m.end():m.end()+end.start()] if end else s[m.end():]
    tag=re.search(r'\.WithTags\("([^"]+)"',tail);group=tag[1] if tag else 'Administration'
-   caller='rider form' if p.startswith(('/api/public/forms','/api/public/questionnaires','/api/public/inquiry')) else 'rider app' if p.startswith('/api/rider-mobile') and ('portal' in p or 'ack' in p or 'login' in p) else 'none'
+   caller='rider form' if p.startswith(('/api/public/forms','/api/public/questionnaires','/api/public/inquiry')) else 'rider app' if p.startswith('/api/rider-mobile') and ('portal' in p or 'ack' in p or 'login' in p or p.endswith(('/mine','/logout','/statement'))) else 'none'
    if caller=='none':
     prefix=p.split('{',1)[0].rstrip('/')
     variants={prefix,prefix.removeprefix('/api')}

@@ -112,6 +112,8 @@ public static class AccessPolicy
         if(method=="POST"&&(path=="/api/notifications/read-all"||path.StartsWith("/api/notifications/",StringComparison.Ordinal)&&path.EndsWith("/read",StringComparison.Ordinal)))return true;
         if(path.StartsWith("/api/notifications",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&Has("mobile.broadcast");
         if(path=="/api/inquiry-access")return method=="POST"&&Has("inquiry.issue");
+        if(path=="/api/rider-mobile/sessions"||path.StartsWith("/api/rider-mobile/sessions/",StringComparison.Ordinal))
+            return Has("mobile.sessions")&&(method=="GET"&&path=="/api/rider-mobile/sessions"||method=="POST"&&(path=="/api/rider-mobile/sessions/revoke-all"||path.EndsWith("/revoke",StringComparison.Ordinal)));
         if(path.StartsWith("/api/rider-mobile/firebase-config",StringComparison.Ordinal))return false;
         if(path.StartsWith("/api/rider-mobile/",StringComparison.Ordinal))return method=="GET"?Has("mobile.broadcast"):method=="POST"&&path=="/api/rider-mobile/broadcast"&&Has("mobile.broadcast");
         if(path.StartsWith("/api/promissory-notes",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
