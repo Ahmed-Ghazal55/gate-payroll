@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none (next: Claude review of feat/r4-integrate and release 0.14.0) |
+| Current writer | Claude: review, merge of feat/mobile-sessions, release 0.14.0 |
 | Branch | feat/r4-integrate = feat/r4-api + feat/r4-web + R4-fix1 + feat/advances-api + R5-web |
 | Live | 0.12.1 (5fe403b); local 0.14.0 |
 | Updated | 2026-11-05 by Antigravity |
@@ -104,44 +104,33 @@ git diff --check
 ## R4 web (Antigravity)
 | Updated | 2026-11-04 by Antigravity |
 
+## R5 Codex: mobile sessions + advances security review
+| Field | Value |
+|---|---|
+| Current writer | none |
+| Branch / worktree | feat/mobile-sessions / gate-payroll-mob; based on feat/advances-api 565885d |
+| Updated | 2026-11-05 by Codex |
+| Weekly usage | Before unavailable → after unavailable; usage screen not exposed |
+
 ## Goal completed
-Release train R4 web completed on `feat/r4-web`:
-1. **Part 0 (R3 fixes on `feat/r3-web`, commit `d106714`)**:
-   - 0.1 TGA Split: isolated percent mode payload `{ riderPercent, riderId }` vs amount mode `{ companyAmount, riderAmount, riderId }`, labeled preview «تقريبي — المبلغ النهائي من الخادم». Live test verifies mixed mode 400 rejection.
-   - 0.2 Swallowed errors: replaced `.catch(() => [])` with `<ErrorState onRetry={...} />` in treasury, debts, companies.
-   - 0.3 HS card: labeled invoices card «إجمالي الصفحة الحالية».
-2. **Part A (Sidebar IA & SectionTabs, commit `3f21ca5`)**:
-   - Collapsible groups matching spec 09 lines 37–50, including «تطبيق المناديب», active group persistence, 360px drawer.
-   - Reusable `SectionTabs` component (`?tab=`, ARIA tabs keyboard navigation, deep linking).
-3. **Part B & C (All workspaces, commits `ff2a679` to `7acb033`)**:
-   - W3 Riders (`/app/riders/`): دليل المناديب · ملف 360 · جودة واكتمال البيانات · المزامنة.
-   - W4 Statement (`/app/riders/statement/`): Plan §3 layout (header, monthly cards, timeline table, له/عليه badge, PDF print, CSV export).
-   - W5 Operations (`/app/operations/`): المدن · السكن · المركبات · العهد · الكفالات · القضايا · حسابات المنصات («غير متاح بعد»).
-   - W6 Admin (`/app/admin/`): المستخدمين والصلاحيات (`/api/users`), سجل التدقيق (`/api/audit`), إعدادات المنظومة.
-   - W7 Imports (`/app/imports/`): معالج استيراد من 5 خطوات ومحفوظات الدفعات.
-   - W8 & W9 Payroll (`/app/payroll/`): هيكل متعدد المنصات (6 منصات)، دورة رواتب 0–7 مع شارة «يحتاج قرار» للصافي السالب، محرر أنظمة مُمرحل شهرياً ومصفوفة فئات (6 أعمدة).
-   - W10 Rider App Admin (`/app/rider-app/`): الإشعارات والإرسال، إعدادات Firebase، معاينة كشف التطبيق.
-4. **Part D (Retirement Check, commit `047d43d`)**:
-   - `grep -rn "/legacy" web/` confirmed zero legacy links in source (only allowed login `returnUrl` check remains).
-   - Legacy views in `Frontend/` with no `/app` screen: **NONE** (100% of legacy screens migrated to `/app`).
+R5-C1 and R5-C2 completed locally. Next: Claude merges feat/mobile-sessions into the 0.14.0 release. No push, merge, deploy, production/real DB access, web/ edits or access to the concurrent gate-payroll-r4api worktree.
 
-## Verification summary
-- **Static build:** `npm run build` compiled 19/19 routes cleanly without any `/app/app/` links.
-- **Static E2E & screenshots:** `npm run test:e2e` passed all 8 suites; 16 screenshots at 1440 and 360 in `test-results/r4-web/`.
-- **Live E2E suite:** `node web/tests/e2e-live.mjs` passed all 10 steps against real .NET API and live database.
-- **Regression tests:** `node tests/browser-iban.mjs` and `node tests/finance-views-ui.mjs` both passed cleanly.
+## Done
+- R5-C1 commit 6971a0e: mobile.sessions permission/catalog; company-scoped list, own list, audited reason-required revoke/revoke-all and own logout; safe 16-hex session prefix and 8-hex FCM fingerprint; retained history; shared revoked/expired checks for portal/statement/broadcast/ack; five-minute lastSeen throttle with serialized revalidation. Contract: docs/api/mobile-sessions.md.
+- R5-C2: fixed the two HIGH findings below; 6 additional Engine behavior tests cover supervision, personal privacy, payout replay/concurrency/overdraft, mass assignment and org write permissions. Existing maker-checker and routed vault custody remain enforced.
+- Final verification: clean build (0 warnings/errors); .NET 280 passed / 0 failed / 7 isolated SQL checks skipped; HTTP advances 57, mobile-sessions 77, R4 backend 56 all passed. Source boundary 215 and git diff --check passed; inventory regenerated (232 total / 222 API). .NET also ran its existing SQLite HTTP contracts. No SQL Server or browser checks executed.
+- C1 checkpoint: .NET 274/0/7 and HTTP 77/37/56 passed. Cached NuGet restore and cached TypeScript compiler generated Payroll.Api assets; no frontend source edits. The new HTTP suite uses an automatic local port after a fixed-port collision with R4 was corrected. Learning log appended.
+- Inherited advances: dated org memberships/ranks/delegations/supervision/routing, personal tasks, request → review/propose → respond → payout/debt/journal (BR §25). See docs/api/advances.md and org.md.
+- Inherited R4 integration: local 0.14.0. Reporting staging commit still needs fresh «حمّل»; production switch needs «حوّل الإنتاج». Neither action occurred here.
 
-## Commits on `feat/r4-web`
-1. `3f21ca5` — `feat(web): sidebar groups and SectionTabs component (R4-W1)`
-2. `ff2a679` — `feat(web): riders directory workspace (R4-W3)`
-3. `8e6f651` — `feat(web): rider financial statement view (R4-W4)`
-4. `c7a3170` — `feat(web): operations and assets workspace (R4-W5)`
-5. `7e140a9` — `feat(web): admin and audit workspace (R4-W6)`
-6. `cc28779` — `feat(web): operational data imports workspace (R4-W7)`
-7. `51f13ba` — `feat(web): payroll multi-platform framework and rules editor (R4-W8)`
-8. `7acb033` — `feat(web): rider mobile app admin workspace (R4-W10)`
-9. `047d43d` — `feat(web): complete legacy links removal (R4-W11)`
-10. `7a6e4e4` — `test(web): e2e static and live verification for R4 workspaces (R4-verify)`
+## Codex security review R5
+Scoped review of AdvanceRequests.cs, OrgDirectory.cs, Notifications.RaiseFor/CloseTasks, new AccessPolicy lines and their reachable legacy notification paths; one fix round. No CRITICAL finding confirmed.
+- HIGH fixed — FinancialCore.cs:714 and :754, Notifications.cs:26: legacy center/toggle exposed personal tasks to other approvers, creators and administrators. Fix: personal-recipient visibility on both paths. The HTTP regression failed against the original implementation, then passed; Engine and HTTP assert no cross-user disclosure and read ≠ decision.
+- HIGH fixed — AdvanceRequests.cs:117 and :157: the original requester retained read/reply access after supervision ended. Fix: require current supervision plus requester identity/permission; routed reviewers/custodians also require their operation permission, summary requires advances.review. Tests deny the former and replacement supervisor; state remains unchanged.
+- MEDIUM open — OrgDirectory.cs:71, :81, :87: supervision/routing accept end-before-start, and delegation ending lacks the same interval check. Fix proposed: require a nonempty start and end ≥ start, and validate delegation end against its start. Synthetic HTTP probe confirmed reversed routing dates are accepted. Not fixed per requested severity scope.
+- MEDIUM open — AdvanceRequests.cs:60: last settlement is selected globally, including unrelated riders and unapproved legacy rows. It can hide this rider's advances from the reviewer. Fix proposed: select only this rider's approved run/cycle and its approval timestamp. Synthetic probe confirmed another rider's future run becomes the cutoff. Not fixed.
+- MEDIUM open — AdvanceRequests.cs:66: Summary indexes scalar closing as closing.net; a routed reviewer with normal financial permissions receives 500. Fix proposed: read the numeric contract explicitly and distinguish an absent statement; review the forecast against already-applied deductions. Synthetic HTTP probe confirmed 500 for a FinancialAccountant reviewer. Not fixed.
+- Verified: requester cannot review; payout needs the selected vault's current routing; client workflow/debt/revision fields are ignored or checked; org writes demand org.manage; personal tasks are absent from broadcasts. Independent SQLite Store instances prove one payout on replay and no overdraft across competing approved requests. Store.Write serializes balance/sourceRef/state/journal/audit together; SQL Server application-lock behavior was inspected only, not executed.
 
 ## R4 fix round 1 (Antigravity)
 | Updated | 2026-11-05 by Antigravity |
@@ -186,10 +175,22 @@ Release train R4 web completed on `feat/r4-web`:
 ### Capacity status
 - Before session: ~62% weekly limit used (~38% remaining).
 - After session: ~78% weekly limit used (~22% remaining).
+## Next step (exact)
+Claude: merge feat/mobile-sessions into the 0.14.0 release in the integration worktree when authorized; decide the three MEDIUM items above with Ghazal. No further HIGH/CRITICAL fixes remain from this scoped review.
+Antigravity: replace «غير متاح بعد» with the sessions list and reason-required revoke action. Use docs/api/mobile-sessions.md and only the returned prefix as the row identifier.
 
 ### How to verify
 ```bash
 cd /home/ghazal/Projects/active/gate-payroll-r4api/web && npm run build && npm run test:e2e
 cd /home/ghazal/Projects/active/gate-payroll-r4api && node tests/e2e-live.mjs
 cd /home/ghazal/Projects/active/gate-payroll-r4api && node tests/browser-iban.mjs && node tests/finance-views-ui.mjs && node tests/r4-backend.mjs
+# Clean worktrees first need cached NuGet restore and generated frontend assets.
+dotnet build tests/Engine.Tests/Engine.Tests.csproj --no-restore -p:SkipFrontendBuild=true -m:1
+env -u PAYROLL_TEST_SQL_CONNECTION ConnectionStrings__DefaultConnection= dotnet test tests/Engine.Tests/Engine.Tests.csproj --no-build --no-restore -m:1 -v minimal
+node tests/advances.mjs
+node tests/mobile-sessions.mjs
+node tests/r4-backend.mjs
+python3 tools/api_inventory.py
+python3 scripts/release_source.py --check
+git diff --check
 ```

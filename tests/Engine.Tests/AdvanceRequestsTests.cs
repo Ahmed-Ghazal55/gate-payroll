@@ -100,4 +100,108 @@ public sealed class AdvanceRequestsTests
             Assert.AreEqual(1,s.Read(c=>Store.List(c,OrgDirectory.Membership).Count(m=>m.S("userId")=="syn-accountant")),"ending never deletes history");
         });
     }
+
+    [TestMethod]
+    public void FormerSupervisorCannotReadOrRespondAndNewSupervisorCannotTakeOverAnOldRequest()
+    {
+        Run(s=>{
+            var r=Create(s);Review(s,Acc,r.S("id"),new(){["action"]="propose",["note"]="Synthetic proposal",["proposed"]=new JsonObject{["amount"]=400}});
+            var supervision=s.Read(c=>Store.List(c,OrgDirectory.Supervision).Single());
+            s.Write((c,tx)=>OrgDirectory.End(c,tx,Admin,OrgDirectory.Supervision,supervision.S("id"),new(){["validTo"]=OrgDirectory.Today(DateTimeOffset.UtcNow.AddDays(-1))}));
+            Assert.AreEqual(404,Assert.ThrowsExactly<ApiError>(()=>s.Read(c=>AdvanceRequests.Read(c,Sup,r.S("id")))).Status);
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.Respond(c,tx,Sup,r.S("id"),new(){["action"]="accept"}))).Status);
+            Assert.AreEqual("change_proposed",s.Read(c=>Store.Get(c,r.S("id"),AdvanceRequests.Kind)!.S("status")));
+            var replacement=U("syn-outsider","advances.request");
+            s.Write((c,tx)=>OrgDirectory.AddSupervision(c,tx,Admin,new(){["supervisorUserId"]="syn-outsider",["riderIqama"]=Rider}));
+            Assert.AreEqual(404,Assert.ThrowsExactly<ApiError>(()=>s.Read(c=>AdvanceRequests.Read(c,replacement,r.S("id")))).Status);
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.Respond(c,tx,replacement,r.S("id"),new(){["action"]="accept"}))).Status);
+        });
+    }
+
+    [TestMethod]
+    public void PersonalTasksArePrivateEvenFromCreatorAdminAndCompanyWideApprovers()
+    {
+        Run(s=>{
+            var r=Create(s);
+            var task=s.Read(c=>Store.List(c,"sys_notification").Single(n=>n.S("entityId")==r.S("id")));
+            foreach(var who in new[]{Admin,Sup,U("syn-outsider","approvals.view")})
+            {
+                Assert.IsFalse(s.Read(c=>Notifications.Visible(c,who,task)),"only the addressee may see the task");
+                Assert.IsFalse(s.Read(c=>Notifications.Center(c,who)).Any(n=>n.S("id")==task.S("id")),"legacy center must use the same personal visibility");
+            }
+            Assert.IsTrue(s.Read(c=>Notifications.Visible(c,Acc,task)));
+            Assert.IsTrue(s.Read(c=>Notifications.Center(c,Acc)).Any(n=>n.S("id")==task.S("id")));
+            s.Write((c,tx)=>{Notifications.Mark(c,tx,Acc,task);return true;});
+            Assert.AreEqual("open",s.Read(c=>Store.Get(c,task.S("id"),"sys_notification")!.S("actionStatus")),"reading is not a decision");
+        });
+    }
+
+    [TestMethod]
+    public void ConcurrentPayoutAndReplayHaveOneDebtOneJournalAndNoOverdraftAcrossStores()
+    {
+        Run(s=>{
+            AccountingPostingTests.SeedCash(s,"MAIN.BW.DEBT",700);
+            var first=Create(s,"cash",500);Review(s,Acc,first.S("id"),new(){["action"]="approve",["coverageReason"]="Synthetic reason"});
+            // Independent Store objects model separate API processes, bypassing the in-process write gate.
+            var peer=new Store(s.DirectoryPath);int paid=0,blocked=0;
+            Parallel.Invoke(()=>Attempt(s),()=>Attempt(peer));
+            void Attempt(Store store){try{store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,first.S("id"),new(){["reference"]="SYN-PARALLEL"}));Interlocked.Increment(ref paid);}catch(ApiError e)when(e.Status==409){Interlocked.Increment(ref blocked);}}
+            Assert.AreEqual(1,paid);Assert.AreEqual(1,blocked);
+            Assert.AreEqual(1,s.Read(c=>Store.List(c,"debt").Count(d=>d.S("sourceRef")=="ADV-REQ:"+first.S("id"))));
+            string debtId=s.Read(c=>Store.Get(c,first.S("id"),AdvanceRequests.Kind)!.S("debtId"));
+            Assert.AreEqual(1,s.Read(c=>Store.List(c,"journal").Count(j=>j.S("debtId")==debtId)));
+            Assert.AreEqual(200m,s.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.BW.DEBT")));
+            var second=Create(s,"cash",300);Review(s,Acc,second.S("id"),new(){["action"]="approve",["coverageReason"]="Synthetic reason"});
+            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,second.S("id"),new(){["reference"]="SYN-NO-CASH"}))).Status);
+            Assert.AreEqual("approved",s.Read(c=>Store.Get(c,second.S("id"),AdvanceRequests.Kind)!.S("status")));
+        });
+    }
+
+    [TestMethod]
+    public void BodiesCannotAssignWorkflowStateDebtIdRevisionOrApprovalIdentity()
+    {
+        Run(s=>{
+            var r=s.Write((c,tx)=>AdvanceRequests.Create(c,tx,Sup,new(){["riderIqama"]=Rider,["type"]="cash",["amount"]=100,["reason"]="Synthetic need",["status"]="paid",["revision"]=99,["debtId"]="injected",["approvedBy"]="injected",["requestedBy"]="injected"}));
+            Assert.AreEqual("under_review",r.S("status"));Assert.AreEqual(1m,r.N("revision"));Assert.AreEqual("syn-supervisor",r.S("requestedBy"));Assert.AreEqual("",r.S("debtId"));Assert.AreEqual("",r.S("approvedBy"));
+            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>Review(s,Acc,r.S("id"),new(){["action"]="approve",["revision"]=99})).Status);
+            r=Review(s,Acc,r.S("id"),new(){["action"]="approve",["coverageReason"]="Synthetic reason",["debtId"]="injected",["status"]="paid",["approvedBy"]="injected"});
+            Assert.AreEqual("approved",r.S("status"));Assert.AreEqual("syn-accountant",r.S("approvedBy"));Assert.AreEqual("",r.S("debtId"));
+        });
+    }
+
+    [TestMethod]
+    public void CompetingApprovedRequestsCannotSpendTheSameVaultBalance()
+    {
+        Run(s=>{
+            const string other="2000000502";
+            AccountingPostingTests.SeedCash(s,"MAIN.BW.DEBT",700);
+            s.Write((c,tx)=>{
+                Store.Save(c,"rider",new(){["id"]=other,["iqama"]=other,["name"]="Synthetic second rider",["sponsorId"]=FinancialCore.ResolveSponsor("BW").Id},tx);
+                return OrgDirectory.AddSupervision(c,tx,Admin,new(){["supervisorUserId"]="syn-supervisor",["riderIqama"]=other});
+            });
+            var first=Create(s,"cash",500);
+            var second=s.Write((c,tx)=>AdvanceRequests.Create(c,tx,Sup,new(){["riderIqama"]=other,["type"]="cash",["amount"]=500,["reason"]="Synthetic competing request"}));
+            foreach(var r in new[]{first,second})Review(s,Acc,r.S("id"),new(){["action"]="approve",["coverageReason"]="Synthetic reason"});
+            var peer=new Store(s.DirectoryPath);int paid=0,blocked=0;
+            Parallel.Invoke(()=>Attempt(s,first),()=>Attempt(peer,second));
+            void Attempt(Store store,JsonObject request){try{store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,request.S("id"),new(){["reference"]="SYN-COMPETING"}));Interlocked.Increment(ref paid);}catch(ApiError e)when(e.Status==409){Interlocked.Increment(ref blocked);}}
+            Assert.AreEqual(1,paid);Assert.AreEqual(1,blocked);
+            Assert.AreEqual(1,s.Read(c=>Store.List(c,AdvanceRequests.Kind).Count(r=>r.S("status")=="approved")));
+            Assert.AreEqual(1,s.Read(c=>Store.List(c,"debt").Count));
+            Assert.AreEqual(200m,s.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.BW.DEBT")));
+        });
+    }
+
+    [TestMethod]
+    public void EveryOrgWriteRequiresManagePermissionBeforeProcessingClientFields()
+    {
+        Run(s=>{
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>OrgDirectory.AddMembership(c,tx,Sup,new()))).Status);
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>OrgDirectory.AddDelegation(c,tx,Sup,new()))).Status);
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>OrgDirectory.AddSupervision(c,tx,Sup,new()))).Status);
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>OrgDirectory.AddRouting(c,tx,Sup,new()))).Status);
+            foreach(string kind in new[]{OrgDirectory.Membership,OrgDirectory.Delegation,OrgDirectory.Supervision,OrgDirectory.Routing})
+                Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>OrgDirectory.End(c,tx,Sup,kind,"synthetic-id",new()))).Status);
+        });
+    }
 }

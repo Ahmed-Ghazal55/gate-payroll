@@ -23,6 +23,10 @@ public static class Notifications
         return category=="general";
     }
     static string ReadId(ClaimsPrincipal user,string id)=>"notification-read:"+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Identity(user)+"\n"+id)));
+    public static List<JsonObject> Center(DbConnection c,ClaimsPrincipal user)=>Store.List(c,"sys_notification").Where(n=>
+        Category(n)=="personal" ? Visible(c,user,n) :
+        AccessPolicy.Administrator(user)||(n.S("targetDepartment")==user.FindFirst("department")?.Value||n.S("targetDepartment")=="ALL")&&
+        (n.S("approvalId")==""||Store.Get(c,n.S("approvalId"),"approval_request") is {} approval&&FinancialScopes.Approval(user,approval,c))).ToList();
     public static List<JsonObject> Inbox(DbConnection c,ClaimsPrincipal user,DbTransaction? tx=null)
     {
         var read=Store.List(c,"notification_read",tx).Where(r=>r.S("userId")==Identity(user)).Select(r=>r.S("notificationId")).ToHashSet(StringComparer.Ordinal);
