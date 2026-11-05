@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "status": "draft",
+  "status": "proposed_approved",
   "approvedBy": null,
   "sheet": "المديونيات",
   "headerRow": 1,
@@ -58,10 +58,10 @@
       "column": "E",
       "header": "المديونية القديمة",
       "role": "debt",
-      "category": null,
-      "account": null,
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "F",
@@ -94,10 +94,10 @@
       "column": "I",
       "header": "مديونيات كشف الحساب",
       "role": "debt",
-      "category": null,
-      "account": null,
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "J",
@@ -112,28 +112,28 @@
       "column": "K",
       "header": "خصم بالسالب هنقر / كيتا  شهر 11",
       "role": "debt",
-      "category": null,
-      "account": null,
+      "category": "PlatformTransferredDebt",
+      "account": "112508",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "L",
       "header": "مديوينات اخري",
       "role": "debt",
-      "category": null,
-      "account": null,
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "M",
       "header": "تغيير مهن + مخالفات",
       "role": "debt",
-      "category": null,
-      "account": null,
+      "category": "ProfessionChange",
+      "account": "112506",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "N",
@@ -175,28 +175,28 @@
       "column": "R",
       "header": "مديونيات 1/2/2026",
       "role": "debt",
-      "category": null,
-      "account": null,
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "S",
       "header": "مديونيات 19/2/2026",
       "role": "debt",
-      "category": null,
-      "account": null,
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "T",
       "header": "مديونيات حتي 10/3/2026",
       "role": "debt",
-      "category": null,
-      "account": null,
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "U",
@@ -211,10 +211,10 @@
       "column": "V",
       "header": "مديونيات شهر 4",
       "role": "debt",
-      "category": null,
-      "account": null,
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "W",
@@ -247,10 +247,10 @@
       "column": "Z",
       "header": "مخالفة TGA",
       "role": "debt",
-      "category": null,
-      "account": null,
+      "category": "TrafficFine",
+      "account": "112502",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "AA",
@@ -346,10 +346,10 @@
       "column": "AK",
       "header": "مركبة مسروقة",
       "role": "debt",
-      "category": null,
-      "account": null,
+      "category": "AccidentDamage",
+      "account": "112509",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "AL",
@@ -583,10 +583,10 @@
     {
       "column": "C",
       "header": "استقطاعات المناديب",
-      "category": null,
-      "account": null,
+      "category": "AdministrativeDeduction",
+      "account": "112505",
       "sign": 1,
-      "status": "needs_decision"
+      "status": "proposed_approved"
     },
     {
       "column": "D",
@@ -599,20 +599,19 @@
     {
       "column": "E",
       "header": "سلف انترنت مناديب",
-      "category": "Advance",
+      "category": "InternetAdvance",
       "account": "112503",
       "sign": 1,
-      "status": "proposed"
+      "status": "proposed_approved"
     },
     {
       "column": "F",
       "header": "سلف محافظ هنقرستيشن",
       "sourceAccount": "112506",
-      "category": null,
-      "account": null,
+      "category": "HsWalletTopUp",
+      "account": "112513",
       "sign": 1,
-      "status": "needs_decision",
-      "reason": "ERP 112506 is HungerStation wallet advances; target 112506 is HR services. Explicit decision required."
+      "status": "proposed_approved"
     },
     {
       "column": "G",

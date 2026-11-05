@@ -38,6 +38,21 @@ public sealed class DebtSheetImportTests
     static byte[] Deductions(string total="10")=>Book(("Detail",[["ID","Name","Deduction","Cash","Internet","Wallet","Fine","Total"],[Iqama,"SYNTHETIC_PRIVATE_NAME","10","0","0","0","0","10"]]),("Control",[["Label","Amount"],["BW",total]]));
 
     [TestMethod]
+    public void ApprovedOpeningCategoriesMapToTheirOwnReceivablesAndStayBehindReview()
+    {
+        foreach(var (category,account,permission) in new[]{("LegacyOpeningDebt","112505","debts.create.administrative"),("InternetAdvance","112503","debts.create.advance"),("HsWalletTopUp","112513","debts.create.advance")})
+        {
+            var meta=FinancialCore.ResolveCategory(category);
+            Assert.AreEqual(account,FinanceViews.MapAccount(new(){["accountCode"]=meta.ReceivableAccountCode},new(),new(){["category"]=category},null,null));
+            Assert.AreEqual(permission,AccessPolicy.CategoryPermission(category));
+            var mapping=Mapping();mapping["status"]="proposed_approved";mapping["columns"]![2]!["category"]=category;mapping["columns"]![2]!["account"]=account;
+            var preview=DebtSheetImporter.Preview(Debt(),Deductions(),mapping,Riders());
+            Assert.AreEqual(account,preview.Documents.Single().Body.S("receivableAccountCode"));
+            Assert.AreEqual("pending_approval",preview.Documents.Single().Body.S("status"));
+            Assert.IsFalse(preview.Summary.B("canCommit"));
+        }
+    }
+    [TestMethod]
     public void FifoConsumesOldBucketsAndCreatesOnlyTheRemainingCategory()
     {
         var preview=DebtSheetImporter.Preview(Debt(),Deductions(),Mapping(),Riders());Assert.IsTrue(preview.Summary.B("canCommit"));
