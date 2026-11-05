@@ -34,23 +34,23 @@ export function Toolbar({
   extraControls,
   children,
 }: ToolbarProps) {
-  const [exportOpen, setExportOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<'export' | 'import' | null>(null);
   const exportRef = useRef<HTMLDivElement>(null);
   const importRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setExportOpen(false);
+      const target = e.target as Node;
+      if (openMenu === 'export' && exportRef.current && !exportRef.current.contains(target)) {
+        setOpenMenu(null);
       }
-      if (importRef.current && !importRef.current.contains(e.target as Node)) {
-        setImportOpen(false);
+      if (openMenu === 'import' && importRef.current && !importRef.current.contains(target)) {
+        setOpenMenu(null);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [openMenu]);
 
   return (
     <div className="flex flex-col gap-3 py-2 text-[var(--ink)]">
@@ -94,8 +94,8 @@ export function Toolbar({
               <button
                 type="button"
                 disabled={exportLoading}
-                onClick={() => setExportOpen(!exportOpen)}
-                aria-expanded={exportOpen}
+                onClick={() => setOpenMenu((prev) => (prev === 'export' ? null : 'export'))}
+                aria-expanded={openMenu === 'export'}
                 aria-label="تصدير البيانات"
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] transition disabled:opacity-50"
               >
@@ -104,12 +104,12 @@ export function Toolbar({
                 <ChevronDown size={14} className="text-[var(--muted)]" />
               </button>
 
-              {exportOpen && (
+              {openMenu === 'export' && (
                 <div className="absolute left-0 mt-1 w-44 rounded-xl border border-[var(--line)] bg-[var(--surface)] shadow-lg py-1.5 z-30">
                   <button
                     type="button"
                     onClick={() => {
-                      setExportOpen(false);
+                      setOpenMenu(null);
                       onExport('excel-filtered');
                     }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-xs text-right hover:bg-[var(--row-hover)] font-medium"
@@ -120,7 +120,7 @@ export function Toolbar({
                   <button
                     type="button"
                     onClick={() => {
-                      setExportOpen(false);
+                      setOpenMenu(null);
                       onExport('excel-all');
                     }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-xs text-right hover:bg-[var(--row-hover)] font-medium"
@@ -131,7 +131,7 @@ export function Toolbar({
                   <button
                     type="button"
                     onClick={() => {
-                      setExportOpen(false);
+                      setOpenMenu(null);
                       onExport('csv-filtered');
                     }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-xs text-right hover:bg-[var(--row-hover)] font-medium border-t border-[var(--line)]"
@@ -149,8 +149,8 @@ export function Toolbar({
             <div className="relative" ref={importRef}>
               <button
                 type="button"
-                onClick={() => setImportOpen(!importOpen)}
-                aria-expanded={importOpen}
+                onClick={() => setOpenMenu((prev) => (prev === 'import' ? null : 'import'))}
+                aria-expanded={openMenu === 'import'}
                 aria-label="استيراد بيانات"
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-[var(--ink)] transition"
               >
@@ -159,13 +159,13 @@ export function Toolbar({
                 <ChevronDown size={14} className="text-[var(--muted)]" />
               </button>
 
-              {importOpen && (
+              {openMenu === 'import' && (
                 <div className="absolute left-0 mt-1 w-44 rounded-xl border border-[var(--line)] bg-[var(--surface)] shadow-lg py-1.5 z-30">
                   {onImportUpload && (
                     <button
                       type="button"
                       onClick={() => {
-                        setImportOpen(false);
+                        setOpenMenu(null);
                         onImportUpload();
                       }}
                       className="flex w-full items-center gap-2 px-3 py-2 text-xs text-right hover:bg-[var(--row-hover)] font-medium"
@@ -178,7 +178,7 @@ export function Toolbar({
                     <button
                       type="button"
                       onClick={() => {
-                        setImportOpen(false);
+                        setOpenMenu(null);
                         onImportTemplate();
                       }}
                       className="flex w-full items-center gap-2 px-3 py-2 text-xs text-right hover:bg-[var(--row-hover)] font-medium border-t border-[var(--line)]"

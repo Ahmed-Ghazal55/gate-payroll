@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronDown,
   ChevronUp,
@@ -84,38 +85,61 @@ export function DataTable<T extends Record<string, any>>({
   // Per-column filter inputs (search row)
   const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
 
-  // Column popover filters (distinct value sets)
-  const [activePopoverCol, setActivePopoverCol] = useState<string | null>(null);
+  // Column popover filters (distinct value sets) (R6ui-2: store colKey and rect)
+  const [activePopover, setActivePopover] = useState<{ colKey: string; rect: DOMRect } | null>(null);
   const [selectedColValues, setSelectedColValues] = useState<Record<string, Set<string>>>({});
   const [popoverSearchTerm, setPopoverSearchTerm] = useState<string>('');
 
-  // Row actions active dropdown menu
-  const [activeMenuRowId, setActiveMenuRowId] = useState<string | null>(null);
+  // Row actions active dropdown menu (R6ui-2: store row id, row object and rect)
+  const [activeMenu, setActiveMenu] = useState<{ id: string; row: T; rect: DOMRect } | null>(null);
 
   const popoverRef = useRef<HTMLDivElement>(null);
+  const popoverTriggerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLTableCellElement>(null);
 
-  // Close popovers on click outside or escape
+  // Close popovers on click outside, escape, scroll or resize (R6ui-2)
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setActivePopoverCol(null);
+      const target = e.target as Node;
+      if (popoverRef.current && popoverRef.current.contains(target)) {
+        return;
       }
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setActiveMenuRowId(null);
+      if (popoverTriggerRef.current && popoverTriggerRef.current.contains(target)) {
+        return;
       }
+      if (menuRef.current && menuRef.current.contains(target)) {
+        return;
+      }
+      if (menuTriggerRef.current && menuTriggerRef.current.contains(target)) {
+        return;
+      }
+      setActivePopover(null);
+      setActiveMenu(null);
     }
+
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        setActivePopoverCol(null);
-        setActiveMenuRowId(null);
+        setActivePopover(null);
+        setActiveMenu(null);
       }
     }
+
+    function handleScrollOrResize() {
+      setActivePopover(null);
+      setActiveMenu(null);
+    }
+
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
     };
   }, []);
 
@@ -129,13 +153,13 @@ export function DataTable<T extends Record<string, any>>({
 
   // Distinct values for the active popover column
   const popoverDistinctValues = useMemo(() => {
-    if (!activePopoverCol) return [];
-    const col = columns.find((c) => c.key === activePopoverCol);
+    if (!activePopover) return [];
+    const col = columns.find((c) => c.key === activePopover.colKey);
     if (!col) return [];
     const set = new Set<string>();
     data.forEach((r) => set.add(getCellString(r, col)));
     return Array.from(set).sort(new Intl.Collator('ar', { numeric: true }).compare);
-  }, [activePopoverCol, columns, data]);
+  }, [activePopover?.colKey, columns, data]);
 
   // Filtered dataset
   const filteredData = useMemo(() => {
@@ -303,15 +327,22 @@ export function DataTable<T extends Record<string, any>>({
                         </button>
                       )}
 
-                      {/* Filter popover button */}
+                      {/* Filter popover button (R6ui-2: trigger ref + portaled popover) */}
                       {col.filterable !== false && (
-                        <div className="relative inline-block">
+                        <div
+                          className="relative inline-block"
+                          ref={activePopover?.colKey === col.key ? popoverTriggerRef : undefined}
+                        >
                           <button
                             type="button"
-                            onClick={() => {
-                              if (activePopoverCol === col.key) setActivePopoverCol(null);
-                              else {
-                                setActivePopoverCol(col.key);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (activePopover?.colKey === col.key) {
+                                setActivePopover(null);
+                              } else {
+                                setActiveMenu(null);
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setActivePopover({ colKey: col.key, rect });
                                 setPopoverSearchTerm('');
                               }
                             }}
@@ -322,137 +353,6 @@ export function DataTable<T extends Record<string, any>>({
                           >
                             <Filter size={13} />
                           </button>
-
-                          {/* Filter Popover Dialog */}
-                          {activePopoverCol === col.key && (
-                            <div
-                              ref={popoverRef}
-                              role="dialog"
-                              aria-label={`تصفية ${col.header}`}
-                              className="absolute top-full start-0 mt-1.5 w-60 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] shadow-xl p-3 z-30 font-normal text-xs text-start"
-                            >
-                              <div className="flex items-center justify-between pb-2 border-b border-[var(--line)] mb-2">
-                                <span className="font-bold text-[11px] text-[var(--muted)]">
-                                  خيارات {col.header}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setActivePopoverCol(null)}
-                                  className="text-[var(--muted)] hover:text-[var(--ink)]"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </div>
-
-                              {/* Asc / Desc buttons */}
-                              <div className="flex items-center gap-1.5 mb-2.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSortKey(col.key);
-                                    setSortDir('asc');
-                                  }}
-                                  className={`flex-1 py-1 px-2 rounded-md border text-center transition font-medium ${
-                                    isSorted && sortDir === 'asc'
-                                      ? 'border-[var(--accent)] bg-[var(--row-selected)] text-[var(--accent)]'
-                                      : 'border-[var(--line)] hover:bg-[var(--raised)]'
-                                  }`}
-                                >
-                                  تصاعدي ↑
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSortKey(col.key);
-                                    setSortDir('desc');
-                                  }}
-                                  className={`flex-1 py-1 px-2 rounded-md border text-center transition font-medium ${
-                                    isSorted && sortDir === 'desc'
-                                      ? 'border-[var(--accent)] bg-[var(--row-selected)] text-[var(--accent)]'
-                                      : 'border-[var(--line)] hover:bg-[var(--raised)]'
-                                  }`}
-                                >
-                                  تنازلي ↓
-                                </button>
-                              </div>
-
-                              {/* Search inside values */}
-                              <div className="relative mb-2">
-                                <input
-                                  type="text"
-                                  placeholder="بحث داخل القيم..."
-                                  value={popoverSearchTerm}
-                                  onChange={(e) => setPopoverSearchTerm(e.target.value)}
-                                  className="w-full px-2.5 py-1 text-xs rounded-md border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
-                                />
-                              </div>
-
-                              {/* Value selection checkboxes */}
-                              <div className="max-h-36 overflow-y-auto space-y-1.5 my-2 no-scrollbar">
-                                {popoverDistinctValues
-                                  .filter((v) =>
-                                    v.toLowerCase().includes(popoverSearchTerm.toLowerCase())
-                                  )
-                                  .map((val, idx) => {
-                                    const colSet = selectedColValues[col.key];
-                                    const isChecked = !colSet || colSet.has(val);
-
-                                    return (
-                                      <label
-                                        key={idx}
-                                        className="flex items-center gap-2 cursor-pointer hover:bg-[var(--row-hover)] px-1.5 py-0.5 rounded"
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={isChecked}
-                                          onChange={(e) => {
-                                            const nextSet = new Set(colSet || popoverDistinctValues);
-                                            if (e.target.checked) nextSet.add(val);
-                                            else nextSet.delete(val);
-
-                                            setSelectedColValues((prev) => ({
-                                              ...prev,
-                                              [col.key]: nextSet,
-                                            }));
-                                          }}
-                                          className="h-3.5 w-3.5 rounded border-[var(--line)] text-[var(--accent)] accent-[var(--accent)]"
-                                        />
-                                        <span className="truncate">{val || '(فارغ)'}</span>
-                                      </label>
-                                    );
-                                  })}
-                              </div>
-
-                              {/* Quick actions */}
-                              <div className="flex items-center justify-between pt-2 border-t border-[var(--line)] text-[11px]">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedColValues((prev) => ({
-                                      ...prev,
-                                      [col.key]: new Set(popoverDistinctValues),
-                                    }));
-                                  }}
-                                  className="text-[var(--accent)] font-semibold hover:underline"
-                                >
-                                  تحديد الكل
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedColValues((prev) => {
-                                      const next = { ...prev };
-                                      delete next[col.key];
-                                      return next;
-                                    });
-                                  }}
-                                  className="text-[var(--muted)] hover:text-[var(--ink)]"
-                                >
-                                  إعادة تعيين
-                                </button>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
@@ -565,48 +465,29 @@ export function DataTable<T extends Record<string, any>>({
                     })}
 
                     {rowActions && rowActions.length > 0 && (
-                      <td className="w-12 px-3 py-2 text-center relative">
+                      <td
+                        className="w-12 px-3 py-2 text-center relative"
+                        ref={activeMenu?.id === id ? menuTriggerRef : undefined}
+                      >
                         <button
                           type="button"
                           aria-label="خيارات السجل"
                           aria-haspopup="true"
-                          aria-expanded={activeMenuRowId === id}
-                          onClick={() => setActiveMenuRowId(activeMenuRowId === id ? null : id)}
+                          aria-expanded={activeMenu?.id === id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (activeMenu?.id === id) {
+                              setActiveMenu(null);
+                            } else {
+                              setActivePopover(null);
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setActiveMenu({ id, row, rect });
+                            }
+                          }}
                           className="p-1 rounded-lg text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--raised)] transition"
                         >
                           <MoreVertical size={16} />
                         </button>
-
-                        {/* Row Action Dropdown */}
-                        {activeMenuRowId === id && (
-                          <div
-                            ref={menuRef}
-                            className="absolute end-4 top-8 mt-1 w-40 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] shadow-xl py-1.5 z-30 font-medium text-xs text-start"
-                          >
-                            {rowActions.map((action, actionIdx) => {
-                              const isDisabled = action.disabled ? action.disabled(row) : false;
-                              return (
-                                <button
-                                  key={actionIdx}
-                                  type="button"
-                                  disabled={isDisabled}
-                                  onClick={() => {
-                                    setActiveMenuRowId(null);
-                                    action.onClick(row);
-                                  }}
-                                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-start transition disabled:opacity-40 ${
-                                    action.danger
-                                      ? 'text-[var(--danger)] hover:bg-[var(--row-hover)]'
-                                      : 'hover:bg-[var(--row-hover)]'
-                                  }`}
-                                >
-                                  {action.icon}
-                                  <span>{action.label}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
                       </td>
                     )}
                   </tr>
@@ -684,6 +565,207 @@ export function DataTable<T extends Record<string, any>>({
           </div>
         )}
       </div>
+
+      {/* Portaled Column Filter Popover (R6ui-2: prevent clipping in overflow, position fixed) */}
+      {activePopover && typeof document !== 'undefined' && (() => {
+        const col = columns.find((c) => c.key === activePopover.colKey);
+        if (!col) return null;
+        const isSorted = sortKey === col.key;
+        const isRtl = typeof document !== 'undefined' && (document.dir === 'rtl' || document.documentElement.dir === 'rtl');
+        const popoverWidth = 240;
+        let left = isRtl ? activePopover.rect.right - popoverWidth : activePopover.rect.left;
+        left = Math.max(8, Math.min(window.innerWidth - popoverWidth - 8, left));
+        const openUpward = activePopover.rect.bottom + 340 > window.innerHeight && activePopover.rect.top > 300;
+
+        return createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label={`تصفية ${col.header}`}
+            style={{
+              position: 'fixed',
+              top: openUpward ? `${activePopover.rect.top - 6}px` : `${activePopover.rect.bottom + 6}px`,
+              left: `${left}px`,
+              transform: openUpward ? 'translateY(-100%)' : undefined,
+              zIndex: 9999,
+            }}
+            className="w-60 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] shadow-xl p-3 font-normal text-xs text-start"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-[var(--line)] mb-2">
+              <span className="font-bold text-[11px] text-[var(--muted)]">
+                خيارات {col.header}
+              </span>
+              <button
+                type="button"
+                onClick={() => setActivePopover(null)}
+                className="text-[var(--muted)] hover:text-[var(--ink)]"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Asc / Desc buttons */}
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setSortKey(col.key);
+                  setSortDir('asc');
+                }}
+                className={`flex-1 py-1 px-2 rounded-md border text-center transition font-medium ${
+                  isSorted && sortDir === 'asc'
+                    ? 'border-[var(--accent)] bg-[var(--row-selected)] text-[var(--accent)]'
+                    : 'border-[var(--line)] hover:bg-[var(--raised)]'
+                }`}
+              >
+                تصاعدي ↑
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSortKey(col.key);
+                  setSortDir('desc');
+                }}
+                className={`flex-1 py-1 px-2 rounded-md border text-center transition font-medium ${
+                  isSorted && sortDir === 'desc'
+                    ? 'border-[var(--accent)] bg-[var(--row-selected)] text-[var(--accent)]'
+                    : 'border-[var(--line)] hover:bg-[var(--raised)]'
+                }`}
+              >
+                تنازلي ↓
+              </button>
+            </div>
+
+            {/* Search inside values */}
+            <div className="relative mb-2">
+              <input
+                type="text"
+                placeholder="بحث داخل القيم..."
+                value={popoverSearchTerm}
+                onChange={(e) => setPopoverSearchTerm(e.target.value)}
+                className="w-full px-2.5 py-1 text-xs rounded-md border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              />
+            </div>
+
+            {/* Value selection checkboxes */}
+            <div className="max-h-36 overflow-y-auto space-y-1.5 my-2 no-scrollbar">
+              {popoverDistinctValues
+                .filter((v) =>
+                  v.toLowerCase().includes(popoverSearchTerm.toLowerCase())
+                )
+                .map((val, idx) => {
+                  const colSet = selectedColValues[col.key];
+                  const isChecked = !colSet || colSet.has(val);
+
+                  return (
+                    <label
+                      key={idx}
+                      className="flex items-center gap-2 cursor-pointer hover:bg-[var(--row-hover)] px-1.5 py-0.5 rounded"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          const nextSet = new Set(colSet || popoverDistinctValues);
+                          if (e.target.checked) nextSet.add(val);
+                          else nextSet.delete(val);
+
+                          setSelectedColValues((prev) => ({
+                            ...prev,
+                            [col.key]: nextSet,
+                          }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-[var(--line)] text-[var(--accent)] accent-[var(--accent)]"
+                      />
+                      <span className="truncate">{val || '(فارغ)'}</span>
+                    </label>
+                  );
+                })}
+            </div>
+
+            {/* Quick actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-[var(--line)] text-[11px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedColValues((prev) => ({
+                    ...prev,
+                    [col.key]: new Set(popoverDistinctValues),
+                  }));
+                }}
+                className="text-[var(--accent)] font-semibold hover:underline"
+              >
+                تحديد الكل
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedColValues((prev) => {
+                    const next = { ...prev };
+                    delete next[col.key];
+                    return next;
+                  });
+                }}
+                className="text-[var(--muted)] hover:text-[var(--ink)]"
+              >
+                إعادة تعيين
+              </button>
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
+
+      {/* Portaled Row Actions Dropdown Menu (R6ui-2: prevent clipping, open upward near bottom) */}
+      {activeMenu && typeof document !== 'undefined' && (() => {
+        const isRtl = typeof document !== 'undefined' && (document.dir === 'rtl' || document.documentElement.dir === 'rtl');
+        const menuWidth = 160;
+        let left = isRtl ? activeMenu.rect.left : activeMenu.rect.right - menuWidth;
+        left = Math.max(8, Math.min(window.innerWidth - menuWidth - 8, left));
+        const estimatedHeight = Math.min(260, (rowActions?.length || 3) * 40 + 16);
+        const openUpward = activeMenu.rect.bottom + estimatedHeight > window.innerHeight && activeMenu.rect.top > estimatedHeight;
+
+        return createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label="خيارات السجل"
+            style={{
+              position: 'fixed',
+              top: openUpward ? `${activeMenu.rect.top - 4}px` : `${activeMenu.rect.bottom + 4}px`,
+              left: `${left}px`,
+              transform: openUpward ? 'translateY(-100%)' : undefined,
+              zIndex: 9999,
+            }}
+            className="w-40 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] shadow-xl py-1.5 font-medium text-xs text-start"
+          >
+            {rowActions?.map((action, actionIdx) => {
+              const isDisabled = action.disabled ? action.disabled(activeMenu.row) : false;
+              return (
+                <button
+                  key={actionIdx}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => {
+                    const rowData = activeMenu.row;
+                    setActiveMenu(null);
+                    action.onClick(rowData);
+                  }}
+                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-start transition disabled:opacity-40 ${
+                    action.danger
+                      ? 'text-[var(--danger)] hover:bg-[var(--row-hover)]'
+                      : 'hover:bg-[var(--row-hover)]'
+                  }`}
+                >
+                  {action.icon}
+                  <span>{action.label}</span>
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        );
+      })()}
     </div>
   );
 }

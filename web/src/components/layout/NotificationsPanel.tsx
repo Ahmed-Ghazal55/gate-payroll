@@ -59,7 +59,7 @@ export function NotificationsPanel({
   useEffect(() => {
     if (!open) return;
     function handleClickOutside(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      if (panelRef.current && !panelRef.current.parentElement?.contains(e.target as Node)) {
         onClose();
       }
     }
