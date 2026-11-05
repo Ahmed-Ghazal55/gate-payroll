@@ -22,6 +22,11 @@ export function Dialog({
 }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedElement = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -29,7 +34,7 @@ export function Dialog({
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === 'Tab' && dialogRef.current) {
@@ -53,9 +58,17 @@ export function Dialog({
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', handleKeyDown);
 
-    // Initial focus on dialog
+    // Initial focus: first input/textarea/select if present, else dialog box
     const timer = setTimeout(() => {
-      dialogRef.current?.focus();
+      if (!dialogRef.current) return;
+      const firstInput = dialogRef.current.querySelector<HTMLElement>(
+        'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])'
+      );
+      if (firstInput) {
+        firstInput.focus();
+      } else {
+        dialogRef.current?.focus();
+      }
     }, 50);
 
     return () => {
@@ -64,7 +77,7 @@ export function Dialog({
       clearTimeout(timer);
       previouslyFocusedElement.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
