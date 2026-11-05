@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Landmark,
   Coins,
@@ -18,6 +19,12 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   RefreshCw,
+  Wallet,
+  Banknote,
+  Check,
+  AlertTriangle,
+  Receipt,
+  History,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -25,18 +32,44 @@ import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { Drawer } from '../../components/ui/Drawer';
+import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import type {
   FinanceAccount,
   FinanceJournal,
   BankPayrollFilePreview,
+  AdvanceRequest,
 } from '../../lib/types';
 
-export default function TreasuryPage() {
-  const { user } = useAuth();
-  const { toast } = useToast();
+type TabId = 'vaults' | 'advance_payouts' | 'bank_file' | 'movements';
 
-  const [activeTab, setActiveTab] = useState<'vaults' | 'bank_file' | 'movements'>('vaults');
+function TreasuryPageContent() {
+  const { user, can, isAdmin } = useAuth();
+  const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const tabFromUrl = searchParams?.get('tab');
+  const resolvedTab: TabId = useMemo(() => {
+    if (tabFromUrl === 'advance_payouts') return 'advance_payouts';
+    if (tabFromUrl === 'bank_file') return 'bank_file';
+    if (tabFromUrl === 'movements') return 'movements';
+    return 'vaults';
+  }, [tabFromUrl]);
+
+  const [activeTab, setActiveTab] = useState<TabId>(resolvedTab);
+
+  useEffect(() => {
+    if (resolvedTab && resolvedTab !== activeTab) {
+      setActiveTab(resolvedTab);
+    }
+  }, [resolvedTab]);
+
+  const handleTabChange = (newTab: TabId) => {
+    setActiveTab(newTab);
+    router.replace(`/treasury/?tab=${newTab}`, { scroll: false });
+  };
+
   const [selectedPeriod, setSelectedPeriod] = useState<string>('2026-10');
   const [selectedSponsor, setSelectedSponsor] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -56,19 +89,38 @@ export default function TreasuryPage() {
   const [selectedAccount, setSelectedAccount] = useState<FinanceAccount | null>(null);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
 
+  // ========================================================
+  // R5-2 ADVANCE PAYOUTS QUEUE (BR §25.3)
+  // ========================================================
+  const [advancePayouts, setAdvancePayouts] = useState<AdvanceRequest[]>([]);
+  const [loadingPayouts, setLoadingPayouts] = useState<boolean>(false);
+  const [payoutsError, setPayoutsError] = useState<string | null>(null);
+
+  // Payout Dialog
+  const [payoutModalOpen, setPayoutModalOpen] = useState<boolean>(false);
+  const [selectedPayoutReq, setSelectedPayoutReq] = useState<AdvanceRequest | null>(null);
+  const [payoutReference, setPayoutReference] = useState<string>('');
+  const [payoutNote, setPayoutNote] = useState<string>('');
+  const [submittingPayout, setSubmittingPayout] = useState<boolean>(false);
+  const [payoutServerError, setPayoutServerError] = useState<string | null>(null);
+
+  // Details Drawer for Payout Request
+  const [payoutDetailsReq, setPayoutDetailsReq] = useState<AdvanceRequest | null>(null);
+
+  const canPayoutAdvances = can('advances.payout') || isAdmin;
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const sp = selectedSponsor === 'all' ? undefined : selectedSponsor;
-      const [accRes, jrnRes] = await Promise.all([
-        api.getFinanceAccounts(sp),
-        api.getFinanceJournals({ sponsorId: sp }),
+      const [accsRes, jrnlsRes] = await Promise.all([
+        api.getFinanceAccounts(),
+        api.getFinanceJournals(),
       ]);
-      setAccounts(accRes || []);
-      setJournals(jrnRes || []);
+      setAccounts(accsRes || []);
+      setJournals(jrnlsRes || []);
     } catch (err: any) {
-      const msg = err.message || 'تعذر تحميل بيانات الخزينة';
+      const msg = err.message || 'تعذر تحميل بيانات الخزينة والحسابات';
       setError(msg);
       toast(msg, 'danger');
     } finally {
@@ -76,16 +128,30 @@ export default function TreasuryPage() {
     }
   };
 
-  const loadBankFile = async () => {
+  const loadAdvancePayouts = async () => {
+    setLoadingPayouts(true);
+    setPayoutsError(null);
+    try {
+      const list = await api.getAdvanceRequests({ role: 'payout', status: 'approved' });
+      setAdvancePayouts(Array.isArray(list) ? list : []);
+    } catch (err: any) {
+      setPayoutsError(err.message || 'تعذر استرجاع طابور صرف السلف');
+    } finally {
+      setLoadingPayouts(false);
+    }
+  };
+
+  const loadBankFilePreview = async (period: string, sponsorId?: string) => {
     setLoadingBankFile(true);
     setBankFileError(null);
     try {
-      const sp = selectedSponsor === 'all' ? undefined : selectedSponsor;
-      const res = await api.previewBankFile({ period: selectedPeriod, sponsorId: sp });
-      setBankFilePreview(res);
+      const sp = sponsorId === 'all' ? undefined : sponsorId;
+      const preview = await api.previewBankFile({ period, sponsorId: sp });
+      setBankFilePreview(preview);
     } catch (err: any) {
-      const msg = err.message || 'تعذر تحميل معاينة ملف البنك';
+      const msg = err.message || 'تعذر تحميل معاينة ملف صرف البنك';
       setBankFileError(msg);
+      toast(msg, 'danger');
       setBankFilePreview(null);
     } finally {
       setLoadingBankFile(false);
@@ -94,26 +160,33 @@ export default function TreasuryPage() {
 
   useEffect(() => {
     loadData();
-  }, [selectedSponsor]);
+    if (canPayoutAdvances) {
+      loadAdvancePayouts();
+    }
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'bank_file') {
-      loadBankFile();
+      loadBankFilePreview(selectedPeriod, selectedSponsor);
+    } else if (activeTab === 'advance_payouts') {
+      loadAdvancePayouts();
     }
   }, [activeTab, selectedPeriod, selectedSponsor]);
 
-  const handleExportBankFile = async () => {
+  const handleExportBankCsv = async () => {
     setExportingBankFile(true);
     try {
       const sp = selectedSponsor === 'all' ? undefined : selectedSponsor;
       const blob = await api.exportBankFile({ period: selectedPeriod, sponsorId: sp });
-      const url = URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `bank-payroll-${selectedPeriod}.csv`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
-      toast('تم تصدير ملف صرف البنك بنجاح بصيغة CSV', 'success');
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast('تم تصدير ملف صرف الرواتب البنكي بنجاح', 'success');
     } catch (err: any) {
       toast(err.message || 'تعذر تصدير ملف البنك', 'danger');
     } finally {
@@ -121,62 +194,94 @@ export default function TreasuryPage() {
     }
   };
 
-  // Filter accounts for vaults and banks
+  const handleOpenPayoutDialog = (req: AdvanceRequest) => {
+    setSelectedPayoutReq(req);
+    setPayoutReference('');
+    setPayoutNote('');
+    setPayoutServerError(null);
+    setPayoutModalOpen(true);
+  };
+
+  const handleExecutePayout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPayoutReq) return;
+    if (!payoutReference.trim()) {
+      toast('يرجى إدخال المرجع البنكي أو رقم سند الصرف', 'warning');
+      return;
+    }
+    setSubmittingPayout(true);
+    setPayoutServerError(null);
+    try {
+      await api.payoutAdvanceRequest(selectedPayoutReq.id, {
+        reference: payoutReference.trim(),
+        note: payoutNote.trim() || undefined,
+      });
+      toast(`تم صرف السلفة بنجاح (${selectedPayoutReq.amount} ر.س) وإنشاء القيد المحاسبي والمديونية`, 'success');
+      setPayoutModalOpen(false);
+      setSelectedPayoutReq(null);
+      setPayoutReference('');
+      setPayoutNote('');
+      loadAdvancePayouts();
+      loadData(); // reload accounts balances
+    } catch (err: any) {
+      setPayoutServerError(err.message || 'تعذر إتمام الصرف');
+      toast(err.message || 'فشل صرف السلفة', 'danger');
+    } finally {
+      setSubmittingPayout(false);
+    }
+  };
+
+  // Filtered Vault Accounts (1110 - 1140)
   const vaultAccounts = useMemo(() => {
     return accounts.filter((a) => {
-      // Must be a vault account or cash/bank asset
-      const isVaultOrBank = a.isVault || a.code.startsWith('111') || a.code.startsWith('112') || a.code.startsWith('114');
-      if (!isVaultOrBank) return false;
-
+      const isVault = a.code?.startsWith('111') || a.code?.startsWith('112') || a.code?.startsWith('113') || a.code?.startsWith('114');
+      if (!isVault) return false;
       if (vaultTypeFilter !== 'all') {
-        if (vaultTypeFilter === 'Bank' && a.vaultKind !== 'Bank') return false;
-        if (vaultTypeFilter === 'CashBox' && a.vaultKind !== 'CashBox') return false;
-        if (vaultTypeFilter === 'MainInternal' && a.vaultKind !== 'MainInternal') return false;
+        if (vaultTypeFilter === 'bank' && !a.code?.startsWith('111')) return false;
+        if (vaultTypeFilter === 'cash' && a.code?.startsWith('111')) return false;
       }
-
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const matchCode = a.code.toLowerCase().includes(q);
-        const matchName = a.nameAr.toLowerCase().includes(q);
+        const matchCode = a.code?.toLowerCase().includes(q);
+        const matchName = a.nameAr?.toLowerCase().includes(q);
         if (!matchCode && !matchName) return false;
       }
-
       return true;
     });
   }, [accounts, vaultTypeFilter, searchQuery]);
 
-  // Total balances
-  const totalBankBalance = useMemo(() => {
-    return accounts
-      .filter((a) => a.vaultKind === 'Bank' || (a.isVault && a.nameAr.includes('بنك')))
-      .reduce((sum, a) => sum + (a.netBalance || 0), 0);
-  }, [accounts]);
+  // Derived balances
+  const totalBankBalance = useMemo(
+    () => accounts.filter((a) => a.code?.startsWith('111')).reduce((s, a) => s + (a.netBalance || 0), 0),
+    [accounts]
+  );
+  const totalCashBalance = useMemo(
+    () =>
+      accounts
+        .filter((a) => a.code?.startsWith('112') || a.code?.startsWith('113') || a.code?.startsWith('114'))
+        .reduce((s, a) => s + (a.netBalance || 0), 0),
+    [accounts]
+  );
 
-  const totalCashBalance = useMemo(() => {
-    return accounts
-      .filter((a) => a.vaultKind === 'CashBox' || a.vaultKind === 'MainInternal' || (a.isVault && !a.nameAr.includes('بنك')))
-      .reduce((sum, a) => sum + (a.netBalance || 0), 0);
-  }, [accounts]);
-
-  // Account lines for selected account drawer
+  // Selected account movements
   const selectedAccountJournals = useMemo(() => {
     if (!selectedAccount) return [];
     return journals.filter((j) =>
-      j.lines?.some((l) => l.accountCode === selectedAccount.code || l.accountCode.startsWith(selectedAccount.code))
+      j.lines?.some((l) => l.accountCode === selectedAccount.code)
     );
-  }, [journals, selectedAccount]);
+  }, [selectedAccount, journals]);
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <PageHeader
         title="البنوك والصناديق والخزن"
-        description="إدارة ومتابعة أرصدة الحسابات البنكية والخزن النقدية (1110-1140)، إصدار ملف صرف الرواتب البنكي المعتمد (CSV)، ومطابقة حركات القيود اليومية."
+        description="إدارة ومتابعة أرصدة الحسابات البنكية والخزن النقدية (1110-1140)، طابور صرف السلف المعتمدة لأمناء الصناديق، وإصدار ملف صرف الرواتب البنكي (CSV)."
         eyebrow="الخزينة والمالية"
         primaryAction={{
           label: 'تحديث الأرصدة',
           icon: <RefreshCw size={15} />,
-          onClick: loadData,
+          onClick: activeTab === 'advance_payouts' ? loadAdvancePayouts : loadData,
         }}
       />
 
@@ -195,10 +300,10 @@ export default function TreasuryPage() {
           icon={Coins}
         />
         <StatCard
-          label="الحسابات النشطة"
-          value={vaultAccounts.length}
-          hint="حسابات بنكية وخزن مخصصة للصرف والقبض"
-          icon={Building2}
+          label="طابور صرف السلف"
+          value={String(advancePayouts.length)}
+          hint="سلف معتمدة بانتظار تأكيد الصرف والتحويل"
+          icon={Clock}
         />
         <StatCard
           label="ملف صرف البنك للفترة"
@@ -212,15 +317,22 @@ export default function TreasuryPage() {
       <div className="border-b border-[var(--line)]">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           {[
-            { id: 'vaults', label: 'الحسابات البنكية والصناديق', count: vaultAccounts.length },
-            { id: 'bank_file', label: 'ملف صرف البنك (CSV)', count: bankFilePreview?.validRecordsCount },
-            { id: 'movements', label: 'سجل حركات الخزينة والقيود', count: journals.length },
+            { id: 'vaults' as TabId, label: 'الحسابات البنكية والصناديق', count: vaultAccounts.length },
+            {
+              id: 'advance_payouts' as TabId,
+              label: 'صرف السلف المعتمدة (الأمناء)',
+              count: advancePayouts.length,
+              alert: advancePayouts.length > 0,
+            },
+            { id: 'bank_file' as TabId, label: 'ملف صرف البنك (CSV)', count: bankFilePreview?.validRecordsCount },
+            { id: 'movements' as TabId, label: 'سجل حركات الخزينة والقيود', count: journals.length },
           ].map((tab) => (
             <button
               key={tab.id}
+              id={`tab-${tab.id}`}
               type="button"
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`inline-flex items-center gap-2 px-4 py-3 font-bold text-xs sm:text-sm border-b-2 transition whitespace-nowrap ${
+              onClick={() => handleTabChange(tab.id)}
+              className={`inline-flex items-center gap-2 px-4 py-3 font-bold text-xs sm:text-sm border-b-2 transition whitespace-nowrap cursor-pointer ${
                 activeTab === tab.id
                   ? 'border-[var(--accent)] text-[var(--accent)]'
                   : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
@@ -228,7 +340,11 @@ export default function TreasuryPage() {
             >
               <span>{tab.label}</span>
               {tab.count !== undefined && tab.count > 0 && (
-                <span className="num px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[var(--raised)] text-[var(--ink)]">
+                <span
+                  className={`num px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    tab.alert ? 'bg-[var(--danger)] text-white' : 'bg-[var(--raised)] text-[var(--ink)]'
+                  }`}
+                >
                   {tab.count}
                 </span>
               )}
@@ -237,10 +353,11 @@ export default function TreasuryPage() {
         </div>
       </div>
 
-      {/* Sub-tab 1: الحسابات البنكية والصناديق */}
+      {/* ======================================================== */}
+      {/* Sub-tab 1: الحسابات البنكية والصناديق                      */}
+      {/* ======================================================== */}
       {activeTab === 'vaults' && (
         <div className="space-y-4">
-          {/* Toolbar */}
           <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
             <div className="flex items-center gap-2 flex-1 max-w-sm">
               <Search size={16} className="text-[var(--muted)] shrink-0" />
@@ -248,28 +365,26 @@ export default function TreasuryPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="بحث برقم الحساب أو الاسم..."
+                placeholder="بحث برقم الحساب أو اسم البنك/الخزينة..."
                 className="w-full bg-transparent text-xs sm:text-sm text-[var(--ink)] placeholder:text-[var(--muted)] focus:outline-hidden"
               />
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-[var(--muted)] font-medium">النوع:</span>
               <select
                 value={vaultTypeFilter}
                 onChange={(e) => setVaultTypeFilter(e.target.value)}
-                className="bg-[var(--surface)] border border-[var(--line)] text-xs rounded-lg px-2.5 py-1.5 focus:outline-hidden"
+                className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] focus:outline-hidden"
               >
-                <option value="all">كل الأنواع</option>
-                <option value="Bank">حسابات بنكية (Bank)</option>
-                <option value="CashBox">صناديق نقدية (CashBox)</option>
-                <option value="MainInternal">خزن رئيسية داخلية</option>
+                <option value="all">كافة أنواع الخزن</option>
+                <option value="bank">حسابات بنكية (1110)</option>
+                <option value="cash">صناديق نقدية وعهد (1120-1140)</option>
               </select>
             </div>
           </div>
 
           {error ? (
-            <ErrorState title="تعذر تحميل بيانات الخزينة" message={error} onRetry={loadData} />
+            <ErrorState title="تعذر تحميل الحسابات" message={error} onRetry={loadData} />
           ) : loading ? (
             <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
               <Skeleton className="h-10 w-full" />
@@ -278,8 +393,8 @@ export default function TreasuryPage() {
             </div>
           ) : vaultAccounts.length === 0 ? (
             <EmptyState
-              title="لا توجد حسابات خزينة مطابقة"
-              description="لم يتم العثور على أي حسابات بنكية أو خزن تطابق خيارات البحث الحالية."
+              title="لم يتم العثور على حسابات خزن"
+              description="لم يتم العثور على حسابات بنكية أو صناديق نقدية مطابقة لمعايير البحث."
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
@@ -287,67 +402,47 @@ export default function TreasuryPage() {
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">رقم الحساب</th>
-                      <th className="p-3 text-start">اسم الحساب</th>
-                      <th className="p-3 text-start">نوع الصندوق</th>
-                      <th className="p-3 text-start">اتجاه الحركات</th>
-                      <th className="p-3 text-start">إجمالي المدين</th>
-                      <th className="p-3 text-start">إجمالي الدائن</th>
-                      <th className="p-3 text-start">الرصيد الصافي</th>
+                      <th className="p-3 text-start">رمز الحساب</th>
+                      <th className="p-3 text-start">اسم البنك / الخزينة</th>
+                      <th className="p-3 text-start">النوع والوظيفة</th>
+                      <th className="p-3 text-start">الجهة الكفيلة</th>
+                      <th className="p-3 text-start">الرصيد الصافي الفعلي</th>
+                      <th className="p-3 text-start">طبيعة الحساب</th>
                       <th className="p-3 text-start">الإجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {vaultAccounts.map((acc) => {
-                      const isBank = acc.vaultKind === 'Bank' || acc.nameAr.includes('بنك');
-
-                      return (
-                        <tr key={acc.code} className="hover:bg-[var(--row-hover)] transition">
-                          <td className="p-3 font-mono font-bold text-[var(--accent)]">{acc.code}</td>
-                          <td className="p-3 font-semibold text-[var(--ink)]">
-                            <div className="flex items-center gap-2">
-                              {isBank ? (
-                                <Landmark size={15} className="text-[var(--accent)] shrink-0" />
-                              ) : (
-                                <Coins size={15} className="text-[var(--warning)] shrink-0" />
-                              )}
-                              <span>{acc.nameAr}</span>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--muted)]">
-                              {acc.vaultKind || (acc.isVault ? 'خزينة' : 'أصل')}
-                            </span>
-                          </td>
-                          <td className="p-3 text-[11px] text-[var(--muted)]">
-                            {acc.allowedDirectionsAr || 'قبض وصرف'}
-                          </td>
-                          <td className="p-3 num text-[var(--muted)]">
-                            {acc.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td className="p-3 num text-[var(--muted)]">
-                            {acc.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td className="p-3 num font-bold text-sm">
-                            <span className={acc.netBalance >= 0 ? 'text-[var(--money-pos)]' : 'text-[var(--money-neg)]'}>
-                              {acc.netBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedAccount(acc);
-                                setDrawerOpen(true);
-                              }}
-                              className="px-2.5 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-xs font-semibold transition"
-                            >
-                              عرض الحركات
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {vaultAccounts.map((a) => (
+                      <tr key={a.code} className="hover:bg-[var(--row-hover)] transition">
+                        <td className="p-3 font-mono font-bold text-[var(--accent)]">{a.code}</td>
+                        <td className="p-3 font-semibold">{a.nameAr}</td>
+                        <td className="p-3 text-[var(--muted)]">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-[var(--raised)] text-[var(--ink)]">
+                            {a.code?.startsWith('111') ? 'حساب بنكي رئيسي' : 'صندوق نقدية تشغيلي'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-[var(--muted)]">{(a as any).sponsorName || 'عام'}</td>
+                        <td className="p-3 num font-bold text-sm">
+                          <span className={a.netBalance < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'}>
+                            {a.netBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          </span>
+                        </td>
+                        <td className="p-3 text-xs text-[var(--muted)]">{a.naturalSideAr}</td>
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAccount(a);
+                              setDrawerOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[var(--line)] hover:bg-[var(--raised)] text-xs transition cursor-pointer"
+                          >
+                            <Eye size={13} />
+                            <span>كشف الحركات</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -356,43 +451,156 @@ export default function TreasuryPage() {
         </div>
       )}
 
-      {/* Sub-tab 2: ملف صرف البنك (CSV) */}
+      {/* ======================================================== */}
+      {/* Sub-tab 2: صرف السلف المعتمدة (الأمناء BR §25.3)           */}
+      {/* ======================================================== */}
+      {activeTab === 'advance_payouts' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+            <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">طابور صرف السلف المعتمدة (أمين الخزينة أو البنك)</h3>
+            <p className="text-xs text-[var(--muted)] mt-0.5">
+              يعرض طلبات السلف التي تم اعتمادها محاسبياً وتقع ضمن الخزن أو الحسابات البنكية التي تملك صلاحية صرفها (نظام التوجيه).
+            </p>
+          </div>
+
+          {payoutsError ? (
+            <ErrorState title="تعذر تحميل طابور الصرف" message={payoutsError} onRetry={loadAdvancePayouts} />
+          ) : loadingPayouts ? (
+            <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : advancePayouts.length === 0 ? (
+            <EmptyState
+              title="لا توجد سلف معتمدة بانتظار الصرف"
+              description="كافة السلف المعتمدة للخزن والبنوك المكلف بإدارتها تم صرفها بالكامل."
+            />
+          ) : (
+            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-start text-xs sm:text-sm">
+                  <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
+                    <tr>
+                      <th className="p-3 text-start">معرف السلفة</th>
+                      <th className="p-3 text-start">المندوب والإقامة</th>
+                      <th className="p-3 text-start">النوع والخزينة المكلفة</th>
+                      <th className="p-3 text-start">المبلغ المعتمد</th>
+                      <th className="p-3 text-start">القسط الشهري</th>
+                      <th className="p-3 text-start">المعتمد وتاريخه</th>
+                      <th className="p-3 text-start">سبب الاعتماد</th>
+                      <th className="p-3 text-start">الإجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--line)]">
+                    {advancePayouts.map((req) => (
+                      <tr key={req.id} className="hover:bg-[var(--row-hover)] transition">
+                        <td className="p-3 font-mono text-[11px] text-[var(--muted)]">{req.id}</td>
+                        <td className="p-3">
+                          <div className="font-bold text-[var(--ink)]">{req.riderName}</div>
+                          <div className="font-mono text-[11px] text-[var(--accent)]">{req.riderIqama}</div>
+                        </td>
+                        <td className="p-3">
+                          <div className="inline-flex items-center gap-1 font-semibold">
+                            {req.type === 'cash' ? <Wallet size={13} /> : <Banknote size={13} />}
+                            <span>{req.type === 'cash' ? 'خزينة نقدية' : 'حساب بنكي'}</span>
+                          </div>
+                          <div className="font-mono text-[10px] text-[var(--muted)]">{req.vaultCode}</div>
+                        </td>
+                        <td className="p-3 num font-bold text-sm text-[var(--money-pos)]">
+                          {req.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                        </td>
+                        <td className="p-3 num font-medium text-xs text-[var(--ink)]">
+                          {req.monthlyInstallment ? `${req.monthlyInstallment} ر.س` : '—'}
+                        </td>
+                        <td className="p-3 text-xs">
+                          <div className="font-semibold text-[var(--ink)]">{req.approvedBy}</div>
+                          <div className="text-[10px] text-[var(--muted)] num">{req.approvedAt?.split('T')[0]}</div>
+                        </td>
+                        <td className="p-3 text-xs text-[var(--muted)] max-w-xs truncate">
+                          {req.coverageReason || req.reason}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              id={`btn-payout-advance-${req.id}`}
+                              onClick={() => handleOpenPayoutDialog(req)}
+                              className="px-3 py-1.5 rounded-lg bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <Check size={13} />
+                              <span>صرف السلفة</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPayoutDetailsReq(req)}
+                              className="p-1.5 rounded-lg border border-[var(--line)] hover:bg-[var(--raised)] text-xs text-[var(--muted)] transition cursor-pointer"
+                              title="عرض القرارات السابقة"
+                            >
+                              <History size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* Sub-tab 3: ملف صرف البنك (CSV)                             */}
+      {/* ======================================================== */}
       {activeTab === 'bank_file' && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
-            <div>
-              <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">معاينة ملف صرف الرواتب البنكي المعتمد</h3>
-              <p className="text-xs text-[var(--muted)] mt-0.5">
-                توليد ملف التحويل البنكي المتوافق مع متطلبات الرواتب وبنك الرياض والراجحي، مع التحقق من صحة الآيبان واستبعاد الأرصدة الصفرية.
-              </p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div>
+                <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">فترة الاستحقاق:</label>
+                <input
+                  type="month"
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                  className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono font-bold focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">الشركة الكفيلة:</label>
+                <select
+                  value={selectedSponsor}
+                  onChange={(e) => setSelectedSponsor(e.target.value)}
+                  className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold focus:outline-hidden"
+                >
+                  <option value="all">كافة الكفلاء والشركات</option>
+                  <option value="BW">بوابات الوطن (BW)</option>
+                  <option value="TR">طريق الرواد (TR)</option>
+                  <option value="WZ">وصول الرواد (WZ)</option>
+                </select>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-[var(--muted)]">فترة الصرف:</span>
-              <select
-                value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="bg-[var(--surface)] border border-[var(--line)] text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-hidden"
-              >
-                <option value="2026-10">2026-10</option>
-                <option value="2026-09">2026-09</option>
-                <option value="2026-08">2026-08</option>
-              </select>
-
               <button
                 type="button"
-                disabled={exportingBankFile || !bankFilePreview?.canExport}
-                onClick={handleExportBankFile}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 disabled:opacity-50 transition"
+                disabled={exportingBankFile || !bankFilePreview || !bankFilePreview.canExport}
+                onClick={handleExportBankCsv}
+                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs inline-flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
               >
                 <Download size={14} />
-                <span>{exportingBankFile ? 'جاري التصدير...' : 'تصدير ملف البنك (CSV)'}</span>
+                <span>{exportingBankFile ? 'جاري التصدير...' : 'تحميل ملف البنك (CSV)'}</span>
               </button>
             </div>
           </div>
 
           {bankFileError ? (
-            <ErrorState title="تعذر معاينة ملف الصرف البنكي" message={bankFileError} onRetry={loadBankFile} />
+            <ErrorState
+              title="تعذر تحميل ملف البنك"
+              message={bankFileError}
+              onRetry={() => loadBankFilePreview(selectedPeriod, selectedSponsor)}
+            />
           ) : loadingBankFile ? (
             <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
               <Skeleton className="h-10 w-full" />
@@ -405,7 +613,6 @@ export default function TreasuryPage() {
             />
           ) : (
             <div className="space-y-4">
-              {/* Summary cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
                   <div className="text-xs text-[var(--muted)] font-medium">إجمالي مبلغ الصرف</div>
@@ -427,7 +634,6 @@ export default function TreasuryPage() {
                 </div>
               </div>
 
-              {/* Records table */}
               <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
                 <div className="overflow-x-auto">
                   <table className="w-full text-start text-xs sm:text-sm">
@@ -483,7 +689,9 @@ export default function TreasuryPage() {
         </div>
       )}
 
-      {/* Sub-tab 3: سجل حركات الخزينة والقيود */}
+      {/* ======================================================== */}
+      {/* Sub-tab 4: سجل حركات الخزينة والقيود                      */}
+      {/* ======================================================== */}
       {activeTab === 'movements' && (
         <div className="space-y-4">
           <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
@@ -502,8 +710,8 @@ export default function TreasuryPage() {
             </div>
           ) : journals.length === 0 ? (
             <EmptyState
-              title="لا توجد قيود مسجلة"
-              description="تظهر القيود اليومية بعد ترحيل المسيرات أو تسجيل التحويلات والإيداعات."
+              title="لا توجد قيود يومية مسجلة"
+              description="لم يتم تسجيل أي حركات محاسبية أو قيود يومية في النظام بعد."
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
@@ -512,54 +720,30 @@ export default function TreasuryPage() {
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
                       <th className="p-3 text-start">رقم القيد</th>
-                      <th className="p-3 text-start">التاريخ</th>
-                      <th className="p-3 text-start">البيان والشرح</th>
-                      <th className="p-3 text-start">الحسابات والبنود</th>
-                      <th className="p-3 text-start">إجمالي القيد</th>
-                      <th className="p-3 text-start">النوع / العكس</th>
+                      <th className="p-3 text-start">البيان والوصف</th>
+                      <th className="p-3 text-start">تاريخ الحركة</th>
+                      <th className="p-3 text-start">المبلغ الإجمالي</th>
+                      <th className="p-3 text-start">المسؤول</th>
+                      <th className="p-3 text-start">الحالة</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {journals.map((j) => {
-                      const totalDebit = j.lines?.reduce((sum, l) => sum + (l.debit || 0), 0) || 0;
-
-                      return (
-                        <tr key={j.id} className="hover:bg-[var(--row-hover)] transition">
-                          <td className="p-3 font-mono font-bold text-xs">{j.id.substring(0, 12)}</td>
-                          <td className="p-3 num text-xs">{j.entryDate ? j.entryDate.split('T')[0] : '-'}</td>
-                          <td className="p-3 font-medium max-w-xs truncate">{j.description}</td>
-                          <td className="p-3 text-xs">
-                            <div className="space-y-0.5">
-                              {j.lines?.slice(0, 2).map((l, idx) => (
-                                <div key={idx} className="flex items-center gap-2 text-[11px]">
-                                  <span className="font-mono text-[var(--accent)]">{l.accountCode}</span>
-                                  <span className="num font-bold">
-                                    {l.debit > 0 ? `مدين: ${l.debit}` : `دائن: ${l.credit}`}
-                                  </span>
-                                </div>
-                              ))}
-                              {j.lines && j.lines.length > 2 && (
-                                <span className="text-[10px] text-[var(--muted)]">+{j.lines.length - 2} بنود أخرى</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-3 num font-bold text-[var(--ink)]">
-                            {totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td className="p-3">
-                            {j.reversalOf ? (
-                              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[var(--warning)]/15 text-[var(--warning)]">
-                                قيد عكسي
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--muted)]">
-                                قيد أصلي
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {journals.map((j) => (
+                      <tr key={j.id} className="hover:bg-[var(--row-hover)] transition">
+                        <td className="p-3 font-mono text-xs text-[var(--accent)]">#{j.id.substring(0, 8)}</td>
+                        <td className="p-3 font-semibold">{j.description}</td>
+                        <td className="p-3 num text-xs text-[var(--muted)]">{j.entryDate?.split('T')[0]}</td>
+                        <td className="p-3 num font-bold text-[var(--ink)]">
+                          {(j.totalDebit ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                        </td>
+                        <td className="p-3 font-mono text-xs text-[var(--muted)]">{(j as any).postedBy || j.createdBy || 'النظام'}</td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--money-pos)]/10 text-[var(--money-pos)]">
+                            مرحل
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -567,6 +751,151 @@ export default function TreasuryPage() {
           )}
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* DIALOG: تأكيد صرف السلفة (أمين الخزينة)                     */}
+      {/* ======================================================== */}
+      <Dialog
+        open={payoutModalOpen}
+        onClose={() => setPayoutModalOpen(false)}
+        title="تأكيد صرف السلفة المعتمدة"
+      >
+        {selectedPayoutReq && (
+          <form onSubmit={handleExecutePayout} className="space-y-4">
+            {payoutServerError && (
+              <div className="p-3 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 text-[var(--danger)] text-xs flex items-center gap-2">
+                <AlertTriangle size={16} className="shrink-0" />
+                <span>{payoutServerError}</span>
+              </div>
+            )}
+
+            <div className="p-3 rounded-xl bg-[var(--raised)] space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">المندوب:</span>
+                <span className="font-bold">{selectedPayoutReq.riderName} ({selectedPayoutReq.riderIqama})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">المبلغ المطلوب صرفه:</span>
+                <span className="font-bold num text-sm text-[var(--money-pos)]">
+                  {selectedPayoutReq.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">نوع الصرف والخزينة:</span>
+                <span className="font-mono text-[var(--accent)]">{selectedPayoutReq.vaultCode}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">المعتمد محاسبياً:</span>
+                <span>{selectedPayoutReq.approvedBy}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-[var(--ink)]">
+                المرجع البنكي أو رقم سند القبض/الصرف (إلزامي):
+              </label>
+              <input
+                type="text"
+                id="input-payout-reference"
+                value={payoutReference}
+                onChange={(e) => setPayoutReference(e.target.value)}
+                placeholder="مثال: TRF-98231 أو CSH-REC-01"
+                required
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono font-bold focus:outline-hidden"
+              />
+              <span className="text-[10px] text-[var(--muted)]">
+                سيتم توليد قيد اليومية (مدين 1210 سلف / دائن الخزينة أو البنك) وتثبيت المديونية بهذا المرجع.
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-[var(--ink)]">ملاحظات أمين الصرف (اختياري):</label>
+              <input
+                type="text"
+                id="input-payout-note"
+                value={payoutNote}
+                onChange={(e) => setPayoutNote(e.target.value)}
+                placeholder="أي ملاحظة إضافية للتدقيق..."
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--line)]">
+              <button
+                type="button"
+                onClick={() => setPayoutModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-[var(--line)] text-xs font-bold cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="submit"
+                id="btn-confirm-payout"
+                disabled={submittingPayout}
+                className="px-5 py-2 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer"
+              >
+                {submittingPayout ? 'جاري الصرف والترحيل...' : 'تأكيد الصرف وترحيل القيد'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Dialog>
+
+      {/* Details Drawer for Payout Request */}
+      <Drawer
+        open={Boolean(payoutDetailsReq)}
+        onClose={() => setPayoutDetailsReq(null)}
+        title={payoutDetailsReq ? `تفاصيل سلفة: ${payoutDetailsReq.riderName}` : 'تفاصيل السلفة'}
+        subtitle={payoutDetailsReq ? `المبلغ: ${payoutDetailsReq.amount} ر.س` : ''}
+      >
+        {payoutDetailsReq && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-[var(--raised)] space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">رقم الإقامة:</span>
+                <span className="font-mono">{payoutDetailsReq.riderIqama}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">مقدم الطلب:</span>
+                <span>{payoutDetailsReq.requestedBy}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">المعتمد:</span>
+                <span>{payoutDetailsReq.approvedBy}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">سبب السلفة:</span>
+                <span>{payoutDetailsReq.reason}</span>
+              </div>
+              {payoutDetailsReq.coverageReason && (
+                <div className="flex justify-between">
+                  <span className="text-[var(--muted)]">سبب الاعتماد:</span>
+                  <span>{payoutDetailsReq.coverageReason}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-bold text-xs text-[var(--ink)] flex items-center gap-1.5">
+                <History size={14} />
+                <span>سجل القرارات:</span>
+              </h4>
+              <div className="space-y-2">
+                {payoutDetailsReq.decisions?.map((d, i) => (
+                  <div key={i} className="p-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="font-bold">{d.actor}</span>
+                      <span className="num text-[10px] text-[var(--muted)]">{d.at?.split('T')[0]}</span>
+                    </div>
+                    <div className="font-semibold text-[var(--accent)]">{d.action}</div>
+                    {d.note && <div className="text-[11px] text-[var(--muted)]">{d.note}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Drawer>
 
       {/* Account Movements Drawer */}
       <Drawer
@@ -622,5 +951,13 @@ export default function TreasuryPage() {
         )}
       </Drawer>
     </div>
+  );
+}
+
+export default function TreasuryPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-[var(--muted)]">جاري تحميل صفحة الخزينة...</div>}>
+      <TreasuryPageContent />
+    </Suspense>
   );
 }
