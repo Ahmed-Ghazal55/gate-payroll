@@ -1,0 +1,804 @@
+{
+  "version": 1,
+  "status": "proposed_approved",
+  "approvedBy": null,
+  "sheet": "المديونيات",
+  "headerRow": 1,
+  "paymentAllocation": {
+    "method": "FIFO",
+    "order": "debt columns left to right, old to new",
+    "payments": "monthly deductions + app deductions + Petro payments + cash payments + reductions",
+    "categoryOpening": "bucket amount minus its FIFO allocation; combine remaining buckets by category/account",
+    "netEquation": "sum(category openings) - separate rider credit = sheet net",
+    "netTolerance": "0.01",
+    "overpayment": "separate rider_credit; never allocate to any debt category",
+    "skipZero": true,
+    "sourceRef": "DEBT-SHEET:<row>:<category>",
+    "creditSourceRef": "DEBT-SHEET:<row>:CREDIT",
+    "negativeInput": "needs_decision; never silently absorb a negative debt/payment bucket"
+  },
+  "columns": [
+    {
+      "column": "A",
+      "header": "رقم الإقامة",
+      "role": "identity",
+      "category": null,
+      "account": null,
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "B",
+      "header": "الاسم",
+      "role": "name",
+      "category": null,
+      "account": null,
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "C",
+      "header": "نوع البديل",
+      "role": "ignored",
+      "category": null,
+      "account": null,
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "D",
+      "header": "الفرع",
+      "role": "branch",
+      "category": null,
+      "account": null,
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "E",
+      "header": "المديونية القديمة",
+      "role": "debt",
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "F",
+      "header": "مديوينة كفالة 1",
+      "role": "debt",
+      "category": "SponsorshipTransfer",
+      "account": "112506",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "G",
+      "header": "مديوينة كفالة 2",
+      "role": "debt",
+      "category": "SponsorshipTransfer",
+      "account": "112506",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "H",
+      "header": "مديوينة كفالة 14-12",
+      "role": "debt",
+      "category": "SponsorshipTransfer",
+      "account": "112506",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "I",
+      "header": "مديونيات كشف الحساب",
+      "role": "debt",
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "J",
+      "header": "مديونية كفالة 6-1-2026",
+      "role": "debt",
+      "category": "SponsorshipTransfer",
+      "account": "112506",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "K",
+      "header": "خصم بالسالب هنقر / كيتا  شهر 11",
+      "role": "debt",
+      "category": "PlatformTransferredDebt",
+      "account": "112508",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "L",
+      "header": "مديوينات اخري",
+      "role": "debt",
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "M",
+      "header": "تغيير مهن + مخالفات",
+      "role": "debt",
+      "category": "ProfessionChange",
+      "account": "112506",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "N",
+      "header": "رواتب بالسالب كيتا / هنقر شهر 12",
+      "role": "debt",
+      "category": "NegativeSalaryCarryover",
+      "account": "112507",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "O",
+      "header": "مديونيات رخص قيادة",
+      "role": "debt",
+      "category": "DriverLicense",
+      "account": "112506",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "P",
+      "header": "باقي مديونية حوادث راتب يناير 2026م",
+      "role": "debt",
+      "category": "AccidentDamage",
+      "account": "112509",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "Q",
+      "header": "راتب بالسالب 1-2026 م",
+      "role": "debt",
+      "category": "NegativeSalaryCarryover",
+      "account": "112507",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "R",
+      "header": "مديونيات 1/2/2026",
+      "role": "debt",
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "S",
+      "header": "مديونيات 19/2/2026",
+      "role": "debt",
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "T",
+      "header": "مديونيات حتي 10/3/2026",
+      "role": "debt",
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "U",
+      "header": "مديونيات التاشيرات الجديدة تاريخ 24/3/2026 م",
+      "role": "debt",
+      "category": "ExitReEntryVisa",
+      "account": "112506",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "V",
+      "header": "مديونيات شهر 4",
+      "role": "debt",
+      "category": "LegacyOpeningDebt",
+      "account": "112505",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "W",
+      "header": "تحميل حوادث 4-2026 م",
+      "role": "debt",
+      "category": "AccidentDamage",
+      "account": "112509",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "X",
+      "header": "رخص القيادة",
+      "role": "debt",
+      "category": "DriverLicense",
+      "account": "112506",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "Y",
+      "header": "مخالفات مرورية",
+      "role": "debt",
+      "category": "TrafficFine",
+      "account": "112502",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "Z",
+      "header": "مخالفة TGA",
+      "role": "debt",
+      "category": "TrafficFine",
+      "account": "112502",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "AA",
+      "header": "نقل كفالة",
+      "role": "debt",
+      "category": "SponsorshipTransfer",
+      "account": "112506",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AB",
+      "header": "راتب بالسالب شهر 2",
+      "role": "debt",
+      "category": "NegativeSalaryCarryover",
+      "account": "112507",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AC",
+      "header": "راتب بالسالب 03-2026 م",
+      "role": "debt",
+      "category": "NegativeSalaryCarryover",
+      "account": "112507",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AD",
+      "header": "راتب بالسالب شهر 04-2026 م",
+      "role": "debt",
+      "category": "NegativeSalaryCarryover",
+      "account": "112507",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AE",
+      "header": "راتب بالسالب شهر 05-2026 م",
+      "role": "debt",
+      "category": "NegativeSalaryCarryover",
+      "account": "112507",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AF",
+      "header": "راتب بالسالب شهر 06-2026 م",
+      "role": "debt",
+      "category": "NegativeSalaryCarryover",
+      "account": "112507",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AG",
+      "header": "راتب بالسالب شهر 07-2026 م",
+      "role": "debt",
+      "category": "NegativeSalaryCarryover",
+      "account": "112507",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AH",
+      "header": "راتب بالسالب شهر 08-2026 م",
+      "role": "debt",
+      "category": "NegativeSalaryCarryover",
+      "account": "112507",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AI",
+      "header": "راتب بالسالب شهر 09-2026م",
+      "role": "debt",
+      "category": "NegativeSalaryCarryover",
+      "account": "112507",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AJ",
+      "header": "نقل كفالات 2026",
+      "role": "debt",
+      "category": "SponsorshipTransfer",
+      "account": "112506",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AK",
+      "header": "مركبة مسروقة",
+      "role": "debt",
+      "category": "AccidentDamage",
+      "account": "112509",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "AL",
+      "header": "طلبات HR",
+      "role": "debt",
+      "category": "OtherHrService",
+      "account": "112506",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AM",
+      "header": "حوادث",
+      "role": "debt",
+      "category": "AccidentDamage",
+      "account": "112509",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AN",
+      "header": "اجمالي المديوينات بدون خصم",
+      "role": "gross",
+      "category": null,
+      "account": null,
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "AO",
+      "header": "خصم شهر 9",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "AP",
+      "header": "خصم شهر 10",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "AQ",
+      "header": "خصم شهر 11",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "AR",
+      "header": "خصم شهر 12",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "AS",
+      "header": "خصم شهر 1",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "AT",
+      "header": "خصم شهر 2",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "AU",
+      "header": "خصم شهر 3",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "AV",
+      "header": "خصم شهر 4",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "AW",
+      "header": "خصم شهر 5",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "AX",
+      "header": "خصم شهر 6",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "AY",
+      "header": "خصم شهر 7",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "AZ",
+      "header": "خصم شهر 8",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "BA",
+      "header": "خصم شهر 09-2026 م",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "BB",
+      "header": "خصم التطبيقات",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "BC",
+      "header": "سداد بترو اب",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "BD",
+      "header": "توريد كاش",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "BE",
+      "header": "تخفيض  مديوينة",
+      "role": "payment",
+      "category": null,
+      "account": null,
+      "sign": -1,
+      "status": "proposed"
+    },
+    {
+      "column": "BF",
+      "header": "اجمالي الخصومات",
+      "role": "paymentsTotal",
+      "category": null,
+      "account": null,
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "BG",
+      "header": "الصافي",
+      "role": "net",
+      "category": null,
+      "account": null,
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "BH",
+      "header": "الملاحظات",
+      "role": "ignored",
+      "category": null,
+      "account": null,
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "BI",
+      "header": "مطابقة خصم الشهور",
+      "role": "ignored",
+      "category": null,
+      "account": null,
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "BJ",
+      "header": "المطابقة",
+      "role": "ignored",
+      "category": null,
+      "account": null,
+      "sign": 1,
+      "status": "proposed"
+    }
+  ],
+  "deductionsSheet": "تفصيلي الاستقطاعات",
+  "controlSheet": "اجماليات السلف والاستقطاعات",
+  "deductionsColumns": [
+    {
+      "column": "C",
+      "header": "استقطاعات المناديب",
+      "category": "AdministrativeDeduction",
+      "account": "112505",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "D",
+      "header": "سلف المناديب النقدية",
+      "category": "CashAdvance",
+      "account": "112501",
+      "sign": 1,
+      "status": "proposed"
+    },
+    {
+      "column": "E",
+      "header": "سلف انترنت مناديب",
+      "category": "InternetAdvance",
+      "account": "112503",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "F",
+      "header": "سلف محافظ هنقرستيشن",
+      "sourceAccount": "112506",
+      "category": "HsWalletTopUp",
+      "account": "112513",
+      "sign": 1,
+      "status": "proposed_approved"
+    },
+    {
+      "column": "G",
+      "header": "مخالفات مرورية مناديب",
+      "category": "TrafficFine",
+      "account": "112502",
+      "sign": 1,
+      "status": "proposed"
+    }
+  ],
+  "effectiveFrom": null,
+  "controlSections": [
+    {
+      "deductionColumn": "D",
+      "totalCell": "S10",
+      "companies": [
+        {
+          "company": "EX",
+          "valueColumn": "D",
+          "fromRow": 4,
+          "toRow": 7
+        },
+        {
+          "company": "BW",
+          "valueColumn": "I",
+          "fromRow": 4,
+          "toRow": 8
+        },
+        {
+          "company": "TR",
+          "valueColumn": "N",
+          "fromRow": 4,
+          "toRow": 7
+        }
+      ],
+      "status": "proposed"
+    },
+    {
+      "deductionColumn": "G",
+      "totalCell": "S16",
+      "companies": [
+        {
+          "company": "EX",
+          "valueColumn": "D",
+          "fromRow": 13,
+          "toRow": 14
+        },
+        {
+          "company": "BW",
+          "valueColumn": "I",
+          "fromRow": 13,
+          "toRow": 14
+        },
+        {
+          "company": "TR",
+          "valueColumn": "N",
+          "fromRow": 13,
+          "toRow": 14
+        }
+      ],
+      "status": "proposed"
+    },
+    {
+      "deductionColumn": "E",
+      "totalCell": "S24",
+      "companies": [
+        {
+          "company": "EX",
+          "valueColumn": "D",
+          "fromRow": 19,
+          "toRow": 23
+        },
+        {
+          "company": "BW",
+          "valueColumn": "I",
+          "fromRow": 19,
+          "toRow": 23
+        },
+        {
+          "company": "TR",
+          "valueColumn": "N",
+          "fromRow": 19,
+          "toRow": 23
+        }
+      ],
+      "status": "proposed"
+    },
+    {
+      "deductionColumn": "F",
+      "totalCell": "S26",
+      "companies": [
+        {
+          "company": "EX",
+          "valueColumn": "D",
+          "fromRow": 26,
+          "toRow": 26
+        },
+        {
+          "company": "BW",
+          "valueColumn": "I",
+          "fromRow": 26,
+          "toRow": 26
+        },
+        {
+          "company": "TR",
+          "valueColumn": "N",
+          "fromRow": 26,
+          "toRow": 26
+        }
+      ],
+      "status": "proposed"
+    },
+    {
+      "deductionColumn": "C",
+      "totalCell": "S37",
+      "companies": [
+        {
+          "company": "EX",
+          "valueColumn": "D",
+          "fromRow": 29,
+          "toRow": 36
+        },
+        {
+          "company": "BW",
+          "valueColumn": "I",
+          "fromRow": 29,
+          "toRow": 36
+        },
+        {
+          "company": "TR",
+          "valueColumn": "N",
+          "fromRow": 29,
+          "toRow": 36
+        }
+      ],
+      "status": "proposed"
+    }
+  ],
+  "openingReview": "Staging records remain pending_approval; no ledger posting, active repayment schedule or cash movement is created by this importer.",
+  "receiptSheet": "الاجماليات",
+  "receiptColumns": {
+    "identity": "A",
+    "amount": "C",
+    "status": "E",
+    "company": "F",
+    "reference": "G",
+    "requestType": "I",
+    "transactionAccount": "J",
+    "platform": "K"
+  },
+  "receiptHeaders": [
+    {
+      "column": "A",
+      "header": "رقم الهوية"
+    },
+    {
+      "column": "C",
+      "header": "القيمة"
+    },
+    {
+      "column": "E",
+      "header": "الحالة"
+    },
+    {
+      "column": "F",
+      "header": "الشركة"
+    },
+    {
+      "column": "G",
+      "header": "رقم طلب الدفع"
+    },
+    {
+      "column": "I",
+      "header": "نوع الطلب"
+    },
+    {
+      "column": "J",
+      "header": "نوع العملية"
+    },
+    {
+      "column": "K",
+      "header": "التطبيق"
+    }
+  ],
+  "companyAliases": {
+    "اكسبرس": "EX",
+    "البوابا": "BW",
+    "التجارية": "TR"
+  }
+}

@@ -94,22 +94,23 @@ export function Header({
   selectedPeriod = '2026-10',
   onPeriodChange,
 }: HeaderProps) {
+  // Panel and menu open state (strictly one open at a time: R6ui-2)
+  const [openPanel, setOpenPanel] = useState<'notif' | 'theme' | 'user' | null>(null);
+
   // User state
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   // Theme state
   const [currentTheme, setCurrentTheme] = useState<'sand' | 'light' | 'dim'>('sand');
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
 
   // Notifications state
-  const [notifOpen, setNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [approvalCount, setApprovalCount] = useState<number>(0);
 
   // Search modal state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
 
+  const notifMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
 
@@ -171,22 +172,26 @@ export function Header({
   // Close menus on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setUserMenuOpen(false);
+      const target = e.target as Node;
+      if (openPanel === 'user' && userMenuRef.current && !userMenuRef.current.contains(target)) {
+        setOpenPanel(null);
       }
-      if (themeMenuRef.current && !themeMenuRef.current.contains(e.target as Node)) {
-        setThemeMenuOpen(false);
+      if (openPanel === 'theme' && themeMenuRef.current && !themeMenuRef.current.contains(target)) {
+        setOpenPanel(null);
+      }
+      if (openPanel === 'notif' && notifMenuRef.current && !notifMenuRef.current.contains(target)) {
+        setOpenPanel(null);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [openPanel]);
 
   const changeTheme = (theme: 'sand' | 'light' | 'dim') => {
     setCurrentTheme(theme);
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('gate_theme', theme);
-    setThemeMenuOpen(false);
+    setOpenPanel(null);
   };
 
   const handleLogout = async () => {
@@ -280,12 +285,12 @@ export function Header({
           )}
 
           {/* Notifications Bell */}
-          <div className="relative">
+          <div className="relative" ref={notifMenuRef}>
             <button
               type="button"
-              onClick={() => setNotifOpen(!notifOpen)}
+              onClick={() => setOpenPanel((prev) => (prev === 'notif' ? null : 'notif'))}
               aria-label="الإشعارات"
-              aria-expanded={notifOpen}
+              aria-expanded={openPanel === 'notif'}
               className="relative p-2 rounded-xl text-[var(--ink)] hover:bg-[var(--raised)] transition"
             >
               <Bell size={18} />
@@ -297,8 +302,8 @@ export function Header({
             </button>
 
             <NotificationsPanel
-              open={notifOpen}
-              onClose={() => setNotifOpen(false)}
+              open={openPanel === 'notif'}
+              onClose={() => setOpenPanel(null)}
               onUnreadCountChange={setUnreadCount}
             />
           </div>
@@ -307,9 +312,9 @@ export function Header({
           <div className="relative" ref={themeMenuRef}>
             <button
               type="button"
-              onClick={() => setThemeMenuOpen(!themeMenuOpen)}
+              onClick={() => setOpenPanel((prev) => (prev === 'theme' ? null : 'theme'))}
               aria-label="تبديل المظهر"
-              aria-expanded={themeMenuOpen}
+              aria-expanded={openPanel === 'theme'}
               className="p-2 rounded-xl text-[var(--ink)] hover:bg-[var(--raised)] transition"
             >
               {currentTheme === 'dim' ? (
@@ -319,7 +324,7 @@ export function Header({
               )}
             </button>
 
-            {themeMenuOpen && (
+            {openPanel === 'theme' && (
               <div className="absolute end-0 mt-2 w-40 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] shadow-xl py-1.5 z-40 text-xs font-medium">
                 <div className="px-3 py-1 text-[11px] font-semibold text-[var(--muted)] border-b border-[var(--line)] mb-1">
                   اختر المظهر
@@ -365,9 +370,9 @@ export function Header({
           <div className="relative" ref={userMenuRef}>
             <button
               type="button"
-              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              onClick={() => setOpenPanel((prev) => (prev === 'user' ? null : 'user'))}
               aria-label="قائمة المستخدم"
-              aria-expanded={userMenuOpen}
+              aria-expanded={openPanel === 'user'}
               className="flex items-center gap-2 p-1 sm:px-2 sm:py-1 rounded-xl hover:bg-[var(--raised)] transition"
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs shrink-0">
@@ -384,7 +389,7 @@ export function Header({
               <ChevronDown size={14} className="hidden sm:block text-[var(--muted)]" />
             </button>
 
-            {userMenuOpen && (
+            {openPanel === 'user' && (
               <div className="absolute end-0 mt-2 w-52 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] shadow-xl py-1.5 z-40 text-xs font-medium">
                 <div className="px-3.5 py-2 border-b border-[var(--line)] mb-1">
                   <div className="font-bold text-sm text-[var(--ink)]">
@@ -397,7 +402,7 @@ export function Header({
 
                 <Link
                   href="/admin/"
-                  onClick={() => setUserMenuOpen(false)}
+                  onClick={() => setOpenPanel(null)}
                   className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-[var(--row-hover)] text-[var(--ink)]"
                 >
                   <span>إعدادات النظام والأدوار</span>

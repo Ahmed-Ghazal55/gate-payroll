@@ -45,9 +45,11 @@ builder.Services.AddMemoryCache(o => o.SizeLimit = 10000);
 builder.Services.AddSingleton<InquiryLimits>();
 builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
+GateJobs.Add(builder.Services,builder.Configuration,builder.Environment);
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
 CampaignLinks.Migrate(store);
 Companies.Seed(store);
+ErpSyncRequests.SeedPermission(store);
 app.MapOpenApi("/openapi/{documentName}.json").WithTags("Administration").WithSummary("Administrator-only OpenAPI document").RequireAuthorization().AddEndpointFilter(async (context, next) =>
     AccessPolicy.Administrator(context.HttpContext.User) ? await next(context) : Results.Json(new { error="التوثيق لمسؤول النظام فقط.", code="forbidden" }, statusCode:403));
 app.UseForwardedHeaders();
@@ -87,7 +89,7 @@ app.Use(async (ctx,next)=>
 app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { var p = context.Context.Request.Path; if (p.StartsWithSegments("/app/_next/static")) context.Context.Response.Headers.CacheControl="public, max-age=31536000, immutable"; else if (p.StartsWithSegments("/fonts") || p.StartsWithSegments("/app/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; if (p.StartsWithSegments("/app") && context.File.PhysicalPath is { } html && html.EndsWith(".html", StringComparison.OrdinalIgnoreCase)) context.Context.Response.Headers["Content-Security-Policy"]=NextApp.PolicyForFile(html); } });
 app.UseRouting(); app.UseAuthorization(); app.UseRateLimiter();
 NextApp.Map(app);
-app.MapGet("/health", () => new { ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent }).WithTags("Administration").WithSummary("Read  health");
+app.MapGet("/health", (IJobsSchedule jobs) => new { jobs=jobs.Health(), ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent }).WithTags("Administration").WithSummary("Read  health");
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName }).WithTags("Administration").WithSummary("Read auth status");
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
 {
@@ -130,9 +132,12 @@ api.AddEndpointFilter(async (context, next) => {
 });
 api.AddEndpointFilter(ApiPagination.Filter);
 Notifications.Map(api,store);
+ErpSyncRuns.Map(api,store);
+JobsControl.Map(api);
 Companies.Map(api,store);
 OrgDirectory.Map(api,store);
 AdvanceRequests.Map(api,store);
+NinjaBilling.Map(api,store);
 CompanyRegistryImport.Map(api,store);
 PlatformPosting.Map(api,store);
 PaySettings.Map(api,store);
@@ -233,7 +238,7 @@ api.MapPost("/adjustments", (JsonObject input, HttpContext ctx) => store.Write((
     J.Need(!Store.List(c, "adjustment", tx).Any(a => a.S("sourceRef") == doc.S("sourceRef") && a.S("iqama") == iqama && a.S("period") == period), "مرجع هذا البند مسجل من قبل.");
     Store.Save(c, "adjustment", doc, tx); Store.Audit(c, tx, "adjustment.add", doc.S("id"), Actor(ctx)); return doc;
 })).WithTags("Payroll").WithSummary("Submit adjustments");
-api.MapGet("/payroll/preview", (string period,HttpContext ctx) => { J.Period(period); return store.Read(c => Store.List(c, "work").Where(w => w.S("period") == period).Select(w => w.S("iqama")).Distinct().Where(iq=>Store.Get(c,iq,"rider") is {} rider&&(FinancialScopes.Rider(ctx.User,rider)||FinancialScopes.AllCompanies(ctx.User))).Select(iq => { var doc = JsonSerializer.SerializeToNode(Preview(c, iq, period), JsonSerializerOptions.Web)!.AsObject(); doc["fingerprint"] = Fingerprint(c, iq, period); return doc; }).ToList()); }).WithTags("Payroll").WithSummary("Read payroll preview");
+api.MapGet("/payroll/preview", (string period,HttpContext ctx) => { J.Period(period); return store.Read(c => Store.List(c, "work").Where(w => w.S("period") == period).Select(w => w.S("iqama")).Distinct().Where(iq=>Store.Get(c,iq,"rider") is {} rider&&ErpRiderClassification.ListedAsRider(rider)&&(FinancialScopes.Rider(ctx.User,rider)||FinancialScopes.AllCompanies(ctx.User))).Select(iq => { var doc = JsonSerializer.SerializeToNode(Preview(c, iq, period), JsonSerializerOptions.Web)!.AsObject(); doc["fingerprint"] = Fingerprint(c, iq, period); return doc; }).ToList()); }).WithTags("Payroll").WithSummary("Read payroll preview");
 api.MapGet("/payroll/runs", (HttpContext ctx) => store.Read(c => Store.List(c, "run").Where(r=>FinancialScopes.Ledger(ctx.User,r)))).WithTags("Payroll").WithSummary("Read payroll runs");
 api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
@@ -324,7 +329,7 @@ JsonObject Campaign(string token)
 }
 PayrollResult Preview(System.Data.Common.DbConnection c, string iqama, string period, System.Data.Common.DbTransaction? tx = null)
 {
-    var rider = Store.Get(c, iqama, "rider", tx); var policy = rider == null ? null : Store.Get(c, rider.S("policyId"), "policy", tx);
+    var rider = Store.Get(c, iqama, "rider", tx); J.Need(rider==null||ErpRiderClassification.ListedAsRider(rider),"المندوب غير مؤهل للرواتب؛ سجل مديونية فقط أو موظف إداري."); var policy = rider == null ? null : Store.Get(c, rider.S("policyId"), "policy", tx);
     var rows = Store.List(c, "work", tx).Where(w => w.S("iqama") == iqama && w.S("period") == period).Select(w => w.Deserialize<WorkLine>(JsonSerializerOptions.Web)!).ToList();
     var adjustments = Store.List(c, "adjustment", tx).Where(a => a.S("iqama") == iqama && a.S("period") == period).ToList();
     var opening = Store.List(c, "ledger", tx).Where(a => a.S("iqama") == iqama && string.CompareOrdinal(a.S("period"), period) < 0).Sum(a => a.N("amount"));

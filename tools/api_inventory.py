@@ -22,6 +22,7 @@ def permission(method,p):
  if p.startswith('/api/advance-requests'):return {'GET':'advances.request / advances.review / advances.payout; handler shows own, assigned or custodian rows'}.get(method,'advances.request' if p=='/api/advance-requests' or p.endswith('/respond') else 'advances.review + routed responsible (BR §25)' if p.endswith('/review') else 'advances.payout + routed vault custodian')
  if p.startswith('/api/rider-mobile/requests'):return 'Active rider bearer token; own asks only; routed to current supervisor'
  if p.startswith('/api/advance-requests/rider-asks'):return 'advances.request + current supervision of the rider'
+ if p.startswith('/api/platforms/ninja/'):return 'pay.view (read-only recalculation; no posting)'
  if p=='/api/rider-mobile/statement':return 'Active rider bearer token; own approved cycles or approved legacy fallback'
  if p.startswith('/api/finance/statement/rider/') and p.endswith('/monthly'):return 'pay.view + payroll.view + debts.view; full company/app/debt scope'
  if p.startswith('/api/operations/') or p.startswith('/api/riders/') and p.endswith('/accounts'):return 'operations.view; company/platform scope; always paginated'
@@ -33,6 +34,8 @@ def permission(method,p):
  if p.startswith('/api/platforms/') and p.endswith('/posting'): return 'Admin / SuperAdmin; audited platform gate'
  if p.startswith('/api/companies/import/'): return 'Admin / SuperAdmin; signed preview + audit'
  if p.startswith('/api/companies'): return 'companies.view' if method=='GET' else 'companies.manage'
+ if p in ('/api/system/jobs/erp-sync/run','/api/system/jobs/erp-sync/dry-run') or p=='/api/system/jobs/erp-sync/{jobId}':return 'erp.sync.run; counts only; shared cooldown + active reservation for enqueue'
+ if p in ('/api/system/jobs/erp-sync/pause','/api/system/jobs/erp-sync/resume'):return 'SuperAdmin only; required reason + audit; config enablement remains mandatory'
  if p.startswith(('/api/users','/api/system','/api/rider-mobile/firebase')) or method=='DELETE' or p=='/api/submissions/bulk-delete' or p.endswith('/delete-preview') or method=='PUT' and p.startswith('/api/campaigns/'):return 'Admin / SuperAdmin'
  if p.startswith('/api/riders/sync') or p.startswith('/api/riders/enrich'):return 'Admin / SuperAdmin'
  if p.startswith('/api/riders'):return ('riders.view_360 + debts.view' if p.endswith('/profile-360') else 'riders.view_360' if '/documents' in p and method=='GET' else 'riders.view' if method=='GET' else 'riders.edit (+ riders.financial_edit for financial fields)')

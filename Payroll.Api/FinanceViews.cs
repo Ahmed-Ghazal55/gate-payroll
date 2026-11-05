@@ -48,9 +48,9 @@ public static class FinanceViews
         string category=First(line.S("category"),debt.S("category"),journal.S("category"));
         bool employee=line.S("partyType",debt.S("debtorType"))=="Employee"||rider.B("isEmployee")||rider.S("personRole") is "Employee" or "employee" or "administrative"||code=="1220";
         if(code=="1210")return category switch {
-            "Advance" or "CashAdvance" or "BankAdvance"=>"112501", "TrafficFine"=>"112502",
+            "Advance" or "CashAdvance" or "BankAdvance"=>"112501", "TrafficFine"=>"112502", "InternetAdvance"=>"112503", "HsWalletTopUp"=>"112513",
             "WorkPermit" or "IqamaRenewal" or "SponsorshipTransfer" or "ExitReEntryVisa" or "MedicalInsurance" or "ProfessionChange" or "DriverLicense" or "DriverCard" or "OtherHrService"=>"112506",
-            "HousingDeduction" or "AdministrativeDeduction" or "EquipmentLoan" or "CashCustody"=>"112505",
+            "HousingDeduction" or "AdministrativeDeduction" or "LegacyOpeningDebt" or "EquipmentLoan" or "CashCustody"=>"112505",
             "AccidentDamage"=>"112509", "FuelOverage"=>"112510", _=>null};
         if(code=="1220")return category switch {"Advance" or "CashAdvance" or "BankAdvance"=>"112301","CashCustody"=>"112302",""=>null,_=>"112303"};
         if(code=="2110")return line.S("iqama")!=""||line.S("partyType")!=""?employee?"212101":"212103":null;

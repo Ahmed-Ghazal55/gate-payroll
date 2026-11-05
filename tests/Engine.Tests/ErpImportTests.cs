@@ -150,4 +150,110 @@ public sealed class ErpImportTests
         store=new Store(f.DirectoryPath);Assert.AreEqual("preserved",store.Read(c=>Store.Get(c,"synthetic-setting","setting")!.S("value")));
         int indexes=store.Read(c=>{using var cmd=c.CreateCommand();cmd.CommandText="SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name LIKE 'ix_erp_%'";return Convert.ToInt32(cmd.ExecuteScalar());});Assert.AreEqual(8,indexes);
     }
+    [TestMethod]
+    public void FuelPullPreservesDatedAssignmentAndAmountsWithoutGuessingUnmatchedRiders()
+    {
+        using var f=new Fixture();
+        f.Add("FuelCards",new(){["Id"]="fuel",["SponsorId"]="sponsor",["OperatingCityId"]="operation-city",["CardNumber"]="SYN-CARD"});
+        f.Add("FuelCardRiderAssignments",new(){["Id"]="fuel-assignment",["FuelCardId"]="fuel",["EmployeeId"]="employee2",["RiderProfileId"]="profile2",["EffectiveFrom"]="2026-10-01",["EffectiveTo"]="2026-10-31"});
+        f.Add("FuelCardMonthlyUsages",new(){["Id"]="usage",["FuelCardId"]="fuel",["EmployeeId"]="employee2",["ReportMonth"]="2026-10-01",["TotalLiters"]=10,["TotalAmount"]=23,["AmountBeforeTax"]=20,["VatAmount"]=3,["TransactionCount"]=2});
+        f.Add("FuelCardMonthlyUsages",new(){["Id"]="unmatched",["FuelCardId"]="fuel",["ReportMonth"]="2026-10-01",["TotalAmount"]=999});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);
+        var usage=plan.Documents.Single(d=>d.Kind=="fuel_usage_month").Body;
+        Assert.AreEqual(Identity(2),usage.S("riderId"));Assert.AreEqual(23m,usage.N("amount"));Assert.AreEqual(3m,usage.N("vat"));
+        Assert.AreEqual("2026-10-31",plan.Documents.Single(d=>d.Kind=="fuel_card_assignment").Body.S("effectiveTo"));
+        Assert.AreEqual(1,plan.Rejected["fuel_usage_month"]["unmatched_rider"]);
+        var summary=ImportExecutor.Run(source,plan,[]);Assert.AreEqual(23m,summary.Totals["fuel_usage_month"]["amount"]);
+        Assert.DoesNotContain("SYN-CARD",JsonSerializer.Serialize(summary));
+        var target=new Store(f.DirectoryPath);ImportExecutor.Run(source,plan,target.Read(ImportExecutor.Target),target);
+        Assert.AreEqual(0,ImportExecutor.Run(source,plan,target.Read(ImportExecutor.Target)).Counts.Sum(c=>c.New+c.Changed));
+    }
+    [TestMethod]
+    public void OptionalPullSourcesDistinguishAbsentEmptyAndInvalidContracts()
+    {
+        using var f=new Fixture();using(var q=f.Source.CreateCommand()){q.CommandText="DROP TABLE FuelCards";q.ExecuteNonQuery();}
+        Assert.AreEqual("source_table_absent",ImportPlan.Build(SourceReader.Read(f.Source),Catalog).Unavailable["fuel_card"]);
+        using(var q=f.Source.CreateCommand()){q.CommandText="CREATE TABLE FuelCards(Id TEXT PRIMARY KEY)";q.ExecuteNonQuery();}
+        Assert.AreEqual("source_contract_missing_fields:FuelCards",Assert.ThrowsExactly<ImportFailure>(()=>SourceReader.Read(f.Source)).Code);
+    }
+    [TestMethod]
+    public void CustodyAndVehicleFactsPreserveReturnsAccidentInstallmentsAndReversalLineage()
+    {
+        using var f=new Fixture();
+        f.Add("RiderInventoryIssues",new(){["Id"]="issue",["RiderProfileId"]="profile2",["IssuedAtUtc"]="2026-10-01T00:00:00Z"});
+        f.Add("RiderInventoryIssueLines",new(){["Id"]="line",["RiderInventoryIssueId"]="issue",["Quantity"]=3,["ReturnedQuantity"]=1,["ExpectedReturn"]=true,["TotalCost"]=30});
+        f.Add("RiderPhoneSimAssignments",new(){["Id"]="sim",["RiderProfileId"]="profile2",["PhoneSimCardId"]="sim-card",["EffectiveFrom"]="2026-10-01",["EffectiveTo"]="2026-10-31"});
+        f.Add("VehicleAccidents",new(){["Id"]="accident",["VehicleId"]="vehicle",["RiderProfileId"]="profile2",["EmployeeId"]="employee2"});
+        f.Add("VehicleAccidentCases",new(){["Id"]="case2",["VehicleAccidentId"]="accident",["EstimatedRepairCost"]=50});
+        f.Add("VehicleAccidentInstallments",new(){["Id"]="inst",["VehicleAccidentId"]="accident",["PeriodFrom"]="2026-10-01",["PeriodTo"]="2026-10-31",["Amount"]=20});
+        f.Add("VehicleExpenses",new(){["Id"]="expense",["VehicleId"]="vehicle",["RiderProfileId"]="profile2",["TotalAmount"]=-23,["AmountBeforeTax"]=-20,["TaxAmount"]=-3,["ReversalOfExpenseId"]="original"});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);JsonObject D(string kind)=>plan.Documents.Single(x=>x.Kind==kind).Body;
+        Assert.AreEqual(1m,D("custody_equipment").N("returnedQuantity"));Assert.IsTrue(D("custody_equipment")["lines"]![0]!.B("ExpectedReturn"));
+        Assert.AreEqual(Identity(2),D("custody_sim").S("riderId"));Assert.AreEqual(1,D("vehicle_accident")["cases"]!.AsArray().Count);Assert.AreEqual(1,D("vehicle_accident")["installments"]!.AsArray().Count);
+        Assert.AreEqual("original",D("vehicle_expense").S("reversesSourceId"));Assert.AreEqual(-23m,ImportExecutor.Run(source,plan,[]).Totals["vehicle_expense"]["amount"]);
+    }
+    [TestMethod]
+    public void ChefzFinalDailyAndWalletFactsUseTheActualOperatorAndPreserveFinancialBreakdown()
+    {
+        using var f=new Fixture();
+        f.Add("AccountDetails",new(){["Id"]="chefz-details",["PlatformRiderAccountId"]="account",["ReportIdNumber"]="SYN-CHEFZ"});
+        f.Add("DailyPerformance",new(){["Id"]="chefz-day",["PlatformRiderAccountId"]="account",["RiderClientAssignmentId"]="platform-assignment",["RiderProfileId"]="profile2",["ReportDate"]="2026-10-10",["TotalValidOffers"]=12,["AcceptedOffers"]=10});
+        f.Add("WalletSettlements",new(){["Id"]="chefz-wallet",["PlatformRiderAccountId"]="account",["RiderClientAssignmentId"]="platform-assignment",["RiderProfileId"]="profile2",["PeriodFrom"]="2026-10-01",["PeriodTo"]="2026-10-31",["DeliveryFees"]=100,["VatAmount"]=15,["Tips"]=5,["GrossEarnings"]=120,["CompanyAmount"]=20,["RiderAmount"]=100});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);
+        var account=plan.Documents.Single(x=>x.Kind=="chefz_account").Body;Assert.AreEqual(Identity(1),account.S("registeredRiderId"));
+        var daily=plan.Documents.Single(x=>x.Kind=="chefz_daily").Body;Assert.AreEqual(Identity(2),daily.S("riderId"));
+        var settlement=plan.Documents.Single(x=>x.Kind=="chefz_settlement").Body;Assert.AreEqual(15m,settlement.N("vat"));Assert.AreEqual(120m,settlement.N("gross"));
+        Assert.AreEqual(100m,ImportExecutor.Run(source,plan,[]).Totals["chefz_settlement"]["riderAmount"]);
+        source.Tables["DailyPerformance"][0]["RiderClientAssignmentId"]="missing";
+        Assert.AreEqual(1,ImportPlan.Build(source,Catalog).Rejected["chefz_daily"]["unmatched_assignment"]);
+    }
+    [TestMethod]
+    public void JahezFinalFactsLinkThroughSessionsAndKeepLedgerReversalsWithoutImportRows()
+    {
+        using var f=new Fixture();
+        f.Add("AccountSessions",new(){["Id"]="session",["PlatformRiderAccountId"]="account",["RiderClientAssignmentId"]="platform-assignment",["RiderProfileId"]="profile2",["StartedAtUtc"]="2026-10-01T00:00:00Z"});
+        f.Add("EarningsStatements",new(){["Id"]="earnings",["HandoverId"]="session",["FromDate"]="2026-10-01",["ToDate"]="2026-10-31",["TotalDeliveryPrice"]=100});
+        f.Add("PlatformTransactions",new(){["Id"]="txn",["AccountId"]="account",["HandoverId"]="session",["NetAmount"]=90,["ImportRowId"]="lineage-only"});
+        f.Add("AccountingEntries",new(){["Id"]="ledger",["AccountId"]="account",["HandoverId"]="session",["Amount"]=-10,["ReversesEntryId"]="original"});
+        f.Add("AccountFees",new(){["Id"]="fee",["HandoverId"]="session",["Amount"]=20,["WaivedAmount"]=5});
+        f.Add("AccountFeeRefunds",new(){["Id"]="refund",["HandoverId"]="session",["AccountFeeId"]="fee",["RefundAmount"]=15});
+        f.Add("Operations",new(){["Id"]="operation",["HandoverId"]="session"});
+        f.Add("TransferredDebts",new(){["Id"]="transferred",["OperationId"]="operation",["RiderProfileId"]="profile2",["Amount"]=100,["PaidAmount"]=25});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);var docs=plan.Documents.Where(x=>x.Kind.StartsWith("jahez_")).ToList();
+        Assert.AreEqual(7,docs.Count);Assert.IsTrue(docs.All(x=>x.Body.S("riderId")==Identity(2)));
+        Assert.AreEqual("original",docs.Single(x=>x.Kind=="jahez_ledger_entry").Body.S("reversesSourceId"));
+        Assert.AreEqual(90m,ImportExecutor.Run(source,plan,[]).Totals["jahez_transaction"]["net"]);
+        Assert.IsFalse(SourceReader.Catalog.Any(x=>x.Name.EndsWith("ImportRows")||x.Name.EndsWith("Sources")));
+        source.Tables["PlatformTransactions"][0]["HandoverId"]="missing";
+        Assert.AreEqual(1,ImportPlan.Build(source,Catalog).Rejected["jahez_transaction"]["missing_session_relation"]);
+    }
+    [TestMethod]
+    public void NinjaKeepsCaptainIdOnAccountsDaysAndDeductionsWithoutUsingSourceRows()
+    {
+        using var f=new Fixture();using(var cmd=f.Source.CreateCommand()){cmd.CommandText="UPDATE PlatformRiderAccounts SET ExternalAccountId='SYN-CAPTAIN'";cmd.ExecuteNonQuery();}
+        f.Add("NinjaAccountDetails",new(){["Id"]="ninja-details",["PlatformRiderAccountId"]="account"});
+        f.Add("NinjaDailyPerformance",new(){["Id"]="ninja-day",["PlatformRiderAccountId"]="account",["RiderClientAssignmentId"]="platform-assignment",["RiderProfileId"]="profile2",["CaptainId"]="SYN-CAPTAIN",["ReportDate"]="2026-10-01",["TotalOrders"]=10,["TotalWorkingHours"]=8.5m});
+        f.Add("NinjaDailyDeductions",new(){["Id"]="ninja-deduction",["PlatformRiderAccountId"]="account",["RiderClientAssignmentId"]="platform-assignment",["RiderProfileId"]="profile2",["CaptainId"]="SYN-CAPTAIN",["ReportDate"]="2026-10-01",["TotalDeductions"]=5,["TotalCollectedAmountAtDelivery"]=20});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);var docs=plan.Documents.Where(d=>d.Kind.StartsWith("ninja_")).ToList();
+        Assert.AreEqual(3,docs.Count);Assert.IsTrue(docs.All(x=>x.Body.S("CaptainId")=="SYN-CAPTAIN"));
+        Assert.AreEqual(Identity(2),docs.Single(x=>x.Kind=="ninja_daily").Body.S("riderId"));Assert.AreEqual(8.5m,ImportExecutor.Run(source,plan,[]).Totals["ninja_daily"]["hours"]);
+        source.Tables["NinjaDailyPerformance"][0]["CaptainId"]="";Assert.AreEqual(1,ImportPlan.Build(source,Catalog).Rejected["ninja_daily"]["missing_captain_id"]);
+    }
+    [TestMethod]
+    public void WidenedPullPreservesHrExpiryActualAssignmentsAndTreasurySourceFacts()
+    {
+        using var f=new Fixture();
+        f.Add("DocumentTypes",new(){["Id"]="document-type",["Code"]="Iqama"});
+        f.Add("EmployeeDocuments",new(){["Id"]="document",["EmployeeId"]="employee2",["DocumentTypeId"]="document-type",["ExpiryDate"]="2027-01-01"});
+        f.Add("EmployeeDriverLicenses",new(){["Id"]="license",["EmployeeId"]="employee2",["ExpiryDate"]="2027-02-01"});
+        f.Add("TreasurySubAccounts",new(){["Id"]="vault",["SponsorId"]="sponsor",["Code"]="SYN-VAULT"});
+        f.Add("Postings",new(){["Id"]="posting",["SubAccountId"]="vault",["SponsorId"]="sponsor",["Amount"]=20,["ReversesPostingId"]="reversed"});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);
+        Assert.AreEqual(3,plan.Documents.Count(d=>d.Kind=="employee"));Assert.AreEqual("Iqama",plan.Documents.Single(d=>d.Kind=="employee_document").Body.S("documentTypeCode"));
+        Assert.AreEqual("2027-02-01",plan.Documents.Single(d=>d.Kind=="driver_license").Body.S("expiryDate"));
+        Assert.AreEqual(Identity(2),plan.Documents.Single(d=>d.Kind=="rider_account_assignment").Body.S("riderId"));
+        Assert.AreEqual("reversed",plan.Documents.Single(d=>d.Kind=="erp_treasury_posting").Body.S("reversesSourceId"));
+        Assert.AreEqual("source_table_absent",plan.Unavailable["erp_advance_request"]);
+        Assert.IsFalse(SourceReader.Catalog.Any(t=>t.Fields.Contains("Ciphertext")||t.Name.Contains("Credential")));
+    }
 }

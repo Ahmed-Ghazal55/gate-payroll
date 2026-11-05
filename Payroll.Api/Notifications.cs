@@ -13,6 +13,7 @@ public static class Notifications
     public static string Category(JsonObject item)=>item.S("category")!=""?item.S("category"):item.S("assignedTo")!=""?"personal":item.S("tab")=="approvals"?"approvals":"general";
     public static bool Visible(DbConnection c,ClaimsPrincipal user,JsonObject item,DbTransaction? tx=null)
     {
+        if(item.S("audience")=="administrators"&&!AccessPolicy.Administrator(user))return false;
         if(item.S("companyId")!=""&&!FinancialScopes.Sponsor(user,item.S("companyId")))return false;
         if(item.S("platform")!=""&&!FinancialScopes.Platform(user,item.S("platform")))return false;
         string category=Category(item);
@@ -24,7 +25,7 @@ public static class Notifications
     }
     static string ReadId(ClaimsPrincipal user,string id)=>"notification-read:"+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Identity(user)+"\n"+id)));
     public static List<JsonObject> Center(DbConnection c,ClaimsPrincipal user)=>Store.List(c,"sys_notification").Where(n=>
-        Category(n)=="personal" ? Visible(c,user,n) :
+        Category(n)=="personal"||n.S("audience")=="administrators" ? Visible(c,user,n) :
         AccessPolicy.Administrator(user)||(n.S("targetDepartment")==user.FindFirst("department")?.Value||n.S("targetDepartment")=="ALL")&&
         (n.S("approvalId")==""||Store.Get(c,n.S("approvalId"),"approval_request") is {} approval&&FinancialScopes.Approval(user,approval,c))).ToList();
     public static List<JsonObject> Inbox(DbConnection c,ClaimsPrincipal user,DbTransaction? tx=null)
@@ -41,10 +42,11 @@ public static class Notifications
         string id=ReadId(user,item.S("id"));if(Store.Get(c,id,"notification_read",tx)!=null)return;
         Store.Save(c,"notification_read",new(){["id"]=id,["userId"]=Identity(user),["notificationId"]=item.S("id"),["readAt"]=DateTimeOffset.UtcNow.ToString("O")},tx);
     }
-    public static void Raise(DbConnection c,DbTransaction tx,string id,string category,string title,string permission,string actor,string? approvalId=null,DateTimeOffset? clock=null,string eventKey="",string? companyId=null,string? platform=null)
+    public static void Raise(DbConnection c,DbTransaction tx,string id,string category,string title,string permission,string actor,string? approvalId=null,DateTimeOffset? clock=null,string eventKey="",string? companyId=null,string? platform=null,bool administratorsOnly=false)
     {
         if(Store.Get(c,id,"sys_notification",tx)!=null)return;
         var notification=new JsonObject{["id"]=id,["category"]=category,["tab"]=category,["titleAr"]=title,["bodyAr"]="راجع قائمة العمليات للمزيد.",["requiredPermission"]=permission,["targetDepartment"]="ALL",["approvalId"]=approvalId??"",["status"]="unread",["createdAt"]=(clock??DateTimeOffset.UtcNow).ToString("O"),["eventKey"]=eventKey,["createdBy"]=actor};
+        if(administratorsOnly)notification["audience"]="administrators";
         if(companyId!=null)notification["companyId"]=companyId;if(platform!=null)notification["platform"]=platform;
         Store.Save(c,"sys_notification",notification,tx);
         Store.Audit(c,tx,"notification.system_created",id,actor);

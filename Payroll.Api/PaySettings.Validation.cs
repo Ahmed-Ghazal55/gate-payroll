@@ -49,6 +49,7 @@ public static partial class PaySettings
                 break;
             case "slabs":PayValues.Fields(p,"metric","bands","companyCostAccount");PayValues.Name(p.Required("metric"));Bands(p["bands"]);break;
             case "flat_target":PayValues.Fields(p,"targetOrders","monthlyAmount","extraRate","shortfallPerOrder","prorate","companyCostAccount");PayValues.Number(p,"targetOrders",1);PayValues.Number(p,"monthlyAmount");PayValues.Number(p,"extraRate");PayValues.Number(p,"shortfallPerOrder");PayValues.Flag(p,"prorate");break;
+            case "ninja_target":NinjaBilling.Validate(p);break;
             default:throw new ApiError("نموذج محاسبة الشركة الأم غير مدعوم.");
         }
         if(p.ContainsKey("companyCostAccount")){string account=PayPlatforms.Active(p.S("companyCostAccount"));J.Need(account.StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");}

@@ -34,6 +34,7 @@ public static class RiderDirectory
     public static string State(string value) => value switch
     {
         "active" or "نشط" or "Active" => "Active",
+        "Inactive" => "Inactive",
         "في إجازة" or "OnLeave" => "OnLeave",
         "مؤرشف" or "هروب / انقطاع" or "Archived" => "Archived",
         "" or "مسودة" or "needs_review" or "NeedsReview" => "NeedsReview",
@@ -93,6 +94,7 @@ public static class RiderDirectory
             J.Need(r.S(k).Length <= 200, "قيمة وصفية طويلة جدًا.");
         r["policyId"] = Value("policyId");
         if(input.ContainsKey("financeSponsorId"))r["financeSponsorId"]=input.S("financeSponsorId")==""?"":FinancialCore.ResolveSponsor(input.S("financeSponsorId")).Id;
+        if(existing?.B("debtOnly")==true&&r.S("status")=="Active"){r["debtOnly"]=false;r["personRole"]="rider";r["isDeliveryRider"]=true;}
         r["schemaVersion"] = 2;
         return r;
     }

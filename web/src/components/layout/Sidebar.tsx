@@ -232,24 +232,16 @@ function SidebarInner({
 
   const activeGroupId = getActiveGroupId();
 
-  // State of open/collapsed groups
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    [activeGroupId]: true,
-  });
+  // State of open group (only one group open at a time: R6ui-2)
+  const [openGroupId, setOpenGroupId] = useState<string | null>(activeGroupId);
 
   // Ensure active group stays open on route change
   useEffect(() => {
-    setOpenGroups((prev) => ({
-      ...prev,
-      [activeGroupId]: true,
-    }));
+    setOpenGroupId(activeGroupId);
   }, [activeGroupId]);
 
   const toggleGroup = (groupId: string) => {
-    setOpenGroups((prev) => ({
-      ...prev,
-      [groupId]: !prev[groupId],
-    }));
+    setOpenGroupId((prev) => (prev === groupId ? null : groupId));
   };
 
   const isItemVisible = (item: NavSubItem) => {
@@ -313,7 +305,7 @@ function SidebarInner({
 
         {visibleGroups.map((group) => {
           const isGroupActive = activeGroupId === group.id;
-          const isOpen = !!openGroups[group.id];
+          const isOpen = openGroupId === group.id;
 
           return (
             <div key={group.id} className="space-y-1">

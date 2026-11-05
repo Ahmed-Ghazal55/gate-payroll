@@ -23,19 +23,63 @@ export function Drawer({
   width = 'max-w-md sm:max-w-xl',
 }: DrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedElement = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
+    previouslyFocusedElement.current = document.activeElement as HTMLElement;
+
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+      if (e.key === 'Tab' && drawerRef.current) {
+        const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     }
+
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', handleKeyDown);
+
+    // Initial focus on first input/textarea/select if present, else drawer container
+    const timer = setTimeout(() => {
+      if (!drawerRef.current) return;
+      const firstInput = drawerRef.current.querySelector<HTMLElement>(
+        'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])'
+      );
+      if (firstInput) {
+        firstInput.focus();
+      } else {
+        drawerRef.current?.focus();
+      }
+    }, 50);
+
     return () => {
       document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
+      clearTimeout(timer);
+      previouslyFocusedElement.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -49,7 +93,8 @@ export function Drawer({
         ref={drawerRef}
         role="dialog"
         aria-modal="true"
-        className={`relative w-full ${width} bg-[var(--surface)] text-[var(--ink)] shadow-2xl flex flex-col h-full border-s border-[var(--line)] z-10 animate-in slide-in-from-right duration-200`}
+        tabIndex={-1}
+        className={`relative w-full ${width} bg-[var(--surface)] text-[var(--ink)] shadow-2xl flex flex-col h-full border-s border-[var(--line)] z-10 focus:outline-hidden animate-in slide-in-from-right duration-200`}
       >
         {/* Drawer Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--line)] bg-[var(--surface)] shrink-0">
