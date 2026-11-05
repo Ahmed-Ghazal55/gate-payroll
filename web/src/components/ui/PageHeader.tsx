@@ -105,7 +105,7 @@ export function PageHeader({
             </button>
 
             {menuOpen && (
-              <div className="absolute left-0 mt-1 w-48 rounded-xl border border-[var(--line)] bg-[var(--surface)] shadow-lg py-1.5 z-30 focus:outline-hidden">
+              <div className="absolute end-0 mt-1 w-48 rounded-xl border border-[var(--line)] bg-[var(--surface)] shadow-lg py-1.5 z-30 focus:outline-hidden">
                 <div className="px-3 py-1 text-[11px] font-semibold text-[var(--muted)] border-b border-[var(--line)] mb-1">
                   المزيد من الخيارات
                 </div>
@@ -118,7 +118,7 @@ export function PageHeader({
                       setMenuOpen(false);
                       action.onClick();
                     }}
-                    className={`flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-right transition disabled:opacity-40 ${
+                    className={`flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-start transition disabled:opacity-40 ${
                       action.danger
                         ? 'text-[var(--danger)] hover:bg-[var(--row-hover)]'
                         : 'text-[var(--ink)] hover:bg-[var(--row-hover)]'
