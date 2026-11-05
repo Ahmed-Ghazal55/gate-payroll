@@ -19,9 +19,17 @@ try{
  const probe=createServer();await new Promise((resolve,reject)=>{probe.once('error',reject);probe.listen(0,'127.0.0.1',resolve);});base='http://127.0.0.1:'+probe.address().port;await new Promise(resolve=>probe.close(resolve));
  child=spawn('dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,ConnectionStrings__DefaultConnection:'',PAYROLL_DATA_DIR:data},stdio:'ignore'});
  let ready=false;for(let i=0;i<150;i++){if(child.exitCode!==null)throw Error('Synthetic API exited');try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}assert.ok(ready);
- const admin=as('admin'),other=as('other'),anon=as('anon'),password=randomBytes(24).toString('hex');
+ const admin=as('admin'),other=as('other'),superAdmin=as('super'),anon=as('anon'),password=randomBytes(24).toString('hex');
  await anon('/api/system/erp-sync',undefined,401);await admin('/api/auth/setup',{username:'syn-sync-admin',password});
  await admin('/api/users',{username:'syn-sync-accountant',password,role:'Accountant'});await other('/api/auth/login',{username:'syn-sync-accountant',password});
+ const health=await (await fetch(base+'/health')).json();assert.deepEqual(health.jobs,{enabled:false,lastErpSync:null,nextErpSync:null});
+ await anon('/api/system/jobs',undefined,401);await anon('/api/system/jobs/erp-sync/dry-run',{},401);
+ await other('/api/system/jobs',undefined,403);await other('/api/system/jobs/erp-sync/dry-run',{},403);
+ const jobs=await admin('/api/system/jobs');assert.equal(jobs.length,5);assert.ok(jobs.every(j=>j.enabled===false));
+ await admin('/api/system/jobs/erp-sync/dry-run',{},409);
+ for(const action of ['pause','resume']){await other('/api/system/jobs/erp-sync/'+action,{reason:'Synthetic'},403);await admin('/api/system/jobs/erp-sync/'+action,{reason:'Synthetic'},403);}
+ await admin('/api/users',{username:'syn-sync-super',password,role:'SuperAdmin'});await superAdmin('/api/auth/login',{username:'syn-sync-super',password});
+ for(const action of ['pause','resume']){await superAdmin('/api/system/jobs/erp-sync/'+action,{},400);await superAdmin('/api/system/jobs/erp-sync/'+action,{reason:'Synthetic window'},409);}
  await other('/api/system/erp-sync',undefined,403);await admin('/api/system/erp-sync?limit=0',undefined,400);await admin('/api/system/erp-sync?limit=101',undefined,400);await admin('/api/system/erp-sync?limit=bad',undefined,400);
  const db=new DatabaseSync(path.join(data,'payroll.db')),runId='erp-sync:'+randomBytes(16).toString('hex'),noticeId='notice:'+runId,at=new Date().toISOString();
  const put=(kind,row)=>db.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?)').run(row.id,kind,JSON.stringify(row));
