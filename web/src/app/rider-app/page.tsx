@@ -38,13 +38,14 @@ function RiderAppAdminPageInner() {
   const searchParams = useSearchParams();
 
   const tabFromUrl = searchParams?.get('tab') || 'broadcasts';
-  const [activeTab, setActiveTab] = useState<string>(tabFromUrl);
+  const resolvedTab = tabFromUrl === 'statement' ? 'statement-preview' : tabFromUrl;
+  const [activeTab, setActiveTab] = useState<string>(resolvedTab);
 
   useEffect(() => {
-    if (tabFromUrl && tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
+    if (resolvedTab && resolvedTab !== activeTab) {
+      setActiveTab(resolvedTab);
     }
-  }, [tabFromUrl]);
+  }, [resolvedTab]);
 
   // Broadcasts state
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
@@ -65,6 +66,29 @@ function RiderAppAdminPageInner() {
   // Firebase Config state
   const [fbConfig, setFbConfig] = useState<any>(null);
   const [loadingFbConfig, setLoadingFbConfig] = useState<boolean>(true);
+
+  // Statement Preview state (F3 - R4.8)
+  const [statementIqama, setStatementIqama] = useState<string>('2000000789');
+  const [statementPeriod, setStatementPeriod] = useState<string>('2026-10');
+  const [monthlyStatement, setMonthlyStatement] = useState<any | null>(null);
+  const [loadingStatement, setLoadingStatement] = useState<boolean>(false);
+  const [statementError, setStatementError] = useState<string | null>(null);
+
+  // Load Statement Preview
+  const loadStatementPreview = async () => {
+    if (!statementIqama.trim()) return;
+    setLoadingStatement(true);
+    setStatementError(null);
+    try {
+      const res = await api.getRiderMonthlyStatement(statementIqama.trim(), statementPeriod);
+      setMonthlyStatement(res);
+    } catch (err: any) {
+      setStatementError(err.message || 'تعذر تحميل كشف حساب المندوب الشهري');
+      setMonthlyStatement(null);
+    } finally {
+      setLoadingStatement(false);
+    }
+  };
 
   // Load Broadcasts
   const loadBroadcasts = async () => {
@@ -99,6 +123,12 @@ function RiderAppAdminPageInner() {
     loadBroadcasts();
     loadFbConfig();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'statement-preview') {
+      loadStatementPreview();
+    }
+  }, [activeTab, statementPeriod]);
 
   // Send Broadcast
   const handleSendBroadcast = async () => {
@@ -365,58 +395,129 @@ function RiderAppAdminPageInner() {
         </div>
       )}
 
-      {/* Tab 4: App Statement Preview */}
+      {/* Tab 4: App Statement Preview (F3 - R4.8) */}
       {activeTab === 'statement-preview' && (
         <div className="space-y-4">
           <div className="p-6 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                  معاينة كشف الحساب الرقمي كما يظهر للمندوب في التطبيق
+                  كشف الحساب في تطبيق المندوب — معاينة الحساب الرقمي (R4.8)
                 </h3>
                 <p className="text-xs text-[var(--muted)] mt-0.5">
-                  محاكاة واجهة كشف الحساب المبسطة للمندوب (بعد اكتمال Codex R4.8).
+                  محاكاة واجهة كشف الحساب المبسطة للمندوب باستخدام بيانات GET /api/finance/statement/rider/{'{iqama}'}/monthly.
                 </p>
               </div>
-              <Link
-                href="/riders/statement/?iqama=2000000789"
-                className="px-3.5 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1.5"
-              >
-                <Eye size={14} />
-                <span>فتح كشف الحساب التفصيلي المعتمد</span>
-              </Link>
-            </div>
 
-            {/* Mobile frame preview */}
-            <div className="max-w-xs mx-auto border-4 border-black rounded-3xl p-4 bg-[var(--surface)] shadow-xl space-y-4 my-4">
-              <div className="flex justify-between items-center text-[11px] text-[var(--muted)] pb-2 border-b border-[var(--line)]">
-                <span>تطبيق بوابة المندوب</span>
-                <span className="font-mono">12:30 PM</span>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-[var(--accent)] text-[var(--accent-ink)] text-center space-y-1">
-                <div className="text-[10px] font-medium opacity-90">الرصيد المستحق النهائي</div>
-                <div className="text-xl font-black num">1,450.00 ر.س</div>
-                <div className="text-[9px] font-bold bg-white/20 rounded-full px-2 py-0.5 inline-block">
-                  مستحق لك (له)
-                </div>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1.5 border-b border-[var(--line)]">
-                  <span className="text-[var(--muted)]">إجمالي الأجر المستحق:</span>
-                  <span className="num font-bold">2,100.00 ر.س</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-[var(--line)]">
-                  <span className="text-[var(--muted)]">الاستقطاعات والخصومات:</span>
-                  <span className="num font-bold text-[var(--danger)]">-650.00 ر.س</span>
-                </div>
-                <div className="flex justify-between py-1.5">
-                  <span className="text-[var(--muted)]">صافي الصرف البنكي:</span>
-                  <span className="num font-bold text-[var(--accent)]">1,450.00 ر.س</span>
-                </div>
+              {/* Selector toolbar */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="رقم الإقامة..."
+                  value={statementIqama}
+                  onChange={(e) => setStatementIqama(e.target.value)}
+                  className="p-1.5 rounded-xl border border-[var(--line)] text-xs font-mono w-32 focus:outline-hidden"
+                />
+                <input
+                  type="month"
+                  value={statementPeriod}
+                  onChange={(e) => setStatementPeriod(e.target.value)}
+                  className="p-1.5 rounded-xl border border-[var(--line)] text-xs font-mono focus:outline-hidden"
+                />
+                <button
+                  type="button"
+                  onClick={loadStatementPreview}
+                  className="px-3 py-1.5 rounded-xl bg-[var(--raised)] text-xs font-bold hover:bg-[var(--line)] transition cursor-pointer"
+                >
+                  تحديث
+                </button>
+                <Link
+                  href={`/riders/statement/?iqama=${encodeURIComponent(statementIqama)}`}
+                  className="px-3.5 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1.5"
+                >
+                  <Eye size={14} />
+                  <span>فتح كشف الحساب المعتمد</span>
+                </Link>
               </div>
             </div>
+
+            {loadingStatement ? (
+              <div className="p-8 max-w-xs mx-auto space-y-3">
+                <Skeleton className="h-40 w-full rounded-2xl" />
+                <Skeleton className="h-20 w-full rounded-2xl" />
+              </div>
+            ) : (
+              /* Mobile frame preview */
+              <div className="max-w-xs mx-auto border-4 border-black rounded-3xl p-4 bg-[var(--surface)] shadow-xl space-y-4 my-4">
+                <div className="flex justify-between items-center text-[11px] text-[var(--muted)] pb-2 border-b border-[var(--line)]">
+                  <span>تطبيق بوابة المندوب</span>
+                  <span className="font-mono">12:30 PM</span>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-[var(--accent)] text-[var(--accent-ink)] text-center space-y-1">
+                  <div className="text-[10px] font-medium opacity-90">
+                    {monthlyStatement?.header?.name || 'كشف الحساب الشهري'}
+                  </div>
+                  <div className="text-xl font-black num">
+                    {(monthlyStatement?.net ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  </div>
+                  <div className="text-[9px] font-bold bg-white/20 rounded-full px-2 py-0.5 inline-block">
+                    {monthlyStatement?.status === 'approved' ? 'معتمد' : 'معاينة مسودة'}
+                  </div>
+                </div>
+
+                {/* App Cards in mobile */}
+                {monthlyStatement?.cards && monthlyStatement.cards.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-[var(--muted)] font-bold block">مستحقات المنصات:</span>
+                    {monthlyStatement.cards.map((c: any, i: number) => (
+                      <div key={i} className="p-2 rounded-xl bg-[var(--raised)]/60 text-xs flex justify-between items-center">
+                        <span className="font-semibold">{c.platform || c.app}</span>
+                        <span className="num font-bold">
+                          {(c.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Deductions in mobile */}
+                {monthlyStatement?.deductions && monthlyStatement.deductions.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-[var(--danger)] font-bold block">الاستقطاعات والتحملات:</span>
+                    {monthlyStatement.deductions.map((d: any, i: number) => (
+                      <div key={i} className="p-2 rounded-xl bg-[var(--danger)]/5 border border-[var(--danger)]/20 text-xs flex justify-between items-center">
+                        <span className="text-[var(--ink)]">{d.description || d.category}</span>
+                        <span className="num font-bold text-[var(--danger)]">
+                          -{(d.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-2 text-xs pt-2 border-t border-[var(--line)]">
+                  <div className="flex justify-between py-1 border-b border-[var(--line)]">
+                    <span className="text-[var(--muted)]">الرصيد المرحل:</span>
+                    <span className="num font-medium">
+                      {(monthlyStatement?.carried ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-[var(--line)]">
+                    <span className="text-[var(--muted)]">حركة الشهر (الصافي):</span>
+                    <span className="num font-bold text-[var(--accent)]">
+                      {(monthlyStatement?.net ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-[var(--muted)]">الرصيد الختامي:</span>
+                    <span className="num font-bold">
+                      {(monthlyStatement?.closing ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

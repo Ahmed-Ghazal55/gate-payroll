@@ -75,6 +75,9 @@ function RidersPageInner() {
   const [profileData, setProfileData] = useState<RiderProfile360 | null>(null);
   const [loadingProfile, setLoadingProfile] = useState<boolean>(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSubTab, setProfileSubTab] = useState<'documents' | 'accounts'>('documents');
+  const [riderAccounts, setRiderAccounts] = useState<any[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState<boolean>(false);
 
   // Data Quality state
   const [qualityData, setQualityData] = useState<RidersDataQuality | null>(null);
@@ -115,6 +118,19 @@ function RidersPageInner() {
     }
   };
 
+  // Load Rider Accounts
+  const loadRiderAccounts = async (targetIqama: string) => {
+    setLoadingAccounts(true);
+    try {
+      const res = await api.getRiderAccounts(targetIqama);
+      setRiderAccounts(res?.items || (Array.isArray(res) ? res : []));
+    } catch (_) {
+      setRiderAccounts([]);
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+
   // Load Profile 360
   const loadProfile360 = async (iqamaToLoad?: string) => {
     const targetIqama = (iqamaToLoad || profileIqama).trim();
@@ -125,7 +141,10 @@ function RidersPageInner() {
     setLoadingProfile(true);
     setProfileError(null);
     try {
-      const data = await api.getRiderProfile360(targetIqama);
+      const [data] = await Promise.all([
+        api.getRiderProfile360(targetIqama),
+        loadRiderAccounts(targetIqama),
+      ]);
       setProfileData(data);
       setProfileIqama(targetIqama);
     } catch (err: any) {
@@ -624,8 +643,40 @@ function RidersPageInner() {
                 </div>
               </div>
 
-              {/* Documents Checklist */}
-              <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              {/* Sub-tabs inside Profile 360 */}
+              <div className="flex items-center gap-2 border-b border-[var(--line)]">
+                <button
+                  type="button"
+                  onClick={() => setProfileSubTab('documents')}
+                  className={`py-2 px-3.5 text-xs font-semibold border-b-2 transition cursor-pointer ${
+                    profileSubTab === 'documents'
+                      ? 'border-[var(--accent)] text-[var(--accent)]'
+                      : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+                  }`}
+                >
+                  الوثائق والمستندات الرسمية
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileSubTab('accounts');
+                    if (profileData?.rider?.iqama) {
+                      loadRiderAccounts(profileData.rider.iqama);
+                    }
+                  }}
+                  className={`py-2 px-3.5 text-xs font-semibold border-b-2 transition cursor-pointer ${
+                    profileSubTab === 'accounts'
+                      ? 'border-[var(--accent)] text-[var(--accent)]'
+                      : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+                  }`}
+                >
+                  حسابات المنصات والمعرفات ({riderAccounts.length})
+                </button>
+              </div>
+
+              {/* View 1: Documents Checklist */}
+              {profileSubTab === 'documents' && (
+                <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
                 <div className="p-4 border-b border-[var(--line)] flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
@@ -702,6 +753,69 @@ function RidersPageInner() {
                   </table>
                 </div>
               </div>
+              )}
+
+              {/* View 2: Platform Accounts (F3) */}
+              {profileSubTab === 'accounts' && (
+                <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                  <div className="p-4 border-b border-[var(--line)]">
+                    <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                      حسابات وتكليفات المنصات الميدانية (GET /api/riders/{'{iqama}'}/accounts)
+                    </h3>
+                    <p className="text-xs text-[var(--muted)] mt-0.5">
+                      مطابقة معرفات العمل وتكليفات التشغيل الفعلي مع تواريخ الاستلام والتسليم.
+                    </p>
+                  </div>
+
+                  {loadingAccounts ? (
+                    <div className="p-6 space-y-2">
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  ) : riderAccounts.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-[var(--muted)]">
+                      لا توجد حسابات منصات مرتبطة بهذا المندوب حالياً.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-start text-xs sm:text-sm">
+                        <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
+                          <tr>
+                            <th className="p-3 text-start">كود الحساب</th>
+                            <th className="p-3 text-start">معرف المنصة الخارجي</th>
+                            <th className="p-3 text-start">تطبيق المنصة</th>
+                            <th className="p-3 text-start">المدينة</th>
+                            <th className="p-3 text-start">العلاقة</th>
+                            <th className="p-3 text-start">فترات التكليف الفعلي</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--line)]">
+                          {riderAccounts.map((acc: any) => (
+                            <tr key={acc.id || acc.code} className="hover:bg-[var(--row-hover)] transition">
+                              <td className="p-3 font-mono font-bold text-[var(--accent)]">{acc.code || acc.id}</td>
+                              <td className="p-3 font-mono font-bold">{acc.externalAccountId || '-'}</td>
+                              <td className="p-3 font-bold">{acc.platformCode || '-'}</td>
+                              <td className="p-3 text-xs">{acc.cityId || '-'}</td>
+                              <td className="p-3">
+                                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[var(--money-pos)]/15 text-[var(--money-pos)]">
+                                  {acc.relationship === 'actual_operator' ? 'مشغل فعلي' : acc.relationship || 'مشغل'}
+                                </span>
+                              </td>
+                              <td className="p-3 text-xs font-mono text-[var(--muted)]">
+                                {acc.assignments?.map((a: any, i: number) => (
+                                  <div key={i}>
+                                    {a.RawEffectiveFrom?.slice(0, 10) || a.EffectiveFrom?.slice(0, 10) || 'بداية'} ➔ {a.RawEffectiveTo?.slice(0, 10) || a.EffectiveTo?.slice(0, 10) || 'مستمر'}
+                                  </div>
+                                )) || '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

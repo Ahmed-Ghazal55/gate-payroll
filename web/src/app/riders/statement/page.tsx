@@ -29,7 +29,7 @@ import { useAuth } from '../../../lib/auth-context';
 import { useToast } from '../../../components/ui/Toast';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Skeleton, EmptyState, ErrorState } from '../../../components/ui/EmptyState';
-import type { RiderStatement, RiderProfile360 } from '../../../lib/types';
+import type { RiderStatement, RiderProfile360, MonthlyRiderStatement } from '../../../lib/types';
 
 function RiderStatementPageInner() {
   const { user } = useAuth();
@@ -43,6 +43,7 @@ function RiderStatementPageInner() {
   const [error, setError] = useState<string | null>(null);
 
   const [statement, setStatement] = useState<RiderStatement | null>(null);
+  const [monthlyStatement, setMonthlyStatement] = useState<MonthlyRiderStatement | null>(null);
   const [profile, setProfile] = useState<RiderProfile360 | null>(null);
 
   const fetchStatement = async (targetIqama?: string) => {
@@ -53,17 +54,31 @@ function RiderStatementPageInner() {
     }
     setLoading(true);
     setError(null);
+    const period = toDate ? toDate.slice(0, 7) : '2026-10';
     try {
+      // 1. Try 0.14.0 monthly statement endpoint first (R4.8)
+      let monthlyData: MonthlyRiderStatement | null = null;
+      try {
+        const res = await api.getRiderMonthlyStatement(q, period);
+        if (res && (res.source !== 'none' || (res.cards && res.cards.length > 0))) {
+          monthlyData = res;
+        }
+      } catch (_) {
+        monthlyData = null;
+      }
+      setMonthlyStatement(monthlyData);
+
+      // 2. Fetch detailed or simple statement fallback + profile
       const [stmtData, profData] = await Promise.all([
         api.getRiderStatement(q, fromDate, toDate).catch(async () => {
           // fallback to simple statement if detailed endpoint returns 404
           const simple = await api.getRiderStatementSimple(q, fromDate, toDate);
           return {
             iqama: q,
-            riderName: simple.riderName || 'مندوب تجريبي',
+            riderName: simple.riderName || monthlyData?.header?.name || 'مندوب تجريبي',
             period: { from: fromDate, to: toDate },
-            openingBalance: simple.openingBalance || 0,
-            closingBalance: simple.closingBalance || 0,
+            openingBalance: simple.openingBalance || monthlyData?.carried || 0,
+            closingBalance: simple.closingBalance || monthlyData?.closing || 0,
             entries: simple.entries || [],
           } as RiderStatement;
         }),
@@ -333,6 +348,102 @@ function RiderStatementPageInner() {
               </div>
             </div>
           </div>
+
+          {/* Monthly App Cards & Explain Lines (0.14.0 / R4.8) */}
+          {monthlyStatement && monthlyStatement.cards && monthlyStatement.cards.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                    كروت استحقاق المنصات الشهرية وتفاصيل الاحتساب (R4.8)
+                  </h3>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">
+                    مصدر الاحتساب: {monthlyStatement.source === 'pay_cycle' ? 'دورة الرواتب المعتمدة' : 'مسير الرواتب القائم'} · الحالة: {monthlyStatement.status === 'approved' ? 'معتمد' : 'معاينة'}
+                  </p>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--accent)]/15 text-[var(--accent)]">
+                  صافي الشهر: {monthlyStatement.net.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {monthlyStatement.cards.map((card, idx) => (
+                  <div key={idx} className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--raised)] font-mono text-[var(--muted)]">
+                          {card.app}
+                        </span>
+                        <h4 className="font-bold text-base text-[var(--ink)] mt-1">{card.platform}</h4>
+                        <div className="text-xs text-[var(--muted)]">{card.schemeName || 'النظام المعتمد'}</div>
+                      </div>
+                      <div className="text-end">
+                        <span className="text-xs text-[var(--muted)] block">الصافي قبل التحملات:</span>
+                        <span className="text-base font-bold num text-[var(--money-pos)]">
+                          {(card.netBeforePersonal ?? card.earnedGross ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-[var(--raised)]/50 text-xs">
+                      <div>
+                        <span className="text-[10px] text-[var(--muted)] block">إجمالي المنصة:</span>
+                        <span className="font-bold num">{(card.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[var(--muted)] block">إيجار المركبة:</span>
+                        <span className="font-bold num text-[var(--danger)]">{(card.vehicleCharge || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[var(--muted)] block">الحوافز:</span>
+                        <span className="font-bold num text-[var(--accent)]">{(card.incentives || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+                      </div>
+                    </div>
+
+                    {card.explain && card.explain.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[11px] font-bold text-[var(--muted)] block">شرح الاحتساب (Explain):</span>
+                        <div className="space-y-1">
+                          {card.explain.map((exp, eIdx) => (
+                            <div key={eIdx} className="p-2 rounded-lg bg-[var(--surface)] border border-[var(--line)] text-xs flex justify-between items-center">
+                              <div>
+                                <span className="font-semibold text-[var(--ink)]">{exp.label}</span>
+                                {exp.formula && (
+                                  <span className="text-[10px] text-[var(--muted)] font-mono block text-left" dir="ltr">{exp.formula}</span>
+                                )}
+                              </div>
+                              <span className={`num font-bold ${exp.amount < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'}`}>
+                                {(exp.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {monthlyStatement.deductions && monthlyStatement.deductions.length > 0 && (
+                <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-2">
+                  <h4 className="font-bold text-xs text-[var(--ink)]">الاستقطاعات والتحملات المباشرة (Stage 2 Deductions):</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                    {monthlyStatement.deductions.map((d, dIdx) => (
+                      <div key={dIdx} className="p-2.5 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs flex justify-between items-center">
+                        <div>
+                          <span className="font-semibold text-[var(--ink)]">{d.description || d.category}</span>
+                          <span className="text-[10px] text-[var(--muted)] block font-mono">{d.source}</span>
+                        </div>
+                        <span className="num font-bold text-[var(--danger)]">
+                          -{(d.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Section 2: Timeline Table (Plan §3.3) */}
           <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs print:border-black print:shadow-none">
