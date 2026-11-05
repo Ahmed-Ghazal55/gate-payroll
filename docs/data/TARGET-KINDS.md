@@ -60,3 +60,9 @@ Actual rider and assignment must agree with the account; never substitute its re
 | jahez_account_session | jahez_v2.AccountSessions (JahezAccountSession) |
 
 HandoverId is a foreign key to AccountSessions; transferred debt resolves through Operations. Preserve signed amounts, source statuses, superseding/reversal links and periods. Account-only financial entries remain explicitly account-only, never attributed to today's owner. Company attribution is the linked account sponsor, not proof of historical legal ownership. Final rows retain ImportRowId as lineage only; no ImportRows, Sources, import files, credentials or CalculationJson are read. These are imported source facts, not new Gate debts/payments/journals.
+
+## R6a-5 Ninja operations
+- `ninja_account`: ninja.NinjaAccountDetails + linked PlatformRiderAccounts.ExternalAccountId as `CaptainId`, matching the ERP Ninja import engine's account resolution. Never fall back to a display code.
+- `ninja_daily`: ninja.NinjaDailyPerformance, report date, actual rider/assignment, orders and hours.
+- `ninja_daily_deduction`: ninja.NinjaDailyDeductions, report date, actual rider, collected amount and deductions.
+Every row preserves exact `CaptainId` casing in the document. Missing CaptainId is rejected. Historical daily CaptainId is retained, not overwritten from the current account. Source/import tables are excluded.

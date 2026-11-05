@@ -29,6 +29,9 @@ public static class PullContracts
         new("jahez_account_fee_refund","jahez_v2","AccountFeeRefunds","Id HandoverId AccountFeeId MoneyMovementId GrossFeeRefund CancelledUnpaidFee WaiveCommission CalculatedCommission DeductedCommission RefundAmount OccurredAtUtc","accountFeeSourceId:AccountFeeId moneyMovementSourceId:MoneyMovementId grossFeeRefund:GrossFeeRefund cancelledUnpaidFee:CancelledUnpaidFee waiveCommission:WaiveCommission calculatedCommission:CalculatedCommission deductedCommission:DeductedCommission refundAmount:RefundAmount occurredAt:OccurredAtUtc","jahez","grossFeeRefund cancelledUnpaidFee calculatedCommission deductedCommission refundAmount"),
         new("jahez_transferred_debt","jahez_v2","TransferredDebts","Id OperationId RiderProfileId Amount PaidAmount PaidAtUtc IsDeleted","operationSourceId:OperationId amount:Amount paidAmount:PaidAmount paidAt:PaidAtUtc","jahez_debt","amount paidAmount"),
         new("","jahez_v2","Operations","Id HandoverId ExpectedSponsorId Status PaymentStatus Net Commission CalculatedCommission Remaining Fund Purpose TransferToRider ExecutedAtUtc","" )
+        ,new("ninja_account","ninja","NinjaAccountDetails","Id PlatformRiderAccountId PhoneNumber IsDeleted","phone:PhoneNumber","platform_account"),
+        new("ninja_daily","ninja","NinjaDailyPerformance","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId SourceId ReportDate CaptainId SourceRowNumber TotalOrders TotalWorkingHours","date:ReportDate CaptainId:CaptainId sourceId:SourceId sourceRow:SourceRowNumber orders:TotalOrders hours:TotalWorkingHours","platform_rider","orders hours"),
+        new("ninja_daily_deduction","ninja","NinjaDailyDeductions","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId SourceId ReportDate CaptainId SourceRowNumber TotalCollectedAmountAtDelivery TotalDeductions","date:ReportDate CaptainId:CaptainId sourceId:SourceId sourceRow:SourceRowNumber collectedAmount:TotalCollectedAmountAtDelivery amount:TotalDeductions","platform_rider","collectedAmount amount")
     ];
     public static IEnumerable<string> Kinds => Catalog.Where(c=>c.Kind!="").Select(c=>c.Kind);
     public static IEnumerable<SourceTable> Tables => Catalog.Select(c=>new SourceTable(c.Schema,c.Table,c.Fields,true));
@@ -105,6 +108,8 @@ public static class PullContracts
                     if(account==null){plan.Reject(contract.Kind,"missing_platform_account_relation");continue;}
                     doc["platformAccountId"]=Key("platform_account",account.S("Id"));doc["companyId"]=companies.GetValueOrDefault(account.S("SponsorId"))??"";
                     if(doc.S("companyId")==""){plan.Reject(contract.Kind,"missing_company_relation");continue;}
+                    if(contract.Kind=="ninja_account")doc["CaptainId"]=account.S("ExternalAccountId");
+                    if(contract.Kind.StartsWith("ninja_",StringComparison.Ordinal)&&doc.S("CaptainId")==""){plan.Reject(contract.Kind,"missing_captain_id");continue;}
                     if(contract.Relation=="platform_account")doc["registeredRiderId"]=employees.GetValueOrDefault(account.S("RegisteredEmployeeId"))??"";
                     else
                     {

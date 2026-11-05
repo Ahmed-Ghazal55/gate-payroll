@@ -227,4 +227,16 @@ public sealed class ErpImportTests
         source.Tables["PlatformTransactions"][0]["HandoverId"]="missing";
         Assert.AreEqual(1,ImportPlan.Build(source,Catalog).Rejected["jahez_transaction"]["missing_session_relation"]);
     }
+    [TestMethod]
+    public void NinjaKeepsCaptainIdOnAccountsDaysAndDeductionsWithoutUsingSourceRows()
+    {
+        using var f=new Fixture();using(var cmd=f.Source.CreateCommand()){cmd.CommandText="UPDATE PlatformRiderAccounts SET ExternalAccountId='SYN-CAPTAIN'";cmd.ExecuteNonQuery();}
+        f.Add("NinjaAccountDetails",new(){["Id"]="ninja-details",["PlatformRiderAccountId"]="account"});
+        f.Add("NinjaDailyPerformance",new(){["Id"]="ninja-day",["PlatformRiderAccountId"]="account",["RiderClientAssignmentId"]="platform-assignment",["RiderProfileId"]="profile2",["CaptainId"]="SYN-CAPTAIN",["ReportDate"]="2026-10-01",["TotalOrders"]=10,["TotalWorkingHours"]=8.5m});
+        f.Add("NinjaDailyDeductions",new(){["Id"]="ninja-deduction",["PlatformRiderAccountId"]="account",["RiderClientAssignmentId"]="platform-assignment",["RiderProfileId"]="profile2",["CaptainId"]="SYN-CAPTAIN",["ReportDate"]="2026-10-01",["TotalDeductions"]=5,["TotalCollectedAmountAtDelivery"]=20});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);var docs=plan.Documents.Where(d=>d.Kind.StartsWith("ninja_")).ToList();
+        Assert.AreEqual(3,docs.Count);Assert.IsTrue(docs.All(x=>x.Body.S("CaptainId")=="SYN-CAPTAIN"));
+        Assert.AreEqual(Identity(2),docs.Single(x=>x.Kind=="ninja_daily").Body.S("riderId"));Assert.AreEqual(8.5m,ImportExecutor.Run(source,plan,[]).Totals["ninja_daily"]["hours"]);
+        source.Tables["NinjaDailyPerformance"][0]["CaptainId"]="";Assert.AreEqual(1,ImportPlan.Build(source,Catalog).Rejected["ninja_daily"]["missing_captain_id"]);
+    }
 }
