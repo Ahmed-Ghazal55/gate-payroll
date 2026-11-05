@@ -2,28 +2,38 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Claude: release 0.14.0 (PR → CI → squash merge → deploy) |
-| Branch | feat/r4-integrate = feat/r4-api + feat/r4-web + R4-fix1 + feat/advances-api + R5-web |
-| Live | 0.12.1 (5fe403b); local 0.14.0 |
-| Updated | 2026-11-05 by Antigravity |
-
-
-## Track M R6 + 0.14.2 (Claude, 2026-11-05)
-- Rider app (`/rider-app`) tabs: كشف الحساب · الإشعارات · طلباتي · المديونيات · أجهزتي. Logout now revokes the server session.
-- Rider advance asks (BR §25.8, `docs/api/rider-asks.md`):
-  - the rider asks from the app, and the ask goes only to the current supervisor;
-  - the supervisor converts it into a formal §25 request or declines it with a reason;
-  - the rider sees the stage only.
-- Supervisor card «طلبات المناديب من التطبيق» in `/app/debts/?tab=advance_requests`.
-- New tests (all in CI): `tests/rider-app-ui.mjs`, `tests/rider-asks.mjs` (46), `tests/rider-asks-ui.mjs`. `e2e-live` step 13d now checks the sessions panel.
-- Verified:
-  - .NET 288/288 on Docker SQL Server (0 skipped);
-  - all HTTP and browser suites;
-  - web e2e and e2e-live.
-- **Next:** Ghazal says «ادمج» for PR release/0.14.2. After that, production needs supervision rows so that riders can ask.
+| Current writer | none |
+| Branch | feat/r6-ui-qa (based on release/0.14.2) |
+| Live | 0.12.1 (5fe403b); local 0.14.2 |
+| Updated | 2026-11-05 by Antigravity (R6a UI QA complete) |
 
 ## Next step (exact)
-Claude reviews `feat/r4-integrate` (R5 web + advances API + fix1). Then Claude confirms and Ghazal says «ادمج» for 0.14.0 release.
+Claude reviews `feat/r6-ui-qa` (Antigravity R6a UI QA: focus retention, single-open menus, portaled table menus, RTL logical alignment, and automated audit suite).
+
+## R6a UI QA across the app (Antigravity, 2026-11-05)
+- **R6ui-1 (`6ab9b4f`)**: Fixed input focus loss across re-renders in `Dialog.tsx` and `Drawer.tsx`. Kept `onClose` in `useRef`, effect runs on `[open]` only, focus saved and restored once per open/close lifecycle, initial focus directed to the first interactive input.
+- **R6ui-2 (`2603218`)**: Enforced strictly single open menu/panel across the entire application:
+  - `Header.tsx`: Single `openPanel: 'notif' | 'theme' | 'user' | null`. Opening any panel closes the others. Bell toggle bug fixed (no premature mousedown closure).
+  - `Toolbar.tsx`: Single `openMenu: 'export' | 'import' | null`.
+  - `Sidebar.tsx`: Single open group (`openGroupId`), defaulting to active page's group.
+  - `DataTable.tsx`: Row actions menu and column filter popover rendered through `createPortal(..., document.body)` with `position: fixed` and `zIndex: 9999`, calculated from trigger's `getBoundingClientRect()`. Automatically opens upward when near the screen bottom (`rect.bottom + height > window.innerHeight`). Dismisses on outside clicks, Escape, or any container scroll/resize.
+- **R6ui-3 (`bfc5b6b`)**: Fixed RTL logical alignment and input icon positioning:
+  - Replaced physical directional classes `left/right/pl/pr/ml/mr` with logical `start/end/ps/pe/ms/me`.
+  - Standardized input search icons: `absolute start-3 top-1/2 -translate-y-1/2` with `ps-9` on inputs (matching `riders/page.tsx:386`).
+  - Fixed `accounting/page.tsx` (CoA and journal search inputs + tree indentation levels 2-5 at `ps-3`, `ps-6`, `ps-9`, `ps-12`), `PageHeader.tsx` (`end-0`, `text-start`), and `Toast.tsx` (`sm:start-4`).
+- **R6ui-4 (`0472f24`)**: Full automated audit & test suite:
+  - New test runner `web/tests/ui-qa.mjs` added to `npm run test:e2e` in `web/package.json`.
+  - Verified continuous 10-char typing across dialogs without focus loss.
+  - Verified mutual exclusivity across Header, Toolbar, DataTable popovers/menus, and Sidebar.
+  - Verified DataTable last row menu renders inside viewport without overflow clipping (`top >= 0`, `bottom <= vh`).
+  - Verified zero page-level horizontal overflow at 360px viewport across all 16 `/app` routes.
+  - Saved full before/after screenshot sets in `test-results/r6-ui/` (32 screenshots).
+- **Verification status**:
+  - `npm run build`: PASSED (Turbopack, TypeScript, zero errors).
+  - `npm run test:e2e`: PASSED (`e2e.mjs` + `ui-qa.mjs`).
+  - `node tests/e2e-live.mjs`: PASSED (Full live integration against real .NET API).
+  - `PLAYWRIGHT_MODULE=/tmp/gate-browser/node_modules/playwright/index.mjs node tests/sessions-ui.mjs && node tests/rider-asks-ui.mjs`: PASSED.
+- Capacity: Weekly limit before: ~88% → after: ~91%.
 
 
 ## Claude review R5 + release prep (2026-11-05)
