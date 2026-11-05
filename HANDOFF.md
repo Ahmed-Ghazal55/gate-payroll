@@ -7,6 +7,21 @@
 | Live | 0.12.1 (5fe403b); local 0.14.0 |
 | Updated | 2026-11-05 by Antigravity |
 
+
+## Track M R6 + 0.14.2 (Claude, 2026-11-05)
+- Rider app (`/rider-app`) tabs: كشف الحساب · الإشعارات · طلباتي · المديونيات · أجهزتي. Logout now revokes the server session.
+- Rider advance asks (BR §25.8, `docs/api/rider-asks.md`):
+  - the rider asks from the app, and the ask goes only to the current supervisor;
+  - the supervisor converts it into a formal §25 request or declines it with a reason;
+  - the rider sees the stage only.
+- Supervisor card «طلبات المناديب من التطبيق» in `/app/debts/?tab=advance_requests`.
+- New tests (all in CI): `tests/rider-app-ui.mjs`, `tests/rider-asks.mjs` (46), `tests/rider-asks-ui.mjs`. `e2e-live` step 13d now checks the sessions panel.
+- Verified:
+  - .NET 288/288 on Docker SQL Server (0 skipped);
+  - all HTTP and browser suites;
+  - web e2e and e2e-live.
+- **Next:** Ghazal says «ادمج» for PR release/0.14.2. After that, production needs supervision rows so that riders can ask.
+
 ## Next step (exact)
 Claude reviews `feat/r4-integrate` (R5 web + advances API + fix1). Then Claude confirms and Ghazal says «ادمج» for 0.14.0 release.
 
