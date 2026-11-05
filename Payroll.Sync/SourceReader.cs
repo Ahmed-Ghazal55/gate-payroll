@@ -41,8 +41,9 @@ public static class SourceReader
         using var cmd=source.CreateCommand();cmd.CommandText="SELECT snapshot_isolation_state FROM sys.databases WHERE name=DB_NAME()";
         return Convert.ToInt32(cmd.ExecuteScalar())==1;
     }
-    public static SourceSnapshot Read(DbConnection connection,bool requireStableRowversion=true)
+    public static SourceSnapshot Read(DbConnection connection,bool requireStableRowversion=true,CancellationToken cancellationToken=default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         DateTimeOffset started=DateTimeOffset.UtcNow;
         bool sql=connection is SqlConnection;
         byte[]? Stamp(){if(!sql)return null;using var cmd=connection.CreateCommand();cmd.CommandText="SELECT @@DBTS";return (byte[]?)cmd.ExecuteScalar();}
@@ -50,13 +51,14 @@ public static class SourceReader
         var tables=new Dictionary<string,List<JsonObject>>(StringComparer.Ordinal);
         foreach(var table in Catalog)
         {
-            if(table.Optional&&!OptionalAvailable(connection,table))continue;
-            using var cmd=connection.CreateCommand();cmd.CommandTimeout=120;
+            cancellationToken.ThrowIfCancellationRequested();
+            if(table.Optional&&!OptionalAvailable(connection,table,cancellationToken))continue;
+            using var cmd=connection.CreateCommand();using var cancel=SyncCancellation.Register(cmd,cancellationToken);cmd.CommandTimeout=120;
             cmd.CommandText=$"SELECT {string.Join(',',table.Fields.Split(' ').Select(f=>"["+f+"]"))} FROM {(sql?"["+table.Schema+"].":"")}[{table.Name}] ORDER BY [Id]";
             using var reader=cmd.ExecuteReader(CommandBehavior.SequentialAccess);var rows=new List<JsonObject>();
             while(reader.Read())
             {
-                var row=new JsonObject();
+                cancellationToken.ThrowIfCancellationRequested();var row=new JsonObject();
                 for(int i=0;i<reader.FieldCount;i++)
                 {
                     string field=reader.GetName(i);object? value=reader.IsDBNull(i)?null:reader.GetValue(i);
@@ -66,15 +68,15 @@ public static class SourceReader
             }
             tables.Add(table.Name,rows);
         }
-        HsFactsSource.Read(connection,tables);
+        HsFactsSource.Read(connection,tables,cancellationToken);
         var after=requireStableRowversion?Stamp():null;
         if(before!=null&&after!=null&&!before.SequenceEqual(after))throw new ImportFailure("source_changed_during_read");
         return new(tables,started,DateTimeOffset.UtcNow,sql?(connection.Database=="erp_copy"?"local_read_only_copy":"read_committed_database_rowversion_stable"):"synthetic_sqlite");
     }
-    static bool OptionalAvailable(DbConnection connection,SourceTable table)
+    static bool OptionalAvailable(DbConnection connection,SourceTable table,CancellationToken cancellationToken)
     {
         var fields=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        using var cmd=connection.CreateCommand();
+        using var cmd=connection.CreateCommand();using var cancel=SyncCancellation.Register(cmd,cancellationToken);
         if(connection is SqlConnection)
         {
             cmd.CommandText="SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@schema AND TABLE_NAME=@table";

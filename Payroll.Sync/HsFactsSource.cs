@@ -16,7 +16,7 @@ public static class HsFactsSource
     ];
     public static string Table(string kind)=>"HS:"+kind;
     static string Quote(string value)=>"["+value.Replace("]","]]")+"]";
-    public static void Read(DbConnection c,Dictionary<string,List<JsonObject>> target)
+    public static void Read(DbConnection c,Dictionary<string,List<JsonObject>> target,CancellationToken cancellationToken=default)
     {
         bool sql=c is SqlConnection;var metadata=new Dictionary<(string Schema,string Name),HashSet<string>>();
         if(sql)
@@ -31,14 +31,15 @@ public static class HsFactsSource
         }
         foreach(var contract in Contracts)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string[] fields=contract.Fields.Split(' ');var matches=metadata.Where(t=>fields.All(t.Value.Contains)).ToList();
             if(matches.Count>1)throw new ImportFailure("hs_source_contract_ambiguous:"+contract.Kind);
             if(matches.Count==0)continue; // Missing is distinct from a present but empty source.
             var match=matches[0];var selected=fields.Concat(new[]{"ApprovedAt","ApprovedBy"}.Where(f=>match.Value.Contains(f)&&!fields.Contains(f))).ToArray();
-            using var cmd=c.CreateCommand();cmd.CommandTimeout=120;cmd.CommandText="SELECT "+string.Join(',',selected.Select(Quote))+" FROM "+(sql?Quote(match.Key.Schema)+".":"")+Quote(match.Key.Name)+" ORDER BY "+Quote(contract.Key);
+            using var cmd=c.CreateCommand();using var cancel=SyncCancellation.Register(cmd,cancellationToken);cmd.CommandTimeout=120;cmd.CommandText="SELECT "+string.Join(',',selected.Select(Quote))+" FROM "+(sql?Quote(match.Key.Schema)+".":"")+Quote(match.Key.Name)+" ORDER BY "+Quote(contract.Key);
             using var reader=cmd.ExecuteReader();var rows=new List<JsonObject>();while(reader.Read())
             {
-                var row=new JsonObject();for(int i=0;i<reader.FieldCount;i++){object? value=reader.IsDBNull(i)?null:reader.GetValue(i);row[reader.GetName(i)]=value is byte[] bytes&&reader.GetName(i)=="RowVersion"?JsonValue.Create(Convert.ToHexString(bytes)):SourceReader.Value(value);}rows.Add(row);
+                cancellationToken.ThrowIfCancellationRequested();var row=new JsonObject();for(int i=0;i<reader.FieldCount;i++){object? value=reader.IsDBNull(i)?null:reader.GetValue(i);row[reader.GetName(i)]=value is byte[] bytes&&reader.GetName(i)=="RowVersion"?JsonValue.Create(Convert.ToHexString(bytes)):SourceReader.Value(value);}rows.Add(row);
             }
             target.Add(Table(contract.Kind),rows);
         }

@@ -34,11 +34,11 @@ public static class ConsistentSync
     };
     // Fingerprints stay in memory. Neither hashes nor source rows enter a run log.
     static Dictionary<string,string> Fingerprints(SourceSnapshot snapshot)=>snapshot.Tables.ToDictionary(t=>t.Key,t=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Canonical(new JsonArray(t.Value.OrderBy(r=>r.S("Id"),StringComparer.Ordinal).Select(r=>(JsonNode)r.DeepClone()).ToArray()))))));
-    public static SourceSnapshot Read(Func<SourceSnapshot> read,out int attempts)
+    public static SourceSnapshot Read(Func<SourceSnapshot> read,out int attempts,CancellationToken cancellationToken=default)
     {
         for(attempts=1;attempts<=3;attempts++)
         {
-            var first=read();var second=read();var a=Fingerprints(first);var b=Fingerprints(second);
+            cancellationToken.ThrowIfCancellationRequested();var first=read();cancellationToken.ThrowIfCancellationRequested();var second=read();cancellationToken.ThrowIfCancellationRequested();var a=Fingerprints(first);var b=Fingerprints(second);
             if(a.Count==b.Count&&a.All(t=>b.GetValueOrDefault(t.Key)==t.Value))
                 return second with{StartedAt=first.StartedAt,Consistency="ordered_double_read_stable"};
         }
