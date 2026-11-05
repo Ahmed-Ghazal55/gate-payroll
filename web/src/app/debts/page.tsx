@@ -241,17 +241,14 @@ function DebtsPageContent() {
     try {
       const [freshReq, summary] = await Promise.all([
         api.getAdvanceRequest(req.id),
-        api.getAdvanceRequestSummary(req.id).catch(() => null),
+        api.getAdvanceRequestSummary(req.id),
       ]);
       setSelectedAdvance(freshReq);
       setAdvanceSummary(summary);
-      if (summary) {
-        if (!summary.covered && !reviewCoverageReason) {
-          setReviewCoverageReason('تمت دراسة وضع المندوب والاعتماد استناداً لالتزاماته التشغيلية');
-        }
-      }
     } catch (err: any) {
-      toast(err.message || 'تعذر استرجاع ملخص المندوب المالي', 'warning');
+      // BR §25: no approval without the summary; the reviewer sees the server message.
+      setAdvanceSummary(null);
+      toast(err.message || 'تعذر استرجاع ملخص المندوب المالي', 'danger');
     } finally {
       setLoadingAdvanceSummary(false);
     }
@@ -293,6 +290,10 @@ function DebtsPageContent() {
     if (!selectedAdvance) return;
 
     if (reviewMode === 'approve') {
+      if (!advanceSummary) {
+        toast('لا يمكن الاعتماد قبل تحميل ملخص المندوب المالي', 'danger');
+        return;
+      }
       const inst = parseFloat(reviewInstallment);
       if (isNaN(inst) || inst <= 0 || inst > selectedAdvance.amount) {
         toast('القسط الشهري غير صالح؛ يجب أن يكون بين صفر ومبلغ السلفة', 'warning');

@@ -171,11 +171,11 @@ function AdminPageInner() {
     setOrgError(null);
     try {
       const [catRes, memRes, delRes, supRes, routeRes] = await Promise.all([
-        api.getOrgCatalog().catch(() => null),
-        api.getOrgMemberships().catch(() => []),
-        api.getOrgDelegations().catch(() => []),
-        api.getOrgSupervision().catch(() => []),
-        api.getOrgRouting().catch(() => []),
+        api.getOrgCatalog(),
+        api.getOrgMemberships(),
+        api.getOrgDelegations(),
+        api.getOrgSupervision(),
+        api.getOrgRouting(),
       ]);
       setOrgCatalog(catRes);
       setMemberships(Array.isArray(memRes) ? memRes : []);
