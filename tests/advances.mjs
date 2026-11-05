@@ -27,7 +27,7 @@ try{
  const admin=as('admin');const adminPw=pw();await admin('/api/auth/setup',{username:'syn-adv-admin',password:adminPw});
  await seedAccountingCash(admin);
  const iqama='2000000611';await admin('/api/riders',{iqama,name:'Advance Synthetic',phone:'0501234567',financeSponsorId:'BW'});
- const users={supervisor:['advances.request'],accountant:['advances.review'],custodian:['advances.payout'],outsider:['advances.review','advances.payout']};
+ const users={supervisor:['advances.request','approvals.view'],accountant:['advances.review'],custodian:['advances.payout'],outsider:['advances.review','advances.payout','advances.request','approvals.view']};
  const creds={};
  for(const [name,perms] of Object.entries(users)){creds[name]=pw();await admin('/api/users',{username:'syn-'+name,password:creds[name],role:'Reviewer',customPermissions:perms});}
  for(const name of Object.keys(users))await as(name)('/api/auth/login',{username:'syn-'+name,password:creds[name]});
@@ -38,13 +38,23 @@ try{
  await admin('/api/org/routing',{operation:'advance.review',department:'FIN',minRank:'B',users:['syn-accountant'],validFrom:'2026-01-01'});
  for(const vault of ['MAIN.BW.DEBT','BANK.BW'])await admin('/api/org/routing',{operation:'advance.payout:'+vault,department:'FIN',minRank:'C',users:['syn-custodian'],validFrom:'2026-01-01'});
  await sup('/api/advance-requests',{riderIqama:iqama,type:'cash',amount:400,reason:'Synthetic need'},403);
- await admin('/api/org/supervision',{supervisorUserId:'syn-supervisor',riderIqama:iqama,validFrom:'2026-01-01'});
+ const supervision=await admin('/api/org/supervision',{supervisorUserId:'syn-supervisor',riderIqama:iqama,validFrom:'2026-01-01'});
  assert.equal((await sup('/api/org/supervision?mine=1')).length,1);
  await sup('/api/org/memberships',undefined,403);
  // Cycle: request → propose bank → accept → approve → payout.
  const r=await sup('/api/advance-requests',{riderIqama:iqama,type:'cash',amount:400,reason:'Synthetic need'});
  assert.ok((await acc('/api/notifications')).some(n=>n.entityId===r.id&&n.requiresAction));
  assert.ok(!(await out('/api/notifications')).some(n=>n.entityId===r.id));
+ // Personal tasks must not escape via the legacy department/company notification center.
+ const task=(await acc('/api/notifications')).find(n=>n.entityId===r.id);
+ for(const client of [admin,sup,out]){
+  assert.ok(!(await client('/api/notifications/center')).items.some(n=>n.id===task.id));
+  await client(`/api/notifications/center/${encodeURIComponent(task.id)}/toggle-todo`,{},404);
+ }
+ assert.ok(!(await admin('/api/rider-mobile/broadcasts')).some(n=>n.entityId===r.id));
+ await acc(`/api/notifications/${encodeURIComponent(task.id)}/read`,{});
+ assert.equal((await acc('/api/notifications')).find(n=>n.id===task.id).actionStatus,'open');
+
  const summary=await acc(`/api/advance-requests/${r.id}/summary`);assert.equal(summary.vaults.length,2);assert.equal(summary.coverageKnown,false);
  await out(`/api/advance-requests/${r.id}/summary`,undefined,403);
  await out(`/api/advance-requests/${r.id}/review`,{action:'reject',note:'not assigned'},403);
@@ -61,5 +71,19 @@ try{
  assert.equal(debt.category,'BankAdvance');assert.equal(debt.monthlyInstallment,200);assert.equal(debt.paymentVaultCode,'BANK.BW');
  const history=(await sup(`/api/advance-requests/${r.id}`)).decisions.map(d=>d.action);
  assert.deepEqual(history,['submitted','proposed','accepted_proposal','approved','paid']);
+ // Former supervisors lose both read access and the ability to accept/reject old proposals.
+ const pending=await sup('/api/advance-requests',{riderIqama:iqama,type:'cash',amount:100,reason:'Synthetic second request'});
+ await acc(`/api/advance-requests/${pending.id}/review`,{action:'propose',note:'Synthetic adjustment',proposed:{amount:80}});
+ const yesterday=new Date(Date.now()-86400000+3*3600000).toISOString().slice(0,10);
+ await admin(`/api/org/supervision/${encodeURIComponent(supervision.id)}/end`,{validTo:yesterday});
+ assert.equal((await sup('/api/advance-requests?role=mine')).length,0);
+ await sup(`/api/advance-requests/${pending.id}`,undefined,404);
+ await sup(`/api/advance-requests/${pending.id}/respond`,{action:'accept'},403);
+ await admin('/api/org/supervision',{supervisorUserId:'syn-outsider',riderIqama:iqama});
+ await out(`/api/advance-requests/${pending.id}`,undefined,404);
+ await out(`/api/advance-requests/${pending.id}/respond`,{action:'reject'},403);
+ // Neither a privileged permission nor a foreign vault routing grants custody of this vault.
+ await out(`/api/advance-requests/${paid.id}/payout`,{reference:'SYN-FOREIGN'},409);
+
  console.log(`PASS advances: ${checks} HTTP checks`);
 }finally{await stop();rmSync(data,{recursive:true,force:true});}

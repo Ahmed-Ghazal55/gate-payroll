@@ -711,7 +711,7 @@ public static class FinancialCore
 
         api.MapGet("/notifications/center", (string? tab, string? department,HttpContext ctx) => store.Read(c =>
         {
-            var items = Store.List(c, "sys_notification").Where(n=>AccessPolicy.Administrator(ctx.User)||(n.S("targetDepartment")==ctx.User.FindFirst("department")?.Value||n.S("targetDepartment")=="ALL")&&(n.S("approvalId")==""||Store.Get(c,n.S("approvalId"),"approval_request") is {} approval&&FinancialScopes.Approval(ctx.User,approval,c))).ToList();
+            var items = Notifications.Center(c, ctx.User);
             if (!string.IsNullOrWhiteSpace(tab)) items = items.Where(n => n.S("tab") == tab).ToList();
             if (!string.IsNullOrWhiteSpace(department)) items = items.Where(n => n.S("targetDepartment") == department || n.S("targetDepartment") == "ALL").ToList();
             return new
@@ -751,6 +751,7 @@ public static class FinancialCore
         api.MapPost("/notifications/center/{id}/toggle-todo", (string id, HttpContext ctx) => store.Write((c, tx) =>
         {
             var notif = Store.Get(c, id, "sys_notification", tx) ?? throw new ApiError("المهمة غير موجودة.", 404);
+            if(Notifications.Category(notif)=="personal"&&!Notifications.Visible(c,ctx.User,notif,tx))throw new ApiError("المهمة غير موجودة.",404);
             bool owner=notif.S("assignedTo")==ctx.User.Identity?.Name||notif.S("createdBy")==ctx.User.Identity?.Name;
             if(!owner&&!AccessPolicy.Has(ctx.User,"approvals.view"))throw new ApiError("ليست لديك صلاحية لهذه المهمة.",403);
             J.Need(owner||AccessPolicy.Administrator(ctx.User)||notif.S("targetDepartment") is var dept&&(dept=="ALL"||dept==ctx.User.FindFirst("department")?.Value),"المهمة خارج قسمك.");

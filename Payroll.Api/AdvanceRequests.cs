@@ -114,7 +114,7 @@ public static class AdvanceRequests
     public static JsonObject Respond(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
         AccessPolicy.Demand(actor,"advances.request");var r=Get(c,tx,id);J.Need(r.S("status")=="change_proposed","لا يوجد اقتراح بانتظار ردك.",409);
-        J.Need(r.S("requestedBy")==Me(actor),"الرد على الاقتراح لصاحب الطلب فقط.",403);string action=input.Required("action"),note=input.S("note").Trim();
+        J.Need(r.S("requestedBy")==Me(actor)&&OrgDirectory.Supervises(c,tx,Me(actor),r.S("riderIqama")),"الرد لصاحب الطلب مع إشراف سارٍ على المندوب فقط.",403);string action=input.Required("action"),note=input.S("note").Trim();
         Notifications.CloseTasks(c,tx,Kind,id,Me(actor));
         if(action=="accept")
         {
@@ -153,10 +153,13 @@ public static class AdvanceRequests
 
     static bool CanSee(DbConnection c,ClaimsPrincipal user,JsonObject r)
     {
-        if(AccessPolicy.Administrator(user)||r.S("requestedBy")==Me(user))return true;
-        if(OrgDirectory.Responsible(c,null,Review).Any(x=>x.S("userId")==Me(user)))return true;
-        return OrgDirectory.Responsible(c,null,Payout(r.S("vaultCode"))).Any(x=>x.S("userId")==Me(user));
+        if(AccessPolicy.Administrator(user))return true;
+        if(AccessPolicy.Has(user,"advances.request")&&r.S("requestedBy")==Me(user)&&OrgDirectory.Supervises(c,null,Me(user),r.S("riderIqama")))return true;
+        if(AccessPolicy.Has(user,"advances.review")&&OrgDirectory.Responsible(c,null,Review).Any(x=>x.S("userId")==Me(user)))return true;
+        return AccessPolicy.Has(user,"advances.payout")&&OrgDirectory.Responsible(c,null,Payout(r.S("vaultCode"))).Any(x=>x.S("userId")==Me(user));
     }
+    public static JsonObject Read(DbConnection c,ClaimsPrincipal actor,string id)
+    {var r=Get(c,null,id);J.Need(CanSee(c,actor,r),"طلب السلفة غير موجود.",404);return r;}
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapPost("/advance-requests",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Create(c,tx,ctx.User,input))).WithTags("Debts and advances").WithSummary("Supervisor requests a cash or bank advance for a supervised rider");
@@ -169,9 +172,9 @@ public static class AdvanceRequests
             if(!string.IsNullOrWhiteSpace(status))rows=rows.Where(r=>r.S("status")==status);
             return rows.OrderByDescending(r=>r.S("createdAt")).ToList();
         })).WithTags("Debts and advances").WithSummary("List advance requests visible to the caller (role=mine|review|payout)");
-        api.MapGet("/advance-requests/{id}",(string id,HttpContext ctx)=>store.Read(c=>{var r=Get(c,null,id);J.Need(CanSee(c,ctx.User,r),"طلب السلفة غير موجود.",404);return r;})).WithTags("Debts and advances").WithSummary("Read one advance request with its decision history");
+        api.MapGet("/advance-requests/{id}",(string id,HttpContext ctx)=>store.Read(c=>Read(c,ctx.User,id))).WithTags("Debts and advances").WithSummary("Read one advance request with its decision history");
         api.MapGet("/advance-requests/{id}/summary",(string id,HttpContext ctx)=>store.Read(c=>
-        {var r=Get(c,null,id);J.Need(AccessPolicy.Administrator(ctx.User)||OrgDirectory.Responsible(c,null,Review).Any(x=>x.S("userId")==Me(ctx.User)),"ملخص المندوب للمحاسب المكلّف فقط.",403);return Summary(c,null,ctx.User,r);}))
+        {AccessPolicy.Demand(ctx.User,"advances.review");var r=Get(c,null,id);J.Need(AccessPolicy.Administrator(ctx.User)||OrgDirectory.Responsible(c,null,Review).Any(x=>x.S("userId")==Me(ctx.User)),"ملخص المندوب للمحاسب المكلّف فقط.",403);return Summary(c,null,ctx.User,r);}))
             .WithTags("Debts and advances").WithSummary("Rider performance, debt and forecast summary plus vault balances for the reviewer");
         api.MapPost("/advance-requests/{id}/review",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>ReviewRequest(c,tx,ctx.User,id,input))).WithTags("Debts and advances").WithSummary("Responsible accountant approves, rejects or proposes a change");
         api.MapPost("/advance-requests/{id}/respond",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Respond(c,tx,ctx.User,id,input))).WithTags("Debts and advances").WithSummary("Supervisor accepts or rejects the accountant's proposal");
