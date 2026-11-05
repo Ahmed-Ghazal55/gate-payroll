@@ -11,14 +11,24 @@ public static class PullContracts
         new("fuel_card","app","FuelCards","Id SponsorId OperatingCityId Provider IdentifierType CardNumber PlateNumberText IsDeleted","provider:Provider identifierType:IdentifierType cardNumber:CardNumber plateNumber:PlateNumberText","card"),
         new("fuel_card_assignment","app","FuelCardRiderAssignments","Id FuelCardId RiderProfileId EmployeeId EffectiveFrom EffectiveTo","effectiveFrom:EffectiveFrom effectiveTo:EffectiveTo","fuel_rider","","EffectiveFrom","EffectiveTo"),
         new("fuel_usage_month","app","FuelCardMonthlyUsages","Id FuelCardId RiderProfileId EmployeeId ReportMonth TotalLiters TotalAmount AmountBeforeTax VatAmount TransactionCount FuelType FirstTransactionAtUtc LastTransactionAtUtc IsDeleted","month:ReportMonth liters:TotalLiters amount:TotalAmount amountBeforeTax:AmountBeforeTax vat:VatAmount transactionCount:TransactionCount fuelType:FuelType firstTransactionAt:FirstTransactionAtUtc lastTransactionAt:LastTransactionAtUtc","fuel_rider","liters amount amountBeforeTax vat transactionCount")
+        ,new("custody_equipment","maintenance","RiderInventoryIssues","Id IssueNumber RiderProfileId IssuedFromLocationId IssuedAtUtc RelatedAssignmentId Status IsDeleted","issueNumber:IssueNumber issuedAt:IssuedAtUtc inventoryLocationSourceId:IssuedFromLocationId assignmentSourceId:RelatedAssignmentId","equipment","quantity returnedQuantity totalCost"),
+        new("","maintenance","RiderInventoryIssueLines","Id RiderInventoryIssueId InventoryItemId Quantity TotalCost ExpectedReturn ReturnedQuantity",""),
+        new("custody_sim","app","RiderPhoneSimAssignments","Id PhoneSimCardId RiderProfileId EffectiveFrom EffectiveTo","simSourceId:PhoneSimCardId effectiveFrom:EffectiveFrom effectiveTo:EffectiveTo","rider","","EffectiveFrom","EffectiveTo"),
+        new("vehicle_accident","app","VehicleAccidents","Id AccidentNumber VehicleId RiderProfileId EmployeeId RiderVehicleAssignmentId OccurredAtUtc ClosedAtUtc Severity Status IsDeleted","number:AccidentNumber occurredAt:OccurredAtUtc closedAt:ClosedAtUtc severity:Severity assignmentSourceId:RiderVehicleAssignmentId","accident"),
+        new("","app","VehicleAccidentCases","Id VehicleAccidentId Stage RiderFaultPercentage EstimatedRepairCost OpeningFeeAmount SettlementAmount RefundStatus RefundRequestedAmount RefundReceivedAmount IsDeleted",""),
+        new("","app","VehicleAccidentInstallments","Id VehicleAccidentId PeriodFrom PeriodTo PaidOn Amount RefundEligibleAmount IsDeleted",""),
+        new("vehicle_expense","maintenance","VehicleExpenses","Id VehicleId RiderVehicleAssignmentId RiderProfileId ExpenseType SourceEntityType SourceEntityId OccurredOn AmountBeforeTax TaxAmount TotalAmount CurrencyCode ReversalOfExpenseId","type:ExpenseType occurredOn:OccurredOn amountBeforeTax:AmountBeforeTax vat:TaxAmount amount:TotalAmount currency:CurrencyCode reversesSourceId:ReversalOfExpenseId sourceEntityType:SourceEntityType sourceEntityId:SourceEntityId assignmentSourceId:RiderVehicleAssignmentId","vehicle","amountBeforeTax vat amount")
     ];
-    public static IEnumerable<string> Kinds => Catalog.Select(c=>c.Kind);
+    public static IEnumerable<string> Kinds => Catalog.Where(c=>c.Kind!="").Select(c=>c.Kind);
     public static IEnumerable<SourceTable> Tables => Catalog.Select(c=>new SourceTable(c.Schema,c.Table,c.Fields,true));
     public static string Table(string kind)=>Catalog.FirstOrDefault(c=>c.Kind==kind)?.Table??"";
     public static void AddToPlan(SourceSnapshot source,ImportPlan plan,Dictionary<string,string> companies,Dictionary<string,string> employees,Dictionary<string,string> profiles,Func<string,string> city)
     {
         List<JsonObject> Rows(string table)=>source.Tables.GetValueOrDefault(table)??[];
-        JsonObject? Find(string table,string id)=>id==""?null:Rows(table).SingleOrDefault(r=>r.S("Id")==id);
+        var indexes=new Dictionary<string,Dictionary<string,JsonObject>>();
+        JsonObject? Find(string table,string id)
+        {if(id=="")return null;if(!indexes.TryGetValue(table,out var index))indexes[table]=index=Rows(table).ToDictionary(r=>r.S("Id"));return index.GetValueOrDefault(id);}
+        var riderCompanies=plan.Documents.Where(d=>d.Kind=="rider").ToDictionary(d=>d.Body.S("id"),d=>d.Body.S("sponsorId"));
         string Key(string kind,string id)=>id==""?"":"erp:"+kind+":"+id;
         string Rider(JsonObject row)
         {
@@ -28,6 +38,7 @@ public static class PullContracts
         }
         foreach(var contract in Catalog)
         {
+            if(contract.Kind=="")continue;
             if(!source.Tables.TryGetValue(contract.Table,out var rows)){plan.Unavailable[contract.Kind]="source_table_absent";continue;}
             if(rows.Any(r=>r.S("Id")=="")||rows.GroupBy(r=>r.S("Id")).Any(g=>g.Count()>1))throw new ImportFailure("source_identity_invalid:"+contract.Kind);
             foreach(var row in rows)
@@ -48,6 +59,34 @@ public static class PullContracts
                     if(rider==""){plan.Reject(contract.Kind,"unmatched_rider");continue;}
                     doc["riderId"]=rider;doc["fuelCardId"]=Key("fuel_card",card.S("Id"));doc["companyId"]=companies.GetValueOrDefault(card.S("SponsorId"))??"";
                     if(doc.S("companyId")==""){plan.Reject(contract.Kind,"missing_company_relation");continue;}
+                }
+                if(contract.Relation is "rider" or "equipment" or "accident")
+                {
+                    string rider=Rider(row);if(rider==""){plan.Reject(contract.Kind,"unmatched_rider");continue;}
+                    doc["riderId"]=rider;
+                    doc["companyId"]=riderCompanies.GetValueOrDefault(rider)??"";
+                }
+                if(contract.Relation=="equipment")
+                {
+                    var lines=Rows("RiderInventoryIssueLines").Where(x=>x.S("RiderInventoryIssueId")==row.S("Id")).ToList();
+                    if(lines.Count==0){plan.Reject(contract.Kind,"missing_issue_lines");continue;}
+                    if(lines.Any(x=>x.N("Quantity")<=0||x.N("ReturnedQuantity")<0||x.N("ReturnedQuantity")>x.N("Quantity"))){plan.Reject(contract.Kind,"invalid_return_quantity");continue;}
+                    doc["lines"]=new JsonArray(lines.Select(x=>(JsonNode)x.Clone()).ToArray());doc["quantity"]=lines.Sum(x=>x.N("Quantity"));doc["returnedQuantity"]=lines.Sum(x=>x.N("ReturnedQuantity"));doc["totalCost"]=lines.Sum(x=>x.N("TotalCost"));
+                }
+                if(contract.Relation is "vehicle" or "accident")
+                {
+                    var vehicle=Find("Vehicles",row.S("VehicleId"));if(vehicle==null){plan.Reject(contract.Kind,"missing_vehicle_relation");continue;}
+                    doc["vehicleId"]=Key("vehicle",vehicle.S("Id"));doc["companyId"]=companies.GetValueOrDefault(vehicle.S("SponsorId"))??"";
+                    if(doc.S("companyId")==""){plan.Reject(contract.Kind,"missing_company_relation");continue;}
+                    if(contract.Relation=="vehicle"&&row.S("RiderProfileId")!="")
+                    {string rider=Rider(row);if(rider==""){plan.Reject(contract.Kind,"unmatched_rider");continue;}doc["riderId"]=rider;}
+                    if(contract.Relation=="accident")
+                    {
+                        var cases=Rows("VehicleAccidentCases").Where(x=>x.S("VehicleAccidentId")==row.S("Id")).ToList();
+                        var installments=Rows("VehicleAccidentInstallments").Where(x=>x.S("VehicleAccidentId")==row.S("Id")).ToList();
+                        if(installments.Any(x=>string.CompareOrdinal(x.S("PeriodFrom"),x.S("PeriodTo"))>0)){plan.Reject(contract.Kind,"invalid_installment_dates");continue;}
+                        doc["cases"]=new JsonArray(cases.Select(x=>(JsonNode)x.Clone()).ToArray());doc["installments"]=new JsonArray(installments.Select(x=>(JsonNode)x.Clone()).ToArray());
+                    }
                 }
                 plan.Documents.Add(new(contract.Kind,doc));
             }

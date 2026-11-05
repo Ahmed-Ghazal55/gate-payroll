@@ -34,3 +34,10 @@ Dry-run never constructs Store: it uses SELECT-only target reads, even if `recor
 | fuel_usage_month | app.FuelCardMonthlyUsages | report month, liters, total/before-tax/VAT, transaction count, fuel type; explicit rider relation required |
 
 New source tables are optional only when absent. A present table with missing allowlisted columns refuses the pull. Empty tables remain distinguishable from absent tables. Unmatched/ambiguous riders are rejected with counts, never guessed from the current card owner. Counts-only summaries include numeric totals for accepted documents, separately from rejected counts. Stable keys and merge/idempotency rules above apply.
+
+## R6a-2 custody and vehicle additions
+- `custody_equipment`: maintenance.RiderInventoryIssues + explicit issue lines; rider, issue date, item quantities, expected return, returned quantity and total cost. Invalid returns are rejected.
+- `custody_sim`: app.RiderPhoneSimAssignments with the actual dated profile link.
+- `vehicle_accident`: app.VehicleAccidents, nested VehicleAccidentCases and VehicleAccidentInstallments, preserving source status, repair/claim/refund amounts and installment dates. No attachments or free-form person details selected.
+- `vehicle_expense`: maintenance.VehicleExpenses, signed before-tax/VAT/total, source event and reversal linkage, company via vehicle; a missing optional rider is retained as vehicle-only, an invalid explicit rider is rejected.
+These are source facts only: no debt or journal is posted by the pull.

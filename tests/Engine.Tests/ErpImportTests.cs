@@ -176,4 +176,20 @@ public sealed class ErpImportTests
         using(var q=f.Source.CreateCommand()){q.CommandText="CREATE TABLE FuelCards(Id TEXT PRIMARY KEY)";q.ExecuteNonQuery();}
         Assert.AreEqual("source_contract_missing_fields:FuelCards",Assert.ThrowsExactly<ImportFailure>(()=>SourceReader.Read(f.Source)).Code);
     }
+    [TestMethod]
+    public void CustodyAndVehicleFactsPreserveReturnsAccidentInstallmentsAndReversalLineage()
+    {
+        using var f=new Fixture();
+        f.Add("RiderInventoryIssues",new(){["Id"]="issue",["RiderProfileId"]="profile2",["IssuedAtUtc"]="2026-10-01T00:00:00Z"});
+        f.Add("RiderInventoryIssueLines",new(){["Id"]="line",["RiderInventoryIssueId"]="issue",["Quantity"]=3,["ReturnedQuantity"]=1,["ExpectedReturn"]=true,["TotalCost"]=30});
+        f.Add("RiderPhoneSimAssignments",new(){["Id"]="sim",["RiderProfileId"]="profile2",["PhoneSimCardId"]="sim-card",["EffectiveFrom"]="2026-10-01",["EffectiveTo"]="2026-10-31"});
+        f.Add("VehicleAccidents",new(){["Id"]="accident",["VehicleId"]="vehicle",["RiderProfileId"]="profile2",["EmployeeId"]="employee2"});
+        f.Add("VehicleAccidentCases",new(){["Id"]="case2",["VehicleAccidentId"]="accident",["EstimatedRepairCost"]=50});
+        f.Add("VehicleAccidentInstallments",new(){["Id"]="inst",["VehicleAccidentId"]="accident",["PeriodFrom"]="2026-10-01",["PeriodTo"]="2026-10-31",["Amount"]=20});
+        f.Add("VehicleExpenses",new(){["Id"]="expense",["VehicleId"]="vehicle",["RiderProfileId"]="profile2",["TotalAmount"]=-23,["AmountBeforeTax"]=-20,["TaxAmount"]=-3,["ReversalOfExpenseId"]="original"});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);JsonObject D(string kind)=>plan.Documents.Single(x=>x.Kind==kind).Body;
+        Assert.AreEqual(1m,D("custody_equipment").N("returnedQuantity"));Assert.IsTrue(D("custody_equipment")["lines"]![0]!.B("ExpectedReturn"));
+        Assert.AreEqual(Identity(2),D("custody_sim").S("riderId"));Assert.AreEqual(1,D("vehicle_accident")["cases"]!.AsArray().Count);Assert.AreEqual(1,D("vehicle_accident")["installments"]!.AsArray().Count);
+        Assert.AreEqual("original",D("vehicle_expense").S("reversesSourceId"));Assert.AreEqual(-23m,ImportExecutor.Run(source,plan,[]).Totals["vehicle_expense"]["amount"]);
+    }
 }
