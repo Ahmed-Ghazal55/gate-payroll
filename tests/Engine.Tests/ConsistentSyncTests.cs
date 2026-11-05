@@ -95,6 +95,7 @@ public sealed class ConsistentSyncTests
     {
         var before=new JsonObject{["id"]="synthetic",["registrySource"]="company-certificates",["city"]="Verified city",["nameAr"]="Verified legal name",["policy"]="preserved"};
         var merged=ImportPlan.Merge(before,new(){["city"]="",["nameAr"]="Older ERP name",["sourceDeleted"]=true});
+        var reactivated=ImportPlan.Merge(new(){["id"]="synthetic",["debtOnly"]=true,["personRole"]="debt_only"},new(){["erpSource"]="rider",["personRole"]="rider"});Assert.IsFalse(reactivated.B("debtOnly"));Assert.IsTrue(ErpRiderClassification.ListedAsRider(reactivated));
         Assert.AreEqual("Verified city",merged.S("city"));Assert.AreEqual("Verified legal name",merged.S("nameAr"));Assert.AreEqual("preserved",merged.S("policy"));Assert.IsTrue(merged.B("sourceDeleted"));
     }
     [TestMethod]
