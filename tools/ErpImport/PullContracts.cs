@@ -18,6 +18,9 @@ public static class PullContracts
         new("","app","VehicleAccidentCases","Id VehicleAccidentId Stage RiderFaultPercentage EstimatedRepairCost OpeningFeeAmount SettlementAmount RefundStatus RefundRequestedAmount RefundReceivedAmount IsDeleted",""),
         new("","app","VehicleAccidentInstallments","Id VehicleAccidentId PeriodFrom PeriodTo PaidOn Amount RefundEligibleAmount IsDeleted",""),
         new("vehicle_expense","maintenance","VehicleExpenses","Id VehicleId RiderVehicleAssignmentId RiderProfileId ExpenseType SourceEntityType SourceEntityId OccurredOn AmountBeforeTax TaxAmount TotalAmount CurrencyCode ReversalOfExpenseId","type:ExpenseType occurredOn:OccurredOn amountBeforeTax:AmountBeforeTax vat:TaxAmount amount:TotalAmount currency:CurrencyCode reversesSourceId:ReversalOfExpenseId sourceEntityType:SourceEntityType sourceEntityId:SourceEntityId assignmentSourceId:RiderVehicleAssignmentId","vehicle","amountBeforeTax vat amount")
+        ,new("chefz_account","chefz","AccountDetails","Id PlatformRiderAccountId ReportIdNumber AccountType VehicleType DashboardStatus IsDeleted","reportIdNumber:ReportIdNumber accountType:AccountType vehicleType:VehicleType dashboardStatus:DashboardStatus","platform_account"),
+        new("chefz_daily","chefz","DailyPerformance","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId SourceId ReportDate ReportIdNumber SourceRowNumber TotalValidOffers AcceptedOffers DeclinedOffers MissedOffers AcceptanceRate","date:ReportDate reportIdNumber:ReportIdNumber sourceId:SourceId sourceRow:SourceRowNumber totalValidOffers:TotalValidOffers acceptedOffers:AcceptedOffers declinedOffers:DeclinedOffers missedOffers:MissedOffers acceptanceRate:AcceptanceRate","platform_rider","totalValidOffers acceptedOffers declinedOffers missedOffers"),
+        new("chefz_settlement","chefz","WalletSettlements","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId AccountType PeriodFrom PeriodTo ChargedFrom ChargedTo AssignedDays DeliveryFees VatAmount Tips Compensation Bonuses Deductions GrossEarnings CommissionRate DailyFee CompanyAmount RiderAmount StartWalletAmount EndWalletAmount","accountType:AccountType periodFrom:PeriodFrom periodTo:PeriodTo chargedFrom:ChargedFrom chargedTo:ChargedTo assignedDays:AssignedDays deliveryFees:DeliveryFees vat:VatAmount tips:Tips compensation:Compensation bonuses:Bonuses deductions:Deductions gross:GrossEarnings commissionRate:CommissionRate dailyFee:DailyFee companyAmount:CompanyAmount riderAmount:RiderAmount startWalletAmount:StartWalletAmount endWalletAmount:EndWalletAmount","platform_rider","deliveryFees vat tips compensation bonuses deductions gross companyAmount riderAmount","PeriodFrom","PeriodTo")
     ];
     public static IEnumerable<string> Kinds => Catalog.Where(c=>c.Kind!="").Select(c=>c.Kind);
     public static IEnumerable<SourceTable> Tables => Catalog.Select(c=>new SourceTable(c.Schema,c.Table,c.Fields,true));
@@ -86,6 +89,22 @@ public static class PullContracts
                         var installments=Rows("VehicleAccidentInstallments").Where(x=>x.S("VehicleAccidentId")==row.S("Id")).ToList();
                         if(installments.Any(x=>string.CompareOrdinal(x.S("PeriodFrom"),x.S("PeriodTo"))>0)){plan.Reject(contract.Kind,"invalid_installment_dates");continue;}
                         doc["cases"]=new JsonArray(cases.Select(x=>(JsonNode)x.Clone()).ToArray());doc["installments"]=new JsonArray(installments.Select(x=>(JsonNode)x.Clone()).ToArray());
+                    }
+                }
+                if(contract.Relation is "platform_account" or "platform_rider")
+                {
+                    var account=Find("PlatformRiderAccounts",row.S("PlatformRiderAccountId"));
+                    if(account==null){plan.Reject(contract.Kind,"missing_platform_account_relation");continue;}
+                    doc["platformAccountId"]=Key("platform_account",account.S("Id"));doc["companyId"]=companies.GetValueOrDefault(account.S("SponsorId"))??"";
+                    if(doc.S("companyId")==""){plan.Reject(contract.Kind,"missing_company_relation");continue;}
+                    if(contract.Relation=="platform_account")doc["registeredRiderId"]=employees.GetValueOrDefault(account.S("RegisteredEmployeeId"))??"";
+                    else
+                    {
+                        string rider=Rider(row);var assignment=Find("RiderClientAssignments",row.S("RiderClientAssignmentId"));
+                        if(rider==""){plan.Reject(contract.Kind,"unmatched_rider");continue;}
+                        if(assignment==null||assignment.S("PlatformRiderAccountId")!=account.S("Id")||assignment.S("RiderProfileId")!=row.S("RiderProfileId"))
+                        {plan.Reject(contract.Kind,"unmatched_assignment");continue;}
+                        doc["riderId"]=rider;doc["assignmentSourceId"]=assignment.S("Id");
                     }
                 }
                 plan.Documents.Add(new(contract.Kind,doc));

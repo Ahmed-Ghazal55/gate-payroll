@@ -41,3 +41,9 @@ New source tables are optional only when absent. A present table with missing al
 - `vehicle_accident`: app.VehicleAccidents, nested VehicleAccidentCases and VehicleAccidentInstallments, preserving source status, repair/claim/refund amounts and installment dates. No attachments or free-form person details selected.
 - `vehicle_expense`: maintenance.VehicleExpenses, signed before-tax/VAT/total, source event and reversal linkage, company via vehicle; a missing optional rider is retained as vehicle-only, an invalid explicit rider is rejected.
 These are source facts only: no debt or journal is posted by the pull.
+
+## R6a-3 Chefz / The Chefz
+- `chefz_account` → chefz.AccountDetails (ERP class ChefzAccountDetails): report ID/type/vehicle/status and registered owner.
+- `chefz_daily` → chefz.DailyPerformance (ChefzDailyPerformance): actual assigned rider, date, offers/acceptance, explicit source ID/row.
+- `chefz_settlement` → chefz.WalletSettlements (ChefzWalletSettlement): full delivery-fee/VAT/tips/compensation/bonus/deduction/gross/commission/company/rider breakdown and period. No recalculation.
+Actual rider and assignment must agree with the account; never substitute its registered owner. Only final tables are pulled; DailyPerformanceSources and ImportedOrderRows are excluded. Monetary totals exclude rates and include only accepted rows.

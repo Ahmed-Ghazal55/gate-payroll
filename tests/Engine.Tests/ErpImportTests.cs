@@ -192,4 +192,19 @@ public sealed class ErpImportTests
         Assert.AreEqual(Identity(2),D("custody_sim").S("riderId"));Assert.AreEqual(1,D("vehicle_accident")["cases"]!.AsArray().Count);Assert.AreEqual(1,D("vehicle_accident")["installments"]!.AsArray().Count);
         Assert.AreEqual("original",D("vehicle_expense").S("reversesSourceId"));Assert.AreEqual(-23m,ImportExecutor.Run(source,plan,[]).Totals["vehicle_expense"]["amount"]);
     }
+    [TestMethod]
+    public void ChefzFinalDailyAndWalletFactsUseTheActualOperatorAndPreserveFinancialBreakdown()
+    {
+        using var f=new Fixture();
+        f.Add("AccountDetails",new(){["Id"]="chefz-details",["PlatformRiderAccountId"]="account",["ReportIdNumber"]="SYN-CHEFZ"});
+        f.Add("DailyPerformance",new(){["Id"]="chefz-day",["PlatformRiderAccountId"]="account",["RiderClientAssignmentId"]="platform-assignment",["RiderProfileId"]="profile2",["ReportDate"]="2026-10-10",["TotalValidOffers"]=12,["AcceptedOffers"]=10});
+        f.Add("WalletSettlements",new(){["Id"]="chefz-wallet",["PlatformRiderAccountId"]="account",["RiderClientAssignmentId"]="platform-assignment",["RiderProfileId"]="profile2",["PeriodFrom"]="2026-10-01",["PeriodTo"]="2026-10-31",["DeliveryFees"]=100,["VatAmount"]=15,["Tips"]=5,["GrossEarnings"]=120,["CompanyAmount"]=20,["RiderAmount"]=100});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);
+        var account=plan.Documents.Single(x=>x.Kind=="chefz_account").Body;Assert.AreEqual(Identity(1),account.S("registeredRiderId"));
+        var daily=plan.Documents.Single(x=>x.Kind=="chefz_daily").Body;Assert.AreEqual(Identity(2),daily.S("riderId"));
+        var settlement=plan.Documents.Single(x=>x.Kind=="chefz_settlement").Body;Assert.AreEqual(15m,settlement.N("vat"));Assert.AreEqual(120m,settlement.N("gross"));
+        Assert.AreEqual(100m,ImportExecutor.Run(source,plan,[]).Totals["chefz_settlement"]["riderAmount"]);
+        source.Tables["DailyPerformance"][0]["RiderClientAssignmentId"]="missing";
+        Assert.AreEqual(1,ImportPlan.Build(source,Catalog).Rejected["chefz_daily"]["unmatched_assignment"]);
+    }
 }
