@@ -724,3 +724,204 @@ export interface IncomeStatementResponse {
   totalExpenses?: number;
   netIncome?: number;
 }
+
+// ==========================================
+// Pay Framework & 0.14.0 Types (R4)
+// ==========================================
+
+export interface PayCatalogApp {
+  app: string;
+  platform: string;
+  receivable: string;
+  principal: string | null;
+  agent: string | null;
+}
+
+export interface PayCatalog {
+  apps: PayCatalogApp[];
+  schemeTypes: string[];
+  categories: string[];
+  operators: string[];
+  defaults?: any;
+  defaultsAreDraftOnly?: boolean;
+}
+
+export interface PayConfigDoc {
+  id: string;
+  kind: 'pay_terms' | 'pay_scheme' | 'pay_eligibility' | 'pay_setting' | string;
+  app: string;
+  period: string;
+  code: string;
+  version: number;
+  status: 'draft' | 'approved';
+  data: any;
+  createdBy: string;
+  createdAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  effectiveFrom?: string;
+  copiedFromId?: string;
+}
+
+export interface PayAssignment {
+  id: string;
+  rider: string;
+  app: string;
+  schemeId: string;
+  period: string;
+  companyId?: string;
+  status: string;
+  choiceApprovedAt: string;
+  source?: {
+    kind: string;
+    formId: string;
+    responseId: string;
+    version: number;
+    fieldId: string;
+    approvedBy: string;
+    fingerprint?: string;
+  };
+}
+
+export interface PayAssignmentPreviewResult {
+  rows: PayAssignment[];
+  canCommit: boolean;
+  errors: Array<{ code: string }>;
+  fingerprint: string;
+  counts: {
+    new: number;
+    unchanged: number;
+    errors: number;
+    lateIgnored: number;
+    unapprovedIgnored: number;
+  };
+}
+
+export interface PayCycle {
+  id: string;
+  period: string;
+  companyId: string;
+  sponsorId?: string;
+  app?: string;
+  stage: number;
+  status: 'draft' | 'review' | 'needs_decision' | 'approved' | 'cancelled' | 'reversed';
+  invoices: any[];
+  adjustmentAccounts?: Record<string, string>;
+  createdBy: string;
+  createdAt: string;
+  advancedBy?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  history?: Array<{
+    stage: number;
+    advancedBy: string;
+    at: string;
+  }>;
+}
+
+export interface PayCycleLine {
+  id: string;
+  cycleId: string;
+  rider: string;
+  app: string;
+  period: string;
+  category: string;
+  schemeId: string;
+  schemeName?: string;
+  status: 'ready' | 'needs_decision' | string;
+  needsDecisionReason?: string;
+  orders: number;
+  baseGross: number;
+  platformGross?: number;
+  gross?: number;
+  incentives?: number;
+  entitlement?: number;
+  vehicleCharge?: number;
+  allocatedVehicleCharge?: number;
+  accountDeduction?: number;
+  net?: number;
+  netPay?: number;
+  lines?: Array<{
+    label: string;
+    formula: string;
+    amount: number;
+    category: string;
+    inputs?: any;
+    affectsNet?: boolean;
+  }>;
+}
+
+export interface LegacyPayrollPreviewRow {
+  iqama: string;
+  orders: number;
+  policyName: string;
+  openingBalance: number;
+  periodMovement: number;
+  closingBalance: number;
+  blockers: string[];
+  fingerprint: string;
+  breakdown?: any;
+}
+
+export interface LegacyPayrollRun {
+  id: string;
+  iqama: string;
+  period: string;
+  sponsorId: string;
+  approvedAt: string;
+  approvedBy: string;
+  result: {
+    orders: number;
+    policyName: string;
+    openingBalance: number;
+    periodMovement: number;
+    closingBalance: number;
+    lines?: any[];
+  };
+}
+
+export interface MonthlyStatementCard {
+  app: string;
+  platform: string;
+  companyId: string;
+  schemeName?: string;
+  schemeType?: string;
+  gross: number;
+  earnedGross: number;
+  vehicleCharge: number;
+  incentives: number;
+  companyCommission?: number;
+  netBeforePersonal?: number;
+  explain?: Array<{
+    label: string;
+    formula: string;
+    amount: number;
+    category: string;
+  }>;
+}
+
+export interface MonthlyRiderStatement {
+  header: {
+    rider: string;
+    name: string;
+    period: string;
+    status: string;
+    ibanMasked: string;
+    cycles: any[];
+  };
+  source: 'pay_cycle' | 'legacy_run' | 'none';
+  status: 'approved' | 'preview' | 'no_approved_cycle';
+  cards: MonthlyStatementCard[];
+  deductions: Array<{
+    category: string;
+    amount: number;
+    source: string;
+    type?: string;
+    description?: string;
+  }>;
+  net: number;
+  carried: number;
+  closing: number;
+  balanceBasis: 'cycle_snapshot' | 'approved_legacy_snapshot';
+  approvedOnly: boolean;
+}

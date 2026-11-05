@@ -999,8 +999,140 @@ export const api = {
     }),
 
   // Operations & Assets APIs (Codex R4.6)
-  getOperations: (kind: string) =>
-    handleRequest<any[]>(`/operations/${encodeURIComponent(kind)}`),
+  getOperations: (kind: string, params?: { page?: number; pageSize?: number; q?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.page) p.set('page', String(params.page));
+    if (params?.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params?.q) p.set('q', params.q);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return handleRequest<any>(`/operations/${encodeURIComponent(kind)}${qs}`);
+  },
+
+  getRiderAccounts: (iqama: string, params?: { page?: number; pageSize?: number }) => {
+    const p = new URLSearchParams();
+    if (params?.page) p.set('page', String(params.page));
+    if (params?.pageSize) p.set('pageSize', String(params.pageSize));
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return handleRequest<any>(`/riders/${encodeURIComponent(iqama)}/accounts${qs}`);
+  },
+
+  getRiderMonthlyStatement: (iqama: string, period: string) =>
+    handleRequest<any>(`/finance/statement/rider/${encodeURIComponent(iqama)}/monthly?period=${encodeURIComponent(period)}`),
+
+  // ==========================================
+  // Pay Framework APIs (0.14.0 / R4.1 - R4.5)
+  // ==========================================
+  getPayCatalog: () => handleRequest<any>('/pay/catalog'),
+
+  getPayTerms: (app: string, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`);
+  },
+  createPayTerms: (app: string, input: any, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+  approvePayTerms: (app: string, id: string) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/terms/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+
+  getPaySchemes: (app: string, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/schemes${q}`);
+  },
+  createPayScheme: (app: string, input: any, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/schemes${q}`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+  approvePayScheme: (app: string, id: string) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/schemes/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+
+  getPayEligibility: (app: string, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility${q}`);
+  },
+  createPayEligibility: (app: string, input: any, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility${q}`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+  approvePayEligibility: (app: string, id: string) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+
+  copyPayMonth: (app: string, from: string, to: string) =>
+    handleRequest<{ drafts: any[]; created: number; unchanged: number }>(
+      `/pay/apps/${encodeURIComponent(app)}/copy?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      { method: 'POST' }
+    ),
+
+  getGlobalPaySettings: () => handleRequest<any>('/pay/settings'),
+  createGlobalPaySettings: (input: any) =>
+    handleRequest<any>('/pay/settings', { method: 'POST', body: JSON.stringify(input) }),
+  approveGlobalPaySettings: (id: string) =>
+    handleRequest<any>(`/pay/settings/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+
+  getPayAssignments: (app: string, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/assignments${q}`);
+  },
+  previewPayAssignments: (app: string, input: any) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/assignments/import/preview`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  commitPayAssignments: (app: string, input: any) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/assignments/import/commit`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  getPayCycles: (period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/cycles${q}`);
+  },
+  createPayCycle: (input: any) =>
+    handleRequest<any>('/pay/cycles', { method: 'POST', body: JSON.stringify(input) }),
+  advancePayCycle: (id: string, input: { stage?: number; action?: string }) =>
+    handleRequest<any>(`/pay/cycles/${encodeURIComponent(id)}/advance`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getPayCycleLines: (id: string, params?: { app?: string; rider?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.app) q.set('app', params.app);
+    if (params?.rider) q.set('rider', params.rider);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<any>(`/pay/cycles/${encodeURIComponent(id)}/lines${qs}`);
+  },
+
+  // ==========================================
+  // Legacy Production Payroll Run APIs (F2)
+  // ==========================================
+  getLegacyPayrollPreview: (period: string) =>
+    handleRequest<any[]>(`/payroll/preview?period=${encodeURIComponent(period)}`),
+  getLegacyPayrollRuns: () =>
+    handleRequest<any[]>('/payroll/runs'),
+  approveLegacyPayrollRun: (input: { iqama: string; period: string; sponsorId: string; fingerprint: string }) =>
+    handleRequest<any>('/payroll/approve', { method: 'POST', body: JSON.stringify(input) }),
+  createAdjustment: (input: { iqama: string; period: string; amount: number; sourceRef: string; category: string; description: string }) =>
+    handleRequest<any>('/adjustments', { method: 'POST', body: JSON.stringify(input) }),
+  createPayment: (input: { iqama: string; period: string; amount: number; sourceRef: string; sponsorId?: string; paymentVaultCode?: string; onBehalf?: boolean; onBehalfNote?: string }) => {
+    const payload: any = { ...input };
+    if (!payload.paymentVaultCode) delete payload.paymentVaultCode;
+    if (!payload.sponsorId) delete payload.sponsorId;
+    return handleRequest<any>('/payments', { method: 'POST', body: JSON.stringify(payload) });
+  },
+  getLedger: (iqama: string) =>
+    handleRequest<{ balance: number; rows: Array<{ period: string; kind: string; amount: number; sourceRef: string }> }>(`/ledger/${encodeURIComponent(iqama)}`),
+  getFinanceCatalog: () =>
+    handleRequest<{ sponsors: any[]; vaults: any[] }>('/finance/catalog'),
 
   // Admin & Security APIs
   getUsers: () => handleRequest<any[]>('/users'),
