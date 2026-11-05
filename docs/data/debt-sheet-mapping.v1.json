@@ -30,7 +30,7 @@
     {
       "column": "B",
       "header": "الاسم",
-      "role": "ignored",
+      "role": "name",
       "category": null,
       "account": null,
       "sign": 1,

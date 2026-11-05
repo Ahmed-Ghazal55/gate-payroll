@@ -234,7 +234,7 @@ api.MapPost("/adjustments", (JsonObject input, HttpContext ctx) => store.Write((
     J.Need(!Store.List(c, "adjustment", tx).Any(a => a.S("sourceRef") == doc.S("sourceRef") && a.S("iqama") == iqama && a.S("period") == period), "مرجع هذا البند مسجل من قبل.");
     Store.Save(c, "adjustment", doc, tx); Store.Audit(c, tx, "adjustment.add", doc.S("id"), Actor(ctx)); return doc;
 })).WithTags("Payroll").WithSummary("Submit adjustments");
-api.MapGet("/payroll/preview", (string period,HttpContext ctx) => { J.Period(period); return store.Read(c => Store.List(c, "work").Where(w => w.S("period") == period).Select(w => w.S("iqama")).Distinct().Where(iq=>Store.Get(c,iq,"rider") is {} rider&&(FinancialScopes.Rider(ctx.User,rider)||FinancialScopes.AllCompanies(ctx.User))).Select(iq => { var doc = JsonSerializer.SerializeToNode(Preview(c, iq, period), JsonSerializerOptions.Web)!.AsObject(); doc["fingerprint"] = Fingerprint(c, iq, period); return doc; }).ToList()); }).WithTags("Payroll").WithSummary("Read payroll preview");
+api.MapGet("/payroll/preview", (string period,HttpContext ctx) => { J.Period(period); return store.Read(c => Store.List(c, "work").Where(w => w.S("period") == period).Select(w => w.S("iqama")).Distinct().Where(iq=>Store.Get(c,iq,"rider") is {} rider&&ErpRiderClassification.ListedAsRider(rider)&&(FinancialScopes.Rider(ctx.User,rider)||FinancialScopes.AllCompanies(ctx.User))).Select(iq => { var doc = JsonSerializer.SerializeToNode(Preview(c, iq, period), JsonSerializerOptions.Web)!.AsObject(); doc["fingerprint"] = Fingerprint(c, iq, period); return doc; }).ToList()); }).WithTags("Payroll").WithSummary("Read payroll preview");
 api.MapGet("/payroll/runs", (HttpContext ctx) => store.Read(c => Store.List(c, "run").Where(r=>FinancialScopes.Ledger(ctx.User,r)))).WithTags("Payroll").WithSummary("Read payroll runs");
 api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
@@ -325,7 +325,7 @@ JsonObject Campaign(string token)
 }
 PayrollResult Preview(System.Data.Common.DbConnection c, string iqama, string period, System.Data.Common.DbTransaction? tx = null)
 {
-    var rider = Store.Get(c, iqama, "rider", tx); var policy = rider == null ? null : Store.Get(c, rider.S("policyId"), "policy", tx);
+    var rider = Store.Get(c, iqama, "rider", tx); J.Need(rider==null||ErpRiderClassification.ListedAsRider(rider),"المندوب غير مؤهل للرواتب؛ سجل مديونية فقط أو موظف إداري."); var policy = rider == null ? null : Store.Get(c, rider.S("policyId"), "policy", tx);
     var rows = Store.List(c, "work", tx).Where(w => w.S("iqama") == iqama && w.S("period") == period).Select(w => w.Deserialize<WorkLine>(JsonSerializerOptions.Web)!).ToList();
     var adjustments = Store.List(c, "adjustment", tx).Where(a => a.S("iqama") == iqama && a.S("period") == period).ToList();
     var opening = Store.List(c, "ledger", tx).Where(a => a.S("iqama") == iqama && string.CompareOrdinal(a.S("period"), period) < 0).Sum(a => a.N("amount"));

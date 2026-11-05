@@ -43,6 +43,29 @@ public sealed class DebtSheetImportTests
     }
     static byte[] BranchDebt()=>Book(("Debts",[["ID","Old","New","Gross","Paid","Payments","Net","Branch"],[Iqama,"100","200","300","150","150","150","SYN-BRANCH"]]));
     [TestMethod]
+    public void MissingSheetRidersRemainPreviewOnlyThenStageInactiveAndReactivateTheSameIdentity()
+    {
+        var m=BranchMapping();m["columns"]!.AsArray().Add(C("I","Name","name"));
+        var bytes=Book(("Debts",[["ID","Old","New","Gross","Paid","Payments","Net","Branch","Name"],[Iqama,"100","200","300","150","150","150","SYN-BRANCH","Synthetic Debt Rider"]]));
+        var p=DebtSheetImporter.Preview(bytes,Deductions(),m,[]);
+        Assert.IsTrue(p.Summary.B("canCommit"));Assert.AreEqual(1m,p.Summary.N("inactiveDebtOnlyRiders"));
+        Assert.AreEqual("Inactive",p.NewRiders.Single().S("status"));Assert.IsFalse(ErpRiderClassification.ListedAsRider(p.NewRiders.Single()));
+        Assert.DoesNotContain(Iqama,JsonSerializer.Serialize(p));Assert.DoesNotContain("Synthetic Debt Rider",JsonSerializer.Serialize(p));
+        string path=Path.Combine(Path.GetTempPath(),"gate-debt-only-"+Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store=new Store(path);Assert.AreEqual(0,store.Read(c=>Store.List(c,"rider").Count));
+            Assert.AreEqual(2,DebtSheetImporter.Commit(store,p));Assert.AreEqual(0,DebtSheetImporter.Commit(store,p));
+            var person=store.Read(c=>Store.List(c,"rider").Single());Assert.IsFalse(ErpRiderClassification.ListedAsRider(person));
+            var active=RiderDirectory.Normalize(new(){["iqama"]=Iqama,["name"]="Synthetic Debt Rider",["status"]="Active"},person);
+            store.Write((c,tx)=>{Store.Save(c,"rider",active,tx);return true;});
+            Assert.IsTrue(ErpRiderClassification.ListedAsRider(active));Assert.AreEqual(person.S("id"),active.S("id"));Assert.AreEqual(1,store.Read(c=>Store.List(c,"rider").Count));
+            Assert.AreEqual(1,store.Read(c=>Store.List(c,"debt").Count));Assert.AreEqual(0,store.Read(c=>Store.List(c,"journal").Count));
+        }
+        finally{SqliteConnection.ClearAllPools();if(Directory.Exists(path))Directory.Delete(path,true);}
+        m["companyAliases"]=new JsonObject();p=DebtSheetImporter.Preview(bytes,Deductions(),m,[]);Assert.IsFalse(p.Summary.B("canCommit"));Assert.AreEqual(0,p.NewRiders.Count);
+    }
+    [TestMethod]
     public void CompanyFallsBackToApprovedBranchWithoutOverridingAKnownConflict()
     {
         var riders=Riders();riders[0].Remove("financeSponsorId");
