@@ -2,10 +2,49 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none (next: Claude review of feat/r4-integrate) |
-| Branch | feat/r4-integrate = feat/r4-api (0d3ff76) + feat/r4-web (e148a01) + R4-fix1 |
+| Current writer | none (next: Claude review of feat/r4-integrate and release 0.14.0) |
+| Branch | feat/r4-integrate = feat/r4-api + feat/r4-web + R4-fix1 + feat/advances-api + R5-web |
 | Live | 0.12.1 (5fe403b); local 0.14.0 |
 | Updated | 2026-11-05 by Antigravity |
+
+## Next step (exact)
+Claude reviews `feat/r4-integrate` (R5 web + advances API + fix1). Then Claude confirms and Ghazal says «ادمج» for 0.14.0 release.
+
+## R5 web: advance requests, ranks and responsibilities, notifications (Antigravity)
+| Updated | 2026-11-05 by Antigravity |
+
+### Completed Features (R5-0 to R5-5)
+1. **R5-0: Removed swallowed error fallbacks (commit `3a68295`)**:
+   - Cleaned `payroll/page.tsx`, `statement/page.tsx`, `login/page.tsx`, `Header.tsx`.
+   - Verified `grep -rn "catch(() =>" web/src/app` returns 0 occurrences (only `res.json().catch` in `api.ts` remains).
+2. **R5-1: Debts and Advance Requests workspace (commit `bd06d59`)**:
+   - Synchronized `?tab=` URL routing in `/app/debts/?tab=advance_requests` and added per-item permissions in `Sidebar.tsx`.
+   - Supervisor view (`advances.request`) with supervised riders picker (`GET /api/org/supervision?mine=1`), status chips, and proposal response modal (`POST /api/advance-requests/{id}/respond`).
+   - Accountant view (`advances.review`) with review queue, drawer summary card (`GET /api/advance-requests/{id}/summary`), coverage flag banner, vault balances, and approve/reject/propose actions.
+   - History timeline showing decisions, actor, rank snapshot, notes, and timestamps.
+3. **R5-2: Advance payouts queue for custodians (commit `ca87452`)**:
+   - Payouts queue at `/app/treasury/?tab=advance_payouts` (`advances.payout`), filtered to responsible vaults.
+   - Payout modal with reference input, creating Dr 1210 / Cr vault journal, with 409 insufficient funds handling.
+4. **R5-3: Organization directory, ranks and routing (commit `62e39fa`)**:
+   - Directory workspace at `/app/admin/?tab=org` (`org.manage`) with 4 sub-tabs: Memberships (A+/A/B/C ranks), Delegations, Supervision (supervisor ↔ rider), and Routing (`advance.review`, `advance.payout:<vault>`).
+   - Responsible users inspector (`GET /api/org/responsible?operation=`) and append-only ended rows view.
+5. **R5-4: Targeted notifications and badge decoupling (commit `546bed4`)**:
+   - Notifications page and panel with tabs: الكل · عام · مخصص (personal) · طلبات ومهام (`requiresAction`).
+   - Separate badges for read state («مقروء» / «غير مقروء») vs decision state («تم البت» / «بانتظار البت»).
+   - Direct count assignment prevents double-counting upon reconnect.
+6. **R5-5: Live E2E test suite (commit `afd89aa`)**:
+   - Added Step 14 to `web/tests/e2e-live.mjs`: admin org setup → supervisor cash request → negative check (outsider 403) → negative check (requester self-approval 403) → accountant propose bank → supervisor accept → accountant approve with 200 SAR installment → custodian payout with reference `SYN-TRF-LIVE-9` → verified debt with category `BankAdvance` and journal entry.
+   - 10 screenshots generated in `test-results/r5-web/` at 1440 and 360 viewports.
+
+### Verification summary
+- **Static build:** `npm run build` compiled 19/19 routes cleanly without any `/app/app/` links.
+- **Backend tests:** `dotnet build` succeeded with 0 warnings/errors; `node tests/advances.mjs` passed 37 HTTP checks.
+- **Live E2E suite:** `node tests/e2e-live.mjs` passed all 14 steps cleanly against the real .NET API and browser.
+- **Screenshots:** All 10 screenshots captured in `test-results/r5-web/` (at 1440px and 360px).
+
+### Capacity status
+- Before session: ~78% weekly limit used (~22% remaining).
+- After session: ~88% weekly limit used (~12% remaining).
 
 ## advances API done (Claude, 2026-11-05)
 - Branch `feat/advances-api` (worktree `gate-payroll-adv`), from `feat/r4-integrate` 55a97bc.
@@ -13,9 +52,6 @@
 - 565885d ADV-A1..A4: `AdvanceRequests` (request → responsible review approve/reject/propose → supervisor respond → custodian payout → CashAdvance/BankAdvance debt + Dr 1210 / Cr vault journal; 409 when the vault is short). Summary card API. Permissions `advances.request|review|payout`, `org.manage`. `PayStatements.Build` takes an optional transaction.
 - Tests: .NET 268 passed / 0 failed / 7 SQL skipped (4 new advance tests); `node tests/advances.mjs` 37 HTTP checks; source boundary 212; ENDPOINTS regenerated (227 routes). Docs: `docs/api/org.md`, `docs/api/advances.md`.
 - Next: Antigravity `~/.agents/prompts/antigravity-R5-advances-web.md` (merge this branch into `feat/r4-integrate` after fix1).
-
-## Next step (exact)
-Claude reviews `feat/r4-integrate`. Then Claude confirms and Ghazal says «ادمج» for 0.14.0.
 
 
 ## R4 backend (Codex)
