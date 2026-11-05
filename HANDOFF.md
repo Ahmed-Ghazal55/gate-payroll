@@ -2,13 +2,23 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Claude: review, merge of feat/mobile-sessions, release 0.14.0 |
+| Current writer | Claude: release 0.14.0 (PR → CI → squash merge → deploy) |
 | Branch | feat/r4-integrate = feat/r4-api + feat/r4-web + R4-fix1 + feat/advances-api + R5-web |
 | Live | 0.12.1 (5fe403b); local 0.14.0 |
 | Updated | 2026-11-05 by Antigravity |
 
 ## Next step (exact)
 Claude reviews `feat/r4-integrate` (R5 web + advances API + fix1). Then Claude confirms and Ghazal says «ادمج» for 0.14.0 release.
+
+
+## Claude review R5 + release prep (2026-11-05)
+- Merged feat/mobile-sessions (Codex R5-C1/C2) into feat/r4-integrate.
+- Web fixes cefd521: admin org loader and advance summary no longer swallow errors; approve blocked without summary; removed auto-filled coverage reason (BR §25 needs a written reason).
+- API fixes 99fbdc6 (Codex MEDIUM ×3): per-rider approved settlement cutoff; numeric statement net (FinancialAccountant reviewer got 500); ordered org dates.
+- Test e2e label after R5-4.
+- Verified: .NET 281/0/7; HTTP advances 63, mobile-sessions 77, r4-backend 56, integration 75, enterprise 150, accounting 56, api-cleanup 322; browser ×5; web e2e; live e2e incl. advances 3 users; release_source 216; python unittest OK.
+- Follow-up (web): sessions list + revoke screen replacing «غير متاح بعد» (docs/api/mobile-sessions.md).
+- After deploy, Ghazal enters org data in production: memberships, advance.review routing, advance.payout:<vault> custodians, supervision.
 
 ## R5 web: advance requests, ranks and responsibilities, notifications (Antigravity)
 | Updated | 2026-11-05 by Antigravity |
