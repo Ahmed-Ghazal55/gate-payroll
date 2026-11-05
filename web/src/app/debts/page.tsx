@@ -35,6 +35,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
+import { RiderAsksCard } from '../../components/debts/RiderAsksCard';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -203,8 +204,9 @@ function DebtsPageContent() {
     try {
       const list = await api.getOrgSupervision({ mine: 1 });
       setSupervisedRiders(Array.isArray(list) ? list : []);
-    } catch {
+    } catch (err: any) {
       setSupervisedRiders([]);
+      toast(err.message || 'تعذر تحميل المناديب تحت إشرافك', 'danger');
     }
   };
 
@@ -789,6 +791,8 @@ function DebtsPageContent() {
               )}
             </div>
           </div>
+
+          {canRequestAdvances && <RiderAsksCard onConverted={loadAdvanceRequests} />}
 
           {advancesError ? (
             <ErrorState title="تعذر تحميل طلبات السلف" message={advancesError} onRetry={loadAdvanceRequests} />

@@ -1038,12 +1038,13 @@ try {
   );
   await page.screenshot({ path: path.join(fix1ResultsDir, 'f3-rider-app-statement.png') });
 
-  // Sessions sub-tab preserves F4 gap banner
+  // Sessions sub-tab: F4 closed in 0.14.1 — the real sessions panel replaces the gap banner
   const sessionsTabBtn = page.locator('button:has-text("الحسابات والأجهزة")').first();
   await sessionsTabBtn.click();
+  await page.waitForSelector('[data-testid="rider-sessions"]', { timeout: 8000 });
   const sessionsContent = await page.textContent('body');
-  assert.ok(sessionsContent.includes('غير متاح بعد — بانتظار اكتمال واجهات خادم الجلسات الميدانية (Codex)'), 'Sessions gap banner preserved');
-  console.log('✓ Step 13d (F4): Rider mobile sessions gap banner verified');
+  assert.ok(!sessionsContent.includes('بانتظار اكتمال واجهات خادم الجلسات'), 'Sessions gap banner removed');
+  console.log('✓ Step 13d (F4): Rider mobile sessions panel verified');
   await page.screenshot({ path: path.join(fix1ResultsDir, 'f4-sessions-gap.png') });
 
   await checkerContext2.close();

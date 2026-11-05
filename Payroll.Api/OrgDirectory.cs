@@ -47,6 +47,8 @@ public static class OrgDirectory
     }
     public static bool Supervises(DbConnection c,DbTransaction? tx,string supervisor,string iqama,DateTimeOffset? at=null)=>
         Store.List(c,Supervision,tx).Any(s=>s.S("supervisorUserId")==supervisor&&s.S("riderIqama")==iqama&&Active(s,Today(at)));
+    public static List<string> SupervisorsOf(DbConnection c,DbTransaction? tx,string iqama)=>
+        Store.List(c,Supervision,tx).Where(s=>s.S("riderIqama")==iqama&&Active(s,Today())).Select(s=>s.S("supervisorUserId")).Distinct().ToList();
     public static List<JsonObject> SupervisedRiders(DbConnection c,DbTransaction? tx,string supervisor)=>
         Store.List(c,Supervision,tx).Where(s=>s.S("supervisorUserId")==supervisor&&Active(s,Today())).ToList();
 

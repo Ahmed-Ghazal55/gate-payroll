@@ -102,6 +102,7 @@ public static class AccessPolicy
             if(method=="GET")return Has("advances.request")||Has("advances.review")||Has("advances.payout");
             if(method!="POST")return false;
             if(path=="/api/advance-requests"||path.EndsWith("/respond",StringComparison.Ordinal))return Has("advances.request");
+            if(path.StartsWith("/api/advance-requests/rider-asks/",StringComparison.Ordinal))return Has("advances.request")&&(path.EndsWith("/convert",StringComparison.Ordinal)||path.EndsWith("/decline",StringComparison.Ordinal));
             if(path.EndsWith("/review",StringComparison.Ordinal))return Has("advances.review");
             return path.EndsWith("/payout",StringComparison.Ordinal)&&Has("advances.payout");
         }
