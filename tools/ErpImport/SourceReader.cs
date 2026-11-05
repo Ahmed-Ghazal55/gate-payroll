@@ -15,7 +15,7 @@ public static class SourceReader
         new("platform","CompanyProfile","Id Code LegalNameAr LegalNameEn CommercialRegistrationNumber UnifiedNationalNumber Status"),
         new("platform","GlobalCities","Id Code NameAr NameEn RegionAr RegionEn CountryCode Status IsDeleted"),
         new("app","OperatingCities","Id GlobalCityId EnabledFrom DisabledAt Status IsDeleted"),
-        new("app","Employees","Id IqamaNo FullNameAr FullNameEn Nationality PrimaryPhone Iban IsEmployee EngagementType Status HireDate SponsorId OperatingCityId OperationalWorkTypeId IsDeleted"),
+        new("app","Employees","Id IqamaNo FullNameAr FullNameEn Nationality PrimaryPhone Iban IsEmployee EngagementType Status HireDate SponsorId OperatingCityId OperationalWorkTypeId ContractStartDate ContractEndDate TerminationDate ResidencyProfession IsDeleted"),
         new("app","RiderProfiles","Id EmployeeId TShirtSize IsDeleted"),
         new("app","Housing","Id Code NameAr NameEn CityId OpenedDate ClosedDate Status IsDeleted"),
         new("app","HousingFloors","Id HousingId Name IsDeleted"),

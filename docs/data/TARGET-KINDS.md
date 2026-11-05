@@ -66,3 +66,13 @@ HandoverId is a foreign key to AccountSessions; transferred debt resolves throug
 - `ninja_daily`: ninja.NinjaDailyPerformance, report date, actual rider/assignment, orders and hours.
 - `ninja_daily_deduction`: ninja.NinjaDailyDeductions, report date, actual rider, collected amount and deductions.
 Every row preserves exact `CaptainId` casing in the document. Missing CaptainId is rejected. Historical daily CaptainId is retained, not overwritten from the current account. Source/import tables are excluded.
+
+## R6a-7 additional authoritative sources
+- `employee`: app.Employees, all staff including those without a RiderProfile; current employer/city, contract/hire/end dates and residency profession. This does not invent a rider identity.
+- `employee_document`: app.EmployeeDocuments + platform.DocumentTypes; iqama/residency/work-permit metadata is distinguished by the actual document type code, with issue/expiry dates. No document binaries/versions are read.
+- `driver_license`: app.EmployeeDriverLicenses, issuance/status/expiry and category IDs; encrypted numbers, hashes and files are excluded.
+- `rider_account_assignment`: app.RiderClientAssignments as a separate dated document, in addition to the existing platform account projection.
+- `erp_jahez_operation`, `erp_jahez_request`, `erp_money_movement`: jahez_v2.Operations, Requests and MoneyMovements; original type/status/amount/fund/reference, linked through actual sessions. These are not converted into Gate advance requests or paid a second time.
+- `erp_treasury_account`, `erp_treasury_posting`: jahez_v3.TreasurySubAccounts and Postings with original classification, company, signed amount, revision and reversal lineage. Sponsorless group accounts remain group accounts.
+- `erp_cashbox_handover`: jahez_v2.CashboxHandovers + CashboxHandoverMovements; explicit movement IDs and companyIds preserve multi-company custody without choosing one owner.
+- Current ERP metadata has no dedicated ADV/payment-request tables and no sponsorship-period table; report unavailable. Never fabricate ADV references from unrelated Jahez requests. Separate work-permit tables are absent; use actual EmployeeDocuments types only. Existing city/housing/residence/legal-case/account sources already cover operations.

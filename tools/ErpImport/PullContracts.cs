@@ -28,13 +28,24 @@ public static class PullContracts
         new("jahez_account_fee","jahez_v2","AccountFees","Id HandoverId Amount WaivedAmount ApprovalRequestId IsDeleted","amount:Amount waivedAmount:WaivedAmount approvalSourceId:ApprovalRequestId","jahez","amount waivedAmount"),
         new("jahez_account_fee_refund","jahez_v2","AccountFeeRefunds","Id HandoverId AccountFeeId MoneyMovementId GrossFeeRefund CancelledUnpaidFee WaiveCommission CalculatedCommission DeductedCommission RefundAmount OccurredAtUtc","accountFeeSourceId:AccountFeeId moneyMovementSourceId:MoneyMovementId grossFeeRefund:GrossFeeRefund cancelledUnpaidFee:CancelledUnpaidFee waiveCommission:WaiveCommission calculatedCommission:CalculatedCommission deductedCommission:DeductedCommission refundAmount:RefundAmount occurredAt:OccurredAtUtc","jahez","grossFeeRefund cancelledUnpaidFee calculatedCommission deductedCommission refundAmount"),
         new("jahez_transferred_debt","jahez_v2","TransferredDebts","Id OperationId RiderProfileId Amount PaidAmount PaidAtUtc IsDeleted","operationSourceId:OperationId amount:Amount paidAmount:PaidAmount paidAt:PaidAtUtc","jahez_debt","amount paidAmount"),
-        new("","jahez_v2","Operations","Id HandoverId ExpectedSponsorId Status PaymentStatus Net Commission CalculatedCommission Remaining Fund Purpose TransferToRider ExecutedAtUtc","" )
+        new("erp_jahez_operation","jahez_v2","Operations","Id HandoverId ExpectedSponsorId Status PaymentStatus Net Commission CalculatedCommission Remaining Fund Purpose TransferToRider ExecutedAtUtc IsDeleted","statusCode:Status paymentStatusCode:PaymentStatus net:Net commission:Commission calculatedCommission:CalculatedCommission remaining:Remaining fundCode:Fund purposeCode:Purpose transferToRider:TransferToRider executedAt:ExecutedAtUtc expectedSponsorSourceId:ExpectedSponsorId","jahez","net commission calculatedCommission remaining")
         ,new("ninja_account","ninja","NinjaAccountDetails","Id PlatformRiderAccountId PhoneNumber IsDeleted","phone:PhoneNumber","platform_account"),
         new("ninja_daily","ninja","NinjaDailyPerformance","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId SourceId ReportDate CaptainId SourceRowNumber TotalOrders TotalWorkingHours","date:ReportDate CaptainId:CaptainId sourceId:SourceId sourceRow:SourceRowNumber orders:TotalOrders hours:TotalWorkingHours","platform_rider","orders hours"),
         new("ninja_daily_deduction","ninja","NinjaDailyDeductions","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId SourceId ReportDate CaptainId SourceRowNumber TotalCollectedAmountAtDelivery TotalDeductions","date:ReportDate CaptainId:CaptainId sourceId:SourceId sourceRow:SourceRowNumber collectedAmount:TotalCollectedAmountAtDelivery amount:TotalDeductions","platform_rider","collectedAmount amount")
+        ,new("employee","app","Employees","Id IqamaNo FullNameAr FullNameEn PrimaryPhone Nationality IsEmployee EngagementType SponsorId OperatingCityId HireDate ContractStartDate ContractEndDate TerminationDate ResidencyProfession Status IsDeleted","iqama:IqamaNo name:FullNameAr nameEn:FullNameEn phone:PrimaryPhone nationality:Nationality isEmployee:IsEmployee engagementTypeCode:EngagementType hireDate:HireDate contractStartDate:ContractStartDate contractEndDate:ContractEndDate terminationDate:TerminationDate residencyProfession:ResidencyProfession","employee"),
+        new("employee_document","app","EmployeeDocuments","Id EmployeeId DocumentTypeId DocumentNumber IssueDate ExpiryDate Status IsDeleted","documentTypeSourceId:DocumentTypeId number:DocumentNumber issueDate:IssueDate expiryDate:ExpiryDate","employee"),
+        new("driver_license","app","EmployeeDriverLicenses","Id EmployeeId DriverLicenseCategoryId IssueDate ExpiryDate BookingStatus IssuanceStatus LicenseStatus PreviousLicenseId IsCurrent IsDeleted","categorySourceId:DriverLicenseCategoryId issueDate:IssueDate expiryDate:ExpiryDate bookingStatusCode:BookingStatus issuanceStatusCode:IssuanceStatus licenseStatusCode:LicenseStatus previousLicenseSourceId:PreviousLicenseId isCurrent:IsCurrent","employee"),
+        new("rider_account_assignment","app","RiderClientAssignments","Id RiderProfileId ClientContractId PlatformRiderAccountId EffectiveFrom EffectiveTo Status PaymentModel RiderAccountSlot NinjaRiderType IsDeleted","effectiveFrom:EffectiveFrom effectiveTo:EffectiveTo paymentModelCode:PaymentModel slot:RiderAccountSlot ninjaRiderTypeCode:NinjaRiderType contractSourceId:ClientContractId","platform_rider","","EffectiveFrom","EffectiveTo"),
+        new("erp_jahez_request","jahez_v2","Requests","Id HandoverId Kind Status RequestedByUserId TargetAccountId WaiverAmount FromDate ToDate EffectiveAtUtc AdjustmentTarget DebtAdjustment OperationId ProposedCommission ProposedNet AccountId IsDeleted","typeCode:Kind statusCode:Status requestedBySourceId:RequestedByUserId targetAccountSourceId:TargetAccountId waiverAmount:WaiverAmount from:FromDate to:ToDate effectiveAt:EffectiveAtUtc adjustmentTargetCode:AdjustmentTarget debtAdjustment:DebtAdjustment operationSourceId:OperationId proposedCommission:ProposedCommission proposedNet:ProposedNet","jahez","waiverAmount debtAdjustment proposedCommission proposedNet"),
+        new("erp_money_movement","jahez_v2","MoneyMovements","Id HandoverId RiderProfileId OperationId TransferredDebtId Fund Direction Purpose Amount OccurredAtUtc Reference CommissionPaid DashboardDebtPaid","operationSourceId:OperationId transferredDebtSourceId:TransferredDebtId fundCode:Fund directionCode:Direction purposeCode:Purpose amount:Amount occurredAt:OccurredAtUtc reference:Reference commissionPaid:CommissionPaid dashboardDebtPaid:DashboardDebtPaid","jahez","amount commissionPaid dashboardDebtPaid"),
+        new("erp_treasury_account","jahez_v3","TreasurySubAccounts","Id Code NameAr NameEn ParentId SponsorId Location Purpose AllowedDirections IsPosting IsDefault IsActive IsDeleted","code:Code nameAr:NameAr nameEn:NameEn parentSourceId:ParentId locationCode:Location purposeCode:Purpose allowedDirectionsCode:AllowedDirections isPosting:IsPosting isDefault:IsDefault isActive:IsActive","sponsor"),
+        new("erp_treasury_posting","jahez_v3","Postings","Id SubAccountId SponsorId MoneyMovementId CashboxHandoverId BatchId Revision ReversesPostingId Kind Amount OccurredAtUtc Reference","subAccountSourceId:SubAccountId moneyMovementSourceId:MoneyMovementId cashboxHandoverSourceId:CashboxHandoverId batchSourceId:BatchId revision:Revision reversesSourceId:ReversesPostingId kindCode:Kind amount:Amount occurredAt:OccurredAtUtc reference:Reference","sponsor","amount"),
+        new("erp_cashbox_handover","jahez_v2","CashboxHandovers","Id DocumentNumber BusinessDate Status CashboxAmount PetroAppAmount BankAmount MovementCount ConfirmedAtUtc TreasuryVersion IsDeleted","documentNumber:DocumentNumber date:BusinessDate statusCode:Status cashboxAmount:CashboxAmount petroAppAmount:PetroAppAmount bankAmount:BankAmount movementCount:MovementCount confirmedAt:ConfirmedAtUtc treasuryVersion:TreasuryVersion","cashbox","cashboxAmount petroAppAmount bankAmount movementCount"),
+        new("","jahez_v2","CashboxHandoverMovements","Id CashboxHandoverId MoneyMovementId",""),
+        new("","platform","DocumentTypes","Id Code NameAr NameEn","" )
     ];
     public static IEnumerable<string> Kinds => Catalog.Where(c=>c.Kind!="").Select(c=>c.Kind);
-    public static IEnumerable<SourceTable> Tables => Catalog.Select(c=>new SourceTable(c.Schema,c.Table,c.Fields,true));
+    public static IEnumerable<SourceTable> Tables => Catalog.Where(c=>c.Table is not ("Employees" or "RiderClientAssignments")).Select(c=>new SourceTable(c.Schema,c.Table,c.Fields,true));
     public static string Table(string kind)=>Catalog.FirstOrDefault(c=>c.Kind==kind)?.Table??"";
     public static void AddToPlan(SourceSnapshot source,ImportPlan plan,Dictionary<string,string> companies,Dictionary<string,string> employees,Dictionary<string,string> profiles,Func<string,string> city)
     {
@@ -50,6 +61,9 @@ public static class PullContracts
             if(row.S("EmployeeId")!=""&&a==""||row.S("RiderProfileId")!=""&&b==""||a!=""&&b!=""&&a!=b)return "";
             return a!=""?a:b;
         }
+        plan.Unavailable["erp_advance_request"]="source_table_absent";
+        plan.Unavailable["erp_payment_request"]="source_table_absent";
+        plan.Unavailable["work_permit"]="no_separate_source_table_use_employee_document_types";
         foreach(var contract in Catalog)
         {
             if(contract.Kind=="")continue;
@@ -113,7 +127,7 @@ public static class PullContracts
                     if(contract.Relation=="platform_account")doc["registeredRiderId"]=employees.GetValueOrDefault(account.S("RegisteredEmployeeId"))??"";
                     else
                     {
-                        string rider=Rider(row);var assignment=Find("RiderClientAssignments",row.S("RiderClientAssignmentId"));
+                        string rider=Rider(row);var assignment=contract.Kind=="rider_account_assignment"?row:Find("RiderClientAssignments",row.S("RiderClientAssignmentId"));
                         if(rider==""){plan.Reject(contract.Kind,"unmatched_rider");continue;}
                         if(assignment==null||assignment.S("PlatformRiderAccountId")!=account.S("Id")||assignment.S("RiderProfileId")!=row.S("RiderProfileId"))
                         {plan.Reject(contract.Kind,"unmatched_assignment");continue;}
@@ -126,12 +140,12 @@ public static class PullContracts
                     if(contract.Relation=="jahez_debt")
                     {var operation=Find("Operations",row.S("OperationId"));if(operation==null){plan.Reject(contract.Kind,"missing_operation_relation");continue;}sessionId=operation.S("HandoverId");}
                     var session=Find("AccountSessions",sessionId);
-                    string accountId=row.S("AccountId");
+                    string accountId=row.S("AccountId");if(accountId=="")accountId=row.S("TargetAccountId");
                     if(session!=null)
                     {
                         if(accountId!=""&&accountId!=session.S("PlatformRiderAccountId")){plan.Reject(contract.Kind,"conflicting_account_relation");continue;}
                         accountId=session.S("PlatformRiderAccountId");string rider=Rider(session);
-                        if(rider==""||contract.Relation=="jahez_debt"&&Rider(row)!=rider){plan.Reject(contract.Kind,"unmatched_rider");continue;}
+                        if(rider==""||row.S("RiderProfileId")!=""&&Rider(row)!=rider){plan.Reject(contract.Kind,"unmatched_rider");continue;}
                         doc["riderId"]=rider;doc["sessionId"]=Key("jahez_account_session",sessionId);
                     }
                     else if(sessionId!=""||accountId==""){plan.Reject(contract.Kind,"missing_session_relation");continue;}
@@ -140,6 +154,34 @@ public static class PullContracts
                     if(account==null){plan.Reject(contract.Kind,"missing_platform_account_relation");continue;}
                     doc["platformAccountId"]=Key("platform_account",accountId);doc["companyId"]=companies.GetValueOrDefault(account.S("SponsorId"))??"";
                     if(doc.S("companyId")==""){plan.Reject(contract.Kind,"missing_company_relation");continue;}
+                }
+                if(contract.Relation=="employee")
+                {
+                    var employee=contract.Kind=="employee"?row:Find("Employees",row.S("EmployeeId"));
+                    if(employee==null){plan.Reject(contract.Kind,"missing_employee_relation");continue;}
+                    doc["employeeSourceId"]=employee.S("Id");doc["riderId"]=employees.GetValueOrDefault(employee.S("Id"))??"";
+                    doc["companyId"]=companies.GetValueOrDefault(employee.S("SponsorId"))??"";doc["cityId"]=city(employee.S("OperatingCityId"));
+                    if(contract.Kind=="employee_document")doc["documentTypeCode"]=Find("DocumentTypes",row.S("DocumentTypeId"))?.S("Code")??"";
+                }
+                if(contract.Relation=="sponsor")
+                {
+                    doc["companyId"]=companies.GetValueOrDefault(row.S("SponsorId"))??"";
+                    // Group treasury accounts may deliberately have no sponsor; financial postings may not.
+                    if(doc.S("companyId")==""&&!(contract.Kind=="erp_treasury_account"&&row.S("SponsorId")=="")){plan.Reject(contract.Kind,"missing_company_relation");continue;}
+                }
+                if(contract.Relation=="cashbox")
+                {
+                    var links=Rows("CashboxHandoverMovements").Where(x=>x.S("CashboxHandoverId")==row.S("Id")).ToList();
+                    var linked=new HashSet<string>();bool missing=false;
+                    foreach(var link in links)
+                    {
+                        var move=Find("MoneyMovements",link.S("MoneyMovementId"));var session=Find("AccountSessions",move?.S("HandoverId")??"");
+                        var account=Find("PlatformRiderAccounts",session?.S("PlatformRiderAccountId")??"");string company=companies.GetValueOrDefault(account?.S("SponsorId")??"")??"";
+                        if(move==null||company==""){missing=true;break;}linked.Add(company);
+                    }
+                    if(missing){plan.Reject(contract.Kind,"unmatched_money_movement");continue;}
+                    doc["companyIds"]=new JsonArray(linked.Order().Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray());
+                    doc["moneyMovementSourceIds"]=new JsonArray(links.Select(x=>(JsonNode?)JsonValue.Create(x.S("MoneyMovementId"))).ToArray());
                 }
                 plan.Documents.Add(new(contract.Kind,doc));
             }

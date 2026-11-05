@@ -239,4 +239,21 @@ public sealed class ErpImportTests
         Assert.AreEqual(Identity(2),docs.Single(x=>x.Kind=="ninja_daily").Body.S("riderId"));Assert.AreEqual(8.5m,ImportExecutor.Run(source,plan,[]).Totals["ninja_daily"]["hours"]);
         source.Tables["NinjaDailyPerformance"][0]["CaptainId"]="";Assert.AreEqual(1,ImportPlan.Build(source,Catalog).Rejected["ninja_daily"]["missing_captain_id"]);
     }
+    [TestMethod]
+    public void WidenedPullPreservesHrExpiryActualAssignmentsAndTreasurySourceFacts()
+    {
+        using var f=new Fixture();
+        f.Add("DocumentTypes",new(){["Id"]="document-type",["Code"]="Iqama"});
+        f.Add("EmployeeDocuments",new(){["Id"]="document",["EmployeeId"]="employee2",["DocumentTypeId"]="document-type",["ExpiryDate"]="2027-01-01"});
+        f.Add("EmployeeDriverLicenses",new(){["Id"]="license",["EmployeeId"]="employee2",["ExpiryDate"]="2027-02-01"});
+        f.Add("TreasurySubAccounts",new(){["Id"]="vault",["SponsorId"]="sponsor",["Code"]="SYN-VAULT"});
+        f.Add("Postings",new(){["Id"]="posting",["SubAccountId"]="vault",["SponsorId"]="sponsor",["Amount"]=20,["ReversesPostingId"]="reversed"});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);
+        Assert.AreEqual(3,plan.Documents.Count(d=>d.Kind=="employee"));Assert.AreEqual("Iqama",plan.Documents.Single(d=>d.Kind=="employee_document").Body.S("documentTypeCode"));
+        Assert.AreEqual("2027-02-01",plan.Documents.Single(d=>d.Kind=="driver_license").Body.S("expiryDate"));
+        Assert.AreEqual(Identity(2),plan.Documents.Single(d=>d.Kind=="rider_account_assignment").Body.S("riderId"));
+        Assert.AreEqual("reversed",plan.Documents.Single(d=>d.Kind=="erp_treasury_posting").Body.S("reversesSourceId"));
+        Assert.AreEqual("source_table_absent",plan.Unavailable["erp_advance_request"]);
+        Assert.IsFalse(SourceReader.Catalog.Any(t=>t.Fields.Contains("Ciphertext")||t.Name.Contains("Credential")));
+    }
 }
