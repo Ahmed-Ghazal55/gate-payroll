@@ -47,7 +47,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {/* Toast container */}
       <div
         aria-live="polite"
-        className="fixed bottom-4 left-4 right-4 sm:right-auto z-50 flex flex-col gap-2 sm:max-w-sm sm:w-full pointer-events-none"
+        className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:start-4 z-50 flex flex-col gap-2 sm:max-w-sm sm:w-full pointer-events-none"
       >
         {toasts.map((t) => {
           const icons = {

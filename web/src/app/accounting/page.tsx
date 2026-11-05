@@ -280,12 +280,12 @@ export default function AccountingPage() {
           acc.level === 1
             ? 'font-bold text-[var(--ink)] text-sm'
             : acc.level === 2
-            ? 'font-semibold text-[var(--ink)] pr-3'
+            ? 'font-semibold text-[var(--ink)] ps-3'
             : acc.level === 3
-            ? 'font-medium text-[var(--ink)] pr-6'
+            ? 'font-medium text-[var(--ink)] ps-6'
             : acc.level === 4
-            ? 'text-xs text-[var(--ink)] pr-9'
-            : 'text-xs text-[var(--muted)] pr-12';
+            ? 'text-xs text-[var(--ink)] ps-9'
+            : 'text-xs text-[var(--muted)] ps-12';
 
         return (
           <div className="flex items-center gap-2">
@@ -609,13 +609,13 @@ export default function AccountingPage() {
           {/* Toolbar */}
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
             <div className="flex-1 relative">
-              <Search size={16} className="absolute right-3 top-2.5 text-[var(--muted)] pointer-events-none" />
+              <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none" />
               <input
                 type="text"
                 placeholder="ابحث برقم الحساب أو الاسم العربي..."
                 value={coaSearch}
                 onChange={(e) => setCoaSearch(e.target.value)}
-                className="w-full pl-3 pr-9 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden focus:ring-1 focus:ring-[var(--accent)]"
+                className="w-full ps-9 pe-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden focus:ring-1 focus:ring-[var(--accent)]"
               />
             </div>
 
@@ -702,13 +702,13 @@ export default function AccountingPage() {
         <div className="space-y-4">
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
             <div className="flex-1 relative">
-              <Search size={16} className="absolute right-3 top-2.5 text-[var(--muted)] pointer-events-none" />
+              <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none" />
               <input
                 type="text"
                 placeholder="ابحث برقم القيد، المرجع، البيان، المندوب أو كود الحساب..."
                 value={journalSearch}
                 onChange={(e) => setJournalSearch(e.target.value)}
-                className="w-full pl-3 pr-9 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
+                className="w-full ps-9 pe-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
               />
             </div>
 
@@ -972,7 +972,7 @@ export default function AccountingPage() {
                                   {row.code}
                                 </td>
                                 <td className="py-2 px-3">
-                                  <span className={row.level === 1 ? 'font-black text-sm' : isGroup ? 'font-bold' : 'pr-3'}>
+                                  <span className={row.level === 1 ? 'font-black text-sm' : isGroup ? 'font-bold' : 'ps-3'}>
                                     {row.nameAr || row.name}
                                   </span>
                                 </td>
