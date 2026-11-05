@@ -29,6 +29,7 @@ export interface NavSubItem {
   label: string;
   badge?: number | string;
   isNew?: boolean;
+  permission?: string | string[];
 }
 
 export interface NavGroup {
@@ -141,10 +142,11 @@ function SidebarInner({
       badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
       permission: 'debts.view',
       items: [
-        { id: 'debts-list', href: '/debts/?tab=debts', label: 'سجل المديونيات' },
-        { id: 'debts-statement', href: '/debts/?tab=statement', label: 'كشف حساب المندوب' },
-        { id: 'debts-approvals', href: '/debts/?tab=approvals', label: 'منظومة الاعتمادات' },
-        { id: 'debts-promissory', href: '/debts/?tab=promissory', label: 'أرشيف سندات الأمر' },
+        { id: 'debts-list', href: '/debts/?tab=debts', label: 'سجل المديونيات', permission: 'debts.view' },
+        { id: 'debts-advance-requests', href: '/debts/?tab=advance_requests', label: 'طلبات السلف', permission: ['advances.request', 'advances.review'] },
+        { id: 'debts-statement', href: '/debts/?tab=statement', label: 'كشف حساب المندوب', permission: 'debts.view' },
+        { id: 'debts-approvals', href: '/debts/?tab=approvals', label: 'منظومة الاعتمادات', permission: 'debts.approve' },
+        { id: 'debts-promissory', href: '/debts/?tab=promissory', label: 'أرشيف سندات الأمر', permission: 'debts.view' },
       ],
     },
     {
@@ -154,9 +156,10 @@ function SidebarInner({
       defaultHref: '/treasury/',
       permission: 'treasury.view',
       items: [
-        { id: 'treasury-vaults', href: '/treasury/?tab=vaults', label: 'أرصدة الخزينة (1110-1140)' },
-        { id: 'treasury-bankfile', href: '/treasury/?tab=bank_file', label: 'ملف صرف الرواتب البنكي' },
-        { id: 'treasury-movements', href: '/treasury/?tab=movements', label: 'سجل القيود والحركات' },
+        { id: 'treasury-vaults', href: '/treasury/?tab=vaults', label: 'أرصدة الخزينة (1110-1140)', permission: 'treasury.view' },
+        { id: 'treasury-advance-payouts', href: '/treasury/?tab=advance_payouts', label: 'صرف السلف المعتمدة', permission: 'advances.payout' },
+        { id: 'treasury-bankfile', href: '/treasury/?tab=bank_file', label: 'ملف صرف الرواتب البنكي', permission: 'treasury.view' },
+        { id: 'treasury-movements', href: '/treasury/?tab=movements', label: 'سجل القيود والحركات', permission: 'treasury.view' },
       ],
     },
     {
@@ -207,9 +210,10 @@ function SidebarInner({
       defaultHref: '/admin/',
       permission: 'users.manage',
       items: [
-        { id: 'admin-users', href: '/admin/?tab=users', label: 'المستخدمون والصلاحيات' },
-        { id: 'admin-audit', href: '/admin/?tab=audit', label: 'سجل التدقيق والعمليات' },
-        { id: 'admin-settings', href: '/admin/?tab=settings', label: 'إعدادات النظام' },
+        { id: 'admin-users', href: '/admin/?tab=users', label: 'المستخدمون والصلاحيات', permission: 'users.manage' },
+        { id: 'admin-org', href: '/admin/?tab=org', label: 'الأقسام والرتب والتفويضات', permission: 'org.manage' },
+        { id: 'admin-audit', href: '/admin/?tab=audit', label: 'سجل التدقيق والعمليات', permission: 'users.manage' },
+        { id: 'admin-settings', href: '/admin/?tab=settings', label: 'إعدادات النظام', permission: 'users.manage' },
       ],
     },
   ];
@@ -248,12 +252,25 @@ function SidebarInner({
     }));
   };
 
-  const visibleGroups = navGroups.filter((group) => {
-    if (!user) return true;
-    if (isAdmin) return true;
-    if (!group.permission) return true;
-    return can(group.permission);
-  });
+  const isItemVisible = (item: NavSubItem) => {
+    if (!user || isAdmin || !item.permission) return true;
+    if (Array.isArray(item.permission)) {
+      return item.permission.some((p) => can(p));
+    }
+    return can(item.permission);
+  };
+
+  const visibleGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(isItemVisible),
+    }))
+    .filter((group) => {
+      if (!user) return true;
+      if (isAdmin) return true;
+      const hasGroupPerm = !group.permission || can(group.permission);
+      return hasGroupPerm || group.items.length > 0;
+    });
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[var(--surface)] text-[var(--ink)] border-e border-[var(--line)]">

@@ -36,6 +36,14 @@ import type {
   TargetCoaResponse,
   TrialBalanceResponse,
   IncomeStatementResponse,
+  AdvanceRequest,
+  AdvanceRequestSummary,
+  OrgCatalog,
+  OrgMembership,
+  OrgDelegation,
+  OrgSupervision,
+  OrgRouting,
+  OrgResponsibleUser,
 } from './types';
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
@@ -1180,4 +1188,105 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+
+  // ========================================================
+  // R5 ADVANCES & ORG DIRECTORY APIS (BR §25)
+  // ========================================================
+
+  // Advance Requests
+  createAdvanceRequest: (body: { riderIqama: string; type: 'cash' | 'bank'; amount: number; reason: string; vaultCode?: string }) =>
+    handleRequest<AdvanceRequest>('/advance-requests', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  getAdvanceRequests: (params?: { role?: 'mine' | 'review' | 'payout'; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.role) q.set('role', params.role);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString();
+    return handleRequest<AdvanceRequest[]>(`/advance-requests${qs ? `?${qs}` : ''}`);
+  },
+  getAdvanceRequest: (id: string) => handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}`),
+  getAdvanceRequestSummary: (id: string) => handleRequest<AdvanceRequestSummary>(`/advance-requests/${encodeURIComponent(id)}/summary`),
+  reviewAdvanceRequest: (
+    id: string,
+    body: {
+      action: 'approve' | 'reject' | 'propose';
+      note?: string;
+      monthlyInstallment?: number;
+      coverageReason?: string;
+      proposed?: { type?: 'cash' | 'bank'; amount?: number; vaultCode?: string };
+      revision?: number;
+    }
+  ) =>
+    handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}/review`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  respondToAdvanceProposal: (id: string, body: { action: 'accept' | 'reject'; note?: string }) =>
+    handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}/respond`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  payoutAdvanceRequest: (id: string, body: { reference: string; note?: string }) =>
+    handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}/payout`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  // Org Directory (Departments, Ranks, Delegations, Supervision, Routing)
+  getOrgCatalog: () => handleRequest<OrgCatalog>('/org/catalog'),
+  getOrgMemberships: () => handleRequest<OrgMembership[]>('/org/memberships'),
+  createOrgMembership: (body: { userId: string; department: string; rank: string; validFrom?: string; validTo?: string }) =>
+    handleRequest<OrgMembership>('/org/memberships', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  endOrgMembership: (id: string, body?: { validTo?: string }) =>
+    handleRequest<OrgMembership>(`/org/memberships/${encodeURIComponent(id)}/end`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }),
+  getOrgDelegations: () => handleRequest<OrgDelegation[]>('/org/delegations'),
+  createOrgDelegation: (body: { fromUser: string; toUser: string; operation: string; validFrom?: string; until: string; reason?: string }) =>
+    handleRequest<OrgDelegation>('/org/delegations', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  endOrgDelegation: (id: string, body?: { validTo?: string }) =>
+    handleRequest<OrgDelegation>(`/org/delegations/${encodeURIComponent(id)}/end`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }),
+  getOrgSupervision: (params?: { mine?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.mine !== undefined) q.set('mine', String(params.mine));
+    const qs = q.toString();
+    return handleRequest<OrgSupervision[]>(`/org/supervision${qs ? `?${qs}` : ''}`);
+  },
+  createOrgSupervision: (body: { supervisorUserId: string; riderIqama: string; validFrom?: string; validTo?: string }) =>
+    handleRequest<OrgSupervision>('/org/supervision', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  endOrgSupervision: (id: string, body?: { validTo?: string }) =>
+    handleRequest<OrgSupervision>(`/org/supervision/${encodeURIComponent(id)}/end`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }),
+  getOrgRouting: () => handleRequest<OrgRouting[]>('/org/routing'),
+  createOrgRouting: (body: { operation: string; department: string; minRank: string; users: string[]; validFrom?: string; validTo?: string }) =>
+    handleRequest<OrgRouting>('/org/routing', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  endOrgRouting: (id: string, body?: { validTo?: string }) =>
+    handleRequest<OrgRouting>(`/org/routing/${encodeURIComponent(id)}/end`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }),
+  getOrgResponsible: (operation: string) => {
+    const q = new URLSearchParams({ operation });
+    return handleRequest<OrgResponsibleUser[]>(`/org/responsible?${q.toString()}`);
+  },
 };

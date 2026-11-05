@@ -431,6 +431,7 @@ export interface DebtRecord {
   originalAmount: number;
   remainingAmount: number;
   monthlyDeduction?: number;
+  monthlyInstallment?: number;
   status: 'active' | 'settled' | 'waived' | 'disputed';
   sponsorId?: string;
   createdAt: string;
@@ -444,6 +445,7 @@ export interface ApprovalRequest {
   targetDepartment: string;
   requestType: string;
   requestTypeAr?: string;
+  kind?: string;
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   amount?: number;
   iqama?: string;
@@ -924,4 +926,160 @@ export interface MonthlyRiderStatement {
   closing: number;
   balanceBasis: 'cycle_snapshot' | 'approved_legacy_snapshot';
   approvedOnly: boolean;
+}
+
+// ========================================================
+// R5 ADVANCES & ORG DIRECTORY TYPES (BR §25)
+// ========================================================
+
+export interface AdvanceRequestDecision {
+  actor: string;
+  action: 'submitted' | 'approved' | 'rejected' | 'proposed' | 'accepted_proposal' | 'rejected_proposal' | 'paid';
+  note?: string;
+  at: string;
+  fromStatus?: string;
+  snapshot?: {
+    department?: string;
+    rank?: string;
+    via?: string;
+    delegationId?: string;
+  };
+  monthlyInstallment?: number;
+  coverageReason?: string;
+  proposal?: {
+    type?: 'cash' | 'bank';
+    amount?: number;
+    vaultCode?: string;
+    proposedBy?: string;
+  };
+  reference?: string;
+}
+
+export interface AdvanceRequest {
+  id: string;
+  riderIqama: string;
+  riderName: string;
+  companyId: string;
+  type: 'cash' | 'bank';
+  amount: number;
+  vaultCode: string;
+  reason: string;
+  status: 'under_review' | 'approved' | 'rejected' | 'change_proposed' | 'cancelled' | 'paid';
+  revision: number;
+  requestedBy: string;
+  createdAt: string;
+  updatedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  paidBy?: string;
+  paidAt?: string;
+  payoutReference?: string;
+  monthlyInstallment?: number;
+  coverageAtApproval?: boolean;
+  forecastAtApproval?: number;
+  coverageReason?: string;
+  debtId?: string;
+  journalEntryId?: string;
+  proposal?: {
+    type: 'cash' | 'bank';
+    amount: number;
+    vaultCode: string;
+    proposedBy: string;
+  };
+  decisions: AdvanceRequestDecision[];
+}
+
+export interface AdvanceRequestSummary {
+  requestId: string;
+  period: string;
+  rider: {
+    iqama: string;
+    name: string;
+    companyId: string;
+  };
+  ordersThisMonth: number;
+  statement: {
+    available: boolean;
+    cards?: any[];
+    net?: number;
+    reason?: string;
+  };
+  openDebtBalance: number;
+  openDebts: number;
+  plannedInstallments: number;
+  lastPayrollSettlementAt: string;
+  advancesSinceLastSettlement: Array<{
+    debtId: string;
+    category: string;
+    amount: number;
+    remaining: number;
+    status: string;
+    createdAt: string;
+  }>;
+  forecastNet: number | null;
+  amount: number;
+  covered: boolean;
+  coverageKnown: boolean;
+  vaults: Array<{
+    type: 'cash' | 'bank';
+    code: string;
+    balance: number;
+    selected: boolean;
+  }>;
+}
+
+export interface OrgCatalog {
+  departments: string[];
+  ranks: Array<{ rank: string; level: number }>;
+  operations: string[];
+}
+
+export interface OrgMembership {
+  id: string;
+  userId: string;
+  department: string;
+  rank: string;
+  validFrom?: string;
+  validTo?: string;
+  createdAt?: string;
+}
+
+export interface OrgDelegation {
+  id: string;
+  fromUser: string;
+  toUser: string;
+  operation: string;
+  validFrom?: string;
+  until: string;
+  reason?: string;
+  createdAt?: string;
+}
+
+export interface OrgSupervision {
+  id: string;
+  supervisorUserId: string;
+  riderIqama: string;
+  riderName?: string;
+  validFrom?: string;
+  validTo?: string;
+  createdAt?: string;
+}
+
+export interface OrgRouting {
+  id: string;
+  operation: string;
+  department: string;
+  minRank: string;
+  users: string[];
+  validFrom?: string;
+  validTo?: string;
+  createdAt?: string;
+}
+
+export interface OrgResponsibleUser {
+  userId: string;
+  via: 'assignment' | 'delegation';
+  delegationId?: string;
+  department: string;
+  rank: string;
 }
