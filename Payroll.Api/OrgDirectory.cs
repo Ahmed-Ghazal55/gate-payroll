@@ -68,7 +68,7 @@ public static class OrgDirectory
     public static JsonObject AddSupervision(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)
     {
         Manage(actor);string supervisor=User(c,tx,input.Required("supervisorUserId")),iqama=DirectoryProfiles.Iqama(input.Required("riderIqama"));J.Need(Store.Get(c,iqama,"rider",tx)!=null,"المندوب غير موجود.");
-        string from=Date(input,"validFrom",Today()),to=Date(input,"validTo");
+        string from=Date(input,"validFrom",Today()),to=Date(input,"validTo");Span(from,to);
         J.Need(!Store.List(c,Supervision,tx).Any(s=>s.S("riderIqama")==iqama&&s.S("supervisorUserId")==supervisor&&s.S("validTo")==""),"الإشراف مسجل بالفعل.");
         return Save(c,tx,actor,Supervision,new(){["supervisorUserId"]=supervisor,["riderIqama"]=iqama,["validFrom"]=from,["validTo"]=to},"org.supervision_added");
     }
@@ -78,16 +78,18 @@ public static class OrgDirectory
         if(op.StartsWith("advance.payout:",StringComparison.Ordinal)){string vault=op["advance.payout:".Length..];J.Need(FinancialCore.ChartOfAccounts.Any(a=>a.Code==vault&&a.IsVault),"الخزنة أو البنك غير موجود.");}
         var users=input["users"] as JsonArray??throw new ApiError("حدد المسؤولين بأسمائهم.");J.Need(users.Count is >0 and <=20,"عدد المسؤولين غير صالح.");
         var clean=new JsonArray();foreach(var u in users.Select(x=>x?.ToString()??"").Distinct())clean.Add(User(c,tx,u));
-        return Save(c,tx,actor,Routing,new(){["operation"]=op,["department"]=department,["minRank"]=input.S("minRank","C"),["minRankLevel"]=min,["users"]=clean,["validFrom"]=Date(input,"validFrom",Today()),["validTo"]=Date(input,"validTo")},"org.routing_added");
+        string from=Date(input,"validFrom",Today()),to=Date(input,"validTo");Span(from,to);
+        return Save(c,tx,actor,Routing,new(){["operation"]=op,["department"]=department,["minRank"]=input.S("minRank","C"),["minRankLevel"]=min,["users"]=clean,["validFrom"]=from,["validTo"]=to},"org.routing_added");
     }
     public static JsonObject End(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string kind,string id,JsonObject input)
     {
         Manage(actor);J.Need(kind is Membership or Supervision or Routing or Delegation,"نوع غير معروف.");var row=Store.Get(c,id,kind,tx)?.Clone()??throw new ApiError("السجل غير موجود.",404);
         string day=Date(input,"validTo",Today());
-        if(kind==Delegation){J.Need(row.S("endedAt")=="","التفويض منتهٍ.");row["endedAt"]=DateTimeOffset.UtcNow.ToString("O");row["until"]=string.CompareOrdinal(day,row.S("until"))<0?day:row.S("until");}
+        if(kind==Delegation){J.Need(row.S("endedAt")=="","التفويض منتهٍ.");J.Need(string.CompareOrdinal(row.S("validFrom"),day)<=0,"تاريخ النهاية قبل البداية.");row["endedAt"]=DateTimeOffset.UtcNow.ToString("O");row["until"]=string.CompareOrdinal(day,row.S("until"))<0?day:row.S("until");}
         else{J.Need(row.S("validTo")==""||string.CompareOrdinal(day,row.S("validTo"))<0,"السجل منتهٍ بالفعل.");J.Need(string.CompareOrdinal(row.S("validFrom"),day)<=0,"تاريخ النهاية قبل البداية.");row["validTo"]=day;}
         row["endedBy"]=actor.Identity!.Name;Store.Save(c,kind,row,tx);Store.Audit(c,tx,"org.ended",id,actor.Identity!.Name!);return row;
     }
+    static void Span(string from,string to)=>J.Need(from!=""&&(to==""||string.CompareOrdinal(from,to)<=0),"تاريخ النهاية قبل البداية.");
     static object List(DbConnection c,HttpContext ctx,string kind)
     {
         if(kind==Supervision&&ctx.Request.Query["mine"]=="1")return SupervisedRiders(c,null,ctx.User.Identity!.Name!).Select(s=>{var v=s.Clone();v["riderName"]=Store.Get(c,s.S("riderIqama"),"rider")?.S("name")??"";return v;}).ToList();

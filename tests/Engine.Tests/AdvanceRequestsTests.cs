@@ -204,4 +204,16 @@ public sealed class AdvanceRequestsTests
                 Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>OrgDirectory.End(c,tx,Sup,kind,"synthetic-id",new()))).Status);
         });
     }
+    [TestMethod]
+    public void OrgDatesMustBeOrderedAndSettlementCutoffIsPerRider()
+    {
+        Run(s=>{
+            Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>OrgDirectory.AddRouting(c,tx,Admin,new(){["operation"]="advance.review",["department"]="FIN",["minRank"]="B",["users"]=new JsonArray("syn-accountant"),["validFrom"]="2026-05-01",["validTo"]="2026-04-01"})));
+            Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>OrgDirectory.AddSupervision(c,tx,Admin,new(){["supervisorUserId"]="syn-deputy",["riderIqama"]=Rider,["validFrom"]="2026-05-01",["validTo"]="2026-04-01"})));
+            var r=Create(s);
+            s.Write((c,tx)=>{Store.Save(c,"run",new(){["id"]="syn-run-other",["iqama"]="2000000999",["period"]="2099-01",["approvedAt"]="2099-01-31T00:00:00Z"},tx);return true;});
+            var summary=s.Read(c=>AdvanceRequests.Summary(c,null,Acc,Store.Get(c,r.S("id"),AdvanceRequests.Kind)!));
+            Assert.AreEqual("",summary.S("lastPayrollSettlementAt"),"another rider's run is never this rider's cutoff");
+        });
+    }
 }

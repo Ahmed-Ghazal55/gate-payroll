@@ -57,13 +57,14 @@ public static class AdvanceRequests
         decimal open=J.Money(debts.Sum(d=>d.N("remainingBalance")));
         decimal planned=J.Money(debts.Where(d=>d.S("status")=="active"&&string.CompareOrdinal(d.S("effectiveFrom"),period)<=0).Sum(d=>Math.Min(d.N("monthlyInstallment"),d.N("remainingBalance"))));
         // Last payroll settlement: the latest approved legacy run or approved pay cycle.
-        string lastRun=Store.List(c,"run",tx).Select(x=>x.S("createdAt")).DefaultIfEmpty("").Max()??"";
-        string lastCycle=Store.List(c,PayCycles.Kind,tx).Where(x=>x.S("status")=="approved").Select(x=>x.S("approvedAt",x.S("updatedAt",x.S("createdAt")))).DefaultIfEmpty("").Max()??"";
+        string lastRun=Store.List(c,"run",tx).Where(x=>x.S("iqama")==iqama&&x.S("approvedAt")!="").Select(x=>x.S("approvedAt")).DefaultIfEmpty("").Max()??"";
+        var riderCycles=Store.List(c,PayCycles.LineKind,tx).Where(l=>l.S("iqama")==iqama).Select(l=>l.S("cycleId")).ToHashSet();
+        string lastCycle=Store.List(c,PayCycles.Kind,tx).Where(x=>x.S("status")=="approved"&&riderCycles.Contains(x.S("id"))).Select(x=>x.S("approvedAt",x.S("updatedAt",x.S("createdAt")))).DefaultIfEmpty("").Max()??"";
         string last=string.CompareOrdinal(lastRun,lastCycle)>=0?lastRun:lastCycle;
         var since=Store.List(c,"debt",tx).Where(d=>d.S("iqama")==iqama&&d.S("category") is "Advance" or "CashAdvance" or "BankAdvance"&&string.CompareOrdinal(d.S("createdAt"),last)>0)
             .Select(d=>new JsonObject{["debtId"]=d.S("id"),["category"]=d.S("category"),["amount"]=d.N("totalAmount"),["remaining"]=d.N("remainingBalance"),["status"]=d.S("status"),["createdAt"]=d.S("createdAt")}).ToList();
         decimal? expected=null;JsonObject statement=new(){["available"]=false};
-        try{var s=PayStatements.Build(c,iqama,period,actor,false,tx);expected=s["closing"]?["net"]?.GetValue<decimal>()??s["net"]?.GetValue<decimal>();statement=new(){["available"]=expected!=null,["cards"]=s["cards"]?.DeepClone(),["net"]=expected};}
+        try{var s=PayStatements.Build(c,iqama,period,actor,false,tx);expected=s["net"] is JsonValue nv&&nv.TryGetValue<decimal>(out var net)?net:null;statement=new(){["available"]=expected!=null,["cards"]=s["cards"]?.DeepClone(),["net"]=expected};}
         catch(ApiError){statement["reason"]="لا يوجد كشف لهذا الشهر بعد";}
         decimal orders=Store.List(c,"work",tx).Where(w=>w.S("iqama")==iqama&&w.S("period")==period).Sum(w=>w.N("orders"));
         decimal? forecast=expected==null?null:J.Money(expected.Value-planned);

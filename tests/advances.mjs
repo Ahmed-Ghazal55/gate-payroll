@@ -85,5 +85,12 @@ try{
  // Neither a privileged permission nor a foreign vault routing grants custody of this vault.
  await out(`/api/advance-requests/${paid.id}/payout`,{reference:'SYN-FOREIGN'},409);
 
+ // R5 review: reversed org dates refused; a FinancialAccountant reviewer gets the summary (was 500).
+ await admin('/api/org/routing',{operation:'advance.review',department:'FIN',minRank:'B',users:['syn-accountant'],validFrom:'2099-12-31',validTo:'2099-01-01'},400);
+ const broadPw=pw();await admin('/api/users',{username:'syn-broad-reviewer',password:broadPw,role:'FinancialAccountant',customPermissions:['advances.review']});
+ await admin('/api/org/memberships',{userId:'syn-broad-reviewer',department:'FIN',rank:'A',validFrom:'2026-01-01'});
+ await admin('/api/org/routing',{operation:'advance.review',department:'FIN',minRank:'B',users:['syn-broad-reviewer'],validFrom:'2026-01-01'});
+ const broad=as('broad');await broad('/api/auth/login',{username:'syn-broad-reviewer',password:broadPw});
+ assert.equal((await broad(`/api/advance-requests/${r.id}/summary`)).requestId,r.id);
  console.log(`PASS advances: ${checks} HTTP checks`);
 }finally{await stop();rmSync(data,{recursive:true,force:true});}
