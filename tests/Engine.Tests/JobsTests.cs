@@ -24,12 +24,15 @@ public sealed class JobsTests
         public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider {get;set;}=new Microsoft.Extensions.FileProviders.NullFileProvider();
     }
     sealed class Runner(Func<bool,Action<ImportSummary>,CancellationToken,Task> execute) : IErpSyncRunner
-    {public Task Execute(bool commit,Action<ImportSummary> previewed,CancellationToken token)=>execute(commit,previewed,token);}
+    {public Task Execute(bool commit,Action<ImportSummary> previewed,CancellationToken token,string? requestId=null)=>execute(commit,previewed,token);}
     sealed class Schedule : IJobsSchedule
     {
         public bool? Paused {get;private set;}
         public IReadOnlyList<JobView> List()=>[];
-        public string EnqueueDryRun()=>"synthetic-job";
+        public string Enqueue(bool dryRun,string trigger,string actor)=>"1";
+        public JsonObject Status(string id)=>new();
+        public void CatchUpOnStartup() { }
+        public void EnqueueDaily() { }
         public void Reconcile(bool paused)=>Paused=paused;
         public void MarkFinished(DateTimeOffset at) { }
         public JobsHealth Health()=>new(true,null,null);
@@ -58,11 +61,12 @@ public sealed class JobsTests
         {
             int calls=0;var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var runner=new Runner(async(_,_,token)=>{Interlocked.Increment(ref calls);entered.TrySetResult();await release.Task.WaitAsync(token);});
-            var off=new ErpSyncJob(JobsOptions.Read(Config(false),new TestEnvironment()),store,runner,new JobRunGate(),new Schedule());await off.Execute(false,default);
+            var off=new ErpSyncJob(JobsOptions.Read(Config(false),new TestEnvironment()),store,runner,new JobRunGate(),new Schedule(),TimeProvider.System);await off.Execute(false,default);
             Assert.AreEqual(0,calls);Assert.AreEqual(0,store.Read(c=>Store.List(c,ErpSyncRuns.Kind).Count));
-            var job=new ErpSyncJob(JobsOptions.Read(Config(),new TestEnvironment()),store,runner,new JobRunGate(),new Schedule());
-            var first=job.Execute(true,default);await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            try{await job.Execute(true,default);Assert.AreEqual(1,calls);Assert.AreEqual("job_already_running",store.Read(c=>Store.List(c,ErpSyncRuns.Kind).Single().S("refusalCode")));}
+            var job=new ErpSyncJob(JobsOptions.Read(Config(),new TestEnvironment()),store,runner,new JobRunGate(),new Schedule(),TimeProvider.System);
+            string request=ErpSyncRequests.Reserve(store,JobsOptions.Read(Config(),new TestEnvironment()),true,"dry_run","syn-admin",DateTimeOffset.UtcNow);
+            var first=job.ExecuteRequest(request,default,null);await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            try{await job.ExecuteRequest(request,default,null);Assert.AreEqual(1,calls);Assert.AreEqual("job_already_running",store.Read(c=>Store.List(c,ErpSyncRuns.Kind).Single().S("refusalCode")));}
             finally{release.TrySetResult();await first;}
             Assert.AreEqual(2,store.Read(c=>Store.List(c,ErpSyncRuns.Kind).Count));Assert.IsTrue(store.Read(c=>Store.List(c,ErpSyncRuns.Kind).All(r=>r.S("mode")=="dry_run")));
         });
@@ -77,9 +81,9 @@ public sealed class JobsTests
             store.Write((c,tx)=>{int i=0;foreach(var d in plan.Documents){var row=d.Body.Clone();if(i++<11)row["assetNumber"]="old";Store.Save(c,d.Kind,row,tx);}return true;});
             string before=store.Read(c=>System.Text.Json.JsonSerializer.Serialize(Store.List(c,"vehicle")));
             var runner=new Runner((commit,previewed,token)=>{ErpSyncRunner.RunSnapshot(source,store.Read(ImportExecutor.Target),commit?store:null,previewed,token);return Task.CompletedTask;});
-            var job=new ErpSyncJob(JobsOptions.Read(Config(),new TestEnvironment()),store,runner,new JobRunGate(),new Schedule());await job.Execute(false,default);
+            var job=new ErpSyncJob(JobsOptions.Read(Config(),new TestEnvironment()),store,runner,new JobRunGate(),new Schedule(),TimeProvider.System);await job.ExecuteRequest(ErpSyncRequests.Reserve(store,JobsOptions.Read(Config(),new TestEnvironment()),false,"manual","syn-admin",DateTimeOffset.UtcNow),default,null);
             var run=store.Read(c=>Store.List(c,ErpSyncRuns.Kind).Single());Assert.AreEqual("refused",run.S("status"));Assert.AreEqual("kind_changes_over_threshold:vehicle",run.S("refusalCode"));
-            Assert.AreEqual(before,store.Read(c=>System.Text.Json.JsonSerializer.Serialize(Store.List(c,"vehicle"))));Assert.IsTrue(store.Read(c=>Store.List(c,"audit").All(a=>a.S("action")=="notification.system_created")));
+            Assert.AreEqual(before,store.Read(c=>System.Text.Json.JsonSerializer.Serialize(Store.List(c,"vehicle"))));Assert.IsTrue(store.Read(c=>Store.List(c,"audit").All(a=>a.S("action") is "notification.system_created" or "jobs.erp_sync_requested")));
             var admin=UserAccess.Principal(new(){["username"]="syn-admin",["role"]="Admin"});var other=UserAccess.Principal(new(){["username"]="syn-user",["role"]="Accountant"});
             Assert.AreEqual(1,store.Read(c=>Notifications.Inbox(c,admin).Count));Assert.AreEqual(0,store.Read(c=>Notifications.Inbox(c,other).Count));
         });
@@ -111,7 +115,7 @@ public sealed class JobsTests
             Assert.ThrowsExactly<OperationCanceledException>(()=>store.Write((c,tx)=>{Store.Save(c,"vehicle",new(){["id"]="synthetic"},tx);cancel.Cancel();return true;},cancellationToken:cancel.Token));
             Assert.AreEqual(0,store.Read(c=>Store.List(c,"vehicle").Count));
             var runner=new Runner((_,_,_)=>throw new OperationCanceledException());
-            var job=new ErpSyncJob(JobsOptions.Read(Config(),new TestEnvironment()),store,runner,new JobRunGate(),new Schedule());await job.Execute(true,cancel.Token);
+            var job=new ErpSyncJob(JobsOptions.Read(Config(),new TestEnvironment()),store,runner,new JobRunGate(),new Schedule(),TimeProvider.System);await job.ExecuteRequest(ErpSyncRequests.Reserve(store,JobsOptions.Read(Config(),new TestEnvironment()),true,"dry_run","syn-admin",DateTimeOffset.UtcNow),cancel.Token,null);
             var run=store.Read(c=>Store.List(c,ErpSyncRuns.Kind).Single());Assert.AreEqual("failed",run.S("status"));Assert.AreEqual("job_cancelled",run.S("refusalCode"));
         });
     }

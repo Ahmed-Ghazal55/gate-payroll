@@ -33,6 +33,7 @@ def permission(method,p):
  if p.startswith('/api/platforms/') and p.endswith('/posting'): return 'Admin / SuperAdmin; audited platform gate'
  if p.startswith('/api/companies/import/'): return 'Admin / SuperAdmin; signed preview + audit'
  if p.startswith('/api/companies'): return 'companies.view' if method=='GET' else 'companies.manage'
+ if p in ('/api/system/jobs/erp-sync/run','/api/system/jobs/erp-sync/dry-run') or p=='/api/system/jobs/erp-sync/{jobId}':return 'erp.sync.run; counts only; shared cooldown + active reservation for enqueue'
  if p in ('/api/system/jobs/erp-sync/pause','/api/system/jobs/erp-sync/resume'):return 'SuperAdmin only; required reason + audit; config enablement remains mandatory'
  if p.startswith(('/api/users','/api/system','/api/rider-mobile/firebase')) or method=='DELETE' or p=='/api/submissions/bulk-delete' or p.endswith('/delete-preview') or method=='PUT' and p.startswith('/api/campaigns/'):return 'Admin / SuperAdmin'
  if p.startswith('/api/riders/sync') or p.startswith('/api/riders/enrich'):return 'Admin / SuperAdmin'

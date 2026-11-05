@@ -15,7 +15,7 @@ public sealed class JobsSqlTests
     sealed class SyntheticRunner : IErpSyncRunner
     {
         public int Calls,Active,Maximum;
-        public async Task Execute(bool commit,Action<ImportSummary> previewed,CancellationToken token)
+        public async Task Execute(bool commit,Action<ImportSummary> previewed,CancellationToken token,string? requestId=null)
         {
             Assert.IsFalse(commit);int active=Interlocked.Increment(ref Active);Maximum=Math.Max(Maximum,active);
             try{await Task.Delay(100,token);Interlocked.Increment(ref Calls);throw new ImportFailure("new_kind_requires_acceptance:vehicle");}
@@ -38,6 +38,7 @@ public sealed class JobsSqlTests
             var builder=Host.CreateApplicationBuilder();builder.Environment.EnvironmentName="Testing";builder.Logging.ClearProviders();
             builder.Configuration.AddInMemoryCollection(new Dictionary<string,string?>{["Jobs:Enabled"]="true",["Jobs:ErpSync:Enabled"]="false",["ConnectionStrings:Jobs"]=options.ConnectionString,["ConnectionStrings:DefaultConnection"]=options.ConnectionString});
             builder.Services.AddSingleton(store);GateJobs.Add(builder.Services,builder.Configuration,builder.Environment);
+            var clock=new JobsTestClock();builder.Services.AddSingleton<TimeProvider>(clock);
             var runner=new SyntheticRunner();builder.Services.AddSingleton<IErpSyncRunner>(runner);
             using var host=builder.Build();await host.StartAsync();
             try
@@ -51,9 +52,16 @@ public sealed class JobsSqlTests
                 }
                 var schedule=host.Services.GetRequiredService<IJobsSchedule>();Assert.IsTrue(schedule.Health().Enabled);Assert.IsTrue(schedule.List().All(j=>!j.Enabled));
                 using(var c=host.Services.GetRequiredService<JobStorage>().GetConnection())Assert.AreEqual(0,c.GetRecurringJobs().Count);
-                schedule.EnqueueDryRun();schedule.EnqueueDryRun();
+                string first=schedule.Enqueue(true,"dry_run","syn-operator");
+                Assert.IsTrue(new[]{"queued","running","refused"}.Contains(schedule.Status(first).S("status")));
+                Assert.AreEqual("sync_in_progress",Assert.ThrowsExactly<ImportFailure>(()=>schedule.Enqueue(true,"dry_run","syn-operator")).Code);
+                using(var firstTimeout=new CancellationTokenSource(TimeSpan.FromSeconds(45)))
+                    while(schedule.Status(first).S("status") is "queued" or "running")await Task.Delay(100,firstTimeout.Token);
+                Assert.AreEqual("refused",schedule.Status(first).S("status"));
+                Assert.AreEqual("sync_cooldown",Assert.ThrowsExactly<ImportFailure>(()=>schedule.Enqueue(true,"dry_run","syn-operator")).Code);
+                clock.Now=clock.Now.AddMinutes(15);string second=schedule.Enqueue(true,"dry_run","syn-operator");
                 using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(45));
-                while(store.Read(c=>Store.List(c,ErpSyncRuns.Kind).Count)<2)await Task.Delay(100,timeout.Token);
+                while(schedule.Status(second).S("status") is "queued" or "running")await Task.Delay(100,timeout.Token);
                 Assert.AreEqual(2,runner.Calls);Assert.AreEqual(1,runner.Maximum);
                 var runs=store.Read(c=>Store.List(c,ErpSyncRuns.Kind));Assert.IsTrue(runs.All(r=>r.S("status")=="refused"&&r.S("mode")=="dry_run"));
                 Assert.AreEqual(2,store.Read(c=>Store.List(c,"sys_notification").Count));Assert.AreEqual(0,store.Read(c=>Store.List(c,"vehicle").Count));Assert.AreEqual(0,store.Read(c=>Store.List(c,"journal").Count));

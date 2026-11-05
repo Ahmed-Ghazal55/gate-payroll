@@ -4,34 +4,40 @@
 |---|---|
 | Current writer | none |
 | Branch | feat/r6-erp-pulls, based on release/0.14.2 |
-| Updated / weekly usage | 2026-11-05 by Codex; before 86% (latest Ghazal screen) → after unavailable (no meter available) |
+| Updated / weekly usage | 2026-11-05 by Codex; before86% (latest Ghazal screen) → after unavailable (no meter) |
+
+## Current scope
+Manual ERP sync is the primary workflow, with startup catch-up and optional daily10:00 Riyadh execution. The revised R6a2 prompt supersedes the old three-hour schedule. No active VPS, deployment, live enqueue or staging write was performed.
 
 ## Done
-- R6a-1..8 baseline f86596b. F1..F5 commits: ced524c, 3630d2a, d585bf2, 0277aff, 860d6ae. Full fix suite and later library regression each passed 312 / 0 failed / 0 skipped with synthetic SQLite + isolated local SQL Server 2022.
-- F1: proposed_approved debt mapping; LegacyOpeningDebt/InternetAdvance/HsWalletTopUp catalog + receivable/permission mappings. Final approval/month/reconciliation still required for loading.
-- F2: vehicle daily fields excluded from future refreshes (old values retained); append-only vehicle_odometer_reading keeps immutable facts and explicit first acceptance. F3: exact approved branch aliases, conflicts refused, company_from_branch row-number evidence. F4: preview-only inactive debt riders, atomic approved creation, payroll/cycle exclusion, same-identity reactivation.
-- F5 consistent SELECT-only preview 2026-11-05T15:22:16Z–15:22:44Z: vehicle 1/558 changed, 557 unchanged; plateNumberAr=1, plateNumberEn=1, registrationType=1 (overlap). New reading facts13303; REFUSED new_kind_requires_acceptance:vehicle_odometer_reading. No override/load.
-- Before F2 the source moved from old 317/558 to 332/558 changed: currentOdometer315, currentOperationalStatus29, currentAssignmentId27, cityId2, each stable field above1. Private counts: sync-logs/r6a-f2-before.json and r6a-f2-after.json.
-- F5 debt preview: 808 rows, 370 valid / 438 flagged; unmatched_company417, negative inputs16, invalid_identity5. Inactive debt-only riders planned0, company_from_branch0. D blank707 / populated101; no exact approved alias matches. Control reconciliation blocked (23 control row numbers). Private counts: sync-logs/r6a-fix1-debt-sheet-preview.json.
-- R6j-1 79d5c8c: Payroll.Sync reusable core, caller-owned sponsor catalog, CLI/manual overrides unchanged; Store persistence adapter remains in API; ReportRebuild references updated. Source boundary includes the library.
-- R6j-2 f4b9d64: Hangfire SQL schema hangfire, one worker, SQL distributed lock + local gate, zero automatic retries, cooperative 30-minute execution cancellation; no automatic overrides. Every hosted run has mode/counts/status; refusals notify admins. No Dashboard mapped.
-- R6j-2 endpoints: Admin GET /api/system/jobs and POST /api/system/jobs/erp-sync/dry-run; only SuperAdmin can pause/resume with reason + audit. Pause persists and is checked inside commit transaction. Four future jobs are disabled metadata placeholders only.
-- R6j-3 57a1148: docs/ops/HANGFIRE.md (activation, MonsterASP support/AlwaysRunning, optional IIS /health warm-up fragment, relaxed single catch-up); VPS docs now optional, units remain disabled/uninstalled. /health has safe cached jobs timestamps.
-- R6j-4: new behavioral/SQL tests and API inventory (243 total / 233 API); source boundary243; git diff --check clean. Learning-notes entry appended without committing ~/.agents.
+- R6a baseline f86596b; fixes F1..F5: ced524c, 3630d2a, d585bf2, 0277aff, 860d6ae. Mapping proposed_approved; LegacyOpeningDebt/InternetAdvance/HsWalletTopUp categories; exact branch aliases and inactive debt-only riders, excluded from payroll/cycles, same-identity reactivation. First-load approval/month/reconciliation remain required.
+- R6j-1 79d5c8c: Payroll.Sync core shared with API/CLI, caller-owned sponsor catalog; manual first acceptance unchanged. Earlier fix/library suites312 passed /0failed /0skipped.
+- Revised R6j-2 5b2837f supersedes f4b9d64 scheduling: POST /api/system/jobs/erp-sync/run and /dry-run require erp.sync.run; GET /api/system/jobs/erp-sync/{jobId} returns counts-only progress. Manual run returns jobId; shared durable admission/cooldown15min from accepted request,409while queued/running. Actor/time audited, never exposed in progress.
+- Permission catalog + one-time startup seeder reach existing SystemAdmin/FinancialManager through customPermissions; explicit denies and later revocation preserved. New SystemAdmin is a limited sync role, without users.manage or pause/resume. Admin/SuperAdmin retain existing grants.
+- Startup: CatchUpEnabled defaults true but only after Jobs + ErpSync are enabled; CatchUpHours defaults24. At most one admission per process start, based on latest successful commit (not preview). Optional daily ID erp-sync-daily, cron0 10 * * *, Asia/Riyadh; DailyEnabled defaults false.
+- Upgrade removes recurring ID erp-sync. Old serialized entry point is inert (legacy_schedule_disabled). All actual triggers use ExecuteRequest and the same safe path without overrides; single worker + SQL distributed lock + local gate, zero retries, cooperative30min cancellation. Pause/config/reservation ownership checked inside target transaction.
+- Completion/counts/gate release/refusal notification are atomic. Progress uses primary-key job links instead of JSON scans beside the writer. Four later-job IDs remain disabled metadata only. GET /api/system/jobs is Admin/SuperAdmin; pause/resume remain SuperAdmin with reason/audit and preserve admission state.
+- Revised R6j-3 da6baf2: docs/ops/HANGFIRE.md covers manual/progress/cooldown/catch-up/daily, optional AlwaysRunning and IIS /health fragment. Old systemd files remain disabled/uninstalled; VPS documentation is historical optional guidance requiring a new decision. No Dashboard mapped.
+- Revised R6j-4: admission, concurrency, permission seeding/revocation, restart/cooldown, fresh/stale success and daily SQL tests; HTTP checks and API inventory refreshed. Learning-notes appended without committing ~/.agents.
 
-## Validation limit (Ghazal chose cache-only)
-- Tracked packages remain Hangfire.AspNetCore/SqlServer 1.8.25. Offline restore from ~/.nuget/packages fails NU1102 (only1.8.23 available). Required-version build/tests are NOT RUN; no package downloads or NuGet source configuration changes. Final-version acceptance remains open.
-- Separate compatibility preflight used cached1.8.23 via /tmp/gate-r6-hangfire-cache.targets only: build0 warnings/errors; full .NET318 passed / 0 failed / 0 skipped on synthetic SQLite + Docker SQL Server2022; node tests/erp-sync.mjs30 HTTP checks. It is not validation of1.8.25; no override was committed. Final assets were regenerated by the failing1.8.25 offline restore, so rerestore before building.
-- Own synthetic SQL container was removed; gate-erp-copy-20261103 remains stopped/untouched. No browser/UI verification, staging writes/enqueues, push, merge, deploy, VPS actions or host setting changes. ERP previews used enforced SELECT-only access; no secrets/personal rows printed.
+## Verified and validation limit
+- Cached1.8.23 compatibility only: build0warnings/errors; full .NET324 passed /0failed /0skipped on synthetic SQLite + isolated Docker SQL Server2022; node tests/erp-sync.mjs54 HTTP checks. Includes startup/daily and actual single-worker/storage checks. No browser/frontend verification.
+- Source boundary246; inventory245total /235API; git diff --check clean. Own synthetic SQL container removed; gate-erp-copy-20261103 remains stopped/untouched.
+- Tracked Hangfire.AspNetCore/SqlServer remain1.8.25. Cache-only final restore fails NU1102 (only1.8.23 exists); pinned-version build/tests NOT RUN per Ghazal's no-download decision. Cached compatibility does not establish1.8.25 acceptance. No package downloads or NuGet source changes; /tmp override not committed. Rerestore before building: final assets reflect the failed pinned-version restore.
+- No live ERP query in this update, staging writes/enqueues, push, merge, deploy, host settings, VPS actions or original-file changes. All runtime tests used synthetic local data; no secrets/personal data printed.
+
+## Earlier source blockers (unchanged; no fresh live preview)
+- F5 SELECT-only snapshot2026-11-05T15:22:16Z–15:22:44Z: vehicle1/558changed,557unchanged; plateNumberAr1/plateNumberEn1/registrationType1 overlap. New odometer facts13303; refused new_kind_requires_acceptance:vehicle_odometer_reading, no overrides/load. Pre-fix drift moved from317 to332/558, dominated by daily fields. Private counts: sync-logs/r6a-f2-before.json and r6a-f2-after.json.
+- Debt preview808rows:370valid /438flagged (unmatched_company417, negative16, invalid_identity5). Inactive riders planned0, branch fallback0; D blank707/populated101, no exact approved aliases. Control reconciliation blocked23row numbers. Private report: sync-logs/r6a-fix1-debt-sheet-preview.json. Never guess companies. Missing authoritative sources: sponsorship periods, ADV/payment request tables.
 
 ## Next step (exact)
-- Supply approved1.8.25 packages to the local cache, then restore/build/test the pinned versions without any override. Use only an isolated loopback PAYROLL_TEST_SQL_CONNECTION and require0 skipped; rerun node ERP-sync, source boundary and inventory. Do not treat cached compatibility as release acceptance.
-- Resolve verified company/branch evidence (never guess the417 companies), final month and reconciliation, then obtain fresh «حمّل» for reviewed manual loads. Missing authoritative sources remain sponsorship periods and ADV/payment request tables.
-- After successful verification/deployment and explicit activation approval, Ghazal configures secret ConnectionStrings:Jobs + DefaultConnection to staging db77738 (same server), and ErpReadonly SELECT-only connection in MonsterASP settings. Set Jobs:Enabled=true while Jobs:ErpSync:Enabled=false; then enable ErpSync only after approved first loads, restarting for setting changes. Cron15 */3 * * *, Asia/Riyadh. No Dashboard. Ghazal requests AlwaysRunning from host support himself.
-- Production still requires «حوّل الإنتاج» and a later reviewed target-guard change; current guards reject production even if config flags change. Never run Hangfire and the optional VPS timer together.
+- When approved1.8.25 packages exist in the local cache, restore/build/full-test without the temporary override; use isolated loopback PAYROLL_TEST_SQL_CONNECTION and require0skipped. Rerun node ERP-sync, source boundary and inventory. Do not accept cached preflight as final verification.
+- Resolve company evidence and debt month/reconciliation, then obtain fresh «حمّل» for reviewed CLI first loads and per-kind acceptance. Hosted jobs never auto-accept kinds or load the debt workbook.
+- After successful verification/deployment and explicit activation approval, Ghazal sets secret Jobs + DefaultConnection to staging db77738 (same server), ErpReadonly SELECT-only connection, Jobs:Enabled=true. Keep ErpSync:Enabled=false until first loads accepted. Then enable ErpSync, restart (startup catch-up may enqueue once); DailyEnabled remains false unless requested. AlwaysRunning is optional and host-controlled.
+- Production requires «حوّل الإنتاج» and a later reviewed target-guard change; current guards reject production. No Dashboard. No VPS/three-hour scheduler is active.
 
-## Verify (after pinned packages are available)
+## Verify (once pinned packages are cached)
 - dotnet restore tests/Engine.Tests/Engine.Tests.csproj --source "$HOME/.nuget/packages" -p:NuGetAudit=false --disable-parallel -m:1
 - dotnet build tests/Engine.Tests/Engine.Tests.csproj --no-restore -p:SkipFrontendBuild=true -m:1
 - dotnet test tests/Engine.Tests/Engine.Tests.csproj --no-build --no-restore -m:1 (isolated loopback SQL only); node tests/erp-sync.mjs
-- python3 scripts/release_source.py --check; python3 tools/api_inventory.py; git diff --check. CLI/mapping: docs/data/SYNC.md and DEBT-SHEET.md; operations: docs/ops/HANGFIRE.md.
+- python3 scripts/release_source.py --check; python3 tools/api_inventory.py; git diff --check. Operations: docs/ops/HANGFIRE.md; CLI/debt: docs/data/SYNC.md and DEBT-SHEET.md.
