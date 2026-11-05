@@ -47,9 +47,18 @@ try{
  await page.click('[data-tab=devices]');await page.waitForSelector('#mob-devices .tag.good');
  const token=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('gate_rider_mob')).accessToken);
  assert.ok(!(await page.content()).includes(token),'token never rendered');
+ // Requests: no supervisor → server message; with a supervisor → ask, then cancel.
+ await page.click('[data-tab=requests]');await page.waitForSelector('#mob-ask-form');
+ await page.selectOption('#mob-ask-form [name=type]','cash');await page.fill('#mob-ask-form [name=amount]','250');await page.fill('#mob-ask-form [name=reason]','Synthetic school fees');
+ await page.click('#mob-ask-form button');await page.waitForSelector('#mob-body .notice.error');assert.match(await page.textContent('#mob-body .notice.error'),/مشرف/);
+ await req('/api/users',{username:'syn-app-supervisor',password:randomBytes(18).toString('hex'),role:'Reviewer',customPermissions:['advances.request']});
+ await req('/api/org/supervision',{supervisorUserId:'syn-app-supervisor',riderIqama:iqama,validFrom:'2026-01-01'});
+ await page.click('#mob-ask-form button');await page.waitForSelector('#mob-asks [data-cancel-ask]');
+ assert.ok(!(await page.$('#mob-ask-form')),'one open ask at a time');assert.match(await page.textContent('#mob-asks'),/عند المشرف/);
+ await page.click('#mob-asks [data-cancel-ask]');await page.waitForSelector('#mob-ask-form');assert.match(await page.textContent('#mob-asks'),/ملغي/);
  const wide=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1);assert.ok(!wide,'fits 360px');
  await page.click('#mob-logout');await page.waitForSelector('#mob-login-form');
  assert.equal((await fetch(base+'/api/rider-mobile/sessions/mine',{headers:{Authorization:'Bearer '+token}})).status,401,'logout revokes on the server');
  assert.equal(csp.length,0,'no CSP errors');
- console.log('PASS rider app UI: statement first, notifications count+ack, debts, devices, server logout, 360px, real CSP');
+ console.log('PASS rider app UI: statement first, notifications count+ack, requests ask/cancel, debts, devices, server logout, 360px, real CSP');
 }finally{if(browser)await browser.close();if(child&&child.exitCode===null){const e=once(child,'exit');child.kill();await e;}rmSync(data,{recursive:true,force:true});}

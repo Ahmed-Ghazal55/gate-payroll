@@ -1018,8 +1018,8 @@ public static class FinancialCore
     .mob-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
     .mob-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
     .mob-kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center; }
-    .mob-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
-    .mob-tabs button { padding: 9px 4px; font-size: 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+    .mob-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin-bottom: 14px; }
+    .mob-tabs button { padding: 8px 2px; font-size: 12px; line-height: 1.3; min-width: 0; overflow-wrap: anywhere; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
     .mob-tabs button.active { background: var(--accent, #8a6d3b); color: #fff; border-color: transparent; }
     #mob-period { margin-inline-start: 8px; }
   </style>
@@ -1124,7 +1124,7 @@ public static class FinancialCore
     }
     const r = portal.rider || {};
     const unread = (portal.broadcasts || []).filter(b => b.requiresAck && !b.acknowledged).length;
-    const tabs = [['statement', 'كشف الحساب'], ['notifications', 'الإشعارات' + (unread ? ` (${unread})` : '')], ['debts', 'المديونيات'], ['devices', 'أجهزتي']];
+    const tabs = [['statement', 'كشف الحساب'], ['notifications', 'الإشعارات' + (unread ? ` (${unread})` : '')], ['requests', 'طلباتي'], ['debts', 'المديونيات'], ['devices', 'أجهزتي']];
     root.innerHTML = `
       <div class="mob-head">
         <div>
@@ -1151,12 +1151,30 @@ public static class FinancialCore
     try {
       if (tab === 'statement') body.innerHTML = await statementHtml();
       else if (tab === 'notifications') body.innerHTML = notificationsHtml();
+      else if (tab === 'requests') body.innerHTML = await requestsHtml();
       else if (tab === 'debts') body.innerHTML = debtsHtml();
       else body.innerHTML = await devicesHtml();
     } catch (ex) {
       if (/جلسة|401/.test(ex.message)) return signOut(ex.message);
       body.innerHTML = `<div class="mob-card"><div class="notice error">${esc(ex.message)}</div></div>`;
     }
+    const form = document.getElementById('mob-ask-form');
+    if (form) form.onsubmit = async e => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      form.querySelector('button').disabled = true;
+      try { await api('/api/rider-mobile/requests', { type: fd.get('type'), amount: Number(fd.get('amount')), reason: fd.get('reason') }); }
+      catch (ex) { form.querySelector('button').disabled = false; alertBox(ex.message); return; }
+      await renderTab();
+    };
+    root.querySelectorAll('[data-cancel-ask]').forEach(btn => {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try { await api('/api/rider-mobile/requests/' + encodeURIComponent(btn.dataset.cancelAsk) + '/cancel', {}); }
+        catch (ex) { btn.disabled = false; alertBox(ex.message); return; }
+        await renderTab();
+      };
+    });
     const p = document.getElementById('mob-period');
     if (p) p.onchange = () => { period = p.value; renderTab(); };
     root.querySelectorAll('[data-ack]').forEach(btn => {
@@ -1250,6 +1268,39 @@ public static class FinancialCore
               الإجمالي: <b>${money(d.totalAmount)}</b> · المسدد: <b class="money-positive">${money(d.paidAmount)}</b> · الإعفاء: <b>${money(d.waivedAmount)}</b> · المتبقي: <b class="money-negative">${money(d.remainingBalance)} ر.س</b> (القسط: ${money(d.monthlyInstallment)})
             </div>
           </div>`).join('') || '<p class="muted">لا توجد مديونيات مسجلة على حسابك.</p>'}
+      </div>`;
+  }
+
+  async function requestsHtml() {
+    const list = await api('/api/rider-mobile/requests');
+    const stage = { under_review: 'تحت المراجعة', change_proposed: 'تحت المراجعة', approved: 'معتمد — في انتظار الصرف', paid: 'تم الصرف', rejected: 'مرفوض', cancelled: 'ملغي' };
+    const chip = a => a.status === 'open' ? ['عند المشرف', 'warn'] : a.status === 'declined' ? ['مرفوض من المشرف', 'bad'] : a.status === 'cancelled' ? ['ملغي', ''] :
+      [stage[a.advanceStatus] || 'تحت المراجعة', a.advanceStatus === 'paid' ? 'good' : a.advanceStatus === 'rejected' || a.advanceStatus === 'cancelled' ? 'bad' : 'warn'];
+    const busy = list.some(a => a.status === 'open' || (a.status === 'converted' && !['paid', 'rejected', 'cancelled'].includes(a.advanceStatus)));
+    return `
+      ${busy ? '<div class="mob-card small muted">لديك طلب قيد المتابعة؛ تقدر تطلب تاني بعد ما يخلص.</div>' : `
+      <div class="mob-card">
+        <h3 style="margin-top:0">طلب سلفة جديد</h3>
+        <p class="small muted">طلبك بيروح لمشرفك، وهو اللي بيرفعه للحسابات.</p>
+        <form id="mob-ask-form" class="form-grid">
+          <label class="full">النوع<select name="type"><option value="cash">نقدي</option><option value="bank">تحويل بنكي</option></select></label>
+          <label class="full">المبلغ (ر.س)<input name="amount" type="number" min="1" max="100000" step="1" required inputmode="numeric"></label>
+          <label class="full">السبب<textarea name="reason" required minlength="3" maxlength="500" rows="2"></textarea></label>
+          <button class="full good">إرسال الطلب للمشرف</button>
+        </form>
+      </div>`}
+      <div class="mob-card" id="mob-asks">
+        <h3 style="margin-top:0">طلباتي (${list.length})</h3>
+        ${list.map(a => { const [label, cls] = chip(a); return `
+          <div style="border-bottom:1px solid var(--line);padding:8px 0" class="small" data-ask="${esc(a.id)}">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <b class="number">${money(a.amount)} ر.س · ${a.type === 'bank' ? 'بنكي' : 'نقدي'}</b>
+              <span class="tag ${cls}">${esc(label)}</span>
+            </div>
+            <div class="muted">${esc(a.reason)} · <span class="number">${esc((a.createdAt || '').slice(0, 10))}</span></div>
+            ${a.status === 'declined' && a.note ? `<div class="notice error" style="margin-top:6px">${esc(a.note)}</div>` : ''}
+            ${a.status === 'open' ? `<button class="small secondary" data-cancel-ask="${esc(a.id)}" style="margin-top:6px">إلغاء الطلب</button>` : ''}
+          </div>`; }).join('') || '<p class="muted">لا توجد طلبات.</p>'}
       </div>`;
   }
 
