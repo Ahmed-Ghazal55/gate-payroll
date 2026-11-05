@@ -37,6 +37,22 @@ public sealed class DebtSheetImportTests
     static byte[] Debt(string old="100",string newer="200",string paid="150",string net="150",string identity=Iqama)=>Book(("Debts",[["ID","Old","New","Gross","Paid","Payments","Net"],[identity,old,newer,"300",paid,paid,net]]));
     static byte[] Deductions(string total="10")=>Book(("Detail",[["ID","Name","Deduction","Cash","Internet","Wallet","Fine","Total"],[Iqama,"SYNTHETIC_PRIVATE_NAME","10","0","0","0","0","10"]]),("Control",[["Label","Amount"],["BW",total]]));
 
+    static JsonObject BranchMapping()
+    {
+        var m=Mapping();m["columns"]!.AsArray().Add(C("H","Branch","branch"));m["companyAliases"]=new JsonObject{["SYN-BRANCH"]="BW"};return m;
+    }
+    static byte[] BranchDebt()=>Book(("Debts",[["ID","Old","New","Gross","Paid","Payments","Net","Branch"],[Iqama,"100","200","300","150","150","150","SYN-BRANCH"]]));
+    [TestMethod]
+    public void CompanyFallsBackToApprovedBranchWithoutOverridingAKnownConflict()
+    {
+        var riders=Riders();riders[0].Remove("financeSponsorId");
+        var p=DebtSheetImporter.Preview(BranchDebt(),Deductions(),BranchMapping(),riders);
+        Assert.IsTrue(p.Summary.B("canCommit"));Assert.AreEqual(2,p.Summary["company_from_branch"]![0]!.GetValue<int>());
+        Assert.AreEqual(Sponsor,p.Documents.Single().Body.S("creditorSponsorId"));Assert.IsTrue(p.Documents.Single().Body.B("companyFromBranch"));
+        riders[0]["financeSponsorId"]=FinancialCore.ResolveSponsor("EX").Id;
+        p=DebtSheetImporter.Preview(BranchDebt(),Deductions(),BranchMapping(),riders);
+        Assert.IsFalse(p.Summary.B("canCommit"));Assert.AreEqual(1m,p.Summary["errorCounts"].N("company_branch_conflict"));Assert.AreEqual(0,p.Documents.Count);
+    }
     [TestMethod]
     public void ApprovedOpeningCategoriesMapToTheirOwnReceivablesAndStayBehindReview()
     {

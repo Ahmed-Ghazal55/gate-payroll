@@ -78,9 +78,9 @@ public static class DebtSheetImporter
         if(buckets.Where(Configured).GroupBy(c=>c.S("category")).Any(g=>g.Select(c=>c.S("account")).Distinct().Count()>1))throw new ImportFailure("category_has_conflicting_accounts");
         var duplicates=sheet.Rows.Skip(1).Select((row,i)=>(Row:row,Number:i+2,Id:Identity(Cell(row,identity)))).Where(x=>x.Id!="").GroupBy(x=>x.Id).Where(g=>g.Count()>1).SelectMany(g=>g.Select(x=>x.Number)).ToHashSet();
         var documents=new List<PlannedDocument>();var mismatch=new SortedSet<int>();var errors=new Dictionary<string,int>();
-        var byCompany=new Dictionary<string,decimal>();var byCategory=new Dictionary<string,decimal>();var categoryByCompany=new Dictionary<string,Dictionary<string,decimal>>();
+        var resolvedCompanies=new Dictionary<string,string>();var byCompany=new Dictionary<string,decimal>();var byCategory=new Dictionary<string,decimal>();var categoryByCompany=new Dictionary<string,Dictionary<string,decimal>>();
         var unresolved=buckets.Concat(deductionColumns.OfType<JsonObject>()).Where(c=>!Configured(c)||c.S("status")=="needs_decision").Select(c=>c.S("column")).Distinct().Order().ToArray();
-        decimal debtTotal=0,paymentTotal=0,sheetNetTotal=0,openingTotal=0,creditTotal=0;int rows=0,valid=0;
+        decimal debtTotal=0,paymentTotal=0,sheetNetTotal=0,openingTotal=0,creditTotal=0;int rows=0,valid=0;var companyFromBranch=new SortedSet<int>();
         string fingerprint=Hash(Encoding.UTF8.GetBytes(Hash(debtBytes)+Hash(deductionBytes)+mapping.ToJsonString()));
         void Error(int number,string code){mismatch.Add(number);errors[code]=errors.GetValueOrDefault(code)+1;}
         for(int i=1;i<sheet.Rows.Count;i++)
@@ -90,7 +90,15 @@ public static class DebtSheetImporter
             if(duplicates.Contains(number)){Error(number,"duplicate_identity");continue;}
             if(missingCache.Contains(number)){Error(number,"missing_formula_cache");continue;}
             if(!riderIndex.TryGetValue(iqama,out var matches)||matches.Count!=1){Error(number,"unmatched_rider");continue;}
-            var rider=matches[0];string company=Company(rider);if(company==""){Error(number,"unmatched_company");continue;}
+            var rider=matches[0];string company=Company(rider);
+            var branch=columns.OfType<JsonObject>().SingleOrDefault(c=>c.S("role")=="branch");
+            string branchText=branch==null?"":Text(Cell(row,Column(branch.S("column"))));
+            string alias=(mapping["companyAliases"] as JsonObject)?.S(branchText)??"";
+            string branchCompany=alias==""?"":FinancialCore.FindSponsor(alias)?.Id??"";
+            if(company!=""&&branchCompany!=""&&company!=branchCompany){Error(number,"company_branch_conflict");continue;}
+            bool fromBranch=company==""&&branchCompany!="";
+            if(fromBranch){company=branchCompany;companyFromBranch.Add(number);}
+            if(company==""){Error(number,"unmatched_company");continue;}
             try
             {
                 var amounts=buckets.Select(c=>Money(Cell(row,Column(c.S("column"))))).ToArray();
@@ -111,7 +119,7 @@ public static class DebtSheetImporter
                 decimal opening=J.Money(remainder.Values.Sum());
                 if(!Close(opening-credit,sheetNet))Error(number,"net_mismatch");
                 if(mismatch.Contains(number))continue;
-                valid++;openingTotal+=opening;creditTotal+=credit;byCompany[company]=byCompany.GetValueOrDefault(company)+sheetNet;
+                resolvedCompanies[iqama]=company;valid++;openingTotal+=opening;creditTotal+=credit;byCompany[company]=byCompany.GetValueOrDefault(company)+sheetNet;
                 if(!categoryByCompany.TryGetValue(company,out var categoryTotals))categoryByCompany[company]=categoryTotals=[];
                 foreach(var group in remainder)
                 {
@@ -120,7 +128,7 @@ public static class DebtSheetImporter
                     if(group.Key.Category=="needs_decision")continue;
                     string reference=$"DEBT-SHEET:{number}:{group.Key.Category}";
                     var meta=FinancialCore.ResolveCategory(group.Key.Category);
-                    documents.Add(new("debt",new(){["id"]=reference,["sourceRef"]=reference,["sourceRow"]=number,["sourceFingerprint"]=fingerprint,["iqama"]=iqama,["riderName"]=rider.S("name"),["debtorType"]="Rider",
+                    documents.Add(new("debt",new(){["id"]=reference,["sourceRef"]=reference,["sourceRow"]=number,["sourceFingerprint"]=fingerprint,["companyFromBranch"]=fromBranch,["iqama"]=iqama,["riderName"]=rider.S("name"),["debtorType"]="Rider",
                         ["category"]=meta.Code,["categoryAr"]=meta.NameAr,["sector"]=meta.Sector,["entryMode"]="OpeningBalance",["allocationMode"]="RiderFull",["receivableAccountCode"]=group.Key.Account,["targetAccountCode"]=group.Key.Account,
                         ["creditorSponsorId"]=company,["originSponsorId"]=company,["sponsorshipSponsorId"]=company,["totalAmount"]=group.Value,["totalCostAmount"]=group.Value,["remainingBalance"]=group.Value,["paidAmount"]=0,["waivedAmount"]=0,["monthlyInstallment"]=0,
                         ["status"]="pending_approval",["openingSource"]="debt_sheet",["openingReviewRequired"]=true,["effectiveFrom"]=mapping.S("effectiveFrom"),["createdBy"]="debt-sheet-import"}));
@@ -128,7 +136,7 @@ public static class DebtSheetImporter
                 if(credit>0)
                 {
                     string reference=$"DEBT-SHEET:{number}:CREDIT";
-                    documents.Add(new("rider_credit",new(){["id"]=reference,["sourceRef"]=reference,["sourceRow"]=number,["sourceFingerprint"]=fingerprint,["iqama"]=iqama,["companyId"]=company,["amount"]=credit,["status"]="pending_approval",["openingSource"]="debt_sheet",["openingReviewRequired"]=true}));
+                    documents.Add(new("rider_credit",new(){["id"]=reference,["sourceRef"]=reference,["sourceRow"]=number,["sourceFingerprint"]=fingerprint,["companyFromBranch"]=fromBranch,["iqama"]=iqama,["companyId"]=company,["amount"]=credit,["status"]="pending_approval",["openingSource"]="debt_sheet",["openingReviewRequired"]=true}));
                 }
             }
             catch(ImportFailure){Error(number,"invalid_numeric_cell");}
@@ -174,7 +182,7 @@ public static class DebtSheetImporter
                 if(!Close(amounts.Values.Sum(),Money(Cell(row,7))))detailErrors.Add(number);
                 foreach(var a in amounts)detailTotals[a.Key]+=a.Value;
                 string company=receiptAvailable?(receiptCompanies.TryGetValue(iqama,out var sourceCompanies)&&sourceCompanies.Count==1?sourceCompanies.Single():""):
-                    riderIndex.TryGetValue(iqama,out var rr)&&rr.Count==1?Company(rr[0]):"";
+                    resolvedCompanies.GetValueOrDefault(iqama)??(riderIndex.TryGetValue(iqama,out var rr)&&rr.Count==1?Company(rr[0]):"");
                 if(company==""){detailErrors.Add(number);continue;}
                 if(!detailCompany.TryGetValue(company,out var totals))detailCompany[company]=totals=amounts.Keys.ToDictionary(k=>k,_=>0m);
                 foreach(var a in amounts)totals[a.Key]+=a.Value;
@@ -204,7 +212,7 @@ public static class DebtSheetImporter
         }
         bool approved=mapping.S("status")=="approved"&&mapping.S("approvedBy")=="Ghazal";
         bool period=System.Text.RegularExpressions.Regex.IsMatch(mapping.S("effectiveFrom"),"^[0-9]{4}-(0[1-9]|1[0-2])$");
-        var summary=new JsonObject{["sourceRows"]=rows,["validRows"]=valid,["debtBucketTotal"]=J.Money(debtTotal),["paymentsTotal"]=J.Money(paymentTotal),["sheetNetTotal"]=J.Money(sheetNetTotal),["openingDebtTotal"]=J.Money(openingTotal),["riderCreditTotal"]=J.Money(creditTotal),["aggregateNetRoundingDelta"]=J.Money(openingTotal-creditTotal-byCompany.Values.Sum()),
+        var summary=new JsonObject{["company_from_branch"]=new JsonArray(companyFromBranch.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),["sourceRows"]=rows,["validRows"]=valid,["debtBucketTotal"]=J.Money(debtTotal),["paymentsTotal"]=J.Money(paymentTotal),["sheetNetTotal"]=J.Money(sheetNetTotal),["openingDebtTotal"]=J.Money(openingTotal),["riderCreditTotal"]=J.Money(creditTotal),["aggregateNetRoundingDelta"]=J.Money(openingTotal-creditTotal-byCompany.Values.Sum()),
             ["openingDebts"]=documents.Count(d=>d.Kind=="debt"),["riderCredits"]=documents.Count(d=>d.Kind=="rider_credit"),["mismatchedRows"]=new JsonArray(mismatch.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),["errorCounts"]=System.Text.Json.JsonSerializer.SerializeToNode(errors),
             ["companyNetTotals"]=System.Text.Json.JsonSerializer.SerializeToNode(byCompany),["categoryOpeningTotals"]=System.Text.Json.JsonSerializer.SerializeToNode(byCategory),["companyCategoryOpeningTotals"]=System.Text.Json.JsonSerializer.SerializeToNode(categoryByCompany),
             ["receiptAvailable"]=receiptAvailable,["receiptRows"]=receiptRows,["receiptTotal"]=J.Money(receiptTotal),["receiptReferenceCount"]=receiptReferences.Count,["receiptCompanyTotals"]=System.Text.Json.JsonSerializer.SerializeToNode(receiptCompanyTotals),["receiptMismatchedRows"]=new JsonArray(receiptMismatches.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),["receiptGrandMatched"]=!receiptAvailable||Close(receiptTotal,detailTotals.Values.Sum()),["erpAdvanceReferenceComparisonAvailable"]=false,
@@ -224,7 +232,7 @@ public static class DebtSheetImporter
             foreach(var document in preview.Documents)
             {
                 var rider=Store.Get(c,document.Body.S("iqama"),"rider",tx);string company=document.Kind=="debt"?document.Body.S("creditorSponsorId"):document.Body.S("companyId");
-                if(rider==null||Company(rider)!=company)throw new ImportFailure("debt_sheet_target_rider_changed");
+                if(rider==null||(Company(rider)!=company&&!(Company(rider)==""&&document.Body.B("companyFromBranch"))))throw new ImportFailure("debt_sheet_target_rider_changed");
                 if(existing.TryGetValue(document.Body.S("sourceRef"),out var previous))
                 {
                     string oldCompany=document.Kind=="debt"?previous.S("creditorSponsorId"):previous.S("companyId");

@@ -796,5 +796,9 @@
       "header": "التطبيق"
     }
   ],
-  "companyAliases": {}
+  "companyAliases": {
+    "اكسبرس": "EX",
+    "البوابا": "BW",
+    "التجارية": "TR"
+  }
 }
