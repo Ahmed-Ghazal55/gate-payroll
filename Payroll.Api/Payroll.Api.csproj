@@ -4,6 +4,8 @@
   <ItemGroup>
     <PackageReference Include="Hangfire.AspNetCore" Version="1.8.25" />
     <PackageReference Include="Hangfire.SqlServer" Version="1.8.25" />
+    <!-- Hangfire.Core floors Newtonsoft.Json at 11.0.1 (GHSA-5crp-9r3c-p9vr); pin the patched line. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" /><PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.5" /><PackageReference Include="QRCoder" Version="1.7.0" /><PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />

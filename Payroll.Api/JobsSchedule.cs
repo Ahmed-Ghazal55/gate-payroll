@@ -18,10 +18,10 @@ public interface IJobsSchedule
     void MarkFinished(DateTimeOffset at);
     JobsHealth Health();
 }
-public sealed class DisabledJobsSchedule : IJobsSchedule
+public sealed class DisabledJobsSchedule(JobsOptions? options=null) : IJobsSchedule
 {
     public static readonly string[] FutureIds=["reporting-rebuild","fcm-notifications","ninja-invoice-compare","large-imports"];
-    public IReadOnlyList<JobView> List()=>[new("erp-sync",false,"disabled"),new("erp-sync-daily",false,"disabled",HangfireJobsSchedule.DailyCron,HangfireJobsSchedule.Zone),..FutureIds.Select(id=>new JobView(id,false,"not_implemented"))];
+    public IReadOnlyList<JobView> List()=>[new("erp-sync",false,options?.BlockedReason is {} why?"blocked_"+why:"disabled"),new("erp-sync-daily",false,"disabled",HangfireJobsSchedule.DailyCron,HangfireJobsSchedule.Zone),..FutureIds.Select(id=>new JobView(id,false,"not_implemented"))];
     public string Enqueue(bool dryRun,string trigger,string actor)=>throw new ApiError("خدمة المهام غير مفعلة.",409);
     public JsonObject Status(string jobId)=>throw new ApiError("خدمة المهام غير مفعلة.",409);
     public void CatchUpOnStartup() { }

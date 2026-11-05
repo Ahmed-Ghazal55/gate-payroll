@@ -51,8 +51,10 @@ public sealed class JobsTests
         Assert.IsNull(provider.GetService<JobStorage>());Assert.AreEqual(0,provider.GetServices<IHostedService>().Count());
         Assert.IsFalse(JobsOptions.Read(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>{["Jobs:Enabled"]="true"}).Build(),new TestEnvironment()).Enabled);
         var config=Config();config["ConnectionStrings:Jobs"]="Server=127.0.0.1;Database=production;Integrated Security=true";
-        Assert.ThrowsExactly<InvalidOperationException>(()=>JobsOptions.Read(config,new TestEnvironment()));
-        config=Config();Assert.ThrowsExactly<InvalidOperationException>(()=>JobsOptions.Read(config,new TestEnvironment{EnvironmentName="Production"}));
+        // A wrong target must never take the API down: jobs stay off and the reason is visible to admins.
+        var blocked=JobsOptions.Read(config,new TestEnvironment());Assert.IsFalse(blocked.Enabled);Assert.AreEqual("unapproved_target",blocked.BlockedReason);
+        config=Config();blocked=JobsOptions.Read(config,new TestEnvironment{EnvironmentName="Production"});Assert.IsFalse(blocked.Enabled);Assert.AreEqual("unapproved_target",blocked.BlockedReason);
+        Assert.AreEqual("blocked_unapproved_target",new DisabledJobsSchedule(blocked).List()[0].Status);
     }
     [TestMethod]
     public async Task DisabledJobDoesNoWorkAndTwoConcurrentCallsExecuteOnlyOneRunner()

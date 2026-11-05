@@ -3,10 +3,20 @@
 | Field | Value |
 |---|---|
 | Current writer | none |
-| Branch | feat/r6-erp-pulls, based on release/0.14.2 |
-| Updated / weekly usage | 2026-11-05 by Codex; before86% (latest Ghazal screen) → after unavailable (no meter) |
+| Branch | release/0.15.0 → main (Claude, 2026-11-05) |
+| Updated | 2026-11-05 by Claude |
 
-## Current scope
+## Release 0.15.0 (Claude)
+- Merges `feat/r6-erp-pulls` (Codex R6a + fix1 + Hangfire R6j), `feat/r6-ui-qa` (Antigravity R6ui) and `feat/ninja-engine` (Claude N2/N3) on top of 0.14.2.
+- Release fixes by Claude:
+  - `Newtonsoft.Json 13.0.3` pinned (Hangfire floor 11.0.1 fails NuGet audit as an error); `Pkcs 10.0.13` pinned in `Payroll.Sync`.
+  - `JobsOptions`: a wrong Jobs target no longer crashes startup; jobs stay off and `GET /api/system/jobs` shows `blocked_unapproved_target`.
+- Verified locally: .NET 331 passed / 0 skipped (with SQL Server 2022 container), HTTP suites (erp-sync, integration, enterprise, accounting, submissions, iban-form, campaigns, finance-views), web build, release_source, check_publish.
+- Hangfire stays OFF in production: the guard accepts only a site whose own DefaultConnection is staging `db77738`. Production cutover needs «حوّل الإنتاج» plus a reviewed guard change.
+- Next: Wave 2 (K1–K3 Claude, R6b Codex, R6b Antigravity). Ghazal decisions still open: BIKE difference, deductions control mismatch, «حمّل».
+
+## R6a / R6j details (Codex)
+### Current scope
 Manual ERP sync is the primary workflow, with startup catch-up and optional daily10:00 Riyadh execution. The revised R6a2 prompt supersedes the old three-hour schedule. No active VPS, deployment, live enqueue or staging write was performed.
 
 ## Done
