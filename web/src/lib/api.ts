@@ -1248,6 +1248,12 @@ export const api = {
     return handleRequest<AdvanceRequest[]>(`/advance-requests${qs ? `?${qs}` : ''}`);
   },
   getAdvanceRequest: (id: string) => handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}`),
+  getRiderAsks: (status?: string) =>
+    handleRequest<import('../components/debts/RiderAsksCard').RiderAsk[]>('/advance-requests/rider-asks' + (status ? `?status=${encodeURIComponent(status)}` : '')),
+  convertRiderAsk: (id: string, body: { type?: 'cash' | 'bank'; amount?: number; reason?: string }) =>
+    handleRequest<unknown>(`/advance-requests/rider-asks/${encodeURIComponent(id)}/convert`, { method: 'POST', body: JSON.stringify(body) }),
+  declineRiderAsk: (id: string, note: string) =>
+    handleRequest<unknown>(`/advance-requests/rider-asks/${encodeURIComponent(id)}/decline`, { method: 'POST', body: JSON.stringify({ note }) }),
   getAdvanceRequestSummary: (id: string) => handleRequest<AdvanceRequestSummary>(`/advance-requests/${encodeURIComponent(id)}/summary`),
   reviewAdvanceRequest: (
     id: string,
