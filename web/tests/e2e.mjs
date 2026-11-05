@@ -461,8 +461,8 @@ async function run() {
       await bellBtn.click();
       await page.waitForSelector('[role="dialog"][aria-label="مركز الإشعارات والتنبيهات"]');
 
-      // Click a category tab in the notifications panel (e.g. الاعتمادات)
-      const approvalsTab = page.locator('[role="dialog"] button:has-text("الاعتمادات")');
+      // Click a category tab in the notifications panel (e.g. طلبات ومهام)
+      const approvalsTab = page.locator('[role="dialog"] button:has-text("طلبات ومهام")');
       await approvalsTab.click();
 
       const notifPanelShot = path.join(resultsDir, 'desktop-sand-notifications-panel.png');
