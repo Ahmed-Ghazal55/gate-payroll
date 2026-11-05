@@ -8,7 +8,7 @@ namespace Payroll;
 
 public static class FinancialCore
 {
-    public sealed record SponsorDef(string Id, string Code, string UnifiedNumber, string NameAr, string ShortNameAr, string CommercialReg);
+    public sealed record SponsorDef(string Id, string Code, string UnifiedNumber, string NameAr, string ShortNameAr, string CommercialReg) : ErpImport.ISyncSponsor;
 
     public sealed record AccountDef(
         string Code,

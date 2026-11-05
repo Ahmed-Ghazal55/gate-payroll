@@ -1,7 +1,6 @@
 using System.Data.Common;
 using System.Text.Json.Nodes;
 using Microsoft.Data.SqlClient;
-using Payroll;
 namespace ErpImport;
 
 public sealed record HsFactContract(string Kind,string Key,string Fields);

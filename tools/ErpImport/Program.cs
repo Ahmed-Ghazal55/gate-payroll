@@ -92,7 +92,7 @@ try
     phase="reading_source";
     if(source.Database!="erp_copy"&&args.Contains("--commit")&&!args.Contains("--consistent"))throw new ImportFailure("live_commit_requires_consistent");
     var snapshot=args.Contains("--consistent")?ConsistentSync.Read(()=>SourceReader.Read(source,false),out attempts):SourceReader.Read(source);
-    var plan=ImportPlan.Build(snapshot);
+    var plan=ImportPlan.Build(snapshot,FinancialCore.Sponsors);
     lastSummary=ImportExecutor.Run(snapshot,plan,existing);
     if(live||args.Contains("--consistent"))ConsistentSync.Validate(lastSummary,existing,overrides);
     Store? targetStore=null;

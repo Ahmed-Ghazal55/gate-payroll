@@ -1,7 +1,6 @@
 using System.Data.Common;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using Payroll;
 namespace ErpImport;
 
 public sealed record PlannedDocument(string Kind,JsonObject Body);
@@ -18,9 +17,8 @@ public sealed class ImportPlan
     static JsonArray Array(IEnumerable<JsonObject> rows)=>new(rows.Select(x=>(JsonNode?)x.Clone()).ToArray());
     static string Date(JsonObject row,string field)=>row.S(field).Split('T')[0];
     static JsonObject Doc(string kind,JsonObject row)=>new(){["id"]=Key(kind,row.S("Id")),["erpSourceId"]=row.S("Id"),["erpSource"]=kind,["sourceDeleted"]=row.B("IsDeleted"),["erpStatusCode"]=row["Status"]?.DeepClone()};
-    public static ImportPlan Build(SourceSnapshot snapshot,IReadOnlyList<FinancialCore.SponsorDef>? sponsorCatalog=null)
+    public static ImportPlan Build(SourceSnapshot snapshot,IReadOnlyList<ISyncSponsor> sponsorCatalog)
     {
-        sponsorCatalog??=FinancialCore.Sponsors;
         var plan=new ImportPlan();List<JsonObject> Rows(string table)=>snapshot.Tables.GetValueOrDefault(table)??[];
         Dictionary<string,JsonObject> Index(string table)=>Rows(table).ToDictionary(r=>r.S("Id"));
         var companyProfiles=Index("CompanyProfile");
