@@ -1,6 +1,6 @@
 # ERP → staging sync
 
-The selected recurring scheduler is [Hangfire inside the API](../ops/HANGFIRE.md), disabled by default. VPS/systemd is an optional inactive alternative; never enable both. Manual CLI acceptance remains unchanged. Hosted dry-runs record counts-only staging telemetry; CLI dry-runs remain private-file-only.
+The selected workflow is [manual ERP sync with startup catch-up and optional daily Hangfire execution](../ops/HANGFIRE.md), disabled by default. There is no three-hour recurrence or active VPS. The old systemd files remain disabled; VPS guidance is historical/optional and requires a new explicit decision. Manual CLI acceptance remains unchanged. Hosted dry-runs record counts-only staging telemetry; CLI dry-runs remain private-file-only.
 
 The importer accepts `--live --consistent --dry-run` and `--live --consistent --commit`. Source and target credentials are read internally from their private env files; the only accepted target remains staging db77738. Production is never accepted. A live commit without `--consistent` is refused. A new staging load requires Ghazal's «حمّل» after its dry-run; the certificate-load approval does not enable scheduling.
 
@@ -44,7 +44,7 @@ These names are examples, not standing approval. New HS kinds become available w
 4. For `kind_changes_over_threshold` or `source_count_drop_over_threshold`, check the cause with the source owner. Correct unexpected data/source problems. Only a confirmed legitimate change warrants a manual dry-run with `--accept-large-change` for that exact kind; missing target rows are retained even then.
 5. Review the successful dry-run and get approval for the manual staging load. Rebuild after code changes. Leave unattended units without overrides; if an anomaly recurs, stop the schedule and investigate rather than making an override permanent.
 
-Use [Hangfire operations](../ops/HANGFIRE.md) for the selected scheduler and its stop/resume steps. The old systemd files remain disabled and uninstalled; their optional alternative setup is isolated in [VPS-SYNC.md](VPS-SYNC.md). Do not enable both schedulers.
+Use [Hangfire operations](../ops/HANGFIRE.md) for manual run/status permission, shared15-minute cooldown,24-hour startup catch-up and the optional10:00 Riyadh daily schedule. The old systemd files remain disabled and uninstalled; their optional alternative setup is isolated in [VPS-SYNC.md](VPS-SYNC.md). Do not enable both schedulers.
 
 ## R6a additions
 
