@@ -65,6 +65,7 @@ jobs:
           node tests/browser-iban.mjs
           node tests/sessions-ui.mjs
           node tests/rider-app-ui.mjs
+          node tests/rider-asks.mjs
       - name: Publish Linux smoke-test bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r linux-x64 --self-contained true -o artifacts/linux --nologo
       - name: Test published application

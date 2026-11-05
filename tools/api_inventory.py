@@ -20,6 +20,8 @@ def permission(method,p):
  if p.startswith('/api/org/'):return 'org.manage (Admin); dated rows, never deleted'
  if p.startswith('/api/advance-requests/') and p.endswith('/summary'):return 'advances.review + routed responsible (Admin oversight)'
  if p.startswith('/api/advance-requests'):return {'GET':'advances.request / advances.review / advances.payout; handler shows own, assigned or custodian rows'}.get(method,'advances.request' if p=='/api/advance-requests' or p.endswith('/respond') else 'advances.review + routed responsible (BR §25)' if p.endswith('/review') else 'advances.payout + routed vault custodian')
+ if p.startswith('/api/rider-mobile/requests'):return 'Active rider bearer token; own asks only; routed to current supervisor'
+ if p.startswith('/api/advance-requests/rider-asks'):return 'advances.request + current supervision of the rider'
  if p=='/api/rider-mobile/statement':return 'Active rider bearer token; own approved cycles or approved legacy fallback'
  if p.startswith('/api/finance/statement/rider/') and p.endswith('/monthly'):return 'pay.view + payroll.view + debts.view; full company/app/debt scope'
  if p.startswith('/api/operations/') or p.startswith('/api/riders/') and p.endswith('/accounts'):return 'operations.view; company/platform scope; always paginated'
