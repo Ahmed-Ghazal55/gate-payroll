@@ -1,0 +1,16 @@
+{
+  "name": "Ninja food — supplier contract (seed from the approved October 2026 invoices)",
+  "billingModel": "ninja_target",
+  "parameters": {
+    "monthDays": "calendar",
+    "capabilities": {
+      "car":  { "contractAmount": 6500, "contractTarget": 460, "extraOrderRate": 12, "perOrderRate": 10,
+                "levels": [ { "maxBelow": 0.10, "missingOrderRate": 22 }, { "maxBelow": 0.20, "missingOrderRate": 22.5 }, { "maxBelow": 0.30, "missingOrderRate": 23 } ] },
+      "bike": { "contractAmount": 5700, "contractTarget": 450, "extraOrderRate": 11, "perOrderRate": 9,
+                "levels": [ { "maxBelow": 0.10, "missingOrderRate": 16 }, { "maxBelow": 0.20, "missingOrderRate": 17 }, { "maxBelow": 0.30, "missingOrderRate": 18 } ] }
+    },
+    "attendance": { "minRatio": 0.85, "deductionPercent": 15 },
+    "shortDays": { "deductionPercentOfDailyAmount": 15 },
+    "vatPercent": 15
+  }
+}
