@@ -4,18 +4,18 @@ using System.Text.Json.Nodes;
 using Microsoft.Data.SqlClient;
 namespace ErpImport;
 
-public sealed record SourceTable(string Schema,string Name,string Fields);
+public sealed record SourceTable(string Schema,string Name,string Fields,bool Optional=false);
 public sealed record SourceSnapshot(Dictionary<string,List<JsonObject>> Tables,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Consistency);
 public static class SourceReader
 {
-    // Explicit allowlist: no credential versions, usernames/passwords, binary files or financial transactions.
+    // Explicit allowlist: final operational/financial facts; no credential versions, passwords or binary files.
     public static readonly SourceTable[] Catalog =
     [
         new("app","Sponsors","Id CompanyProfileId EmployerIdentityNumber RegistryNameAr RegistryNameEn CommercialRegistrationNumber UnifiedNationalNumber SponsorType Status ActiveFrom ActiveTo AddressCity IsDeleted"),
         new("platform","CompanyProfile","Id Code LegalNameAr LegalNameEn CommercialRegistrationNumber UnifiedNationalNumber Status"),
         new("platform","GlobalCities","Id Code NameAr NameEn RegionAr RegionEn CountryCode Status IsDeleted"),
         new("app","OperatingCities","Id GlobalCityId EnabledFrom DisabledAt Status IsDeleted"),
-        new("app","Employees","Id IqamaNo FullNameAr FullNameEn Nationality PrimaryPhone Iban IsEmployee EngagementType Status HireDate SponsorId OperatingCityId OperationalWorkTypeId IsDeleted"),
+        new("app","Employees","Id IqamaNo FullNameAr FullNameEn Nationality PrimaryPhone Iban IsEmployee EngagementType Status HireDate SponsorId OperatingCityId OperationalWorkTypeId ContractStartDate ContractEndDate TerminationDate ResidencyProfession IsDeleted"),
         new("app","RiderProfiles","Id EmployeeId TShirtSize IsDeleted"),
         new("app","Housing","Id Code NameAr NameEn CityId OpenedDate ClosedDate Status IsDeleted"),
         new("app","HousingFloors","Id HousingId Name IsDeleted"),
@@ -33,15 +33,17 @@ public static class SourceReader
         new("app","RiderClientAssignments","Id RiderProfileId ClientContractId PlatformRiderAccountId EffectiveFrom EffectiveTo Status PaymentModel RiderAccountSlot NinjaRiderType IsDeleted"),
         new("app","PlatformAccountRegistrations","Id RegisteredEmployeeId RiderProfileId ClientPlatformId ClientContractId SponsorId OperatingCityId RegistrationType Status RequestedAtUtc ActivatedAtUtc PlatformRiderAccountId IsDeleted"),
         new("app","HrLegalCases","Id CaseNumber PersonName PersonType EmployeeId RiderProfileId SponsorId SponsorPartyRole CaseDate CaseTime Status Details IsDeleted"),
-        new("app","HrLegalCaseHearings","Id LegalCaseId HearingNumber HearingDate HearingTime Status Details Location IsDeleted")
+        new("app","HrLegalCaseHearings","Id LegalCaseId HearingNumber HearingDate HearingTime Status Details Location IsDeleted"),
+        ..PullContracts.Tables
     ];
     public static bool SnapshotAvailable(SqlConnection source)
     {
         using var cmd=source.CreateCommand();cmd.CommandText="SELECT snapshot_isolation_state FROM sys.databases WHERE name=DB_NAME()";
         return Convert.ToInt32(cmd.ExecuteScalar())==1;
     }
-    public static SourceSnapshot Read(DbConnection connection,bool requireStableRowversion=true)
+    public static SourceSnapshot Read(DbConnection connection,bool requireStableRowversion=true,CancellationToken cancellationToken=default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         DateTimeOffset started=DateTimeOffset.UtcNow;
         bool sql=connection is SqlConnection;
         byte[]? Stamp(){if(!sql)return null;using var cmd=connection.CreateCommand();cmd.CommandText="SELECT @@DBTS";return (byte[]?)cmd.ExecuteScalar();}
@@ -49,12 +51,14 @@ public static class SourceReader
         var tables=new Dictionary<string,List<JsonObject>>(StringComparer.Ordinal);
         foreach(var table in Catalog)
         {
-            using var cmd=connection.CreateCommand();cmd.CommandTimeout=120;
+            cancellationToken.ThrowIfCancellationRequested();
+            if(table.Optional&&!OptionalAvailable(connection,table,cancellationToken))continue;
+            using var cmd=connection.CreateCommand();using var cancel=SyncCancellation.Register(cmd,cancellationToken);cmd.CommandTimeout=120;
             cmd.CommandText=$"SELECT {string.Join(',',table.Fields.Split(' ').Select(f=>"["+f+"]"))} FROM {(sql?"["+table.Schema+"].":"")}[{table.Name}] ORDER BY [Id]";
             using var reader=cmd.ExecuteReader(CommandBehavior.SequentialAccess);var rows=new List<JsonObject>();
             while(reader.Read())
             {
-                var row=new JsonObject();
+                cancellationToken.ThrowIfCancellationRequested();var row=new JsonObject();
                 for(int i=0;i<reader.FieldCount;i++)
                 {
                     string field=reader.GetName(i);object? value=reader.IsDBNull(i)?null:reader.GetValue(i);
@@ -64,10 +68,26 @@ public static class SourceReader
             }
             tables.Add(table.Name,rows);
         }
-        HsFactsSource.Read(connection,tables);
+        HsFactsSource.Read(connection,tables,cancellationToken);
         var after=requireStableRowversion?Stamp():null;
         if(before!=null&&after!=null&&!before.SequenceEqual(after))throw new ImportFailure("source_changed_during_read");
         return new(tables,started,DateTimeOffset.UtcNow,sql?(connection.Database=="erp_copy"?"local_read_only_copy":"read_committed_database_rowversion_stable"):"synthetic_sqlite");
+    }
+    static bool OptionalAvailable(DbConnection connection,SourceTable table,CancellationToken cancellationToken)
+    {
+        var fields=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var cmd=connection.CreateCommand();using var cancel=SyncCancellation.Register(cmd,cancellationToken);
+        if(connection is SqlConnection)
+        {
+            cmd.CommandText="SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@schema AND TABLE_NAME=@table";
+            var schema=cmd.CreateParameter();schema.ParameterName="@schema";schema.Value=table.Schema;cmd.Parameters.Add(schema);
+            var name=cmd.CreateParameter();name.ParameterName="@table";name.Value=table.Name;cmd.Parameters.Add(name);
+        }
+        else cmd.CommandText="PRAGMA table_info(["+table.Name+"])";
+        using var reader=cmd.ExecuteReader();while(reader.Read())fields.Add(reader.GetString(connection is SqlConnection?0:1));
+        if(fields.Count==0)return false;
+        if(!table.Fields.Split(' ').All(fields.Contains))throw new ImportFailure("source_contract_missing_fields:"+table.Name);
+        return true;
     }
     internal static JsonNode? Value(object? value)=>value switch
     {

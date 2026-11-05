@@ -8,7 +8,7 @@ namespace Payroll;
 
 public static class FinancialCore
 {
-    public sealed record SponsorDef(string Id, string Code, string UnifiedNumber, string NameAr, string ShortNameAr, string CommercialReg);
+    public sealed record SponsorDef(string Id, string Code, string UnifiedNumber, string NameAr, string ShortNameAr, string CommercialReg) : ErpImport.ISyncSponsor;
 
     public sealed record AccountDef(
         string Code,
@@ -216,6 +216,9 @@ public static class FinancialCore
         new("Advance", "سلفة نقدية / بنكية", "Advances", "5205", "1210", 0m, ["MainInternal", "Bank"]),
         new("CashAdvance", "سلفة نقدية (من الصندوق الداخلي)", "Advances", "5205", "1210", 0m, ["MainInternal"]),
         new("BankAdvance", "سلفة بنكية (من حساب البنك)", "Advances", "5205", "1210", 0m, ["Bank"]),
+        new("InternetAdvance", "سلفة إنترنت", "Advances", "5205", "1210", 0m, ["MainInternal", "Bank"]),
+        new("HsWalletTopUp", "سلفة محفظة هنقرستيشن", "Advances", "5205", "1210", 0m, ["MainInternal", "Bank"]),
+        new("LegacyOpeningDebt", "مديونية افتتاحية قديمة — ذمم أخرى", "Admin", "5203", "1210", 0m, ["MainInternal", "Bank"]),
         new("CashCustody", "عهدة نقدية مقابل سند لأمر", "Advances", "5205", "1220", 15000m, ["MainInternal", "Bank"]),
 
         // الحركة والأسطول ومخالفات تم
@@ -751,7 +754,7 @@ public static class FinancialCore
         api.MapPost("/notifications/center/{id}/toggle-todo", (string id, HttpContext ctx) => store.Write((c, tx) =>
         {
             var notif = Store.Get(c, id, "sys_notification", tx) ?? throw new ApiError("المهمة غير موجودة.", 404);
-            if(Notifications.Category(notif)=="personal"&&!Notifications.Visible(c,ctx.User,notif,tx))throw new ApiError("المهمة غير موجودة.",404);
+            if((Notifications.Category(notif)=="personal"||notif.S("audience")=="administrators")&&!Notifications.Visible(c,ctx.User,notif,tx))throw new ApiError("المهمة غير موجودة.",404);
             bool owner=notif.S("assignedTo")==ctx.User.Identity?.Name||notif.S("createdBy")==ctx.User.Identity?.Name;
             if(!owner&&!AccessPolicy.Has(ctx.User,"approvals.view"))throw new ApiError("ليست لديك صلاحية لهذه المهمة.",403);
             J.Need(owner||AccessPolicy.Administrator(ctx.User)||notif.S("targetDepartment") is var dept&&(dept=="ALL"||dept==ctx.User.FindFirst("department")?.Value),"المهمة خارج قسمك.");

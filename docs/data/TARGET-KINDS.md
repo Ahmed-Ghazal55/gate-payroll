@@ -24,3 +24,55 @@ Shared provenance: `erpSourceId` = ERP primary key, `erpSource` = target kind, `
 `Store.cs` calls `ErpDataIndexes.Ensure` after the existing schema setup. It adds idempotent indexes for `(kind, erpSourceId)`, companyId/sponsorId, cityId, housingId, riderId/registeredRiderId, vehicleId, assignmentId, and the effectiveFrom/effectiveTo range. SQLite uses JSON expression indexes; SQL Server uses bounded JSON computed columns plus indexes, with compatible session options. Existing record bodies and financial indexes are untouched. Primary record IDs and importer collision checks enforce the natural-key strategy; the source index is not an invitation to create a second ID for one source row.
 
 Dry-run never constructs Store: it uses SELECT-only target reads, even if `records` does not yet exist. Only `--commit` constructs the target Store, runs schema initialization/checkpointing under the private runtime directory, and calls the normal Save/Audit path in a transaction with actor `erp-import`. Its opt-in SQL Server buffer bulk-copies those Save/Audit documents to a temporary table and applies UPDATE/INSERT in the same transaction; application transactions remain immediate. Current target state is rechecked once inside the transaction before saving. A second synthetic commit is tested to produce zero row changes and zero new audit rows. Approved staging verification completed: 6451 domain rows, 8581 import audit rows after the explicit role-metadata correction, eight ERP indexes; a separate second CLI commit run produced zero new/changed rows. After adding explicit role metadata, both its automatic verification and a fresh independent dry-run also produced zero new/changed rows. The stable local backup is older than the earlier live dry-run; see the reconciliation drift table.
+
+## R6a-1 fuel facts
+
+| Kind | Source | Contract |
+|---|---|---|
+| fuel_card | app.FuelCards | card number/provider/type, company and city; no invented current rider |
+| fuel_card_assignment | app.FuelCardRiderAssignments | dated rider/card link; EmployeeId and RiderProfileId must agree |
+| fuel_usage_month | app.FuelCardMonthlyUsages | report month, liters, total/before-tax/VAT, transaction count, fuel type; explicit rider relation required |
+
+New source tables are optional only when absent. A present table with missing allowlisted columns refuses the pull. Empty tables remain distinguishable from absent tables. Unmatched/ambiguous riders are rejected with counts, never guessed from the current card owner. Counts-only summaries include numeric totals for accepted documents, separately from rejected counts. Stable keys and merge/idempotency rules above apply.
+
+## R6a-2 custody and vehicle additions
+- `custody_equipment`: maintenance.RiderInventoryIssues + explicit issue lines; rider, issue date, item quantities, expected return, returned quantity and total cost. Invalid returns are rejected.
+- `custody_sim`: app.RiderPhoneSimAssignments with the actual dated profile link.
+- `vehicle_accident`: app.VehicleAccidents, nested VehicleAccidentCases and VehicleAccidentInstallments, preserving source status, repair/claim/refund amounts and installment dates. No attachments or free-form person details selected.
+- `vehicle_expense`: maintenance.VehicleExpenses, signed before-tax/VAT/total, source event and reversal linkage, company via vehicle; a missing optional rider is retained as vehicle-only, an invalid explicit rider is rejected.
+These are source facts only: no debt or journal is posted by the pull.
+
+## R6a-3 Chefz / The Chefz
+- `chefz_account` → chefz.AccountDetails (ERP class ChefzAccountDetails): report ID/type/vehicle/status and registered owner.
+- `chefz_daily` → chefz.DailyPerformance (ChefzDailyPerformance): actual assigned rider, date, offers/acceptance, explicit source ID/row.
+- `chefz_settlement` → chefz.WalletSettlements (ChefzWalletSettlement): full delivery-fee/VAT/tips/compensation/bonus/deduction/gross/commission/company/rider breakdown and period. No recalculation.
+Actual rider and assignment must agree with the account; never substitute its registered owner. Only final tables are pulled; DailyPerformanceSources and ImportedOrderRows are excluded. Monetary totals exclude rates and include only accepted rows.
+
+## R6a-4 Jahez final financial facts
+| Kind | Actual final ERP table (class) |
+|---|---|
+| jahez_earnings_statement | jahez_v2.EarningsStatements (JahezEarningsStatement) |
+| jahez_transaction | jahez_v2.PlatformTransactions (JahezTransaction) |
+| jahez_ledger_entry | jahez_v2.AccountingEntries (JahezLedgerEntry) |
+| jahez_account_fee | jahez_v2.AccountFees (JahezAccountFee) |
+| jahez_account_fee_refund | jahez_v2.AccountFeeRefunds (JahezAccountFeeRefund) |
+| jahez_transferred_debt | jahez_v2.TransferredDebts (JahezTransferredDebt) |
+| jahez_account_session | jahez_v2.AccountSessions (JahezAccountSession) |
+
+HandoverId is a foreign key to AccountSessions; transferred debt resolves through Operations. Preserve signed amounts, source statuses, superseding/reversal links and periods. Account-only financial entries remain explicitly account-only, never attributed to today's owner. Company attribution is the linked account sponsor, not proof of historical legal ownership. Final rows retain ImportRowId as lineage only; no ImportRows, Sources, import files, credentials or CalculationJson are read. These are imported source facts, not new Gate debts/payments/journals.
+
+## R6a-5 Ninja operations
+- `ninja_account`: ninja.NinjaAccountDetails + linked PlatformRiderAccounts.ExternalAccountId as `CaptainId`, matching the ERP Ninja import engine's account resolution. Never fall back to a display code.
+- `ninja_daily`: ninja.NinjaDailyPerformance, report date, actual rider/assignment, orders and hours.
+- `ninja_daily_deduction`: ninja.NinjaDailyDeductions, report date, actual rider, collected amount and deductions.
+Every row preserves exact `CaptainId` casing in the document. Missing CaptainId is rejected. Historical daily CaptainId is retained, not overwritten from the current account. Source/import tables are excluded.
+
+## R6a-7 additional authoritative sources
+- `employee`: app.Employees, all staff including those without a RiderProfile; current employer/city, contract/hire/end dates and residency profession. This does not invent a rider identity.
+- `employee_document`: app.EmployeeDocuments + platform.DocumentTypes; iqama/residency/work-permit metadata is distinguished by the actual document type code, with issue/expiry dates. No document binaries/versions are read.
+- `driver_license`: app.EmployeeDriverLicenses, issuance/status/expiry and category IDs; encrypted numbers, hashes and files are excluded.
+- `rider_account_assignment`: app.RiderClientAssignments as a separate dated document, in addition to the existing platform account projection.
+- `erp_jahez_operation`, `erp_jahez_request`, `erp_money_movement`: jahez_v2.Operations, Requests and MoneyMovements; original type/status/amount/fund/reference, linked through actual sessions. These are not converted into Gate advance requests or paid a second time.
+- `erp_treasury_account`, `erp_treasury_posting`: jahez_v3.TreasurySubAccounts and Postings with original classification, company, signed amount, revision and reversal lineage. Sponsorless group accounts remain group accounts.
+- `erp_cashbox_handover`: jahez_v2.CashboxHandovers + CashboxHandoverMovements; explicit movement IDs and companyIds preserve multi-company custody without choosing one owner.
+- Current ERP metadata has no dedicated ADV/payment-request tables and no sponsorship-period table; report unavailable. Never fabricate ADV references from unrelated Jahez requests. Separate work-permit tables are absent; use actual EmployeeDocuments types only. Existing city/housing/residence/legal-case/account sources already cover operations.

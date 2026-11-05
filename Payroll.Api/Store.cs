@@ -60,19 +60,23 @@ public sealed partial class Store
     }
     // WAL allows independent reads while a write transaction is open.
     public T Read<T>(Func<DbConnection, T> action) { using var c = Open(); return action(c); }
-    public T Write<T>(Func<DbConnection, DbTransaction, T> action, bool invalidateSummaries = true)
+    public T Write<T>(Func<DbConnection, DbTransaction, T> action, bool invalidateSummaries = true,CancellationToken cancellationToken=default)
     {
-        lock (writeGate)
+        while(!Monitor.TryEnter(writeGate,100))cancellationToken.ThrowIfCancellationRequested();
+        try
         {
-            using var c = Open(); using var tx = c.BeginTransaction(IsolationLevel.Serializable);
+            cancellationToken.ThrowIfCancellationRequested();using var c = Open();
+            using var cancel=cancellationToken.Register(()=>{try{c.Close();}catch{}});
+            cancellationToken.ThrowIfCancellationRequested();using var tx = c.BeginTransaction(IsolationLevel.Serializable);
             if (Provider == "mssql")
             {
                 using var guard = c.CreateCommand(); guard.Transaction = tx;
                 guard.CommandText = "DECLARE @result int; EXEC @result=sp_getapplock @Resource='GatePayroll.DocumentWrite',@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000; IF @result < 0 THROW 51000,'Payroll transaction busy',1;";
                 guard.ExecuteNonQuery();
             }
-            var result = action(c, tx); tx.Commit(); if (invalidateSummaries) Interlocked.Increment(ref revision); return result;
+            var result = action(c, tx); cancellationToken.ThrowIfCancellationRequested();tx.Commit(); if (invalidateSummaries) Interlocked.Increment(ref revision); return result;
         }
+        finally{Monitor.Exit(writeGate);}
     }
     public static DbCommand Command(DbConnection c, DbTransaction? tx, string sql, params (string Name, object Value)[] values)
     {

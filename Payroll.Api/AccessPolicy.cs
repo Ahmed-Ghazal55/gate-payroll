@@ -20,12 +20,12 @@ public static class AccessPolicy
     public static void Demand(ClaimsPrincipal user,string permission){if(!Has(user,permission))throw new ApiError("ليست لديك صلاحية لهذه العملية: "+permission,403);}
     public static string CategoryPermission(string category)=>category switch {
         "WorkPermit" or "IqamaRenewal" or "SponsorshipTransfer" or "ExitReEntryVisa" or "MedicalInsurance" or "ProfessionChange" or "DriverLicense" or "DriverCard" or "OtherHrService"=>"debts.create.hr",
-        "Advance" or "CashAdvance" or "BankAdvance" or "CashCustody"=>"debts.create.advance",
+        "Advance" or "CashAdvance" or "BankAdvance" or "InternetAdvance" or "HsWalletTopUp" or "CashCustody"=>"debts.create.advance",
         "HousingDeduction"=>"debts.create.housing",
         "PlatformTransferredDebt" or "NegativeSalaryCarryover"=>"debts.create.platform",
         "EquipmentLoan"=>"debts.create.equipment",
         "TrafficFine" or "AccidentDamage" or "VehicleInstallment" or "FuelOverage"=>"debts.create.fleet",
-        "AdministrativeDeduction"=>"debts.create.administrative",
+        "AdministrativeDeduction" or "LegacyOpeningDebt"=>"debts.create.administrative",
         _=>"invalid.permission"
     };
     public static bool Allowed(ClaimsPrincipal user,string method,string path,JsonObject? input=null)
@@ -35,6 +35,9 @@ public static class AccessPolicy
         bool Get(string prefix)=>method=="GET"&&path.StartsWith(prefix,StringComparison.Ordinal);
         bool Has(string permission)=>AccessPolicy.Has(user,permission);
         if(path is "/api/me" or "/api/roles-catalog")return method=="GET";
+        if(path is "/api/system/jobs/erp-sync/run" or "/api/system/jobs/erp-sync/dry-run")return method=="POST"&&Has("erp.sync.run");
+        const string syncStatus="/api/system/jobs/erp-sync/";
+        if(method=="GET"&&path.StartsWith(syncStatus,StringComparison.Ordinal)&&System.Text.RegularExpressions.Regex.IsMatch(path[syncStatus.Length..],"^[1-9][0-9]{0,19}$"))return Has("erp.sync.run");
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return false; // User administration remains administrator-only.
         if(path=="/api/responses")return method=="GET"&&Has("forms.view");
         if(path=="/api/search")return method=="GET";

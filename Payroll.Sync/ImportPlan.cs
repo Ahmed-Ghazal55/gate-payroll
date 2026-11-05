@@ -1,13 +1,12 @@
 using System.Data.Common;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using Payroll;
 namespace ErpImport;
 
 public sealed record PlannedDocument(string Kind,JsonObject Body);
 public sealed class ImportPlan
 {
-    public static readonly string[] Kinds=["company","commercial_registration","city","rider","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","platform_account","sponsorship_period","legal_case","hs_wallet_event","hs_remittance","hs_remittance_allocation","hs_handover_review","hs_month_close"];
+    public static readonly string[] Kinds=["company","commercial_registration","city","rider","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","platform_account","sponsorship_period","legal_case","hs_wallet_event","hs_remittance","hs_remittance_allocation","hs_handover_review","hs_month_close",..PullContracts.Kinds];
     public List<PlannedDocument> Documents { get; }=[];
     public Dictionary<string,Dictionary<string,int>> Rejected { get; }=[];
     public Dictionary<string,int> Observations { get; }=[];
@@ -18,9 +17,8 @@ public sealed class ImportPlan
     static JsonArray Array(IEnumerable<JsonObject> rows)=>new(rows.Select(x=>(JsonNode?)x.Clone()).ToArray());
     static string Date(JsonObject row,string field)=>row.S(field).Split('T')[0];
     static JsonObject Doc(string kind,JsonObject row)=>new(){["id"]=Key(kind,row.S("Id")),["erpSourceId"]=row.S("Id"),["erpSource"]=kind,["sourceDeleted"]=row.B("IsDeleted"),["erpStatusCode"]=row["Status"]?.DeepClone()};
-    public static ImportPlan Build(SourceSnapshot snapshot,IReadOnlyList<FinancialCore.SponsorDef>? sponsorCatalog=null)
+    public static ImportPlan Build(SourceSnapshot snapshot,IReadOnlyList<ISyncSponsor> sponsorCatalog)
     {
-        sponsorCatalog??=FinancialCore.Sponsors;
         var plan=new ImportPlan();List<JsonObject> Rows(string table)=>snapshot.Tables.GetValueOrDefault(table)??[];
         Dictionary<string,JsonObject> Index(string table)=>Rows(table).ToDictionary(r=>r.S("Id"));
         var companyProfiles=Index("CompanyProfile");
@@ -77,7 +75,7 @@ public sealed class ImportPlan
         var vehicles=Index("Vehicles");
         foreach(var row in Rows("Vehicles"))
         {
-            var doc=Doc("vehicle",row);foreach(string field in new[]{"AssetNumber","SerialNumber","PlateNumberAr","PlateNumberEn","Vin","ChassisNumber","ModelYear","VehicleType","FuelType","OwnershipType","CurrentOdometer","CurrentOperationalStatus","RegistrationType"})doc[char.ToLowerInvariant(field[0])+field[1..]]=row[field]?.DeepClone();doc["companyId"]=Company(row.S("SponsorId"));doc["registeredOwnerCompanyId"]=Company(row.S("RegisteredOwnerSponsorId"));doc["registeredOwnerSupplierSourceId"]=row.S("RegisteredOwnerSupplierId");doc["manufacturerSourceId"]=row.S("VehicleManufacturerId");doc["modelSourceId"]=row.S("VehicleModelId");doc["cityId"]=City(row.S("OperatingCityId"));doc["currentAssignmentId"]=row.S("CurrentAssignmentId")==""?"":Key("vehicle_assignment",row.S("CurrentAssignmentId"));doc["registrations"]=Array(Rows("VehicleRegistrations").Where(x=>x.S("VehicleId")==row.S("Id")));doc["insurancePolicies"]=Array(Rows("VehicleInsurancePolicies").Where(x=>x.S("VehicleId")==row.S("Id")));plan.Documents.Add(new("vehicle",doc));
+            var doc=Doc("vehicle",row);foreach(string field in new[]{"AssetNumber","SerialNumber","PlateNumberAr","PlateNumberEn","Vin","ChassisNumber","ModelYear","VehicleType","FuelType","OwnershipType","RegistrationType"})doc[char.ToLowerInvariant(field[0])+field[1..]]=row[field]?.DeepClone();doc["companyId"]=Company(row.S("SponsorId"));doc["registeredOwnerCompanyId"]=Company(row.S("RegisteredOwnerSponsorId"));doc["registeredOwnerSupplierSourceId"]=row.S("RegisteredOwnerSupplierId");doc["manufacturerSourceId"]=row.S("VehicleManufacturerId");doc["modelSourceId"]=row.S("VehicleModelId");doc["registrations"]=Array(Rows("VehicleRegistrations").Where(x=>x.S("VehicleId")==row.S("Id")));doc["insurancePolicies"]=Array(Rows("VehicleInsurancePolicies").Where(x=>x.S("VehicleId")==row.S("Id")));plan.Documents.Add(new("vehicle",doc));
         }
         var validAssignments=new HashSet<string>();
         foreach(var row in Rows("RiderVehicleAssignments"))
@@ -104,6 +102,7 @@ public sealed class ImportPlan
             string company=Company(row.S("SponsorId"));if(company==""){plan.Reject("legal_case","missing_company_relation");continue;}
             var doc=Doc("legal_case",row);doc["companyId"]=company;doc["number"]=row.S("CaseNumber");doc["personName"]=row.S("PersonName");doc["personTypeCode"]=row["PersonType"]?.DeepClone();doc["employeeSourceId"]=row.S("EmployeeId");doc["riderId"]=Rider(row.S("EmployeeId")) is var legalRider&&legalRider!=""?legalRider:profileRiders.GetValueOrDefault(row.S("RiderProfileId"))??"";doc["riderProfileSourceId"]=row.S("RiderProfileId");doc["partyRoleCode"]=row["SponsorPartyRole"]?.DeepClone();doc["caseDate"]=Date(row,"CaseDate");doc["caseTime"]=row.S("CaseTime");doc["details"]=row.S("Details");doc["hearings"]=Array(Rows("HrLegalCaseHearings").Where(h=>h.S("LegalCaseId")==row.S("Id")));plan.Documents.Add(new("legal_case",doc));
         }
+        PullContracts.AddToPlan(snapshot,plan,companies,riders,profileRiders,City);
         HsFactsSource.AddToPlan(snapshot,plan,companies);
         return plan;
     }
@@ -117,6 +116,7 @@ public sealed class ImportPlan
             if(existing?.S("registrySource")=="company-certificates"&&certificateFields.Contains(field.Key)&&existing.ContainsKey(field.Key))continue;
             merged[field.Key]=field.Value?.DeepClone();
         }
+        if(existing?.B("debtOnly")==true&&proposed.S("erpSource")=="rider")merged["debtOnly"]=false;
         return merged;
     }
 }
