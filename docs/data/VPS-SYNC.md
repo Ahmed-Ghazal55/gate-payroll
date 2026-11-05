@@ -1,4 +1,6 @@
-# Three-hour ERP sync on a VPS (R6a-8)
+# Optional alternative: three-hour ERP sync on a VPS (R6a-8)
+
+**Inactive alternative.** The selected scheduler is now [Hangfire inside the API](../ops/HANGFIRE.md). The supplied systemd files remain uninstalled/disabled. Do not follow the activation commands below while Hangfire is active; Ghazal must explicitly choose a different scheduler first.
 
 Hostinger read-only check on 2026-11-05: the VPS list returned **zero instances**; there is no VPS name or OS to report. No server was created, bought, upgraded, or accessed. The steps below are for Ghazal to use after choosing/providing a VPS; they have not been executed remotely.
 
