@@ -12,6 +12,10 @@ def permission(method,p):
  if p=='/api/notifications/center':return 'approvals.view' if method=='GET' else 'mobile.broadcast'
  if p in ('/api/me','/api/roles-catalog','/api/search') or p.startswith('/api/notifications'):return 'authenticated; category/owner visibility in handler'
  if '/assignments/import/' in p and p.startswith('/api/pay/'): return 'Admin / SuperAdmin + pay.manage; signed source-approved pre-month choices'
+ if p=='/api/org/catalog':return 'authenticated'
+ if p=='/api/org/supervision' and method=='GET':return 'advances.request (mine=1) or org.manage'
+ if p.startswith('/api/org/'):return 'org.manage (Admin); dated rows, never deleted'
+ if p.startswith('/api/advance-requests'):return {'GET':'advances.request / advances.review / advances.payout; handler shows own, assigned or custodian rows'}.get(method,'advances.request' if p=='/api/advance-requests' or p.endswith('/respond') else 'advances.review + routed responsible (BR §25)' if p.endswith('/review') else 'advances.payout + routed vault custodian')
  if p=='/api/rider-mobile/statement':return 'Active rider bearer token; own approved cycles or approved legacy fallback'
  if p.startswith('/api/finance/statement/rider/') and p.endswith('/monthly'):return 'pay.view + payroll.view + debts.view; full company/app/debt scope'
  if p.startswith('/api/operations/') or p.startswith('/api/riders/') and p.endswith('/accounts'):return 'operations.view; company/platform scope; always paginated'
