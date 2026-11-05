@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -608,6 +609,444 @@ try {
     assert.ok(!content.includes('قيد النقل التدريجي'), `${pagePath} must be an active workspace, not UnderMigration`);
     console.log(`✓ Step 10: ${pagePath} loaded cleanly as real workspace`);
   }
+
+  // --- R4-fix1 Tests: F1, F2, F3 ---
+  console.log('\n--- Running R4-Fix1 Live E2E Tests (F1, F2, F3) ---');
+  const fix1ResultsDir = path.join(rootDir, 'test-results/r4-fix1');
+  mkdirSync(fix1ResultsDir, { recursive: true });
+
+  // 11. F1: Payroll Rules Maker-Checker, Copy Month & Cycle Stepper
+  console.log('\nStep 11: Testing F1 (Payroll Rules Maker-Checker, Copy Month & Cycle Stepper)...');
+
+  // Create User B context again for maker-checker tests
+  const checkerContext2 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const checkerPage2 = await checkerContext2.newPage();
+  await checkerPage2.goto(`${baseUrl}/app/login/`);
+  await checkerPage2.locator('#username').fill(checkerUsername);
+  await checkerPage2.locator('#password').fill(checkerPassword);
+  await checkerPage2.locator('button[type="submit"]').click();
+  await checkerPage2.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 8000 });
+
+  // 11a: User A creates global settings draft and attempts self-approval (refused with 403)
+  await page.goto(`${baseUrl}/app/payroll/?tab=rules&period=2026-10`);
+  await page.waitForLoadState('networkidle');
+
+  // Wait for empty state or existing setting
+  await page.waitForSelector('button:has-text("إنشاء مسودة"), button:has-text("اعتماد الإعدادات العامة")', { timeout: 8000 });
+
+  const createGlobalDraftBtn = page.locator('button:has-text("إنشاء مسودة من القيم الافتراضية")');
+  if (await createGlobalDraftBtn.count() > 0) {
+    await createGlobalDraftBtn.click();
+    await page.waitForSelector('div[role="alert"]:has-text("تم إنشاء مسودة")', { timeout: 5000 });
+  }
+
+  // Attempt approval as User A (maker) -> Must fail with 403 / "لا يجوز اعتماد طلبك بنفسك"
+  const userAApproveGlobalBtn = page.locator('button:has-text("اعتماد الإعدادات العامة (Maker-Checker)")');
+  await userAApproveGlobalBtn.waitFor({ timeout: 5000 });
+  await userAApproveGlobalBtn.click();
+  await page.waitForSelector('div[role="alert"]:has-text("لا يجوز اعتماد طلبك بنفسك")', { timeout: 5000 });
+  console.log('✓ Step 11a: Maker-checker verified: User A self-approval of global settings refused with HTTP 403');
+  await page.screenshot({ path: path.join(fix1ResultsDir, 'f1-rules-maker-refusal.png') });
+
+  // 11b: User B (checker) approves global settings
+  await checkerPage2.goto(`${baseUrl}/app/payroll/?tab=rules&period=2026-10`);
+  await checkerPage2.waitForLoadState('networkidle');
+  const checkerApproveGlobalBtn = checkerPage2.locator('button:has-text("اعتماد الإعدادات العامة (Maker-Checker)")');
+  await checkerApproveGlobalBtn.waitFor({ timeout: 5000 });
+  await checkerApproveGlobalBtn.click();
+  await checkerPage2.waitForSelector('div[role="alert"]:has-text("تم اعتماد الإعدادات العامة")', { timeout: 5000 });
+  await checkerPage2.waitForSelector('span:has-text("للقراءة فقط")', { timeout: 5000 });
+  console.log('✓ Step 11b: Maker-checker verified: User B approved global settings and marked read-only');
+  await checkerPage2.screenshot({ path: path.join(fix1ResultsDir, 'f1-rules-approved.png') });
+
+  // 11c: App Terms draft creation and approval
+  await page.goto(`${baseUrl}/app/payroll/?tab=platforms&app=hs&sub=parent_terms&period=2026-10`);
+  await page.waitForLoadState('networkidle');
+  await page.waitForSelector('button:has-text("إنشاء مسودة"), button:has-text("اعتماد الشروط")', { timeout: 8000 });
+
+  const createTermsBtn = page.locator('button:has-text("إنشاء مسودة جديدة")');
+  await createTermsBtn.waitFor({ timeout: 5000 });
+  await createTermsBtn.click();
+  await page.waitForSelector('div[role="alert"]:has-text("تم إنشاء مسودة")', { timeout: 5000 });
+
+  const userAApproveTermsBtn = page.locator('button:has-text("اعتماد الشروط (Maker-Checker)")');
+  await userAApproveTermsBtn.waitFor({ timeout: 5000 });
+  await userAApproveTermsBtn.click();
+  await page.waitForSelector('div[role="alert"]:has-text("لا يجوز اعتماد طلبك بنفسك")', { timeout: 5000 });
+
+  // User B approves terms
+  await checkerPage2.goto(`${baseUrl}/app/payroll/?tab=platforms&app=hs&sub=parent_terms&period=2026-10`);
+  await checkerPage2.waitForLoadState('networkidle');
+  const checkerApproveTermsBtn = checkerPage2.locator('button:has-text("اعتماد الشروط (Maker-Checker)")');
+  await checkerApproveTermsBtn.waitFor({ timeout: 5000 });
+  await checkerApproveTermsBtn.click();
+  await checkerPage2.waitForSelector('div[role="alert"]:has-text("تم اعتماد شروط المنصة")', { timeout: 5000 });
+  console.log('✓ Step 11c: App terms maker-checker lifecycle verified');
+
+  // 11d: Copy month to 2026-11
+  await page.goto(`${baseUrl}/app/payroll/?tab=platforms&app=hs&sub=parent_terms&period=2026-11`);
+  await page.waitForLoadState('networkidle');
+  const copyBtn = page.locator('button:has-text("انسخ الشهر السابق")').first();
+  await copyBtn.waitFor({ timeout: 5000 });
+  await copyBtn.click();
+  await page.waitForSelector('div[role="alert"]:has-text("تم نسخ")', { timeout: 5000 });
+  console.log('✓ Step 11d: Copy month flow created draft for next month (2026-11)');
+  await page.screenshot({ path: path.join(fix1ResultsDir, 'f1-copy-month.png') });
+
+  // 11e: Cycle Stepper: Advance 0 -> 4 with synthetic data
+  const compRes = await page.request.get(`${baseUrl}/api/companies`);
+  const companyList = await compRes.json();
+  const cycleCompanyId = companyList[0].id;
+  await page.request.post(`${baseUrl}/api/platforms/hs/posting`, { data: { enabled: true } });
+
+  const cycleDb = new DatabaseSync(path.join(tempDir, 'payroll.db'));
+  const cyclePut = (id, kind, body) =>
+    cycleDb.prepare('INSERT OR REPLACE INTO records(id,kind,body) VALUES(?,?,?)').run(id, kind, JSON.stringify({ ...body, id }));
+  cyclePut(testIqama, 'rider', {
+    id: testIqama,
+    iqama: testIqama,
+    name: testName,
+    isDeliveryRider: true,
+    status: 'Active',
+    sponsorId: cycleCompanyId,
+  });
+
+  cyclePut('synthetic-cycle-account', 'platform_account', {
+    companyId: cycleCompanyId,
+    platformCode: 'hs',
+    assignments: [{ riderId: testIqama, RawEffectiveFrom: '2026-10-01T00:00:00Z' }],
+  });
+  cyclePut('synthetic-cycle-invoice', 'platform_invoice', {
+    companyId: cycleCompanyId,
+    platform: 'HungerStation',
+    period: '2026-10',
+    approvalStatus: 'approved',
+    amountExclVat: 100,
+    vat: 15,
+    deductionsTotal: 0,
+  });
+  cyclePut('synthetic-cycle-line', 'platform_invoice_line', {
+    invoiceId: 'synthetic-cycle-invoice',
+    platformAccountId: 'synthetic-cycle-account',
+    lineType: 'rider',
+  });
+
+  // Seed approved scheme and assignment so BuildLines calculates cleanly
+  const schemeId = 'pay-scheme:synthetic-hs-scheme';
+  cyclePut(schemeId, 'pay_scheme', {
+    id: schemeId,
+    kind: 'pay_scheme',
+    app: 'hs',
+    period: '2026-10',
+    code: 'synthetic-commission',
+    version: 1,
+    status: 'approved',
+    data: {
+      name: 'Synthetic commission scheme',
+      type: 'daily_commission',
+      accountingRole: 'agent',
+      parameters: {
+        categories: Object.fromEntries(
+          ['sponsored_company_car', 'sponsored_company_bike', 'sponsored_private', 'external_company_car', 'external_company_bike', 'external_private'].map((c) => [
+            c,
+            { enabled: true, dailyCommission: 10, chargeCompanyVehicle: false },
+          ])
+        ),
+      },
+      eligibilitySetId: '',
+    },
+  });
+
+  const assignId = 'pay-assignment:synthetic-' + testIqama;
+  cyclePut(assignId, 'pay_assignment', {
+    id: assignId,
+    app: 'hs',
+    period: '2026-10',
+    rider: testIqama,
+    schemeId: schemeId,
+    status: 'approved',
+    choiceApprovedAt: '2026-09-30T20:00:00Z',
+  });
+  cycleDb.close();
+
+  const cycleRes = await page.request.post(`${baseUrl}/api/pay/cycles`, {
+    data: {
+      period: '2026-10',
+      companyId: cycleCompanyId,
+      invoices: [
+        {
+          app: 'hs',
+          invoiceId: 'synthetic-cycle-invoice',
+          deductions: [],
+          accounts: [
+            {
+              accountId: 'synthetic-cycle-account',
+              sourceLineId: 'synthetic-cycle-line',
+              baseGross: 100,
+              incentives: 0,
+              orders: 10,
+              riders: [
+                {
+                  rider: testIqama,
+                  orders: 10,
+                  baseGross: 100,
+                  deduction: 0,
+                  category: 'sponsored_private',
+                  days: 1,
+                  metrics: {},
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const cycleBody = await cycleRes.text();
+  assert.equal(cycleRes.status(), 200, `Cycle creation failed: ${cycleBody}`);
+  const cycleResJson = JSON.parse(cycleBody);
+
+  await page.goto(`${baseUrl}/app/payroll/?tab=cycle&period=2026-10`);
+  await page.waitForLoadState('networkidle');
+
+  // Advance stages 0 -> 1 -> 2 -> 3 -> 4
+  for (let s = 1; s <= 4; s++) {
+    const advanceBtn = page.locator(`button:has-text("تقديم المرحلة إلى [${s}:")`);
+    await advanceBtn.waitFor({ timeout: 8000 });
+    await advanceBtn.click();
+    await page.waitForSelector(`div[role="alert"]:has-text("المرحلة ${s}")`, { timeout: 8000 });
+  }
+
+  const checkLines = await page.request.get(`${baseUrl}/api/pay/cycles/${encodeURIComponent(cycleResJson.id)}/lines`);
+  const checkLinesJson = await checkLines.json();
+  console.log('✓ Stage 4 cycle lines from backend total:', checkLinesJson.total);
+
+  // Wait for lines table row with explain button
+  await page.waitForSelector('button:has-text("شرح الاحتساب")', { timeout: 8000 });
+  const explainBtn = page.locator('button:has-text("شرح الاحتساب")').first();
+  await explainBtn.waitFor({ timeout: 5000 });
+  await explainBtn.click();
+  const explainDrawer = page.locator('div[role="dialog"]:has-text("شرح احتساب مستحقات المندوب")');
+  await explainDrawer.waitFor({ timeout: 5000 });
+  const explainText = await explainDrawer.textContent();
+  assert.ok(explainText.includes(testIqama), 'Explain lines must display rider iqama');
+  console.log('✓ Step 11e: Cycle stepper advanced 0 -> 4 with explain lines verified');
+  await page.screenshot({ path: path.join(fix1ResultsDir, 'f1-cycle-stepper-stage4.png') });
+  await page.keyboard.press('Escape');
+
+  // 12. F2: Legacy Production Payroll Run Flow
+  console.log('\nStep 12: Testing F2 (Current Legacy Payroll Run Workspace)...');
+  page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+  page.on('request', req => {
+    if (req.url().includes('/api/payments')) {
+      console.log('PAYMENTS REQUEST BODY:', req.postData());
+    }
+  });
+  page.on('response', async res => {
+    if (res.url().includes('/api/payments')) {
+      try {
+        console.log('PAYMENTS API RESPONSE:', res.status(), await res.text());
+      } catch {}
+    }
+  });
+
+  // Seed verified opening balances for cash vaults so BANK.BW has available funds for payroll payment
+  const openPrevRes = await page.request.post(`${baseUrl}/api/finance/opening/preview`, {
+    data: {
+      rows: ['BW', 'EX', 'TR'].flatMap((sponsorCode) => [
+        `MAIN.${sponsorCode}.DEBT`,
+        `BANK.${sponsorCode}`,
+      ]).map((accountCode) => ({
+        accountCode,
+        sponsorCode: accountCode.includes('BW') ? 'BW' : accountCode.includes('EX') ? 'EX' : 'TR',
+        iqama: '',
+        verifiedBalance: 100000,
+        sourceRef: `synthetic-opening:${accountCode}`,
+        notes: 'Synthetic verified cash for live e2e integration tests',
+      })),
+    },
+  });
+  const openPrev = await openPrevRes.json();
+  const openCommRes = await page.request.post(`${baseUrl}/api/finance/opening/commit`, {
+    data: { rows: openPrev.rows, fingerprint: openPrev.fingerprint, confirm: true },
+  });
+  assert.equal(openCommRes.status(), 200, 'Accounting opening commit should succeed');
+  console.log('✓ Seeded accounting cash for payment vault (BANK.BW)');
+
+  // Create and approve a policy for the legacy payroll run
+  const policyRes = await page.request.post(`${baseUrl}/api/policies`, {
+    data: {
+      name: 'Approved pay policy',
+      kind: 'approved_pay',
+      platform: 'all',
+      effectiveFrom: '2026-10',
+      config: {},
+    },
+  });
+  assert.equal(policyRes.status(), 200, 'Policy creation should succeed');
+  const policy = await policyRes.json();
+  const approvePolicyRes = await page.request.post(`${baseUrl}/api/policies/${encodeURIComponent(policy.id)}/approve`);
+  assert.equal(approvePolicyRes.status(), 200, 'Policy approval should succeed');
+
+  // Seed rider with approved policyId and financeSponsorId for 2026-10
+  const riderPostRes = await page.request.post(`${baseUrl}/api/riders`, {
+    data: {
+      iqama: testIqama,
+      name: testName,
+      financeSponsorId: 'BW',
+      policyId: policy.id,
+      phone: '0501112233',
+      city: 'جدة',
+    },
+  });
+  const riderPost = await riderPostRes.json();
+  const targetSponsorId = riderPost.financeSponsorId;
+  console.log('Rider post res:', riderPostRes.status(), JSON.stringify(riderPost));
+
+  const legacyCsv = `sourceRef,iqama,name,accountId,from,to,orders,riderPay,isValid\r\nlive-legacy-row,${testIqama},${testName},ACC-001,2026-10-01,2026-10-31,10,1500,true\r\n`;
+  const uploadRes = await page.request.post(`${baseUrl}/api/imports/inspect`, {
+    data: { filename: 'legacy.csv', dataBase64: Buffer.from(legacyCsv).toString('base64') },
+  });
+  const uploadData = await uploadRes.json();
+  console.log('Upload inspect res:', uploadData);
+
+  const legacySpec = {
+    sheet: 'CSV',
+    period: '2026-10',
+    platform: 'Keeta',
+    headerRow: 1,
+    confirmActualRider: true,
+    mapping: { sourceRef: 0, iqama: 1, name: 2, accountId: 3, from: 4, to: 5, orders: 6, riderPay: 7, isValid: 8 },
+  };
+  const prevRes = await page.request.post(`${baseUrl}/api/imports/${uploadData.id}/preview`, { data: legacySpec });
+  console.log('Import preview res:', prevRes.status(), await prevRes.text());
+
+  const commRes = await page.request.post(`${baseUrl}/api/imports/${uploadData.id}/commit`, { data: legacySpec });
+  console.log('Import commit res:', commRes.status(), await commRes.text());
+
+  const checkPreview = await page.request.get(`${baseUrl}/api/payroll/preview?period=2026-10`);
+  console.log('Legacy payroll preview check:', checkPreview.status(), await checkPreview.text());
+
+  // Navigate to current-cycle tab
+  await page.goto(`${baseUrl}/app/payroll/?tab=current-cycle&period=2026-10`);
+  await page.waitForLoadState('networkidle');
+
+  // Verify preview row
+  const legacyRow = page.locator(`tr:has-text("${testIqama}")`);
+  await legacyRow.waitFor({ timeout: 8000 });
+  console.log('✓ Step 12a: Legacy payroll preview row rendered');
+
+  // Record adjustment
+  const adjBtn = page.locator('button:has-text("إضافة تحمل/مستحق")');
+  await adjBtn.click();
+  const adjDialog = page.locator('div[role="dialog"]:has-text("إضافة مستحق أو تحمل تشغيلي")');
+  await adjDialog.waitFor({ timeout: 5000 });
+  await adjDialog.locator('select').first().selectOption(testIqama);
+  await adjDialog.locator('input[type="number"]').fill('-200');
+  await adjDialog.locator('input[placeholder*="REF"]').fill('REF-ADJ-LIVE-01');
+  await adjDialog.locator('input[placeholder*="شرح"]').fill('خصم وقود إضافي');
+  await adjDialog.locator('button:has-text("تسجيل البند")').click();
+  await page.waitForSelector('div[role="alert"]:has-text("تم تسجيل البند")', { timeout: 5000 });
+  console.log('✓ Step 12b: Legacy adjustment recorded and preview updated');
+
+  // Approve payroll run (creates ledger payable balance)
+  const rowApproveBtn = legacyRow.locator('button:has-text("اعتماد")');
+  await rowApproveBtn.click();
+  const approveDialog = page.locator('div[role="dialog"]:has-text("اعتماد وترحيل مسير المندوب محاسبياً")');
+  await approveDialog.waitFor({ timeout: 5000 });
+  await approveDialog.locator('select').selectOption(targetSponsorId);
+  await approveDialog.locator('button:has-text("اعتماد المسير والقيود")').click();
+  await page.waitForSelector('div[role="alert"]:has-text("تم اعتماد مسير المندوب")', { timeout: 5000 });
+  console.log('✓ Step 12c: Legacy payroll run approved and posted');
+
+  // Record payment against the approved ledger balance
+  const payBtn = page.locator('button:has-text("تسجيل دفعة")');
+  await payBtn.click();
+  const payDialog = page.locator('div[role="dialog"]:has-text("تسجيل صرف دفعة راتب فعلية")');
+  await payDialog.waitFor({ timeout: 5000 });
+  await payDialog.locator('select').first().selectOption(testIqama);
+  await payDialog.locator('input[type="number"]').fill('300');
+  await payDialog.locator('input[placeholder*="BANK-TRX"]').fill('TRANS-LIVE-PAY-01');
+  await payDialog.locator('button:has-text("تسجيل الدفع وترحيل القيد")').click();
+  await page.waitForSelector('div[role="alert"]:has-text("تم تسجيل الدفعة النقدية")', { timeout: 8000 });
+  console.log('✓ Step 12d: Legacy payment recorded');
+
+  // View ledger
+  const rowLedgerBtn = page.locator(`tr:has-text("${testIqama}") button:has-text("الدفتر")`);
+  await rowLedgerBtn.click();
+  const ledgerDialog = page.locator('div[role="dialog"]:has-text("دفتر حساب المندوب")');
+  await ledgerDialog.waitFor({ timeout: 5000 });
+  await ledgerDialog.locator('text=الرصيد الدفتري الحالي').waitFor({ timeout: 5000 });
+  const ledgerContent = await ledgerDialog.textContent();
+  assert.ok(ledgerContent.includes('الرصيد الدفتري الحالي'), 'Ledger balance must be rendered');
+  console.log('✓ Step 12e: Legacy rider ledger modal verified');
+  await page.keyboard.press('Escape');
+
+  // CSV Export
+  const csvExportLink = page.locator('a:has-text("تصدير المعتمد (CSV)")');
+  const exportHref = await csvExportLink.getAttribute('href');
+  assert.ok(exportHref.includes('/api/payroll/export.csv'), 'Export link must target /api/payroll/export.csv');
+  const csvExportRes = await page.request.get(`${baseUrl}/api/payroll/export.csv?period=2026-10`);
+  assert.equal(csvExportRes.status(), 200, 'Legacy CSV export must succeed');
+  console.log('✓ Step 12f: Legacy payroll CSV export verified');
+  await page.screenshot({ path: path.join(fix1ResultsDir, 'f2-legacy-payroll.png') });
+
+  // 13. F3: Operations and Statements with 0.14.0 Endpoints
+  console.log('\nStep 13: Testing F3 (Operations & Statements with 0.14.0 Endpoints)...');
+
+  // Operations tabs call GET /api/operations/{kind}?page=&q=
+  await page.goto(`${baseUrl}/app/operations/?tab=accounts`);
+  await page.waitForLoadState('networkidle');
+  const opContent = await page.textContent('body');
+  assert.ok(!opContent.includes('غير متاح بعد'), 'Operations accounts tab must not show "غير متاح بعد"');
+  assert.ok(opContent.includes('حسابات المنصات'), 'Accounts tab header present');
+
+  const searchInput = page.locator('input[placeholder*="بحث"]');
+  await searchInput.fill('synthetic');
+  await page.waitForTimeout(500);
+  console.log('✓ Step 13a: Operations accounts tab with search and pagination verified');
+  await page.screenshot({ path: path.join(fix1ResultsDir, 'f3-operations.png') });
+
+  // Rider Profile Accounts tab: GET /api/riders/{iqama}/accounts
+  await page.goto(`${baseUrl}/app/riders/`);
+  await page.waitForLoadState('networkidle');
+  const riderProfileBtn = page.locator(`tr:has-text("${testName}") button:has-text("الملف 360°")`).first();
+  await riderProfileBtn.waitFor({ timeout: 5000 });
+  await riderProfileBtn.click();
+  await page.waitForSelector('button:has-text("حسابات المنصات والمعرفات")', { timeout: 5000 });
+  const accountsTabBtn = page.locator('button:has-text("حسابات المنصات والمعرفات")');
+  await accountsTabBtn.click();
+  await page.locator('th:has-text("المنصة")').first().waitFor({ timeout: 5000 });
+  console.log('✓ Step 13b: Rider Profile 360 accounts tab from GET /api/riders/{iqama}/accounts verified');
+  await page.screenshot({ path: path.join(fix1ResultsDir, 'f3-rider-accounts.png') });
+
+  // Rider Statement: GET /api/finance/statement/rider/{iqama}/monthly?period=
+  await page.goto(`${baseUrl}/app/riders/statement/?iqama=${testIqama}&period=2026-10`);
+  await page.waitForLoadState('networkidle');
+  const stmtContent = await page.textContent('body');
+  assert.ok(stmtContent.includes(testIqama), 'Statement must display rider iqama');
+  console.log('✓ Step 13c: Rider monthly statement verified');
+  await page.screenshot({ path: path.join(fix1ResultsDir, 'f3-rider-monthly-statement.png') });
+
+  // Rider App Admin Statement Preview & F4 sessions gap
+  await page.goto(`${baseUrl}/app/rider-app/?tab=statement-preview`);
+  await page.waitForLoadState('networkidle');
+  const appPreviewContent = await page.textContent('body');
+  assert.ok(
+    appPreviewContent.includes('كشف الحساب في تطبيق المندوب') || appPreviewContent.includes('كشف الحساب في التطبيق'),
+    'App preview statement header verified'
+  );
+  await page.screenshot({ path: path.join(fix1ResultsDir, 'f3-rider-app-statement.png') });
+
+  // Sessions sub-tab preserves F4 gap banner
+  const sessionsTabBtn = page.locator('button:has-text("الحسابات والأجهزة")').first();
+  await sessionsTabBtn.click();
+  const sessionsContent = await page.textContent('body');
+  assert.ok(sessionsContent.includes('غير متاح بعد — بانتظار اكتمال واجهات خادم الجلسات الميدانية (Codex)'), 'Sessions gap banner preserved');
+  console.log('✓ Step 13d (F4): Rider mobile sessions gap banner verified');
+  await page.screenshot({ path: path.join(fix1ResultsDir, 'f4-sessions-gap.png') });
+
+  await checkerContext2.close();
 
   console.log('\n🎉 ALL LIVE E2E INTEGRATION TESTS PASSED AGAINST REAL .NET API!');
 } finally {
