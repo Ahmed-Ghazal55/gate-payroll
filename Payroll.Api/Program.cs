@@ -137,6 +137,7 @@ JobsControl.Map(api);
 Companies.Map(api,store);
 OrgDirectory.Map(api,store);
 AdvanceRequests.Map(api,store);
+NinjaBilling.Map(api,store);
 CompanyRegistryImport.Map(api,store);
 PlatformPosting.Map(api,store);
 PaySettings.Map(api,store);
