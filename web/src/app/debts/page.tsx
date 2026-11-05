@@ -213,6 +213,12 @@ function DebtsPageContent() {
   }, []);
 
   useEffect(() => {
+    if (!canReviewAdvances && canRequestAdvances) {
+      setAdvancesRoleView('mine');
+    }
+  }, [canReviewAdvances, canRequestAdvances]);
+
+  useEffect(() => {
     if (activeTab === 'advance_requests') {
       loadAdvanceRequests();
       if (canRequestAdvances) {

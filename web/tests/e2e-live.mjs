@@ -1048,6 +1048,309 @@ try {
 
   await checkerContext2.close();
 
+  // =========================================================================
+  // Step 14: R5 Advances Workflow (Org Directory, Supervision, Advances Flow, Payout, Badges)
+  // =========================================================================
+  console.log('\nStep 14: Testing R5 Advances Workflow (Org, Review, Proposal, Approval, Payout)...');
+  const r5ResultsDir = path.join(rootDir, 'test-results/r5-web');
+  mkdirSync(r5ResultsDir, { recursive: true });
+
+  // 14a. Admin creates synthetic users (Supervisor, Accountant, Custodian, Outsider)
+  const supUsername = 'syn-supervisor-' + randomBytes(3).toString('hex');
+  const accUsername = 'syn-accountant-' + randomBytes(3).toString('hex');
+  const cusUsername = 'syn-custodian-' + randomBytes(3).toString('hex');
+  const outUsername = 'syn-outsider-' + randomBytes(3).toString('hex');
+
+  const supPw = 'SupPass123!' + randomBytes(3).toString('hex');
+  const accPw = 'AccPass123!' + randomBytes(3).toString('hex');
+  const cusPw = 'CusPass123!' + randomBytes(3).toString('hex');
+  const outPw = 'OutPass123!' + randomBytes(3).toString('hex');
+
+  const synUsers = [
+    { username: supUsername, password: supPw, permissions: ['advances.request'] },
+    { username: accUsername, password: accPw, permissions: ['advances.review'] },
+    { username: cusUsername, password: cusPw, permissions: ['advances.payout'] },
+    { username: outUsername, password: outPw, permissions: ['advances.review', 'advances.payout'] },
+  ];
+
+  for (const u of synUsers) {
+    const uRes = await page.request.post(`${baseUrl}/api/users`, {
+      data: {
+        username: u.username,
+        password: u.password,
+        role: 'Reviewer',
+        customPermissions: u.permissions,
+      },
+    });
+    const uBody = await uRes.text();
+    assert.equal(uRes.status(), 200, `Creating user ${u.username} should succeed: ${uBody}`);
+  }
+
+  // Seed rider 2000000611 with sponsor BW
+  const advIqama = '2000000611';
+  await page.request.post(`${baseUrl}/api/riders`, {
+    data: {
+      iqama: advIqama,
+      name: 'سالم أحمد المحمدي',
+      phone: '0501234567',
+      financeSponsorId: 'BW',
+      city: 'الرياض',
+    },
+  });
+
+  // 14b. Admin sets up Org structure: memberships, routing, supervision (BR §25.1)
+  const m1 = await page.request.post(`${baseUrl}/api/org/memberships`, {
+    data: { userId: accUsername, department: 'FIN', rank: 'A', validFrom: '2026-01-01' },
+  });
+  assert.equal(m1.status(), 200, 'Accountant membership creation should succeed');
+
+  const m2 = await page.request.post(`${baseUrl}/api/org/memberships`, {
+    data: { userId: cusUsername, department: 'FIN', rank: 'C', validFrom: '2026-01-01' },
+  });
+  assert.equal(m2.status(), 200, 'Custodian membership creation should succeed');
+
+  // Routing
+  const r1 = await page.request.post(`${baseUrl}/api/org/routing`, {
+    data: { operation: 'advance.review', department: 'FIN', minRank: 'B', users: [accUsername], validFrom: '2026-01-01' },
+  });
+  assert.equal(r1.status(), 200, 'Review routing should succeed');
+
+  const r2 = await page.request.post(`${baseUrl}/api/org/routing`, {
+    data: { operation: 'advance.payout:MAIN.BW.DEBT', department: 'FIN', minRank: 'C', users: [cusUsername], validFrom: '2026-01-01' },
+  });
+  assert.equal(r2.status(), 200, 'Cash vault payout routing should succeed');
+
+  const r3 = await page.request.post(`${baseUrl}/api/org/routing`, {
+    data: { operation: 'advance.payout:BANK.BW', department: 'FIN', minRank: 'C', users: [cusUsername], validFrom: '2026-01-01' },
+  });
+  assert.equal(r3.status(), 200, 'Bank vault payout routing should succeed');
+
+  // Supervision: supervisor supervises rider advIqama
+  const s1 = await page.request.post(`${baseUrl}/api/org/supervision`, {
+    data: { supervisorUserId: supUsername, riderIqama: advIqama, validFrom: '2026-01-01' },
+  });
+  assert.equal(s1.status(), 200, 'Supervision creation should succeed');
+  console.log('✓ Step 14a: Admin created memberships, routing, and supervision');
+
+  // Admin verifies Organization Workspace at /app/admin/?tab=org
+  await page.goto(`${baseUrl}/app/admin/?tab=org`);
+  await page.waitForLoadState('networkidle');
+  await page.screenshot({ path: path.join(r5ResultsDir, 'r5-admin-org-directory.png') });
+
+  // Admin 360 mobile screenshot
+  const admin360Context = await browser.newContext({
+    viewport: { width: 360, height: 740 },
+    extraHTTPHeaders: { Cookie: setCookie.split(';')[0] },
+  });
+  const admin360Page = await admin360Context.newPage();
+  await admin360Page.goto(`${baseUrl}/app/admin/?tab=org`);
+  await admin360Page.waitForLoadState('networkidle');
+  await admin360Page.screenshot({ path: path.join(r5ResultsDir, 'r5-admin-org-directory-360.png') });
+  await admin360Context.close();
+
+  // 14c. Supervisor requests cash advance
+  const supContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const supPage = await supContext.newPage();
+  await supPage.goto(`${baseUrl}/app/login/`);
+  await supPage.locator('#username').fill(supUsername);
+  await supPage.locator('#password').fill(supPw);
+  await supPage.locator('button[type="submit"]').click();
+  await supPage.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 8000 });
+
+  await supPage.goto(`${baseUrl}/app/debts/?tab=advance_requests`);
+  await supPage.waitForLoadState('networkidle');
+
+  // Supervisor submits advance request via UI modal
+  await supPage.locator('#btn-new-advance-request').click();
+  await supPage.waitForSelector('#select-supervised-rider');
+  await supPage.locator('#select-supervised-rider').selectOption(advIqama);
+  await supPage.locator('#input-req-amount').fill('400');
+  await supPage.locator('#input-req-reason').fill('Synthetic cash need for supervised rider');
+  await supPage.locator('#btn-submit-advance-request').click();
+  await supPage.waitForLoadState('networkidle');
+
+  // Verify request appears in supervisor table
+  const supContent = await supPage.textContent('body');
+  assert.ok(supContent.includes(advIqama), 'Rider advance request must appear in supervisor table');
+  await supPage.screenshot({ path: path.join(r5ResultsDir, 'r5-debts-advance-requests.png') });
+
+  // Mobile screenshot of supervisor debts
+  const sup360Context = await browser.newContext({ viewport: { width: 360, height: 740 } });
+  const sup360Page = await sup360Context.newPage();
+  await sup360Page.goto(`${baseUrl}/app/login/`);
+  await sup360Page.locator('#username').fill(supUsername);
+  await sup360Page.locator('#password').fill(supPw);
+  await sup360Page.locator('button[type="submit"]').click();
+  await sup360Page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 8000 });
+  await sup360Page.goto(`${baseUrl}/app/debts/?tab=advance_requests`);
+  await sup360Page.waitForLoadState('networkidle');
+  await sup360Page.screenshot({ path: path.join(r5ResultsDir, 'r5-debts-advance-requests-360.png') });
+  await sup360Context.close();
+
+  // Get created advance request ID
+  const myRequestsRes = await supPage.request.get(`${baseUrl}/api/advance-requests?mine=1`);
+  const myRequests = await myRequestsRes.json();
+  assert.ok(myRequests.length > 0, 'Supervisor must have at least one request');
+  const advReq = myRequests[0];
+  const advReqId = advReq.id;
+  console.log(`✓ Step 14b: Supervisor requested cash advance: id=${advReqId}`);
+
+  // 14d. Negative Checks:
+  // Check 1: User with permission but without routing assignment cannot review (refused 403)
+  const outLoginRes = await page.request.post(`${baseUrl}/api/auth/login`, {
+    data: { username: outUsername, password: outPw },
+  });
+  const outCookie = outLoginRes.headers()['set-cookie']?.split(';')[0];
+  const outReviewRes = await fetch(`${baseUrl}/api/advance-requests/${advReqId}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: outCookie },
+    body: JSON.stringify({ action: 'reject', note: 'Outsider review attempt' }),
+  });
+  assert.equal(outReviewRes.status, 403, 'Unassigned user with permission must receive HTTP 403');
+  console.log('✓ Step 14c: Negative check 1 verified: Unassigned user refused with HTTP 403');
+
+  // Check 2: Requester self-approval refused with HTTP 403
+  const supSelfReviewRes = await supPage.request.post(`${baseUrl}/api/advance-requests/${advReqId}/review`, {
+    data: { action: 'approve', monthlyInstallment: 200 },
+  });
+  assert.equal(supSelfReviewRes.status(), 403, 'Requester cannot review/approve own request (HTTP 403)');
+  console.log('✓ Step 14d: Negative check 2 verified: Requester self-approval refused with HTTP 403');
+
+  // 14e. Accountant reviews request: opens drawer, checks summary card, proposes bank transfer
+  const accContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const accPage = await accContext.newPage();
+  await accPage.goto(`${baseUrl}/app/login/`);
+  await accPage.locator('#username').fill(accUsername);
+  await accPage.locator('#password').fill(accPw);
+  await accPage.locator('button[type="submit"]').click();
+  await accPage.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 8000 });
+
+  await accPage.goto(`${baseUrl}/app/debts/?tab=advance_requests`);
+  await accPage.waitForLoadState('networkidle');
+
+  // Open drawer
+  const advReviewBtn = accPage.locator(`button[id="btn-review-advance-${advReqId}"], button:has-text("مراجعة والبت")`).first();
+  await advReviewBtn.click();
+  await accPage.waitForSelector('#btn-mode-approve');
+  await accPage.screenshot({ path: path.join(r5ResultsDir, 'r5-accountant-review-drawer.png') });
+
+  // Mobile screenshot of review drawer
+  const acc360Context = await browser.newContext({ viewport: { width: 360, height: 740 } });
+  const acc360Page = await acc360Context.newPage();
+  await acc360Page.goto(`${baseUrl}/app/login/`);
+  await acc360Page.locator('#username').fill(accUsername);
+  await acc360Page.locator('#password').fill(accPw);
+  await acc360Page.locator('button[type="submit"]').click();
+  await acc360Page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 8000 });
+  await acc360Page.goto(`${baseUrl}/app/debts/?tab=advance_requests`);
+  await acc360Page.waitForLoadState('networkidle');
+  const reviewBtn360 = acc360Page.locator(`button[id="btn-review-advance-${advReqId}"], button:has-text("مراجعة والبت")`).first();
+  await reviewBtn360.click();
+  await acc360Page.waitForSelector('#btn-mode-approve');
+  await acc360Page.screenshot({ path: path.join(r5ResultsDir, 'r5-accountant-review-drawer-360.png') });
+  await acc360Context.close();
+
+  // Accountant proposes bank transfer
+  await accPage.locator('#btn-mode-propose').click();
+  await accPage.locator('#select-propose-type').selectOption('bank');
+  await accPage.locator('#textarea-propose-note').fill('نوصي بالتحويل البنكي لتوفر الرصيد');
+  await accPage.locator('#btn-submit-review-decision').click();
+  await accPage.waitForLoadState('networkidle');
+  console.log('✓ Step 14e: Accountant proposed bank transfer');
+
+  // 14f. Supervisor receives notification and responds to proposal
+  await supPage.goto(`${baseUrl}/app/notifications/`);
+  await supPage.waitForLoadState('networkidle');
+  const notifBody = await supPage.textContent('body');
+  assert.ok(notifBody.includes('بانتظار البت') || notifBody.includes('سلفة') || notifBody.includes('مقترح'), 'Supervisor received targeted notification');
+  await supPage.screenshot({ path: path.join(r5ResultsDir, 'r5-notifications-tabs.png') });
+
+  // Mobile screenshot of notifications
+  const notif360Context = await browser.newContext({ viewport: { width: 360, height: 740 } });
+  const notif360Page = await notif360Context.newPage();
+  await notif360Page.goto(`${baseUrl}/app/login/`);
+  await notif360Page.locator('#username').fill(supUsername);
+  await notif360Page.locator('#password').fill(supPw);
+  await notif360Page.locator('button[type="submit"]').click();
+  await notif360Page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 8000 });
+  await notif360Page.goto(`${baseUrl}/app/notifications/`);
+  await notif360Page.waitForLoadState('networkidle');
+  await notif360Page.screenshot({ path: path.join(r5ResultsDir, 'r5-notifications-tabs-360.png') });
+  await notif360Context.close();
+
+  // Supervisor responds: accepts proposal via UI dialog
+  await supPage.goto(`${baseUrl}/app/debts/?tab=advance_requests`);
+  await supPage.waitForLoadState('networkidle');
+  const respondBtn = supPage.locator(`button[id="btn-respond-proposal-${advReqId}"], button:has-text("رد على المقترح")`).first();
+  await respondBtn.click();
+  await supPage.waitForSelector('#btn-proposal-accept');
+  await supPage.locator('#btn-proposal-accept').click();
+  await supPage.locator('#btn-submit-proposal-response').click();
+  await supPage.waitForLoadState('networkidle');
+  console.log('✓ Step 14f: Supervisor accepted accountant proposal');
+
+  // 14g. Accountant approves with instalment 200 SAR
+  await accPage.goto(`${baseUrl}/app/debts/?tab=advance_requests`);
+  await accPage.waitForLoadState('networkidle');
+  const reviewBtn2 = accPage.locator(`button[id="btn-review-advance-${advReqId}"], button:has-text("مراجعة والبت")`).first();
+  await reviewBtn2.click();
+  await accPage.waitForSelector('#btn-mode-approve');
+  await accPage.locator('#btn-mode-approve').click();
+  await accPage.locator('#input-review-installment').fill('200');
+  await accPage.waitForSelector('#textarea-coverage-reason', { timeout: 8000 });
+  await accPage.locator('#textarea-coverage-reason').fill('موافقة استثنائية مع تغطية من إيرادات الشهر القادم');
+  await accPage.locator('#btn-submit-review-decision').click();
+  await accPage.waitForSelector('div[role="alert"]:has-text("تم اعتماد السلفة")', { timeout: 8000 });
+  console.log('✓ Step 14g: Accountant approved advance request with monthly installment 200 SAR');
+
+  // 14h. Custodian pays out advance
+  const cusContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const cusPage = await cusContext.newPage();
+  await cusPage.goto(`${baseUrl}/app/login/`);
+  await cusPage.locator('#username').fill(cusUsername);
+  await cusPage.locator('#password').fill(cusPw);
+  await cusPage.locator('button[type="submit"]').click();
+  await cusPage.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 8000 });
+
+  await cusPage.goto(`${baseUrl}/app/treasury/?tab=advance_payouts`);
+  await cusPage.waitForLoadState('networkidle');
+  await cusPage.screenshot({ path: path.join(r5ResultsDir, 'r5-treasury-advance-payouts.png') });
+
+  // Mobile screenshot of treasury advance payouts
+  const cus360Context = await browser.newContext({ viewport: { width: 360, height: 740 } });
+  const cus360Page = await cus360Context.newPage();
+  await cus360Page.goto(`${baseUrl}/app/login/`);
+  await cus360Page.locator('#username').fill(cusUsername);
+  await cus360Page.locator('#password').fill(cusPw);
+  await cus360Page.locator('button[type="submit"]').click();
+  await cus360Page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 8000 });
+  await cus360Page.goto(`${baseUrl}/app/treasury/?tab=advance_payouts`);
+  await cus360Page.waitForLoadState('networkidle');
+  await cus360Page.screenshot({ path: path.join(r5ResultsDir, 'r5-treasury-advance-payouts-360.png') });
+  await cus360Context.close();
+
+  // Execute payout via UI dialog
+  const payoutBtn = cusPage.locator(`button[id="btn-payout-advance-${advReqId}"], button:has-text("صرف السلفة")`).first();
+  await payoutBtn.click();
+  await cusPage.waitForSelector('#input-payout-reference');
+  await cusPage.locator('#input-payout-reference').fill('SYN-TRF-LIVE-9');
+  await cusPage.locator('#btn-confirm-payout').click();
+  await cusPage.waitForSelector('div[role="alert"]:has-text("تم صرف السلفة بنجاح")', { timeout: 8000 });
+  console.log('✓ Step 14h: Custodian executed payout with reference SYN-TRF-LIVE-9');
+
+  // Verify created debt and journal
+  const debtsRes = await page.request.get(`${baseUrl}/api/debts?iqama=${advIqama}`);
+  const debtsData = await debtsRes.json();
+  const paidDebt = debtsData.find((d) => d.category === 'BankAdvance' && (d.totalAmount === 400 || d.amount === 400));
+  assert.ok(paidDebt, 'Paid advance must appear in debts list with category BankAdvance');
+  assert.equal(paidDebt.monthlyInstallment, 200, 'Debt monthly installment must be 200 SAR');
+  assert.equal(paidDebt.paymentVaultCode, 'BANK.BW', 'Debt payment vault must be BANK.BW');
+  console.log(`✓ Step 14i: Debt verified: category=${paidDebt.category}, amount=${paidDebt.totalAmount}, installment=${paidDebt.monthlyInstallment}`);
+
+  await supContext.close();
+  await accContext.close();
+  await cusContext.close();
+
   console.log('\n🎉 ALL LIVE E2E INTEGRATION TESTS PASSED AGAINST REAL .NET API!');
 } finally {
   if (browser) await browser.close();
