@@ -5,8 +5,8 @@ ConditionPathExists=%h/Private/gate-data/staging.env
 
 [Service]
 Type=oneshot
-WorkingDirectory=%h/Projects/active/gate-payroll
-ExecStart=/usr/bin/env dotnet %h/Projects/active/gate-payroll/tools/ErpImport/bin/Release/net10.0/ErpImport.dll --live --commit --consistent
+WorkingDirectory=%h/gate-sync
+ExecStart=/usr/bin/env dotnet %h/gate-sync/ErpImport.dll --live --commit --consistent --counts-only
 UMask=0077
 NoNewPrivileges=true
 TimeoutStartSec=30min

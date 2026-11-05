@@ -5,18 +5,35 @@ using Payroll;
 
 string phase="arguments";
 bool live=args.Contains("--live");int attempts=0;ImportSummary? lastSummary=null;SyncOverrides overrides=SyncOverrides.None;
+DateTimeOffset runStartedAt=DateTimeOffset.UtcNow;string runId="erp-sync:"+Guid.NewGuid().ToString("N");bool recorded=false;
+string? Arg(string name)=>args.SkipWhile(a=>a!=name).Skip(1).FirstOrDefault();
 bool Log(string status,string? code=null)
 {
     if(!live)return true;
-    try {SyncRunLog.Write(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Private/gate-data/sync-logs"),status,lastSummary,attempts,code,overrides);return true;}
-    catch {Console.Error.WriteLine("ERROR sync_log_unavailable");return false;}
+    bool success=true;
+    try {SyncRunLog.Write(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Private/gate-data/sync-logs"),status,args.Contains("--counts-only")&&lastSummary!=null?lastSummary with{Totals=[]}:lastSummary,attempts,code,overrides,runStartedAt);}
+    catch {Console.Error.WriteLine("ERROR sync_log_unavailable");success=false;}
+    // Dry-runs and debt previews remain private file logs only. A committed-mode scheduled run
+    // may append counts/administrator notification on refusal, but never its business documents.
+    if(args.Contains("--commit")&&!args.Contains("--debt-sheet")&&!recorded)
+    {
+        recorded=true;
+        try
+        {
+            string home=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            using var connection=Connections.Target(Arg("--target-env")??Path.Combine(home,"Private/gate-data/staging.env"));
+            var target=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),connection.ConnectionString);
+            ErpSyncRuns.Record(target,runId,runStartedAt,DateTimeOffset.UtcNow,status,(lastSummary?.Counts??[]).Select(c=>new ErpSyncKindCount(c.Kind,c.Source,c.New,c.Changed,c.Unchanged,c.Rejected)),code);
+        }
+        catch {Console.Error.WriteLine("ERROR sync_run_record_unavailable");success=false;}
+    }
+    return success;
 }
 try
 {
-    string? Arg(string name)=>args.SkipWhile(a=>a!=name).Skip(1).FirstOrDefault();
     if(args.Contains("--help"))
     {
-        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON]");return 0;
+        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--counts-only] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON]");return 0;
     }
     overrides=SyncOverrides.Parse(args);
     if(args.Contains("--commit")&&args.Contains("--dry-run"))throw new ImportFailure("conflicting_modes");
@@ -83,14 +100,14 @@ try
     if(args.Contains("--commit"))targetStore=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),targetConnection);
     phase="saving_or_comparing";
     var summary=ImportExecutor.Run(snapshot,plan,existing,targetStore);lastSummary=summary;
-    string json=JsonSerializer.Serialize(summary,new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});
+    string json=JsonSerializer.Serialize(args.Contains("--counts-only")?summary with{Totals=[]}:summary,new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});
     // This type contains only aggregate counts, timestamps, table names and fixed reason codes.
     if(targetStore!=null)
     {
         phase="verifying_saved_snapshot";
         var verification=ImportExecutor.Run(snapshot,plan,targetStore.Read(ImportExecutor.Target));
         var payload=System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
-        payload["sameSnapshotVerification"]=JsonSerializer.SerializeToNode(verification,new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        payload["sameSnapshotVerification"]=JsonSerializer.SerializeToNode(args.Contains("--counts-only")?verification with{Totals=[]}:verification,new JsonSerializerOptions(JsonSerializerDefaults.Web));
         json=payload.ToJsonString(new JsonSerializerOptions{WriteIndented=true});
         if(Arg("--report") is {} verifiedReport)File.WriteAllText(verifiedReport,json);
         Console.WriteLine(json);

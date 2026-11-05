@@ -130,6 +130,7 @@ api.AddEndpointFilter(async (context, next) => {
 });
 api.AddEndpointFilter(ApiPagination.Filter);
 Notifications.Map(api,store);
+ErpSyncRuns.Map(api,store);
 Companies.Map(api,store);
 OrgDirectory.Map(api,store);
 AdvanceRequests.Map(api,store);

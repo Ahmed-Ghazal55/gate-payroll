@@ -11,7 +11,7 @@ Every `--live` run writes a uniquely named JSON log under `~/Private/gate-data/s
 Build the Release importer before the first dry-run and after every code update; the unit executes this build output from `~/Projects/active/gate-payroll` after merge/review:
 ```bash
 cd ~/Projects/active/gate-payroll
-dotnet build -c Release tools/ErpImport -p:SkipFrontendBuild=true
+dotnet publish -c Release tools/ErpImport -p:SkipFrontendBuild=true --no-self-contained -o /tmp/gate-sync-release
 ```
 A Debug build does not create the binary required by the service.
 
@@ -42,13 +42,22 @@ These names are examples, not standing approval. New HS kinds become available w
 4. For `kind_changes_over_threshold` or `source_count_drop_over_threshold`, check the cause with the source owner. Correct unexpected data/source problems. Only a confirmed legitimate change warrants a manual dry-run with `--accept-large-change` for that exact kind; missing target rows are retained even then.
 5. Review the successful dry-run and get approval for the manual staging load. Rebuild after code changes. Leave unattended units without overrides; if an anomaly recurs, stop the schedule and investigate rather than making an override permanent.
 
-The user units in `tools/ErpImport/systemd/` are delivered **disabled and uninstalled**. After merge/review, a successful dry-run and explicit approval for daily staging writes, Ghazal can build the Release importer, copy the two units to his user systemd directory and enable the timer himself:
+The user units in `tools/ErpImport/systemd/` are delivered **disabled and uninstalled**. After merge/review, a successful dry-run and explicit approval for scheduled staging writes, Ghazal can build the Release importer, copy the two units to his user systemd directory and enable the timer himself:
 ```bash
-dotnet build -c Release tools/ErpImport -p:SkipFrontendBuild=true
-mkdir -p ~/.config/systemd/user
+dotnet publish -c Release tools/ErpImport -p:SkipFrontendBuild=true --no-self-contained -o /tmp/gate-sync-release
+mkdir -p ~/gate-sync ~/.config/systemd/user
+cp -a /tmp/gate-sync-release/. ~/gate-sync/
 cp tools/ErpImport/systemd/gate-erp-sync.{service,timer} ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now gate-erp-sync.timer
 systemctl --user list-timers gate-erp-sync.timer
 ```
-`OnCalendar` explicitly uses Asia/Riyadh at 03:15; `Persistent=true` catches a missed run when the user manager starts. A catch-up run may therefore happen during working hours: disable the timer if that read window is not approved. Codex has not installed or enabled it. No env values belong in unit files or the journal.
+`OnCalendar` explicitly uses Asia/Riyadh every three hours at :15; `Persistent=true` catches a missed run when the user manager starts. A catch-up run may therefore happen during working hours: disable the timer if that read window is not approved. Codex has not installed or enabled it. No env values belong in unit files or the journal.
+
+## R6a additions
+
+The explicit allowlist now includes fuel, custody, vehicles, Chefz, Jahez final financial rows, Ninja operations and additional HR/treasury sources. See TARGET-KINDS.md. Dry-run summaries include accepted numeric totals separately from rejection counts. `debt-sheet-mapping.v1.json` and DEBT-SHEET.md define the separate, draft-approved FIFO opening workbook adapter; it is never scheduled.
+
+The timer now runs every three hours at :15 Riyadh (`00/3:15:00`), with Persistent=true. Units assume a dedicated non-root sync user's `~/gate-sync/ErpImport.dll`; use the complete published directory. VPS setup/network/first-load/stop instructions and the verified empty Hostinger VPS list are in VPS-SYNC.md. The units remain uninstalled and disabled.
+
+After initial manual acceptance and explicit «حمّل», committed-mode live runs append counts-only `erp_sync_run` records and administrator-only refusal notifications. Refusals never write source-domain documents. Before approval, and for all dry-runs, only private JSON logs are written; no staging telemetry is inserted. Admin/SuperAdmin endpoint: `GET /api/system/erp-sync?limit=20` (maximum 100).

@@ -63,3 +63,4 @@ docs/data/*
 
 !docs/data/debt-sheet-mapping.v1.json
 !docs/data/DEBT-SHEET.md
+!docs/data/VPS-SYNC.md

@@ -751,7 +751,7 @@ public static class FinancialCore
         api.MapPost("/notifications/center/{id}/toggle-todo", (string id, HttpContext ctx) => store.Write((c, tx) =>
         {
             var notif = Store.Get(c, id, "sys_notification", tx) ?? throw new ApiError("المهمة غير موجودة.", 404);
-            if(Notifications.Category(notif)=="personal"&&!Notifications.Visible(c,ctx.User,notif,tx))throw new ApiError("المهمة غير موجودة.",404);
+            if((Notifications.Category(notif)=="personal"||notif.S("audience")=="administrators")&&!Notifications.Visible(c,ctx.User,notif,tx))throw new ApiError("المهمة غير موجودة.",404);
             bool owner=notif.S("assignedTo")==ctx.User.Identity?.Name||notif.S("createdBy")==ctx.User.Identity?.Name;
             if(!owner&&!AccessPolicy.Has(ctx.User,"approvals.view"))throw new ApiError("ليست لديك صلاحية لهذه المهمة.",403);
             J.Need(owner||AccessPolicy.Administrator(ctx.User)||notif.S("targetDepartment") is var dept&&(dept=="ALL"||dept==ctx.User.FindFirst("department")?.Value),"المهمة خارج قسمك.");
