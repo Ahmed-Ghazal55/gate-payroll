@@ -61,6 +61,8 @@ public static class ConsistentSync
             }
             if(overrides.AcceptLargeChanges.Contains(row.Kind))continue;
             if(before-after>Math.Max(before*0.02m,1m))throw new ImportFailure("source_count_drop_over_threshold:"+row.Kind);
+            // Immutable readings can grow freely after their explicit first acceptance.
+            if(row.Kind=="vehicle_odometer_reading"&&row.Changed==0)continue;
             if(changes>Math.Max(before*0.10m,5m))throw new ImportFailure("kind_changes_over_threshold:"+row.Kind);
         }
     }

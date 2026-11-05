@@ -8,6 +8,7 @@ public static class PullContracts
 {
     public static readonly PullContract[] Catalog =
     [
+        new("vehicle_odometer_reading","app","VehicleOdometerReadings","Id VehicleId Reading RecordedAtUtc SourceType SourceEntityId IsCorrection IsVoided VoidedByRevisionId","reading:Reading recordedAt:RecordedAtUtc sourceTypeCode:SourceType sourceEntitySourceId:SourceEntityId isCorrection:IsCorrection isVoided:IsVoided voidedByRevisionSourceId:VoidedByRevisionId","vehicle"),
         new("fuel_card","app","FuelCards","Id SponsorId OperatingCityId Provider IdentifierType CardNumber PlateNumberText IsDeleted","provider:Provider identifierType:IdentifierType cardNumber:CardNumber plateNumber:PlateNumberText","card"),
         new("fuel_card_assignment","app","FuelCardRiderAssignments","Id FuelCardId RiderProfileId EmployeeId EffectiveFrom EffectiveTo","effectiveFrom:EffectiveFrom effectiveTo:EffectiveTo","fuel_rider","","EffectiveFrom","EffectiveTo"),
         new("fuel_usage_month","app","FuelCardMonthlyUsages","Id FuelCardId RiderProfileId EmployeeId ReportMonth TotalLiters TotalAmount AmountBeforeTax VatAmount TransactionCount FuelType FirstTransactionAtUtc LastTransactionAtUtc IsDeleted","month:ReportMonth liters:TotalLiters amount:TotalAmount amountBeforeTax:AmountBeforeTax vat:VatAmount transactionCount:TransactionCount fuelType:FuelType firstTransactionAt:FirstTransactionAtUtc lastTransactionAt:LastTransactionAtUtc","fuel_rider","liters amount amountBeforeTax vat transactionCount")

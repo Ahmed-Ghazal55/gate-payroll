@@ -8,6 +8,27 @@ public sealed class ConsistentSyncTests
 {
     static SourceSnapshot Snapshot(int value,bool reverse=false)=>new(new(){["SyntheticTable"]=(reverse?new[]{2,1}:new[]{1,2}).Select(i=>new JsonObject{["Id"]="synthetic-"+i,["value"]=value}).ToList()},DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,"synthetic_sqlite");
     [TestMethod]
+    public void VehicleReadingsAppendFreelyButCannotRewriteFactsOrBypassFirstAcceptance()
+    {
+        const string kind="vehicle_odometer_reading";
+        ConsistentSync.Validate(Summary(1000,0,100,kind),Existing(100,kind));
+        Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(Summary(1,0,0,kind),[]));
+        Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Validate(Summary(0,11,89,kind),Existing(100,kind)));
+        var old=new JsonObject{["id"]="reading",["erpSourceId"]="source",["reading"]=100,["__targetKind"]=kind};
+        var plan=new ImportPlan();plan.Documents.Add(new(kind,new(){["id"]="reading",["erpSourceId"]="source",["reading"]=101}));
+        Assert.ThrowsExactly<ImportFailure>(()=>ImportExecutor.Run(Snapshot(1),plan,new(){["reading"]=old}));
+    }
+    [TestMethod]
+    public void VehicleMasterOmitsDailyFieldsAndCountsOnlyItsStableChanges()
+    {
+        var snapshot=Snapshot(1);snapshot.Tables["Vehicles"]=[new(){["Id"]="v",["CurrentOdometer"]=999,["CurrentOperationalStatus"]=2,["CurrentAssignmentId"]="a",["OperatingCityId"]="c",["AssetNumber"]="synthetic"}];
+        var plan=ImportPlan.Build(snapshot,[]);var vehicle=plan.Documents.Single(d=>d.Kind=="vehicle");
+        foreach(string key in new[]{"currentOdometer","currentOperationalStatus","currentAssignmentId","cityId"})Assert.IsFalse(vehicle.Body.ContainsKey(key));
+        var previous=vehicle.Body.Clone();previous["currentOdometer"]=10;previous["__targetKind"]="vehicle";
+        var summary=ImportExecutor.Run(snapshot,plan,new(){[previous.S("id")]=previous});Assert.AreEqual(0,summary.Counts.Single(c=>c.Kind=="vehicle").Changed);Assert.AreEqual(0,summary.VehicleChangedFields.Count);
+        vehicle.Body["assetNumber"]="corrected";summary=ImportExecutor.Run(snapshot,plan,new(){[previous.S("id")]=previous});Assert.AreEqual(1,summary.VehicleChangedFields["assetNumber"]);
+    }
+    [TestMethod]
     public void OrderedDoubleReadRetriesWholePairsAndStopsAtThree()
     {
         int calls=0;int[] values=[1,2,3,3];var result=ConsistentSync.Read(()=>Snapshot(values[calls++],calls%2==0),out int attempts);
