@@ -207,4 +207,24 @@ public sealed class ErpImportTests
         source.Tables["DailyPerformance"][0]["RiderClientAssignmentId"]="missing";
         Assert.AreEqual(1,ImportPlan.Build(source,Catalog).Rejected["chefz_daily"]["unmatched_assignment"]);
     }
+    [TestMethod]
+    public void JahezFinalFactsLinkThroughSessionsAndKeepLedgerReversalsWithoutImportRows()
+    {
+        using var f=new Fixture();
+        f.Add("AccountSessions",new(){["Id"]="session",["PlatformRiderAccountId"]="account",["RiderClientAssignmentId"]="platform-assignment",["RiderProfileId"]="profile2",["StartedAtUtc"]="2026-10-01T00:00:00Z"});
+        f.Add("EarningsStatements",new(){["Id"]="earnings",["HandoverId"]="session",["FromDate"]="2026-10-01",["ToDate"]="2026-10-31",["TotalDeliveryPrice"]=100});
+        f.Add("PlatformTransactions",new(){["Id"]="txn",["AccountId"]="account",["HandoverId"]="session",["NetAmount"]=90,["ImportRowId"]="lineage-only"});
+        f.Add("AccountingEntries",new(){["Id"]="ledger",["AccountId"]="account",["HandoverId"]="session",["Amount"]=-10,["ReversesEntryId"]="original"});
+        f.Add("AccountFees",new(){["Id"]="fee",["HandoverId"]="session",["Amount"]=20,["WaivedAmount"]=5});
+        f.Add("AccountFeeRefunds",new(){["Id"]="refund",["HandoverId"]="session",["AccountFeeId"]="fee",["RefundAmount"]=15});
+        f.Add("Operations",new(){["Id"]="operation",["HandoverId"]="session"});
+        f.Add("TransferredDebts",new(){["Id"]="transferred",["OperationId"]="operation",["RiderProfileId"]="profile2",["Amount"]=100,["PaidAmount"]=25});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);var docs=plan.Documents.Where(x=>x.Kind.StartsWith("jahez_")).ToList();
+        Assert.AreEqual(7,docs.Count);Assert.IsTrue(docs.All(x=>x.Body.S("riderId")==Identity(2)));
+        Assert.AreEqual("original",docs.Single(x=>x.Kind=="jahez_ledger_entry").Body.S("reversesSourceId"));
+        Assert.AreEqual(90m,ImportExecutor.Run(source,plan,[]).Totals["jahez_transaction"]["net"]);
+        Assert.IsFalse(SourceReader.Catalog.Any(x=>x.Name.EndsWith("ImportRows")||x.Name.EndsWith("Sources")));
+        source.Tables["PlatformTransactions"][0]["HandoverId"]="missing";
+        Assert.AreEqual(1,ImportPlan.Build(source,Catalog).Rejected["jahez_transaction"]["missing_session_relation"]);
+    }
 }

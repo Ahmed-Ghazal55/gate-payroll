@@ -21,6 +21,14 @@ public static class PullContracts
         ,new("chefz_account","chefz","AccountDetails","Id PlatformRiderAccountId ReportIdNumber AccountType VehicleType DashboardStatus IsDeleted","reportIdNumber:ReportIdNumber accountType:AccountType vehicleType:VehicleType dashboardStatus:DashboardStatus","platform_account"),
         new("chefz_daily","chefz","DailyPerformance","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId SourceId ReportDate ReportIdNumber SourceRowNumber TotalValidOffers AcceptedOffers DeclinedOffers MissedOffers AcceptanceRate","date:ReportDate reportIdNumber:ReportIdNumber sourceId:SourceId sourceRow:SourceRowNumber totalValidOffers:TotalValidOffers acceptedOffers:AcceptedOffers declinedOffers:DeclinedOffers missedOffers:MissedOffers acceptanceRate:AcceptanceRate","platform_rider","totalValidOffers acceptedOffers declinedOffers missedOffers"),
         new("chefz_settlement","chefz","WalletSettlements","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId AccountType PeriodFrom PeriodTo ChargedFrom ChargedTo AssignedDays DeliveryFees VatAmount Tips Compensation Bonuses Deductions GrossEarnings CommissionRate DailyFee CompanyAmount RiderAmount StartWalletAmount EndWalletAmount","accountType:AccountType periodFrom:PeriodFrom periodTo:PeriodTo chargedFrom:ChargedFrom chargedTo:ChargedTo assignedDays:AssignedDays deliveryFees:DeliveryFees vat:VatAmount tips:Tips compensation:Compensation bonuses:Bonuses deductions:Deductions gross:GrossEarnings commissionRate:CommissionRate dailyFee:DailyFee companyAmount:CompanyAmount riderAmount:RiderAmount startWalletAmount:StartWalletAmount endWalletAmount:EndWalletAmount","platform_rider","deliveryFees vat tips compensation bonuses deductions gross companyAmount riderAmount","PeriodFrom","PeriodTo")
+        ,new("jahez_account_session","jahez_v2","AccountSessions","Id PlatformRiderAccountId RiderProfileId RiderClientAssignmentId StartedAtUtc EndedAtUtc CommissionStartsOn CommissionPostedThrough LastSettlementPaymentAtUtc IsDeleted","startedAt:StartedAtUtc endedAt:EndedAtUtc commissionStartsOn:CommissionStartsOn commissionPostedThrough:CommissionPostedThrough lastSettlementPaymentAt:LastSettlementPaymentAtUtc","platform_rider","","StartedAtUtc","EndedAtUtc"),
+        new("jahez_earnings_statement","jahez_v2","EarningsStatements","Id HandoverId FromDate ToDate TotalDeliveryPrice TotalPenalties TotalCashAmount TotalDriverDebit TotalServiceDeduction TotalDriverCredit TotalBonuses TotalTips TotalFreeOrders SupersedesId","from:FromDate to:ToDate deliveryPrice:TotalDeliveryPrice penalties:TotalPenalties cashAmount:TotalCashAmount driverDebit:TotalDriverDebit serviceDeduction:TotalServiceDeduction driverCredit:TotalDriverCredit bonuses:TotalBonuses tips:TotalTips freeOrders:TotalFreeOrders supersedesSourceId:SupersedesId","jahez","deliveryPrice penalties cashAmount driverDebit serviceDeduction driverCredit bonuses tips freeOrders","FromDate","ToDate"),
+        new("jahez_transaction","jahez_v2","PlatformTransactions","Id AccountId HandoverId BatchId ImportRowId OccurredAtUtc DeliveryPrice CashAmount NetAmount DriverAdjustment SupersededByBatchId","occurredAt:OccurredAtUtc deliveryPrice:DeliveryPrice cashAmount:CashAmount net:NetAmount driverAdjustment:DriverAdjustment batchSourceId:BatchId importRowSourceId:ImportRowId supersededByBatchSourceId:SupersededByBatchId","jahez","deliveryPrice cashAmount net driverAdjustment"),
+        new("jahez_ledger_entry","jahez_v2","AccountingEntries","Id AccountId HandoverId Bucket Kind Amount SourceId ReversesEntryId OccurredAtUtc FromDate ThroughDate","bucket:Bucket kindCode:Kind amount:Amount sourceEventId:SourceId reversesSourceId:ReversesEntryId occurredAt:OccurredAtUtc from:FromDate through:ThroughDate","jahez","amount"),
+        new("jahez_account_fee","jahez_v2","AccountFees","Id HandoverId Amount WaivedAmount ApprovalRequestId IsDeleted","amount:Amount waivedAmount:WaivedAmount approvalSourceId:ApprovalRequestId","jahez","amount waivedAmount"),
+        new("jahez_account_fee_refund","jahez_v2","AccountFeeRefunds","Id HandoverId AccountFeeId MoneyMovementId GrossFeeRefund CancelledUnpaidFee WaiveCommission CalculatedCommission DeductedCommission RefundAmount OccurredAtUtc","accountFeeSourceId:AccountFeeId moneyMovementSourceId:MoneyMovementId grossFeeRefund:GrossFeeRefund cancelledUnpaidFee:CancelledUnpaidFee waiveCommission:WaiveCommission calculatedCommission:CalculatedCommission deductedCommission:DeductedCommission refundAmount:RefundAmount occurredAt:OccurredAtUtc","jahez","grossFeeRefund cancelledUnpaidFee calculatedCommission deductedCommission refundAmount"),
+        new("jahez_transferred_debt","jahez_v2","TransferredDebts","Id OperationId RiderProfileId Amount PaidAmount PaidAtUtc IsDeleted","operationSourceId:OperationId amount:Amount paidAmount:PaidAmount paidAt:PaidAtUtc","jahez_debt","amount paidAmount"),
+        new("","jahez_v2","Operations","Id HandoverId ExpectedSponsorId Status PaymentStatus Net Commission CalculatedCommission Remaining Fund Purpose TransferToRider ExecutedAtUtc","" )
     ];
     public static IEnumerable<string> Kinds => Catalog.Where(c=>c.Kind!="").Select(c=>c.Kind);
     public static IEnumerable<SourceTable> Tables => Catalog.Select(c=>new SourceTable(c.Schema,c.Table,c.Fields,true));
@@ -106,6 +114,27 @@ public static class PullContracts
                         {plan.Reject(contract.Kind,"unmatched_assignment");continue;}
                         doc["riderId"]=rider;doc["assignmentSourceId"]=assignment.S("Id");
                     }
+                }
+                if(contract.Relation is "jahez" or "jahez_debt")
+                {
+                    string sessionId=row.S("HandoverId");
+                    if(contract.Relation=="jahez_debt")
+                    {var operation=Find("Operations",row.S("OperationId"));if(operation==null){plan.Reject(contract.Kind,"missing_operation_relation");continue;}sessionId=operation.S("HandoverId");}
+                    var session=Find("AccountSessions",sessionId);
+                    string accountId=row.S("AccountId");
+                    if(session!=null)
+                    {
+                        if(accountId!=""&&accountId!=session.S("PlatformRiderAccountId")){plan.Reject(contract.Kind,"conflicting_account_relation");continue;}
+                        accountId=session.S("PlatformRiderAccountId");string rider=Rider(session);
+                        if(rider==""||contract.Relation=="jahez_debt"&&Rider(row)!=rider){plan.Reject(contract.Kind,"unmatched_rider");continue;}
+                        doc["riderId"]=rider;doc["sessionId"]=Key("jahez_account_session",sessionId);
+                    }
+                    else if(sessionId!=""||accountId==""){plan.Reject(contract.Kind,"missing_session_relation");continue;}
+                    else {doc["riderAttribution"]="account_only";plan.Observations[contract.Kind+"_account_only"]=plan.Observations.GetValueOrDefault(contract.Kind+"_account_only")+1;}
+                    var account=Find("PlatformRiderAccounts",accountId);
+                    if(account==null){plan.Reject(contract.Kind,"missing_platform_account_relation");continue;}
+                    doc["platformAccountId"]=Key("platform_account",accountId);doc["companyId"]=companies.GetValueOrDefault(account.S("SponsorId"))??"";
+                    if(doc.S("companyId")==""){plan.Reject(contract.Kind,"missing_company_relation");continue;}
                 }
                 plan.Documents.Add(new(contract.Kind,doc));
             }

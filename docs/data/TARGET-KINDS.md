@@ -47,3 +47,16 @@ These are source facts only: no debt or journal is posted by the pull.
 - `chefz_daily` → chefz.DailyPerformance (ChefzDailyPerformance): actual assigned rider, date, offers/acceptance, explicit source ID/row.
 - `chefz_settlement` → chefz.WalletSettlements (ChefzWalletSettlement): full delivery-fee/VAT/tips/compensation/bonus/deduction/gross/commission/company/rider breakdown and period. No recalculation.
 Actual rider and assignment must agree with the account; never substitute its registered owner. Only final tables are pulled; DailyPerformanceSources and ImportedOrderRows are excluded. Monetary totals exclude rates and include only accepted rows.
+
+## R6a-4 Jahez final financial facts
+| Kind | Actual final ERP table (class) |
+|---|---|
+| jahez_earnings_statement | jahez_v2.EarningsStatements (JahezEarningsStatement) |
+| jahez_transaction | jahez_v2.PlatformTransactions (JahezTransaction) |
+| jahez_ledger_entry | jahez_v2.AccountingEntries (JahezLedgerEntry) |
+| jahez_account_fee | jahez_v2.AccountFees (JahezAccountFee) |
+| jahez_account_fee_refund | jahez_v2.AccountFeeRefunds (JahezAccountFeeRefund) |
+| jahez_transferred_debt | jahez_v2.TransferredDebts (JahezTransferredDebt) |
+| jahez_account_session | jahez_v2.AccountSessions (JahezAccountSession) |
+
+HandoverId is a foreign key to AccountSessions; transferred debt resolves through Operations. Preserve signed amounts, source statuses, superseding/reversal links and periods. Account-only financial entries remain explicitly account-only, never attributed to today's owner. Company attribution is the linked account sponsor, not proof of historical legal ownership. Final rows retain ImportRowId as lineage only; no ImportRows, Sources, import files, credentials or CalculationJson are read. These are imported source facts, not new Gate debts/payments/journals.
