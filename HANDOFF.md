@@ -7,6 +7,13 @@
 | Live | 0.12.1 (5fe403b); local 0.14.0 |
 | Updated | 2026-11-05 by Antigravity |
 
+## advances API done (Claude, 2026-11-05)
+- Branch `feat/advances-api` (worktree `gate-payroll-adv`), from `feat/r4-integrate` 55a97bc.
+- 2fcf695 ADV-G1/G2: `OrgDirectory` (memberships with ranks A+/A/B/C, delegations with expiry, supervision, routing; dated, append-only), `Notifications.RaiseFor/CloseTasks` (personal tasks; read ≠ decided).
+- 565885d ADV-A1..A4: `AdvanceRequests` (request → responsible review approve/reject/propose → supervisor respond → custodian payout → CashAdvance/BankAdvance debt + Dr 1210 / Cr vault journal; 409 when the vault is short). Summary card API. Permissions `advances.request|review|payout`, `org.manage`. `PayStatements.Build` takes an optional transaction.
+- Tests: .NET 268 passed / 0 failed / 7 SQL skipped (4 new advance tests); `node tests/advances.mjs` 37 HTTP checks; source boundary 212; ENDPOINTS regenerated (227 routes). Docs: `docs/api/org.md`, `docs/api/advances.md`.
+- Next: Antigravity `~/.agents/prompts/antigravity-R5-advances-web.md` (merge this branch into `feat/r4-integrate` after fix1).
+
 ## Next step (exact)
 Claude reviews `feat/r4-integrate`. Then Claude confirms and Ghazal says «ادمج» for 0.14.0.
 

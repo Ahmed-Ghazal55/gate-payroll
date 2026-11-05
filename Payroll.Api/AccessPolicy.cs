@@ -95,6 +95,16 @@ public static class AccessPolicy
             "/api/finance/jahez-fee-deposit"=>Has("treasury.transfer"),
             "/api/finance/jahez-fee"=>Has("treasury.jahez.manage"),
             "/api/finance/jahez-handover"=>Has("treasury.jahez.handover"),_=>false});
+        if(path=="/api/org/supervision"&&method=="GET")return Has("advances.request")||Has("org.manage"); // mine=1 for supervisors; the full list is re-checked in the handler.
+        if(path.StartsWith("/api/org/",StringComparison.Ordinal))return method=="GET"&&path=="/api/org/catalog"||Has("org.manage");
+        if(path.StartsWith("/api/advance-requests",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("advances.request")||Has("advances.review")||Has("advances.payout");
+            if(method!="POST")return false;
+            if(path=="/api/advance-requests"||path.EndsWith("/respond",StringComparison.Ordinal))return Has("advances.request");
+            if(path.EndsWith("/review",StringComparison.Ordinal))return Has("advances.review");
+            return path.EndsWith("/payout",StringComparison.Ordinal)&&Has("advances.payout");
+        }
         if(path.StartsWith("/api/approvals",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&path.EndsWith("/decide",StringComparison.Ordinal)&&Has("approvals.decide");
         if(method=="DELETE"||path.EndsWith("/delete-preview",StringComparison.Ordinal)||path=="/api/submissions/bulk-delete"||method=="PUT"&&path.StartsWith("/api/campaigns/",StringComparison.Ordinal))return false;
         if(method=="POST"&&path.StartsWith("/api/notifications/center/",StringComparison.Ordinal)&&path.EndsWith("/toggle-todo",StringComparison.Ordinal))return true; // Handler checks view permission or ownership and visibility.
