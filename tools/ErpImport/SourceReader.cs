@@ -4,11 +4,11 @@ using System.Text.Json.Nodes;
 using Microsoft.Data.SqlClient;
 namespace ErpImport;
 
-public sealed record SourceTable(string Schema,string Name,string Fields);
+public sealed record SourceTable(string Schema,string Name,string Fields,bool Optional=false);
 public sealed record SourceSnapshot(Dictionary<string,List<JsonObject>> Tables,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Consistency);
 public static class SourceReader
 {
-    // Explicit allowlist: no credential versions, usernames/passwords, binary files or financial transactions.
+    // Explicit allowlist: final operational/financial facts; no credential versions, passwords or binary files.
     public static readonly SourceTable[] Catalog =
     [
         new("app","Sponsors","Id CompanyProfileId EmployerIdentityNumber RegistryNameAr RegistryNameEn CommercialRegistrationNumber UnifiedNationalNumber SponsorType Status ActiveFrom ActiveTo AddressCity IsDeleted"),
@@ -33,7 +33,8 @@ public static class SourceReader
         new("app","RiderClientAssignments","Id RiderProfileId ClientContractId PlatformRiderAccountId EffectiveFrom EffectiveTo Status PaymentModel RiderAccountSlot NinjaRiderType IsDeleted"),
         new("app","PlatformAccountRegistrations","Id RegisteredEmployeeId RiderProfileId ClientPlatformId ClientContractId SponsorId OperatingCityId RegistrationType Status RequestedAtUtc ActivatedAtUtc PlatformRiderAccountId IsDeleted"),
         new("app","HrLegalCases","Id CaseNumber PersonName PersonType EmployeeId RiderProfileId SponsorId SponsorPartyRole CaseDate CaseTime Status Details IsDeleted"),
-        new("app","HrLegalCaseHearings","Id LegalCaseId HearingNumber HearingDate HearingTime Status Details Location IsDeleted")
+        new("app","HrLegalCaseHearings","Id LegalCaseId HearingNumber HearingDate HearingTime Status Details Location IsDeleted"),
+        ..PullContracts.Tables
     ];
     public static bool SnapshotAvailable(SqlConnection source)
     {
@@ -49,6 +50,7 @@ public static class SourceReader
         var tables=new Dictionary<string,List<JsonObject>>(StringComparer.Ordinal);
         foreach(var table in Catalog)
         {
+            if(table.Optional&&!OptionalAvailable(connection,table))continue;
             using var cmd=connection.CreateCommand();cmd.CommandTimeout=120;
             cmd.CommandText=$"SELECT {string.Join(',',table.Fields.Split(' ').Select(f=>"["+f+"]"))} FROM {(sql?"["+table.Schema+"].":"")}[{table.Name}] ORDER BY [Id]";
             using var reader=cmd.ExecuteReader(CommandBehavior.SequentialAccess);var rows=new List<JsonObject>();
@@ -68,6 +70,22 @@ public static class SourceReader
         var after=requireStableRowversion?Stamp():null;
         if(before!=null&&after!=null&&!before.SequenceEqual(after))throw new ImportFailure("source_changed_during_read");
         return new(tables,started,DateTimeOffset.UtcNow,sql?(connection.Database=="erp_copy"?"local_read_only_copy":"read_committed_database_rowversion_stable"):"synthetic_sqlite");
+    }
+    static bool OptionalAvailable(DbConnection connection,SourceTable table)
+    {
+        var fields=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var cmd=connection.CreateCommand();
+        if(connection is SqlConnection)
+        {
+            cmd.CommandText="SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@schema AND TABLE_NAME=@table";
+            var schema=cmd.CreateParameter();schema.ParameterName="@schema";schema.Value=table.Schema;cmd.Parameters.Add(schema);
+            var name=cmd.CreateParameter();name.ParameterName="@table";name.Value=table.Name;cmd.Parameters.Add(name);
+        }
+        else cmd.CommandText="PRAGMA table_info(["+table.Name+"])";
+        using var reader=cmd.ExecuteReader();while(reader.Read())fields.Add(reader.GetString(connection is SqlConnection?0:1));
+        if(fields.Count==0)return false;
+        if(!table.Fields.Split(' ').All(fields.Contains))throw new ImportFailure("source_contract_missing_fields:"+table.Name);
+        return true;
     }
     internal static JsonNode? Value(object? value)=>value switch
     {

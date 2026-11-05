@@ -24,3 +24,13 @@ Shared provenance: `erpSourceId` = ERP primary key, `erpSource` = target kind, `
 `Store.cs` calls `ErpDataIndexes.Ensure` after the existing schema setup. It adds idempotent indexes for `(kind, erpSourceId)`, companyId/sponsorId, cityId, housingId, riderId/registeredRiderId, vehicleId, assignmentId, and the effectiveFrom/effectiveTo range. SQLite uses JSON expression indexes; SQL Server uses bounded JSON computed columns plus indexes, with compatible session options. Existing record bodies and financial indexes are untouched. Primary record IDs and importer collision checks enforce the natural-key strategy; the source index is not an invitation to create a second ID for one source row.
 
 Dry-run never constructs Store: it uses SELECT-only target reads, even if `records` does not yet exist. Only `--commit` constructs the target Store, runs schema initialization/checkpointing under the private runtime directory, and calls the normal Save/Audit path in a transaction with actor `erp-import`. Its opt-in SQL Server buffer bulk-copies those Save/Audit documents to a temporary table and applies UPDATE/INSERT in the same transaction; application transactions remain immediate. Current target state is rechecked once inside the transaction before saving. A second synthetic commit is tested to produce zero row changes and zero new audit rows. Approved staging verification completed: 6451 domain rows, 8581 import audit rows after the explicit role-metadata correction, eight ERP indexes; a separate second CLI commit run produced zero new/changed rows. After adding explicit role metadata, both its automatic verification and a fresh independent dry-run also produced zero new/changed rows. The stable local backup is older than the earlier live dry-run; see the reconciliation drift table.
+
+## R6a-1 fuel facts
+
+| Kind | Source | Contract |
+|---|---|---|
+| fuel_card | app.FuelCards | card number/provider/type, company and city; no invented current rider |
+| fuel_card_assignment | app.FuelCardRiderAssignments | dated rider/card link; EmployeeId and RiderProfileId must agree |
+| fuel_usage_month | app.FuelCardMonthlyUsages | report month, liters, total/before-tax/VAT, transaction count, fuel type; explicit rider relation required |
+
+New source tables are optional only when absent. A present table with missing allowlisted columns refuses the pull. Empty tables remain distinguishable from absent tables. Unmatched/ambiguous riders are rejected with counts, never guessed from the current card owner. Counts-only summaries include numeric totals for accepted documents, separately from rejected counts. Stable keys and merge/idempotency rules above apply.

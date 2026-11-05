@@ -150,4 +150,30 @@ public sealed class ErpImportTests
         store=new Store(f.DirectoryPath);Assert.AreEqual("preserved",store.Read(c=>Store.Get(c,"synthetic-setting","setting")!.S("value")));
         int indexes=store.Read(c=>{using var cmd=c.CreateCommand();cmd.CommandText="SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name LIKE 'ix_erp_%'";return Convert.ToInt32(cmd.ExecuteScalar());});Assert.AreEqual(8,indexes);
     }
+    [TestMethod]
+    public void FuelPullPreservesDatedAssignmentAndAmountsWithoutGuessingUnmatchedRiders()
+    {
+        using var f=new Fixture();
+        f.Add("FuelCards",new(){["Id"]="fuel",["SponsorId"]="sponsor",["OperatingCityId"]="operation-city",["CardNumber"]="SYN-CARD"});
+        f.Add("FuelCardRiderAssignments",new(){["Id"]="fuel-assignment",["FuelCardId"]="fuel",["EmployeeId"]="employee2",["RiderProfileId"]="profile2",["EffectiveFrom"]="2026-10-01",["EffectiveTo"]="2026-10-31"});
+        f.Add("FuelCardMonthlyUsages",new(){["Id"]="usage",["FuelCardId"]="fuel",["EmployeeId"]="employee2",["ReportMonth"]="2026-10-01",["TotalLiters"]=10,["TotalAmount"]=23,["AmountBeforeTax"]=20,["VatAmount"]=3,["TransactionCount"]=2});
+        f.Add("FuelCardMonthlyUsages",new(){["Id"]="unmatched",["FuelCardId"]="fuel",["ReportMonth"]="2026-10-01",["TotalAmount"]=999});
+        var source=SourceReader.Read(f.Source);var plan=ImportPlan.Build(source,Catalog);
+        var usage=plan.Documents.Single(d=>d.Kind=="fuel_usage_month").Body;
+        Assert.AreEqual(Identity(2),usage.S("riderId"));Assert.AreEqual(23m,usage.N("amount"));Assert.AreEqual(3m,usage.N("vat"));
+        Assert.AreEqual("2026-10-31",plan.Documents.Single(d=>d.Kind=="fuel_card_assignment").Body.S("effectiveTo"));
+        Assert.AreEqual(1,plan.Rejected["fuel_usage_month"]["unmatched_rider"]);
+        var summary=ImportExecutor.Run(source,plan,[]);Assert.AreEqual(23m,summary.Totals["fuel_usage_month"]["amount"]);
+        Assert.DoesNotContain("SYN-CARD",JsonSerializer.Serialize(summary));
+        var target=new Store(f.DirectoryPath);ImportExecutor.Run(source,plan,target.Read(ImportExecutor.Target),target);
+        Assert.AreEqual(0,ImportExecutor.Run(source,plan,target.Read(ImportExecutor.Target)).Counts.Sum(c=>c.New+c.Changed));
+    }
+    [TestMethod]
+    public void OptionalPullSourcesDistinguishAbsentEmptyAndInvalidContracts()
+    {
+        using var f=new Fixture();using(var q=f.Source.CreateCommand()){q.CommandText="DROP TABLE FuelCards";q.ExecuteNonQuery();}
+        Assert.AreEqual("source_table_absent",ImportPlan.Build(SourceReader.Read(f.Source),Catalog).Unavailable["fuel_card"]);
+        using(var q=f.Source.CreateCommand()){q.CommandText="CREATE TABLE FuelCards(Id TEXT PRIMARY KEY)";q.ExecuteNonQuery();}
+        Assert.AreEqual("source_contract_missing_fields:FuelCards",Assert.ThrowsExactly<ImportFailure>(()=>SourceReader.Read(f.Source)).Code);
+    }
 }

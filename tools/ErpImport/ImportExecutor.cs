@@ -4,7 +4,10 @@ using Payroll;
 namespace ErpImport;
 
 public sealed record KindCount(string Kind,int Source,int New,int Changed,int Unchanged,int Rejected,int TargetBefore);
-public sealed record ImportSummary(DateTimeOffset ReadStartedAt,DateTimeOffset ReadFinishedAt,string Consistency,bool Committed,IReadOnlyList<KindCount> Counts,Dictionary<string,Dictionary<string,int>> Rejected,Dictionary<string,int> Observations,Dictionary<string,string> Unavailable,Dictionary<string,int> SourceTables);
+public sealed record ImportSummary(DateTimeOffset ReadStartedAt,DateTimeOffset ReadFinishedAt,string Consistency,bool Committed,IReadOnlyList<KindCount> Counts,Dictionary<string,Dictionary<string,int>> Rejected,Dictionary<string,int> Observations,Dictionary<string,string> Unavailable,Dictionary<string,int> SourceTables)
+{
+    public Dictionary<string,Dictionary<string,decimal>> Totals {get;init;}=[];
+}
 public static class ImportExecutor
 {
     public static Dictionary<string,JsonObject> Target(DbConnection c)=>Target(c,null);
@@ -67,8 +70,8 @@ public static class ImportExecutor
                 return true;
             });
         }
-        string SourceTable(string kind)=>kind switch{"company" or "commercial_registration"=>"Sponsors","city"=>"GlobalCities","rider"=>"Employees","housing"=>"Housing","housing_residence"=>"HousingResidencePeriods","vehicle"=>"Vehicles","vehicle_assignment"=>"RiderVehicleAssignments","custody_handover"=>"RiderVehicleAssignmentEvents","platform_account"=>"PlatformRiderAccounts","legal_case"=>"HrLegalCases",_=>HungerStationFacts.Kinds.Contains(kind)?HsFactsSource.Table(kind):""};
+        string SourceTable(string kind)=>kind switch{"company" or "commercial_registration"=>"Sponsors","city"=>"GlobalCities","rider"=>"Employees","housing"=>"Housing","housing_residence"=>"HousingResidencePeriods","vehicle"=>"Vehicles","vehicle_assignment"=>"RiderVehicleAssignments","custody_handover"=>"RiderVehicleAssignmentEvents","platform_account"=>"PlatformRiderAccounts","legal_case"=>"HrLegalCases",_=>HungerStationFacts.Kinds.Contains(kind)?HsFactsSource.Table(kind):PullContracts.Table(kind)};
         var counts=ImportPlan.Kinds.Select(k=>new KindCount(k,source.Tables.GetValueOrDefault(SourceTable(k))?.Count??0,counters[k][0],counters[k][1],counters[k][2],plan.Rejected.GetValueOrDefault(k)?.Values.Sum()??0,existing.Values.Count(r=>r.S("__targetKind")==k))).ToList();
-        return new(source.StartedAt,source.FinishedAt,source.Consistency,commitTarget!=null,counts,plan.Rejected,plan.Observations,plan.Unavailable,source.Tables.ToDictionary(t=>t.Key,t=>t.Value.Count));
+        return new(source.StartedAt,source.FinishedAt,source.Consistency,commitTarget!=null,counts,plan.Rejected,plan.Observations,plan.Unavailable,source.Tables.ToDictionary(t=>t.Key,t=>t.Value.Count)) {Totals=PullContracts.Catalog.Where(x=>x.Totals!="").ToDictionary(x=>x.Kind,x=>x.Totals.Split(' ').ToDictionary(f=>f,f=>plan.Documents.Where(d=>d.Kind==x.Kind).Sum(d=>d.Body.N(f))))};
     }
 }

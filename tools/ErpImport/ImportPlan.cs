@@ -7,7 +7,7 @@ namespace ErpImport;
 public sealed record PlannedDocument(string Kind,JsonObject Body);
 public sealed class ImportPlan
 {
-    public static readonly string[] Kinds=["company","commercial_registration","city","rider","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","platform_account","sponsorship_period","legal_case","hs_wallet_event","hs_remittance","hs_remittance_allocation","hs_handover_review","hs_month_close"];
+    public static readonly string[] Kinds=["company","commercial_registration","city","rider","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","platform_account","sponsorship_period","legal_case","hs_wallet_event","hs_remittance","hs_remittance_allocation","hs_handover_review","hs_month_close",..PullContracts.Kinds];
     public List<PlannedDocument> Documents { get; }=[];
     public Dictionary<string,Dictionary<string,int>> Rejected { get; }=[];
     public Dictionary<string,int> Observations { get; }=[];
@@ -104,6 +104,7 @@ public sealed class ImportPlan
             string company=Company(row.S("SponsorId"));if(company==""){plan.Reject("legal_case","missing_company_relation");continue;}
             var doc=Doc("legal_case",row);doc["companyId"]=company;doc["number"]=row.S("CaseNumber");doc["personName"]=row.S("PersonName");doc["personTypeCode"]=row["PersonType"]?.DeepClone();doc["employeeSourceId"]=row.S("EmployeeId");doc["riderId"]=Rider(row.S("EmployeeId")) is var legalRider&&legalRider!=""?legalRider:profileRiders.GetValueOrDefault(row.S("RiderProfileId"))??"";doc["riderProfileSourceId"]=row.S("RiderProfileId");doc["partyRoleCode"]=row["SponsorPartyRole"]?.DeepClone();doc["caseDate"]=Date(row,"CaseDate");doc["caseTime"]=row.S("CaseTime");doc["details"]=row.S("Details");doc["hearings"]=Array(Rows("HrLegalCaseHearings").Where(h=>h.S("LegalCaseId")==row.S("Id")));plan.Documents.Add(new("legal_case",doc));
         }
+        PullContracts.AddToPlan(snapshot,plan,companies,riders,profileRiders,City);
         HsFactsSource.AddToPlan(snapshot,plan,companies);
         return plan;
     }
