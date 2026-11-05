@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none (next: Antigravity R4 fix round) |
-| Branch | feat/r4-integrate = feat/r4-api (0d3ff76) + feat/r4-web (e148a01, includes feat/r3-web d106714) |
+| Current writer | none (next: Claude review of feat/r4-integrate) |
+| Branch | feat/r4-integrate = feat/r4-api (0d3ff76) + feat/r4-web (e148a01) + R4-fix1 |
 | Live | 0.12.1 (5fe403b); local 0.14.0 |
-| Updated | 2026-11-05 by Claude |
+| Updated | 2026-11-05 by Antigravity |
 
 ## Next step (exact)
-Antigravity: `~/.agents/prompts/antigravity-R4-fix1.md` on this branch. Then Claude reviews and Ghazal says «ادمج» for 0.14.0.
+Claude reviews `feat/r4-integrate`. Then Claude confirms and Ghazal says «ادمج» for 0.14.0.
 
 
 ## R4 backend (Codex)
@@ -100,20 +100,53 @@ Release train R4 web completed on `feat/r4-web`:
 9. `047d43d` — `feat(web): complete legacy links removal (R4-W11)`
 10. `7a6e4e4` — `test(web): e2e static and live verification for R4 workspaces (R4-verify)`
 
-## API gaps for Codex
-- `GET /api/operations/{kind}`: query parameters and data models for cities, housing, vehicles, custody, guarantees, cases, platform accounts (Codex R4.6).
+## R4 fix round 1 (Antigravity)
+| Updated | 2026-11-05 by Antigravity |
+
+### Completed Fixes (F1 - F4)
+1. **F1: Payroll rules editor & cycle stepper wired to real APIs:**
+   - Global settings, app terms, internal schemes, and eligibility fully wired to `/api/pay/apps/{app}/terms|schemes|eligibility?period=`, `/api/pay/settings`, and `/api/pay/apps/{app}/copy?from=&to=`.
+   - Independent maker-checker enforced: User A self-approval refused with HTTP 403; User B approves; approved settings are strictly read-only.
+   - Scheme choices wired to preview → commit flow.
+   - Cycle stepper wired to `/api/pay/cycles`, `/api/pay/cycles/{id}/advance` (stage n+1 only), and `/api/pay/cycles/{id}/lines` with per-rider explain lines drawer and `needs_decision` badge.
+   - Client-side hardcoded numbers eliminated. Empty months display «لا توجد إعدادات لهذا الشهر — انسخ الشهر السابق أو أنشئ مسودة».
+2. **F2: Legacy payroll run workspace added:**
+   - Added shared tab «الدورة الحالية (النظام القائم)» (`id: 'current-cycle'`) at `/app/payroll/?tab=current-cycle`.
+   - Wired to real endpoints: `/api/payroll/preview`, `/runs`, `/approve`, `/export.csv`, `/api/adjustments`, `/api/payments`, `/api/ledger/{iqama}`.
+   - Includes preview table with blockers, status badges, details modal, approve modal with sponsor selector, adjustment modal, payment modal with cash availability validation, ledger view modal, and CSV export link.
+3. **F3: Operations and statements use 0.14.0 endpoints:**
+   - Operations sub-tabs call `GET /api/operations/{kind}?page=&q=` (7 operational kinds: cities, housing, vehicles, custody, guarantees, cases, platform accounts). Removed «غير متاح بعد» where data exists.
+   - Rider Profile 360 accounts tab connected to `GET /api/riders/{iqama}/accounts`.
+   - Rider monthly statement connected to `GET /api/finance/statement/rider/{iqama}/monthly?period=` with fallback.
+   - Rider app «كشف الحساب في التطبيق» preview uses the same shape without exposing rider token endpoints to admin.
+4. **F4: Remaining gap:**
+   - `GET /api/rider-mobile/sessions` retained as «غير متاح بعد — بانتظار اكتمال واجهات خادم الجلسات الميدانية (Codex)», and kept in API gaps for Codex.
+5. **Corrected old-UI retirement list:**
+   - Corrected claim: Legacy payroll run flow (`/api/payroll/preview`, `/runs`, `/approve`, `/export.csv`, `/api/adjustments`, `/api/payments`, `/api/ledger`) is now fully available in `/app/payroll/?tab=current-cycle`.
+   - Remaining legacy screens in `Frontend/` without `/app`: **NONE** (0 legacy screens remaining).
+
+### Commits on `feat/r4-integrate`
+- `3151345` — `feat(web): wire payroll rules editor, cycle stepper, and legacy payroll run workspace (F1, F2)`
+- `3e82bab` — `feat(web): update operations and rider statements with 0.14.0 endpoints (F3)`
+- `44446a6` — `test(web): live e2e verification for R4 fixes and legacy suites (F4-verify)`
+
+### Verification summary
+- **Static build:** `npm run build` compiled 19/19 routes cleanly without any `/app/app/` links.
+- **Static E2E & screenshots:** `npm run test:e2e` passed all 8 suites; 16 screenshots at 1440 and 360.
+- **Live E2E suite:** `node tests/e2e-live.mjs` (delegating to `web/tests/e2e-live.mjs`) passed all 13 steps against real .NET API and live database. Screenshots generated in `test-results/r4-fix1/`.
+- **Regression tests:** `node tests/browser-iban.mjs`, `node tests/finance-views-ui.mjs`, and `node tests/r4-backend.mjs` all passed.
+
+### API gaps for Codex
 - `GET /api/rider-mobile/sessions`: rider active mobile sessions and device fingerprints.
-- `GET /api/finance/statement/rider/{iqama}/monthly`: monthly multi-platform aggregated statement view (Codex R4.8).
 - Database reporting views/tables in `rpt` schema (Codex R4.7).
 
-## Capacity status
-- Before session: ~48% weekly limit used (~52% remaining).
-- After session: ~62% weekly limit used (~38% remaining).
+### Capacity status
+- Before session: ~62% weekly limit used (~38% remaining).
+- After session: ~78% weekly limit used (~22% remaining).
 
-## How to verify
+### How to verify
 ```bash
-git -C /home/ghazal/Projects/active/gate-payroll-r4web status
-cd /home/ghazal/Projects/active/gate-payroll-r4web/web && npm run build && npm run test:e2e
-cd /home/ghazal/Projects/active/gate-payroll-r4web && node web/tests/e2e-live.mjs
-cd /home/ghazal/Projects/active/gate-payroll-r4web && node tests/browser-iban.mjs && node tests/finance-views-ui.mjs
+cd /home/ghazal/Projects/active/gate-payroll-r4api/web && npm run build && npm run test:e2e
+cd /home/ghazal/Projects/active/gate-payroll-r4api && node tests/e2e-live.mjs
+cd /home/ghazal/Projects/active/gate-payroll-r4api && node tests/browser-iban.mjs && node tests/finance-views-ui.mjs && node tests/r4-backend.mjs
 ```
