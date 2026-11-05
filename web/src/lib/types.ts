@@ -10,12 +10,20 @@ export type NotificationCategory = 'general' | 'personal' | 'system' | 'approval
 export interface NotificationItem {
   id: string;
   title: string;
+  titleAr?: string;
   message: string;
+  bodyAr?: string;
   category: NotificationCategory;
   unread: boolean;
   createdAt: string;
   link?: string;
   actionText?: string;
+  taskKind?: string;
+  entityId?: string;
+  requiresAction?: boolean;
+  actionStatus?: 'open' | 'decided' | 'none';
+  decidedBy?: string;
+  decidedAt?: string;
 }
 
 export interface NotificationSummary {

@@ -604,12 +604,40 @@ export const api = {
 
   getMe: () => handleRequest<UserProfile>('/me'),
   getDashboard: () => handleRequest<DashboardMetrics>('/dashboard'),
-  getNotificationsSummary: () => handleRequest<NotificationSummary>('/notifications/summary'),
-  getNotifications: (params?: { category?: string; unread?: boolean }) => {
+  getNotificationsSummary: async () => {
+    const raw = await handleRequest<Record<string, number>>('/notifications/summary');
+    const general = raw.general || 0;
+    const personal = raw.personal || 0;
+    const system = raw.system || 0;
+    const approvals = raw.approvals || 0;
+    const total = general + personal + system + approvals;
+    return {
+      unreadCount: total,
+      approvalCount: approvals,
+      byCategory: {
+        general,
+        personal,
+        system,
+        approvals,
+      },
+    } as NotificationSummary;
+  },
+  getNotifications: async (params?: { category?: string; unread?: boolean }) => {
     const qs = new URLSearchParams();
     if (params?.category) qs.set('category', params.category);
     if (params?.unread) qs.set('unread', 'true');
-    return handleRequest<NotificationItem[]>(`/notifications?${qs.toString()}`);
+    const res = await handleRequest<any[]>(`/notifications?${qs.toString()}`);
+    return (res || []).map((n) => ({
+      ...n,
+      title: n.titleAr || n.title || 'إشعار جديد',
+      message: n.bodyAr || n.message || '',
+      category: n.category || 'general',
+      unread: Boolean(n.unread),
+      requiresAction: Boolean(n.requiresAction),
+      actionStatus: n.actionStatus || 'none',
+      link: n.link || (n.taskKind === 'advance_request' ? '/debts/?tab=advance_requests' : undefined),
+      actionText: n.actionText || (n.taskKind === 'advance_request' ? 'عرض طلب السلفة' : undefined),
+    })) as NotificationItem[];
   },
   markNotificationRead: (id: string) => handleRequest<{ success: boolean }>(`/notifications/${id}/read`, { method: 'POST' }),
   markAllNotificationsRead: () => handleRequest<{ success: boolean }>('/notifications/read-all', { method: 'POST' }),
