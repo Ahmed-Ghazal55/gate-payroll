@@ -139,15 +139,17 @@ export function Header({
         }
       });
 
-    api
-      .getNotificationsSummary()
-      .then((summary) => {
+    (async () => {
+      try {
+        const summary = await api.getNotificationsSummary();
         if (mounted && summary) {
           setUnreadCount(summary.unreadCount);
           setApprovalCount(summary.approvalCount);
         }
-      })
-      .catch(() => {});
+      } catch {
+        // silent initial poll
+      }
+    })();
 
     return () => {
       mounted = false;

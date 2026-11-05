@@ -69,24 +69,36 @@ function RiderStatementPageInner() {
       setMonthlyStatement(monthlyData);
 
       // 2. Fetch detailed or simple statement fallback + profile
-      const [stmtData, profData] = await Promise.all([
-        api.getRiderStatement(q, fromDate, toDate).catch(async () => {
-          // fallback to simple statement if detailed endpoint returns 404
-          const simple = await api.getRiderStatementSimple(q, fromDate, toDate);
-          return {
-            iqama: q,
-            riderName: simple.riderName || monthlyData?.header?.name || 'مندوب تجريبي',
-            period: { from: fromDate, to: toDate },
-            openingBalance: simple.openingBalance || monthlyData?.carried || 0,
-            closingBalance: simple.closingBalance || monthlyData?.closing || 0,
-            entries: simple.entries || [],
-          } as RiderStatement;
-        }),
-        api.getRiderProfile360(q).catch(() => null),
+      const [stmtRes, profRes] = await Promise.allSettled([
+        (async () => {
+          try {
+            return await api.getRiderStatement(q, fromDate, toDate);
+          } catch {
+            const simple = await api.getRiderStatementSimple(q, fromDate, toDate);
+            return {
+              iqama: q,
+              riderName: simple.riderName || monthlyData?.header?.name || 'مندوب تجريبي',
+              period: { from: fromDate, to: toDate },
+              openingBalance: simple.openingBalance || monthlyData?.carried || 0,
+              closingBalance: simple.closingBalance || monthlyData?.closing || 0,
+              entries: simple.entries || [],
+            } as RiderStatement;
+          }
+        })(),
+        api.getRiderProfile360(q),
       ]);
 
-      setStatement(stmtData);
-      setProfile(profData);
+      if (stmtRes.status === 'fulfilled') {
+        setStatement(stmtRes.value);
+      } else {
+        throw stmtRes.reason;
+      }
+
+      if (profRes.status === 'fulfilled') {
+        setProfile(profRes.value);
+      } else {
+        setProfile(null);
+      }
     } catch (err: any) {
       const msg = err.message || 'تعذر استرجاع كشف الحساب المالي';
       setError(msg);

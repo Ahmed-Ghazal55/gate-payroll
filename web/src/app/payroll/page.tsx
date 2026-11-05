@@ -139,6 +139,7 @@ function PayrollPageInner() {
   const [allocations, setAllocations] = useState<HsAllocation[]>([]);
   const [facts, setFacts] = useState<HsFact[]>([]);
   const [proposedJournals, setProposedJournals] = useState<HsProposedJournal[]>([]);
+  const [hsSectionError, setHsSectionError] = useState<string | null>(null);
 
   // Sub-tab 4 (ERP Facts) states
   const [factsViewMode, setFactsViewMode] = useState<'accounts' | 'riders'>('accounts');
@@ -270,23 +271,63 @@ function PayrollPageInner() {
   // Load HungerStation Data
   const loadData = async () => {
     setLoading(true);
+    setHsSectionError(null);
     try {
       const comp = selectedCompany === 'all' ? undefined : selectedCompany;
-      const [invRes, dispRes, allocRes, factRes, propRes] = await Promise.all([
-        api.getHsInvoices({ period: selectedPeriod, companyId: comp }).catch(() => ({ items: [] })),
-        api.getHsDisputes({ period: selectedPeriod }).catch(() => ({ items: [] })),
-        api.getHsAllocations({ period: selectedPeriod }).catch(() => ({ items: [] })),
-        api.getHsFacts({ kind: selectedFactKind }).catch(() => ({ items: [] })),
-        api.getHsProposedJournals({ period: selectedPeriod } as any).catch(() => ({ items: [] })),
+      const [invRes, dispRes, allocRes, factRes, propRes] = await Promise.allSettled([
+        api.getHsInvoices({ period: selectedPeriod, companyId: comp }),
+        api.getHsDisputes({ period: selectedPeriod }),
+        api.getHsAllocations({ period: selectedPeriod }),
+        api.getHsFacts({ kind: selectedFactKind }),
+        api.getHsProposedJournals({ period: selectedPeriod } as any),
       ]);
 
-      setInvoices((invRes as any)?.items || (Array.isArray(invRes) ? invRes : []));
-      setDisputes((dispRes as any)?.items || (Array.isArray(dispRes) ? dispRes : []));
-      setAllocations((allocRes as any)?.items || (Array.isArray(allocRes) ? allocRes : []));
-      setFacts((factRes as any)?.items || (Array.isArray(factRes) ? factRes : []));
-      setProposedJournals((propRes as any)?.items || (Array.isArray(propRes) ? propRes : []));
+      const errs: string[] = [];
+      if (invRes.status === 'fulfilled') {
+        const val = invRes.value;
+        setInvoices((val as any)?.items || (Array.isArray(val) ? val : []));
+      } else {
+        errs.push(`فواتير المنصة: ${invRes.reason?.message || 'فشل التحميل'}`);
+        setInvoices([]);
+      }
+
+      if (dispRes.status === 'fulfilled') {
+        const val = dispRes.value;
+        setDisputes((val as any)?.items || (Array.isArray(val) ? val : []));
+      } else {
+        errs.push(`نزاعات CAR: ${dispRes.reason?.message || 'فشل التحميل'}`);
+        setDisputes([]);
+      }
+
+      if (allocRes.status === 'fulfilled') {
+        const val = allocRes.value;
+        setAllocations((val as any)?.items || (Array.isArray(val) ? val : []));
+      } else {
+        errs.push(`توزيعات TGA: ${allocRes.reason?.message || 'فشل التحميل'}`);
+        setAllocations([]);
+      }
+
+      if (factRes.status === 'fulfilled') {
+        const val = factRes.value;
+        setFacts((val as any)?.items || (Array.isArray(val) ? val : []));
+      } else {
+        errs.push(`وقائع ERP: ${factRes.reason?.message || 'فشل التحميل'}`);
+        setFacts([]);
+      }
+
+      if (propRes.status === 'fulfilled') {
+        const val = propRes.value;
+        setProposedJournals((val as any)?.items || (Array.isArray(val) ? val : []));
+      } else {
+        errs.push(`القيود المقترحة: ${propRes.reason?.message || 'فشل التحميل'}`);
+        setProposedJournals([]);
+      }
+
+      if (errs.length > 0) {
+        setHsSectionError(errs.join(' • '));
+      }
     } catch (err: any) {
-      showToast(err.message || 'تعذر تحميل بيانات منصة هنقرستيشن', 'error');
+      setHsSectionError(err.message || 'تعذر تحميل بيانات منصة هنقرستيشن');
     } finally {
       setLoading(false);
     }
@@ -424,16 +465,45 @@ function PayrollPageInner() {
     setLoadingLegacy(true);
     setLegacyError(null);
     try {
-      const [prevRes, runsRes, ridersRes, catRes] = await Promise.all([
-        api.getLegacyPayrollPreview(legacyPeriod).catch(() => []),
-        api.getLegacyPayrollRuns().catch(() => []),
-        api.getRiders().catch(() => []),
-        api.getFinanceCatalog().catch(() => null),
+      const [prevRes, runsRes, ridersRes, catRes] = await Promise.allSettled([
+        api.getLegacyPayrollPreview(legacyPeriod),
+        api.getLegacyPayrollRuns(),
+        api.getRiders(),
+        api.getFinanceCatalog(),
       ]);
-      setLegacyPreview(Array.isArray(prevRes) ? prevRes : []);
-      setLegacyRuns(Array.isArray(runsRes) ? runsRes : []);
-      setRidersList(Array.isArray(ridersRes) ? ridersRes : []);
-      setFinanceCatalog(catRes);
+
+      const errs: string[] = [];
+      if (prevRes.status === 'fulfilled') {
+        setLegacyPreview(Array.isArray(prevRes.value) ? prevRes.value : []);
+      } else {
+        errs.push(`المعاينة: ${prevRes.reason?.message || 'فشل التحميل'}`);
+        setLegacyPreview([]);
+      }
+
+      if (runsRes.status === 'fulfilled') {
+        setLegacyRuns(Array.isArray(runsRes.value) ? runsRes.value : []);
+      } else {
+        errs.push(`المسيرات السابقة: ${runsRes.reason?.message || 'فشل التحميل'}`);
+        setLegacyRuns([]);
+      }
+
+      if (ridersRes.status === 'fulfilled') {
+        setRidersList(Array.isArray(ridersRes.value) ? ridersRes.value : []);
+      } else {
+        errs.push(`قائمة المناديب: ${ridersRes.reason?.message || 'فشل التحميل'}`);
+        setRidersList([]);
+      }
+
+      if (catRes.status === 'fulfilled') {
+        setFinanceCatalog(catRes.value);
+      } else {
+        errs.push(`دليل الحسابات المالية: ${catRes.reason?.message || 'فشل التحميل'}`);
+        setFinanceCatalog(null);
+      }
+
+      if (errs.length > 0) {
+        setLegacyError(errs.join(' • '));
+      }
     } catch (err: any) {
       setLegacyError(err.message || 'تعذر تحميل مسيرات الرواتب القائمة');
     } finally {
@@ -1358,6 +1428,23 @@ function PayrollPageInner() {
                   </button>
                 ))}
               </div>
+
+              {/* HS Section Error Banner */}
+              {hsSectionError && (
+                <div className="p-4 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 text-[var(--danger)] text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle size={16} />
+                    <span>{hsSectionError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={loadData}
+                    className="px-2.5 py-1 rounded-lg bg-[var(--danger)] text-white font-bold hover:opacity-90 cursor-pointer"
+                  >
+                    إعادة المحاولة
+                  </button>
+                </div>
+              )}
 
               {/* Sub-tab 1: Invoices */}
               {activeTab === 'invoices' && (

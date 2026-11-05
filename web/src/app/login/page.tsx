@@ -42,14 +42,16 @@ function LoginForm() {
   // Check if system requires initial setup
   useEffect(() => {
     let mounted = true;
-    api
-      .getAuthStatus()
-      .then((status) => {
+    (async () => {
+      try {
+        const status = await api.getAuthStatus();
         if (mounted && status.needsSetup) {
           setNeedsSetup(true);
         }
-      })
-      .catch(() => {});
+      } catch {
+        // silent initial status check
+      }
+    })();
     return () => {
       mounted = false;
     };
