@@ -18,10 +18,10 @@ async function req(route,body,status=200,auth=true){
 }
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(server.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}assert.ok(ready,logs);
- assert.equal((await req('/health',undefined,200,false)).version,'0.12.1');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.14.0');
  await req('/api/finance/coa/target',undefined,401,false);
  const password=randomBytes(24).toString('hex');await req('/api/auth/setup',{username:'synthetic-admin',password});const admin=cookie;
- const coa=await req('/api/finance/coa/target');assert.equal(coa.accounts.length,403);assert.equal(coa.accounts.filter(a=>a.posting&&a.status==='active').length,227);assert.deepEqual(Object.fromEntries(['excel','modified','new'].map(source=>[source,coa.accounts.filter(a=>a.source===source).length])),{excel:294,modified:28,new:81});assert.ok(coa.accounts.every(a=>['source','sourceNote','statusNote','subledger'].every(key=>Object.hasOwn(a,key))));
+ const coa=await req('/api/finance/coa/target');assert.equal(coa.accounts.length,408);assert.equal(coa.accounts.filter(a=>a.posting&&a.status==='active').length,232);assert.deepEqual(Object.fromEntries(['excel','modified','new'].map(source=>[source,coa.accounts.filter(a=>a.source===source).length])),{excel:294,modified:28,new:86});assert.ok(coa.accounts.every(a=>['source','sourceNote','statusNote','subledger'].every(key=>Object.hasOwn(a,key))));
  const body='80'+'0'.repeat(15)+'123';let remainder=0;for(const d of body+'281000')remainder=(remainder*10+Number(d))%97;const iban='SA'+String(98-remainder).padStart(2,'0')+body;
  const iqama='2000000888',period='2026-10';
  const policy=await req('/api/policies',{name:'Synthetic commission',kind:'commission',platform:'all',effectiveFrom:period,config:{companyFee:500}});await req(`/api/policies/${policy.id}/approve`,{});

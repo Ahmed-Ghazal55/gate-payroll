@@ -31,7 +31,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'all' | NotificationCategory>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'general' | 'personal' | 'tasks'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
 
@@ -75,15 +75,16 @@ export default function NotificationsPage() {
   };
 
   const tabs = [
-    { id: 'all', label: 'الكل' },
-    { id: 'general', label: 'عامة' },
-    { id: 'personal', label: 'مخصصة لي' },
-    { id: 'system', label: 'النظام' },
-    { id: 'approvals', label: 'الاعتمادات' },
+    { id: 'all' as const, label: 'الكل' },
+    { id: 'general' as const, label: 'عام' },
+    { id: 'personal' as const, label: 'مخصص' },
+    { id: 'tasks' as const, label: 'طلبات ومهام' },
   ];
 
   const filteredItems = items.filter((item) => {
-    if (activeTab !== 'all' && item.category !== activeTab) return false;
+    if (activeTab === 'general' && item.category !== 'general') return false;
+    if (activeTab === 'personal' && item.category !== 'personal') return false;
+    if (activeTab === 'tasks' && !item.requiresAction && item.taskKind !== 'advance_request') return false;
     if (unreadOnly && !item.unread) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -147,9 +148,13 @@ export default function NotificationsPage() {
         tabs={tabs.map((t) => ({
           ...t,
           badge:
-            items.filter((i) =>
-              t.id === 'all' ? i.unread : i.category === t.id && i.unread
-            ).length || undefined,
+            items.filter((i) => {
+              if (t.id === 'all') return i.unread;
+              if (t.id === 'general') return i.category === 'general' && i.unread;
+              if (t.id === 'personal') return i.category === 'personal' && i.unread;
+              if (t.id === 'tasks') return i.requiresAction && i.actionStatus === 'open';
+              return false;
+            }).length || undefined,
         }))}
         activeTab={activeTab}
         onChange={(id) => setActiveTab(id as any)}
@@ -215,8 +220,31 @@ export default function NotificationsPage() {
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--raised)] text-[var(--muted)]">
                       {categoryLabel(item.category)}
                     </span>
-                    {item.unread && (
-                      <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+
+                    {/* Separate Read/Unread badge */}
+                    {item.unread ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)]">
+                        غير مقروء
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--raised)] text-[var(--muted)]">
+                        مقروء
+                      </span>
+                    )}
+
+                    {/* Separate Action/Decided badge */}
+                    {item.requiresAction && (
+                      item.actionStatus === 'decided' ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--money-pos)]/15 text-[var(--money-pos)] inline-flex items-center gap-1">
+                          <Check size={11} />
+                          <span>تم البت</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--warning)]/15 text-[var(--warning)] inline-flex items-center gap-1">
+                          <Clock size={11} />
+                          <span>بانتظار البت</span>
+                        </span>
+                      )
                     )}
                   </div>
 

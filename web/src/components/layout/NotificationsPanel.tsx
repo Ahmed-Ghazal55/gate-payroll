@@ -30,7 +30,7 @@ export function NotificationsPanel({
   onClose,
   onUnreadCountChange,
 }: NotificationsPanelProps) {
-  const [activeTab, setActiveTab] = useState<'all' | NotificationCategory>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'general' | 'personal' | 'tasks'>('all');
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
@@ -104,17 +104,19 @@ export function NotificationsPanel({
 
   if (!open) return null;
 
-  const tabs: Array<{ id: 'all' | NotificationCategory; label: string }> = [
-    { id: 'all', label: 'الكل' },
-    { id: 'general', label: 'عامة' },
-    { id: 'personal', label: 'مخصصة لي' },
-    { id: 'system', label: 'النظام' },
-    { id: 'approvals', label: 'الاعتمادات' },
+  const tabs = [
+    { id: 'all' as const, label: 'الكل' },
+    { id: 'general' as const, label: 'عام' },
+    { id: 'personal' as const, label: 'مخصص' },
+    { id: 'tasks' as const, label: 'طلبات ومهام' },
   ];
 
   const displayedItems = items.filter((item) => {
     if (activeTab === 'all') return true;
-    return item.category === activeTab;
+    if (activeTab === 'general') return item.category === 'general';
+    if (activeTab === 'personal') return item.category === 'personal';
+    if (activeTab === 'tasks') return item.requiresAction || item.taskKind === 'advance_request';
+    return true;
   });
 
   const unreadTotal = items.filter((item) => item.unread).length;
@@ -177,9 +179,13 @@ export function NotificationsPanel({
       {/* Category Tabs */}
       <div className="flex items-center gap-1 px-3 pt-2 pb-1 border-b border-[var(--line)] bg-[var(--raised)]/40 overflow-x-auto no-scrollbar">
         {tabs.map((tab) => {
-          const count = items.filter((n) =>
-            tab.id === 'all' ? n.unread : n.category === tab.id && n.unread
-          ).length;
+          const count = items.filter((n) => {
+            if (tab.id === 'all') return n.unread;
+            if (tab.id === 'general') return n.category === 'general' && n.unread;
+            if (tab.id === 'personal') return n.category === 'personal' && n.unread;
+            if (tab.id === 'tasks') return n.requiresAction && n.actionStatus === 'open';
+            return false;
+          }).length;
           const isActive = activeTab === tab.id;
 
           return (
@@ -230,9 +236,35 @@ export function NotificationsPanel({
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-xs font-bold text-[var(--ink)] truncate">
-                    {item.title}
-                  </h4>
+                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                    <h4 className="text-xs font-bold text-[var(--ink)] truncate">
+                      {item.title}
+                    </h4>
+                    {/* Separate Read/Unread badge */}
+                    {item.unread ? (
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[var(--accent)]/15 text-[var(--accent)]">
+                        غير مقروء
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-medium px-1.5 py-0.2 rounded-full bg-[var(--raised)] text-[var(--muted)]">
+                        مقروء
+                      </span>
+                    )}
+                    {/* Separate Action/Decided badge */}
+                    {item.requiresAction && (
+                      item.actionStatus === 'decided' ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[var(--money-pos)]/15 text-[var(--money-pos)] inline-flex items-center gap-0.5">
+                          <Check size={10} />
+                          <span>تم البت</span>
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[var(--warning)]/15 text-[var(--warning)] inline-flex items-center gap-0.5">
+                          <Clock size={10} />
+                          <span>بانتظار البت</span>
+                        </span>
+                      )
+                    )}
+                  </div>
                   <span className="num text-[10px] text-[var(--muted)] shrink-0">
                     {new Date(item.createdAt).toLocaleTimeString('ar-SA', {
                       hour: '2-digit',

@@ -104,8 +104,8 @@ export function Header({
 
   // Notifications state
   const [notifOpen, setNotifOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState<number>(3);
-  const [approvalCount, setApprovalCount] = useState<number>(2);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [approvalCount, setApprovalCount] = useState<number>(0);
 
   // Search modal state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -139,15 +139,17 @@ export function Header({
         }
       });
 
-    api
-      .getNotificationsSummary()
-      .then((summary) => {
+    (async () => {
+      try {
+        const summary = await api.getNotificationsSummary();
         if (mounted && summary) {
           setUnreadCount(summary.unreadCount);
           setApprovalCount(summary.approvalCount);
         }
-      })
-      .catch(() => {});
+      } catch {
+        // silent initial poll
+      }
+    })();
 
     return () => {
       mounted = false;

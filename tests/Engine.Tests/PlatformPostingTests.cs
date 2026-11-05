@@ -28,7 +28,7 @@ public sealed class PlatformPostingTests
         try
         {
             var store=new Store(directory);string company=FinancialCore.Sponsors[0].Id;
-            JsonArray Lines()=>new(FinancialCore.CreateJournalLine("112802",company,100,0,targetChart:true),FinancialCore.CreateJournalLine("411102",company,0,100,targetChart:true));
+            JsonArray Lines()=>new(FinancialCore.CreateJournalLine(PayPlatforms.For("hs").Receivable,company,100,0,targetChart:true),FinancialCore.CreateJournalLine("411102",company,0,100,targetChart:true));
             Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>PlatformPosting.Post(c,tx,"2026-10","synthetic-hs",Lines(),"synthetic-checker")));
             Assert.AreEqual(0,store.Read(c=>Store.List(c,"journal").Count));
             Assert.ThrowsExactly<ApiError>(()=>FinancialCore.CreateJournalLine("1241",company,100,0,targetChart:true));Assert.ThrowsExactly<ApiError>(()=>FinancialCore.CreateJournalLine("2141",company,0,100,targetChart:true));
@@ -36,7 +36,7 @@ public sealed class PlatformPostingTests
             store.Write((c,tx)=>PlatformPosting.Set(c,tx,Actor(),"hs",new(){["enabled"]=true}));
             var journal=store.Write((c,tx)=>PlatformPosting.Post(c,tx,"2026-10","synthetic-hs",Lines(),"synthetic-checker"));Assert.AreEqual("target",journal.S("chart"));
             var report=store.Read(c=>FinanceViews.TrialBalance(c,Actor(),company,"2026-10","2026-10","target"));
-            var rows=report["companies"]![0]!["rows"]!.AsArray().OfType<JsonObject>();Assert.AreEqual(100m,rows.Single(r=>r.S("code")=="112802").N("periodDebit"));
+            var rows=report["companies"]![0]!["rows"]!.AsArray().OfType<JsonObject>();Assert.AreEqual(100m,rows.Single(r=>r.S("code")=="112805").N("periodDebit"));
             Assert.AreEqual(100m,FinancialCore.CreateJournalLine("1210",company,100,0).N("debit"));
         }
         finally{Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();Directory.Delete(directory,true);}

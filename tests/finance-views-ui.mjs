@@ -191,14 +191,14 @@ try {
   await coaTab.click();
   await page.locator('.table-wrap table').waitFor();
 
-  // Verify stats cards: total 403, posting 227, header 176, sources: excel 294 / modified 28 / new 81
+  // Verify stats cards: total 408, posting 232, header 176, sources: excel 294 / modified 28 / new 86
   const statsValues = await page.locator('.stats .stat strong').allInnerTexts();
-  assert.equal(statsValues[0].trim(), '403', 'Total accounts must be 403');
-  assert.equal(statsValues[1].trim(), '227', 'Posting accounts must be 227');
+  assert.equal(statsValues[0].trim(), '408', 'Total accounts must be 408');
+  assert.equal(statsValues[1].trim(), '232', 'Posting accounts must be 232');
   assert.equal(statsValues[2].trim(), '176', 'Header accounts must be 176');
   assert.ok(statsValues[3].includes('294'), 'Excel source count must be 294');
   assert.ok(statsValues[3].includes('28'), 'Modified source count must be 28');
-  assert.ok(statsValues[3].includes('81'), 'New source count must be 81');
+  assert.ok(statsValues[3].includes('86'), 'New source count must be 86');
 
   // Verify source badges: header/posting, nature, type, direction
   const rows = page.locator('tbody tr.coa-row');
@@ -223,7 +223,7 @@ try {
   await searchInput.fill('الصندوق الرئيسي');
   await page.waitForTimeout(100);
   const searchRowCount = await page.locator('tbody tr.coa-row').count();
-  assert.ok(searchRowCount >= 1 && searchRowCount < 403, 'Search filters accounts');
+  assert.ok(searchRowCount >= 1 && searchRowCount < 408, 'Search filters accounts');
   const searchRowTexts = await page.locator('tbody tr.coa-row').allInnerTexts();
   assert.ok(searchRowTexts.some(t => t.includes('الصندوق الرئيسي')), 'Matching account is present');
 
@@ -429,7 +429,7 @@ try {
   // Confirm no uncaught JS errors
   assert.deepEqual(errors, [], `No page errors allowed: ${errors.join('; ')}`);
 
-  console.log('PASS finance views UI: Target COA tree/search/stats (294/28/81), Trial Balance, Income Statement, Bank File editable amounts/notes/validation, excluded panel (zero_balance & rider_owes_company) and raw CSV download.');
+  console.log('PASS finance views UI: Target COA tree/search/stats (294/28/86), Trial Balance, Income Statement, Bank File editable amounts/notes/validation, excluded panel (zero_balance & rider_owes_company) and raw CSV download.');
 } finally {
   if (browser) await browser.close();
   if (server.exitCode === null) {

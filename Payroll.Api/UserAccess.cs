@@ -15,6 +15,10 @@ public static class UserAccess
     // 1. كتالوج الصلاحيات الذرية الدقيقة (Atomic Permissions) مع الشرح التشغيلي لكل صلاحية
     public static readonly PermissionDef[] PermissionsCatalog =
     [
+        new("operations.view","Operations","العمليات","عرض العمليات","عرض العمليات وحسابات المناديب ضمن الشركة والمنصة."),
+        new("pay.view","Payroll","الرواتب","عرض إطار الرواتب","عرض إعدادات التطبيقات والدورات والكشوف ضمن النطاق."),
+        new("pay.manage","Payroll","الرواتب","تحضير الرواتب","إنشاء مسودات الإعدادات وتحضير الدورات دون اعتماد ذاتي."),
+        new("pay.approve","Payroll","الرواتب","اعتماد الرواتب","اعتماد مستقل لإعدادات ودورات المسار الجديد."),
         new("platforms.hs.view","Platforms","المنصات","مراجعة وقائع هنقر","عرض الفواتير والاعتراضات والوقائع والمعاينات ضمن النطاق."),
         new("platforms.hs.manage","Platforms","المنصات","تحضير وقائع هنقر","استيراد الوقائع واقتراح التوزيع والاعتراض والتصحيح دون اعتماد ذاتي."),
         new("platforms.hs.approve","Platforms","المنصات","اعتماد وقائع هنقر","اعتماد مستقل للوقائع والتوزيع والعكس ضمن النطاق المالي."),
@@ -51,8 +55,13 @@ public static class UserAccess
         new("treasury.jahez.handover", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "تسليم وتصفير عهدة صندوق جاهز للصندوق الداخلي", "ترحيل وتصفير رصيد خزنة جاهز الميدانية (SUP.*) في نهاية اليوم إلى الصندوق الداخلي الرئيسي (MAIN.*)."),
 
         // الاعتمادات المتبادلة والإشعارات وتطبيق المندوب
+        new("advances.request", "Approvals", "الاعتمادات المتبادلة والإشعارات", "رفع طلبات السلف للمناديب تحت الإشراف", "المشرف يطلب سلفة نقدية أو بنكية لمندوب تحت إشرافه حسب نظام الرتب (BR §25)."),
+        new("advances.review", "Approvals", "الاعتمادات المتبادلة والإشعارات", "مراجعة طلبات السلف واعتمادها", "متاحة للمحاسب المكلّف فقط عبر التوجيه؛ الصلاحية وحدها لا تكفي."),
+        new("advances.payout", "Approvals", "الاعتمادات المتبادلة والإشعارات", "صرف السلف المعتمدة من الخزنة أو البنك", "متاحة لمسؤول الخزنة أو البنك المكلّف فقط."),
+        new("org.manage", "Approvals", "الاعتمادات المتبادلة والإشعارات", "إدارة الأقسام والرتب والتفويضات والإشراف والتوجيه", "سجلات مؤرخة لا تُحذف."),
         new("approvals.view", "Approvals", "الاعتمادات المتبادلة والإشعارات", "استعراض طلبات الاعتماد ومركز الإشعارات", "متابعة الطلبات المتبادلة بين الموارد البشرية والمالية والتشغيل وقائمة المهام."),
         new("approvals.decide", "Approvals", "الاعتمادات المتبادلة والإشعارات", "البت في طلبات الاعتماد المتبادل (موافقة/رفض/تعليق)", "اعتماد أو رفض أو تعليق المعاملات المشتركة بين الأقسام حسب الرتبة الوظيفية."),
+        new("mobile.sessions", "Approvals", "الاعتمادات المتبادلة والإشعارات", "إدارة جلسات تطبيق المندوب", "عرض وإلغاء الجلسات ضمن نطاق الشركة دون كشف رموز الدخول أو الجهاز."),
         new("mobile.broadcast", "Approvals", "الاعتمادات المتبادلة والإشعارات", "إرسال إشعارات وتوجيهات لتطبيق المندوب", "بث الإشعارات المالية والإدارية والتشغيلية وروابط النماذج لبوابة المندوب."),
 
         new("forms.view", "Controls", "ضوابط العمليات", "عرض النماذج والردود", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
@@ -90,13 +99,13 @@ public static class UserAccess
 
         new("FinancialManager", "المدير المالي", "FIN", 4,
             "قراءة التقارير المالية ومعاينة وتصدير ملف البنك ضمن النطاق.",
-            ["treasury.view","treasury.journals","payroll.view","riders.view","debts.view","finance.bankfile.export","platforms.hs.view"]),
+            ["treasury.view","treasury.journals","payroll.view","riders.view","debts.view","finance.bankfile.export","platforms.hs.view","pay.view","operations.view"]),
 
         new("Accountant", "محاسب مالي ومسؤول خزينة", "FIN", 3,
             "إدارة الصندوق الداخلي والبنوك، تسجيل وتحصيل المديونيات والسلف وطلبات HR، التحويل بين الصناديق، واستيراد أرصدة أول المدة.",
             [
-                "platforms.hs.view", "platforms.hs.manage",
-                "riders.view", "riders.view_360",
+                "pay.view", "pay.manage", "platforms.hs.view", "platforms.hs.manage",
+                "operations.view", "riders.view", "riders.view_360",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
                 "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
                 "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
@@ -106,8 +115,8 @@ public static class UserAccess
         new("FinancialAccountant", "رئيس الحسابات والخزينة المركزية", "FIN", 4,
             "الإشراف المالي الكامل على الخزينة المركزية (MAIN) والبنوك (BANK)، مطابقة وتصديق تحصيلات HR وتصفيات جاهز، واعتماد القيود.",
             [
-                "platforms.hs.view", "platforms.hs.manage", "platforms.hs.approve",
-                "riders.view", "riders.view_360",
+                "pay.view", "pay.manage", "platforms.hs.view", "platforms.hs.manage", "platforms.hs.approve", "pay.approve",
+                "operations.view", "riders.view", "riders.view_360",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
                 "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
                 "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
@@ -117,7 +126,7 @@ public static class UserAccess
         new("HRSpecialist", "أخصائي الموارد البشرية والعلاقات الحكومية", "HR", 2,
             "إنشاء طلبات خدمات الموارد البشرية (رخص العمل، الإقامات، نقل الكفالة، التأشيرات، التأمين)، تحديد نسب التحمل، وتوثيق ملفات المناديب.",
             [
-                "riders.view", "riders.view_360", "riders.edit",
+                "operations.view", "riders.view", "riders.view_360", "riders.edit",
                 "debts.view", "debts.create.hr", "debts.create.advance",
                 "approvals.view", "approvals.decide", "mobile.broadcast", "forms.review"
             ]),
@@ -125,7 +134,7 @@ public static class UserAccess
         new("OperationsManager", "مدير التشغيل والمنصات", "OPS", 4,
             "الإشراف التشغيلي على المناديب والمنصات، متابعة المديونيات وكشوف الحساب، ومراجعة الاعتمادات والتقارير.",
             [
-                "riders.view", "riders.view_360", "riders.edit",
+                "operations.view", "riders.view", "riders.view_360", "riders.edit",
                 "debts.view", "debts.create.platform", "debts.create.fleet", "debts.reschedule",
                 "treasury.view", "treasury.jahez.manage", "treasury.jahez.handover",
                 "approvals.view", "approvals.decide", "mobile.broadcast", "payroll.view", "forms.review"
@@ -134,7 +143,7 @@ public static class UserAccess
         new("PlatformsSupervisor", "مشرف منصات وعهدة صندوق جاهز", "OPS", 2,
             "إدارة معاملات تطبيق جاهز، تحصيل مديونيات كاش جاهز ورسوم فتح الحسابات (SUP.*)، وتسليم وتصفير العهدة للصندوق الداخلي.",
             [
-                "riders.view", "riders.view_360",
+                "operations.view", "riders.view", "riders.view_360",
                 "debts.view", "debts.create.platform", "debts.collect",
                 "treasury.view", "treasury.jahez.manage", "treasury.jahez.handover",
                 "approvals.view", "mobile.broadcast"
@@ -143,7 +152,7 @@ public static class UserAccess
         new("FleetSupervisor", "مشرف الحركة والأسطول والورشة", "FLT", 2,
             "تسجيل المخالفات المرورية وتلفيات الحوادث وأقساط المركبات وفروقات الوقود ومتابعة مديونيات الأسطول.",
             [
-                "riders.view", "riders.view_360", "riders.edit",
+                "operations.view", "riders.view", "riders.view_360", "riders.edit",
                 "debts.view", "debts.create.fleet",
                 "approvals.view"
             ]),
@@ -332,7 +341,7 @@ public static class UserAccess
             roles = RolesCatalog,
             permissions = PermissionsCatalog,
             departments = FinancialCore.DepartmentsCatalog,
-            financialScopeCatalog=new{sponsors=FinancialCore.Sponsors,accounts=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault),categories=FinancialCore.CategoriesCatalog,platforms=new[]{"Jahez","Keeta","HungerStation","Ninja","Other"}}
+            financialScopeCatalog=new{sponsors=FinancialCore.Sponsors,accounts=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault),categories=FinancialCore.CategoriesCatalog,platforms=new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}}
         }).WithTags("Administration").WithSummary("Read roles catalog");
 
         api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(Public))).WithTags("Administration").WithSummary("Read users");

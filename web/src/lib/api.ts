@@ -15,6 +15,35 @@ import type {
   CustomForm,
   PaginatedResult,
   ApiErrorPayload,
+  HsInvoice,
+  HsDispute,
+  HsAllocation,
+  HsFact,
+  HsProposedJournal,
+  HsImportFile,
+  HsImportPreviewResult,
+  FinanceAccount,
+  FinanceJournal,
+  BankPayrollFilePreview,
+  DebtRecord,
+  ApprovalRequest,
+  PromissoryNote,
+  RiderRecord,
+  RiderProfile360,
+  RidersDataQuality,
+  RidersBaselineSyncResult,
+  RiderStatement,
+  TargetCoaResponse,
+  TrialBalanceResponse,
+  IncomeStatementResponse,
+  AdvanceRequest,
+  AdvanceRequestSummary,
+  OrgCatalog,
+  OrgMembership,
+  OrgDelegation,
+  OrgSupervision,
+  OrgRouting,
+  OrgResponsibleUser,
 } from './types';
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
@@ -575,12 +604,40 @@ export const api = {
 
   getMe: () => handleRequest<UserProfile>('/me'),
   getDashboard: () => handleRequest<DashboardMetrics>('/dashboard'),
-  getNotificationsSummary: () => handleRequest<NotificationSummary>('/notifications/summary'),
-  getNotifications: (params?: { category?: string; unread?: boolean }) => {
+  getNotificationsSummary: async () => {
+    const raw = await handleRequest<Record<string, number>>('/notifications/summary');
+    const general = raw.general || 0;
+    const personal = raw.personal || 0;
+    const system = raw.system || 0;
+    const approvals = raw.approvals || 0;
+    const total = general + personal + system + approvals;
+    return {
+      unreadCount: total,
+      approvalCount: approvals,
+      byCategory: {
+        general,
+        personal,
+        system,
+        approvals,
+      },
+    } as NotificationSummary;
+  },
+  getNotifications: async (params?: { category?: string; unread?: boolean }) => {
     const qs = new URLSearchParams();
     if (params?.category) qs.set('category', params.category);
     if (params?.unread) qs.set('unread', 'true');
-    return handleRequest<NotificationItem[]>(`/notifications?${qs.toString()}`);
+    const res = await handleRequest<any[]>(`/notifications?${qs.toString()}`);
+    return (res || []).map((n) => ({
+      ...n,
+      title: n.titleAr || n.title || 'إشعار جديد',
+      message: n.bodyAr || n.message || '',
+      category: n.category || 'general',
+      unread: Boolean(n.unread),
+      requiresAction: Boolean(n.requiresAction),
+      actionStatus: n.actionStatus || 'none',
+      link: n.link || (n.taskKind === 'advance_request' ? '/debts/?tab=advance_requests' : undefined),
+      actionText: n.actionText || (n.taskKind === 'advance_request' ? 'عرض طلب السلفة' : undefined),
+    })) as NotificationItem[];
   },
   markNotificationRead: (id: string) => handleRequest<{ success: boolean }>(`/notifications/${id}/read`, { method: 'POST' }),
   markAllNotificationsRead: () => handleRequest<{ success: boolean }>('/notifications/read-all', { method: 'POST' }),
@@ -707,5 +764,557 @@ export const api = {
       throw new ApiError(err.error || 'تعذر تصدير Excel', res.status);
     }
     return res.blob();
+  },
+
+  // ==========================================
+  // HungerStation Platform Review (R3 Part A)
+  // ==========================================
+  getHsInvoices: (params?: { companyId?: string; period?: string; status?: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.period) q.set('period', params.period);
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<PaginatedResult<HsInvoice>>(`/platforms/hs/invoices${qs}`);
+  },
+
+  previewHsImport: (input: { period: string; files: HsImportFile[] }) =>
+    handleRequest<HsImportPreviewResult>('/platforms/hs/invoices/import/preview', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  commitHsImport: (input: { period: string; files: HsImportFile[]; rows: any[]; fingerprint: string; confirm: boolean }) =>
+    handleRequest<{ ok: boolean; count: number; invoiceId?: string }>('/platforms/hs/invoices/import/commit', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  approveHsInvoice: (id: string, input: { rows: any[]; fingerprint: string; confirm: boolean }) =>
+    handleRequest<HsInvoice>(`/platforms/hs/invoices/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  getHsDisputes: (params?: { companyId?: string; period?: string; status?: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.period) q.set('period', params.period);
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<PaginatedResult<HsDispute>>(`/platforms/hs/disputes${qs}`);
+  },
+
+  createHsDispute: (invoiceId: string, input: { lineId: string; category: string; amount: number; reason: string }) =>
+    handleRequest<HsDispute>(`/platforms/hs/invoices/${encodeURIComponent(invoiceId)}/dispute`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  resolveHsDispute: (
+    invoiceId: string,
+    input: { mode: 'dispute'; disputeId: string; outcome: 'platform_credit' | 'platform_rejected'; platformReference: string; reason: string }
+  ) =>
+    handleRequest<HsDispute>(`/platforms/hs/invoices/${encodeURIComponent(invoiceId)}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  getHsAllocations: (params?: { companyId?: string; period?: string; status?: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.period) q.set('period', params.period);
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<PaginatedResult<HsAllocation>>(`/platforms/hs/allocations${qs}`);
+  },
+
+  splitHsAllocation: (
+    lineId: string,
+    input: { companyAmount?: number; riderAmount?: number; riderId?: string; riderPercent?: number }
+  ) =>
+    handleRequest<HsAllocation>(`/platforms/hs/allocations/${encodeURIComponent(lineId)}`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  approveHsAllocation: (id: string) =>
+    handleRequest<HsAllocation>(`/platforms/hs/allocations/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+    }),
+
+  getHsFacts: (params: { kind: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams({ kind: params.kind });
+    if (params.page) q.set('page', String(params.page));
+    if (params.pageSize) q.set('pageSize', String(params.pageSize));
+    return handleRequest<PaginatedResult<HsFact>>(`/platforms/hs/facts?${q.toString()}`);
+  },
+
+  getHsProposedJournals: (params?: { invoiceId?: string; kind?: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.invoiceId) q.set('invoiceId', params.invoiceId);
+    if (params?.kind) q.set('kind', params.kind);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<any>(`/platforms/hs/proposed-journals${qs}`);
+  },
+
+  // ==========================================
+  // Treasury & Banks (R3 Part B1)
+  // ==========================================
+  getFinanceAccounts: (sponsorId?: string) => {
+    const qs = sponsorId ? `?sponsorId=${encodeURIComponent(sponsorId)}` : '';
+    return handleRequest<FinanceAccount[]>(`/finance/accounts${qs}`);
+  },
+
+  getFinanceJournals: (params?: { sponsorId?: string; iqama?: string; accountCode?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.iqama) q.set('iqama', params.iqama);
+    if (params?.accountCode) q.set('accountCode', params.accountCode);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<FinanceJournal[]>(`/finance/journals${qs}`);
+  },
+
+  previewBankFile: (input: { period: string; sponsorId?: string }) =>
+    handleRequest<BankPayrollFilePreview>('/finance/bank-file/preview', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  exportBankFile: async (input: { period: string; sponsorId?: string }) => {
+    if (isMock) {
+      return new Blob(['Mock Bank CSV File'], { type: 'text/csv' });
+    }
+    const res = await fetch('/api/finance/bank-file/export', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'تعذر تصدير ملف البنك' }));
+      throw new ApiError(err.error || 'تعذر تصدير ملف البنك', res.status);
+    }
+    return res.blob();
+  },
+
+  transferVault: (input: {
+    sourceAccountCode: string;
+    targetAccountCode: string;
+    amount: number;
+    description: string;
+    sponsorId?: string;
+  }) =>
+    handleRequest<{ ok: boolean; journalId: string }>('/finance/vault-transfer', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  // ==========================================
+  // Debts & Advances (R3 Part B2)
+  // ==========================================
+  getDebts: (params?: { sponsorId?: string; category?: string; status?: string; iqama?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.category) q.set('category', params.category);
+    if (params?.status) q.set('status', params.status);
+    if (params?.iqama) q.set('iqama', params.iqama);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<DebtRecord[]>(`/debts${qs}`);
+  },
+
+  getRiderStatement: (iqama: string, from?: string, to?: string, sponsorId?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    if (sponsorId) q.set('sponsorId', sponsorId);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<RiderStatement>(`/finance/statement/rider/${encodeURIComponent(iqama)}${qs}`);
+  },
+
+  getRiderStatementSimple: (iqama: string, from: string, to: string, sponsorId?: string) => {
+    const q = new URLSearchParams({ from, to });
+    if (sponsorId) q.set('sponsorId', sponsorId);
+    return handleRequest<any>(`/finance/statement/rider/${encodeURIComponent(iqama)}/simple?${q.toString()}`);
+  },
+
+  getApprovals: (params?: { department?: string; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.department) q.set('department', params.department);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<ApprovalRequest[]>(`/approvals${qs}`);
+  },
+
+  decideApproval: (id: string, input: { decision: 'approved' | 'rejected' | 'suspended'; note?: string }) =>
+    handleRequest<{ ok: boolean }>(`/approvals/${id}/decide`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  getPromissoryNotes: () =>
+    handleRequest<{ featureEnabled: boolean; items: PromissoryNote[] }>('/promissory-notes'),
+
+  // ==========================================
+  // Accounting & Reports (R3 Part B3)
+  // ==========================================
+  getTargetCoa: () => handleRequest<TargetCoaResponse>('/finance/coa/target'),
+
+  getTrialBalance: (params?: { sponsorId?: string; from?: string; to?: string; view?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    if (params?.view) q.set('view', params.view);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<TrialBalanceResponse>(`/finance/trial-balance${qs}`);
+  },
+
+  getIncomeStatement: (params?: { sponsorId?: string; from?: string; to?: string; view?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    if (params?.view) q.set('view', params.view);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<IncomeStatementResponse>(`/finance/income-statement${qs}`);
+  },
+
+  // Riders Directory APIs (Track L & Spec 09)
+  getRiders: (params?: { search?: string; status?: string; sponsorId?: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.status) q.set('status', params.status);
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<RiderRecord[]>(`/riders${qs}`);
+  },
+
+  getRiderProfile360: (iqama: string) =>
+    handleRequest<RiderProfile360>(`/riders/${encodeURIComponent(iqama)}/profile-360`),
+
+  getRidersDataQuality: () =>
+    handleRequest<RidersDataQuality>('/riders/data-quality'),
+
+  syncRidersBaseline: (payload: { mode: 'preview' | 'commit'; useLocalBaseline?: boolean; fingerprint?: string; riders?: any[] }) =>
+    handleRequest<RidersBaselineSyncResult>('/riders/sync-baseline', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  enrichRidersMissing: () =>
+    handleRequest<{ enrichedExisting: number; addedFromSources: number; totalRidersNow: number }>('/riders/enrich-missing', {
+      method: 'POST',
+    }),
+
+  uploadRiderDocument: (
+    iqama: string,
+    input: {
+      documentTypeCode: string;
+      documentNumber?: string;
+      issueDate?: string;
+      expiryDate?: string;
+      fileName?: string;
+      dataBase64?: string;
+      notes?: string;
+    }
+  ) =>
+    handleRequest<any>(`/riders/${encodeURIComponent(iqama)}/documents`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  // Operations & Assets APIs (Codex R4.6)
+  getOperations: (kind: string, params?: { page?: number; pageSize?: number; q?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.page) p.set('page', String(params.page));
+    if (params?.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params?.q) p.set('q', params.q);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return handleRequest<any>(`/operations/${encodeURIComponent(kind)}${qs}`);
+  },
+
+  getRiderAccounts: (iqama: string, params?: { page?: number; pageSize?: number }) => {
+    const p = new URLSearchParams();
+    if (params?.page) p.set('page', String(params.page));
+    if (params?.pageSize) p.set('pageSize', String(params.pageSize));
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return handleRequest<any>(`/riders/${encodeURIComponent(iqama)}/accounts${qs}`);
+  },
+
+  getRiderMonthlyStatement: (iqama: string, period: string) =>
+    handleRequest<any>(`/finance/statement/rider/${encodeURIComponent(iqama)}/monthly?period=${encodeURIComponent(period)}`),
+
+  // ==========================================
+  // Pay Framework APIs (0.14.0 / R4.1 - R4.5)
+  // ==========================================
+  getPayCatalog: () => handleRequest<any>('/pay/catalog'),
+
+  getPayTerms: (app: string, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`);
+  },
+  createPayTerms: (app: string, input: any, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+  approvePayTerms: (app: string, id: string) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/terms/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+
+  getPaySchemes: (app: string, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/schemes${q}`);
+  },
+  createPayScheme: (app: string, input: any, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/schemes${q}`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+  approvePayScheme: (app: string, id: string) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/schemes/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+
+  getPayEligibility: (app: string, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility${q}`);
+  },
+  createPayEligibility: (app: string, input: any, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility${q}`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+  approvePayEligibility: (app: string, id: string) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+
+  copyPayMonth: (app: string, from: string, to: string) =>
+    handleRequest<{ drafts: any[]; created: number; unchanged: number }>(
+      `/pay/apps/${encodeURIComponent(app)}/copy?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      { method: 'POST' }
+    ),
+
+  getGlobalPaySettings: () => handleRequest<any>('/pay/settings'),
+  createGlobalPaySettings: (input: any) =>
+    handleRequest<any>('/pay/settings', { method: 'POST', body: JSON.stringify(input) }),
+  approveGlobalPaySettings: (id: string) =>
+    handleRequest<any>(`/pay/settings/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+
+  getPayAssignments: (app: string, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/assignments${q}`);
+  },
+  previewPayAssignments: (app: string, input: any) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/assignments/import/preview`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  commitPayAssignments: (app: string, input: any) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/assignments/import/commit`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  getPayCycles: (period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<any>(`/pay/cycles${q}`);
+  },
+  createPayCycle: (input: any) =>
+    handleRequest<any>('/pay/cycles', { method: 'POST', body: JSON.stringify(input) }),
+  advancePayCycle: (id: string, input: { stage?: number; action?: string }) =>
+    handleRequest<any>(`/pay/cycles/${encodeURIComponent(id)}/advance`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getPayCycleLines: (id: string, params?: { app?: string; rider?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.app) q.set('app', params.app);
+    if (params?.rider) q.set('rider', params.rider);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<any>(`/pay/cycles/${encodeURIComponent(id)}/lines${qs}`);
+  },
+
+  // ==========================================
+  // Legacy Production Payroll Run APIs (F2)
+  // ==========================================
+  getLegacyPayrollPreview: (period: string) =>
+    handleRequest<any[]>(`/payroll/preview?period=${encodeURIComponent(period)}`),
+  getLegacyPayrollRuns: () =>
+    handleRequest<any[]>('/payroll/runs'),
+  approveLegacyPayrollRun: (input: { iqama: string; period: string; sponsorId: string; fingerprint: string }) =>
+    handleRequest<any>('/payroll/approve', { method: 'POST', body: JSON.stringify(input) }),
+  createAdjustment: (input: { iqama: string; period: string; amount: number; sourceRef: string; category: string; description: string }) =>
+    handleRequest<any>('/adjustments', { method: 'POST', body: JSON.stringify(input) }),
+  createPayment: (input: { iqama: string; period: string; amount: number; sourceRef: string; sponsorId?: string; paymentVaultCode?: string; onBehalf?: boolean; onBehalfNote?: string }) => {
+    const payload: any = { ...input };
+    if (!payload.paymentVaultCode) delete payload.paymentVaultCode;
+    if (!payload.sponsorId) delete payload.sponsorId;
+    return handleRequest<any>('/payments', { method: 'POST', body: JSON.stringify(payload) });
+  },
+  getLedger: (iqama: string) =>
+    handleRequest<{ balance: number; rows: Array<{ period: string; kind: string; amount: number; sourceRef: string }> }>(`/ledger/${encodeURIComponent(iqama)}`),
+  getFinanceCatalog: () =>
+    handleRequest<{ sponsors: any[]; vaults: any[] }>('/finance/catalog'),
+
+  // Admin & Security APIs
+  getUsers: () => handleRequest<any[]>('/users'),
+  createUser: (input: any) =>
+    handleRequest<any>('/users', { method: 'POST', body: JSON.stringify(input) }),
+  updateUser: (id: string, input: any) =>
+    handleRequest<any>(`/users/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }),
+  getRolesCatalog: () => handleRequest<any>('/roles-catalog'),
+  getFirebaseConfig: () => handleRequest<any>('/rider-mobile/firebase-config'),
+  saveFirebaseConfig: (input: any) =>
+    handleRequest<any>('/rider-mobile/firebase-config', { method: 'POST', body: JSON.stringify(input) }),
+
+  // Operational Data Imports APIs (/api/imports/*)
+  inspectImport: (data: { filename: string; dataBase64: string }) =>
+    handleRequest<{ id: string; filename: string; sheets: string[] }>('/imports/inspect', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getImportSheet: (id: string, sheet: string, headerRow?: number) => {
+    const q = new URLSearchParams({ sheet });
+    if (headerRow) q.set('headerRow', String(headerRow));
+    return handleRequest<{ sheet: string; headers: string[]; rowsCount: number; sampleRows: any[] }>(
+      `/imports/${encodeURIComponent(id)}/sheet?${q.toString()}`
+    );
+  },
+  previewImport: (id: string, spec: any) =>
+    handleRequest<any>(`/imports/${encodeURIComponent(id)}/preview`, {
+      method: 'POST',
+      body: JSON.stringify(spec),
+    }),
+  commitImport: (id: string, spec: any) =>
+    handleRequest<any>(`/imports/${encodeURIComponent(id)}/commit`, {
+      method: 'POST',
+      body: JSON.stringify(spec),
+    }),
+  getImportBatches: () => handleRequest<any[]>('/imports'),
+
+  // Legacy Policies
+  getPolicies: () => handleRequest<any[]>('/policies'),
+
+  // Rider Mobile App APIs (Track M)
+  getRiderBroadcasts: () => handleRequest<any[]>('/rider-mobile/broadcasts'),
+  sendRiderBroadcast: (input: { category?: string; titleAr: string; bodyAr: string; iqama?: string; actionUrl?: string; requiresAck?: boolean }) =>
+    handleRequest<any>('/rider-mobile/broadcast', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  // ========================================================
+  // R5 ADVANCES & ORG DIRECTORY APIS (BR §25)
+  // ========================================================
+
+  // Advance Requests
+  createAdvanceRequest: (body: { riderIqama: string; type: 'cash' | 'bank'; amount: number; reason: string; vaultCode?: string }) =>
+    handleRequest<AdvanceRequest>('/advance-requests', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  getAdvanceRequests: (params?: { role?: 'mine' | 'review' | 'payout'; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.role) q.set('role', params.role);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString();
+    return handleRequest<AdvanceRequest[]>(`/advance-requests${qs ? `?${qs}` : ''}`);
+  },
+  getAdvanceRequest: (id: string) => handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}`),
+  getAdvanceRequestSummary: (id: string) => handleRequest<AdvanceRequestSummary>(`/advance-requests/${encodeURIComponent(id)}/summary`),
+  reviewAdvanceRequest: (
+    id: string,
+    body: {
+      action: 'approve' | 'reject' | 'propose';
+      note?: string;
+      monthlyInstallment?: number;
+      coverageReason?: string;
+      proposed?: { type?: 'cash' | 'bank'; amount?: number; vaultCode?: string };
+      revision?: number;
+    }
+  ) =>
+    handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}/review`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  respondToAdvanceProposal: (id: string, body: { action: 'accept' | 'reject'; note?: string }) =>
+    handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}/respond`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  payoutAdvanceRequest: (id: string, body: { reference: string; note?: string }) =>
+    handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}/payout`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  // Org Directory (Departments, Ranks, Delegations, Supervision, Routing)
+  getOrgCatalog: () => handleRequest<OrgCatalog>('/org/catalog'),
+  getOrgMemberships: () => handleRequest<OrgMembership[]>('/org/memberships'),
+  createOrgMembership: (body: { userId: string; department: string; rank: string; validFrom?: string; validTo?: string }) =>
+    handleRequest<OrgMembership>('/org/memberships', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  endOrgMembership: (id: string, body?: { validTo?: string }) =>
+    handleRequest<OrgMembership>(`/org/memberships/${encodeURIComponent(id)}/end`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }),
+  getOrgDelegations: () => handleRequest<OrgDelegation[]>('/org/delegations'),
+  createOrgDelegation: (body: { fromUser: string; toUser: string; operation: string; validFrom?: string; until: string; reason?: string }) =>
+    handleRequest<OrgDelegation>('/org/delegations', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  endOrgDelegation: (id: string, body?: { validTo?: string }) =>
+    handleRequest<OrgDelegation>(`/org/delegations/${encodeURIComponent(id)}/end`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }),
+  getOrgSupervision: (params?: { mine?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.mine !== undefined) q.set('mine', String(params.mine));
+    const qs = q.toString();
+    return handleRequest<OrgSupervision[]>(`/org/supervision${qs ? `?${qs}` : ''}`);
+  },
+  createOrgSupervision: (body: { supervisorUserId: string; riderIqama: string; validFrom?: string; validTo?: string }) =>
+    handleRequest<OrgSupervision>('/org/supervision', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  endOrgSupervision: (id: string, body?: { validTo?: string }) =>
+    handleRequest<OrgSupervision>(`/org/supervision/${encodeURIComponent(id)}/end`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }),
+  getOrgRouting: () => handleRequest<OrgRouting[]>('/org/routing'),
+  createOrgRouting: (body: { operation: string; department: string; minRank: string; users: string[]; validFrom?: string; validTo?: string }) =>
+    handleRequest<OrgRouting>('/org/routing', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  endOrgRouting: (id: string, body?: { validTo?: string }) =>
+    handleRequest<OrgRouting>(`/org/routing/${encodeURIComponent(id)}/end`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+    }),
+  getOrgResponsible: (operation: string) => {
+    const q = new URLSearchParams({ operation });
+    return handleRequest<OrgResponsibleUser[]>(`/org/responsible?${q.toString()}`);
   },
 };

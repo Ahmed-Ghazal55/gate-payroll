@@ -1,0 +1,12 @@
+{
+  "values": {
+    "standardDays": 30,
+    "februaryDays": 28,
+    "billingCutoff": "14:00",
+    "timeZone": "Asia/Riyadh",
+    "roundingDigits": 2,
+    "roundingMode": "AwayFromZero",
+    "vehicleRent": {"company_car": 1800, "company_bike": 800, "private": 0},
+    "accounts": {"salaryExpense": "512101", "vehicleIncomeCar": "421101", "vehicleIncomeBike": "421102", "outputVat": "213201"}
+  }
+}

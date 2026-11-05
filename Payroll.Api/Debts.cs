@@ -999,16 +999,19 @@ public static class Debts
         })).WithTags("Debts and advances").WithSummary("Submit debts import opening commit");
     }
 
-    public static void Post(DbConnection c, DbTransaction tx, PayrollResult result, string runId)
+    public static void Post(DbConnection c, DbTransaction tx, PayrollResult result, string runId, bool payCycle = false)
     {
-        var accountingRun=Store.Get(c,runId,"run",tx);
+        var accountingRun=Store.Get(c,runId,payCycle?"pay_cycle":"run",tx);
         foreach (var line in result.Lines.Where(x => x.Category == "debt_installment"))
         {
             var d = Store.Get(c, line.Source, "debt", tx) ?? throw new ApiError("تغير الدين؛ أعد المعاينة.");
             decimal amount = -line.Amount;
             J.Need(amount > 0 && amount <= d.N("remainingBalance") && d.S("status") == "active", "تغير رصيد الدين؛ أعد المعاينة.");
             string key = "debt:" + line.Source + ":" + result.Period;
-            J.Need(Store.Get(c, key, "ledger", tx) == null, "قسط الفترة مرحل بالفعل.");
+            var reversed=Store.List(c,"ledger_reversal",tx).Select(r=>r.S("reversesLedgerId")).ToHashSet();
+            J.Need(!Store.List(c,"ledger",tx).Any(l=>l.S("kind")=="debt_installment"&&l.S("debtId")==line.Source&&l.S("period")==result.Period&&!reversed.Contains(l.S("id"))),"قسط الفترة مرحل بالفعل.");
+            if(payCycle)key+=":"+runId;
+            J.Need(Store.Get(c,key,"ledger",tx)==null,"مرجع القسط موجود بالفعل.");
 
             d["paidAmount"] = J.Money(PaidAmount(d) + amount);
             d["remainingBalance"] = J.Money(d.N("remainingBalance") - amount);
@@ -1032,7 +1035,7 @@ public static class Debts
 
             if(FinancialCore.AssignedDebtSponsor(d)==null)continue; // Legacy payroll ledger remains authoritative until a reviewed sponsor link exists.
             var creditorSp=FinancialCore.RequireDebtSponsor(d);
-            var journal=AccountingEvents.PostInstallment(c,tx,d,result,runId,amount,key);
+            var journal=payCycle?PayPosting.Installment(c,tx,d,result,runId,amount,key):AccountingEvents.PostInstallment(c,tx,d,result,runId,amount,key);
 
             Store.Save(c, "debt_settlement", new()
             {
@@ -1043,7 +1046,7 @@ public static class Debts
                 ["category"] = d.S("category"),
                 ["creditorSponsorId"] = creditorSp.Id,
                 ["creditorSponsorNameAr"] = creditorSp.ShortNameAr,
-                ["targetVaultCode"] = "2110",
+                ["targetVaultCode"] = payCycle?"212103":"2110",
                 ["targetVaultNameAr"] = "استقطاع مباشر من مسير الرواتب",
                 ["method"] = "payroll_deduction",
                 ["collectedAmount"] = amount,

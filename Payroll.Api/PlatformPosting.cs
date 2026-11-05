@@ -6,7 +6,7 @@ namespace Payroll;
 public static class PlatformPosting
 {
     public static readonly string[] Codes=["hs","jahez","keeta","ninja","chefz","amazon"];
-    static readonly string[] HsAccounts=["112802","112803","212103","411601","411102","213201","112502","526402","112507","112306","112501","112513","114107","114101"];
+    static readonly string[] HsAccounts=[PayPlatforms.For("hs").Receivable,"112802","112803","212103","411601","411102","213201","112502","526402","112507","112306","112501","112513","114107","114101"];
     public static string Code(string value){string code=value.ToLowerInvariant();if(code=="hungerstation")code="hs";J.Need(Codes.Contains(code),"منصة غير معروفة.");return code;}
     public static bool Enabled(DbConnection c,string code,DbTransaction? tx=null)=>Store.Get(c,"platformPosting."+Code(code),"setting",tx).B("enabled");
     public static JsonObject Set(DbConnection c,DbTransaction tx,ClaimsPrincipal user,string code,JsonObject input)

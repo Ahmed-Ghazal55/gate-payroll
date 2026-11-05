@@ -5,18 +5,18 @@ import argparse, hashlib, json, re, zipfile
 ROOT = Path(__file__).resolve().parents[1]
 EXACT = {'.gitignore', '.env.example', 'README_AR.md', 'DEPLOYMENT_AR.md',
          'DATA_IMPORT_AR.md', 'UPGRADE_V05_AR.md', 'UPGRADE_V07_AR.md', 'RELEASE_STATUS_AR.md', 'API_CONTRACT.md', 'TABLE_STANDARD_AR.md',
-         'Payroll.Api/Payroll.Api.csproj', 'Payroll.Api/Resources/target-coa.v1.json',
-         'tools/ErpImport/systemd/gate-erp-sync.service', 'tools/ErpImport/systemd/gate-erp-sync.timer', 'tools/generate_target_coa.py', 'tools/api_inventory.py', 'docs/api/ENDPOINTS.md', 'docs/api/hungerstation.md', 'Payroll.Api/appsettings.json',
+         'Payroll.Api/Payroll.Api.csproj', 'Payroll.Api/Resources/target-coa.v1.json', 'Payroll.Api/Resources/pay-defaults.v1.json',
+         'tools/ErpImport/systemd/gate-erp-sync.service', 'tools/ErpImport/systemd/gate-erp-sync.timer', 'tools/generate_target_coa.py', 'tools/api_inventory.py', 'docs/api/ENDPOINTS.md', 'docs/api/hungerstation.md', 'docs/api/pay-framework.md', 'Payroll.Api/appsettings.json',
          'Payroll.Api/appsettings.Production.json', 'Payroll.Api/web.config',
          'Payroll.Api/wwwroot/favicon.svg', 'Payroll.Api/wwwroot/favicon.ico', 'Payroll.Api/wwwroot/index.html', 'Payroll.Api/wwwroot/app.css',
          'Frontend/tsconfig.json', 'RiderForm/package.json', 'RiderForm/package-lock.json',
          'RiderForm/tsconfig.json', 'RiderForm/web/rider-form.html',
          'Run-Local.ps1', 'Publish-MonsterASP.ps1', 'run-local.sh', 'publish-monsterasp.sh',
          '.github/workflows/build-and-deploy.yml'}
-DATA_DOCUMENTS = {'docs/data/SYNC.md', 'docs/data/ERP-DATA-MAP.md', 'docs/data/TARGET-KINDS.md', 'docs/data/README.md', 'docs/data/RECONCILE-2026-11-03.md'}
+DATA_DOCUMENTS = {'docs/data/REPORTING.md', 'docs/data/SYNC.md', 'docs/data/ERP-DATA-MAP.md', 'docs/data/TARGET-KINDS.md', 'docs/data/README.md', 'docs/data/RECONCILE-2026-11-03.md'}
 EXACT |= DATA_DOCUMENTS
 PATTERNS = ['Payroll.Api/*.cs', 'Frontend/src/*.ts', 'RiderForm/src/*.ts',
-            'tools/ErpImport/*.cs', 'tools/ErpImport/*.csproj', 'tools/StoreMigration/*.cs', 'tools/StoreMigration/*.csproj', 'tests/*.mjs', 'tests/Engine.Tests/*.cs', 'tests/Engine.Tests/*.csproj', 'scripts/*.py', 'scripts/fonts-manifest.json']
+            'tools/ReportRebuild/*.cs', 'tools/ReportRebuild/*.csproj', 'tools/ErpImport/*.cs', 'tools/ErpImport/*.csproj', 'tools/StoreMigration/*.cs', 'tools/StoreMigration/*.csproj', 'tests/*.mjs', 'tests/Engine.Tests/*.cs', 'tests/Engine.Tests/*.csproj', 'scripts/*.py', 'scripts/fonts-manifest.json']
 
 def files():
     result = {ROOT / p for p in EXACT if (ROOT / p).is_file()}

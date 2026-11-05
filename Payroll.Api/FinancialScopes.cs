@@ -20,7 +20,7 @@ public static class FinancialScopes
                 if(key=="sponsorIds")FinancialCore.ResolveSponsor(value);
                 if(key=="accountCodes")FinancialCore.ResolveVault(value);
                 if(key=="categoryCodes")FinancialCore.ResolveCategory(value);
-                if(key=="platforms")J.Need(new[]{"Jahez","Keeta","HungerStation","Ninja","Other"}.Contains(value),"منصة غير صالحة في النطاق.");
+                if(key=="platforms")J.Need(new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}.Contains(value),"منصة غير صالحة في النطاق.");
             }
             if(key=="accountCodes")values=values.Select(v=>FinancialCore.ResolveVault(v).Code).Distinct().ToList();
             if(key=="categoryCodes")values=values.Select(v=>FinancialCore.ResolveCategory(v).Code).Distinct().ToList();
@@ -38,7 +38,7 @@ public static class FinancialScopes
         return new JsonObject{
             ["sponsorIds"]=new JsonArray((finance?FinancialCore.Sponsors.Select(s=>s.Id):[]).Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray()),
             ["accountCodes"]=new JsonArray((finance?FinancialCore.ChartOfAccounts.Where(a=>a.IsVault).Select(a=>a.Code):role=="PlatformsSupervisor"?FinancialCore.ChartOfAccounts.Where(a=>a.VaultKind=="JahezCashbox").Select(a=>a.Code):[]).Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray()),
-            ["platforms"]=new JsonArray((role=="PlatformsSupervisor"?new[]{"Jahez"}:new[]{"Jahez","Keeta","HungerStation","Ninja","Other"}).Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray()),
+            ["platforms"]=new JsonArray((role=="PlatformsSupervisor"?new[]{"Jahez"}:new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}).Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray()),
             ["categoryCodes"]=new JsonArray(categories.Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray())
         };
     }
@@ -69,7 +69,7 @@ public static class FinancialScopes
     public static bool Line(ClaimsPrincipal user,JsonObject line)
     {
         if(!Sponsor(user,line.S("sponsorId")))return false;
-        if(line.S("chart")=="target")return AccessPolicy.Has(user,"treasury.journals")&&Platform(user,"HungerStation")&&FinanceViews.Accounts.Any(a=>a.S("code")==line.S("accountCode")&&a.B("posting")&&a.S("status")=="active");
+        if(line.S("chart")=="target")return AccessPolicy.Has(user,"treasury.journals")&&(line["platforms"] is JsonArray apps&&apps.Count>0?apps.All(p=>Platform(user,p!.ToString())):Platform(user,line.S("platform","HungerStation")))&&FinanceViews.Accounts.Any(a=>a.S("code")==line.S("accountCode")&&a.B("posting")&&a.S("status")=="active");
         return FinancialCore.ResolveAccount(line.S("accountCode")).IsVault?Account(user,line.S("accountCode")):AccessPolicy.Has(user,"treasury.journals");
     }
     public static JsonObject? Journal(ClaimsPrincipal user,JsonObject journal)

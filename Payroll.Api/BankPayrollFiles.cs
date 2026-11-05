@@ -49,7 +49,7 @@ public static class BankPayrollFiles
         var amounts=new Dictionary<string,decimal>();
         var eligible=Store.List(c,"run",tx).Where(r=>r.S("approvedAt")!=""&&r.S("sponsorId")==request.Sponsor&&string.CompareOrdinal(r.S("period"),request.From)>=0&&string.CompareOrdinal(r.S("period"),request.To)<=0).Select(r=>r.S("iqama")).ToHashSet(StringComparer.Ordinal);
         foreach(var journal in Store.List(c,"journal",tx).Where(FinanceViews.Posted).Where(j=>string.CompareOrdinal(j.S("period"),request.To)<=0))
-        foreach(var line in (journal["lines"] as JsonArray??[]).OfType<JsonObject>().Where(l=>l.S("accountCode")=="2110"&&l.S("sponsorId")==request.Sponsor&&l.S("iqama")!=""))
+        foreach(var line in (journal["lines"] as JsonArray??[]).OfType<JsonObject>().Where(l=>l.S("accountCode") is "2110" or "212103"&&l.S("sponsorId")==request.Sponsor&&l.S("iqama")!=""))
         {
             string iqama=line.S("iqama");
             J.Period(journal.S("period"));
@@ -76,7 +76,7 @@ public static class BankPayrollFiles
     public static JsonObject Preview(DbConnection c,ClaimsPrincipal user,JsonObject input)
     {
         var request=Request(user,input);var(rows,excluded)=Rows(c,null,user,request);
-        return new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To,["basis"]="posted_2110_closing_payable",["rows"]=rows,["excludedRows"]=excluded,["previewToken"]=FinancialImports.Issue(c,Kind(request),rows,user.Identity?.Name??""),["expiresInSeconds"]=1200,["canExport"]=rows.Count>0&&rows.OfType<JsonObject>().All(r=>r["errors"]!.AsArray().Count==0)};
+        return new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To,["basis"]=Store.List(c,PayCycles.Kind).Any(d=>d.S("status")=="approved"&&d.S("companyId")==request.Sponsor&&string.CompareOrdinal(d.S("period"),request.To)<=0)?"posted_2110_212103_closing_payable":"posted_2110_closing_payable",["rows"]=rows,["excludedRows"]=excluded,["previewToken"]=FinancialImports.Issue(c,Kind(request),rows,user.Identity?.Name??""),["expiresInSeconds"]=1200,["canExport"]=rows.Count>0&&rows.OfType<JsonObject>().All(r=>r["errors"]!.AsArray().Count==0)};
     }
     public static Download Export(DbConnection c,DbTransaction tx,ClaimsPrincipal user,JsonObject input)
     {

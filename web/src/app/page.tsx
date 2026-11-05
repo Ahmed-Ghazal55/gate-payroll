@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import type { DashboardMetrics } from '../lib/types';
+import { inApp } from '../lib/paths';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
 import { DataTable, ColumnDef } from '../components/ui/DataTable';
@@ -78,9 +79,9 @@ export default function DashboardPage() {
         eyebrow="مساحة الإدارة 1.0"
         description="ابدأ ببيانات تشغيلية فعلية، راجع مصدر كل بند، ثم اعتمد المسير قبل مشاركته وترحيله للمالية."
         primaryAction={{
-          label: 'استيراد بيانات تشغيل',
+          label: 'استيراد بيانات التشغيل',
           onClick: () => {
-            window.location.href = '/legacy/#/imports';
+            window.location.href = inApp('/imports/');
           },
           icon: <Upload size={16} />,
         }}
@@ -218,7 +219,7 @@ export default function DashboardPage() {
                   آخر العمليات وسجل التدقيق
                 </h3>
                 <Link
-                  href="/admin/"
+                  href={inApp('/admin/')}
                   className="text-xs font-semibold text-[var(--accent)] hover:underline"
                 >
                   عرض كل السجل
@@ -248,7 +249,7 @@ export default function DashboardPage() {
 
                 <div className="flex flex-col gap-2">
                   <Link
-                    href="/forms/?tab=campaigns"
+                    href={inApp('/forms/?tab=campaigns')}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:opacity-90 transition shadow-xs"
                   >
                     <span>إنشاء حملة نماذج جديدة</span>
@@ -256,7 +257,7 @@ export default function DashboardPage() {
                   </Link>
 
                   <Link
-                    href="/forms/?tab=responses"
+                    href={inApp('/forms/?tab=responses')}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] rounded-lg border border-[var(--line)] transition"
                   >
                     <span>صندوق مراجعة الردود</span>

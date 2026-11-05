@@ -3,14 +3,29 @@ from pathlib import Path
 import re
 ROOT = Path(__file__).resolve().parents[1]
 DEPRECATED = {'/api/template.csv', '/api/payroll/fingerprint', '/api/imports', '/api/debts/settlements', '/api/public/forms/{token}/resume', '/api/system/release-check'}
-GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Companies and registrations':'الشركات والسجلات', 'Platforms':'المنصات', 'Payroll':'الرواتب', 'Debts and advances':'المديونيات والسلف', 'Banks and treasury':'البنوك والصناديق والخزن', 'Accounting and reports':'المحاسبة والتقارير', 'Forms and responses':'النماذج والردود', 'Administration':'الإدارة'}
+GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Companies and registrations':'الشركات والسجلات', 'Platforms':'المنصات', 'Payroll':'الرواتب', 'Operations':'العمليات', 'Debts and advances':'المديونيات والسلف', 'Banks and treasury':'البنوك والصناديق والخزن', 'Accounting and reports':'المحاسبة والتقارير', 'Forms and responses':'النماذج والردود', 'Administration':'الإدارة'}
 def permission(method,p):
  if p.startswith(('/api/public/', '/api/auth/')) or not p.startswith('/api/'): return 'public (rider portal: own authenticated rider)'
  if p.startswith(('/api/rider-mobile/login','/api/rider-mobile/portal/')) or p.startswith('/api/rider-mobile/broadcasts/') and p.endswith('/ack'):return 'own rider session / one-time inquiry code'
+ if p in ('/api/rider-mobile/sessions/mine','/api/rider-mobile/logout'):return 'Active rider bearer token; own sessions only'
+ if p.startswith('/api/rider-mobile/sessions'):return 'mobile.sessions (Admin / SuperAdmin); company or sponsor scope; safe hash prefix only'
+ if p=='/api/rider-mobile/broadcasts':return 'mobile.broadcast + company scope OR active rider bearer token (own and ALL)'
  if p=='/api/inquiry-access':return 'inquiry.issue + full company/category scope (+ payroll.view for payslip/mobile)'
  if p.startswith('/api/notifications/center/') and p.endswith('/toggle-todo'):return 'approvals.view OR owner; department visibility'
  if p=='/api/notifications/center':return 'approvals.view' if method=='GET' else 'mobile.broadcast'
  if p in ('/api/me','/api/roles-catalog','/api/search') or p.startswith('/api/notifications'):return 'authenticated; category/owner visibility in handler'
+ if '/assignments/import/' in p and p.startswith('/api/pay/'): return 'Admin / SuperAdmin + pay.manage; signed source-approved pre-month choices'
+ if p=='/api/org/catalog':return 'authenticated'
+ if p=='/api/org/supervision' and method=='GET':return 'advances.request (mine=1) or org.manage'
+ if p.startswith('/api/org/'):return 'org.manage (Admin); dated rows, never deleted'
+ if p.startswith('/api/advance-requests/') and p.endswith('/summary'):return 'advances.review + routed responsible (Admin oversight)'
+ if p.startswith('/api/advance-requests'):return {'GET':'advances.request / advances.review / advances.payout; handler shows own, assigned or custodian rows'}.get(method,'advances.request' if p=='/api/advance-requests' or p.endswith('/respond') else 'advances.review + routed responsible (BR §25)' if p.endswith('/review') else 'advances.payout + routed vault custodian')
+ if p=='/api/rider-mobile/statement':return 'Active rider bearer token; own approved cycles or approved legacy fallback'
+ if p.startswith('/api/finance/statement/rider/') and p.endswith('/monthly'):return 'pay.view + payroll.view + debts.view; full company/app/debt scope'
+ if p.startswith('/api/operations/') or p.startswith('/api/riders/') and p.endswith('/accounts'):return 'operations.view; company/platform scope; always paginated'
+ if p.startswith('/api/pay/cycles'):
+  return ('pay.view' if method=='GET' else 'pay.manage or pay.approve; handler checks next stage; independent FIN approval') + '; company and every app scope'
+ if p.startswith('/api/pay/'): return ('pay.view' if method=='GET' else 'pay.approve + independent FIN checker' if p.endswith('/approve') else 'pay.manage') + '; app scope; shared writes need all companies'
  if p.startswith('/api/platforms/hs/invoices/import/'): return 'platforms.hs.manage; signed preview + company/platform scope'
  if p.startswith('/api/platforms/hs/') and not p.endswith('/posting'): return ('platforms.hs.view' if method=='GET' else 'platforms.hs.approve; independent maker-checker' if p.endswith('/approve') else 'platforms.hs.manage (resolve dispute response: platforms.hs.approve)') + '; company/platform scope'
  if p.startswith('/api/platforms/') and p.endswith('/posting'): return 'Admin / SuperAdmin; audited platform gate'
@@ -59,7 +74,7 @@ def routes():
    # Metadata belongs to the declaration before the next route.
    end=re.search(r'\b(?:app|api)\.Map(?:Get|Post|Put|Delete|Patch)\(',s[m.end():]);tail=s[m.end():m.end()+end.start()] if end else s[m.end():]
    tag=re.search(r'\.WithTags\("([^"]+)"',tail);group=tag[1] if tag else 'Administration'
-   caller='rider form' if p.startswith(('/api/public/forms','/api/public/questionnaires','/api/public/inquiry')) else 'rider app' if p.startswith('/api/rider-mobile') and ('portal' in p or 'ack' in p or 'login' in p) else 'none'
+   caller='rider form' if p.startswith(('/api/public/forms','/api/public/questionnaires','/api/public/inquiry')) else 'rider app' if p.startswith('/api/rider-mobile') and ('portal' in p or 'ack' in p or 'login' in p or p.endswith(('/mine','/logout','/statement'))) else 'none'
    if caller=='none':
     prefix=p.split('{',1)[0].rstrip('/')
     variants={prefix,prefix.removeprefix('/api')}
@@ -80,7 +95,7 @@ def routes():
 
 def main():
  version=re.search(r'Version="([^"]+)"',(ROOT/'Payroll.Api/ReleaseSafety.cs').read_text()).group(1)
- rows=routes();out=[f'# Endpoint index — {version} API / R2','', 'Generated by `python3 tools/api_inventory.py`; built-in admin-only OpenAPI: `/openapi/v1.json`.','', 'Permissions below are minimum route gates; existing handler checks, company scope and maker-checker also apply. Lists use `period=yyyy-MM`, ranges `from/to=yyyy-MM-dd`; opt-in `page>=1`, `pageSize<=200`, `q`, `sort=field|-field` return `{items,total,page,pageSize}`. Without `page`, legacy responses are unchanged.','', 'Review actions stay on their existing routes. `/promissory-notes` is the document archive; `/finance/features/promissory-notes` is its feature setting. Deprecated routes remain callable.','']
+ rows=routes();assert {r[0] for r in rows} <= set(GROUPS), 'Every route tag must have an inventory group';out=[f'# Endpoint index — {version} API / R4 backend','', 'Generated by `python3 tools/api_inventory.py`; built-in admin-only OpenAPI: `/openapi/v1.json`.','', 'Permissions below are minimum route gates; existing handler checks, company scope and maker-checker also apply. Lists use `period=yyyy-MM`, ranges `from/to=yyyy-MM-dd`; opt-in `page>=1`, `pageSize<=200`, `q`, `sort=field|-field` return `{items,total,page,pageSize}`. Without `page`, legacy responses are unchanged.','', 'Review actions stay on their existing routes. `/promissory-notes` is the document archive; `/finance/features/promissory-notes` is its feature setting. Deprecated routes remain callable.','']
  for group,label in GROUPS.items():
   out += ['## '+label,'','| Method | Path | Source | Permission | Caller | Status |','|---|---|---|---|---|---|']
   for g,m,p,f,perm,c,st in sorted(rows):

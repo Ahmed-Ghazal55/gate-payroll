@@ -23,6 +23,10 @@ public static class Notifications
         return category=="general";
     }
     static string ReadId(ClaimsPrincipal user,string id)=>"notification-read:"+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Identity(user)+"\n"+id)));
+    public static List<JsonObject> Center(DbConnection c,ClaimsPrincipal user)=>Store.List(c,"sys_notification").Where(n=>
+        Category(n)=="personal" ? Visible(c,user,n) :
+        AccessPolicy.Administrator(user)||(n.S("targetDepartment")==user.FindFirst("department")?.Value||n.S("targetDepartment")=="ALL")&&
+        (n.S("approvalId")==""||Store.Get(c,n.S("approvalId"),"approval_request") is {} approval&&FinancialScopes.Approval(user,approval,c))).ToList();
     public static List<JsonObject> Inbox(DbConnection c,ClaimsPrincipal user,DbTransaction? tx=null)
     {
         var read=Store.List(c,"notification_read",tx).Where(r=>r.S("userId")==Identity(user)).Select(r=>r.S("notificationId")).ToHashSet(StringComparer.Ordinal);
@@ -44,6 +48,22 @@ public static class Notifications
         if(companyId!=null)notification["companyId"]=companyId;if(platform!=null)notification["platform"]=platform;
         Store.Save(c,"sys_notification",notification,tx);
         Store.Audit(c,tx,"notification.system_created",id,actor);
+    }
+    // BR §25.2: a personal task for named users. Only the addressee sees it; reading is not deciding.
+    public static void RaiseFor(DbConnection c,DbTransaction tx,IEnumerable<string> users,string eventId,string title,string body,string actor,string taskKind,string entityId,bool requiresAction,string? companyId=null)
+    {
+        foreach(var user in users.Where(u=>u!="").Distinct())
+        {
+            string id="notice:"+eventId+":"+user;if(Store.Get(c,id,"sys_notification",tx)!=null)continue;
+            var n=new JsonObject{["id"]=id,["category"]="personal",["tab"]="personal",["assignedTo"]=user,["titleAr"]=title,["bodyAr"]=body,["targetDepartment"]="ALL",["status"]="unread",["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["eventKey"]=eventId,["createdBy"]=actor,["taskKind"]=taskKind,["entityId"]=entityId,["requiresAction"]=requiresAction,["actionStatus"]=requiresAction?"open":"none"};
+            if(companyId!=null)n["companyId"]=companyId;Store.Save(c,"sys_notification",n,tx);Store.Audit(c,tx,"notification.personal_created",id,actor);
+        }
+    }
+    // Closes every open task for an entity once someone decides it; the notification stays for history.
+    public static void CloseTasks(DbConnection c,DbTransaction tx,string taskKind,string entityId,string decidedBy)
+    {
+        foreach(var n in Store.List(c,"sys_notification",tx).Where(n=>n.S("taskKind")==taskKind&&n.S("entityId")==entityId&&n.S("actionStatus")=="open"))
+        {var copy=n.Clone();copy["actionStatus"]="decided";copy["decidedBy"]=decidedBy;copy["decidedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,"sys_notification",copy,tx);}
     }
     // Invoked inside the original write transaction; the notification cannot outlive a rollback.
     public static void OnAudit(DbConnection c,DbTransaction tx,string action,string entity,string actor,DateTimeOffset? clock=null)
