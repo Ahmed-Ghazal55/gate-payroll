@@ -185,8 +185,8 @@ export default function CompaniesPage() {
     try {
       const [compList, expList, logs] = await Promise.all([
         api.getCompaniesList(),
-        api.getExpiringCompanies(60).catch(() => []),
-        api.getAuditLogs().catch(() => []),
+        api.getExpiringCompanies(60),
+        api.getAuditLogs(),
       ]);
       setCompanies(compList);
       setExpiring(expList);
