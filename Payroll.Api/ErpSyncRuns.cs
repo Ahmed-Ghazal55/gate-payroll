@@ -8,18 +8,20 @@ public sealed record ErpSyncKindCount(string Kind,int Source,int New,int Changed
 public static class ErpSyncRuns
 {
     public const string Kind="erp_sync_run";
-    public static JsonObject Record(Store store,string runId,DateTimeOffset startedAt,DateTimeOffset finishedAt,string status,IEnumerable<ErpSyncKindCount> counts,string? refusalCode=null,string? mode=null)
+    public static JsonObject Record(Store store,string runId,DateTimeOffset startedAt,DateTimeOffset finishedAt,string status,IEnumerable<ErpSyncKindCount> counts,string? refusalCode=null,string? mode=null,string? requestId=null)
     {
         J.Need(Regex.IsMatch(runId,"^erp-sync:[a-f0-9]{32}$")&&status is "completed" or "refused" or "failed"&&finishedAt>=startedAt,"بيانات سجل المزامنة غير صالحة.");
         J.Need(refusalCode==null||Regex.IsMatch(refusalCode,"^[A-Za-z0-9_:.-]{1,160}$"),"رمز الرفض غير صالح.");
         J.Need(mode==null||mode is "dry_run" or "commit","نمط المزامنة غير صالح.");
+        J.Need(requestId==null||ErpSyncRequests.ValidId(requestId),"معرف طلب المزامنة غير صالح.");
         var rows=counts.ToList();J.Need(rows.Select(r=>r.Kind).Distinct().Count()==rows.Count&&rows.Count<=100,"أنواع المزامنة غير صالحة.");
         J.Need(rows.All(r=>Regex.IsMatch(r.Kind,"^[a-z_]{1,40}$")&&new[]{r.Source,r.New,r.Changed,r.Unchanged,r.Rejected}.All(n=>n>=0)),"أعداد المزامنة غير صالحة.");
-        var run=new JsonObject{["id"]=runId,["startedAt"]=startedAt.ToString("O"),["finishedAt"]=finishedAt.ToString("O"),["createdAt"]=finishedAt.ToString("O"),["status"]=status,["mode"]=mode,["refusalCode"]=refusalCode,["counts"]=new JsonArray(rows.Select(r=>(JsonNode)new JsonObject{["kind"]=r.Kind,["source"]=r.Source,["new"]=r.New,["changed"]=r.Changed,["unchanged"]=r.Unchanged,["rejected"]=r.Rejected}).ToArray())};
+        var run=new JsonObject{["id"]=runId,["startedAt"]=startedAt.ToString("O"),["finishedAt"]=finishedAt.ToString("O"),["createdAt"]=finishedAt.ToString("O"),["status"]=status,["mode"]=mode,["requestId"]=requestId,["refusalCode"]=refusalCode,["counts"]=new JsonArray(rows.Select(r=>(JsonNode)new JsonObject{["kind"]=r.Kind,["source"]=r.Source,["new"]=r.New,["changed"]=r.Changed,["unchanged"]=r.Unchanged,["rejected"]=r.Rejected}).ToArray())};
         return store.Write((c,tx)=>
         {
             if(Store.Get(c,runId,Kind,tx) is {} existing)return existing;
             Store.Save(c,Kind,run,tx);
+            if(requestId!=null)ErpSyncRequests.Complete(c,tx,requestId,run);
             if(status=="refused")Notifications.Raise(c,tx,"notice:"+runId,"approvals","توقفت مزامنة ERP للمراجعة؛ راجع سجل المزامنة.","users.manage","erp-sync",administratorsOnly:true);
             return run;
         },false);

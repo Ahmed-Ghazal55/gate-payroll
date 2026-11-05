@@ -6,11 +6,11 @@ namespace Payroll;
 
 public interface IErpSyncRunner
 {
-    Task Execute(bool commit,Action<ImportSummary> previewed,CancellationToken token);
+    Task Execute(bool commit,Action<ImportSummary> previewed,CancellationToken token,string? requestId=null);
 }
 public sealed class ErpSyncRunner(IConfiguration config,Store store) : IErpSyncRunner
 {
-    public async Task Execute(bool commit,Action<ImportSummary> previewed,CancellationToken token)
+    public async Task Execute(bool commit,Action<ImportSummary> previewed,CancellationToken token,string? requestId=null)
     {
         string sourceConnection=config.GetConnectionString("ErpReadonly")??config["ERP_READONLY_DB"]??"";
         if(string.IsNullOrWhiteSpace(sourceConnection))throw new ImportFailure("source_connection_missing");
@@ -21,7 +21,7 @@ public sealed class ErpSyncRunner(IConfiguration config,Store store) : IErpSyncR
         using var target=new SqlConnection(targetOptions.ConnectionString);await target.OpenAsync(token);
         var existing=ImportExecutor.Target(target,null,token);
         var snapshot=ConsistentSync.Read(()=>SourceReader.Read(source,false,token),out _,token);
-        RunSnapshot(snapshot,existing,commit?store:null,previewed,token,commit?(c,tx)=>JobsControl.EnsureMayCommit(c,tx,config):null);
+        RunSnapshot(snapshot,existing,commit?store:null,previewed,token,commit?(c,tx)=>{JobsControl.EnsureMayCommit(c,tx,config);if(requestId!=null)ErpSyncRequests.EnsureActive(c,tx,requestId);}:null);
     }
     public static ImportSummary RunSnapshot(SourceSnapshot source,Dictionary<string,JsonObject> existing,Store? target,Action<ImportSummary> previewed,CancellationToken token=default,Action<DbConnection,DbTransaction>? beforeCommit=null)
     {

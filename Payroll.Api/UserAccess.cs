@@ -15,6 +15,7 @@ public static class UserAccess
     // 1. كتالوج الصلاحيات الذرية الدقيقة (Atomic Permissions) مع الشرح التشغيلي لكل صلاحية
     public static readonly PermissionDef[] PermissionsCatalog =
     [
+        new("erp.sync.run","Admin","إدارة النظام","تشغيل مزامنة ERP","تشغيل ومتابعة مزامنة ERP آمنة بالأعداد فقط دون تجاوز الحدود."),
         new("operations.view","Operations","العمليات","عرض العمليات","عرض العمليات وحسابات المناديب ضمن الشركة والمنصة."),
         new("pay.view","Payroll","الرواتب","عرض إطار الرواتب","عرض إعدادات التطبيقات والدورات والكشوف ضمن النطاق."),
         new("pay.manage","Payroll","الرواتب","تحضير الرواتب","إنشاء مسودات الإعدادات وتحضير الدورات دون اعتماد ذاتي."),
@@ -96,6 +97,9 @@ public static class UserAccess
         new("SuperAdmin", "المدير العام / الإدارة العليا", "MGT", 5,
             "صلاحية شاملة للإدارة العليا والرقابة المالية والتشغيلية واعتماد السياسات والرواتب.",
             PermissionsCatalog.Select(p => p.Code).ToArray()),
+
+        new("SystemAdmin", "مسؤول مزامنة النظام", "MGT", 3,
+            "تشغيل المزامنة من الصلاحيات المخصصة؛ لا يمنح إدارة المستخدمين أو التحكم في الجدولة.", []),
 
         new("FinancialManager", "المدير المالي", "FIN", 4,
             "قراءة التقارير المالية ومعاينة وتصدير ملف البنك ضمن النطاق.",
@@ -293,6 +297,7 @@ public static class UserAccess
             ["hash"] = Convert.ToBase64String(Rfc2898DeriveBytes.Pbkdf2(password, salt, 210000, HashAlgorithmName.SHA256, 32))
         };
         if (customPermissions != null) doc["customPermissions"] = customPermissions.DeepClone();
+        ErpSyncRequests.Grant(doc);
         return doc;
     }
 
@@ -380,6 +385,7 @@ public static class UserAccess
                 if (rnk is >= 1 and <= 5) u["rankLevel"] = rnk;
             }
             if(input["customPermissions"] is JsonArray cp){ValidatePermissionList(cp);u["customPermissions"]=cp.DeepClone();}
+            if(roleChanged&&!input.ContainsKey("customPermissions"))ErpSyncRequests.Grant(u);
             if(input["financialScope"] is JsonObject scope)u["financialScope"]=FinancialScopes.Normalize(scope);
             if(input["deniedPermissions"] is JsonArray denied){ValidatePermissionList(denied);u["deniedPermissions"]=denied.DeepClone();}
             J.Need(FinancialCore.DepartmentsCatalog.OfType<JsonObject>().Any(d=>d.S("code")==Department(u)),"قسم غير صالح.");

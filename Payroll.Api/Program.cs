@@ -49,6 +49,7 @@ GateJobs.Add(builder.Services,builder.Configuration,builder.Environment);
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
 CampaignLinks.Migrate(store);
 Companies.Seed(store);
+ErpSyncRequests.SeedPermission(store);
 app.MapOpenApi("/openapi/{documentName}.json").WithTags("Administration").WithSummary("Administrator-only OpenAPI document").RequireAuthorization().AddEndpointFilter(async (context, next) =>
     AccessPolicy.Administrator(context.HttpContext.User) ? await next(context) : Results.Json(new { error="التوثيق لمسؤول النظام فقط.", code="forbidden" }, statusCode:403));
 app.UseForwardedHeaders();

@@ -5,6 +5,9 @@ public sealed class JobsOptions
 {
     public bool Enabled {get;}
     public bool ErpSyncEnabled {get;}
+    public bool CatchUpEnabled {get;private init;}=true;
+    public double CatchUpHours {get;private init;}=24;
+    public bool DailyEnabled {get;private init;}
     internal string StorageConnection {get;}="";
     private JobsOptions(bool enabled,bool erpSyncEnabled,string storageConnection="")
     {Enabled=enabled;ErpSyncEnabled=enabled&&erpSyncEnabled;StorageConnection=storageConnection;}
@@ -21,6 +24,9 @@ public sealed class JobsOptions
             if((storage.InitialCatalog!="db77738"&&!synthetic)||target.InitialCatalog!=storage.InitialCatalog||!target.DataSource.Equals(storage.DataSource,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException();
         }
         catch {throw new InvalidOperationException("Jobs require the approved staging target (or an isolated Testing loopback database).");}
-        return new(true,config.GetValue<bool>("Jobs:ErpSync:Enabled"),jobs);
+        double hours=config.GetValue<double?>("Jobs:ErpSync:CatchUpHours")??24;
+        if(!double.IsFinite(hours)||hours<=0||hours>8760)throw new InvalidOperationException("CatchUpHours must be positive and at most 8760.");
+        return new(true,config.GetValue<bool>("Jobs:ErpSync:Enabled"),jobs)
+        {CatchUpEnabled=config.GetValue<bool?>("Jobs:ErpSync:CatchUpEnabled")??true,CatchUpHours=hours,DailyEnabled=config.GetValue<bool>("Jobs:ErpSync:DailyEnabled")};
     }
 }
