@@ -1211,6 +1211,19 @@ export const api = {
 
   // Rider Mobile App APIs (Track M)
   getRiderBroadcasts: () => handleRequest<any[]>('/rider-mobile/broadcasts'),
+  getRiderSessions: (f: { status?: string; iqama?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (f.status) q.set('status', f.status);
+    if (f.iqama) q.set('iqama', f.iqama);
+    const qs = q.toString();
+    return handleRequest<import('../components/riders/RiderSessionsPanel').RiderSession[] | { items: import('../components/riders/RiderSessionsPanel').RiderSession[] }>(
+      '/rider-mobile/sessions' + (qs ? '?' + qs : '')
+    );
+  },
+  revokeRiderSession: (id: string, reason: string) =>
+    handleRequest<unknown>(`/rider-mobile/sessions/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  revokeAllRiderSessions: (iqama: string, reason: string) =>
+    handleRequest<{ revoked: number }>(`/rider-mobile/sessions/revoke-all?iqama=${encodeURIComponent(iqama)}`, { method: 'POST', body: JSON.stringify({ reason }) }),
   sendRiderBroadcast: (input: { category?: string; titleAr: string; bodyAr: string; iqama?: string; actionUrl?: string; requiresAck?: boolean }) =>
     handleRequest<any>('/rider-mobile/broadcast', {
       method: 'POST',

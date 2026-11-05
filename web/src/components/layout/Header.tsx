@@ -217,7 +217,7 @@ export function Header({
         </div>
 
         {/* Center / Global Search Trigger */}
-        <div className="flex-1 max-w-xs sm:max-w-md mx-2">
+        <div className="flex-1 min-w-0 max-w-xs sm:max-w-md mx-1 sm:mx-2">
           <button
             type="button"
             onClick={() => setSearchModalOpen(true)}
@@ -225,7 +225,7 @@ export function Header({
           >
             <div className="flex items-center gap-2 truncate">
               <Search size={15} />
-              <span className="truncate">بحث شامل (مندوب، شركة، مديونية)...</span>
+              <span className="truncate hidden sm:inline">بحث شامل (مندوب، شركة، مديونية)...</span>
             </div>
             <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-mono border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)]">
               Ctrl+K
@@ -234,7 +234,7 @@ export function Header({
         </div>
 
         {/* Right Section: Company Scope, Period, Approvals, Bell, Theme, User */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
           {/* Company Scope Selector */}
           <div className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs">
             <Building2 size={14} className="text-[var(--muted)] shrink-0" />

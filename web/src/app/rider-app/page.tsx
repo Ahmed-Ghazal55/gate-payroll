@@ -24,6 +24,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import { RiderSessionsPanel } from '../../components/riders/RiderSessionsPanel';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -323,23 +324,8 @@ function RiderAppAdminPageInner() {
         </div>
       )}
 
-      {/* Tab 2: Accounts & Devices */}
-      {activeTab === 'accounts' && (
-        <div className="space-y-4">
-          <div className="p-8 rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-center space-y-4 shadow-xs">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--warning)]/15 text-[var(--warning)] text-xs font-bold">
-              <Clock size={15} />
-              <span>غير متاح بعد — بانتظار اكتمال واجهات خادم الجلسات الميدانية (Codex)</span>
-            </div>
-            <h4 className="text-base font-bold text-[var(--ink)]">
-              سجل جلسات الدخول وأجهزة المناديب
-            </h4>
-            <p className="text-xs sm:text-sm text-[var(--muted)] max-w-md mx-auto leading-relaxed">
-              ستتيح هذه الشاشة مراقبة الأجهزة المسجلة (Device Fingerprint)، جلسات تسجيل الدخول، وفصل الجلسات المشبوهة لحماية بيانات المناديب.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Tab 2: Accounts & Devices (R5-C1 sessions) */}
+      {activeTab === 'accounts' && <RiderSessionsPanel />}
 
       {/* Tab 3: Firebase Config */}
       {activeTab === 'settings' && (
