@@ -27,7 +27,7 @@ public static partial class Reporting
             foreach(string reference in columns.Select(col=>col.Name).Where(name=>name.EndsWith("Id",StringComparison.Ordinal)||name is "Period" or "AccountCode"))
             {using var index=Store.Command(c,tx,$"IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'rpt.{table.Name}') AND name=N'IX_{table.Name}_{reference}') CREATE INDEX [IX_{table.Name}_{reference}] ON rpt.[{table.Name}]([{reference}]);");index.ExecuteNonQuery();}
         }
-        using var state=Store.Command(c,tx,"IF OBJECT_ID(N'rpt.SourceState',N'U') IS NULL CREATE TABLE rpt.SourceState(SourceRecordId nvarchar(128) NOT NULL PRIMARY KEY,Kind nvarchar(40) NOT NULL,SourceSha char(64) NOT NULL,RowCount int NOT NULL,ProjectionSha char(64) NOT NULL); IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'rpt.SourceState') AND name=N'IX_SourceState_Kind') CREATE INDEX IX_SourceState_Kind ON rpt.SourceState(Kind); IF NOT EXISTS(SELECT 1 FROM rpt.Meta WHERE Id=1) INSERT INTO rpt.Meta(Id,SchemaVersion) VALUES(1,1); IF EXISTS(SELECT 1 FROM rpt.Meta WHERE Id=1 AND SchemaVersion<>1) THROW 51002,'Reporting schema mismatch',1;");state.ExecuteNonQuery();
+        using var state=Store.Command(c,tx,"IF OBJECT_ID(N'rpt.SourceState',N'U') IS NULL CREATE TABLE rpt.SourceState(SourceRecordId nvarchar(128) NOT NULL PRIMARY KEY,Kind nvarchar(40) NOT NULL,SourceSha char(64) NOT NULL,[RowCount] int NOT NULL,ProjectionSha char(64) NOT NULL); IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'rpt.SourceState') AND name=N'IX_SourceState_Kind') CREATE INDEX IX_SourceState_Kind ON rpt.SourceState(Kind); IF NOT EXISTS(SELECT 1 FROM rpt.Meta WHERE Id=1) INSERT INTO rpt.Meta(Id,SchemaVersion) VALUES(1,1); IF EXISTS(SELECT 1 FROM rpt.Meta WHERE Id=1 AND SchemaVersion<>1) THROW 51002,'Reporting schema mismatch',1;");state.ExecuteNonQuery();
     }
     static Type TypeFor(ReportColumn column)=>column.SqlType switch{"bit"=>typeof(bool),"int"=>typeof(int),"datetimeoffset(7)"=>typeof(DateTimeOffset),"decimal(19,4)"=>typeof(decimal),_=>typeof(string)};
     static object ValueFor(ReportColumn column,JsonNode? node)
@@ -78,7 +78,7 @@ public static partial class Reporting
     {
         if(!Initialized(c,tx))return new(){["consistent"]=false,["reason"]=c is SqlConnection?"reporting_not_initialized":"sqlite_no_rpt_schema"};
         var docs=Snapshot(c,tx);docs.Add(Chart());var expected=docs.SelectMany(Project).ToList();var actual=ReadRows(c,tx);var states=new List<JsonObject>();
-        using(var cmd=Store.Command(c,tx,"SELECT SourceRecordId,Kind,SourceSha,RowCount,ProjectionSha FROM rpt.SourceState"))using(var r=cmd.ExecuteReader())while(r.Read())states.Add(new(){["id"]=r.GetString(0),["kind"]=r.GetString(1),["sha"]=r.GetString(2),["rows"]=r.GetInt32(3),["projection"]=r.GetString(4)});
+        using(var cmd=Store.Command(c,tx,"SELECT SourceRecordId,Kind,SourceSha,[RowCount],ProjectionSha FROM rpt.SourceState"))using(var r=cmd.ExecuteReader())while(r.Read())states.Add(new(){["id"]=r.GetString(0),["kind"]=r.GetString(1),["sha"]=r.GetString(2),["rows"]=r.GetInt32(3),["projection"]=r.GetString(4)});
         var kinds=new JsonArray();bool good=states.Count==docs.Count;
         foreach(string kind in Tables.Select(t=>t.Kind).Distinct().OrderBy(k=>k,StringComparer.Ordinal))
         {
