@@ -13,7 +13,7 @@ EXACT = {'.gitignore', '.env.example', 'README_AR.md', 'DEPLOYMENT_AR.md',
          'RiderForm/tsconfig.json', 'RiderForm/web/rider-form.html',
          'Run-Local.ps1', 'Publish-MonsterASP.ps1', 'run-local.sh', 'publish-monsterasp.sh',
          '.github/workflows/build-and-deploy.yml'}
-DATA_DOCUMENTS = {'docs/data/REPORTING.md', 'docs/data/SYNC.md', 'docs/data/ERP-DATA-MAP.md', 'docs/data/TARGET-KINDS.md', 'docs/data/README.md', 'docs/data/RECONCILE-2026-11-03.md'}
+DATA_DOCUMENTS = {'docs/data/debt-sheet-mapping.v1.json', 'docs/data/DEBT-SHEET.md', 'docs/data/REPORTING.md', 'docs/data/SYNC.md', 'docs/data/ERP-DATA-MAP.md', 'docs/data/TARGET-KINDS.md', 'docs/data/README.md', 'docs/data/RECONCILE-2026-11-03.md'}
 EXACT |= DATA_DOCUMENTS
 PATTERNS = ['Payroll.Api/*.cs', 'Frontend/src/*.ts', 'RiderForm/src/*.ts',
             'tools/ReportRebuild/*.cs', 'tools/ReportRebuild/*.csproj', 'tools/ErpImport/*.cs', 'tools/ErpImport/*.csproj', 'tools/StoreMigration/*.cs', 'tools/StoreMigration/*.csproj', 'tests/*.mjs', 'tests/Engine.Tests/*.cs', 'tests/Engine.Tests/*.csproj', 'scripts/*.py', 'scripts/fonts-manifest.json']

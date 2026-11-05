@@ -16,7 +16,7 @@ try
     string? Arg(string name)=>args.SkipWhile(a=>a!=name).Skip(1).FirstOrDefault();
     if(args.Contains("--help"))
     {
-        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities]");return 0;
+        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON]");return 0;
     }
     overrides=SyncOverrides.Parse(args);
     if(args.Contains("--commit")&&args.Contains("--dry-run"))throw new ImportFailure("conflicting_modes");
@@ -24,6 +24,26 @@ try
     if(live&&args.Contains("--commit")&&!args.Contains("--consistent"))throw new ImportFailure("live_commit_requires_consistent");
     string home=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     string targetEnv=Arg("--target-env")??Path.Combine(home,"Private/gate-data/staging.env");
+    if(Arg("--debt-sheet") is {} debtFile)
+    {
+        phase="previewing_debt_sheet";
+        byte[] Workbook(string path){var file=new FileInfo(path);if(file.Extension.ToLowerInvariant()!=".xlsx"||!file.Exists||file.Length>8*1024*1024)throw new ImportFailure("invalid_debt_workbook");return File.ReadAllBytes(path);}
+        string deductionsFile=Arg("--deductions")??throw new ImportFailure("deductions_file_required");
+        string mappingFile=Arg("--mapping")??throw new ImportFailure("debt_mapping_required");
+        var mapping=JsonNode.Parse(File.ReadAllText(mappingFile)) as JsonObject??throw new ImportFailure("invalid_debt_mapping");
+        using var target=Connections.Target(targetEnv);string connection=target.ConnectionString;target.Open();
+        var preview=DebtSheetImporter.Preview(Workbook(debtFile),Workbook(deductionsFile),mapping,DebtSheetImporter.Riders(target));
+        if(args.Contains("--commit"))
+        {
+            DebtSheetImporter.EnsureCommittable(preview);
+            phase="saving_debt_openings";
+            var store=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),connection);
+            preview.Summary["added"]=DebtSheetImporter.Commit(store,preview);preview.Summary["committed"]=true;
+        }
+        string result=preview.Summary.ToJsonString(new JsonSerializerOptions{WriteIndented=true});
+        if(Arg("--report") is {} debtReport)File.WriteAllText(debtReport,result);
+        Console.WriteLine(result);return Log("completed")?0:2;
+    }
     if(Arg("--companies-input") is {} companyFile)
     {
         phase="previewing_companies";
