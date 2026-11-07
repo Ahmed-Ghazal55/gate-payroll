@@ -232,3 +232,21 @@ button.small {
 a.button {
   text-decoration: none;
 }
+
+.mob-offline-bar {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.mob-offline-bar.hidden {
+  display: none !important;
+}

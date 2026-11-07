@@ -39,7 +39,27 @@ export class PortalController {
     try {
       this.portalData = await api('/api/rider-mobile/portal/' + encodeURIComponent(session.iqama));
     } catch (ex: any) {
-      return this.signOut(ex.message);
+      if (/جلسة|401/.test(ex.message)) {
+        return this.signOut(ex.message);
+      }
+      this.root.innerHTML = `
+        <div class="mob-head">
+          <div><strong>بوابة المندوب</strong></div>
+          <button class="secondary small" id="mob-logout-err">خروج</button>
+        </div>
+        <div class="mob-card" style="text-align: center; padding: 24px;">
+          <div class="notice warn" style="margin-bottom: 16px;">
+            <strong>تعذر تحميل البيانات</strong>
+            <p style="margin: 6px 0;">${esc(ex.message)}</p>
+          </div>
+          <button class="good" id="mob-retry-portal">إعادة المحاولة ↻</button>
+        </div>
+      `;
+      const retryBtn = document.getElementById('mob-retry-portal');
+      if (retryBtn) retryBtn.onclick = () => this.render();
+      const logoutErr = document.getElementById('mob-logout-err');
+      if (logoutErr) logoutErr.onclick = () => this.signOut();
+      return;
     }
 
     const r = this.portalData.rider || {};
@@ -120,7 +140,13 @@ export class PortalController {
       if (/جلسة|401/.test(ex.message)) {
         return this.signOut(ex.message);
       }
-      body.innerHTML = `<div class="mob-card"><div class="notice error">${esc(ex.message)}</div></div>`;
+      body.innerHTML = `
+        <div class="mob-card" style="text-align: center; padding: 20px;">
+          <div class="notice error">${esc(ex.message)}</div>
+          <button class="secondary small" id="mob-retry-tab" style="margin-top: 10px;">إعادة المحاولة ↻</button>
+        </div>`;
+      const retryTab = document.getElementById('mob-retry-tab');
+      if (retryTab) retryTab.onclick = () => this.renderTabContent();
     }
 
     this.bindTabEvents();
