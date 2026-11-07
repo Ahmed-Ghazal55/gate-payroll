@@ -863,6 +863,7 @@ public static class FinancialCore
                 androidPackageName = cfg?.S("androidPackageName", "com.albawaba.gate.rider") ?? "com.albawaba.gate.rider",
                 googlePlayUrl = cfg?.S("googlePlayUrl", "") ?? "",
                 hasServiceAccountJson = PushNotifications.HasServiceAccount(),
+                legacyStoredKey = !string.IsNullOrWhiteSpace(cfg?.S("serviceAccountJson")),
                 configured = cfg != null && !string.IsNullOrWhiteSpace(cfg.S("projectId")),
                 webMobilePortalUrl = baseUrl + "/rider-app",
                 inquiryPortalUrl = baseUrl + "/inquiry",

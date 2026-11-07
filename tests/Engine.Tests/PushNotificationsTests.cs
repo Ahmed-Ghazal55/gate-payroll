@@ -241,23 +241,51 @@ public sealed class PushNotificationsTests
                 });
             });
 
-            // Attempt 1 -> pending
+            // Attempt 1 -> pending, nextAttemptAt set to ~1 minute in the future
             PushNotifications.FlushOutboxAsync(store).GetAwaiter().GetResult();
             var row1 = store.Read(c => Store.List(c, PushNotifications.Kind))[0];
             Assert.AreEqual("pending", row1.S("status"));
             Assert.AreEqual(1, (int)row1.N("attempts"));
+            Assert.IsFalse(string.IsNullOrEmpty(row1.S("nextAttemptAt")));
+            DateTimeOffset next1 = DateTimeOffset.Parse(row1.S("nextAttemptAt"));
+            Assert.IsTrue(next1 > DateTimeOffset.UtcNow);
 
-            // Attempt 2 -> pending
+            // Immediate flush skips items with nextAttemptAt in the future!
+            int skipped = PushNotifications.FlushOutboxAsync(store).GetAwaiter().GetResult();
+            Assert.AreEqual(0, skipped);
+
+            // Fast-forward nextAttemptAt to the past
+            store.Write((c, tx) =>
+            {
+                var r = Store.List(c, PushNotifications.Kind, tx)[0];
+                r["nextAttemptAt"] = DateTimeOffset.UtcNow.AddSeconds(-1).ToString("O");
+                Store.Save(c, PushNotifications.Kind, r, tx);
+                return true;
+            });
+
+            // Attempt 2 -> pending, nextAttemptAt set to ~5 minutes in the future
             PushNotifications.FlushOutboxAsync(store).GetAwaiter().GetResult();
             var row2 = store.Read(c => Store.List(c, PushNotifications.Kind))[0];
             Assert.AreEqual("pending", row2.S("status"));
             Assert.AreEqual(2, (int)row2.N("attempts"));
+            DateTimeOffset next2 = DateTimeOffset.Parse(row2.S("nextAttemptAt"));
+            Assert.IsTrue(next2 > DateTimeOffset.UtcNow.AddMinutes(4));
 
-            // Attempt 3 -> failed
+            // Fast-forward again
+            store.Write((c, tx) =>
+            {
+                var r = Store.List(c, PushNotifications.Kind, tx)[0];
+                r["nextAttemptAt"] = DateTimeOffset.UtcNow.AddSeconds(-1).ToString("O");
+                Store.Save(c, PushNotifications.Kind, r, tx);
+                return true;
+            });
+
+            // Attempt 3 -> failed, nextAttemptAt cleared
             PushNotifications.FlushOutboxAsync(store).GetAwaiter().GetResult();
             var row3 = store.Read(c => Store.List(c, PushNotifications.Kind))[0];
             Assert.AreEqual("failed", row3.S("status"));
             Assert.AreEqual(3, (int)row3.N("attempts"));
+            Assert.AreEqual("", row3.S("nextAttemptAt"));
             Assert.IsTrue(row3.S("lastError").Contains("InternalServerError"));
         });
     }
@@ -455,6 +483,116 @@ public sealed class PushNotificationsTests
 
             Assert.AreEqual(400, ex.Status);
             Assert.IsTrue(ex.Message.Contains("Firebase__ServiceAccountJson"));
+        });
+    }
+
+    [TestMethod]
+    public void FlushDrainsAllPendingItemsAcrossMultipleBatchesInTheBackground()
+    {
+        WithSqlStore(store =>
+        {
+            PushNotifications.ResetCache();
+            var (_, saJson) = CreateSyntheticServiceAccount();
+            PushNotifications.ServiceAccountJsonOverride = saJson;
+
+            // Seed 120 riders with sessions & tokens
+            store.Write((c, tx) =>
+            {
+                for (int i = 1; i <= 120; i++)
+                {
+                    string iqama = "200000" + i.ToString("D4");
+                    Store.Save(c, "rider", new() { ["id"] = iqama, ["iqama"] = iqama, ["name"] = "مندوب " + i, ["status"] = "Active" }, tx);
+                    Store.Save(c, MobileSessions.Kind, new()
+                    {
+                        ["id"] = "mobile:" + iqama.PadRight(32, 'a'),
+                        ["iqama"] = iqama,
+                        ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"),
+                        ["expiresAtUtc"] = DateTimeOffset.UtcNow.AddHours(8).ToString("O"),
+                        ["fcmDeviceToken"] = "token-" + iqama
+                    }, tx);
+                }
+                PushNotifications.EnqueueBroadcast(c, tx, "bcast-120", "ALL", "تعميم 120", "نص التجربة");
+                return true;
+            });
+
+            int enqueuedCount = store.Read(c => Store.List(c, PushNotifications.Kind).Count);
+            Assert.AreEqual(120, enqueuedCount);
+
+            int sendCalls = 0;
+            PushNotifications.TestHttpMessageHandler = new DelegatingTestHandler(async (req, ct) =>
+            {
+                if (req.RequestUri?.AbsoluteUri == "https://oauth2.googleapis.com/token")
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent("{\"access_token\":\"tok-120\",\"expires_in\":3600}", Encoding.UTF8, "application/json")
+                    };
+                }
+                Interlocked.Increment(ref sendCalls);
+                await Task.Delay(5, ct); // simulate small latency
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"name\":\"msg-id\"}", Encoding.UTF8, "application/json")
+                };
+            });
+
+            // Trigger non-blocking fire-and-forget FlushOutbox
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            PushNotifications.FlushOutbox(store);
+            sw.Stop();
+
+            // The call must return immediately without waiting for 120 network sends
+            Assert.IsTrue(sw.ElapsedMilliseconds < 400, $"FlushOutbox blocked caller! Took {sw.ElapsedMilliseconds} ms");
+
+            // Wait until the background worker finishes draining all 120 items
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                int sent = store.Read(c => Store.List(c, PushNotifications.Kind).Count(x => x.S("status") == "sent"));
+                if (sent == 120) break;
+                Thread.Sleep(50);
+            }
+
+            int finalSent = store.Read(c => Store.List(c, PushNotifications.Kind).Count(x => x.S("status") == "sent"));
+            Assert.AreEqual(120, finalSent);
+        });
+    }
+
+    [TestMethod]
+    public void LegacyStoredKeyFlagReflectsPresenceOfServiceAccountJsonInConfigSetting()
+    {
+        WithSqlStore(store =>
+        {
+            // When legacy setting exists with serviceAccountJson
+            store.Write((c, tx) =>
+            {
+                Store.Save(c, "setting", new()
+                {
+                    ["id"] = "firebase:config",
+                    ["projectId"] = "albawaba-gate-rider",
+                    ["serviceAccountJson"] = "{\"legacy\":true}"
+                }, tx);
+                return true;
+            });
+
+            var cfgWithLegacy = store.Read(c => Store.Get(c, "firebase:config", "setting"));
+            bool legacyStoredKey1 = !string.IsNullOrWhiteSpace(cfgWithLegacy?.S("serviceAccountJson"));
+            Assert.IsTrue(legacyStoredKey1);
+
+            // When setting is updated without serviceAccountJson
+            store.Write((c, tx) =>
+            {
+                Store.Save(c, "setting", new()
+                {
+                    ["id"] = "firebase:config",
+                    ["projectId"] = "albawaba-gate-rider"
+                }, tx);
+                return true;
+            });
+
+            var cfgClean = store.Read(c => Store.Get(c, "firebase:config", "setting"));
+            bool legacyStoredKey2 = !string.IsNullOrWhiteSpace(cfgClean?.S("serviceAccountJson"));
+            Assert.IsFalse(legacyStoredKey2);
         });
     }
 }
