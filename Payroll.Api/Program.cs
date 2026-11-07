@@ -39,6 +39,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization();
 builder.Services.AddOpenApi(options=>options.AddOperationTransformer((operation,context,cancellation)=>
 {
+    ApiContracts.Describe(operation,context.Description.HttpMethod??"","/"+context.Description.RelativePath);
     operation.Deprecated=ApiDeprecations.IsDeprecated(context.Description.HttpMethod??"","/"+context.Description.RelativePath);
     return Task.CompletedTask;
 }));
