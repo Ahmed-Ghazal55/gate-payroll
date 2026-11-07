@@ -45,6 +45,19 @@
   - Rider credits (6) still pending; no approval path yet.
 - Next waves: W1 tables/RiderPicker (0.18.0), W2 operations resolved views, W3 workflow gaps (Ninja approve, journal reject/delete, rule editor), W4 users/tasks/chat, W5 Capacitor rider app.
 
+## R8 Rider App (Argon: M1–M7) — 2026-11-07
+- **Done:**
+  - M1: `mobile/` scaffolded (Vite 5, TS 5.6, Capacitor 6.2 pinned, sand+dim tokens, RTL).
+  - M2: screens ported (`login`, `statement`, `requests`, `debts`, `notifications`, `devices`).
+  - M3: FCM token capture & refresh endpoint `POST /api/rider-mobile/device-token`.
+  - M4: `PushNotifications.cs` (FCM HTTP v1 JWT auth, token cache, outbox `push_outbox`, inline send, 3 retries, safe logs).
+  - M5: triggers wired in `FinancialCore.cs` (broadcast) & `RiderAsks.cs` (advance ask convert/decline); `serviceAccountJson` rejected on POST.
+  - M6: 7/7 tests passed in `PushNotificationsTests.cs` against SQL Server (port 11433); full suite (416 tests) green.
+  - M7: build script `mobile/scripts/build-debug.sh` and Ghazal setup steps in `mobile/README.md`.
+- **APK path:** `~/Private/gate-data/mobile/gate-rider-debug.apk` (built via `./scripts/build-debug.sh` after Ghazal adds `google-services.json`).
+- **Requests to Codex / Antigravity 3.8:** None (mobile and push pipeline fully isolated and self-contained).
+- **Argon weekly %:** 100% → ~93% (7 units completed).
+
 ## Next
 1. Ghazal: fill the decision sheet for the 379 rows.
 2. Ghazal: approve CR-003 (`gate-finance-spec/docs/change-requests/CR-003-hungerstation-erp-review.md`), then send it to Omar.
