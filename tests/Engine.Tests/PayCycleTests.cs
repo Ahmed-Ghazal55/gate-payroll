@@ -23,7 +23,29 @@ public sealed class PayCycleTests
     }
     static JsonObject Create(PayFixture f,JsonObject input)=>f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input));
     internal static JsonObject Advance(PayFixture f,string id,int stage,bool checker=false)=>f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,checker?PayFixture.Checker:PayFixture.Maker,id,new(){["stage"]=stage}));
-    internal static JsonObject Through(PayFixture f,JsonObject input,int stage=6){var d=Create(f,input);for(int s=1;s<=stage;s++)d=Advance(f,d.S("id"),s);return d;}
+    // BR §32: stage 7 needs every row reviewed; helpers approve all ready rows unless a test reviews them itself.
+    internal static JsonObject Through(PayFixture f,JsonObject input,int stage=6,bool review=true){var d=Create(f,input);for(int s=1;s<=stage;s++)d=Advance(f,d.S("id"),s);
+        if(review&&stage==6){string id=d.S("id");f.Store.Write((c,tx)=>PayCycles.ReviewAll(c,tx,PayFixture.Maker,id));d=f.Store.Read(c=>Store.Get(c,id,PayCycles.Kind)!);}return d;}
+    [TestMethod]
+    public void ReviewGridShowsPhasesEditsApproveRowsAndGatesFinalApproval()
+    {
+        var(f,input,debt)=Setup();using(f){var cycle=Through(f,input,6,review:false);string id=cycle.S("id");
+        var view=f.Store.Read(c=>PayCycles.ReviewView(c,PayFixture.Maker,id,"",""));Assert.AreEqual(2m,view["totals"]!.AsObject().N("riders"));Assert.AreEqual(0m,view["totals"]!.AsObject().N("approved"));
+        var row=view["rows"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("rider")==Rider(1));var item=row["items"]!.AsArray().OfType<JsonObject>().Single(i=>i.S("key")=="debt:"+debt);
+        Assert.AreEqual(1m,item.N("phase"),"Advance is a phase-1 consumption deduction (BR §29)");Assert.AreEqual(-15m,item.N("amount"));Assert.AreEqual(15m,item.N("max"));Assert.IsTrue(item.B("editable"));
+        Assert.AreEqual(row.N("afterCommission")+row.N("phase1"),row.N("preliminaryDue"));Assert.AreEqual(row.N("preliminaryDue")+row.N("phase2")+row.N("phase3"),row.N("net"));
+        Assert.ThrowsExactly<ApiError>(()=>Advance(f,id,7,true),"final approval waits for the review");
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.ReviewRider(c,tx,PayFixture.Maker,id,Rider(1),new(){["action"]="edit",["key"]="debt:"+debt,["amount"]=16,["reason"]="more than due"})));
+        decimal net=row.N("net");var edited=f.Store.Write((c,tx)=>PayCycles.ReviewRider(c,tx,PayFixture.Maker,id,Rider(1),new(){["action"]="edit",["key"]="debt:"+debt,["amount"]=5,["reason"]="اتفاق مع المندوب"}));
+        Assert.AreEqual("approved",edited.S("review"));Assert.AreEqual(net+10,edited.N("net"));Assert.AreEqual(1,edited["edits"]!.AsArray().Count);
+        var adjusted=f.Store.Write((c,tx)=>PayCycles.ReviewRider(c,tx,PayFixture.Maker,id,Rider(2),new(){["action"]="adjust",["amount"]=20,["reason"]="حافز إضافي"}));
+        Assert.AreEqual("approved",adjusted.S("review"));Assert.IsTrue(adjusted["items"]!.AsArray().OfType<JsonObject>().Any(i=>i.N("phase")==3&&i.N("amount")==20));
+        var all=f.Store.Write((c,tx)=>PayCycles.ReviewAll(c,tx,PayFixture.Maker,id));Assert.AreEqual(0m,all.N("approved"));Assert.AreEqual(0m,all.N("skipped"));
+        Assert.AreEqual("approved",Advance(f,id,7,true).S("status"));Assert.AreEqual(45m,f.Store.Read(c=>Store.Get(c,debt,"debt")!.N("remainingBalance")),"the edited installment is what gets deducted");
+        var lines=f.Store.Read(c=>Store.List(c,"journal").Where(j=>j.S("payCycleId")==id).SelectMany(j=>j["lines"]!.AsArray().OfType<JsonObject>()).ToList());
+        Assert.AreEqual(20m,lines.Where(l=>l.S("accountCode")=="512122").Sum(l=>l.N("debit")),"a review increase is Dr 512122 (BR §29)");
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.ReviewAll(c,tx,PayFixture.Maker,id)),"no review after final approval");}
+    }
     [TestMethod]
     public void TwoAppsSharedAccountCompanyCostAndOneMonthlyDebtReconcileWithoutMutatingPreviews()
     {

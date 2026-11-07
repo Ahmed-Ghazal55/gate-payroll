@@ -24,7 +24,7 @@ def parse_source(value):
         return "excel"
     if value in {"Excel معدّل", "Excel معدل"} or value.partition(" ")[0] == "منقول":
         return "modified"
-    if value == "جديد":
+    if value == "جديد" or value.startswith("جديد ("):
         return "new"
     raise ValueError("Unknown COA source")
 

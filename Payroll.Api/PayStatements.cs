@@ -6,6 +6,7 @@ namespace Payroll;
 public static class PayStatements
 {
     static JsonArray Array(IEnumerable<JsonObject> rows)=>new(rows.Select(r=>(JsonNode?)r.Clone()).ToArray());
+    static readonly string[] PhaseKeys=["gross","commission","afterCommission","phase1","preliminaryDue","phase2","phase3"];
     static JsonObject Pick(JsonObject source,params string[] keys){var result=new JsonObject();foreach(string key in keys)if(source.ContainsKey(key))result[key]=source[key]?.DeepClone();return result;}
     static bool RunVisible(ClaimsPrincipal actor,JsonObject run)
     {
@@ -18,7 +19,7 @@ public static class PayStatements
         var allLines=Store.List(c,PayCycles.LineKind,tx).Where(l=>l.S("rider")==rider&&l.S("period")==period).ToList();
         var candidates=Store.List(c,PayCycles.Kind,tx).Where(d=>d.S("period")==period&&d.S("status") is not ("cancelled" or "reversed")&&(!approvedOnly||d.S("status")=="approved")&&allLines.Any(l=>l.S("cycleId")==d.S("id"))).ToList();
         var cycles=candidates.Where(d=>actor==null||PayCycles.Visible(actor,d)).ToList();if(candidates.Count>0&&cycles.Count==0)throw new ApiError("الكشف الشهري خارج نطاق الشركة أو التطبيقات.",403);
-        var cards=new List<JsonObject>();var deductions=new List<JsonObject>();var refs=new List<JsonObject>();decimal net=0,carried=0,closing=0;string source="none",status="no_approved_cycle";
+        var cards=new List<JsonObject>();var deductions=new List<JsonObject>();var refs=new List<JsonObject>();decimal net=0,carried=0,closing=0;string source="none",status="no_approved_cycle";var phases=new JsonObject();
         if(cycles.Count>0)
         {
             source="pay_cycle";status=cycles.All(d=>d.S("status")=="approved")?"approved":"preview";
@@ -35,9 +36,11 @@ public static class PayStatements
                 foreach(var d in (cycle["deductions"] as JsonArray??[]).OfType<JsonObject>().Where(d=>d.S("rider")==rider))
                 {
                     if(actor!=null&&d.S("type")=="debt"){var debt=Store.Get(c,d.S("source"),"debt",tx)??throw new ApiError("دليل الدين غير موجود.",409);FinancialScopes.DemandDebt(actor,debt);}
-                    deductions.Add(Pick(d,"category","amount","source","type","accountCode"));
+                    deductions.Add(Pick(d,"category","amount","source","type","accountCode","phase","order","labelAr"));
                 }
                 var summary=(cycle["riders"] as JsonArray??[]).OfType<JsonObject>().SingleOrDefault(r=>r.S("rider")==rider);decimal movement=summary?.N("net")??lines.Sum(l=>l.N("entitlement")-l.N("accountDeduction")-l.N("allocatedVehicleCharge",l.N("vehicleCharge")))+(cycle["deductions"] as JsonArray??[]).OfType<JsonObject>().Where(d=>d.S("rider")==rider).Sum(d=>d.N("amount"));
+                // BR §29: phase subtotals from the cycle summary, summed when a rider has several cycles.
+                if(summary!=null)foreach(string k in PhaseKeys)phases[k]=phases.N(k)+summary.N(k);
                 net+=movement;carried+=summary?.N("carried")??0;closing+=summary?.N("closing")??movement;
             }
         }
@@ -60,7 +63,7 @@ public static class PayStatements
         }
         if(actor!=null&&source=="none")FinancialScopes.DemandRider(actor,person);
         string iban=person.S("iban");var header=new JsonObject{["rider"]=rider,["name"]=person.S("name"),["period"]=period,["status"]=person.S("status"),["ibanMasked"]=iban.Length>=4?"••••"+iban[^4..]:"",["cycles"]=Array(refs)};
-        return new(){["header"]=header,["source"]=source,["status"]=status,["cards"]=Array(cards),["deductions"]=Array(deductions),["net"]=J.Money(net),["carried"]=J.Money(carried),["closing"]=J.Money(closing),["balanceBasis"]=source=="pay_cycle"?"cycle_snapshot":"approved_legacy_snapshot",["approvedOnly"]=approvedOnly};
+        return new(){["header"]=header,["source"]=source,["status"]=status,["cards"]=Array(cards),["deductions"]=Array(deductions),["phases"]=phases.Count==0?null:phases,["net"]=J.Money(net),["carried"]=J.Money(carried),["closing"]=J.Money(closing),["balanceBasis"]=source=="pay_cycle"?"cycle_snapshot":"approved_legacy_snapshot",["approvedOnly"]=approvedOnly};
     }
     public static JsonObject Mobile(DbConnection c,HttpContext ctx,string period)
     {if(ctx.Request.Query.Any(q=>q.Key!="period"))throw new ApiError("هوية المندوب تؤخذ من الجلسة فقط.");return Build(c,FinancialCore.AuthenticatedMobileRider(c,ctx),period,null,true);}

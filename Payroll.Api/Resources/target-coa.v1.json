@@ -516,6 +516,22 @@
       "sourceNote": "Excel"
     },
     {
+      "code": "112404",
+      "nameAr": "رصيد مكنة شحن مدى (كروت شحن الإنترنت)",
+      "parent": "1124",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "موظف (مسؤول المكنة)",
+      "source": "new",
+      "sourceNote": "جديد (BR §25.9)"
+    },
+    {
       "code": "1125",
       "nameAr": "ذمم مدينة مناديب",
       "parent": "112",
@@ -4212,6 +4228,22 @@
       "sourceNote": "جديد"
     },
     {
+      "code": "421302",
+      "nameAr": "جزاءات وخصومات إدارية على المناديب",
+      "parent": "4213",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "new",
+      "sourceNote": "جديد (BR §29)"
+    },
+    {
       "code": "4214",
       "nameAr": "إيرادات سكن المناديب",
       "parent": "421",
@@ -4882,6 +4914,22 @@
       "subledger": "مندوب",
       "source": "new",
       "sourceNote": "جديد"
+    },
+    {
+      "code": "512122",
+      "nameAr": "مكافآت وتعديلات رواتب المناديب",
+      "parent": "5121",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "مندوب",
+      "source": "new",
+      "sourceNote": "جديد (BR §29)"
     },
     {
       "code": "5122",

@@ -48,14 +48,23 @@ public static partial class PayCycles
             decimal available=group.Sum(l=>l.N("entitlement")-l.N("accountDeduction"))-rent;string rider=group.Key;var tags=PlatformDeductions.Categories(Store.List(c,PlatformDeductions.Kind,tx),rider,period);
             foreach(var a in Store.List(c,"adjustment",tx).Where(a=>a.S("iqama")==rider&&a.S("period")==period&&(a.N("amount")>=0||!PlatformDeductions.Skip(tags,a))))
             {
-                string account=cycle["adjustmentAccounts"].S(a.S("id"));J.Need(account!="","كل تعديل يحتاج حسابًا محددًا على الشجرة الجديدة.");PayPlatforms.Active(account);J.Need(account.StartsWith(a.N("amount")>0?'5':'4'),"نوع حساب التعديل لا يطابق الإضافة أو الخصم.");deductions.Add(new JsonObject{["rider"]=rider,["category"]=a.S("category"),["amount"]=a.N("amount"),["source"]=a.S("id"),["accountCode"]=account,["type"]="adjustment"});available+=a.N("amount");
+                string account=cycle["adjustmentAccounts"].S(a.S("id"));J.Need(account!="","كل تعديل يحتاج حسابًا محددًا على الشجرة الجديدة.");PayPlatforms.Active(account);J.Need(account.StartsWith(a.N("amount")>0?'5':'4'),"نوع حساب التعديل لا يطابق الإضافة أو الخصم.");var ph=a.N("amount")>0?(3,90,"تعديل راتب / حافز"):ConfigLists.Phase(c,tx,a.S("category"));deductions.Add(new JsonObject{["rider"]=rider,["category"]=a.S("category"),["amount"]=a.N("amount"),["source"]=a.S("id"),["accountCode"]=account,["type"]="adjustment",["phase"]=ph.Item1,["order"]=ph.Item2,["labelAr"]=ph.Item3});available+=a.N("amount");
             }
-            foreach(var debt in Store.List(c,"debt",tx).Where(d=>d.S("iqama")==rider&&d.S("status")=="active"&&!PlatformDeductions.Skip(tags,d)&&string.CompareOrdinal(d.S("effectiveFrom","0000-00"),period)<=0&&string.CompareOrdinal(d.S("lastDeductionPeriod"),period)<0).OrderBy(d=>d.S("createdAt")).ThenBy(d=>d.S("id")))
+            foreach(var debt in Store.List(c,"debt",tx).Where(d=>d.S("iqama")==rider&&d.S("status")=="active"&&!PlatformDeductions.Skip(tags,d)&&string.CompareOrdinal(d.S("effectiveFrom","0000-00"),period)<=0&&string.CompareOrdinal(d.S("lastDeductionPeriod"),period)<0).OrderBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Phase).ThenBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Order).ThenBy(d=>d.S("createdAt")).ThenBy(d=>d.S("id")))
             {
-                decimal amount=J.Money(Math.Min(Math.Max(0,available),Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment"))));if(amount<=0)continue;FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);deductions.Add(new JsonObject{["rider"]=rider,["category"]="debt_installment",["amount"]=-amount,["source"]=debt.S("id"),["accountCode"]=account,["type"]="debt"});debtBefore.Add(debt.Clone());available-=amount;
+                decimal amount=J.Money(Math.Min(Math.Max(0,available),Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment"))));if(amount<=0)continue;FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);var dp=ConfigLists.Phase(c,tx,debt.S("category"));deductions.Add(new JsonObject{["rider"]=rider,["category"]="debt_installment",["debtCategory"]=debt.S("category"),["amount"]=-amount,["computed"]=-amount,["source"]=debt.S("id"),["accountCode"]=account,["type"]="debt",["phase"]=dp.Phase,["order"]=dp.Order,["labelAr"]=dp.LabelAr});debtBefore.Add(debt.Clone());available-=amount;
             }
         }
         cycle["deductions"]=deductions;cycle["debtBefore"]=debtBefore;
+    }
+    // BR §29: gross → commission → phase 1 → «المستحق الأولي» → phase 2 → phase 3 → net. Deductions are negative.
+    static void Phases(JsonObject summary,IEnumerable<JsonObject> lines,IEnumerable<JsonObject> deductions)
+    {
+        var ls=lines.ToList();var ds=deductions.ToList();decimal Sum(int phase)=>ds.Where(d=>(int)d.N("phase",3)==phase).Sum(d=>d.N("amount"));
+        decimal gross=ls.Sum(l=>l.N("gross")),after=ls.Sum(l=>l.N("entitlement"));
+        decimal p1=Sum(1)-ls.Sum(l=>l.N("accountDeduction")+l.N("allocatedVehicleCharge")),p2=Sum(2),p3=Sum(3);
+        summary["gross"]=J.Money(gross);summary["commission"]=J.Money(gross-after);summary["afterCommission"]=J.Money(after);
+        summary["phase1"]=J.Money(p1);summary["preliminaryDue"]=J.Money(after+p1);summary["phase2"]=J.Money(p2);summary["phase3"]=J.Money(p3);
     }
     static void Merge(DbConnection c,DbTransaction tx,JsonObject cycle)
     {
@@ -65,7 +74,8 @@ public static partial class PayCycles
             decimal net=group.Sum(l=>l.N("entitlement")-l.N("accountDeduction")-l.N("allocatedVehicleCharge"))+Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==rider).Sum(d=>d.N("amount"));
             decimal carried=Store.List(c,"journal",tx).Where(FinanceViews.Posted).Where(j=>string.CompareOrdinal(j.S("period"),cycle.S("postingPeriod",period))<=0).SelectMany(j=>(j["lines"] as JsonArray??[]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("iqama")==rider&&l.S("accountCode") is "2110" or "212103").Sum(l=>l.N("credit")-l.N("debit"));
             bool deficit=Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>(j["lines"] as JsonArray??[]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("iqama")==rider&&l.S("accountCode")=="1211").Sum(l=>l.N("debit")-l.N("credit"))>0;
-            bool blocked=net<0||deficit||group.Any(l=>l.S("status")!="ready");summaries.Add(new JsonObject{["rider"]=rider,["net"]=J.Money(net),["carried"]=J.Money(carried),["closing"]=J.Money(carried+net),["status"]=blocked?"needs_decision":"ready"});
+            bool blocked=net<0||deficit||group.Any(l=>l.S("status")!="ready");var summary=new JsonObject{["rider"]=rider,["net"]=J.Money(net),["carried"]=J.Money(carried),["closing"]=J.Money(carried+net),["status"]=blocked?"needs_decision":"ready"};
+            Phases(summary,group,Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==rider));summaries.Add(summary);
         }
         cycle["riders"]=summaries;if(summaries.Count==0||summaries.OfType<JsonObject>().Any(r=>r.S("status")!="ready"))cycle["status"]="needs_decision";
     }
@@ -73,12 +83,13 @@ public static partial class PayCycles
     {
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=cycle.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve");J.Need(!Rows(cycle["history"]).OfType<JsonObject>().Any(h=>h.S("advancedBy").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase)),"المعتمد مستقل عن كل من جهز أو راجع مراحل الدورة.");
         J.Need(Rows(cycle["riders"]).Count>0&&Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("status")=="ready"),"توجد مبالغ تحتاج قرارًا؛ لا اعتماد ولا إنشاء مديونية تلقائية.");
+        J.Need(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("review")=="approved"),"راجع واعتمد كل المناديب في جدول المراجعة أولًا (اعتماد واحد أو اعتماد الكل).");
         foreach(var (app,_) in Accounts(cycle))PlatformPosting.Demand(c,app,tx);
         cycle["approvedBy"]=actor.Identity!.Name;cycle["approvedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,Kind,cycle,tx);
         var journal=PostEarnings(c,tx,cycle,actor);cycle["journalEntryId"]=journal.S("id");Store.Save(c,Kind,cycle,tx);
         foreach(var rider in Rows(cycle["riders"]).OfType<JsonObject>())
         {
-            string id=rider.S("rider");var payLines=Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==id&&d.S("type")=="debt").Select(d=>new PayLine("debt_installment","قسط وفق الاتفاق",d.N("amount"),d.S("source"))).ToList();
+            string id=rider.S("rider");var payLines=Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==id&&d.S("type")=="debt"&&d.N("amount")!=0).Select(d=>new PayLine("debt_installment","قسط وفق الاتفاق",d.N("amount"),d.S("source"))).ToList();
             Debts.Post(c,tx,new(id,cycle.S("period"),"pay_cycle",0,rider.N("net"),rider.N("net"),rider.N("net"),0,0,payLines,[]),cycle.S("id"),payCycle:true);
         }
         foreach(var review in Rows(cycle["invoices"]).OfType<JsonObject>())
@@ -104,7 +115,7 @@ public static partial class PayCycles
             string app=invoice.S("app"),id=invoice.S("invoiceId"),recv=PayPlatforms.For(app).Receivable;var source=Store.Get(c,id,"platform_invoice",tx)!;Add(recv,source.N("vat"),0,app,"",id);Add(accounts.S("outputVat"),0,source.N("vat"),app,"",id);
             foreach(var d in Rows(invoice["deductions"]).OfType<JsonObject>().Where(d=>d.S("level")=="company_level")){Add(d.S("expenseAccount"),d.N("amount"),0,app,"",d.S("sourceLineId"));Add(recv,0,d.N("amount"),app,"",d.S("sourceLineId"));}
         }
-        foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("type")=="adjustment")){decimal amount=d.N("amount");Add(d.S("accountCode"),amount>0?amount:0,amount<0?-amount:0,"",d.S("rider"),d.S("source"));Add("212103",amount<0?-amount:0,amount>0?amount:0,"",d.S("rider"),d.S("source"));}
+        foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("type") is "adjustment" or "review_adjustment")){decimal amount=d.N("amount");Add(d.S("accountCode"),amount>0?amount:0,amount<0?-amount:0,"",d.S("rider"),d.S("source"));Add("212103",amount<0?-amount:0,amount>0?amount:0,"",d.S("rider"),d.S("source"));}
         J.Need(journalLines.Count>0,"لا توجد مبالغ للترحيل.");return PayPosting.Post(c,tx,cycle,journalLines,actor.Identity!.Name!);
     }
 }

@@ -38,6 +38,7 @@ public static class AccessPolicy
         if(path is "/api/system/jobs/erp-sync/run" or "/api/system/jobs/erp-sync/dry-run")return method=="POST"&&Has("erp.sync.run");
         const string syncStatus="/api/system/jobs/erp-sync/";
         if(method=="GET"&&path.StartsWith(syncStatus,StringComparison.Ordinal)&&System.Text.RegularExpressions.Regex.IsMatch(path[syncStatus.Length..],"^[1-9][0-9]{0,19}$"))return Has("erp.sync.run");
+        if(path.StartsWith("/api/config/lists",StringComparison.Ordinal))return method=="GET"||method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return false; // User administration remains administrator-only.
         if(path=="/api/responses")return method=="GET"&&Has("forms.view");
         if(path=="/api/search")return method=="GET";
