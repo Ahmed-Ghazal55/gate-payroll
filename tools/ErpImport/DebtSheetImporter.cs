@@ -63,6 +63,7 @@ public static partial class DebtSheetImporter
 
     public static DebtSheetPreview Preview(byte[] debtBytes,byte[] deductionBytes,JsonObject mapping,List<JsonObject> riders)
     {
+        if(mapping.S("openingMethod")=="r6c_reviewed_rows_v1")throw new ImportFailure("use_reviewed_opening_preview");
         if(mapping.N("version")!=1||mapping["paymentAllocation"].S("method")!="FIFO")throw new ImportFailure("unsupported_debt_mapping");
         var debtBook=Imports.Read(debtBytes,"debts.xlsx");var deductionBook=Imports.Read(deductionBytes,"deductions.xlsx");
         var sheet=Sheet(debtBook,mapping.Required("sheet"));var detail=Sheet(deductionBook,mapping.Required("deductionsSheet"));
@@ -118,14 +119,8 @@ public static partial class DebtSheetImporter
                 debtTotal+=gross;paymentTotal+=payment;sheetNetTotal+=sheetNet;
                 if(!Close(gross,Money(Cell(row,grossColumn))))Error(number,"gross_mismatch");
                 if(!Close(payment,Money(Cell(row,paymentsColumn))))Error(number,"payments_mismatch");
-                decimal left=payment,credit=Math.Max(0,J.Money(payment-gross));var remainder=new Dictionary<(string Category,string Account),decimal>();
-                for(int b=0;b<buckets.Count;b++)
-                {
-                    decimal allocation=Math.Min(left,amounts[b]);left=J.Money(left-allocation);decimal balance=J.Money(amounts[b]-allocation);
-                    if(balance==0)continue;
-                    var c=buckets[b];string category=Configured(c)?c.S("category"):"needs_decision",account=c.S("account");
-                    remainder[(category,account)]=remainder.GetValueOrDefault((category,account))+balance;
-                }
+                decimal credit=Math.Max(0,J.Money(payment-gross));
+                var remainder=AllocateOpeningFifo(amounts,payment,buckets.Select(c=>{var mapped=c.Clone();if(!Configured(c))mapped["category"]="needs_decision";return mapped;}).ToList());
                 decimal opening=J.Money(remainder.Values.Sum());
                 if(!Close(opening-credit,sheetNet))Error(number,"net_mismatch");
                 if(mismatch.Contains(number))continue;

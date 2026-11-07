@@ -57,6 +57,19 @@ public static partial class DebtSheetImporter
         foreach (var row in review.PrivateReport["octoberRows"]!.AsArray().OfType<JsonObject>())
             october.Add([row["debtRows"]!.ToJsonString(), row["requestRows"]!.ToJsonString(), row.N("requestCount").ToString(), row.N("octoberTotal").ToString(), row.S("classification"), row["evidence"]!.ToJsonString()]);
         sheets.Add(("أكتوبر داخل الصافي؟", october));
+        foreach(var (key,title) in new[]{("deductionIssues","مطابقة الاستقطاعات"),("carriedItems","ما لم يخصم سابقا"),("octoberLineage","مراجع أكتوبر فقط")})
+        {
+            if(review.PrivateReport[key] is not JsonArray entries)continue;
+            var reportRows=new List<string[]>{new[]{"الورقة","صف Excel","الدليل — للمطابقة فقط"}};
+            foreach(var entry in entries.OfType<JsonObject>())reportRows.Add([entry.S("sheet"),entry.N("row").ToString(),entry.ToJsonString()]);
+            sheets.Add((title,reportRows));
+        }
+        if(review.Summary["companyCategoryOpeningTotals"] is JsonArray categories)
+        {
+            var reportRows=new List<string[]>{new[]{"شركة التحصيل","الفئة","العدد","إجمالي الافتتاح"}};
+            foreach(var row in categories.OfType<JsonObject>())reportRows.Add([row.S("company"),row.S("category"),row.N("count").ToString(),row.N("total").ToString()]);
+            sheets.Add(("شركة التحصيل × النوع",reportRows));
+        }
         using var zip = new ZipArchive(destination, ZipArchiveMode.Create, true);
         XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main", rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships", pkg = "http://schemas.openxmlformats.org/package/2006/relationships", types = "http://schemas.openxmlformats.org/package/2006/content-types";
         void Xml(string name, XElement root) { using var writer = new StreamWriter(zip.CreateEntry(name).Open(), new UTF8Encoding(false)); root.Save(writer); }

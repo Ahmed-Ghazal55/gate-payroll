@@ -4,7 +4,35 @@ Current target: **قاعدة الرواتب db77738** (BR33). Ghazal alone runs 
 
 The CLI reads both source XLSX files in place. No source file is modified or copied into the repo. `debt-sheet-mapping.v1.json` is a **draft** containing the actual column headers and proposed categories/accounts/signs. It requires Ghazal's approval; unresolved labels and the ERP HungerStation-wallet 112506 versus target HR 112506 conflict remain `needs_decision`. An effective opening month must also be chosen.
 
-## R6c — paused after D1 step 6 (2026-11-07)
+## R6c continuation — approved October decisions (2026-11-07)
+
+This section supersedes the paused D1.6 decision below. Mapping metadata is approved by Ghazal: `octoberLoadMode=included_in_net`, `effectiveFrom=2026-10`, balance date 2026-10-31. **None of the 394 October requests creates a debt or cash/journal entry.** Odoo request references remain private reconciliation lineage. The prior heuristic/20 ambiguous groups are retained as evidence, with no load action.
+
+`DebtCreditorHistory` reads only allowlisted columns in app.Sponsors, Employees (all statuses/deleted), optional PayrollEmployees, RiderProfiles and EmployeeSponsorshipPeriods. It selects the latest period ending by the balance date, otherwise latest known. Missing periods are reported unavailable; current employee sponsor is an explicit latest-known fallback, never fabricated history dates. Two company candidates or absent evidence remain blocked. Only unresolved creditors are searched; sheets then current payroll rider records retain precedence. Report evidence contains table/column names, not source personal values. All credential-dependent commands below are **operator only**.
+
+`PreviewReviewedOpening` shares the existing FIFO allocator. Each ready row is independent: invalid/duplicate identities, negative buckets/payments, creditor conflicts and unresolved creditors stay blocked; archive net differences retain the main net. No active rider is created. Missing identities get an inactive debt-only rider atomically with their accepted documents. Zero balances add nothing, excess payment is separate rider_credit. New debts stay pending_approval/openingReviewRequired, with no GL/cash movement. Installments need opening review; no installment amount is invented.
+
+A preview fingerprint binds source bytes, mapping and accepted row fingerprints. Replay is per source row/category, so fixing other rows later never replaces an already imported row. Changed previously imported financial rows are refused. `--commit` requires the fingerprint, `--after-db-move` and a target cutover receipt before Store initialization; writes are serialized and verified in the same transaction. `--verify` uses SELECT only. The agent has **not run a real commit** or completed the live ERP-history/payroll preview.
+
+Offline reconciliation reproduces approved394 /112,202.64, rejected-sheet omissions4, draft1, carried19 /4,478 with3 already in totals and16 earlier-period items. It normalizes explicitly recorded app-label aliases and reads carried values from their actual shifted columns. A real formatted-summary difference remains: cash+115 and internet−115; company sheets, receipt totals and per-rider/type detail agree. Until Ghazal resolves the pending question, this mismatch keeps canCommit=false. Offline output is `r6c-debts-continuation-offline.{json,xlsx}` so Claude's prior live lookup report is preserved.
+
+### Operator commands — not executed against real databases by Codex
+
+**Ghazal or Claude runs preview**, after building this worktree, then reviews counts/category totals/blocked reasons. Use the same inputs for all following commands:
+```bash
+cd "$HOME/Projects/active/gate-payroll-r6c"
+debt_args=(--debt-sheet "$HOME/Projects/pro win/02 بيانات وتشغيل المنصات/المديونيات اجمالي - 2026.xlsx" --deductions "$HOME/Projects/pro win/02 بيانات وتشغيل المنصات/استقطاعات المناديب.xlsx" --mapping docs/data/debt-sheet-mapping.v1.json --lookup-riders --lookup-erp-history --report "$HOME/Private/gate-data/sync-logs/r6c-debts-review.json")
+dotnet tools/ErpImport/bin/Debug/net10.0/ErpImport.dll "${debt_args[@]}" --dry-run
+```
+**STOP** until the discrepancy is decided, canCommit=true, the database move is complete and Ghazal gives fresh «حمّل». Then **Claude runs**, using the exact fingerprint from the reviewed output:
+```bash
+read -r -p 'Reviewed previewFingerprint: ' debt_preview_fingerprint
+dotnet tools/ErpImport/bin/Debug/net10.0/ErpImport.dll "${debt_args[@]}" --commit --after-db-move --preview-fingerprint "$debt_preview_fingerprint"
+dotnet tools/ErpImport/bin/Debug/net10.0/ErpImport.dll "${debt_args[@]}" --verify --preview-fingerprint "$debt_preview_fingerprint"
+```
+Require verified=true, missing=0, changed=0, totals=preview. Re-running the identical approved commit adds0. If new evidence changes accepted rows, create a fresh preview and approval; never reuse an obsolete fingerprint. These commands only read ERP; writes target db77738.
+
+## Historical R6c — paused after D1 step 6 (2026-11-07)
 
 This section supersedes the older company-from-branch proposal below. The corrected source is `~/Projects/pro win/02 بيانات وتشغيل المنصات/المديونيات اجمالي - 2026.xlsx`; both workbooks stay read-only in place. `octoberLoadMode=pending_decision` prevents the legacy adapter from committing even if the mapping otherwise passes. D1 steps 7–11 and D2–D4 have **not** been implemented or run in this session.
 

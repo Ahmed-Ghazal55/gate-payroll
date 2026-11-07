@@ -10,13 +10,13 @@ using Payroll;
 [TestClass]
 public sealed class DebtSheetReviewTests
 {
-    const string Id = "2000000801";
-    static JsonObject Mapping()
+    internal const string Id = "2000000801";
+    internal static JsonObject Mapping()
     {
         string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
         return JsonNode.Parse(File.ReadAllText(Path.Combine(root, "docs/data/debt-sheet-mapping.v1.json")))!.AsObject();
     }
-    static string[] DebtRow(string id = Id, decimal bucket = 100, decimal payment = 0, string note = "")
+    internal static string[] DebtRow(string id = Id, decimal bucket = 100, decimal payment = 0, string note = "")
     {
         var row = Enumerable.Repeat("", 62).ToArray(); row[0] = id; row[1] = "SYNTHETIC_NAME"; row[3] = "EX (ignored branch)";
         row[4] = bucket.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -24,11 +24,11 @@ public sealed class DebtSheetReviewTests
         row[58] = (bucket - payment).ToString(System.Globalization.CultureInfo.InvariantCulture); row[59] = note;
         return row;
     }
-    static string[] Header() => Mapping()["columns"]!.AsArray().OfType<JsonObject>().Select(c => c.S("header")).ToArray();
-    static string[] Request(string id = Id, string amount = "30", string reference = "SYN/2026/001", string status = "مدير الحسابات", string date = "2026-10-15")
+    internal static string[] Header() => Mapping()["columns"]!.AsArray().OfType<JsonObject>().Select(c => c.S("header")).ToArray();
+    internal static string[] Request(string id = Id, string amount = "30", string reference = "SYN/2026/001", string status = "مدير الحسابات", string date = "2026-10-15")
         => ["SYNTHETIC_NAME", date, status, "TR (ignored rider company)", amount, id, reference, "SYNTHETIC_MAKER", "", "112501 Cash", "SyntheticApp"];
-    static string[] RequestHeader() => ["الاسم", "التاريخ", "الحالة", "الشركة", "القيمة", "رقم الهوية", "رقم طلب الدفع", "منشئ الطلب", "نوع الطلب", "نوع العملية", "التطبيق"];
-    static byte[] Book((string Name, string[][] Rows)[] sheets, string? modified = null)
+    internal static string[] RequestHeader() => ["الاسم", "التاريخ", "الحالة", "الشركة", "القيمة", "رقم الهوية", "رقم طلب الدفع", "منشئ الطلب", "نوع الطلب", "نوع العملية", "التطبيق"];
+    internal static byte[] Book((string Name, string[][] Rows)[] sheets, string? modified = null)
     {
         using var output = new MemoryStream();
         using (var zip = new ZipArchive(output, ZipArchiveMode.Create, true))
@@ -47,16 +47,16 @@ public sealed class DebtSheetReviewTests
         }
         return output.ToArray();
     }
-    static byte[] Debt(string[][]? main = null, string[][]? ex = null, string[][]? tr = null, string? modified = null) => Book([
+    internal static byte[] Debt(string[][]? main = null, string[][]? ex = null, string[][]? tr = null, string? modified = null) => Book([
         ("المديونيات", [Header(), ..main ?? [DebtRow()]]),
         ("اكسبرس الرياض - ارشيف", [["الصافي", "رقم الإقامة"], ..ex ?? []]),
         ("التجارية الرياض - ارشيف", [["رقم الإقامة", "الصافي"], ..tr ?? []])], modified);
-    static byte[] Deductions(string[][]? ex = null, string[][]? bw = null, string[][]? tr = null) => Book([
+    internal static byte[] Deductions(string[][]? ex = null, string[][]? bw = null, string[][]? tr = null) => Book([
         ("اكسبريس", [RequestHeader(), ..ex ?? [Request()]]), ("البوابا", [RequestHeader(), ..bw ?? []]), ("التجارية", [RequestHeader(), ..tr ?? []])]);
-    static JsonObject Rider(string finance = "BW", string sponsor = "TR") => new() { ["id"] = Id, ["iqama"] = Id, ["name"] = "SYNTHETIC_DB_NAME", ["financeSponsorId"] = finance, ["sponsorId"] = sponsor };
-    static JsonObject Row(DebtSheetImporter.ThroughSixReview r, int n = 0) => r.PrivateReport["rows"]![n]!.AsObject();
-    static string Classification(DebtSheetImporter.ThroughSixReview r) => r.PrivateReport["octoberRows"]![0]!.S("classification");
-    static decimal Reason(DebtSheetImporter.ThroughSixReview r, string key) => r.Summary["reasonCounts"].N(key);
+    internal static JsonObject Rider(string finance = "BW", string sponsor = "TR") => new() { ["id"] = Id, ["iqama"] = Id, ["name"] = "SYNTHETIC_DB_NAME", ["financeSponsorId"] = finance, ["sponsorId"] = sponsor };
+    internal static JsonObject Row(DebtSheetImporter.ThroughSixReview r, int n = 0) => r.PrivateReport["rows"]![n]!.AsObject();
+    internal static string Classification(DebtSheetImporter.ThroughSixReview r) => r.PrivateReport["octoberRows"]![0]!.S("classification");
+    internal static decimal Reason(DebtSheetImporter.ThroughSixReview r, string key) => r.Summary["reasonCounts"].N(key);
 
     [TestMethod]
     public void Step1FreezesHashesSheetListAndCachedValuesWithoutExecutingFormulas()

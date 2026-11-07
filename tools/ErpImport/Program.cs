@@ -33,12 +33,14 @@ try
 {
     if(args.Contains("--help"))
     {
-        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--counts-only] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON [--review-through-six [--lookup-riders]]]");return 0;
+        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--counts-only] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON [--review-through-six] [--lookup-riders] [--lookup-erp-history] [--verify] [--preview-fingerprint SHA256] [--after-db-move]]");return 0;
     }
     overrides=SyncOverrides.Parse(args);
     if(args.Contains("--commit")&&args.Contains("--dry-run"))throw new ImportFailure("conflicting_modes");
-    if((args.Contains("--review-through-six")||args.Contains("--lookup-riders"))&&Arg("--debt-sheet")==null)throw new ImportFailure("debt_sheet_required_for_review");
+    if((args.Contains("--review-through-six")||args.Contains("--lookup-riders")||args.Contains("--lookup-erp-history")||args.Contains("--verify"))&&Arg("--debt-sheet")==null)throw new ImportFailure("debt_sheet_required_for_review");
     if(args.Contains("--review-through-six")&&args.Contains("--commit"))throw new ImportFailure("october_decision_required_review_is_read_only");
+    if(args.Contains("--review-through-six")&&args.Contains("--lookup-erp-history"))throw new ImportFailure("erp_history_requires_full_opening_review");
+    if(args.Contains("--commit")&&args.Contains("--verify"))throw new ImportFailure("conflicting_modes");
     if(live&&(args.Contains("--local-copy")||args.Contains("--source")||args.Contains("--companies-input")))throw new ImportFailure("conflicting_source_modes");
     if(live&&args.Contains("--commit")&&!args.Contains("--consistent"))throw new ImportFailure("live_commit_requires_consistent");
     string home=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -71,7 +73,41 @@ try
             Console.WriteLine(review.Summary.ToJsonString(new JsonSerializerOptions{WriteIndented=true}));
             return review.Summary.B("unexplainedMismatch")?2:0;
         }
-        if(args.Contains("--lookup-riders"))throw new ImportFailure("rider_lookup_requires_review_mode");
+        if(mapping.S("openingMethod")=="r6c_reviewed_rows_v1")
+        {
+            List<JsonObject>? riders=null;Dictionary<string,List<JsonObject>>? history=null;
+            using var read=args.Contains("--lookup-riders")?Connections.Target(targetEnv):null;
+            if(read!=null){read.Open();riders=DebtSheetImporter.Riders(read);}
+            if(args.Contains("--lookup-erp-history"))
+            {
+                if(read==null)throw new ImportFailure("erp_history_requires_payroll_lookup");
+                using var historySource=Connections.Source(Connections.Env(Arg("--source-env")??Path.Combine(home,"Private/gate-data/erp-readonly.env"),"ERP_READONLY_DB"));
+                historySource.Open();history=DebtCreditorHistory.Read(historySource);
+            }
+            var debtBytes=Workbook(debtFile);var deductionBytes=Workbook(deductionsFile);
+            var opening=DebtSheetImporter.PreviewReviewedOpening(debtBytes,deductionBytes,mapping,riders,history);
+            if(!System.Security.Cryptography.SHA256.HashData(debtBytes).SequenceEqual(System.Security.Cryptography.SHA256.HashData(Workbook(debtFile)))||
+               !System.Security.Cryptography.SHA256.HashData(deductionBytes).SequenceEqual(System.Security.Cryptography.SHA256.HashData(Workbook(deductionsFile))))throw new ImportFailure("review_input_changed");
+            if(args.Contains("--commit")||args.Contains("--verify"))
+            {
+                string fingerprint=Arg("--preview-fingerprint")??throw new ImportFailure("preview_fingerprint_required");
+                if(fingerprint!=opening.Preview.Fingerprint)throw new ImportFailure("opening_preview_changed");
+                if(read==null)throw new ImportFailure("payroll_lookup_required");
+                if(args.Contains("--verify"))opening.Review.Summary["verification"]=DebtSheetImporter.VerifyReviewedOpening(read,opening.Preview);
+                else
+                {
+                    if(!args.Contains("--after-db-move"))throw new ImportFailure("opening_after_db_move_required");
+                    DebtSheetImporter.EnsureCommittable(opening.Preview);
+                    if(Store.List(read,"cutover_receipt").Count==0)throw new ImportFailure("opening_database_move_receipt_required");
+                    var store=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),read.ConnectionString);
+                    opening.Review.Summary["load"]=DebtSheetImporter.CommitReviewedOpening(store,opening.Preview,fingerprint,true);
+                }
+            }
+            opening.Review.PrivateReport["summary"]=opening.Review.Summary.DeepClone();
+            if(Arg("--report") is {} openingReport)DebtSheetImporter.WriteThroughSixReport(opening.Review,openingReport);
+            Console.WriteLine(opening.Review.Summary.ToJsonString(new JsonSerializerOptions{WriteIndented=true}));
+            return opening.Review.Summary.B("unexplainedMismatch")||!opening.Review.Summary["reconciliation"].B("matched")||args.Contains("--verify")&&!opening.Review.Summary["verification"].B("verified")?2:0;
+        }
         if(args.Contains("--commit")&&mapping.S("octoberLoadMode")=="pending_decision")throw new ImportFailure("october_decision_required");
         using var target=Connections.Target(targetEnv);string connection=target.ConnectionString;target.Open();
         var preview=DebtSheetImporter.Preview(Workbook(debtFile),Workbook(deductionsFile),mapping,DebtSheetImporter.Riders(target));
