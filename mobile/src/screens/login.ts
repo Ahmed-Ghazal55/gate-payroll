@@ -82,7 +82,7 @@ export function renderLogin(root: HTMLElement, onSuccess: () => void, err: strin
         fcmDeviceToken: fcmToken || ''
       });
 
-      setSession({
+      await setSession({
         accessToken: res.accessToken,
         iqama: res.rider?.iqama || String(fd.get('iqamaNo')),
         name: res.rider?.name

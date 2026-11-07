@@ -1,5 +1,5 @@
 import { API_BASE } from './config';
-import { getSession } from './state';
+import { getSession, setSession } from './state';
 
 export async function api<T = any>(path: string, body?: any): Promise<T> {
   const session = getSession();
@@ -10,12 +10,29 @@ export async function api<T = any>(path: string, body?: any): Promise<T> {
     headers['Authorization'] = 'Bearer ' + session.accessToken;
   }
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    method: body ? 'POST' : 'GET',
-    headers,
-    body: body ? JSON.stringify(body) : undefined
-  });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: body ? 'POST' : 'GET',
+      headers,
+      body: body ? JSON.stringify(body) : undefined
+    });
+  } catch {
+    throw new Error('تعذر الاتصال بالخادم؛ يرجى التحقق من اتصال الإنترنت والمحاولة مجدداً.');
+  }
+
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    await setSession(null);
+    window.dispatchEvent(
+      new CustomEvent('gate-auth-unauthorized', {
+        detail: { message: data.error || 'انتهت صلاحية الجلسة.' }
+      })
+    );
+    throw new Error(data.error || 'جلسة المندوب منتهية، يرجى إعادة تسجيل الدخول');
+  }
+
   if (!res.ok) {
     throw new Error(data.error || 'تعذر إتمام الطلب');
   }

@@ -197,9 +197,9 @@ export class PortalController {
     }
   }
 
-  private signOut(msg?: string) {
-    setSession(null);
-    setActiveFcmToken('');
+  private async signOut(msg?: string) {
+    await setSession(null);
+    await setActiveFcmToken('');
     this.portalData = null;
     this.onSignOut(msg);
   }
