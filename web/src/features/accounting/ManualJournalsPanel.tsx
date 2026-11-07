@@ -17,6 +17,7 @@ import {
   ArrowRightLeft,
   Calendar,
   AlertTriangle,
+  XCircle,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -27,9 +28,19 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { ManualJournal, ManualJournalLine, CompanySponsor } from '../../lib/types';
 
+interface CoaAccountItem {
+  code: string;
+  nameAr?: string;
+  name?: string;
+  posting?: boolean;
+  isPosting?: boolean;
+  status?: string;
+  isActive?: boolean;
+}
+
 interface ManualJournalsPanelProps {
   companies: CompanySponsor[];
-  coaAccounts: any[];
+  coaAccounts: CoaAccountItem[];
   defaultOpenNew?: boolean;
 }
 
@@ -84,6 +95,12 @@ export function ManualJournalsPanel({
   const [reverseReason, setReverseReason] = useState<string>('');
   const [reverseDate, setReverseDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [submittingReverse, setSubmittingReverse] = useState<boolean>(false);
+
+  // Reject Dialog
+  const [rejectModalOpen, setRejectModalOpen] = useState<boolean>(false);
+  const [journalToReject, setJournalToReject] = useState<ManualJournal | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>('');
+  const [submittingReject, setSubmittingReject] = useState<boolean>(false);
 
   // Posting accounts list for dropdown
   const postingAccounts = useMemo(() => {
@@ -257,25 +274,64 @@ export function ManualJournalsPanel({
       ]);
       setStatusTab('draft');
       loadJournals();
-    } catch (err: any) {
-      toast(err.message || 'فشل إنشاء القيد المحاسبي', 'danger');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل إنشاء القيد المحاسبي';
+      toast(msg, 'danger');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleApproveJournal = async (journal: ManualJournal) => {
-    if (journal.maker === user?.username) {
-      toast('لا يجوز لمنشئ القيد اعتماده (مبدأ الرقابة الثنائية Maker-Checker)', 'danger');
-      return;
-    }
     try {
       await api.approveManualJournal(journal.id);
       toast('تم اعتماد القيد وترحيله بنجاح إلى السجلات المالية', 'success');
       if (drawerOpen) setDrawerOpen(false);
       loadJournals();
-    } catch (err: any) {
-      toast(err.message || 'فشل اعتماد القيد المحاسبي', 'danger');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل اعتماد القيد المحاسبي';
+      toast(msg, 'danger');
+    }
+  };
+
+  const handleOpenReject = (journal: ManualJournal) => {
+    setJournalToReject(journal);
+    setRejectReason('');
+    setRejectModalOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!journalToReject || !rejectReason.trim() || rejectReason.trim().length < 3) {
+      toast('يرجى ذكر سبب الرفض (من 3 إلى 1000 حرف)', 'warning');
+      return;
+    }
+    setSubmittingReject(true);
+    try {
+      await api.rejectManualJournal(journalToReject.id, { reason: rejectReason.trim() });
+      toast('تم رفض مسودة القيد بنجاح', 'success');
+      setRejectModalOpen(false);
+      if (drawerOpen) setDrawerOpen(false);
+      loadJournals();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل رفض القيد المحاسبي';
+      toast(msg, 'danger');
+    } finally {
+      setSubmittingReject(false);
+    }
+  };
+
+  const handleDeleteJournal = async (journal: ManualJournal) => {
+    if (!window.confirm('هل أنت متأكد من رغبتك في حذف مسودة هذا القيد؟ لن يمكن التراجع.')) {
+      return;
+    }
+    try {
+      await api.deleteManualJournal(journal.id);
+      toast('تم حذف مسودة القيد بنجاح', 'success');
+      if (drawerOpen) setDrawerOpen(false);
+      loadJournals();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل حذف مسودة القيد';
+      toast(msg, 'danger');
     }
   };
 
@@ -302,8 +358,9 @@ export function ManualJournalsPanel({
       if (drawerOpen) setDrawerOpen(false);
       setStatusTab('draft');
       loadJournals();
-    } catch (err: any) {
-      toast(err.message || 'فشل إنشاء قيد العكس', 'danger');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل إنشاء قيد العكس';
+      toast(msg, 'danger');
     } finally {
       setSubmittingReverse(false);
     }
@@ -408,9 +465,9 @@ export function ManualJournalsPanel({
         key: 'actions',
         header: 'الإجراءات',
         render: (j) => {
-          const isMaker = j.maker === user?.username;
+          const actions = j.allowedActions || [];
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => {
@@ -423,20 +480,43 @@ export function ManualJournalsPanel({
                 <span>تفاصيل</span>
               </button>
 
-              {statusTab === 'draft' && canApprove && (
+              {actions.includes('approve') && (
                 <button
                   type="button"
-                  disabled={isMaker}
                   onClick={() => handleApproveJournal(j)}
-                  title={isMaker ? 'لا يجوز لمنشئ القيد اعتماده (Maker-Checker)' : 'اعتماد القيد المحاسبي'}
-                  className="px-2.5 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="اعتماد القيد المحاسبي"
+                  className="px-2.5 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1 cursor-pointer"
                 >
                   <Check size={13} />
                   <span>اعتماد</span>
                 </button>
               )}
 
-              {statusTab === 'approved' && canApprove && (
+              {actions.includes('reject') && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenReject(j)}
+                  title="رفض مسودة القيد"
+                  className="px-2.5 py-1 rounded-lg border border-[var(--danger)] text-[var(--danger)] text-xs font-bold hover:bg-[var(--danger)]/10 transition inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <XCircle size={13} />
+                  <span>رفض</span>
+                </button>
+              )}
+
+              {actions.includes('delete') && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteJournal(j)}
+                  title="حذف مسودة القيد"
+                  className="px-2.5 py-1 rounded-lg border border-[var(--line)] text-[var(--muted)] hover:text-[var(--danger)] text-xs font-bold hover:bg-[var(--raised)] transition inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Trash2 size={13} />
+                  <span>حذف</span>
+                </button>
+              )}
+
+              {actions.includes('reverse') && (
                 <button
                   type="button"
                   onClick={() => handleOpenReverse(j)}
@@ -684,20 +764,41 @@ export function ManualJournalsPanel({
                 إغلاق
               </button>
 
-              <div className="flex items-center gap-2">
-                {selectedJournal.status === 'draft' && canApprove && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedJournal.allowedActions?.includes('approve') && (
                   <button
                     type="button"
-                    disabled={selectedJournal.maker === user?.username}
                     onClick={() => handleApproveJournal(selectedJournal)}
-                    className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                    className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     <Check size={15} />
                     <span>اعتماد القيد المحاسبي</span>
                   </button>
                 )}
 
-                {selectedJournal.status === 'approved' && canApprove && (
+                {selectedJournal.allowedActions?.includes('reject') && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenReject(selectedJournal)}
+                    className="px-4 py-2 rounded-xl border border-[var(--danger)] text-[var(--danger)] text-xs font-bold hover:bg-[var(--danger)]/10 transition inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <XCircle size={15} />
+                    <span>رفض المسودة</span>
+                  </button>
+                )}
+
+                {selectedJournal.allowedActions?.includes('delete') && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteJournal(selectedJournal)}
+                    className="px-4 py-2 rounded-xl border border-[var(--line)] text-[var(--danger)] text-xs font-bold hover:bg-[var(--raised)] transition inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 size={15} />
+                    <span>حذف المسودة</span>
+                  </button>
+                )}
+
+                {selectedJournal.allowedActions?.includes('reverse') && (
                   <button
                     type="button"
                     onClick={() => handleOpenReverse(selectedJournal)}
@@ -1021,6 +1122,50 @@ export function ManualJournalsPanel({
               placeholder="اكتب سبب عكس القيد والخطأ المراد تصحيحه بالتفصيل..."
               required
               className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+            />
+          </div>
+        </div>
+      </Dialog>
+
+      {/* DIALOG: Reject Journal Draft */}
+      <Dialog
+        open={rejectModalOpen}
+        onClose={() => setRejectModalOpen(false)}
+        title="رفض مسودة القيد المحاسبي (Maker-Checker)"
+        actions={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <button
+              type="button"
+              onClick={() => setRejectModalOpen(false)}
+              className="px-4 py-2 rounded-xl border border-[var(--line)] text-xs font-bold cursor-pointer hover:bg-[var(--raised)]"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={submittingReject || rejectReason.trim().length < 3}
+              onClick={handleConfirmReject}
+              className="px-5 py-2 rounded-xl bg-[var(--danger)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer disabled:opacity-50"
+            >
+              {submittingReject ? 'جاري الرفض...' : 'تأكيد الرفض'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4 py-2">
+          <p className="text-xs text-[var(--muted)]">
+            يتطلب رفض المسودة توثيق سبب الرفض بدقة (من 3 إلى 1000 حرف) وفق سياسات التدقيق المالي.
+          </p>
+          <div>
+            <label className="block text-xs font-bold text-[var(--ink)] mb-1">
+              سبب الرفض <span className="text-[var(--danger)]">*</span>:
+            </label>
+            <textarea
+              rows={3}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="اكتب سبب رفض هذه المسودة بالتفصيل..."
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] focus:outline-hidden focus:border-[var(--accent)]"
             />
           </div>
         </div>
