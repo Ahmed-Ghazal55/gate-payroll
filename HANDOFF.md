@@ -3,8 +3,29 @@
 | Field | Value |
 |---|---|
 | Current writer | none |
-| Branch | feat/k-review (Claude K1–K4), from main 0.15.0 |
-| Updated | 2026-11-05 by Claude |
+| Branch | feat/r6b-ui (Antigravity), merged feat/k-review |
+| Updated | 2026-11-07 by Antigravity |
+
+## Wave 2 — Antigravity R6b UI (2026-11-07), branch `feat/r6b-ui`
+All tasks A0 through A8 from `~/.agents/prompts/antigravity-R6b-ui.md` completed, tested, and verified on 1440px and 360px:
+- **A0 (Page Sweep & Visual QA):** Completed (`765b24a`). Fixed numeric and text table alignment using logical classes (`text-start`/`text-end`), resolved RTL contrast issues, eliminated horizontal page scroll across all 16 views.
+- **A1 (Header Shortcuts & Personal Notifications):** Completed (`d14bde3`). Added `Zap` shortcuts menu strictly filtered by `can()` (Supervisors see only the two advance forms; omitted if 0 permissions). Added `UserCheck` personal notifications icon next to the bell, reading from `summary.byCategory.personal` while general bell excludes personal.
+- **A2 (ERP Sync Drawer Panel):** Completed (`b432cbb`). Built `ErpSyncDrawer.tsx` with live 3s polling, dry-run & commit actions, refusal code mapping to friendly Arabic, counts table, and last 5 runs history.
+- **Prerequisite Merge:** Completed (`b15cb09`). Clean merge of `feat/k-review` into `feat/r6b-ui` with 0 conflicts and 0 build errors.
+- **A3 (Payroll Review Grid - BR §32):** Completed (`703cf77`). Built `PayrollReviewGrid.tsx` and `PayrollReviewDrawer.tsx` (ResponsesTab pattern) with phase groupings, debt installment edit (0..max), salary adjustments (+/−), single-row approval, bulk approve dialog with skipped count, sticky totals bar, and Stage 6 integration.
+- **A4 (Config Lists Panels - BR §27):** Completed (`a2fd327`). Built `ConfigListsPanel.tsx` in `/app/admin` with tabs for all 6 groups, custom field schema builder, item add/edit dialog, active/inactive toggle, and maker-checker approval badge for financial groups (`pay.approve`).
+- **A5 (Statement Phases - BR §29):** Completed (`a80825a`). Added phased subtotals bar (Gross → Commission → Phase 1 → Preliminary Due → Phase 2 → Phase 3 → Net) in rider monthly statement (`/app/riders/statement`) and cycle stepper (`/app/payroll`).
+- **A6 (Internet Advance Form - BR §25.9 / K2):** Completed (`18cb691`). Added «سلفة نت» with fulfilment options (نقدي / بنكي / كارت شحن مكنة مدى). Card requests auto-populate package price as read-only from approved config lists (`recharge_networks` / `recharge_packages`). Treasury payout queue displays network and package.
+- **A7 (Manual Journal Screen - BR §28 / C6):** Completed (`701c7a9`). Built `ManualJournalsPanel.tsx` in `/app/accounting` (also opened via shortcut `?action=manual_journal`), lines grid (min 2 lines), COA posting accounts selector, live debit/credit balance indicator (green when balanced, red when diff), 2MB attachment uploader (base64), draft list, maker-checker approval, and reversal modal with mandatory reason.
+- **A8 (Ninja Invoice Reconciliation - BR §26, §31):** Completed (`e438b38`). Built `NinjaInvoiceUploadScreen.tsx` supporting 1–5 supplier `.xlsx` files against `POST /api/platforms/ninja/invoices/reconcile`. Prominent BR §31 banner: «المعتمد هو الفاتورة — الفرق للعلم», totals comparison, invoice adjustments table, and captain-by-captain comparison grid highlighting differences and reasons. Accessible via `/app/payroll?tab=ninja_upload` and platforms tab.
+- **A9 (Voucher QR & Search):** Waiting for Codex C7.
+
+### Verification Summary
+- `npm run build`: PASS (static export generated with 0 errors)
+- `python3 scripts/package_web.py`: PASS
+- `dotnet build tests/Engine.Tests/Engine.Tests.csproj`: PASS (0 warnings, 0 errors)
+- `node web/tests/ui-qa.mjs`: PASS (all Playwright checks passed with zero errors; 32 screenshots generated at 360 and 1440 in `test-results/r6b-ui/`)
+- Browser test suites: PASS (`sessions-ui.mjs`, `rider-app-ui.mjs`, `rider-asks-ui.mjs`, `finance-views-ui.mjs`, `browser.mjs`)
 
 ## Wave 2 — Claude K1–K4 (2026-11-07), branch `feat/k-review`
 - K1: config lists API (`ConfigLists.cs`), 6 groups, custom fields, versions, maker-checker for financial groups, seeded defaults (BR §27/§29).
