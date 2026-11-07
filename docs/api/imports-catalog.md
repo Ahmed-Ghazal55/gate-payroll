@@ -18,3 +18,5 @@ definitions those endpoints use (`TableExcelApi.Columns`, `TreasuryEntries.Openi
 
 Operations templates share a core (`period, platformAccountId, iqama, riderName, from, to, days, orders, baseGross, category`) that maps to the
 pay-cycle invoice review `accounts[].riders[]`, plus app-specific metrics. Codex D3 finalises the metrics from the real invoices.
+
+R6c-D3: Ninja/Keeta/HungerStation operations now expose ready preview/commit URLs. See [operations review contract](operations-import.md), including the explicit normalized-invoice requirement for historical HS raw files. Metric columns and six pay categories come from ImportCatalog.

@@ -28,7 +28,7 @@ public static class KeetaInvoices
         if(decimal.TryParse(text,NumberStyles.Float,CultureInfo.InvariantCulture,out var n)&&n==decimal.Truncate(n))return n.ToString("0",CultureInfo.InvariantCulture);
         J.Need(text.Length is >0 and <=128&&!text.Any(char.IsControl),"معرف اليوزر غير صالح.");return text;
     }
-    static HashSet<int> MissingCache(byte[] bytes,string name,HashSet<int> selected)
+    internal static HashSet<int> MissingCache(byte[] bytes,string name,HashSet<int> selected)
     {
         using var zip=new ZipArchive(new MemoryStream(bytes));XNamespace ns="http://schemas.openxmlformats.org/spreadsheetml/2006/main",rel="http://schemas.openxmlformats.org/officeDocument/2006/relationships";
         XElement Xml(string path){using var stream=(zip.GetEntry(path)??throw new ApiError("مصنف غير صالح.")).Open();return XElement.Load(stream);}

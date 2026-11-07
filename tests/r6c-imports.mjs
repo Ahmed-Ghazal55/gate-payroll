@@ -36,7 +36,28 @@ try{
  await call('checker',`/api/platforms/keeta/invoices/${encodeURIComponent(invoice.id)}/approve`,{});
  await call('checker',`/api/platforms/keeta/invoices/${encodeURIComponent(invoice.id)}/post`,{},409); // gate remains OFF
  await call('admin','/api/platforms/keeta/invoices',upload(),400); // duplicate bytes refused
- console.log(`PASS R6c invoice HTTP contracts: ${checks} checks`);
+ // D3: actual routes, native JSON/XLSX transport and source-bound cycle review, all synthetic.
+ const setupDb=new DatabaseSync(path.join(data,'payroll.db'));
+ function put(kind,doc){setupDb.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(doc.id,kind,JSON.stringify(doc));}
+ for(const app of ['ninja','keeta','hs']){
+  const account='syn-ops-'+app,invoiceId='syn-ops-invoice-'+app,rider='2000000091';
+  put('rider',{id:rider,iqama:rider,sponsorId:company,isDeliveryRider:true});
+  put('platform_account',{id:account,companyId:company,platformCode:app,assignments:[{riderId:rider,RawEffectiveFrom:'2026-10-01T00:00:00+03:00'}]});
+  put('platform_invoice',{id:invoiceId,companyId:company,platform:{ninja:'Ninja',keeta:'Keeta',hs:'HungerStation'}[app],period:'2026-10',approvalStatus:'approved',amountExclVat:100,vat:15,deductionsTotal:0});
+  put('platform_invoice_line',{id:'syn-ops-line-'+app,invoiceId,platformAccountId:account,baseGross:100,incentives:0,orders:5,deductionAmount:0});
+  const step=catalog.find(s=>s.key===(app==='hs'?'hungerstation':app)+'_operations');assert.equal(step.status,'ready');
+  const values={'period (YYYY-MM)':'2026-10',platformAccountId:account,iqama:rider,days:1,orders:5,baseGross:100,deduction:0,category:'sponsored_private'};
+  const xlsx=await fetch(base+'/api/excel/export',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookies.admin},body:JSON.stringify({headers:step.columns.map(c=>c.name),rows:[step.columns.map(c=>values[c.name]??'')],numericColumns:step.columns.map((c,i)=>c.type==='number'?i:-1).filter(i=>i>=0)})});assert.equal(xlsx.status,200);checks++;
+  const input={invoiceId,dataBase64:Buffer.from(await xlsx.arrayBuffer()).toString('base64')};
+  await call('anonymous',step.previewUrl,input,401);
+  const view=await call('admin',step.previewUrl,input);assert.equal(view.rows[0].accounts[0].riders[0].rider,rider);
+  await call('checker',step.commitUrl,{...input,...view,confirm:true},409);
+  const saved=await call('admin',step.commitUrl,{...input,...view,confirm:true});assert.deepEqual(saved.review,view.rows[0]);
+  await call('checker',`/api/pay/apps/${app}/operations/imports/${encodeURIComponent(saved.id)}`);
+  await call('admin',step.commitUrl,{...input,...view,confirm:true},409);
+ }
+ setupDb.close();
+ console.log(`PASS R6c invoice/operations HTTP contracts: ${checks} checks`);
 }finally{
  if(child&&child.exitCode===null){const exit=once(child,'exit');child.kill();await exit;}
  rmSync(data,{recursive:true,force:true});

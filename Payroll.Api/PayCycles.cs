@@ -30,7 +30,13 @@ public static partial class PayCycles
         else J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("status")=="reversed"&&d.S("period")==period&&d.S("companyId")==company),"حدد الدورة المعكوسة صراحة للتصحيح.");
         Scope(actor,cycle,"pay.manage");Open(c,tx,cycle);UploadInvoices(c,tx,cycle);ReviewInvoices(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_created",cycle.S("id"),actor.Identity!.Name!);return cycle;
     }
-    static void ReviewInvoices(DbConnection c,DbTransaction tx,JsonObject cycle)
+    // Read-only validation shared by operation imports and the normal staged cycle workflow.
+    public static void ValidateImportedReview(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string company,string period,JsonObject review)
+    {
+        var cycle=new JsonObject{["companyId"]=company,["period"]=period,["invoices"]=new JsonArray(review.Clone())};
+        Scope(actor,cycle,"pay.manage");ReviewInvoices(c,tx,cycle);ValidateRiders(c,tx,cycle,actor);
+    }
+    static void ReviewInvoices(DbConnection c,DbTransaction? tx,JsonObject cycle)
     {
         var invoices=Rows(cycle["invoices"]).OfType<JsonObject>().ToList();J.Need(invoices.Select(i=>i.S("invoiceId")).Distinct().Count()==invoices.Count,"فاتورة مكررة.");
         foreach(var review in invoices)
@@ -60,7 +66,7 @@ public static partial class PayCycles
             foreach(var d in deductions)
             {
                 var sourceLine=sourceLines.SingleOrDefault(l=>l.S("id")==d.Required("sourceLineId"));J.Need(sourceLine!=null,"الخصم يحتاج سطر مصدر.");
-                if(app is "ninja" or "keeta"&&source.S("status")=="final")
+                if((app is "ninja" or "keeta"||app=="hs"&&sourceLine!["deductions"] is JsonArray)&&source.S("status")=="final")
                 {
                     var components=(sourceLine!["deductions"] as JsonArray??[]).OfType<JsonObject>().ToList();
                     var selected=components.Where(x=>d.S("sourceCategory")==""||x.S("category")==d.S("sourceCategory")).ToList();
@@ -104,7 +110,7 @@ public static partial class PayCycles
     static DateTimeOffset Time(string value){J.Need(DateTimeOffset.TryParse(value,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var time),"توقيت المصدر غير صالح.");return time;}
     static bool Overlaps(JsonObject a,string period,string from="RawEffectiveFrom",string to="RawEffectiveTo")
     {string start=a.S(from),end=a.S(to);J.Need(start!="","توقيت التكليف الفعلي مفقود.");var month=Time(period+"-01T00:00:00+03:00");return Time(start)<month.AddMonths(1)&&(end==""||Time(end)>month);}
-    static void ValidateRiders(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)
+    static void ValidateRiders(DbConnection c,DbTransaction? tx,JsonObject cycle,ClaimsPrincipal actor)
     {
         foreach(var (app,a) in Accounts(cycle))
         {

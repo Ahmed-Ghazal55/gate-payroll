@@ -133,3 +133,5 @@ Deletes only the chosen form and its children atomically, records `campaign.dele
 - Requests, fake examples, balance basis, scope/completeness flags and bank code 40 confirmation: [finance views API](docs/api/finance-views.md).
 
 Keeta supplier invoice preview/confirm, independent approval, disputes and posting: [Keeta invoice contract](docs/api/keeta-invoices.md).
+
+Per-app operation templates, signed imports and cycle review contract: [Operations import](docs/api/operations-import.md).

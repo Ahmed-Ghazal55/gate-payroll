@@ -20,7 +20,9 @@
 - Ghazal approved2026-11-07: company sheets +receipts +per-rider/type detail are authoritative. Formatted-summary cash+115 /internet−115 remains warning-only; no October records load. Live history/payroll preview still operator-only.
 - Separate private offline outputs: ~/Private/gate-data/sync-logs/r6c-debts-continuation-offline.{json,xlsx},600/700. October references only in private reconciliation lineage, never debt documents.
 - D1 tooling commit467f3b0. D2 Keeta DONE: supplier header map and original-sheet selection, scoped signed preview/confirm, duplicate hash refusal, independent classification/approval, disputes and principal-only gated posting via PayPlatforms. No source/real DB import run.
-- D2 verification:22 focused .NET regressions passed (Keeta/Ninja/cycles/catalog),0skipped;15 synthetic HTTP checks passed. Contract:docs/api/keeta-invoices.md. D3 operations then D4 Chefz are NEXT; still no real commit/load.
+- D2 verification:22 focused .NET regressions passed (Keeta/Ninja/cycles/catalog),0skipped;15 synthetic HTTP checks passed. Contract:docs/api/keeta-invoices.md. D3 operations DONE:3 apps, catalog-owned columns, signed byte/state/actor-bound confirm, actual dated operators, source/deduction reconciliation, saved review only. D4 Chefz NEXT; still no real commit/load.
+
+- D3 verification:18 focused .NET cases passed (operations/catalog/cycles),0skipped;36 synthetic HTTP checks passed. Native historical HS files without normalized invoice facts stay blocked; contract:docs/api/operations-import.md.
 
 ## Operator commands — exact order, not agent-executed
 1. **Ghazal/Claude** builds this worktree and previews (SELECT only); same source files/read-only, source credentials never printed:
