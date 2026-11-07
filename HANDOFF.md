@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none |
-| Branch | fix/0.17.1 (PR, waiting for «ادمج») |
+| Current writer | Codex (R8 backend worktree only) |
+| Branch | feat/r8-ninja-api, base d31adc1 (0.17.1) |
 | Live | 0.17.0 on **db77738 (SQL Server)**; login audit confirmed in SQL |
 | Updated | 2026-11-07 by Claude |
 
@@ -46,6 +46,7 @@
 - Next waves: W1 tables/RiderPicker (0.18.0), W2 operations resolved views, W3 workflow gaps (Ninja approve, journal reject/delete, rule editor), W4 users/tasks/chat, W5 Capacitor rider app.
 
 ## Next
+0. R8 active: C1 contract → C2 invoice → C3 review draft → C4 settings → C5 synthetic SQL chain → C8 runbook/read-only dry run. C6/C7 remain with Claude. No push/merge/deploy or live writes. Weekly usage is not exposed to this session.
 1. Ghazal: fill the decision sheet for the 379 rows.
 2. Ghazal: approve CR-003 (`gate-finance-spec/docs/change-requests/CR-003-hungerstation-erp-review.md`), then send it to Omar.
 3. Passwords: rotate at the final ERP integration (Ghazal's decision 2026-11-07).

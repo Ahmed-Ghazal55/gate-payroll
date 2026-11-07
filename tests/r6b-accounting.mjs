@@ -54,7 +54,7 @@ sys.stdout.buffer.write(out.getvalue())
  const lines=await call('checker',`/api/platforms/ninja/invoices/${id}/lines`);assert.equal(lines[0].invoiced,6500);assert.equal(lines[0].reason,'vehicle type edited by the platform');
  await call('checker',`/api/platforms/ninja/invoices/${id}/post`,{},409);await call('admin','/api/platforms/ninja/posting',{enabled:true});
  const posted=await call('checker',`/api/platforms/ninja/invoices/${id}/post`,{});assert.ok(posted.journalEntryId);
- await call('admin','/api/platforms/ninja/invoices',form(),400);await call('checker','/api/platforms/ninja/invoices');
+ const replay=await call('admin','/api/platforms/ninja/invoices',form());assert.equal(replay.rows[0].id,invoice.id);await call('checker','/api/platforms/ninja/invoices');
  const madaDb=new DatabaseSync(path.join(data,'payroll.db'));const save=(kind,row)=>madaDb.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?)').run(row.id,kind,JSON.stringify(row));
  const rider='2'+String(1).padStart(9,'0');save('rider',{id:rider,iqama:rider,name:'Synthetic Rider',sponsorId:company});
  save('journal',{id:'synthetic-target-bank-opening',chart:'target',status:'posted',period:'2026-11',lines:[{accountCode:'111201',sponsorId:company,debit:1000,credit:0},{accountCode:'212103',sponsorId:company,debit:0,credit:1000}]});

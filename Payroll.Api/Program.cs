@@ -39,6 +39,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization();
 builder.Services.AddOpenApi(options=>options.AddOperationTransformer((operation,context,cancellation)=>
 {
+    ApiContracts.Describe(operation,context.Description.HttpMethod??"","/"+context.Description.RelativePath);
     operation.Deprecated=ApiDeprecations.IsDeprecated(context.Description.HttpMethod??"","/"+context.Description.RelativePath);
     return Task.CompletedTask;
 }));
@@ -153,6 +154,7 @@ PlatformPosting.Map(api,store);
 PaySettings.Map(api,store);
 PayAssignments.Map(api,store);
 PayCycles.Map(api,store);
+PayReviewDraft.Map(api,store);
 Operations.Map(api,store);
 PayStatements.Map(app,api,store);
 HungerStationInvoices.MapImports(api,store);

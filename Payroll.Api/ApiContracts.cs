@@ -1,0 +1,56 @@
+using Microsoft.OpenApi;
+namespace Payroll;
+
+// Schemas describe the document-store wire format; stored field names stay unchanged.
+public static class ApiContracts
+{
+    static OpenApiSchema S()=>new(){Type=JsonSchemaType.String};
+    static OpenApiSchema N()=>new(){Type=JsonSchemaType.Number};
+    static OpenApiSchema B()=>new(){Type=JsonSchemaType.Boolean};
+    static OpenApiSchema A(IOpenApiSchema item)=>new(){Type=JsonSchemaType.Array,Items=item};
+    static OpenApiSchema O(Dictionary<string,IOpenApiSchema> properties,params string[] required)=>new(){Type=JsonSchemaType.Object,Properties=properties,Required=new HashSet<string>(required),AdditionalPropertiesAllowed=true};
+    static OpenApiSchema Free()=>O([]);
+    static OpenApiSchema Page(IOpenApiSchema item)=>O(new(){["items"]=A(item),["total"]=N(),["page"]=N(),["pageSize"]=N()},"items","total","page","pageSize");
+    public static OpenApiSchema Debt()=>O(new(){["id"]=S(),["iqama"]=S(),["category"]=S(),["categoryAr"]=S(),["status"]=S(),["totalAmount"]=N(),["remainingBalance"]=N(),["monthlyInstallment"]=N(),["paidAmount"]=N(),["creditorSponsorId"]=S()},"id","totalAmount","remainingBalance","status");
+    public static OpenApiSchema InvoiceLine()=>O(new(){["id"]=S(),["invoiceId"]=S(),["sourceRow"]=N(),["platformAccountId"]=S(),["lineType"]=S(),["baseGross"]=N(),["incentives"]=N(),["deductionAmount"]=N(),["orders"]=N(),["vat"]=N(),["expected"]=N(),["invoiced"]=N(),["difference"]=N(),["reason"]=S(),["status"]=S(),["deductions"]=A(O(new(){["category"]=S(),["amount"]=N(),["level"]=S(),["expenseAccount"]=S()},"category","amount","level"))},"id","invoiceId","sourceRow","baseGross","incentives","deductionAmount","orders","vat","invoiced","status");
+    public static OpenApiSchema Invoice()=>O(new(){["id"]=S(),["companyId"]=S(),["platform"]=S(),["period"]=S(),["reference"]=S(),["amountExclVat"]=N(),["deductionsTotal"]=N(),["vat"]=N(),["approvalStatus"]=S(),["status"]=S(),["allowedActions"]=A(S()),["journalEntryId"]=S(),["createdBy"]=S(),["approvedBy"]=S(),["accountingStatus"]=S(),["reversalJournalEntryId"]=S(),["disputes"]=A(O(new(){["id"]=S(),["status"]=S(),["reason"]=S(),["createdBy"]=S(),["resolvedBy"]=S()},"id","status","reason","createdBy")),["accountIds"]=new OpenApiSchema{Type=JsonSchemaType.Array|JsonSchemaType.Null,Items=S()},["lines"]=A(InvoiceLine())},"id","companyId","period","amountExclVat","deductionsTotal","vat","status","approvalStatus","allowedActions");
+    public static OpenApiSchema Cycle()=>O(new(){["id"]=S(),["companyId"]=S(),["period"]=S(),["app"]=S(),["stage"]=N(),["status"]=S(),["invoices"]=A(Review()),["riders"]=A(O(new(){["rider"]=S(),["net"]=N(),["carried"]=N(),["closing"]=N(),["status"]=S(),["review"]=S()},"rider","net","status")),["journalEntryId"]=S(),["history"]=A(Free()),["deductions"]=A(Free())},"id","companyId","period","stage","status","invoices");
+    public static OpenApiSchema Review()=>O(new(){["invoiceId"]=S(),["app"]=S(),["accounts"]=A(O(new(){["accountId"]=S(),["sourceLineId"]=S(),["baseGross"]=N(),["incentives"]=N(),["orders"]=N(),["riders"]=A(O(new(){["rider"]=S(),["sourceLineId"]=S(),["operationSourceIds"]=A(S()),["baseGross"]=N(),["orders"]=N(),["deduction"]=N(),["category"]=S(),["days"]=N(),["metrics"]=Free()},"rider","baseGross","orders","deduction","category","days","metrics"))},"accountId","sourceLineId","baseGross","incentives","orders","riders")),["deductions"]=A(Free())},"invoiceId","app","accounts","deductions");
+    public static OpenApiSchema CycleLine()=>O(new(){["id"]=S(),["cycleId"]=S(),["rider"]=S(),["app"]=S(),["period"]=S(),["status"]=S(),["platformGross"]=N(),["incentives"]=N(),["gross"]=N(),["companyCommission"]=N(),["entitlement"]=N(),["accountDeduction"]=N(),["allocatedVehicleCharge"]=N(),["sources"]=A(O(new(){["sourceLineId"]=S(),["accountId"]=S(),["operationSourceIds"]=A(S()),["baseGross"]=N(),["incentive"]=N(),["deduction"]=N()},"sourceLineId","accountId","baseGross")),["lines"]=A(Free()),["blockers"]=A(S())},"id","cycleId","rider","app","status","gross","sources");
+    public static OpenApiSchema Setting()=>O(new(){["id"]=S(),["kind"]=S(),["app"]=S(),["period"]=S(),["code"]=S(),["version"]=N(),["status"]=S(),["data"]=O(new(){["name"]=S(),["type"]=S(),["billingModel"]=S(),["accountingRole"]=S(),["eligibilitySetId"]=S(),["parameters"]=Free(),["values"]=Free(),["rules"]=A(O(new(){["metric"]=S(),["operator"]=S(),["threshold"]=N(),["effect"]=O(new(){["type"]=S()},"type"),["included"]=B()},"metric","operator","threshold","effect"))}),["createdBy"]=S(),["effectiveFrom"]=S(),["allowedActions"]=A(S())},"id","app","period","status","version","data");
+    public static OpenApiSchema Rider()=>O(new(){["id"]=S(),["iqama"]=S(),["name"]=S(),["status"]=S(),["companyId"]=S(),["phone"]=S(),["chips"]=A(S())},"id");
+    public static OpenApiSchema Journal()=>O(new(){["id"]=S(),["status"]=S(),["companyId"]=S(),["date"]=S(),["reference"]=S(),["description"]=S(),["journalEntryId"]=S(),["allowedActions"]=A(S()),["lines"]=A(O(new(){["accountCode"]=S(),["debit"]=N(),["credit"]=N()},"accountCode","debit","credit"))},"id","status");
+    public static OpenApiSchema Campaign()=>O(new(){["id"]=S(),["title"]=S(),["status"]=S(),["expiresAt"]=S(),["path"]=S(),["kind"]=S()},"id");
+    static OpenApiSchema Explain()=>O(new(){["label"]=S(),["formula"]=S(),["inputs"]=Free(),["amount"]=N(),["category"]=S(),["affectsNet"]=B()},"label","formula","inputs","amount","category");
+    static OpenApiSchema ReviewRow()=>O(new(){["rider"]=S(),["name"]=S(),["status"]=S(),["review"]=S(),["reviewedBy"]=new OpenApiSchema{Type=JsonSchemaType.String|JsonSchemaType.Null},["reviewedAt"]=new OpenApiSchema{Type=JsonSchemaType.String|JsonSchemaType.Null},["gross"]=N(),["commission"]=N(),["afterCommission"]=N(),["phase1"]=N(),["preliminaryDue"]=N(),["phase2"]=N(),["phase3"]=N(),["net"]=N(),["items"]=A(O(new(){["key"]=S(),["phase"]=N(),["order"]=N(),["labelAr"]=S(),["amount"]=N(),["editable"]=B(),["max"]=new OpenApiSchema{Type=JsonSchemaType.Number|JsonSchemaType.Null},["source"]=S()},"key","phase","amount","editable","source")),["edits"]=A(Free())},"rider","status","review","net","items");
+    static OpenApiSchema Statement()=>O(new(){["header"]=O(new(){["rider"]=S(),["name"]=S(),["period"]=S(),["status"]=S(),["ibanMasked"]=S(),["cycles"]=A(Free())},"rider","name","period","cycles"),["source"]=S(),["status"]=S(),["net"]=N(),["carried"]=N(),["closing"]=N(),["balanceBasis"]=S(),["approvedOnly"]=B(),["cards"]=A(O(new(){["app"]=S(),["platform"]=S(),["gross"]=N(),["earnedGross"]=N(),["companyCommission"]=N(),["vehicleCharge"]=N(),["netBeforePersonal"]=N(),["sources"]=A(O(new(){["sourceLineId"]=S(),["accountId"]=S(),["operationSourceIds"]=A(S()),["baseGross"]=N(),["incentive"]=N(),["deduction"]=N()},"sourceLineId","accountId","baseGross")),["explain"]=A(Explain())},"app","gross","earnedGross","explain")),["deductions"]=A(Free()),["phases"]=new OpenApiSchema{Type=JsonSchemaType.Object|JsonSchemaType.Null,AdditionalProperties=N()}},"header","source","status","net","carried","closing","cards","deductions");
+    public static OpenApiSchema? Response(string method,string path)
+    {
+        bool get=method=="GET";
+        if(path=="/api/finance/statement/rider/{iqama}/monthly")return Statement();
+        if(path=="/api/pay/cycles/{id}/review")return O(new(){["cycle"]=O(new(){["id"]=S(),["period"]=S(),["companyId"]=S(),["stage"]=N(),["status"]=S()},"id","period","companyId","stage","status"),["totals"]=O(new(){["riders"]=N(),["approved"]=N(),["pending"]=N(),["needsDecision"]=N(),["net"]=N()},"riders","approved","pending","needsDecision","net"),["rows"]=A(ReviewRow())},"cycle","totals","rows");
+        if(path=="/api/pay/cycles/{id}/review/approve-all")return O(new(){["approved"]=N(),["skipped"]=N()},"approved","skipped");
+        if(path=="/api/pay/cycles/{id}/review/{iqama}")return ReviewRow();
+        if(path=="/api/pay/review-draft")return O(new(){["app"]=S(),["period"]=S(),["companyId"]=S(),["invoices"]=A(Review()),["blockers"]=A(O(new(){["code"]=S(),["message"]=S(),["fixAction"]=S(),["sourceLineId"]=S()},"code","message","fixAction","sourceLineId")),["unassignedOrders"]=A(Free()),["ridersNotFound"]=A(Free()),["evidence"]=A(Free()),["canCreate"]=B(),["totals"]=O(new(){["gross"]=N(),["deductions"]=N(),["vat"]=N()},"gross","deductions","vat")},"app","period","companyId","invoices","blockers","unassignedOrders","ridersNotFound","evidence","canCreate","totals");
+        if(path=="/api/debts"&&get)return new(){OneOf=[A(Debt()),Page(Debt())]};
+        if(path=="/api/riders"&&get)return new(){OneOf=[A(Rider()),Page(Rider())]};
+        if(path=="/api/riders/lookup"&&get)return A(Rider());
+        if(path is "/api/campaigns" or "/api/campaigns/{id}")return get&&path=="/api/campaigns"?new(){OneOf=[A(Campaign()),Page(Campaign())]}:Campaign();
+        if(path.StartsWith("/api/finance/journals/manual")&&!path.EndsWith("/attachment"))return get&&path.EndsWith("/manual")?Page(Journal()):Journal();
+        if(path=="/api/pay/cycles/{id}/lines")return Page(CycleLine());
+        if(path.StartsWith("/api/pay/cycles")&&!path.Contains("/review"))return get?Page(Cycle()):Cycle();
+        if(path.StartsWith("/api/platforms/ninja/invoices"))
+        {
+            if(path.EndsWith("/lines"))return A(InvoiceLine());
+            if(path=="/api/platforms/ninja/invoices")return get?Page(Invoice()):new(){OneOf=[Invoice(),O(new(){["rows"]=A(Invoice()),["canCommit"]=B(),["fingerprint"]=S()},"rows","canCommit","fingerprint")]};
+            return Invoice();
+        }
+        if(path=="/api/pay/settings"||path.StartsWith("/api/pay/settings/{id}")||path.StartsWith("/api/pay/apps/{app}/")&&new[]{"terms","schemes","eligibility"}.Any(s=>path.Contains("/"+s)))return method=="DELETE"?O(new(){["deleted"]=B(),["id"]=S()},"deleted","id"):get?Page(Setting()):Setting();
+        return null;
+    }
+    public static void Describe(OpenApiOperation operation,string method,string path)
+    {
+        var schema=Response(method,path.Split('?')[0]);if(schema==null)return;
+        operation.Responses??=new();operation.Responses["200"]=new OpenApiResponse{Description="Successful response (stored wire field names)",Content=new Dictionary<string,OpenApiMediaType>{["application/json"]=new(){Schema=schema}}};
+    }
+}

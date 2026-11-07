@@ -22,9 +22,16 @@ public static partial class PayCycles
             J.Need(payable>=rider.N("net"),"تم صرف المستحق؛ سوّ الصرف قبل عكس الدورة.");
         }
         var journals=Store.List(c,"journal",tx).Where(j=>j.S("payCycleId")==cycle.S("id")&&j.S("reversesJournalId")=="").ToList();J.Need(journals.Count>0,"قيود الدورة غير موجودة.");
+        var reversalIds=new Dictionary<string,string>();
         foreach(var journal in journals)
         {
-            var reverse=new JsonArray();foreach(var old in journal["lines"]!.AsArray().OfType<JsonObject>()){var line=old.Clone();line["debit"]=old.N("credit");line["credit"]=old.N("debit");line["period"]=request.S("period");reverse.Add(line);}PayPosting.Post(c,tx,cycle,reverse,actor.Identity!.Name!,":reverse:"+journal.S("id"),journal.S("id"),request.S("period"));
+            var reverse=new JsonArray();foreach(var old in journal["lines"]!.AsArray().OfType<JsonObject>()){var line=old.Clone();line["debit"]=old.N("credit");line["credit"]=old.N("debit");line["period"]=request.S("period");reverse.Add(line);}var posted=PayPosting.Post(c,tx,cycle,reverse,actor.Identity!.Name!,":reverse:"+journal.S("id"),journal.S("id"),request.S("period"));reversalIds[journal.S("id")]=posted.S("id");
+        }
+        foreach(var review in Rows(cycle["invoices"]).OfType<JsonObject>())
+        {
+            var invoice=Store.Get(c,review.S("invoiceId"),"platform_invoice",tx)!;
+            if(invoice.S("payCycleId")!=cycle.S("id"))continue;
+            invoice["reversalJournalEntryId"]=reversalIds[invoice.S("journalEntryId")];invoice["accountingStatus"]="reversed";Store.Save(c,"platform_invoice",invoice,tx);
         }
         foreach(var before in Rows(cycle["debtBefore"]).OfType<JsonObject>())Store.Save(c,"debt",before.Clone(),tx);
         foreach(var ledger in Store.List(c,"ledger",tx).Where(l=>l.S("sourceRef")==cycle.S("id")&&l.S("kind")=="debt_installment"))Store.Save(c,"ledger_reversal",new(){["id"]="pay-reverse:"+ledger.S("id"),["reversesLedgerId"]=ledger.S("id"),["cycleId"]=cycle.S("id"),["amount"]=-ledger.N("amount"),["approvedBy"]=actor.Identity!.Name,["period"]=request.S("period")},tx);
