@@ -126,7 +126,9 @@ public static class NinjaBilling
                 if(reasons.Count==0)reasons.Add("unexplained");
             }
             if(diffs.Count==0)matched++;else different++;
-            lines.Add(new JsonObject{["row"]=r+1,["captainId"]=captain,["capability"]=engine.S("capability"),["level"]=engine.S("level"),["status"]=diffs.Count==0?"match":"difference",
+            var invoiced=new JsonObject();foreach(var column in Columns)invoiced[column.Value]=column.Value is "supplierId" or "supplierName" or "status" or "capability" or "captainId" or "zone" or "firstAttended" or "levelType"?JsonValue.Create(Cell(row,column.Key)):JsonValue.Create(Num(Cell(row,column.Key)));
+            var passInvoiced=new JsonObject();foreach(var item in PassThrough)passInvoiced[item.Code]=pass[item.Code];
+            lines.Add(new JsonObject{["invoiceValues"]=invoiced,["invoicePassThrough"]=passInvoiced,["row"]=r+1,["captainId"]=captain,["capability"]=engine.S("capability"),["level"]=engine.S("level"),["status"]=diffs.Count==0?"match":"difference",
                 ["engineFinal"]=Math.Round(engine.N("finalAmount"),2),["invoiceFinal"]=Math.Round(invoiceFinal,2),["differences"]=diffs,["reasons"]=reasons});
         }
         var sum=new JsonObject();foreach(var (k,v) in totals)sum[k]=new JsonObject{["invoice"]=Math.Round(v.Invoice,2),["engine"]=Math.Round(v.Engine,2),["difference"]=Math.Round(v.Invoice-v.Engine,2)};
@@ -136,9 +138,9 @@ public static class NinjaBilling
     static void Add(Dictionary<string,(decimal,decimal)> t,string k,decimal inv,decimal eng){var cur=t.GetValueOrDefault(k);t[k]=(cur.Item1+inv,cur.Item2+eng);}
 
     // Terms: the approved Ninja ninja_target terms for the month; otherwise the seed, clearly marked unapproved.
-    public static (JsonObject Parameters,string Source) Terms(System.Data.Common.DbConnection c,string period)
+    public static (JsonObject Parameters,string Source) Terms(System.Data.Common.DbConnection c,string period,System.Data.Common.DbTransaction? tx=null)
     {
-        var approved=Store.List(c,"pay_terms").Where(t=>t.S("app")=="ninja"&&t.S("period")==period&&t.S("status")=="approved"&&t["data"]?["billingModel"]?.ToString()=="ninja_target").OrderByDescending(t=>t.S("approvedAt")).FirstOrDefault();
+        var approved=Store.List(c,"pay_terms",tx).Where(t=>t.S("app")=="ninja"&&t.S("period")==period&&t.S("status")=="approved"&&t["data"]?["billingModel"]?.ToString()=="ninja_target").OrderByDescending(t=>t.S("approvedAt")).FirstOrDefault();
         return approved!=null?(approved["data"]!["parameters"]!.AsObject(),"approved:"+approved.S("id")):(Seed()["parameters"]!.AsObject(),"seed_unapproved");
     }
 

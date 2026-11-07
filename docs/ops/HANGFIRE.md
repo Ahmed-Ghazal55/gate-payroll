@@ -5,12 +5,12 @@ Hangfire runs inside the API. The primary workflow is the manual sync action; th
 ## Activation (Ghazal performs these steps)
 
 1. Verify the pinned Hangfire.AspNetCore/SqlServer **1.8.25** packages and full SQL tests before enabling this feature. Ghazal chose cache-only validation: local1.8.23 compatibility results do not verify1.8.25. No packages were downloaded or NuGet sources changed.
-2. In MonsterASP secret settings, set `ConnectionStrings:Jobs` and `ConnectionStrings:DefaultConnection` to staging `db77738` on the same server, and `ConnectionStrings:ErpReadonly` (or `ERP_READONLY_DB`) to the enforced SELECT-only ERP account. Ghazal sets the values himself; never put them in Git, tickets, screenshots or commands. Environment names use double underscores, such as `ConnectionStrings__Jobs`.
+2. In MonsterASP secret settings, set `ConnectionStrings:Jobs` and `ConnectionStrings:DefaultConnection` to payroll database `db77738` on the same server, and `ConnectionStrings:ErpReadonly` (or `ERP_READONLY_DB`) to the enforced SELECT-only ERP account. Ghazal sets the values himself; never put them in Git, tickets, screenshots or commands. Environment names use double underscores, such as `ConnectionStrings__Jobs`.
 3. Set `Jobs:Enabled=true` and keep `Jobs:ErpSync:Enabled=false` until the first manual loads are approved. Missing Jobs connection keeps jobs disabled; an unexpected/mismatched target fails closed. No real database initialization or enqueue was performed in this task.
 4. After fresh **«حمّل»**, use the reviewed CLI with exact `--accept-new-kind KIND` for each accepted first load, and verify same-snapshot idempotency. The separate debt workbook still needs its final mapping/month/reconciliation; hosted jobs never load it.
 5. After first-load acceptance, set `Jobs:ErpSync:Enabled=true` and restart. Keep `Jobs:ErpSync:DailyEnabled=false` unless Ghazal wants the optional daily schedule. Startup catch-up defaults to on, after the ERP flag is enabled; account for one possible catch-up when restarting.
 
-Current guards accept only staging, plus explicitly isolated loopback `GateJobsTest_*` databases in Testing. A production flag change alone is rejected; a later reviewed guard change and **«حوّل الإنتاج»** are required for cutover.
+Current guards accept only payroll database db77738, plus explicitly isolated loopback `GateJobsTest_*` databases in Testing. The live SQLite → db77738 cutover requires **«انقل»** and the [cutover runbook](DB-CUTOVER.md); the database guard stays unchanged.
 
 ## Three entry points, one execution path
 
@@ -57,6 +57,6 @@ Application pool AlwaysRunning/preload is host-controlled; the fragment alone do
 
 ## Local verification and limits
 
-Use disposable loopback SQL Server databases only, with `PAYROLL_TEST_SQL_CONNECTION`; never the old ERP-copy container or real staging/production. Verify admission/cooldown, process-start bounds, optional daily schedule, custom-permission migration, counts-only progress, pause and threshold refusal. Run the full .NET suite with0skipped, `node tests/erp-sync.mjs`, source boundary and inventory. Remove only the synthetic container created for the tests.
+Use disposable loopback SQL Server databases only, with `PAYROLL_TEST_SQL_CONNECTION`; never the old ERP-copy container or real real payroll/ERP databases. Verify admission/cooldown, process-start bounds, optional daily schedule, custom-permission migration, counts-only progress, pause and threshold refusal. Run the full .NET suite with0skipped, `node tests/erp-sync.mjs`, source boundary and inventory. Remove only the synthetic container created for the tests.
 
-The pinned1.8.25 build/tests remain unavailable while those packages are missing from the local cache. Cached1.8.23 compatibility is reported separately and does not establish release acceptance. No browser/frontend work, deployment, live sync or production cutover is part of this task. The old systemd files remain disabled; [VPS-SYNC.md](../data/VPS-SYNC.md) is historical optional guidance requiring a new explicit decision.
+Pinned1.8.25 packages are now cached; R6b restores them offline and reports its own validation. Earlier1.8.23 compatibility results are historical. No browser/frontend work, deployment, live sync or production cutover is part of this task. The old systemd files remain disabled; [VPS-SYNC.md](../data/VPS-SYNC.md) is historical optional guidance requiring a new explicit decision.

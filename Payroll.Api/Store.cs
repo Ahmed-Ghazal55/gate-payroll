@@ -96,10 +96,11 @@ public sealed partial class Store
         using var cmd = Command(c, tx, "SELECT body FROM records WHERE id=@id AND kind=@kind", ("@id",id),("@kind",kind));
         return cmd.ExecuteScalar() is string body ? JsonNode.Parse(body)!.AsObject() : null;
     }
-    public static void Save(DbConnection c, string kind, JsonObject doc, DbTransaction tx)
+    public static void Save(DbConnection c, string kind, JsonObject doc, DbTransaction tx,bool preserveSnapshot=false)
     {
         if(kind=="run")PayCycles.GuardLegacyRun(c,tx,doc);
-        if(TryBuffer(tx,kind,doc))return;
+        if(!preserveSnapshot)Vouchers.OnSaving(c,tx,kind,doc);
+        if(kind is not ("voucher_sequence" or "voucher_index" or "odoo_voucher_index")&&TryBuffer(tx,kind,doc))return;
         string id = doc.Required("id");
         using var update = Command(c, tx, "UPDATE records SET body=@body WHERE id=@id AND kind=@kind",("@id",id),("@kind",kind),("@body",doc.ToJsonString()));
         if (update.ExecuteNonQuery() == 0)

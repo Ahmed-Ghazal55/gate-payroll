@@ -1,13 +1,16 @@
 """Small IIS deployment lifecycle around FTP-Deploy-Action; never write runtime data."""
+from contextlib import closing
 import ftplib
 import hashlib
 import io
 import json
 import os
+import sqlite3
 from pathlib import Path
 import ssl
 import sys
 import time
+import uuid
 import urllib.request
 from ftps_chain import verified_intermediates
 
@@ -136,6 +139,42 @@ def finish(ftp):
     print('PASS runtime data/settings metadata unchanged; owned maintenance marker removed.')
 
 
+def download_data(ftp, root=None):
+    """RETR/MLSD only. Ghazal first stops IIS writes with prepare or his own maintenance marker."""
+    marker = read_marker(ftp)
+    if not marker:
+        raise RuntimeError('A maintenance marker is required before a consistent snapshot.')
+    before = protected_fingerprint(ftp)
+    root = Path(root) if root else Path.home() / 'Private/gate-data/cutover'
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    root.chmod(0o700)
+    directory = root / ('snapshot-' + uuid.uuid4().hex)
+    directory.mkdir(mode=0o700)
+    raw = directory / 'raw'
+    raw.mkdir(mode=0o700)
+    names = {name for name, facts in ftp.mlsd('App_Data') if facts.get('type') == 'file'}
+    if 'payroll.db' not in names:
+        raise RuntimeError('SQLite file absent; download-data is for the pre-cutover SQLite site only.')
+    for name in ('payroll.db', 'payroll.db-wal', 'payroll.db-shm'):
+        if name not in names:
+            continue
+        with (raw / name).open('xb') as output:
+            os.chmod(output.name, 0o600)
+            ftp.retrbinary('RETR App_Data/' + name, output.write)
+    if read_marker(ftp) != marker or protected_fingerprint(ftp) != before:
+        raise RuntimeError('Runtime files changed during snapshot; keep maintenance and retry into a new folder.')
+    snapshot = directory / 'payroll.db'
+    # Backup API folds any committed WAL pages into a standalone SQLite snapshot.
+    with closing(sqlite3.connect((raw / 'payroll.db').resolve().as_uri() + '?mode=ro', uri=True)) as source:
+        with closing(sqlite3.connect(snapshot)) as target:
+            snapshot.chmod(0o600)
+            source.backup(target)
+            if target.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
+                raise RuntimeError('Downloaded SQLite snapshot failed integrity verification.')
+    print('PASS private consistent SQLite snapshot: ' + str(snapshot))
+    return snapshot
+
+
 def health(wait=time.sleep):
     for _ in range(30):
         try:
@@ -156,12 +195,14 @@ def main():
     if command == 'health':
         health()
         return
-    if command not in {'prepare', 'finish', 'check'}:
-        raise RuntimeError('Use check, prepare, finish or health.')
+    if command not in {'prepare', 'finish', 'check', 'download-data'}:
+        raise RuntimeError('Use check, prepare, finish, download-data or health.')
     ftp = connect()
     try:
         if command == 'check':
             print('PASS verified FTPS TLS/login/existing root; no files changed.')
+        elif command == 'download-data':
+            download_data(ftp)
         else:
             (prepare if command == 'prepare' else finish)(ftp)
     finally:

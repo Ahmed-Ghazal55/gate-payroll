@@ -1,3 +1,4 @@
+Payroll.Vouchers.Configure(SyntheticVoucherSettings.Key);
 if(args.Contains("--accounting-review"))
 {
     int passed=0;

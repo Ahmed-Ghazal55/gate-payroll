@@ -19,13 +19,13 @@ public static class PlatformDeductions
     public static HashSet<string> Categories(IEnumerable<JsonObject>? tags,string rider,string month)
     {
         var all=(tags??[]).ToList();var reversed=all.Where(t=>t.S("status")=="source_reversal"&&t.S("reversesTagId")!="").Select(t=>t.S("reversesTagId")).ToHashSet();
-        return all.Where(t=>t.S("status")=="confirmed"&&!reversed.Contains(t.S("id"))&&t.S("platform")=="HungerStation"&&t["platformDeducted"] is JsonObject key&&key.S("rider")==rider&&key.S("month")==month).Select(t=>Category(t["platformDeducted"].S("category"))).ToHashSet(StringComparer.Ordinal);
+        return all.Where(t=>t.S("status")=="confirmed"&&!reversed.Contains(t.S("id"))&&t["platformDeducted"] is JsonObject key&&key.S("rider")==rider&&key.S("month")==month).Select(t=>(PayPlatforms.For(t.S("platform")).App=="hs"?"":PayPlatforms.For(t.S("platform")).App+":")+Category(t["platformDeducted"].S("category"))).ToHashSet(StringComparer.Ordinal);
     }
     public static bool Skip(HashSet<string> categories,JsonObject deduction)
     {
         string platform=deduction.S("platform");
-        if(platform!=""&&!platform.Equals("HungerStation",StringComparison.OrdinalIgnoreCase)&&!platform.Equals("hs",StringComparison.OrdinalIgnoreCase))return false;
-        return categories.Contains(Category(deduction.S("category")));
+        string prefix=platform==""||PayPlatforms.For(platform).App=="hs"?"":PayPlatforms.For(platform).App+":";
+        return categories.Contains(prefix+Category(deduction.S("category")));
     }
     static bool Tag(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject invoice,string source,string rider,string category,decimal signedAmount)
     {
@@ -38,6 +38,21 @@ public static class PlatformDeductions
         if(old!=null){J.Need(old.N("amount")==amount&&JsonNode.DeepEquals(old["platformDeducted"],key),"وسم الخصم موجود بوقائع مختلفة؛ لا تستبدله.");return false;}
         var doc=new JsonObject{["id"]=id,["platform"]="HungerStation",["companyId"]=invoice.S("companyId"),["invoiceId"]=invoice.S("id"),["sourceId"]=source,["platformDeducted"]=key,["amount"]=amount,["sourceSignedAmount"]=signedAmount,["status"]="confirmed",["createdBy"]=actor.Identity!.Name,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};
         Store.Save(c,Kind,doc,tx);Store.Audit(c,tx,"platform.hs.deduction_tagged",id,actor.Identity!.Name!);return true;
+    }
+    // Account classifications are provenance, not rider debts: never infer an actual rider.
+    public static void ConfirmClassified(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject invoice,JsonObject line)
+    {
+        string app=PayPlatforms.For(invoice.S("platform")).App;J.Need(app=="ninja","مسار تصنيف منصة غير معتمد.");
+        AccessPolicy.Demand(actor,"pay.approve");FinancialScopes.DemandSponsor(actor,invoice.S("companyId"));
+        J.Need(FinancialScopes.Platform(actor,"Ninja"),"المنصة خارج النطاق.");
+        foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>())
+        {
+            J.Need(d.S("level") is "company_level" or "account_level","تصنيف الخصم مطلوب.");
+            string id="platform-deducted:"+StorageTransfer.CutoverHash(JsonValue.Create(line.S("id")+":"+d.S("category")));
+            if(Store.Get(c,id,Kind,tx)!=null)continue;
+            var tag=new JsonObject{["id"]=id,["platform"]="Ninja",["companyId"]=invoice.S("companyId"),["invoiceId"]=invoice.S("id"),["sourceId"]=line.S("id"),["platformAccountId"]=line.S("platformAccountId"),["category"]=d.S("category"),["level"]=d.S("level"),["amount"]=d.N("amount"),["expenseAccount"]=d.S("expenseAccount"),["status"]="confirmed",["createdBy"]=actor.Identity!.Name};
+            Store.Save(c,Kind,tag,tx);Store.Audit(c,tx,"platform.ninja.deduction_classified_confirmed",id,actor.Identity!.Name!);
+        }
     }
     public static int ConfirmInvoice(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string invoiceId)
     {

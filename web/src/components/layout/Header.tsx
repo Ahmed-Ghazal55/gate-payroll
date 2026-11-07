@@ -143,7 +143,8 @@ export function Header({
     try {
       const summary = await api.getNotificationsSummary();
       if (summary) {
-        setUnreadCount(summary.unreadCount);
+        // The general bell excludes personal items; they have their own icon (A1).
+        setUnreadCount(summary.unreadCount - (summary.byCategory?.personal ?? 0));
         setPersonalUnreadCount(summary.byCategory?.personal ?? 0);
         setApprovalCount(summary.approvalCount);
       }

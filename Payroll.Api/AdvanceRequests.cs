@@ -68,7 +68,7 @@ public static class AdvanceRequests
         string vault=Vault(type,sponsor.Id,input.S("vaultCode"),fulfilment);
         var reviewers=OrgDirectory.Responsible(c,tx,Review);J.Need(reviewers.Count>0,"لا يوجد محاسب مكلّف بمراجعة السلف؛ راجع التوجيه في الأقسام والرتب.",409);
         var r=new JsonObject{["id"]="adv:"+Guid.NewGuid().ToString("N"),["riderIqama"]=iqama,["riderName"]=rider.S("name"),["companyId"]=sponsor.Id,["type"]=type,["amount"]=amount,["vaultCode"]=vault,["reason"]=input.S("reason").Trim(),
-            ["fulfilment"]=fulfilment,["networkCode"]=card?.Network,["packageCode"]=card?.Package,
+            ["fulfilment"]=fulfilment,["odooVoucherNo"]=input.S("odooVoucherNo"),["networkCode"]=card?.Network,["packageCode"]=card?.Package,
             ["status"]="under_review",["revision"]=1,["requestedBy"]=Me(actor),["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["decisions"]=new JsonArray()};
         Decision(r,actor,"submitted",r.S("reason"));Save(c,tx,r,actor,"advance.requested");
         Notify(c,tx,r,Users(reviewers),"review","طلب سلفة جديد بانتظار مراجعتك",actor,true);return r;
@@ -76,6 +76,7 @@ public static class AdvanceRequests
 
     public static JsonObject Summary(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject r)
     {
+        if(r.S("type")=="internet")FinancialScopes.DemandSponsor(actor,r.S("companyId"));
         string iqama=r.S("riderIqama"),period=Period();
         var debts=Store.List(c,"debt",tx).Where(d=>d.S("iqama")==iqama&&d.S("status") is "active" or "pending_approval").ToList();
         decimal open=J.Money(debts.Sum(d=>d.N("remainingBalance")));
@@ -156,10 +157,14 @@ public static class AdvanceRequests
     public static JsonObject PayOut(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
         AccessPolicy.Demand(actor,"advances.payout");var r=Get(c,tx,id);J.Need(r.S("status")=="approved","الطلب غير معتمد للصرف.",409);
-        J.Need(r.S("requestedBy")!=Me(actor),"صاحب الطلب لا يصرفه.",403);var who=OrgDirectory.DemandResponsible(c,tx,actor,Payout(r.S("vaultCode")));
+        J.Need(r.S("requestedBy")!=Me(actor),"صاحب الطلب لا يصرفه.",403);var who=OrgDirectory.DemandResponsible(c,tx,actor,Payout(r.S("vaultCode",r.S("vault"))));
+        if(r.S("type")=="internet")
+        {
+            var paid=MadaAccounting.PayInternet(c,tx,actor,r,input);Notifications.CloseTasks(c,tx,Kind,id,Me(actor));Decision(r,actor,"paid",input.S("note"),who,new(){["reference"]=input.S("reference")});
+            r["status"]="paid";r["debtId"]=paid.S("id");r["journalEntryId"]=paid.S("journalEntryId");r["payoutVoucherNo"]=paid.S("payoutVoucherNo");r["paidBy"]=Me(actor);r["paidAt"]=DateTimeOffset.UtcNow.ToString("O");r["payoutReference"]=input.S("reference");Save(c,tx,r,actor,"advance.paid");Notify(c,tx,r,[r.S("requestedBy"),r.S("approvedBy")],"paid","تم صرف سلفة الإنترنت",actor,false);return r;
+        }
         string reference=input.Required("reference").Trim();J.Need(reference.Length is >2 and <=120,"مرجع الصرف غير صالح.");
         string vault=r.S("vaultCode");decimal amount=r.N("amount");
-        J.Need(Fulfilment(r)!="recharge_card","صرف كارت الشحن من مكنة مدى يحتاج حساب المكنة 112404 (BR §25.9)؛ غير مفعل بعد.",409);
         if(AccountingPolicy.Balance(c,tx,vault)<amount)throw new ApiError("رصيد الخزنة أو البنك غير كافٍ للصرف؛ الطلب يبقى معتمدًا.",409);
         var rider=Store.Get(c,r.S("riderIqama"),"rider",tx)??throw new ApiError("المندوب غير موجود.");string category=Category(r.S("type"));var meta=FinancialCore.ResolveCategory(category);
         var sponsor=FinancialCore.ResolveSponsor(r.S("companyId"));var vaultAcc=FinancialCore.ValidateVaultForOperation(vault,category,"disbursement");var origin=FinancialCore.ResolveSponsor(vaultAcc.DefaultSponsorId);
@@ -168,22 +173,24 @@ public static class AdvanceRequests
             ["originalCreditorSponsorId"]=sponsor.Id,["totalCostAmount"]=amount,["companyShareAmount"]=0m,["totalAmount"]=amount,["paidAmount"]=0m,["waivedAmount"]=0m,["remainingBalance"]=amount,["monthlyInstallment"]=r.N("monthlyInstallment"),
             ["sponsorshipSponsorId"]=sponsor.Id,["sponsorshipSponsorNameAr"]=sponsor.ShortNameAr,["originSponsorId"]=origin.Id,["originSponsorNameAr"]=origin.ShortNameAr,["creditorSponsorId"]=sponsor.Id,["creditorSponsorNameAr"]=sponsor.ShortNameAr,
             ["paymentVaultCode"]=vault,["initiatingDepartment"]="OPS",["requireMutualApproval"]=false,["status"]="active",["notes"]="طلب سلفة "+r.S("id")+" — "+r.S("reason"),["sourceRef"]="ADV-REQ:"+r.S("id"),
-            ["advanceRequestId"]=r.S("id"),["approvedBy"]=r.S("approvedBy"),["paidBy"]=Me(actor),["payoutReference"]=reference,
+            ["advanceRequestId"]=r.S("id"),["payoutOdooVoucherNo"]=input.S("odooVoucherNo"),["approvedBy"]=r.S("approvedBy"),["paidBy"]=Me(actor),["payoutReference"]=reference,
             ["effectiveFrom"]=Period(),["postingPeriod"]=Period(),["createdBy"]=Me(actor),["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};
         J.Need(!Store.List(c,"debt",tx).Any(d=>d.S("sourceRef")==debt.S("sourceRef")),"السلفة مصروفة من قبل.",409);
         Store.Save(c,"debt",debt,tx);Debts.PostCreationJournalIfNeeded(c,tx,debt,Me(actor));Store.Audit(c,tx,"debt.created",debt.S("id"),Me(actor));
         var saved=Store.Get(c,debt.S("id"),"debt",tx)!;
         Notifications.CloseTasks(c,tx,Kind,id,Me(actor));Decision(r,actor,"paid",input.S("note"),who,new(){["reference"]=reference});
+        r["payoutVoucherNo"]=saved.S("payoutVoucherNo");
         r["status"]="paid";r["debtId"]=debt.S("id");r["journalEntryId"]=saved.S("journalEntryId");r["paidBy"]=Me(actor);r["paidAt"]=DateTimeOffset.UtcNow.ToString("O");r["payoutReference"]=reference;Save(c,tx,r,actor,"advance.paid");
         Notify(c,tx,r,[r.S("requestedBy"),r.S("approvedBy")],"paid","تم صرف السلفة",actor,false);return r;
     }
 
-    static bool CanSee(DbConnection c,ClaimsPrincipal user,JsonObject r)
+    public static bool CanSee(DbConnection c,ClaimsPrincipal user,JsonObject r)
     {
         if(AccessPolicy.Administrator(user))return true;
         if(AccessPolicy.Has(user,"advances.request")&&r.S("requestedBy")==Me(user)&&OrgDirectory.Supervises(c,null,Me(user),r.S("riderIqama")))return true;
+        if(r.S("type")=="internet"&&!FinancialScopes.Sponsor(user,r.S("companyId")))return false;
         if(AccessPolicy.Has(user,"advances.review")&&OrgDirectory.Responsible(c,null,Review).Any(x=>x.S("userId")==Me(user)))return true;
-        return AccessPolicy.Has(user,"advances.payout")&&OrgDirectory.Responsible(c,null,Payout(r.S("vaultCode"))).Any(x=>x.S("userId")==Me(user));
+        return AccessPolicy.Has(user,"advances.payout")&&OrgDirectory.Responsible(c,null,Payout(r.S("vaultCode",r.S("vault")))).Any(x=>x.S("userId")==Me(user));
     }
     public static JsonObject Read(DbConnection c,ClaimsPrincipal actor,string id)
     {var r=Get(c,null,id);J.Need(CanSee(c,actor,r),"طلب السلفة غير موجود.",404);return r;}
@@ -195,7 +202,7 @@ public static class AdvanceRequests
             string me=Me(ctx.User);var rows=Store.List(c,Kind).Where(r=>CanSee(c,ctx.User,r));
             if(role=="mine")rows=rows.Where(r=>r.S("requestedBy")==me);
             else if(role=="review")rows=rows.Where(r=>OrgDirectory.Responsible(c,null,Review).Any(x=>x.S("userId")==me));
-            else if(role=="payout")rows=rows.Where(r=>r.S("status")=="approved"&&OrgDirectory.Responsible(c,null,Payout(r.S("vaultCode"))).Any(x=>x.S("userId")==me));
+            else if(role=="payout")rows=rows.Where(r=>r.S("status")=="approved"&&OrgDirectory.Responsible(c,null,Payout(r.S("vaultCode",r.S("vault")))).Any(x=>x.S("userId")==me));
             if(!string.IsNullOrWhiteSpace(status))rows=rows.Where(r=>r.S("status")==status);
             return rows.OrderByDescending(r=>r.S("createdAt")).ToList();
         })).WithTags("Debts and advances").WithSummary("List advance requests visible to the caller (role=mine|review|payout)");

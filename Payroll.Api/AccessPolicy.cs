@@ -48,6 +48,8 @@ public static class AccessPolicy
         {if(method=="GET")return Has("pay.view");return method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");}
         if(path=="/api/platforms/ninja/terms/seed")return method=="GET"&&Has("pay.view");
         if(path=="/api/platforms/ninja/invoices/reconcile")return method=="POST"&&Has("pay.view"); // read-only recalculation
+        if(path.StartsWith("/api/platforms/ninja/invoices",StringComparison.Ordinal))
+            return method=="GET"?Has("pay.view"):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)||path.EndsWith("/post",StringComparison.Ordinal)||path.EndsWith("/resolve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
         if(path.StartsWith("/api/platforms/hs/",StringComparison.Ordinal))
         {
             if(path.EndsWith("/posting",StringComparison.Ordinal))return false;
@@ -85,6 +87,10 @@ public static class AccessPolicy
             if(path.EndsWith("/transfer-sponsor",StringComparison.Ordinal))return method=="POST"&&Has("debts.transfer_sponsor");
             return method=="PUT"&&Has("debts.reschedule");
         }
+        if(path=="/api/finance/mada/balance")return method=="GET"&&(Has("advances.payout")||Has("treasury.view"));
+        if(path=="/api/finance/accounting-adjustments"||path.StartsWith("/api/finance/accounting-adjustments/",StringComparison.Ordinal))return method=="GET"?Has("finance.journal.create"):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
+        if(path=="/api/finance/journals/manual"||path.StartsWith("/api/finance/journals/manual/",StringComparison.Ordinal))
+            return method=="GET"?(Has("finance.journal.create")||Has("finance.journal.approve")):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
         if(path.StartsWith("/api/finance/statement/rider/",StringComparison.Ordinal)&&path.EndsWith("/monthly",StringComparison.Ordinal))return method=="GET"&&Has("pay.view")&&Has("payroll.view")&&Has("debts.view");
         if(path.StartsWith("/api/finance/statement/",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
         if(path is "/api/finance/bank-file/preview" or "/api/finance/bank-file/export")return method=="POST"&&Has("finance.bankfile.export")&&Has("payroll.view");

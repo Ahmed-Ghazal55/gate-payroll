@@ -1,5 +1,7 @@
 # SQL reporting projections
 
+Current target: **قاعدة الرواتب db77738** (BR33). Ghazal alone runs credential-dependent commands. No payroll database writes before the reviewed **«انقل»** cutover; ERP first-kind loads still need fresh **«حمّل»** afterward. Follow [DB-CUTOVER](../ops/DB-CUTOVER.md). Legacy identifiers `staging.env` / `STAGING_DB` are retained for compatibility. Historical counts below are dated evidence, not a fresh preview.
+
 `records` remains the source of truth. `rpt` is a rebuildable typed projection, not another writable business store. No existing document body is migrated or rewritten. SQLite explicitly skips this path with a fixed diagnostic; it never creates imitation rpt tables.
 
 Every table has RowKey(char64 primary key),SourceRecordId(nvarchar128),CompanyId(nvarchar128),RiderId(nvarchar64),Platform(nvarchar40),Period(char7),SourceId(nvarchar512),SourceSha(char64). Row keys are deterministic hashes of the source id/child position. SourceRecordId and each reference ending in Id have indexes; account code and period are indexed. Optional relationships remain nullable for unmapped historical records. There are no cascading foreign-key constraints on incomplete old data.
@@ -38,6 +40,6 @@ dotnet tools/ReportRebuild/bin/Debug/net10.0/ReportRebuild.dll --check
 dotnet tools/ReportRebuild/bin/Debug/net10.0/ReportRebuild.dll --commit
 ```
 
-The tool reads staging.env internally and refuses any catalog except the approved staging catalog. It never logs a connection value, source id or row. It takes the same document-write lock for rebuild, serializable transaction, and checks existing records before/after. No production mode is implemented; R4.9 requires a separate explicit production instruction. SQL integration must be reported as skipped until a permitted SQL execution actually passes; pure projection and SQLite no-op tests do not prove SQL DDL/bulk behavior.
+The tool reads staging.env internally and refuses any catalog except the approved payroll database catalog. It never logs a connection value, source id or row. It takes the same document-write lock for rebuild, serializable transaction, and checks existing records before/after. The guard still accepts only db77738, now the payroll database. Rebuild is an operator write requiring explicit approval after the reviewed cutover; it does not select another database. SQL integration must be reported as skipped until a permitted SQL execution actually passes; pure projection and SQLite no-op tests do not prove SQL DDL/bulk behavior.
 
-R4.7 staging dry-run (2026-11-04): rpt absent; expected6797 rows: Riders2130,Companies3,PlatformAccounts1874,AccountAssignments1024,Vehicles558,VehicleAssignments800,Accounts408; remaining tables0. Read-only preview passed; initialization/rebuild awaits a fresh «حمّل». Counts can change before commit.
+R4.7 payroll database dry-run (2026-11-04): rpt absent; expected6797 rows: Riders2130,Companies3,PlatformAccounts1874,AccountAssignments1024,Vehicles558,VehicleAssignments800,Accounts408; remaining tables0. Read-only preview passed; initialization/rebuild awaits a fresh «حمّل». Counts can change before commit.

@@ -42,15 +42,6 @@ WAL يسمح بالقراءة المتزامنة، والكتابة قصيرة �
 
 ## نقل SQLite إلى SQL Server
 
-أضف ConnectionStrings:DefaultConnection عبر متغيرات البيئة/الإعداد الخاص فقط. تظل Data Protection keys في مجلد البيانات الدائم. أداة StoreMigration تصدّر لقطة JSON متسقة وتعرض عدد السجلات وبصمتها، ثم تستورد ذريًا إلى وجهة فارغة، وترفض المعرفات أو المسيرات أو أسماء المستخدمين المكررة وأي وجهة تحتوي بيانات.
-
-```bash
-# القيم الفعلية ومسارات اللقطة خارج GitHub. لا تضع كلمة مرور في الأمر.
-# اضبط PAYROLL_MIGRATION_DATA_DIR ومسار PAYROLL_MIGRATION_SQL عند اختيار MSSQL.
-dotnet run --project tools/StoreMigration -- export /private/payroll-snapshot.json
-dotnet run --project tools/StoreMigration -- preview /private/payroll-snapshot.json
-# وجّه الإعداد إلى وجهة SQL الفارغة ثم استخدم البصمة التي راجعتها:
-dotnet run --project tools/StoreMigration -- import /private/payroll-snapshot.json REVIEWED-FINGERPRINT
-```
+**تحديث R6b:** أوامر النقل القديمة للوجهة الفارغة اتبدلت. استخدم [دليل النقل الحالي](docs/ops/DB-CUTOVER.md): إيقاف الكتابة، لقطة خاصة، معاينة دمج بتعارضات واضحة، ثم استيراد ومطابقة بعد كلمة «انقل» فقط. القاعدة المستهدفة هي `db77738`، وERP للقراءة فقط. غزال وحده يشغّل الأوامر التي تحتاج بيانات اتصال ويضبط `ConnectionStrings__DefaultConnection`؛ مفاتيح Data Protection وملف SQLite الأصلي يفضلوا محفوظين.
 
 اللقطة تتضمن بيانات شخصية واعتمادات المستخدمين؛ تُحفظ خاصة ولا تدخل حزمة النشر أو GitHub. تُنقل مفاتيح Data Protection منفصلة، مع نسخة احتياطية وإجراء قطع تحويل مدروس. نمط قاعدة الإصدار إضافي ومتوافق، لكن نقل مخزن حي دون أي توقف يحتاج مزامنة فروق/كتابة مزدوجة وخطة تشغيل؛ هذه الأداة لا تدعي تنفيذ ذلك. لا تغيّر connection string على إنتاج يكتب بيانات قبل استكمال خطة النقل. تحديث ملفات تطبيق واحد على IIS قد يحتاج recycle؛ النشر دون انقطاع على مستوى الخدمة يحتاج ترتيب استضافة إضافيًا.

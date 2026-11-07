@@ -1,4 +1,5 @@
 import {spawn} from 'node:child_process';
+import {createServer} from 'node:net';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -7,8 +8,9 @@ import {randomBytes} from 'node:crypto';
 import assert from 'node:assert/strict';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const directory=mkdtempSync(path.join(tmpdir(),'gate-finance-views-http-'));
-const base='http://127.0.0.1:19462';
-const server=spawn(process.env.DOTNET_PATH||'dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:directory},stdio:['ignore','pipe','pipe']});
+const probe=createServer();await new Promise((resolve,reject)=>{probe.once('error',reject);probe.listen(0,'127.0.0.1',resolve);});
+const base='http://127.0.0.1:'+probe.address().port;await new Promise(resolve=>probe.close(resolve));
+const server=spawn(process.env.DOTNET_PATH||'dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,ConnectionStrings__DefaultConnection:'',PAYROLL_DATA_DIR:directory},stdio:['ignore','pipe','pipe']});
 let logs='',cookie='',spawnError;
 server.stdout.on('data',x=>logs+=x);server.stderr.on('data',x=>logs+=x);server.once('error',error=>spawnError=error);
 async function req(route,body,status=200,auth=true){
