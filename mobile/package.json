@@ -1,0 +1,23 @@
+{
+  "name": "gate-rider-mobile",
+  "private": true,
+  "version": "0.18.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "cap:sync": "cap sync",
+    "cap:android": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "6.2.3",
+    "@capacitor/core": "6.2.3",
+    "@capacitor/push-notifications": "6.0.5"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "6.2.3",
+    "typescript": "5.6.3",
+    "vite": "5.4.11"
+  }
+}
