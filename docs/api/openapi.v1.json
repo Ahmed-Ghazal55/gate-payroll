@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:44177/"
+      "url": "http://127.0.0.1:39305/"
     }
   ],
   "paths": {
@@ -7109,6 +7109,236 @@
                     },
                     "pageSize": {
                       "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/review-draft": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Read source-bound Ninja cycle input and actionable blockers without writes",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "app",
+                    "period",
+                    "companyId",
+                    "invoices",
+                    "blockers",
+                    "unassignedOrders",
+                    "ridersNotFound",
+                    "evidence",
+                    "canCreate",
+                    "totals"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "invoices": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "invoiceId",
+                          "app",
+                          "accounts",
+                          "deductions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "invoiceId": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "accounts": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "accountId",
+                                "sourceLineId",
+                                "baseGross",
+                                "incentives",
+                                "orders",
+                                "riders"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "accountId": {
+                                  "type": "string"
+                                },
+                                "sourceLineId": {
+                                  "type": "string"
+                                },
+                                "baseGross": {
+                                  "type": "number"
+                                },
+                                "incentives": {
+                                  "type": "number"
+                                },
+                                "orders": {
+                                  "type": "number"
+                                },
+                                "riders": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "rider",
+                                      "baseGross",
+                                      "orders",
+                                      "deduction",
+                                      "category",
+                                      "days",
+                                      "metrics"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "rider": {
+                                        "type": "string"
+                                      },
+                                      "baseGross": {
+                                        "type": "number"
+                                      },
+                                      "orders": {
+                                        "type": "number"
+                                      },
+                                      "deduction": {
+                                        "type": "number"
+                                      },
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "days": {
+                                        "type": "number"
+                                      },
+                                      "metrics": {
+                                        "type": "object"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "deductions": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "blockers": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "code",
+                          "message",
+                          "fixAction",
+                          "sourceLineId"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "fixAction": {
+                            "type": "string"
+                          },
+                          "sourceLineId": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "unassignedOrders": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "ridersNotFound": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "canCreate": {
+                      "type": "boolean"
+                    },
+                    "totals": {
+                      "required": [
+                        "gross",
+                        "deductions",
+                        "vat"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "gross": {
+                          "type": "number"
+                        },
+                        "deductions": {
+                          "type": "number"
+                        },
+                        "vat": {
+                          "type": "number"
+                        }
+                      }
                     }
                   }
                 }

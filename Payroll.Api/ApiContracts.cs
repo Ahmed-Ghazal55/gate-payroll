@@ -24,6 +24,7 @@ public static class ApiContracts
     public static OpenApiSchema? Response(string method,string path)
     {
         bool get=method=="GET";
+        if(path=="/api/pay/review-draft")return O(new(){["app"]=S(),["period"]=S(),["companyId"]=S(),["invoices"]=A(Review()),["blockers"]=A(O(new(){["code"]=S(),["message"]=S(),["fixAction"]=S(),["sourceLineId"]=S()},"code","message","fixAction","sourceLineId")),["unassignedOrders"]=A(Free()),["ridersNotFound"]=A(Free()),["evidence"]=A(Free()),["canCreate"]=B(),["totals"]=O(new(){["gross"]=N(),["deductions"]=N(),["vat"]=N()},"gross","deductions","vat")},"app","period","companyId","invoices","blockers","unassignedOrders","ridersNotFound","evidence","canCreate","totals");
         if(path=="/api/debts"&&get)return new(){OneOf=[A(Debt()),Page(Debt())]};
         if(path=="/api/riders"&&get)return new(){OneOf=[A(Rider()),Page(Rider())]};
         if(path=="/api/riders/lookup"&&get)return A(Rider());

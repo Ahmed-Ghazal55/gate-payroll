@@ -5825,6 +5825,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pay/review-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read source-bound Ninja cycle input and actionable blockers without writes */
+        get: {
+            parameters: {
+                query: {
+                    app: string;
+                    period: string;
+                    companyId: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            app: string;
+                            period: string;
+                            companyId: string;
+                            invoices: {
+                                invoiceId: string;
+                                app: string;
+                                accounts: {
+                                    accountId: string;
+                                    sourceLineId: string;
+                                    baseGross: number;
+                                    incentives: number;
+                                    orders: number;
+                                    riders: {
+                                        rider: string;
+                                        baseGross: number;
+                                        orders: number;
+                                        deduction: number;
+                                        category: string;
+                                        days: number;
+                                        metrics: Record<string, never>;
+                                    }[];
+                                }[];
+                                deductions: Record<string, never>[];
+                            }[];
+                            blockers: {
+                                code: string;
+                                message: string;
+                                fixAction: string;
+                                sourceLineId: string;
+                            }[];
+                            unassignedOrders: Record<string, never>[];
+                            ridersNotFound: Record<string, never>[];
+                            evidence: Record<string, never>[];
+                            canCreate: boolean;
+                            totals: {
+                                gross: number;
+                                deductions: number;
+                                vat: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/operations/{kind}": {
         parameters: {
             query?: never;
