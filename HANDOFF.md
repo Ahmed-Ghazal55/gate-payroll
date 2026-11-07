@@ -2,50 +2,38 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none |
-| Branch | fix/0.17.1 (PR, waiting for «ادمج») |
-| Live | 0.17.0 on **db77738 (SQL Server)**; login audit confirmed in SQL |
-| Updated | 2026-11-07 by Claude |
+| Current writer | Antigravity (Gemini 3.8) |
+| Branch | feat/r8-ninja-web; merged feat/r8-ninja-api (d7e2feb) |
+| Updated | 2026-11-07 by Antigravity (Gemini 3.8) |
+| Live | Last handoff: 0.17.0 on SQL db77738; not rechecked this run |
 
-## Project folder
-- One working folder: `~/Projects/active/gate-payroll`. Agents work in branches here (single writer).
-- A separate worktree is used only when two agents must write at the same time, and it is removed after merge.
+## Goal now
+First real Ninja payroll, 2026-10, in the browser against db77738. Completed fix round 1 (WF-0 to WF-4).
 
-## Done 2026-11-07
-- 0.16.0 merged (#28) and deployed.
-- **DB move (C0) done.** SQLite snapshot → db77738:
-  - merge plan `ready=true`, 833 added, 862 merged, 0 conflicts;
-  - verified: `missing=0`, `changed=0`, receipt present;
-  - results: rider 2151, submission 224, user 4, company 3.
-  - Fix: company legal descriptors (`crType`, `characteristic`, `entityType`, `nameOnCertificateAr`) are ERP-owned in the merge policy.
-  - The import needs a long command timeout on the remote server (the first run timed out and rolled back).
-  - `ConnectionStrings__DefaultConnection` set by Ghazal. The original SQLite file stays on the site as rollback.
-- **Opening debts (D1) loaded** as `pending_approval` / `OpeningBalance`, effectiveFrom 2026-10. See «Debt load» below.
-- Review fixes on R6c:
-  - the commit kept the target password (captured before `Open`);
-  - the ERP-history creditor = the sponsor on the balance date, else the latest ended period.
-- 0.17.0: Import Center (catalog + templates + UI with the free importer tab), Keeta invoices (D2), per-app operations import (D3), Chefz read model (D4). CI now runs advances, finance-views, r6b-accounting, r6c-imports and import-center.
+## R8 Web Fix Round 1 (WF-0 to WF-4 Completed)
+- **WF-0 (Done - commit `217559e`):** Merged `feat/r8-ninja-api` (`d7e2feb`). Ran `node scripts/gen-api-types.mjs --check` with 0 diff.
+- **WF-1 (Done - commit `c8ba478`):** Bound all R8 endpoints in `web/src/lib/api.ts` and screens to contract types. Verified intentional typo causes `npm run build` failure, then reverted. Remaining `any` in R8 components is 0.
+- **WF-2 (Done - commit `d3350a6`):** `RiderPicker` uses server lookup only (`GET /api/riders/lookup`), displays server chips, handles Arabic error string, and shows «غير موجود — أضف المندوب أولاً». `ManualJournalsPanel` respects `allowedActions` for approve/reject/delete/reverse with a Reject Reason Dialog modal.
+- **WF-3 (Done - commit `b2981e9`):** `uploadNinjaInvoice` in `api.ts` parses `data.error` (string) and `data.code` identical to `handleRequest`.
+- **WF-4 (Done - commit `4659498`):** Rewrote `web/tests/r8-ninja-flow.mjs` to actively drive the end-to-end flow in the browser:
+  1. Starts live dotnet server and seeds only start-of-month baseline records.
+  2. Verifies User A (maker) sees no «اعتماد» button on their own invoice (`maker ≠ checker`).
+  3. User B (checker) approves invoice in browser (`#btn-approve-ninja-invoice`).
+  4. User B checks Review Draft: asserts 0 blockers (`0 Blockers`) and per-account totals equal invoice line total (4,500.00 SAR).
+  5. User B clicks «إنشاء دورة الرواتب».
+  6. User B advances stages with real buttons until stage 4 lines are generated.
+  7. Opens «كيف حُسب؟» Explain Drawer and asserts net entitlement equals API value from `GET /api/pay/cycles/{id}/lines` (4,050.00 SAR).
+  8. All 16 screenshots saved across 1440 & 360 in light & dim modes in `test-results/r8-web/`.
 
-## Debt load (counts only)
-- Ready 407 rows: 419 opening debts / 953,933.71, 6 rider credits / 2,443.70, 2 inactive debt-only riders.
-- Blocked 401 rows:
-  - 379 creditor unknown. ERP has no sponsor for them: 231 exist in ERP with an empty SponsorId, 148 not in ERP.
-  - 22 other reasons: invalid or duplicate iqama, negative values, creditor conflict.
-- Sheet row 809 has no name and a net of 1,350,402.83 (≈ the sheet total). It is a totals row. The real rider net (807 rows) is 1,351,028.83. Blocked, not loaded.
-- Ghazal's decision sheet (private): `~/Private/gate-data/review/debts-blocked-creditor-2026-10.xlsx`.
-  - A suggested company from ERP platform accounts: EX 62, BW 47, TR 1, conflict 6, none 263.
-  - After Ghazal fills «قرار غزال», add a decisions overlay and run a new preview + commit. Only the fixed rows are added (idempotent by `DEBT-SHEET:<row>:<category>`).
+## Requests to Codex
+1. In `docs/api/openapi.v1.json`, expose `approvedBy`, `rejectedBy`, and `rejectionReason` on `/api/pay/apps/{app}/eligibility` so the UI can type them directly from the contract.
+2. In `docs/api/openapi.v1.json`, provide concrete schemas for `history` in `/api/pay/cycles` and `lines` in `/api/pay/cycles/{id}/lines` instead of `Record<string, never>[]`.
 
-## R7 (Ghazal's video review 2026-11-07) — plan `~/.claude/plans/serene-hopping-clarke.md`
-- W0 hotfix 0.17.1 (Claude, PR open):
-  - /app/debts crash fixed: the UI read originalAmount/remainingAmount, the API sends totalAmount/remainingBalance.
-  - `app/error.tsx` added; expired campaigns show «منتهية» plus «تمديد / إعادة فتح».
-  - Dark-theme selects (`color-scheme`); DataTable pages itself (50–300).
-  - Opening debts had no approval_request, so they could not be approved. New `POST /debts/opening/decide` (admin, batches of 100, posts in balance month 2026-10) and a banner/drawer on /app/debts.
-  - Rider credits (6) still pending; no approval path yet.
-- Next waves: W1 tables/RiderPicker (0.18.0), W2 operations resolved views, W3 workflow gaps (Ninja approve, journal reject/delete, rule editor), W4 users/tasks/chat, W5 Capacitor rider app.
+## Test Results
+- `npm run build`: PASS (TypeScript exit 0, static export clean).
+- `node web/tests/ui-qa.mjs`: PASS (all tests a, b, c, d with 0 failures).
+- `node web/tests/r8-ninja-flow.mjs`: PASS (WF-4 complete, 16 screenshots generated).
+- Remaining `any` count in R8 files: 0.
 
-## Next
-1. Ghazal: fill the decision sheet for the 379 rows.
-2. Ghazal: approve CR-003 (`gate-finance-spec/docs/change-requests/CR-003-hungerstation-erp-review.md`), then send it to Omar.
-3. Passwords: rotate at the final ERP integration (Ghazal's decision 2026-11-07).
+## Capacity / Usage Screen %
+93% remaining before → 87% remaining after (Gemini Models weekly pool).

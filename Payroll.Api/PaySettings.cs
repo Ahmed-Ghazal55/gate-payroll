@@ -64,7 +64,8 @@ public static partial class PaySettings
     }
     public static void Map(RouteGroupBuilder api,Store store)
     {
-        api.MapGet("/pay/catalog",(HttpContext ctx)=>{Scope(ctx.User,"pay.view");return new{apps=PayPlatforms.Table.Where(a=>FinancialScopes.Platform(ctx.User,a.Platform)),schemeTypes=SchemeTypes,categories=Categories,operators=Operators,defaults=Defaults(),defaultsAreDraftOnly=true};}).WithTags("Payroll").WithSummary("Read pay framework catalog and unapproved default settings template");
+        MapLifecycle(api,store);
+        api.MapGet("/pay/catalog",(HttpContext ctx)=>{Scope(ctx.User,"pay.view");return new{apps=PayPlatforms.Table.Where(a=>FinancialScopes.Platform(ctx.User,a.Platform)),schemeTypes=SchemeTypes,categories=Categories,operators=Operators,ninjaMetrics=NinjaMetrics,defaults=Defaults(),defaultsAreDraftOnly=true};}).WithTags("Payroll").WithSummary("Read pay framework catalog and unapproved default settings template");
         api.MapGet("/pay/apps/{app}/terms",(string app,HttpContext ctx)=>List(store,ctx,"pay_terms",app)).WithTags("Payroll").WithSummary("Read app monthly parent terms and version history");
         api.MapGet("/pay/apps/{app}/schemes",(string app,HttpContext ctx)=>List(store,ctx,"pay_scheme",app)).WithTags("Payroll").WithSummary("Read app internal schemes and category matrix versions");
         api.MapGet("/pay/apps/{app}/eligibility",(string app,HttpContext ctx)=>List(store,ctx,"pay_eligibility",app)).WithTags("Payroll").WithSummary("Read app-owned eligibility rules without cross-app sharing");

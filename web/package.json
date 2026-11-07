@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "node scripts/check-env.mjs && next build && node scripts/check-links.mjs",
     "test:e2e": "node tests/e2e.mjs && node tests/ui-qa.mjs",
-    "test:e2e:live": "node tests/e2e-live.mjs"
+    "test:e2e:live": "node tests/e2e-live.mjs",
+    "api:generate": "node scripts/gen-api-types.mjs",
+    "api:check": "node scripts/gen-api-types.mjs --check"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.67.1",
@@ -20,6 +22,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "ajv": "8.20.0",
+    "openapi-typescript": "7.10.1",
     "postcss": "^8.5.0",
     "tailwindcss": "^4",
     "typescript": "^5"

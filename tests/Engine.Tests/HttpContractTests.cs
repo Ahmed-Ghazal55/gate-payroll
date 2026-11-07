@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 public sealed class HttpContractTests
 {
     [TestMethod]
+    [DataRow("r8-contract.mjs",false)]
     [DataRow("r6b-accounting.mjs",false)]
     [DataRow("r6c-imports.mjs",false)]
     [DataRow("erp-sync.mjs",false)]

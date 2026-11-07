@@ -39,6 +39,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization();
 builder.Services.AddOpenApi(options=>options.AddOperationTransformer((operation,context,cancellation)=>
 {
+    ApiContracts.Describe(operation,context.Description.HttpMethod??"","/"+context.Description.RelativePath);
     operation.Deprecated=ApiDeprecations.IsDeprecated(context.Description.HttpMethod??"","/"+context.Description.RelativePath);
     return Task.CompletedTask;
 }));
@@ -153,6 +154,7 @@ PlatformPosting.Map(api,store);
 PaySettings.Map(api,store);
 PayAssignments.Map(api,store);
 PayCycles.Map(api,store);
+PayReviewDraft.Map(api,store);
 Operations.Map(api,store);
 PayStatements.Map(app,api,store);
 HungerStationInvoices.MapImports(api,store);
@@ -164,6 +166,7 @@ UserAccess.Map(api, store);
 RiderDirectory.Map(api, store);
 Debts.Map(api, store);
 DebtOpeningApproval.Map(api, store);
+RiderLookup.Map(api, store);
 MobileSessions.Map(app, api, store);
 RiderAsks.Map(app, api, store);
 FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
@@ -183,7 +186,7 @@ api.MapGet("/me", (HttpContext ctx) =>
     return Results.Ok(new { username = ctx.User.Identity!.Name, role = ctx.User.FindFirstValue(ClaimTypes.Role), permissions=ctx.User.FindAll("permission").Select(p=>p.Value),department=ctx.User.FindFirstValue("department"),rankLevel=ctx.User.FindFirstValue("rankLevel"), id = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) });
 }).WithTags("Administration").WithSummary("Read me");
 api.MapGet("/dashboard", (HttpContext ctx) => store.Read(c => new { riders = Store.List(c, "rider").Count(ErpRiderClassification.ListedAsRider), imports = Store.List(c, "batch").Count, pendingResponses = Store.List(c, "submission").Count(x => x.S("status") == "pending"), approvedRuns = Store.List(c, "run").Count, balance = Store.List(c, "ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)).Sum(x => x.N("amount")), latestAudit = Store.List(c, "audit").Where(_=>AccessPolicy.Administrator(ctx.User)).Take(8) })).WithTags("Home").WithSummary("Read dashboard");
-api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider).Select(r => !AccessPolicy.Has(ctx.User,"riders.view_360") ? UserAccess.RiderView(r) : r).ToList())).WithTags("Riders").WithSummary("Read riders");
+api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider).Where(r => ctx.Request.Query["status"].ToString() is var st && (st == "" || st == "all" || string.Equals(r.S("status"), st, StringComparison.OrdinalIgnoreCase))).Select(r => !AccessPolicy.Has(ctx.User,"riders.view_360") ? UserAccess.RiderView(r) : r).ToList())).WithTags("Riders").WithSummary("Read riders");
 api.MapPost("/riders", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var iqama = J.Iqama(input.Required("iqama")); var existing = Store.Get(c, iqama, "rider", tx);

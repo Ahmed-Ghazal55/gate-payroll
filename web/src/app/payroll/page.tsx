@@ -38,8 +38,23 @@ import {
   Calendar,
   RefreshCw,
   Lock,
+  Trash2,
+  Plus,
+  Ban,
+  HelpCircle,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
+import type {
+  PayReviewDraft,
+  PayReviewBlocker,
+  PayReviewInvoice,
+  PayReviewAccount,
+  PayReviewRider,
+  PayCatalog,
+  PayEligibilityItem,
+  PayCycleItem,
+  PayCycleLineItem,
+} from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -48,6 +63,7 @@ import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
+import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
 import type {
@@ -80,6 +96,54 @@ function getPreviousMonth(period: string): string {
   return `${y}-${String(m).padStart(2, '0')}`;
 }
 
+const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
+  upload_invoice: { label: 'رفع فاتورة نينجا', href: '/app/payroll?tab=ninja_upload' },
+  approve_invoice: { label: 'اعتماد الفاتورة', href: '/app/payroll?tab=ninja_upload' },
+  approve_settings: { label: 'اعتماد شروط الأهلية والأنظمة', href: '/app/payroll?tab=rules' },
+  resolve_dispute: { label: 'حسم الاعتراض الرسمي', href: '/app/payroll?tab=ninja_upload' },
+  classify_invoice: { label: 'تصنيف خصومات الفاتورة', href: '/app/payroll?tab=ninja_upload' },
+  review_invoice_account: { label: 'مراجعة حسابات الفاتورة', href: '/app/operations?tab=accounts' },
+  link_account: { label: 'ربط حساب المنصة بالسجل', href: '/app/operations?tab=accounts' },
+  link_actual_operator: { label: 'ربط المشغل الفعلي للحساب', href: '/app/operations?tab=accounts' },
+  import_operations: { label: 'استيراد التشغيل والمناديب', href: '/app/imports' },
+  import_scheme_choices: { label: 'استيراد خيارات الأنظمة', href: '/app/imports' },
+  review_operations: { label: 'مراجعة بيانات التشغيل اليومي', href: '/app/operations' },
+  sync_riders: { label: 'إضافة ومزامنة المندوب', href: '/app/riders' },
+  review_rider: { label: 'مراجعة بيانات المندوب', href: '/app/riders' },
+  review_posting: { label: 'مراجعة الترحيل والقيود', href: '/app/treasury' },
+  open_cycle: { label: 'عرض الدورة القائمة', href: '/app/payroll?tab=cycle' },
+};
+
+const NINJA_METRICS_MAP: Record<string, string> = {
+  orders: 'عدد الطلبات الفعلية (orders)',
+  days: 'أيام التشغيل (days)',
+  gross: 'إجمالي دخل المنصة (gross)',
+  incentives: 'الحوافز الإضافية (incentives)',
+  attendanceDays: 'أيام الحضور والعمل (attendanceDays)',
+  hours8Days: 'أيام تحقيق 8 ساعات (hours8Days)',
+  weekendDays: 'أيام عطلة نهاية الأسبوع (weekendDays)',
+  workingHours: 'ساعات العمل الإجمالية (workingHours)',
+  activeWorkingHours: 'ساعات العمل الفعلية (activeWorkingHours)',
+  committedWorkingHours: 'ساعات الالتزام (committedWorkingHours)',
+  shiftCompliancePercent: 'نسبة الالتزام بالورديات (shiftCompliancePercent)',
+  onTimeAttendancePercent: 'نسبة الحضور بالوقت (onTimeAttendancePercent)',
+};
+
+const OPERATORS_MAP: Record<string, string> = {
+  gte: 'أكبر من أو يساوي (>=)',
+  gt: 'أكبر من (>)',
+  lte: 'أصغر من أو يساوي (<=)',
+  lt: 'أصغر من (<)',
+  eq: 'يساوي (==)',
+  neq: 'لا يساوي (!=)',
+};
+
+const EFFECT_TYPES_MAP: Record<string, string> = {
+  zero: 'تصفير المستحق (Zero Entitlement)',
+  next_band: 'الانتقال للشريحة التالية (Next Band)',
+  per_order: 'محاسبة بسعر الطلب الفردي (Per Order)',
+};
+
 function PayrollPageInner() {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
@@ -90,9 +154,10 @@ function PayrollPageInner() {
   };
 
   // Main shared tabs: platforms · current-cycle · cycle · rules · deductions · bank · policies
+  type PayAppSubTab = 'settlements' | 'parent_terms' | 'internal_schemes' | 'eligibility' | 'accounts';
   const tabFromUrl = searchParams?.get('tab') || 'platforms';
   const appFromUrl = searchParams?.get('app') || 'hungerstation';
-  const subFromUrl = (searchParams?.get('sub') as any) || 'settlements';
+  const subFromUrl = (searchParams?.get('sub') as PayAppSubTab) || 'settlements';
   const periodFromUrl = searchParams?.get('period') || '2026-10';
   const [mainTab, setMainTab] = useState<string>(tabFromUrl);
 
@@ -107,7 +172,7 @@ function PayrollPageInner() {
   }, [selectedPlatform]);
 
   // Sub-tabs inside selected app
-  const [appSubTab, setAppSubTab] = useState<'settlements' | 'parent_terms' | 'internal_schemes' | 'eligibility' | 'accounts'>(subFromUrl);
+  const [appSubTab, setAppSubTab] = useState<PayAppSubTab>(subFromUrl);
 
   // Filters & period
   const [selectedPeriod, setSelectedPeriod] = useState<string>(periodFromUrl);
@@ -210,13 +275,204 @@ function PayrollPageInner() {
   const [committingAssignments, setCommittingAssignments] = useState<boolean>(false);
 
   // Cycle Stepper state (0-7)
-  const [cyclesList, setCyclesList] = useState<PayCycle[]>([]);
+  const [cyclesList, setCyclesList] = useState<PayCycleItem[]>([]);
   const [loadingCycles, setLoadingCycles] = useState<boolean>(false);
   const [cyclesError, setCyclesError] = useState<string | null>(null);
   const [advancingCycle, setAdvancingCycle] = useState<boolean>(false);
-  const [cycleLines, setCycleLines] = useState<PayCycleLine[]>([]);
+  const [cycleLines, setCycleLines] = useState<PayCycleLineItem[]>([]);
   const [loadingLines, setLoadingLines] = useState<boolean>(false);
-  const [selectedLineForExplain, setSelectedLineForExplain] = useState<PayCycleLine | null>(null);
+  const [selectedLineForExplain, setSelectedLineForExplain] = useState<PayCycleLineItem | null>(null);
+
+  const cycleLineColumns: ColumnDef<PayCycleLineItem>[] = useMemo(
+    () => [
+      {
+        key: 'rider',
+        header: 'إقامة المندوب',
+        filterable: true,
+        render: (line) => (
+          <Link
+            href={`/riders/statement?iqama=${line.rider}&period=${selectedPeriod}`}
+            className="font-mono font-bold text-[var(--accent)] hover:underline inline-flex items-center gap-1"
+          >
+            <span>{line.rider}</span>
+            <ExternalLink size={11} className="opacity-70" />
+          </Link>
+        ),
+      },
+      {
+        key: 'app',
+        header: 'التطبيق',
+        filterable: true,
+        render: (line) => <span className="font-mono text-xs">{line.app}</span>,
+      },
+      {
+        key: 'category',
+        header: 'الفئة',
+        render: (line) => <span className="text-xs text-[var(--muted)]">{'category' in line ? String((line as Record<string, unknown>).category || '-') : '-'}</span>,
+      },
+      {
+        key: 'platformGross',
+        header: 'إجمالي المنصة',
+        numeric: true,
+        getValue: (line) => line.platformGross || line.gross || 0,
+        render: (line) => (
+          <span>
+            {(line.platformGross || line.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+          </span>
+        ),
+      },
+      {
+        key: 'vehicleCharge',
+        header: 'إيجار المركبة',
+        numeric: true,
+        getValue: (line) => line.allocatedVehicleCharge ?? 0,
+        render: (line) => (
+          <span className="text-[var(--muted)]">
+            {(line.allocatedVehicleCharge ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+          </span>
+        ),
+      },
+      {
+        key: 'deductions',
+        header: 'الاستقطاعات',
+        numeric: true,
+        getValue: (line) => line.accountDeduction || 0,
+        render: (line) => (
+          <span className="text-[var(--danger)]">
+            {(line.accountDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+          </span>
+        ),
+      },
+      {
+        key: 'net',
+        header: 'الصافي النهائي',
+        numeric: true,
+        getValue: (line) => line.entitlement ?? line.gross ?? 0,
+        render: (line) => {
+          const net = line.entitlement ?? line.gross ?? 0;
+          return (
+            <span className={`font-bold ${net < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'}`}>
+              {net.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            </span>
+          );
+        },
+      },
+      {
+        key: 'status',
+        header: 'الحالة',
+        render: (line) => (
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+              line.status === 'ready' || line.status === 'approved'
+                ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+                : 'bg-[var(--danger)]/15 text-[var(--danger)]'
+            }`}
+          >
+            {line.status === 'ready' ? 'جاهز' : line.status === 'approved' ? 'معتمد' : 'يحتاج قرار'}
+          </span>
+        ),
+      },
+      {
+        key: 'explain',
+        header: 'شرح الاحتساب',
+        render: (line) => (
+          <button
+            type="button"
+            onClick={() => setSelectedLineForExplain(line)}
+            className="px-2.5 py-1 rounded-lg bg-[var(--raised)] text-xs font-bold text-[var(--accent)] hover:bg-[var(--line)] transition cursor-pointer flex items-center gap-1"
+          >
+            <Calculator size={13} />
+            <span>كيف حُسب؟</span>
+          </button>
+        ),
+      },
+    ],
+    [selectedPeriod]
+  );
+
+  // Review Draft States (A5)
+  const [cycleViewMode, setCycleViewMode] = useState<'draft' | 'active'>('draft');
+  const [reviewDraft, setReviewDraft] = useState<PayReviewDraft | null>(null);
+  const [loadingDraft, setLoadingDraft] = useState<boolean>(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [creatingCycle, setCreatingCycle] = useState<boolean>(false);
+
+  // Rules Editor States (A6)
+  const [rulesSection, setRulesSection] = useState<'eligibility' | 'global'>('eligibility');
+  const [ninjaEligibilityList, setNinjaEligibilityList] = useState<PayEligibilityItem[]>([]);
+  const [loadingNinjaEligibility, setLoadingNinjaEligibility] = useState<boolean>(false);
+  const [ninjaEligibilityError, setNinjaEligibilityError] = useState<string | null>(null);
+  const [ninjaCatalog, setNinjaCatalog] = useState<PayCatalog | null>(null);
+  const [ruleModalOpen, setRuleModalOpen] = useState<boolean>(false);
+  const [newRuleMetric, setNewRuleMetric] = useState<string>('orders');
+  const [newRuleOperator, setNewRuleOperator] = useState<string>('gte');
+  const [newRuleThreshold, setNewRuleThreshold] = useState<string>('100');
+  const [newRuleEffectType, setNewRuleEffectType] = useState<string>('zero');
+  const [newRuleIncluded, setNewRuleIncluded] = useState<boolean>(true);
+  const [rejectModalOpen, setRejectModalOpen] = useState<boolean>(false);
+  const [rejectionReason, setRejectionReason] = useState<string>('');
+  const [submittingRuleLifecycle, setSubmittingRuleLifecycle] = useState<boolean>(false);
+
+  // Columns for Review Draft Accounts Breakdown
+  const draftAccountColumns: ColumnDef<PayReviewAccount>[] = useMemo(
+    () => [
+      {
+        key: 'accountId',
+        header: 'المعرف / الحساب',
+        filterable: true,
+        render: (acc) => <span className="font-mono font-bold text-[var(--accent)]">{acc.accountId}</span>,
+      },
+      {
+        key: 'sourceLineId',
+        header: 'سطر المصدر',
+        render: (acc) => <span className="font-mono text-xs text-[var(--muted)]">{acc.sourceLineId || '-'}</span>,
+      },
+      {
+        key: 'orders',
+        header: 'الطلبات',
+        numeric: true,
+        getValue: (acc) => acc.orders || 0,
+        render: (acc) => <span className="font-mono">{acc.orders || 0}</span>,
+      },
+      {
+        key: 'baseGross',
+        header: 'الأساسي',
+        numeric: true,
+        getValue: (acc) => acc.baseGross || 0,
+        render: (acc) => <span>{(acc.baseGross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>,
+      },
+      {
+        key: 'incentives',
+        header: 'الحوافز',
+        numeric: true,
+        getValue: (acc) => acc.incentives || 0,
+        render: (acc) => <span>{(acc.incentives || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>,
+      },
+      {
+        key: 'totalGross',
+        header: 'إجمالي الاستحقاق',
+        numeric: true,
+        getValue: (acc) => (acc.baseGross || 0) + (acc.incentives || 0),
+        render: (acc) => (
+          <span className="font-bold text-[var(--money-pos)]">
+            {((acc.baseGross || 0) + (acc.incentives || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+          </span>
+        ),
+      },
+      {
+        key: 'ridersCount',
+        header: 'المناديب المشغلين',
+        numeric: true,
+        getValue: (acc) => (acc.riders || []).length,
+        render: (acc) => (
+          <span className="font-mono text-xs">
+            {(acc.riders || []).length} مندوب
+          </span>
+        ),
+      },
+    ],
+    []
+  );
 
   // Global settings state (effective-dated)
   const [globalSettings, setGlobalSettings] = useState<PayConfigDoc[]>([]);
@@ -434,12 +690,303 @@ function PayrollPageInner() {
     }
   };
 
+  // Load Review Draft (A5)
+  const loadReviewDraft = async () => {
+    setLoadingDraft(true);
+    setDraftError(null);
+    try {
+      const comp = selectedCompany !== 'all' ? selectedCompany : 'BW';
+      const draft = await api.getPayReviewDraft({
+        app: 'ninja',
+        period: selectedPeriod,
+        companyId: comp,
+      });
+      setReviewDraft(draft);
+    } catch (err: any) {
+      setDraftError(err.message || 'تعذر تحميل مسودة المراجعة المقترحة لنينجا');
+      setReviewDraft(null);
+    } finally {
+      setLoadingDraft(false);
+    }
+  };
+
+  // Load Ninja Eligibility (A6)
+  const loadNinjaEligibility = async () => {
+    setLoadingNinjaEligibility(true);
+    setNinjaEligibilityError(null);
+    try {
+      const [elRes, catRes] = await Promise.allSettled([
+        api.getAppEligibility('ninja'),
+        api.getPayCatalog(),
+      ]);
+      if (elRes.status === 'fulfilled') {
+        const val = elRes.value;
+        const items = Array.isArray(val) ? val : (val && 'items' in val && Array.isArray(val.items) ? val.items : []);
+        setNinjaEligibilityList(items);
+      } else {
+        const reason = elRes.reason;
+        setNinjaEligibilityError(reason instanceof Error ? reason.message : 'تعذر تحميل ضوابط الأهلية');
+        setNinjaEligibilityList([]);
+      }
+      if (catRes.status === 'fulfilled') {
+        setNinjaCatalog(catRes.value);
+      }
+    } catch (err: unknown) {
+      setNinjaEligibilityError(err instanceof Error ? err.message : 'تعذر تحميل بيانات الأهلية');
+    } finally {
+      setLoadingNinjaEligibility(false);
+    }
+  };
+
+  // Create Cycle from Draft (A5)
+  const handleCreateCycleFromDraft = async () => {
+    if (!reviewDraft || !reviewDraft.canCreate || (reviewDraft.blockers && reviewDraft.blockers.length > 0)) {
+      showToast('لا يمكن إنشاء الدورة مع وجود موانع استحقاق (Blockers)', 'error');
+      return;
+    }
+    setCreatingCycle(true);
+    try {
+      const comp = selectedCompany !== 'all' ? selectedCompany : 'BW';
+      await api.createPayCycle({
+        app: 'ninja',
+        period: selectedPeriod,
+        companyId: comp,
+        invoices: reviewDraft.invoices,
+        adjustmentAccounts: {},
+      });
+      showToast('تم إنشاء دورة الرواتب بنجاح', 'success');
+      await loadCycles();
+      setCycleViewMode('active');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر إنشاء دورة الرواتب', 'error');
+    } finally {
+      setCreatingCycle(false);
+    }
+  };
+
+  // Rule Editing Handlers (A6)
+  const activeNinjaEligibility = useMemo(() => {
+    if (!ninjaEligibilityList || ninjaEligibilityList.length === 0) return null;
+    const forPeriod = ninjaEligibilityList.filter((d) => d.period === rulesMonth);
+    if (forPeriod.length === 0) return ninjaEligibilityList[0];
+    const draft = forPeriod.find((d) => d.status === 'draft');
+    if (draft) return draft;
+    return forPeriod.sort((a, b) => (b.version || 0) - (a.version || 0))[0];
+  }, [ninjaEligibilityList, rulesMonth]);
+
+  const handleSaveNewRule = async () => {
+    setSubmittingRuleLifecycle(true);
+    try {
+      const existingRules = [...(activeNinjaEligibility?.data?.rules || [])];
+      existingRules.push({
+        metric: newRuleMetric,
+        operator: newRuleOperator,
+        threshold: parseFloat(newRuleThreshold) || 0,
+        effect: { type: newRuleEffectType },
+        included: newRuleIncluded,
+      });
+      await api.createAppEligibility(
+        'ninja',
+        {
+          name: activeNinjaEligibility?.data?.name || `شروط أهلية نينجا ${rulesMonth}`,
+          rules: existingRules,
+        },
+        rulesMonth
+      );
+      showToast('تمت إضافة الشرط إلى مسودة الأهلية بنجاح', 'success');
+      setRuleModalOpen(false);
+      await loadNinjaEligibility();
+    } catch (err: any) {
+      showToast(err.message || 'تعذر إضافة الشرط', 'error');
+    } finally {
+      setSubmittingRuleLifecycle(false);
+    }
+  };
+
+  const handleDeleteRule = async (idx: number) => {
+    if (!activeNinjaEligibility || activeNinjaEligibility.status !== 'draft') return;
+    setSubmittingRuleLifecycle(true);
+    try {
+      const existingRules = [...(activeNinjaEligibility?.data?.rules || [])];
+      existingRules.splice(idx, 1);
+      await api.createAppEligibility(
+        'ninja',
+        {
+          name: activeNinjaEligibility.data?.name || `شروط أهلية نينجا ${rulesMonth}`,
+          rules: existingRules,
+        },
+        rulesMonth
+      );
+      showToast('تم حذف الشرط من المسودة', 'success');
+      await loadNinjaEligibility();
+    } catch (err: any) {
+      showToast(err.message || 'تعذر حذف الشرط', 'error');
+    } finally {
+      setSubmittingRuleLifecycle(false);
+    }
+  };
+
+  const handleApproveNinjaEligibility = async () => {
+    if (!activeNinjaEligibility) return;
+    setSubmittingRuleLifecycle(true);
+    try {
+      await api.approveAppEligibility('ninja', activeNinjaEligibility.id);
+      showToast('تم اعتماد شروط الأهلية بنجاح (Maker-Checker)', 'success');
+      await loadNinjaEligibility();
+    } catch (err: any) {
+      showToast(err.message || 'تعذر اعتماد شروط الأهلية', 'error');
+    } finally {
+      setSubmittingRuleLifecycle(false);
+    }
+  };
+
+  const handleRejectNinjaEligibility = async () => {
+    if (!activeNinjaEligibility) return;
+    if (!rejectionReason.trim()) {
+      showToast('يرجى كتابة سبب الرفض', 'warning');
+      return;
+    }
+    setSubmittingRuleLifecycle(true);
+    try {
+      await api.rejectPaySetting('pay_eligibility', 'ninja', activeNinjaEligibility.id, rejectionReason.trim());
+      showToast('تم رفض المسودة وتوثيق السبب', 'success');
+      setRejectModalOpen(false);
+      setRejectionReason('');
+      await loadNinjaEligibility();
+    } catch (err: any) {
+      showToast(err.message || 'تعذر رفض المسودة', 'error');
+    } finally {
+      setSubmittingRuleLifecycle(false);
+    }
+  };
+
+  const handleDeleteNinjaDraft = async () => {
+    if (!activeNinjaEligibility || activeNinjaEligibility.status !== 'draft') return;
+    setSubmittingRuleLifecycle(true);
+    try {
+      await api.deletePaySetting('pay_eligibility', 'ninja', activeNinjaEligibility.id);
+      showToast('تم حذف المسودة بنجاح', 'success');
+      await loadNinjaEligibility();
+    } catch (err: any) {
+      showToast(err.message || 'تعذر حذف المسودة', 'error');
+    } finally {
+      setSubmittingRuleLifecycle(false);
+    }
+  };
+
+  const handleCreateNewNinjaDraft = async () => {
+    setSubmittingRuleLifecycle(true);
+    try {
+      const initialRules = activeNinjaEligibility?.data?.rules && activeNinjaEligibility.data.rules.length > 0
+        ? activeNinjaEligibility.data.rules
+        : [
+            { metric: 'orders', operator: 'gte', threshold: 100, effect: { type: 'zero' }, included: true },
+            { metric: 'attendanceDays', operator: 'gte', threshold: 24, effect: { type: 'zero' }, included: true },
+          ];
+      await api.createAppEligibility(
+        'ninja',
+        {
+          name: `شروط أهلية نينجا ${rulesMonth}`,
+          rules: initialRules,
+        },
+        rulesMonth
+      );
+      showToast('تم إنشاء مسودة شروط أهلية جديدة لشهر ' + rulesMonth, 'success');
+      await loadNinjaEligibility();
+    } catch (err: any) {
+      showToast(err.message || 'تعذر إنشاء مسودة شروط الأهلية', 'error');
+    } finally {
+      setSubmittingRuleLifecycle(false);
+    }
+  };
+
+  interface DraftRuleItem {
+    metric: string;
+    operator: string;
+    threshold: number | string;
+    effect?: { type: string; value?: number };
+    included?: boolean;
+  }
+
+  const draftRuleColumns: ColumnDef<DraftRuleItem>[] = useMemo(
+    () => [
+      {
+        key: 'metric',
+        header: 'المقياس (Metric)',
+        render: (r) => (
+          <div className="font-semibold text-[var(--ink)]">
+            <span>{NINJA_METRICS_MAP[r.metric] || r.metric}</span>
+          </div>
+        ),
+      },
+      {
+        key: 'operator',
+        header: 'المعامل',
+        render: (r) => (
+          <span className="font-mono text-xs bg-[var(--raised)] px-2 py-0.5 rounded-md text-[var(--accent)] font-bold">
+            {OPERATORS_MAP[r.operator] || r.operator}
+          </span>
+        ),
+      },
+      {
+        key: 'threshold',
+        header: 'الحد الأدنى / القيمة',
+        numeric: true,
+        render: (r) => <span className="font-mono font-bold text-[var(--ink)]">{r.threshold}</span>,
+      },
+      {
+        key: 'effect',
+        header: 'الأثر عند عدم التحقق',
+        render: (r) => {
+          const type = r.effect?.type || 'zero';
+          return (
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+              type === 'zero' ? 'bg-[var(--danger)]/15 text-[var(--danger)]' : 'bg-[var(--accent)]/15 text-[var(--accent)]'
+            }`}>
+              {EFFECT_TYPES_MAP[type] || type}
+            </span>
+          );
+        },
+      },
+      {
+        key: 'included',
+        header: 'ضمن القاعدة',
+        render: (r) => (
+          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+            r.included !== false ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]' : 'bg-[var(--raised)] text-[var(--muted)]'
+          }`}>
+            {r.included !== false ? 'مفعّل' : 'معطّل'}
+          </span>
+        ),
+      },
+      {
+        key: 'actions',
+        header: 'إجراءات',
+        render: (r, idx) => (
+          activeNinjaEligibility?.status === 'draft' ? (
+            <button
+              type="button"
+              onClick={() => handleDeleteRule(idx)}
+              className="p-1 rounded-md text-[var(--danger)] hover:bg-[var(--danger)]/10 transition cursor-pointer"
+              title="حذف الشرط"
+            >
+              <Trash2 size={14} />
+            </button>
+          ) : (
+            <span className="text-[11px] text-[var(--muted)]">معتمد</span>
+          )
+        ),
+      },
+    ],
+    [activeNinjaEligibility]
+  );
+
   // Load Cycle Lines
   const loadCycleLines = async (cycleId: string) => {
     setLoadingLines(true);
     try {
       const res = await api.getPayCycleLines(cycleId);
-      setCycleLines(res?.items || (Array.isArray(res) ? res : []));
+      setCycleLines(res?.items || []);
     } catch (_) {
       setCycleLines([]);
     } finally {
@@ -526,12 +1073,14 @@ function PayrollPageInner() {
       else if (appSubTab === 'accounts') loadAssignments();
     } else if (mainTab === 'cycle') {
       loadCycles();
+      loadReviewDraft();
     } else if (mainTab === 'rules') {
       loadGlobalSettings();
+      loadNinjaEligibility();
     } else if (mainTab === 'current-cycle') {
       loadLegacyPayroll();
     }
-  }, [mainTab, appSubTab, selectedPlatform, selectedPeriod, legacyPeriod]);
+  }, [mainTab, appSubTab, selectedPlatform, selectedPeriod, selectedCompany, legacyPeriod, rulesMonth]);
 
   // Derived KPI values for HungerStation
   const totalInvoicesAmount = useMemo(() => {
@@ -877,7 +1426,7 @@ function PayrollPageInner() {
   };
 
   // Advance Cycle
-  const handleAdvanceCycle = async (cycle: PayCycle) => {
+  const handleAdvanceCycle = async (cycle: PayCycleItem) => {
     const nextStage = (cycle.stage || 0) + 1;
     if (nextStage > 7) {
       showToast('دورة الرواتب مكتملة ومعتمدة بالكامل في المرحلة 7', 'info');
@@ -2132,7 +2681,7 @@ function PayrollPageInner() {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[var(--line)]">
-                                  {rules.map((r: any, idx: number) => (
+                                  {rules.map((r: { metric?: string; operator?: string; threshold?: number | string; effect?: { type?: string } }, idx: number) => (
                                     <tr key={idx}>
                                       <td className="p-2.5 font-bold font-mono">{r.metric}</td>
                                       <td className="p-2.5 font-mono">{r.operator}</td>
@@ -2218,10 +2767,10 @@ function PayrollPageInner() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--line)]">
-                        {assignmentsList.map((a: any) => (
-                          <tr key={a.id || a.iqama} className="hover:bg-[var(--row-hover)] transition">
-                            <td className="p-3 font-mono font-bold text-[var(--ink)]">{a.iqama || a.riderId}</td>
-                            <td className="p-3 font-semibold">{a.riderName || '-'}</td>
+                        {assignmentsList.map((a) => (
+                          <tr key={a.id || a.rider} className="hover:bg-[var(--row-hover)] transition">
+                            <td className="p-3 font-mono font-bold text-[var(--ink)]">{a.rider}</td>
+                            <td className="p-3 font-semibold">{a.rider}</td>
                             <td className="p-3 font-mono text-xs text-[var(--accent)]">{a.schemeId || '-'}</td>
                             <td className="p-3 font-mono">{a.period}</td>
                             <td className="p-3">
@@ -2242,132 +2791,456 @@ function PayrollPageInner() {
       )}
 
       {/* ======================================================== */}
-      {/* SECTION 2: PAYROLL CYCLE STEPPER (0-7) (F1)             */}
+      {/* SECTION 2: PAYROLL CYCLE & REVIEW DRAFT (0-7) (F1 / A5)   */}
       {/* ======================================================== */}
       {mainTab === 'cycle' && (
         <div className="space-y-6">
-          <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-                    دورة الرواتب الشهرية والمسير المعتمد (المراحل 0-7)
-                  </h3>
-                  {activeCycle && (
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
-                        activeCycle.status === 'needs_decision'
-                          ? 'bg-[var(--danger)]/15 text-[var(--danger)] border border-[var(--danger)]/30'
-                          : activeCycle.status === 'approved'
-                          ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                          : 'bg-[var(--warning)]/15 text-[var(--warning)]'
-                      }`}
-                    >
-                      {activeCycle.status === 'needs_decision' ? (
-                        <>
-                          <AlertTriangle size={13} />
-                          <span>يحتاج قرار (§22.9.2)</span>
-                        </>
-                      ) : activeCycle.status === 'approved' ? (
-                        'معتمد بالكامل'
-                      ) : (
-                        `قيد المراجعة (مرحلة ${activeCycle.stage})`
-                      )}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs sm:text-sm text-[var(--muted)] mt-1">
-                  مراحل احتساب الرواتب والمسيرات وفق نموذج العمل المالي المعتمد في BR §24.7
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="month"
-                  value={selectedPeriod}
-                  onChange={(e) => setSelectedPeriod(e.target.value)}
-                  className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold focus:outline-hidden"
-                />
-                {activeCycle && activeCycle.stage < 7 && activeCycle.status !== 'approved' && (
-                  <button
-                    type="button"
-                    disabled={advancingCycle || activeCycle.status === 'needs_decision'}
-                    onClick={() => handleAdvanceCycle(activeCycle)}
-                    className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-xs"
-                  >
-                    {advancingCycle ? (
-                      <>
-                        <RefreshCw size={14} className="animate-spin" />
-                        <span>جاري التقديم...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>تقديم المرحلة إلى [{activeCycle.stage + 1}: {cycleSteps[activeCycle.stage + 1]?.title}]</span>
-                        <ChevronRight size={16} />
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Stepper Navigation */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
-              {cycleSteps.map((st) => {
-                const currentStage = activeCycle?.stage ?? 0;
-                const isCurrent = currentStage === st.num;
-                const isPast = currentStage > st.num;
-                return (
-                  <div
-                    key={st.num}
-                    className={`p-3.5 rounded-xl border transition-all ${
-                      isCurrent
-                        ? 'border-[var(--accent)] bg-[var(--accent)]/5 shadow-xs'
-                        : isPast
-                        ? 'border-[var(--money-pos)]/40 bg-[var(--money-pos)]/5'
-                        : 'border-[var(--line)] bg-[var(--surface)] opacity-75'
+          {/* Sub-tab view toggle */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-xs">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCycleViewMode('draft')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
+                  cycleViewMode === 'draft'
+                    ? 'bg-[var(--accent)] text-[var(--accent-ink)] shadow-xs'
+                    : 'bg-[var(--raised)] text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <FileSpreadsheet size={15} />
+                <span>مسودة المراجعة المقترحة (Review Draft)</span>
+                {reviewDraft?.blockers && (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                      reviewDraft.blockers.length === 0
+                        ? 'bg-[var(--money-pos)]/20 text-[var(--money-pos)]'
+                        : 'bg-[var(--danger)]/20 text-[var(--danger)]'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`h-6 w-6 rounded-full flex items-center justify-center font-bold text-xs ${
-                          isCurrent
-                            ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
-                            : isPast
-                            ? 'bg-[var(--money-pos)] text-white'
-                            : 'bg-[var(--raised)] text-[var(--muted)]'
-                        }`}
-                      >
-                        {isPast ? '✓' : st.num}
-                      </span>
-                      {st.num === 5 && activeCycle?.status === 'needs_decision' && (
-                        <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[var(--danger)]/20 text-[var(--danger)]">
-                          يحتاج قرار
-                        </span>
-                      )}
-                    </div>
-                    <div className="font-bold text-xs sm:text-sm text-[var(--ink)] mt-2">
-                      {st.title}
-                    </div>
-                    <div className="text-[11px] text-[var(--muted)] mt-1 line-clamp-2">
-                      {st.desc}
-                    </div>
-                  </div>
-                );
-              })}
+                    {reviewDraft.blockers.length === 0 ? '0 موانع' : `${reviewDraft.blockers.length} مانع`}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCycleViewMode('active')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
+                  cycleViewMode === 'active'
+                    ? 'bg-[var(--accent)] text-[var(--accent-ink)] shadow-xs'
+                    : 'bg-[var(--raised)] text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <RefreshCw size={15} />
+                <span>دورة الرواتب ومراحل المسير (0-7)</span>
+                {activeCycle && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[var(--raised)] text-[var(--accent)] border border-[var(--line)]">
+                    مرحلة {activeCycle.stage}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold focus:outline-hidden"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  loadCycles();
+                  loadReviewDraft();
+                }}
+                className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--line)] transition cursor-pointer"
+                title="تحديث البيانات"
+              >
+                <RefreshCw size={14} className={loadingDraft || loadingCycles ? 'animate-spin' : ''} />
+              </button>
             </div>
           </div>
 
+          {/* VIEW 1: REVIEW DRAFT (A5) */}
+          {cycleViewMode === 'draft' && (
+            <div className="space-y-6">
+              {loadingDraft ? (
+                <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-40 w-full" />
+                </div>
+              ) : draftError ? (
+                <ErrorState
+                  title="تعذر تحميل مسودة المراجعة المقترحة"
+                  message={draftError}
+                  onRetry={loadReviewDraft}
+                />
+              ) : !reviewDraft ? (
+                <EmptyState
+                  title="لا توجد مسودة مراجعة مقترحة"
+                  description="ارفع واعتمد فاتورة نينجا أولاً لتوليد مسودة المراجعة المقترحة."
+                  action={{
+                    label: 'انتقل لرفع فاتورة نينجا',
+                    onClick: () => setMainTab('ninja_upload'),
+                  }}
+                />
+              ) : (
+                <div className="space-y-6">
+                  {/* Draft KPI Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <StatCard
+                      label="إجمالي الفاتورة (Gross)"
+                      value={`${(reviewDraft.totals?.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+                      icon={Coins}
+                    />
+                    <StatCard
+                      label="الاستقطاعات والخصم"
+                      value={`${(reviewDraft.totals?.deductions || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+                      hint="خصومات المنصة"
+                      icon={DollarSign}
+                    />
+                    <StatCard
+                      label="ضريبة القيمة المضافة"
+                      value={`${(reviewDraft.totals?.vat || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+                      icon={Scale}
+                    />
+                    <StatCard
+                      label="صافي الفاتورة المستحق"
+                      value={`${(
+                        (reviewDraft.totals?.gross || 0) -
+                        (reviewDraft.totals?.deductions || 0) +
+                        (reviewDraft.totals?.vat || 0)
+                      ).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+                      icon={ShieldCheck}
+                    />
+                    <StatCard
+                      label="موانع الاستحقاق النشطة"
+                      value={reviewDraft.blockers?.length || 0}
+                      hint={(reviewDraft.blockers?.length || 0) > 0 ? 'يتطلب تسوية' : 'جاهز'}
+                      icon={AlertTriangle}
+                    />
+                  </div>
+
+                  {/* Create Cycle Action Banner */}
+                  <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                          إنشاء دورة الرواتب لشهر {selectedPeriod}
+                        </h4>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                            reviewDraft.canCreate && (!reviewDraft.blockers || reviewDraft.blockers.length === 0)
+                              ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+                              : 'bg-[var(--danger)]/15 text-[var(--danger)]'
+                          }`}
+                        >
+                          {reviewDraft.canCreate && (!reviewDraft.blockers || reviewDraft.blockers.length === 0)
+                            ? 'جاهز للإنشاء (0 موانع)'
+                            : 'يتطلب تسوية الموانع'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[var(--muted)]">
+                        {reviewDraft.blockers && reviewDraft.blockers.length > 0
+                          ? `يمنع الخادم إنشاء الدورة في وجود موانع استحقاق (${reviewDraft.blockers.length} مانع). قم بتسوية الموانع عبر الروابط المباشرة أدناه.`
+                          : 'كافة شروط الفاتورة والتشغيل والأنظمة معتمدة ومطابقة، يمكنك بدء دورة الرواتب الآن.'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={creatingCycle || !reviewDraft.canCreate || (reviewDraft.blockers && reviewDraft.blockers.length > 0)}
+                      onClick={handleCreateCycleFromDraft}
+                      className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2 shadow-xs"
+                    >
+                      {creatingCycle ? (
+                        <>
+                          <RefreshCw size={15} className="animate-spin" />
+                          <span>جاري إنشاء الدورة...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={15} />
+                          <span>إنشاء دورة الرواتب</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Blockers Section */}
+                  {reviewDraft.blockers && reviewDraft.blockers.length > 0 ? (
+                    <div className="p-4 rounded-2xl bg-[var(--danger)]/5 border border-[var(--danger)]/30 space-y-3">
+                      <div className="flex items-center gap-2 text-[var(--danger)]">
+                        <AlertTriangle size={18} />
+                        <h4 className="font-bold text-xs sm:text-sm">
+                          موانع الاستحقاق النشطة ({reviewDraft.blockers.length} مانع يجب حسمه لإنشاء الدورة):
+                        </h4>
+                      </div>
+
+                      <div className="space-y-2">
+                        {reviewDraft.blockers.map((b, idx: number) => {
+                          const actionInfo = BLOCKER_ACTION_MAP[b.fixAction] || { label: 'معالجة المانع', href: '/app/payroll' };
+                          return (
+                            <div
+                              key={idx}
+                              className="p-3 rounded-xl border border-[var(--danger)]/20 bg-[var(--surface)] flex flex-wrap items-center justify-between gap-3 text-xs"
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-[10px] bg-[var(--danger)]/15 text-[var(--danger)] px-2 py-0.5 rounded-md font-bold">
+                                    {b.code}
+                                  </span>
+                                  <span className="font-bold text-[var(--ink)]">{b.message}</span>
+                                </div>
+                                {b.sourceLineId && (
+                                  <div className="text-[10px] font-mono text-[var(--muted)]">
+                                    سطر المصدر: {b.sourceLineId}
+                                  </div>
+                                )}
+                              </div>
+
+                              <Link
+                                href={actionInfo.href}
+                                className="px-3 py-1.5 rounded-xl bg-[var(--raised)] text-[var(--accent)] font-bold hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] transition inline-flex items-center gap-1 shrink-0"
+                              >
+                                <span>{actionInfo.label}</span>
+                                <ChevronRight size={13} />
+                              </Link>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-[var(--money-pos)]/10 border border-[var(--money-pos)]/30 text-xs text-[var(--money-pos)] flex items-center gap-2">
+                      <CheckCircle2 size={18} className="shrink-0" />
+                      <span className="font-bold">
+                        لا توجد أي موانع استحقاق (0 Blockers) — مسودة المراجعة المقترحة مستوفية لكافة الشروط المحاسبية.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Warnings for Unassigned Orders & Missing Riders */}
+                  {reviewDraft.unassignedOrders && reviewDraft.unassignedOrders.length > 0 && (
+                    <div className="p-3.5 rounded-2xl bg-[var(--warning)]/10 border border-[var(--warning)]/30 text-xs text-[var(--ink)] flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-[var(--warning)]">
+                        <AlertCircle size={16} />
+                        <span>
+                          يوجد <strong>{reviewDraft.unassignedOrders.length}</strong> وقائع تشغيل بلا مشغل فعلي مطابق في الفترة.
+                        </span>
+                      </div>
+                      <Link
+                        href="/app/operations?tab=accounts"
+                        className="font-bold text-[var(--accent)] hover:underline inline-flex items-center gap-1 text-xs shrink-0"
+                      >
+                        <span>ربط المشغل الفعلي</span>
+                        <ChevronRight size={13} />
+                      </Link>
+                    </div>
+                  )}
+
+                  {reviewDraft.ridersNotFound && reviewDraft.ridersNotFound.length > 0 && (
+                    <div className="p-3.5 rounded-2xl bg-[var(--warning)]/10 border border-[var(--warning)]/30 text-xs text-[var(--ink)] flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-[var(--warning)]">
+                        <Users size={16} />
+                        <span>
+                          يوجد <strong>{reviewDraft.ridersNotFound.length}</strong> أسطر تشغيل تخص مناديب غير مسجلين في الدليل.
+                        </span>
+                      </div>
+                      <Link
+                        href="/app/riders"
+                        className="font-bold text-[var(--accent)] hover:underline inline-flex items-center gap-1 text-xs shrink-0"
+                      >
+                        <span>إضافة ومزامنة المناديب</span>
+                        <ChevronRight size={13} />
+                      </Link>
+                    </div>
+                  )}
+
+                  {/* Per-Account Totals Table */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                          توزيع استحقاق الحسابات والمعرفات مقارنة بالفاتورة
+                        </h4>
+                        <p className="text-xs text-[var(--muted)] mt-0.5">
+                          مطابقة ما حققه كل معرف/حساب على المنصة وعدد المناديب المشغلين الفعليين.
+                        </p>
+                      </div>
+                    </div>
+
+                    <DataTable
+                      tableId="ninja-review-draft-accounts"
+                      columns={draftAccountColumns}
+                      data={reviewDraft.invoices?.flatMap((inv) => inv.accounts || []) || []}
+                      emptyTitle="لا توجد حسابات مسجلة في الفاتورة"
+                      emptyDescription="لم يتم العثور على أسطر حسابات في فاتورة نينجا المعتمدة."
+                      exportFilename={`ninja_draft_accounts_${selectedPeriod}`}
+                      showTotals={true}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW 2: ACTIVE CYCLE STAGES (0-7) */}
+          {cycleViewMode === 'active' && (
+            <div className="space-y-6">
+              <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
+                        دورة الرواتب الشهرية والمسير المعتمد (المراحل 0-7)
+                      </h3>
+                      {activeCycle && (
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                            activeCycle.status === 'needs_decision'
+                              ? 'bg-[var(--danger)]/15 text-[var(--danger)] border border-[var(--danger)]/30'
+                              : activeCycle.status === 'approved'
+                              ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+                              : 'bg-[var(--warning)]/15 text-[var(--warning)]'
+                          }`}
+                        >
+                          {activeCycle.status === 'needs_decision' ? (
+                            <>
+                              <AlertTriangle size={13} />
+                              <span>يحتاج قرار (§22.9.2)</span>
+                            </>
+                          ) : activeCycle.status === 'approved' ? (
+                            'معتمد بالكامل'
+                          ) : (
+                            `قيد المراجعة (مرحلة ${activeCycle.stage})`
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs sm:text-sm text-[var(--muted)] mt-1">
+                      مراحل احتساب الرواتب والمسيرات وفق نموذج العمل المالي المعتمد في BR §24.7
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {activeCycle && activeCycle.stage < 7 && activeCycle.status !== 'approved' && (
+                      <button
+                        type="button"
+                        disabled={advancingCycle || activeCycle.status === 'needs_decision'}
+                        onClick={() => handleAdvanceCycle(activeCycle)}
+                        className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-xs"
+                      >
+                        {advancingCycle ? (
+                          <>
+                            <RefreshCw size={14} className="animate-spin" />
+                            <span>جاري التقديم...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>تقديم المرحلة إلى [{activeCycle.stage + 1}: {cycleSteps[activeCycle.stage + 1]?.title}]</span>
+                            <ChevronRight size={16} />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Stepper Navigation with Who/When History */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
+                  {cycleSteps.map((st) => {
+                    const currentStage = activeCycle?.stage ?? 0;
+                    const isCurrent = currentStage === st.num;
+                    const isPast = currentStage > st.num;
+                    return (
+                      <div
+                        key={st.num}
+                        className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
+                          isCurrent
+                            ? 'border-[var(--accent)] bg-[var(--accent)]/5 shadow-xs'
+                            : isPast
+                            ? 'border-[var(--money-pos)]/40 bg-[var(--money-pos)]/5'
+                            : 'border-[var(--line)] bg-[var(--surface)] opacity-75'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={`h-6 w-6 rounded-full flex items-center justify-center font-bold text-xs ${
+                                isCurrent
+                                  ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
+                                  : isPast
+                                  ? 'bg-[var(--money-pos)] text-white'
+                                  : 'bg-[var(--raised)] text-[var(--muted)]'
+                              }`}
+                            >
+                              {isPast ? '✓' : st.num}
+                            </span>
+                            {st.num === 5 && activeCycle?.status === 'needs_decision' && (
+                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[var(--danger)]/20 text-[var(--danger)]">
+                                يحتاج قرار
+                              </span>
+                            )}
+                          </div>
+                          <div className="font-bold text-xs sm:text-sm text-[var(--ink)] mt-2">
+                            {st.title}
+                          </div>
+                          <div className="text-[11px] text-[var(--muted)] mt-1 line-clamp-2">
+                            {st.desc}
+                          </div>
+                        </div>
+
+                        {/* Who / When progression history */}
+                        <div className="mt-3 pt-2 border-t border-[var(--line)]/50 text-[10px] text-[var(--muted)]">
+                          {st.num === 0 && activeCycle && (
+                            <div>
+                              <span className="text-[var(--accent)] font-semibold">الدورة:</span> {activeCycle.period}
+                            </div>
+                          )}
+                          {st.num > 0 && (() => {
+                            const entry = (activeCycle?.history as unknown as Array<{ stage: number; advancedBy?: string; at?: string }>)?.find(
+                              (h) => h.stage === st.num
+                            );
+                            if (!entry) return <span className="opacity-50">في انتظار الوصول للمرحلة</span>;
+                            return (
+                              <div>
+                                <span className="text-[var(--money-pos)] font-semibold">تقدم بواسطة:</span> @{entry.advancedBy}
+                                {entry.at && (
+                                  <span className="block text-[9px] mt-0.5 opacity-80" dir="ltr">
+                                    {new Date(entry.at).toLocaleString('ar-SA')}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
           {/* Cycle Deduction Phases Flow (BR §29) */}
           {activeCycle && (activeCycle.riders || []).length > 0 && (() => {
-            const riders = activeCycle.riders || [];
-            const gross = riders.reduce((s: number, r: any) => s + (r.gross || 0), 0);
-            const afterCommission = riders.reduce((s: number, r: any) => s + (r.afterCommission || 0), 0);
-            const phase1 = riders.reduce((s: number, r: any) => s + (r.phase1 || 0), 0);
-            const preliminaryDue = riders.reduce((s: number, r: any) => s + (r.preliminaryDue || 0), 0);
-            const phase2 = riders.reduce((s: number, r: any) => s + (r.phase2 || 0), 0);
-            const phase3 = riders.reduce((s: number, r: any) => s + (r.phase3 || 0), 0);
-            const net = riders.reduce((s: number, r: any) => s + (r.net || 0), 0);
+            const riders = (activeCycle.riders || []) as Array<{
+              rider: string;
+              net: number;
+              gross?: number;
+              afterCommission?: number;
+              phase1?: number;
+              preliminaryDue?: number;
+              phase2?: number;
+              phase3?: number;
+            }>;
+            const gross = riders.reduce((s: number, r) => s + (r.gross || 0), 0);
+            const afterCommission = riders.reduce((s: number, r) => s + (r.afterCommission || 0), 0);
+            const phase1 = riders.reduce((s: number, r) => s + (r.phase1 || 0), 0);
+            const preliminaryDue = riders.reduce((s: number, r) => s + (r.preliminaryDue || 0), 0);
+            const phase2 = riders.reduce((s: number, r) => s + (r.phase2 || 0), 0);
+            const phase3 = riders.reduce((s: number, r) => s + (r.phase3 || 0), 0);
+            const net = riders.reduce((s: number, r) => s + (r.net || 0), 0);
 
             return (
               <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-3">
@@ -2491,91 +3364,249 @@ function PayrollPageInner() {
               </span>
             </div>
 
-            {loadingLines ? (
-              <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : cycleLines.length === 0 ? (
-              <div className="p-8 text-center bg-[var(--surface)] rounded-2xl border border-[var(--line)] text-xs text-[var(--muted)]">
-                لا توجد أسطر احتساب منشأة لهذه الدورة بعد. سيتم بناء الأسطر في المرحلة 4.
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-start text-xs sm:text-sm">
-                    <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                      <tr>
-                        <th className="p-3 text-start">إقامة المندوب</th>
-                        <th className="p-3 text-start">التطبيق</th>
-                        <th className="p-3 text-start">الفئة</th>
-                        <th className="p-3 text-start">إجمالي المنصة</th>
-                        <th className="p-3 text-start">إيجار المركبة</th>
-                        <th className="p-3 text-start">الاستقطاعات</th>
-                        <th className="p-3 text-start">الصافي النهائي</th>
-                        <th className="p-3 text-start">الحالة</th>
-                        <th className="p-3 text-start">شرح الاحتساب</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--line)]">
-                      {cycleLines.map((line: any) => (
-                        <tr key={line.id || line.rider} className="hover:bg-[var(--row-hover)] transition">
-                          <td className="p-3 font-mono font-bold text-[var(--ink)]">{line.rider}</td>
-                          <td className="p-3 font-mono text-xs">{line.app}</td>
-                          <td className="p-3 text-xs text-[var(--muted)]">{line.category || '-'}</td>
-                          <td className="p-3 num font-medium">
-                            {(line.platformGross || line.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td className="p-3 num text-[var(--muted)]">
-                            {(line.allocatedVehicleCharge ?? line.vehicleCharge ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td className="p-3 num text-[var(--danger)]">
-                            {(line.accountDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td
-                            className={`p-3 num font-bold ${
-                              (line.net ?? 0) < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'
-                            }`}
-                          >
-                            {(line.net ?? line.entitlement ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td className="p-3">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                                line.status === 'ready' || line.status === 'approved'
-                                  ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                                  : 'bg-[var(--danger)]/15 text-[var(--danger)]'
-                              }`}
-                            >
-                              {line.status === 'ready' ? 'جاهز' : line.status === 'approved' ? 'معتمد' : 'يحتاج قرار'}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedLineForExplain(line)}
-                              className="px-2.5 py-1 rounded-lg bg-[var(--raised)] text-xs font-bold text-[var(--accent)] hover:bg-[var(--line)] transition cursor-pointer"
-                            >
-                              شرح الاحتساب (Explain)
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            <DataTable
+              tableId="pay-cycle-lines"
+              columns={cycleLineColumns}
+              data={cycleLines}
+              loading={loadingLines}
+              emptyTitle="لا توجد أسطر احتساب منشأة"
+              emptyDescription="لا توجد أسطر احتساب منشأة لهذه الدورة بعد. سيتم بناء الأسطر في المرحلة 4."
+              exportFilename={`cycle_lines_${activeCycle?.id || 'payroll'}`}
+              showTotals={true}
+            />
           </div>
         </div>
       )}
+    </div>
+  )}
 
       {/* ======================================================== */}
-      {/* SECTION 3: RULES EDITOR & GLOBAL SETTINGS (F1)          */}
+      {/* SECTION 3: RULES EDITOR & GLOBAL SETTINGS (F1 / A6)      */}
       {/* ======================================================== */}
       {mainTab === 'rules' && (
         <div className="space-y-6">
-          <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
+          {/* Sub-tab view toggle */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-xs">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setRulesSection('eligibility')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
+                  rulesSection === 'eligibility'
+                    ? 'bg-[var(--accent)] text-[var(--accent-ink)] shadow-xs'
+                    : 'bg-[var(--raised)] text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <FileText size={15} />
+                <span>شروط وأهلية نينجا (Ninja Eligibility Rules)</span>
+                {activeNinjaEligibility && (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      activeNinjaEligibility.status === 'approved'
+                        ? 'bg-[var(--money-pos)]/20 text-[var(--money-pos)]'
+                        : 'bg-[var(--warning)]/20 text-[var(--warning)]'
+                    }`}
+                  >
+                    {activeNinjaEligibility.status === 'approved'
+                      ? `معتمد (v${activeNinjaEligibility.version})`
+                      : `مسودة (v${activeNinjaEligibility.version})`}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setRulesSection('global')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
+                  rulesSection === 'global'
+                    ? 'bg-[var(--accent)] text-[var(--accent-ink)] shadow-xs'
+                    : 'bg-[var(--raised)] text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <Scale size={15} />
+                <span>الإعدادات العامة الموحدة (Global Settings)</span>
+                {globalSettings.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--raised)] text-[var(--accent)] border border-[var(--line)]">
+                    v{globalSettings[0].version}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={rulesMonth}
+                onChange={(e) => setRulesMonth(e.target.value)}
+                className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold focus:outline-hidden"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  loadNinjaEligibility();
+                  loadGlobalSettings();
+                }}
+                className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--line)] transition cursor-pointer"
+                title="تحديث البيانات"
+              >
+                <RefreshCw size={14} className={loadingNinjaEligibility || loadingGlobalSettings ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
+
+          {/* SECTION A: NINJA ELIGIBILITY RULES (A6) */}
+          {rulesSection === 'eligibility' && (
+            <div className="space-y-6">
+              {loadingNinjaEligibility ? (
+                <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-40 w-full" />
+                </div>
+              ) : ninjaEligibilityError ? (
+                <ErrorState
+                  title="تعذر تحميل ضوابط الأهلية لنينجا"
+                  message={ninjaEligibilityError}
+                  onRetry={loadNinjaEligibility}
+                />
+              ) : !activeNinjaEligibility ? (
+                <EmptyState
+                  title="لا توجد شروط أهلية مسجلة لشهر "
+                  description={`لم يتم العثور على شروط أهلية مسجلة لتطبيق نينجا في شهر ${rulesMonth}. يمكنك إنشاء مسودة جديدة من القيم القياسية بنقرة زر.`}
+                  action={{
+                    label: `إنشاء مسودة شروط أهلية لشهر ${rulesMonth}`,
+                    onClick: handleCreateNewNinjaDraft,
+                  }}
+                />
+              ) : (
+                <div className="space-y-6">
+                  {/* Active Eligibility Header Card */}
+                  <div
+                    className={`p-5 rounded-2xl border transition shadow-xs space-y-4 ${
+                      activeNinjaEligibility.status === 'approved'
+                        ? 'border-[var(--line)] bg-[var(--surface)]'
+                        : activeNinjaEligibility.status === 'rejected'
+                        ? 'border-[var(--danger)]/40 bg-[var(--danger)]/5'
+                        : 'border-[var(--warning)]/40 bg-[var(--warning)]/5'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-base sm:text-lg text-[var(--ink)]">
+                            {activeNinjaEligibility.data?.name || `شروط أهلية نينجا ${rulesMonth}`} (إصدار #{activeNinjaEligibility.version})
+                          </h4>
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              activeNinjaEligibility.status === 'approved'
+                                ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+                                : activeNinjaEligibility.status === 'rejected'
+                                ? 'bg-[var(--danger)]/15 text-[var(--danger)]'
+                                : 'bg-[var(--warning)]/15 text-[var(--warning)]'
+                            }`}
+                          >
+                            {activeNinjaEligibility.status === 'approved'
+                              ? 'معتمد للقراءة فقط'
+                              : activeNinjaEligibility.status === 'rejected'
+                              ? 'مرفوض'
+                              : `مسودة قيد التعديل (@${activeNinjaEligibility.createdBy || 'النظام'})`}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--muted)] mt-1">
+                          تخضع شروط الأهلية لمعايير الحوكمة والاعتماد المستقل (Maker ≠ Checker). التعديل يتم في المسودة حصراً.
+                        </p>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {activeNinjaEligibility.status === 'draft' ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setRuleModalOpen(true)}
+                              className="px-3.5 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                            >
+                              <Plus size={14} />
+                              <span>إضافة شرط</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={submittingRuleLifecycle}
+                              onClick={handleApproveNinjaEligibility}
+                              className="px-3.5 py-2 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                            >
+                              {submittingRuleLifecycle ? <RefreshCw size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                              <span>اعتماد المسودة (Approve)</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setRejectModalOpen(true)}
+                              className="px-3 py-2 rounded-xl bg-[var(--raised)] text-[var(--danger)] border border-[var(--danger)]/30 text-xs font-bold hover:bg-[var(--danger)]/10 transition cursor-pointer flex items-center gap-1.5"
+                            >
+                              <Ban size={14} />
+                              <span>رفض (Reject)</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleDeleteNinjaDraft}
+                              className="px-3 py-2 rounded-xl bg-[var(--raised)] text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger)]/10 transition cursor-pointer text-xs font-bold flex items-center gap-1.5"
+                              title="حذف المسودة بالكامل"
+                            >
+                              <Trash2 size={14} />
+                              <span>حذف المسودة</span>
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleCreateNewNinjaDraft}
+                            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                          >
+                            <Copy size={14} />
+                            <span>إنشاء مسودة جديدة من النسخة الحالية</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rules DataTable */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                          جدول شروط ومقاييس الأهلية (Ninja Eligibility Matrix)
+                        </h4>
+                        <p className="text-xs text-[var(--muted)] mt-0.5">
+                          تحديد الحد الأدنى المطلوب لكل مقياس، المعامل الحسابي، وأثر عدم التحقق على احتساب أجر المندوب.
+                        </p>
+                      </div>
+                      <span className="text-xs text-[var(--muted)] font-mono">
+                        {(activeNinjaEligibility.data?.rules || []).length} شرط مسجل
+                      </span>
+                    </div>
+
+                    <DataTable
+                      tableId="ninja-eligibility-rules"
+                      columns={draftRuleColumns}
+                      data={activeNinjaEligibility.data?.rules || []}
+                      emptyTitle="لا توجد شروط مسجلة في هذه المسودة"
+                      emptyDescription="انقر على «إضافة شرط» لإدراج مقياس جديد للأهلية."
+                      exportFilename={`ninja_eligibility_rules_${rulesMonth}`}
+                      showTotals={false}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SECTION B: GLOBAL SETTINGS (Existing F1) */}
+          {rulesSection === 'global' && (
+            <div className="space-y-6">
+              <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
@@ -2750,6 +3781,8 @@ function PayrollPageInner() {
           )}
         </div>
       )}
+    </div>
+  )}
 
       {/* ======================================================== */}
       {/* SECTION 4: DEDUCTIONS (Stage 2)                         */}
@@ -2873,7 +3906,7 @@ function PayrollPageInner() {
             <select
               value={assignmentSourceType}
               onChange={(e) => setAssignmentSourceType(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs focus:outline-hidden"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
             >
               <option value="campaign">حملة / استبيان (Campaign)</option>
               <option value="custom_form">نموذج مخصص (Custom Form)</option>
@@ -2919,7 +3952,7 @@ function PayrollPageInner() {
             <select
               value={assignmentMappingScheme}
               onChange={(e) => setAssignmentMappingScheme(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs focus:outline-hidden"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
             >
               <option value="">حدد النظام المعتمد</option>
               {schemesList.map((sc) => (
@@ -2991,8 +4024,8 @@ function PayrollPageInner() {
                 <span className="font-mono font-bold">{selectedLineForExplain.app}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[var(--muted)]">الفئة:</span>
-                <span className="font-bold">{selectedLineForExplain.category || '-'}</span>
+                <span className="text-[var(--muted)]">الحالة:</span>
+                <span className="font-bold">{selectedLineForExplain.status === 'ready' ? 'جاهز' : selectedLineForExplain.status}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">إجمالي المنصة:</span>
@@ -3003,7 +4036,7 @@ function PayrollPageInner() {
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">صافي المستحق:</span>
                 <span className="num font-bold text-[var(--money-pos)]">
-                  {(selectedLineForExplain.net ?? selectedLineForExplain.entitlement ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {(selectedLineForExplain.entitlement ?? selectedLineForExplain.gross ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                 </span>
               </div>
             </div>
@@ -3016,13 +4049,19 @@ function PayrollPageInner() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {selectedLineForExplain.lines.map((l: any, idx: number) => (
+                  {(selectedLineForExplain.lines as unknown as Array<{
+                    label?: string;
+                    category?: string;
+                    amount?: number;
+                    formula?: string;
+                    inputs?: Record<string, unknown>;
+                  }>).map((l, idx: number) => (
                     <div key={idx} className="p-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] space-y-1">
                       <div className="flex justify-between items-center">
                         <span className="font-bold text-[var(--ink)]">{l.label || l.category}</span>
                         <span
                           className={`num font-bold ${
-                            l.amount < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'
+                            (l.amount || 0) < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'
                           }`}
                         >
                           {(l.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
@@ -3046,6 +4085,162 @@ function PayrollPageInner() {
           </div>
         )}
       </Drawer>
+
+      {/* ======================================================== */}
+      {/* DIALOG: ADD NINJA ELIGIBILITY RULE (A6)                  */}
+      {/* ======================================================== */}
+      <Dialog
+        open={ruleModalOpen}
+        onClose={() => setRuleModalOpen(false)}
+        title="إضافة شرط أهلية جديد لنينجا"
+      >
+        <div className="space-y-4 text-xs pt-2">
+          <div className="space-y-1">
+            <label className="font-bold text-[var(--ink)] block">المقياس المطلوب (Metric):</label>
+            <select
+              value={newRuleMetric}
+              onChange={(e) => setNewRuleMetric(e.target.value)}
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
+            >
+              {(ninjaCatalog?.ninjaMetrics || Object.keys(NINJA_METRICS_MAP)).map((m: string) => (
+                <option key={m} value={m}>
+                  {NINJA_METRICS_MAP[m] || m}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="font-bold text-[var(--ink)] block">المعامل (Operator):</label>
+              <select
+                value={newRuleOperator}
+                onChange={(e) => setNewRuleOperator(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
+              >
+                {Object.entries(OPERATORS_MAP).map(([op, label]) => (
+                  <option key={op} value={op}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-bold text-[var(--ink)] block">الحد الأدنى / القيمة (Threshold):</label>
+              <input
+                type="number"
+                value={newRuleThreshold}
+                onChange={(e) => setNewRuleThreshold(e.target.value)}
+                placeholder="مثلاً: 100"
+                required
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-mono font-bold focus:outline-hidden"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="font-bold text-[var(--ink)] block">الأثر عند عدم التحقق (Effect):</label>
+            <select
+              value={newRuleEffectType}
+              onChange={(e) => setNewRuleEffectType(e.target.value)}
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
+            >
+              {Object.entries(EFFECT_TYPES_MAP).map(([eff, label]) => (
+                <option key={eff} value={eff}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="p-3 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)] flex items-center justify-between">
+            <div>
+              <span className="font-bold text-[var(--ink)] block">ضمن القاعدة (Included)</span>
+              <span className="text-[11px] text-[var(--muted)]">
+                تفعيل الشرط ضمن احتساب الأهلية الفعلي للدورة.
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={newRuleIncluded}
+              onChange={(e) => setNewRuleIncluded(e.target.checked)}
+              className="h-4 w-4 rounded-md accent-[var(--accent)] cursor-pointer"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-[var(--line)]">
+            <button
+              type="button"
+              onClick={() => setRuleModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-[var(--raised)] text-[var(--muted)] text-xs font-bold hover:text-[var(--ink)] transition cursor-pointer"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={submittingRuleLifecycle}
+              onClick={handleSaveNewRule}
+              className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+            >
+              {submittingRuleLifecycle && <RefreshCw size={13} className="animate-spin" />}
+              <span>إضافة الشرط وحفظ المسودة</span>
+            </button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* DIALOG: REJECT NINJA ELIGIBILITY DRAFT (A6)              */}
+      {/* ======================================================== */}
+      <Dialog
+        open={rejectModalOpen}
+        onClose={() => setRejectModalOpen(false)}
+        title="رفض مسودة شروط الأهلية وتوثيق السبب"
+      >
+        <div className="space-y-4 text-xs pt-2">
+          <div className="p-3 rounded-xl bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-xs text-[var(--danger)] flex items-start gap-2">
+            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">ملاحظة التدقيق والرقابة المالية (Maker-Checker):</span>
+              <p className="mt-0.5 text-[11px] opacity-90 leading-relaxed">
+                يتطلب رفض المسودة إبداء سبب مالي أو تشغيلي واضح لتوثيقه في سجل العمليات (Audit Trail) وإشعار منشئ المسودة.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="font-bold text-[var(--ink)] block">سبب الرفض (إلزامي):</label>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="اكتب سبب الرفض أو التعديلات المطلوبة على المقاييس والحدود..."
+              rows={4}
+              required
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-[var(--line)]">
+            <button
+              type="button"
+              onClick={() => setRejectModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-[var(--raised)] text-[var(--muted)] text-xs font-bold hover:text-[var(--ink)] transition cursor-pointer"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={submittingRuleLifecycle || !rejectionReason.trim()}
+              onClick={handleRejectNinjaEligibility}
+              className="px-4 py-2 rounded-xl bg-[var(--danger)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer flex items-center gap-1.5"
+            >
+              {submittingRuleLifecycle && <RefreshCw size={13} className="animate-spin" />}
+              <span>تأكيد الرفض وتوثيق السبب</span>
+            </button>
+          </div>
+        </div>
+      </Dialog>
 
       {/* ======================================================== */}
       {/* DIALOG: LEGACY PAYROLL DETAILS                           */}
@@ -3114,7 +4309,7 @@ function PayrollPageInner() {
               <select
                 value={approveSponsorId}
                 onChange={(e) => setApproveSponsorId(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
                 <option value="">حدد السجل المالي</option>
                 {financeCatalog?.sponsors?.map((s: any) => (
@@ -3160,7 +4355,7 @@ function PayrollPageInner() {
             <select
               value={adjIqama}
               onChange={(e) => setAdjIqama(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
             >
               <option value="">اختر المندوب</option>
               {ridersList.map((r) => (
@@ -3188,7 +4383,7 @@ function PayrollPageInner() {
               <select
                 value={adjCategory}
                 onChange={(e) => setAdjCategory(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
               >
                 <option value="fuel">وقود فعلي</option>
                 <option value="rent">إيجار مركبة</option>
@@ -3262,7 +4457,7 @@ function PayrollPageInner() {
                 const r = ridersList.find((x) => x.iqama === val);
                 if (r) setPaySponsorId(r.financeSponsorId || r.sponsorId || 'BW');
               }}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
             >
               <option value="">اختر المندوب</option>
               {ridersList.map((r) => (
@@ -3303,7 +4498,7 @@ function PayrollPageInner() {
             <select
               value={payVaultCode}
               onChange={(e) => setPayVaultCode(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
             >
               <option value="">الحساب الافتراضي للسجل</option>
               {financeCatalog?.vaults?.map((v: any) => (

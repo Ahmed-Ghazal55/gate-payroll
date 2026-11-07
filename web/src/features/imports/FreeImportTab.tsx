@@ -356,7 +356,7 @@ function ImportsPageInner() {
                   <select
                     value={selectedSheet}
                     onChange={(e) => setSelectedSheet(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
                   >
                     {sheets.map((sh) => (
                       <option key={sh} value={sh}>
@@ -415,7 +415,7 @@ function ImportsPageInner() {
                   <select
                     value={platform}
                     onChange={(e) => setPlatform(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
                   >
                     <option value="HungerStation">هنقرستيشن (HungerStation)</option>
                     <option value="Keeta">كيتا (Keeta)</option>
@@ -443,7 +443,7 @@ function ImportsPageInner() {
                   <select
                     value={mappingIqama}
                     onChange={(e) => setMappingIqama(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
                   >
                     <option value="">-- اختر العمود --</option>
                     {sheetHeaders.map((h) => (
@@ -459,7 +459,7 @@ function ImportsPageInner() {
                   <select
                     value={mappingName}
                     onChange={(e) => setMappingName(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
                   >
                     <option value="">-- بدون مطابقة --</option>
                     {sheetHeaders.map((h) => (
@@ -475,7 +475,7 @@ function ImportsPageInner() {
                   <select
                     value={mappingOrders}
                     onChange={(e) => setMappingOrders(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
                   >
                     <option value="">-- بدون مطابقة --</option>
                     {sheetHeaders.map((h) => (
@@ -491,7 +491,7 @@ function ImportsPageInner() {
                   <select
                     value={mappingAmount}
                     onChange={(e) => setMappingAmount(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
                   >
                     <option value="">-- بدون مطابقة --</option>
                     {sheetHeaders.map((h) => (
