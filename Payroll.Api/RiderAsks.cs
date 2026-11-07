@@ -59,6 +59,7 @@ public static class RiderAsks
             ["reason"]=input.S("reason","").Trim() is {Length:>2} r?r:"طلب المندوب من التطبيق: "+a.S("reason")});
         a["status"]="converted";a["advanceRequestId"]=request.S("id");a["decidedBy"]=actor.Identity!.Name;a["decidedAt"]=DateTimeOffset.UtcNow.ToString("O");
         Store.Save(c,Kind,a,tx);Store.Audit(c,tx,"rider_ask.converted",id,actor.Identity!.Name!);Notifications.CloseTasks(c,tx,Kind,id,actor.Identity!.Name!);
+        PushNotifications.Enqueue(c, tx, a.S("riderIqama"), "تحديث طلب السلفة", $"تم رفع طلب السلفة برقم {request.S("id")} إلى الإدارة المالية.", "/rider-app");
         return new(){["ask"]=a,["advanceRequest"]=request};
     }
 
@@ -68,6 +69,7 @@ public static class RiderAsks
         string note=input.S("note").Trim();J.Need(note.Length is >2 and <=500,"اكتب سبب الرفض ليظهر للمندوب.");
         a["status"]="declined";a["note"]=note;a["decidedBy"]=actor.Identity!.Name;a["decidedAt"]=DateTimeOffset.UtcNow.ToString("O");
         Store.Save(c,Kind,a,tx);Store.Audit(c,tx,"rider_ask.declined",id,actor.Identity!.Name!);Notifications.CloseTasks(c,tx,Kind,id,actor.Identity!.Name!);
+        PushNotifications.Enqueue(c, tx, a.S("riderIqama"), "تحديث طلب السلفة", $"تم رفض طلب السلفة: {note}", "/rider-app");
         return a;
     }
 
@@ -83,9 +85,9 @@ public static class RiderAsks
         api.MapGet("/advance-requests/rider-asks",(string? status,HttpContext ctx)=>store.Read(c=>{AccessPolicy.Demand(ctx.User,"advances.request");string me=ctx.User.Identity!.Name!;
             return Store.List(c,Kind).Where(a=>OrgDirectory.Supervises(c,null,me,a.S("riderIqama"))&&(string.IsNullOrWhiteSpace(status)||a.S("status")==status)).OrderByDescending(a=>a.S("createdAt")).ToList();}))
             .WithTags("Debts and advances").WithSummary("Supervisor lists advance asks from currently supervised riders");
-        api.MapPost("/advance-requests/rider-asks/{id}/convert",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Convert(c,tx,ctx.User,id,input)))
+        api.MapPost("/advance-requests/rider-asks/{id}/convert",(string id,JsonObject input,HttpContext ctx)=>{var res=store.Write((c,tx)=>Convert(c,tx,ctx.User,id,input));PushNotifications.FlushOutbox(store);return res;})
             .WithTags("Debts and advances").WithSummary("Supervisor converts a rider ask into a formal advance request");
-        api.MapPost("/advance-requests/rider-asks/{id}/decline",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Decline(c,tx,ctx.User,id,input)))
+        api.MapPost("/advance-requests/rider-asks/{id}/decline",(string id,JsonObject input,HttpContext ctx)=>{var res=store.Write((c,tx)=>Decline(c,tx,ctx.User,id,input));PushNotifications.FlushOutbox(store);return res;})
             .WithTags("Debts and advances").WithSummary("Supervisor declines a rider ask with a reason shown to the rider");
     }
 }
