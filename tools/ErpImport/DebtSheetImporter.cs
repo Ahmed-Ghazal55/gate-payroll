@@ -17,7 +17,7 @@ public sealed class DebtSheetPreview(JsonObject summary,List<PlannedDocument> do
 }
 
 // Workbook contents stay in memory. The only report is aggregate totals and Excel row numbers.
-public static class DebtSheetImporter
+public static partial class DebtSheetImporter
 {
     static string Text(string value)=>System.Text.RegularExpressions.Regex.Replace(value.Trim(),@"\s+"," ");
     static string Hash(byte[] bytes)=>Convert.ToHexString(SHA256.HashData(bytes));
@@ -229,7 +229,8 @@ public static class DebtSheetImporter
             ["receiptAvailable"]=receiptAvailable,["receiptRows"]=receiptRows,["receiptTotal"]=J.Money(receiptTotal),["receiptReferenceCount"]=receiptReferences.Count,["receiptCompanyTotals"]=System.Text.Json.JsonSerializer.SerializeToNode(receiptCompanyTotals),["receiptMismatchedRows"]=new JsonArray(receiptMismatches.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),["receiptGrandMatched"]=!receiptAvailable||Close(receiptTotal,detailTotals.Values.Sum()),["erpAdvanceReferenceComparisonAvailable"]=false,
             ["deductionRows"]=detailRows,["deductionTotalsByColumn"]=System.Text.Json.JsonSerializer.SerializeToNode(detailTotals),["deductionMismatchedRows"]=new JsonArray(detailErrors.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),["controlAvailable"]=controlAvailable,["controlComparisons"]=new JsonArray(controlComparisons.Select(x=>(JsonNode)x).ToArray()),["controlMismatchedRows"]=new JsonArray(controlRows.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),
             ["unresolvedColumns"]=new JsonArray(unresolved.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),["mappingApproved"]=approved,["effectivePeriodConfigured"]=period,["committed"]=false,
-            ["canCommit"]=approved&&period&&unresolved.Length==0&&rows>0&&mismatch.Count==0&&detailErrors.Count==0&&controlAvailable&&controlRows.Count==0&&receiptMismatches.Count==0&&(!receiptAvailable||Close(receiptTotal,detailTotals.Values.Sum()))};
+            ["octoberDecisionRequired"]=mapping.S("octoberLoadMode")=="pending_decision",
+            ["canCommit"]=mapping.S("octoberLoadMode")!="pending_decision"&&approved&&period&&unresolved.Length==0&&rows>0&&mismatch.Count==0&&detailErrors.Count==0&&controlAvailable&&controlRows.Count==0&&receiptMismatches.Count==0&&(!receiptAvailable||Close(receiptTotal,detailTotals.Values.Sum()))};
         return new(summary,documents,fingerprint,newRiders);
     }
     public static List<JsonObject> Riders(DbConnection c)=>Store.List(c,"rider");

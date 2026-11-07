@@ -33,10 +33,12 @@ try
 {
     if(args.Contains("--help"))
     {
-        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--counts-only] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON]");return 0;
+        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--counts-only] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON [--review-through-six [--lookup-riders]]]");return 0;
     }
     overrides=SyncOverrides.Parse(args);
     if(args.Contains("--commit")&&args.Contains("--dry-run"))throw new ImportFailure("conflicting_modes");
+    if((args.Contains("--review-through-six")||args.Contains("--lookup-riders"))&&Arg("--debt-sheet")==null)throw new ImportFailure("debt_sheet_required_for_review");
+    if(args.Contains("--review-through-six")&&args.Contains("--commit"))throw new ImportFailure("october_decision_required_review_is_read_only");
     if(live&&(args.Contains("--local-copy")||args.Contains("--source")||args.Contains("--companies-input")))throw new ImportFailure("conflicting_source_modes");
     if(live&&args.Contains("--commit")&&!args.Contains("--consistent"))throw new ImportFailure("live_commit_requires_consistent");
     string home=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -48,6 +50,29 @@ try
         string deductionsFile=Arg("--deductions")??throw new ImportFailure("deductions_file_required");
         string mappingFile=Arg("--mapping")??throw new ImportFailure("debt_mapping_required");
         var mapping=JsonNode.Parse(File.ReadAllText(mappingFile)) as JsonObject??throw new ImportFailure("invalid_debt_mapping");
+        if(args.Contains("--review-through-six"))
+        {
+            if(args.Contains("--commit"))throw new ImportFailure("october_decision_required_review_is_read_only");
+            List<JsonObject>? riders=null;
+            if(args.Contains("--lookup-riders"))
+            {
+                // Operator only: credential-dependent SELECT, never construct Store.
+                using var lookup=Connections.Target(targetEnv);lookup.Open();riders=DebtSheetImporter.Riders(lookup);
+            }
+            var debtBytes=Workbook(debtFile);var deductionBytes=Workbook(deductionsFile);
+            phase="reviewing_through_six";
+            var review=DebtSheetImporter.ReviewThroughSix(debtBytes,deductionBytes,mapping,riders);
+            // Refuse the report if either on-disk source changed during this run.
+            if(!System.Security.Cryptography.SHA256.HashData(debtBytes).SequenceEqual(System.Security.Cryptography.SHA256.HashData(Workbook(debtFile)))||
+               !System.Security.Cryptography.SHA256.HashData(deductionBytes).SequenceEqual(System.Security.Cryptography.SHA256.HashData(Workbook(deductionsFile))))
+                throw new ImportFailure("review_input_changed");
+            phase="writing_private_review";
+            if(Arg("--report") is {} reviewReport)DebtSheetImporter.WriteThroughSixReport(review,reviewReport);
+            Console.WriteLine(review.Summary.ToJsonString(new JsonSerializerOptions{WriteIndented=true}));
+            return review.Summary.B("unexplainedMismatch")?2:0;
+        }
+        if(args.Contains("--lookup-riders"))throw new ImportFailure("rider_lookup_requires_review_mode");
+        if(args.Contains("--commit")&&mapping.S("octoberLoadMode")=="pending_decision")throw new ImportFailure("october_decision_required");
         using var target=Connections.Target(targetEnv);string connection=target.ConnectionString;target.Open();
         var preview=DebtSheetImporter.Preview(Workbook(debtFile),Workbook(deductionsFile),mapping,DebtSheetImporter.Riders(target));
         if(args.Contains("--commit"))
@@ -118,4 +143,4 @@ try
 }
 catch(ImportFailure failure){Log("refused",failure.Code);Console.Error.WriteLine("ERROR "+failure.Code);return 2;}
 catch(Microsoft.Data.SqlClient.SqlException failure){Log("failed","sql_"+failure.Number);Console.Error.WriteLine("ERROR sql_operation_failed phase="+phase+" number="+failure.Number);return 2;}
-catch {Log("failed","operation_failed");Console.Error.WriteLine("ERROR operation_failed_no_sensitive_diagnostics");return 2;}
+catch(Exception failure) {Log("failed","operation_failed");Console.Error.WriteLine("ERROR operation_failed_no_sensitive_diagnostics phase="+phase+" type="+failure.GetType().Name);return 2;}

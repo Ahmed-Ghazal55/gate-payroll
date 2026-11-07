@@ -2,6 +2,7 @@
   "version": 1,
   "status": "proposed_approved",
   "approvedBy": null,
+  "octoberLoadMode": "pending_decision",
   "sheet": "المديونيات",
   "headerRow": 1,
   "paymentAllocation": {

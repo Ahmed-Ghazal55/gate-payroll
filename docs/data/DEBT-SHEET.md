@@ -4,7 +4,44 @@ Current target: **قاعدة الرواتب db77738** (BR33). Ghazal alone runs 
 
 The CLI reads both source XLSX files in place. No source file is modified or copied into the repo. `debt-sheet-mapping.v1.json` is a **draft** containing the actual column headers and proposed categories/accounts/signs. It requires Ghazal's approval; unresolved labels and the ERP HungerStation-wallet 112506 versus target HR 112506 conflict remain `needs_decision`. An effective opening month must also be chosen.
 
-## FIFO rule (Ghazal, 2026-11-05)
+## R6c — paused after D1 step 6 (2026-11-07)
+
+This section supersedes the older company-from-branch proposal below. The corrected source is `~/Projects/pro win/02 بيانات وتشغيل المنصات/المديونيات اجمالي - 2026.xlsx`; both workbooks stay read-only in place. `octoberLoadMode=pending_decision` prevents the legacy adapter from committing even if the mapping otherwise passes. D1 steps 7–11 and D2–D4 have **not** been implemented or run in this session.
+
+`--review-through-six` extends the existing debt adapter: immutable byte snapshots and SHA-256/sheet manifests; cached-value-only formula handling; exact exponent expansion and identity normalization; all three row equations; archive joins by column **headers**; creditor precedence; conservative per-rider October evidence. Missing formula caches block their row. Invalid and duplicate identities, negative buckets/payments and archive conflicts retain separate reasons. Archive net differences preserve the main-sheet net and both archive comparisons for review. No FIFO allocation, deduction reconciliation, load planning or database write is performed in this mode.
+
+Creditor precedence is the company archive sheet (EX/TR), then the payroll rider's `financeSponsorId`, then `sponsorId`, else blocked. Only exact company IDs/codes are accepted from rider records. Sheet/record disagreements keep the sheet and flag `cross_company`. Neither a name, branch nor the deductions workbook's company column is evidence. Approved October requests come only from the three company sheets (EX/BW/TR), keyed by their payment request reference; duplicate/missing references refuse further progression rather than silently removing a transaction. Per-company rider counts can overlap; request counts and amounts are additive.
+
+`included_in_net` requires an explicit net-inclusion note naming October **and all request references**, distinct matching unpaid buckets, enough net and a compatible known metadata date. Equal amounts alone, partial/negative notes, duplicate identities, invalid request identity/date, or negative source inputs remain `ambiguous`. No matching amount/note is only a **heuristic**, not proof of exclusion. The real debt workbook has no export-date metadata, so date evidence is unavailable; the agreed **balance cutoff** 2026-10-31 is not invented as its export date. No real request was proven included.
+
+### Verified offline result, steps 1–6 only
+
+- Main sheet: 808 rows / 807 unique normalized identities; raw cached net rounded once = **2,701,431.66**. Sum of row-rounded nets = **2,701,431.65**; the 0.01 difference comes from 158 subcent cached values. No row equation mismatch.
+- K5 reproduced: 93 flagged rows; invalid identity 5, duplicate rows 2, negative payment 16, negative bucket 2, both archives 2. `archive_net_differs` = **74 unique main rows / 76 archive comparisons**; two main rows differ against both archives. These are not 76 different people.
+- Approved October: 394 requests / **112,202.64**, 275 normalized identities. K5's heuristic is reproduced exactly: 266 / 102,857.64 separate, 9 / 9,345.00 ambiguous.
+- Strict result: **255 / 99,925.14 separate**, **20 / 12,277.50 ambiguous**, 0 proven included. Eleven extra ambiguous groups: ten have negative inputs (one also mentions October), one has an invalid request identity. These are explained changes to the K5 heuristic, not unexplained reconciliation differences.
+- Separate / ambiguous totals by creditor sheet: BW **34,321.59 / 7,195.00**; EX **45,679.10 / 3,394.50**; TR **19,924.45 / 1,688.00**. Details and evidence codes are private, referenced by sheet and Excel row only.
+- Offline creditor resolution: EX 66 rows / 213,790.53; TR 55 / 231,741.45; blocked 687 / 2,255,899.67 (row-rounded totals). **455 nonzero rows need rider-record lookup**. It has not run; cross-company results are therefore incomplete. Two invalid archive identities and one invalid approved request identity remain flagged.
+- Private outputs only: `~/Private/gate-data/sync-logs/r6c-debts-review.json` and `.xlsx` (files 600, directory 700). JSON has SHA-256 and sheet manifests, row reasons, both nets, creditor source, October evidence and strict/K5 differences. XLSX contains the four K5 review sections relevant through step 6; it omits names, identities, raw notes and voucher references. No source is copied or changed.
+
+### Exact next commands and decisions — in order
+
+**Ghazal runs** this credential-dependent, SELECT-only rider lookup; Codex has not run it. It does not initialize Store or access ERP. It updates the same private reports; no payroll writes:
+
+```bash
+cd "$HOME/Projects/active/gate-payroll-r6c"
+dotnet tools/ErpImport/bin/Debug/net10.0/ErpImport.dll --dry-run --review-through-six --lookup-riders \
+  --debt-sheet "$HOME/Projects/pro win/02 بيانات وتشغيل المنصات/المديونيات اجمالي - 2026.xlsx" \
+  --deductions "$HOME/Projects/pro win/02 بيانات وتشغيل المنصات/استقطاعات المناديب.xlsx" \
+  --mapping docs/data/debt-sheet-mapping.v1.json \
+  --report "$HOME/Private/gate-data/sync-logs/r6c-debts-review.json"
+```
+
+**Ghazal decides** October mode: (a) separate October items on top of the opening balances, with phase by type; or (b) already in net, so do not load them. The evidence cannot automatically settle the 20 ambiguous groups. Also specify the effective opening month before a later load. No decision or permission is inferred here.
+
+**Codex waits here.** Only after the October decision: continue D1 step 7 (deduction reconciliation), then 8–10 (mapping, existing FIFO/credit, full database preview and review). Step 11 needs completed «انقل» and a fresh «حمّل». D2 → D3 → D4 follow D1; their code/catalog status is unchanged.
+
+## Historical R6a implementation — FIFO rule (2026-11-05)
 
 1. Read debt buckets left to right in column order (oldest first).
 2. Add monthly deductions, app deductions, Petro payments, cash payments and debt reductions; allocate that total to each oldest bucket up to its value, then continue to the next.
@@ -18,7 +55,7 @@ Monthly deduction flows are reconciled independently from the historical opening
 
 ```bash
 dotnet tools/ErpImport/bin/Debug/net10.0/ErpImport.dll --live --consistent --dry-run \
-  --debt-sheet "$HOME/Private/gate-data/imports/debts-2026-11.xlsx" \
+  --debt-sheet "$HOME/Projects/pro win/02 بيانات وتشغيل المنصات/المديونيات اجمالي - 2026.xlsx" \
   --deductions "$HOME/Projects/pro win/02 بيانات وتشغيل المنصات/استقطاعات المناديب.xlsx" \
   --mapping docs/data/debt-sheet-mapping.v1.json \
   --report "$HOME/Private/gate-data/sync-logs/r6a-debt-sheet-preview.json"
