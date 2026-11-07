@@ -41,7 +41,7 @@ public static class ImportCatalog
             "/api/imports/templates/operations-ninja",null,null,"xlsx","template_only",Operations(new("captainId",Identity:true),new("attendanceDays",Numeric:true),new("hours8Days",Numeric:true),new("weekendDays",Numeric:true)),OperationsRequired,
             "المعاينة والاعتماد يكتملوا في R6c-D3."),
         new(8,"keeta_invoice","invoices","فاتورة كيتا","فاتورة الشرائح (الرياض / جدة).",["riders"],"pay.manage",
-            null,null,null,"platform-file","planned",[],[],"المستورد قيد البناء (R6c-D2)."),
+            null,"/api/platforms/keeta/invoices","/api/platforms/keeta/invoices?commit=1","platform-file","ready",[],[],"ارفع ورقة الفاتورة الأصلية؛ حدد sheetName لو الملف متعدد الأوراق."),
         new(9,"keeta_operations","operations","تشغيل كيتا للمناديب","الطلبات والأيام لكل مندوب على كل حساب كيتا.",["keeta_invoice"],"pay.manage",
             "/api/imports/templates/operations-keeta",null,null,"xlsx","template_only",Operations(new("keetaCourierId",Identity:true),new("city",Choices:["الرياض","جدة"]),new("onlineHours",Numeric:true),new("slab")),OperationsRequired,
             "المعاينة والاعتماد يكتملوا في R6c-D3."),

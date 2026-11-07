@@ -145,6 +145,7 @@ OrgDirectory.Map(api,store);
 AdvanceRequests.Map(api,store);
 NinjaBilling.Map(api,store);
 NinjaInvoices.Map(api,store);
+KeetaInvoices.Map(api,store);
 CompanyRegistryImport.Map(api,store);
 PlatformPosting.Map(api,store);
 PaySettings.Map(api,store);

@@ -131,3 +131,5 @@ Deletes only the chosen form and its children atomically, records `campaign.dele
 - `GET /api/finance/trial-balance` and `/income-statement`: posted journals, explicit company scope, `from/to=YYYY-MM`, `view=current|target`; unresolved target mappings stay in a separate list and trial totals. Header rows roll up without repeating them in totals.
 - `POST /api/finance/bank-file/preview` and `/export`: approved posted 2110 payable, signed actor/source-bound preview, amount/notes edits only, complete server revalidation, exact UTF-8 BOM/CRLF CSV. New `finance.bankfile.export` defaults to FinancialManager and administrators. Export writes audit metadata only, never payments or file content.
 - Requests, fake examples, balance basis, scope/completeness flags and bank code 40 confirmation: [finance views API](docs/api/finance-views.md).
+
+Keeta supplier invoice preview/confirm, independent approval, disputes and posting: [Keeta invoice contract](docs/api/keeta-invoices.md).

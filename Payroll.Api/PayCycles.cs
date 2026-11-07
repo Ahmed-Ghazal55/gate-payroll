@@ -42,6 +42,7 @@ public static partial class PayCycles
             J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("id")!=cycle.S("id")&&d.S("status")=="approved"&&Rows(d["invoices"]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==source.S("id"))),"المصدر مستخدم في دورة معتمدة.");
             if(app=="hs")HungerStationInvoices.DemandResolvedDisputes(c,tx,source.S("id"));
             if(app=="ninja")NinjaInvoices.DemandResolvedDisputes(c,tx,source.S("id"));
+            if(app=="keeta")KeetaInvoices.Workflow.DemandResolvedDisputes(c,tx,source.S("id"));
             var accounts=Rows(review["accounts"]).OfType<JsonObject>().ToList();var deductions=Rows(review["deductions"]).OfType<JsonObject>().ToList();J.Need(accounts.Count>0&&accounts.Select(a=>a.S("accountId")).Distinct().Count()==accounts.Count,"استحقاقات اليوزرات مطلوبة بلا تكرار.");
             foreach(var a in accounts){PayValues.Fields(a,"accountId","sourceLineId","baseGross","incentives","orders","riders");Money(a,"baseGross");Money(a,"incentives");decimal orders=PayValues.Number(a,"orders",0,int.MaxValue);J.Need(orders==decimal.Truncate(orders),"طلبات فعلية صحيحة مطلوبة.");}
             foreach(var d in deductions){PayValues.Fields(d,"sourceLineId","sourceCategory","level","accountId","amount","expenseAccount");Money(d,"amount");J.Need(d.S("level") is "company_level" or "account_level","صنف كل خصم: شركة أو يوزر.");if(d.S("level")=="company_level")J.Need(PayPlatforms.Active(d.Required("expenseAccount")).StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");else J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");}
@@ -59,7 +60,7 @@ public static partial class PayCycles
             foreach(var d in deductions)
             {
                 var sourceLine=sourceLines.SingleOrDefault(l=>l.S("id")==d.Required("sourceLineId"));J.Need(sourceLine!=null,"الخصم يحتاج سطر مصدر.");
-                if(app=="ninja"&&source.S("status")=="final")
+                if(app is "ninja" or "keeta"&&source.S("status")=="final")
                 {
                     var components=(sourceLine!["deductions"] as JsonArray??[]).OfType<JsonObject>().ToList();
                     var selected=components.Where(x=>d.S("sourceCategory")==""||x.S("category")==d.S("sourceCategory")).ToList();
