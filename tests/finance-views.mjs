@@ -1,4 +1,5 @@
 import {spawn} from 'node:child_process';
+import {createServer} from 'node:net';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -7,8 +8,9 @@ import {randomBytes} from 'node:crypto';
 import assert from 'node:assert/strict';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const directory=mkdtempSync(path.join(tmpdir(),'gate-finance-views-http-'));
-const base='http://127.0.0.1:19462';
-const server=spawn(process.env.DOTNET_PATH||'dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:directory},stdio:['ignore','pipe','pipe']});
+const probe=createServer();await new Promise((resolve,reject)=>{probe.once('error',reject);probe.listen(0,'127.0.0.1',resolve);});
+const base='http://127.0.0.1:'+probe.address().port;await new Promise(resolve=>probe.close(resolve));
+const server=spawn(process.env.DOTNET_PATH||'dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,ConnectionStrings__DefaultConnection:'',PAYROLL_DATA_DIR:directory},stdio:['ignore','pipe','pipe']});
 let logs='',cookie='',spawnError;
 server.stdout.on('data',x=>logs+=x);server.stderr.on('data',x=>logs+=x);server.once('error',error=>spawnError=error);
 async function req(route,body,status=200,auth=true){
@@ -18,10 +20,10 @@ async function req(route,body,status=200,auth=true){
 }
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(server.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}assert.ok(ready,logs);
- assert.equal((await req('/health',undefined,200,false)).version,'0.15.0');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.16.0');
  await req('/api/finance/coa/target',undefined,401,false);
  const password=randomBytes(24).toString('hex');await req('/api/auth/setup',{username:'synthetic-admin',password});const admin=cookie;
- const coa=await req('/api/finance/coa/target');assert.equal(coa.accounts.length,408);assert.equal(coa.accounts.filter(a=>a.posting&&a.status==='active').length,232);assert.deepEqual(Object.fromEntries(['excel','modified','new'].map(source=>[source,coa.accounts.filter(a=>a.source===source).length])),{excel:294,modified:28,new:86});assert.ok(coa.accounts.every(a=>['source','sourceNote','statusNote','subledger'].every(key=>Object.hasOwn(a,key))));
+ const coa=await req('/api/finance/coa/target');assert.equal(coa.accounts.length,411);assert.equal(coa.accounts.filter(a=>a.posting&&a.status==='active').length,235);assert.deepEqual(Object.fromEntries(['excel','modified','new'].map(source=>[source,coa.accounts.filter(a=>a.source===source).length])),{excel:294,modified:28,new:89});assert.ok(coa.accounts.every(a=>['source','sourceNote','statusNote','subledger'].every(key=>Object.hasOwn(a,key))));
  const body='80'+'0'.repeat(15)+'123';let remainder=0;for(const d of body+'281000')remainder=(remainder*10+Number(d))%97;const iban='SA'+String(98-remainder).padStart(2,'0')+body;
  const iqama='2000000888',period='2026-10';
  const policy=await req('/api/policies',{name:'Synthetic commission',kind:'commission',platform:'all',effectiveFrom:period,config:{companyFee:500}});await req(`/api/policies/${policy.id}/approve`,{});

@@ -16,6 +16,7 @@ using Payroll;
 Environment.SetEnvironmentVariable("DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false).AddEnvironmentVariables();
+Vouchers.Configure(builder.Configuration["Vouchers:Secret"]);
 var dataDir = HostingSecurity.DataDirectory(Environment.GetEnvironmentVariable("PAYROLL_DATA_DIR") ?? builder.Configuration["Payroll:DataDir"] ?? "App_Data", builder.Environment.ContentRootPath, builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot"));
 Directory.CreateDirectory(dataDir);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 12 * 1024 * 1024);
@@ -43,13 +44,15 @@ builder.Services.AddOpenApi(options=>options.AddOperationTransformer((operation,
 }));
 builder.Services.AddMemoryCache(o => o.SizeLimit = 10000);
 builder.Services.AddSingleton<InquiryLimits>();
-builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
+builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
 GateJobs.Add(builder.Services,builder.Configuration,builder.Environment);
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
 CampaignLinks.Migrate(store);
 Companies.Seed(store);
 ErpSyncRequests.SeedPermission(store);
+ConfigLists.Seed(store);
+ManualJournals.Seed(store);
 app.MapOpenApi("/openapi/{documentName}.json").WithTags("Administration").WithSummary("Administrator-only OpenAPI document").RequireAuthorization().AddEndpointFilter(async (context, next) =>
     AccessPolicy.Administrator(context.HttpContext.User) ? await next(context) : Results.Json(new { error="التوثيق لمسؤول النظام فقط.", code="forbidden" }, statusCode:403));
 app.UseForwardedHeaders();
@@ -89,6 +92,7 @@ app.Use(async (ctx,next)=>
 app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { var p = context.Context.Request.Path; if (p.StartsWithSegments("/app/_next/static")) context.Context.Response.Headers.CacheControl="public, max-age=31536000, immutable"; else if (p.StartsWithSegments("/fonts") || p.StartsWithSegments("/app/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; if (p.StartsWithSegments("/app") && context.File.PhysicalPath is { } html && html.EndsWith(".html", StringComparison.OrdinalIgnoreCase)) context.Context.Response.Headers["Content-Security-Policy"]=NextApp.PolicyForFile(html); } });
 app.UseRouting(); app.UseAuthorization(); app.UseRateLimiter();
 NextApp.Map(app);
+Vouchers.Map(app,store);
 app.MapGet("/health", (IJobsSchedule jobs) => new { jobs=jobs.Health(), ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent }).WithTags("Administration").WithSummary("Read  health");
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName }).WithTags("Administration").WithSummary("Read auth status");
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
@@ -134,10 +138,12 @@ api.AddEndpointFilter(ApiPagination.Filter);
 Notifications.Map(api,store);
 ErpSyncRuns.Map(api,store);
 JobsControl.Map(api);
+ConfigLists.Map(api,store);
 Companies.Map(api,store);
 OrgDirectory.Map(api,store);
 AdvanceRequests.Map(api,store);
 NinjaBilling.Map(api,store);
+NinjaInvoices.Map(api,store);
 CompanyRegistryImport.Map(api,store);
 PlatformPosting.Map(api,store);
 PaySettings.Map(api,store);
@@ -158,6 +164,8 @@ RiderAsks.Map(app, api, store);
 FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
 FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);
 TreasuryEntries.Map(api,store);
+ManualJournals.Map(api,store);
+MadaAccounting.Map(api,store);
 JahezTreasury.Map(api,store);
 LegacyCashAllocation.Map(api,store);
 JahezHandovers.Map(api,store);
@@ -268,7 +276,7 @@ api.MapPost("/payments", (JsonObject input, HttpContext ctx) => store.Write((c, 
     var sponsor=AccountingEvents.PayrollSponsor(rider,input);
     string vault=input.S("paymentVaultCode",FinancialCore.DefaultVaultForSponsor(sponsor.Id,"BANK"));
     FinancialScopes.DemandSponsor(ctx.User,sponsor.Id);FinancialScopes.DemandAccount(ctx.User,vault);FinancialScopes.DemandSponsor(ctx.User,FinancialCore.ResolveVault(vault).DefaultSponsorId!);
-    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = -amount, ["kind"] = "payment", ["sourceRef"] = reference, ["createdAt"] = Now(),["sponsorId"]=sponsor.Id,["paymentVaultCode"]=vault,["accountingVersion"]=AccountingEvents.Version,["onBehalf"]=input.B("onBehalf"),["onBehalfNote"]=input.S("onBehalfNote") };
+    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = -amount, ["kind"] = "payment", ["odooVoucherNo"]=input.S("odooVoucherNo"), ["sourceRef"] = reference, ["createdAt"] = Now(),["sponsorId"]=sponsor.Id,["paymentVaultCode"]=vault,["accountingVersion"]=AccountingEvents.Version,["onBehalf"]=input.B("onBehalf"),["onBehalfNote"]=input.S("onBehalfNote") };
     var journal=AccountingEvents.PostPayment(c,tx,doc,sponsor.Id,vault,Actor(ctx));doc["journalEntryId"]=journal.S("id");
     Store.Save(c, "ledger", doc, tx); Store.Audit(c, tx, "payment.record", doc.S("id"), Actor(ctx)); return doc;
 })).WithTags("Payroll").WithSummary("Submit payments");
@@ -282,7 +290,7 @@ api.MapGet("/payroll/export.csv", (string period,HttpContext ctx) => store.Read(
 })).WithTags("Payroll").WithSummary("Read payroll export.csv");
 
 // Public forms are collection links, never a lookup endpoint for existing personal records.
-api.MapGet("/campaigns", (HttpContext ctx) => store.Read(c => Store.List(c, "campaign").Select(x => new { id=x.S("id"), title=x.S("title"), expiresAt=x.S("expiresAt"), status=x.S("status"), kind=x.S("kind","work-choice"), fields=CampaignOperations.Fields(x), cities=IbanChoices.Is(x)?IbanChoices.Cities(x):null, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+x.S("sharingToken"), qrCodeUrl="/api/campaigns/"+x.S("id")+"/qr.svg" }))).WithTags("Forms and responses").WithSummary("Read campaigns");
+api.MapGet("/campaigns", (HttpContext ctx) => store.Read(c => { var counts=Store.List(c,"submission").GroupBy(s=>s.S("campaignId")).ToDictionary(g=>g.Key,g=>g.Count()); return Store.List(c, "campaign").Select(x => new { id=x.S("id"), title=x.S("title"), expiresAt=x.S("expiresAt"), createdAt=x.S("createdAt"), status=x.S("status"), kind=x.S("kind","work-choice"), responseCount=counts.GetValueOrDefault(x.S("id")), path="/forms/"+x.S("sharingToken"), fields=CampaignOperations.Fields(x), cities=IbanChoices.Is(x)?IbanChoices.Cities(x):null, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+x.S("sharingToken"), qrCodeUrl="/api/campaigns/"+x.S("id")+"/qr.svg" }); })).WithTags("Forms and responses").WithSummary("Read campaigns");
 api.MapGet("/campaigns/{id}/qr.svg", (string id, HttpContext ctx) => store.Read(c => { var d=Store.Get(c,id,"campaign")??throw new ApiError("الحملة غير موجودة.",404); return Results.Text(CampaignLinks.Svg(CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+d.S("sharingToken")),"image/svg+xml"); })).WithTags("Forms and responses").WithSummary("Read campaigns {id} qr.svg");
 api.MapPost("/campaigns", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {

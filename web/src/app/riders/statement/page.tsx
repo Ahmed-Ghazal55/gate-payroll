@@ -378,6 +378,73 @@ function RiderStatementPageInner() {
                 </span>
               </div>
 
+              {/* Statement Deduction Phases & Subtotals (BR §29) */}
+              {monthlyStatement.phases && (
+                <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-[var(--line)] pb-2">
+                    <div>
+                      <h4 className="font-bold text-xs sm:text-sm text-[var(--ink)]">
+                        مراحل احتساب الاستقطاعات وصافي الاستحقاق (BR §29)
+                      </h4>
+                      <p className="text-[11px] text-[var(--muted)] mt-0.5">
+                        التدرج المالي المعتمد لحسم المستحقات من الإجمالي حتى الصافي النهائي.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-xs">
+                    <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                      <span className="text-[10px] text-[var(--muted)] block">الإجمالي (Gross)</span>
+                      <span className="num font-mono font-bold text-[var(--ink)]">
+                        {monthlyStatement.phases.gross.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                      <span className="text-[10px] text-[var(--muted)] block">بعد العمولة</span>
+                      <span className="num font-mono font-bold text-[var(--ink)]">
+                        {monthlyStatement.phases.afterCommission.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                      <span className="text-[10px] text-[var(--muted)] block">المرحلة 1 (تشغيلي)</span>
+                      <span className="num font-mono font-bold text-[var(--danger)]">
+                        {monthlyStatement.phases.phase1.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/40">
+                      <span className="text-[10px] font-bold text-[var(--accent)] block">المستحق الأولي</span>
+                      <span className="num font-mono font-black text-[var(--accent)]">
+                        {monthlyStatement.phases.preliminaryDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                      <span className="text-[10px] text-[var(--muted)] block">المرحلة 2 (مديونيات)</span>
+                      <span className="num font-mono font-bold text-[var(--danger)]">
+                        {monthlyStatement.phases.phase2.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                      <span className="text-[10px] text-[var(--muted)] block">المرحلة 3 (تسويات)</span>
+                      <span className="num font-mono font-bold text-[var(--ink)]">
+                        {monthlyStatement.phases.phase3.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[var(--money-pos)]/10 border border-[var(--money-pos)]/40">
+                      <span className="text-[10px] font-bold text-[var(--money-pos)] block">الصافي النهائي</span>
+                      <span className="num font-mono font-black text-[var(--money-pos)]">
+                        {monthlyStatement.net.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {monthlyStatement.cards.map((card, idx) => (
                   <div key={idx} className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-3">

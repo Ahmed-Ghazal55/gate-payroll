@@ -39,6 +39,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
+import { ConfigListsPanel } from '../../features/admin/ConfigListsPanel';
 import type {
   OrgCatalog,
   OrgMembership,
@@ -426,6 +427,7 @@ function AdminPageInner() {
   const sectionTabs: SectionTabItem[] = [
     { id: 'users', label: 'المستخدمون والصلاحيات', icon: <Users size={16} /> },
     { id: 'org', label: 'الأقسام والرتب والتفويضات', icon: <Building2 size={16} /> },
+    { id: 'lists', label: 'القوائم والإعدادات', icon: <SlidersHorizontal size={16} /> },
     { id: 'audit', label: 'سجل التدقيق الشامل', icon: <History size={16} />, badge: auditLogs.length },
     { id: 'settings', label: 'إعدادات المنظومة', icon: <Settings size={16} /> },
   ];
@@ -1047,6 +1049,13 @@ function AdminPageInner() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* Tab: القوائم والإعدادات (BR §27)                           */}
+      {/* ======================================================== */}
+      {activeTab === 'lists' && (
+        <ConfigListsPanel />
       )}
 
       {/* ======================================================== */}

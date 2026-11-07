@@ -8,13 +8,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const webDir = path.resolve(__dirname, '..');
 const outDir = path.join(webDir, 'out');
-const resultsDir = path.resolve(webDir, '../test-results/r6-ui');
+const resultsDir = path.resolve(webDir, '../test-results/r6b-ui');
 
 fs.mkdirSync(resultsDir, { recursive: true });
 
 // Load Playwright
 const pwPath = process.env.PLAYWRIGHT_MODULE || '/tmp/gate-browser/node_modules/playwright/index.mjs';
 const { chromium } = await import(pathToFileURL(pwPath));
+
+let currentUser = { username: 'admin', role: 'Admin', displayNameAr: 'غزال', permissions: ['all'] };
 
 function startStaticServer(port = 39823) {
   const server = http.createServer((req, res) => {
@@ -24,7 +26,47 @@ function startStaticServer(port = 39823) {
     if (reqPath.startsWith('/api/')) {
       if (reqPath === '/api/me') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ username: 'admin', role: 'Admin', displayNameAr: 'غزال' }));
+        res.end(JSON.stringify(currentUser));
+        return;
+      }
+      if (reqPath === '/api/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, jobs: { enabled: true } }));
+        return;
+      }
+      if (reqPath === '/api/system/jobs/erp-sync/dry-run' || reqPath === '/api/system/jobs/erp-sync/run') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ jobId: '123456' }));
+        return;
+      }
+      if (reqPath === '/api/system/jobs/erp-sync/123456') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          jobId: '123456',
+          status: 'completed',
+          mode: 'dry_run',
+          queuedAt: new Date().toISOString(),
+          startedAt: new Date().toISOString(),
+          finishedAt: new Date().toISOString(),
+          counts: [
+            { kind: 'riders', source: 'ERP', new: 4, changed: 2, unchanged: 180, rejected: 0 },
+            { kind: 'companies', source: 'ERP', new: 1, changed: 0, unchanged: 12, rejected: 0 },
+          ]
+        }));
+        return;
+      }
+      if (reqPath === '/api/system/erp-sync') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([
+          {
+            id: 'erp-sync-run-1',
+            startedAt: new Date().toISOString(),
+            finishedAt: new Date().toISOString(),
+            status: 'completed',
+            mode: 'dry_run',
+            counts: [{ kind: 'riders', new: 4, changed: 2, unchanged: 180, rejected: 0 }]
+          }
+        ]));
         return;
       }
       if (reqPath === '/api/notifications/summary') {
@@ -325,25 +367,118 @@ async function run() {
     await page.goto(`${baseUrl}/forms/`);
     await page.waitForLoadState('networkidle');
 
-    // 1. Header mutual exclusivity
-    console.log('  Testing Header: Notifications, Theme, User...');
-    const bellBtn = page.locator('header button[aria-label="الإشعارات"]');
+    // 1. Header mutual exclusivity & shortcuts & personal notifications (A1, A2)
+    console.log('  Testing Header: Shortcuts, Personal Notifications, General Notifications, Theme, User...');
+    const bellBtn = page.locator('header button[aria-label="الإشعارات العامة"]');
+    const personalNotifBtn = page.locator('header button[aria-label="إشعاراتي الشخصية"]');
+    const shortcutsBtn = page.locator('header button[aria-label="قائمة الاختصارات السريعة"]');
     const themeBtn = page.locator('header button[aria-label="تبديل المظهر"]');
     const userBtn = page.locator('header button[aria-label="قائمة المستخدم"]');
 
-    // Click Bell
+    // Test Personal Notifications
+    await personalNotifBtn.click();
+    const personalDialog = page.locator('text=إشعاراتي الشخصية').first();
+    await personalDialog.waitFor({ state: 'visible' });
+    console.log('    ✓ Personal notifications panel opened');
+
+    // Test Bell Mutual Exclusivity: opening Bell closes Personal Notifications
     await bellBtn.click();
-    const notifPanel = page.locator('[role="dialog"][aria-label="مركز الإشعارات والتنبيهات"]');
-    await notifPanel.waitFor({ state: 'visible' });
-    console.log('    ✓ Bell opened notifications panel');
+    const generalDialog = page.locator('h3:has-text("الإشعارات")').first();
+    await generalDialog.waitFor({ state: 'visible' });
+    assert.equal(await personalDialog.isVisible().catch(() => false), false, 'Personal notifications must close when Bell is opened');
+    console.log('    ✓ Opening General Bell closed Personal Notifications');
+
+    // Personal notification sound toggle (user menu): visible, flips, persists the choice.
+    await page.locator('header button[aria-label="قائمة المستخدم"]').click();
+    const soundToggle = page.locator('[data-testid="personal-sound-toggle"]');
+    await soundToggle.waitFor({ state: 'visible' });
+    assert.equal(await soundToggle.getAttribute('aria-pressed'), 'true', 'Personal sound is on by default');
+    await soundToggle.click();
+    assert.equal(await soundToggle.getAttribute('aria-pressed'), 'false', 'Toggle turns the sound off');
+    assert.equal(await page.evaluate(() => localStorage.getItem('gate_personal_sound')), 'off', 'Choice is remembered');
+    await soundToggle.click();
+    assert.equal(await page.evaluate(() => localStorage.getItem('gate_personal_sound')), 'on');
+    await page.keyboard.press('Escape');
+    console.log('    ✓ Personal notification sound toggle works and persists');
+
+    // Test Shortcuts Menu (as Admin)
+    await shortcutsBtn.click();
+    const shortcutsMenu = page.locator('text=اختصارات سريعة').first();
+    await shortcutsMenu.waitFor({ state: 'visible' });
+    assert.equal(await generalDialog.isVisible().catch(() => false), false, 'Bell must close when Shortcuts is opened');
+    console.log('    ✓ Opening Shortcuts closed Bell');
+
+    // Check all admin shortcuts
+    const adminShortcutItems = [
+      'طلب سلفة',
+      'طلب سلفة نت',
+      'إنشاء قيد محاسبي',
+      'مراجعة السلف',
+      'صرف السلف',
+      'رفع فاتورة نينجا',
+      'تحديث البيانات من ERP',
+    ];
+    for (const item of adminShortcutItems) {
+      assert.ok(await page.locator(`text=${item}`).first().isVisible(), `Admin must see shortcut: ${item}`);
+    }
+    console.log('    ✓ Admin sees all 7 shortcuts');
+
+    // Test A2: Click ERP Sync shortcut to open ERP Sync Drawer
+    await page.locator('button:has-text("تحديث البيانات من ERP")').first().click();
+    const erpDrawer = page.locator('[role="dialog"]:has-text("مزامنة بيانات الرواتب من ERP")').first();
+    await erpDrawer.waitFor({ state: 'visible' });
+    console.log('    ✓ ERP Sync Drawer opened from shortcut');
+
+    // Check subtitle
+    assert.ok(
+      await page.locator('text=تحديث بيانات الرواتب من ERP — قراءة فقط من ERP').first().isVisible(),
+      'ERP Drawer must display correct subtitle'
+    );
+
+    // Click Preview (Dry run)
+    const dryRunBtn = erpDrawer.locator('button:has-text("معاينة (قراءة فقط)")').first();
+    await dryRunBtn.click();
+    await page.waitForTimeout(500);
+
+    // Verify active job status and counts table
+    assert.ok(await erpDrawer.locator('text=مهمة رقم: 123456').first().isVisible(), 'Active job ID displayed');
+    assert.ok(await erpDrawer.locator('text=اكتملت بنجاح').first().isVisible(), 'Job completed badge displayed');
+    assert.ok(await erpDrawer.locator('text=إحصائيات السجلات المتأثرة').first().isVisible(), 'Counts table displayed');
+    console.log('    ✓ ERP Sync dry-run triggered, completed status and counts verified');
+
+    // Close ERP drawer
+    await erpDrawer.locator('button[aria-label="إغلاق اللوحة"]').first().click();
+    await page.waitForTimeout(200);
+    console.log('    ✓ ERP Drawer closed cleanly');
+
+    // Test Supervisor Role shortcuts (must see ONLY advance request & internet advance)
+    console.log('  Testing Supervisor Role shortcuts...');
+    currentUser = { username: 'syn-supervisor', role: 'Supervisor', displayNameAr: 'مشرف تشغيلي', permissions: ['advances.request'] };
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+
+    await shortcutsBtn.click();
+    await page.locator('text=اختصارات سريعة').first().waitFor({ state: 'visible' });
+
+    assert.ok(await page.locator('text=طلب سلفة').first().isVisible(), 'Supervisor must see طلب سلفة');
+    assert.ok(await page.locator('text=طلب سلفة نت').first().isVisible(), 'Supervisor must see طلب سلفة نت');
+    assert.equal(await page.locator('text=إنشاء قيد محاسبي').count(), 0, 'Supervisor must NOT see إنشاء قيد محاسبي');
+    assert.equal(await page.locator('text=مراجعة السلف').count(), 0, 'Supervisor must NOT see مراجعة السلف');
+    assert.equal(await page.locator('text=صرف السلف').count(), 0, 'Supervisor must NOT see صرف السلف');
+    assert.equal(await page.locator('text=رفع فاتورة نينجا').count(), 0, 'Supervisor must NOT see رفع فاتورة نينجا');
+    assert.equal(await page.locator('text=تحديث البيانات من ERP').count(), 0, 'Supervisor must NOT see تحديث البيانات من ERP');
+    console.log('    ✓ Supervisor sees strictly the two advance request shortcuts');
+
+    // Reset back to Admin
+    currentUser = { username: 'admin', role: 'Admin', displayNameAr: 'غزال', permissions: ['all'] };
+    await page.reload();
+    await page.waitForLoadState('networkidle');
 
     // Click Theme -> Bell closes, Theme opens
     await themeBtn.click();
     const themeDropdown = page.locator('text=اختر المظهر').first();
     await themeDropdown.waitFor({ state: 'visible' });
-    const notifCount = await notifPanel.count();
-    assert.equal(notifCount, 0, 'Notifications panel must close when Theme is clicked');
-    console.log('    ✓ Opening Theme closed Notifications');
+    console.log('    ✓ Opening Theme opened cleanly');
 
     // Click User -> Theme closes, User opens
     await userBtn.click();

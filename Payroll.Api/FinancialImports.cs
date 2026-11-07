@@ -21,6 +21,7 @@ public static class FinancialImports
         string[] kinds=kind switch{
             var k when k.StartsWith("pay-choice:",StringComparison.Ordinal)=>["pay_terms","pay_scheme","pay_eligibility","pay_setting","pay_assignment","rider","company","submission","campaign","custom_response","custom_form"],
             "company-certificates"=>["company","commercial_registration"],
+            var k when k.StartsWith("ninja-invoice",StringComparison.Ordinal)=>["company","ninja_account","platform_account","pay_terms","platform_invoice","platform_invoice_line","platform_invoice_action","platform_dispute","platform_deduction","accounting_period","setting","journal","pay_cycle"],
             "hs-invoice"=>["company","commercial_registration","rider","platform_account","platform_invoice","platform_invoice_line","platform_dispute","platform_allocation"],
             "hs-invoice-posting"=>["platform_invoice","platform_invoice_line","platform_invoice_action","platform_dispute","platform_allocation","platform_deduction","rider","setting","accounting_period","journal"],
             _=>["debt","rider","debt_settlement","journal","run","ledger","opening_reconciliation","debt_transfer","pay_cycle","pay_cycle_line"]};

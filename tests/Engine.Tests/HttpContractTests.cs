@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 public sealed class HttpContractTests
 {
     [TestMethod]
+    [DataRow("r6b-accounting.mjs",false)]
     [DataRow("erp-sync.mjs",false)]
     [DataRow("api-cleanup.mjs",false)]
     [DataRow("r2-backend.mjs",false)]
@@ -27,6 +28,7 @@ public sealed class HttpContractTests
         string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));
         var info=new ProcessStartInfo("node"){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,UseShellExecute=false};
         info.ArgumentList.Add(Path.Combine(root,"tests",script));
+        info.Environment["Vouchers__Secret"]=SyntheticVoucherSettings.Key;
         SqlConnection? admin=null;string database="GateHttpTest_"+Guid.NewGuid().ToString("N");
         if(sqlServer)
         {

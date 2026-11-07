@@ -24,6 +24,8 @@ jobs:
           - 1433:1433
     env:
       PAYROLL_TEST_SQL_CONNECTION: Server=localhost,1433;Database=master;User ID=sa;Password=GateSynthetic_CI_Only_723!;Encrypt=True;TrustServerCertificate=True
+      # Synthetic, CI only (C7 vouchers need a signing secret; production sets its own in MonsterASP).
+      Vouchers__Secret: GateSynthetic_CI_Only_Voucher_Key_000001
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6

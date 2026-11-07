@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Receipt,
   History,
+  Wifi,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -501,8 +502,24 @@ function TreasuryPageContent() {
                         </td>
                         <td className="p-3">
                           <div className="inline-flex items-center gap-1 font-semibold">
-                            {req.type === 'cash' ? <Wallet size={13} /> : <Banknote size={13} />}
-                            <span>{req.type === 'cash' ? 'خزينة نقدية' : 'حساب بنكي'}</span>
+                            {req.type === 'internet' ? (
+                              <Wifi size={13} className="text-sky-600" />
+                            ) : req.type === 'cash' ? (
+                              <Wallet size={13} />
+                            ) : (
+                              <Banknote size={13} />
+                            )}
+                            <span>
+                              {req.type === 'internet'
+                                ? req.fulfilment === 'recharge_card'
+                                  ? `كارت شحن (${req.networkCode || ''} - ${req.packageCode || ''})`
+                                  : req.fulfilment === 'bank'
+                                  ? 'سلفة نت (بنكي)'
+                                  : 'سلفة نت (نقدي)'
+                                : req.type === 'cash'
+                                ? 'خزينة نقدية'
+                                : 'حساب بنكي'}
+                            </span>
                           </div>
                           <div className="font-mono text-[10px] text-[var(--muted)]">{req.vaultCode}</div>
                         </td>

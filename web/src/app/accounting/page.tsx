@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   FileSpreadsheet,
   Layers,
@@ -31,6 +32,7 @@ import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { ErrorState, EmptyState, Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
 import type {
   TargetCoaAccount,
   TargetCoaResponse,
@@ -40,13 +42,29 @@ import type {
   TrialBalanceCompanyRow,
   IncomeStatementResponse,
   IncomeStatementCompany,
+  CompanySponsor,
   FinanceJournal,
   FinanceJournalLine,
 } from '../../lib/types';
 
-export default function AccountingPage() {
+function AccountingPageContent() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'coa' | 'journals' | 'trial' | 'income'>('coa');
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'coa' | 'manual_journals' | 'journals' | 'trial' | 'income'>('coa');
+  const [openNewManualJournal, setOpenNewManualJournal] = useState<boolean>(false);
+  const [companies, setCompanies] = useState<CompanySponsor[]>([]);
+
+  useEffect(() => {
+    api.getCompanies().then((res) => setCompanies(res || [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const action = searchParams?.get('action');
+    if (action === 'manual_journal') {
+      setActiveTab('manual_journals');
+      setOpenNewManualJournal(true);
+    }
+  }, [searchParams]);
 
   // ==========================================
   // Data States
@@ -560,6 +578,21 @@ export default function AccountingPage() {
 
         <button
           type="button"
+          id="subtab-manual-journals"
+          role="tab"
+          aria-selected={activeTab === 'manual_journals'}
+          onClick={() => setActiveTab('manual_journals')}
+          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
+            activeTab === 'manual_journals'
+              ? 'border-[var(--accent)] text-[var(--accent)]'
+              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+          }`}
+        >
+          القيود اليدوية (BR §28)
+        </button>
+
+        <button
+          type="button"
           role="tab"
           aria-selected={activeTab === 'journals'}
           onClick={() => setActiveTab('journals')}
@@ -693,6 +726,17 @@ export default function AccountingPage() {
             />
           )}
         </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB: Manual Journals (BR §28)                            */}
+      {/* ======================================================== */}
+      {activeTab === 'manual_journals' && (
+        <ManualJournalsPanel
+          companies={companies}
+          coaAccounts={coaAccounts}
+          defaultOpenNew={openNewManualJournal}
+        />
       )}
 
       {/* ======================================================== */}
@@ -937,17 +981,17 @@ export default function AccountingPage() {
 
                     {/* Trial balance table */}
                     <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
-                      <table className="w-full text-xs text-right border-collapse">
+                      <table className="w-full text-xs text-start border-collapse">
                         <thead>
                           <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
                             <th className="py-2.5 px-3">رمز الحساب</th>
                             <th className="py-2.5 px-3">اسم الحساب</th>
-                            <th className="py-2.5 px-3 text-left num">افتتاح مدين</th>
-                            <th className="py-2.5 px-3 text-left num">افتتاح دائن</th>
-                            <th className="py-2.5 px-3 text-left num">فترة مدين</th>
-                            <th className="py-2.5 px-3 text-left num">فترة دائن</th>
-                            <th className="py-2.5 px-3 text-left num">إغلاق مدين</th>
-                            <th className="py-2.5 px-3 text-left num">إغلاق دائن</th>
+                            <th className="py-2.5 px-3 text-end num">افتتاح مدين</th>
+                            <th className="py-2.5 px-3 text-end num">افتتاح دائن</th>
+                            <th className="py-2.5 px-3 text-end num">فترة مدين</th>
+                            <th className="py-2.5 px-3 text-end num">فترة دائن</th>
+                            <th className="py-2.5 px-3 text-end num">إغلاق مدين</th>
+                            <th className="py-2.5 px-3 text-end num">إغلاق دائن</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--line)]">
@@ -976,22 +1020,22 @@ export default function AccountingPage() {
                                     {row.nameAr || row.name}
                                   </span>
                                 </td>
-                                <td className="py-2 px-3 text-left num font-mono">
+                                <td className="py-2 px-3 text-end num font-mono">
                                   {(row.openingDebit || 0) > 0 ? (row.openingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
                                 </td>
-                                <td className="py-2 px-3 text-left num font-mono">
+                                <td className="py-2 px-3 text-end num font-mono">
                                   {(row.openingCredit || 0) > 0 ? (row.openingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
                                 </td>
-                                <td className="py-2 px-3 text-left num font-mono text-blue-600 dark:text-blue-400">
+                                <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400">
                                   {(row.periodDebit || 0) > 0 ? (row.periodDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
                                 </td>
-                                <td className="py-2 px-3 text-left num font-mono text-purple-600 dark:text-purple-400">
+                                <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400">
                                   {(row.periodCredit || 0) > 0 ? (row.periodCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
                                 </td>
-                                <td className="py-2 px-3 text-left num font-mono font-bold text-blue-700 dark:text-blue-300">
+                                <td className="py-2 px-3 text-end num font-mono font-bold text-blue-700 dark:text-blue-300">
                                   {(row.closingDebit || 0) > 0 ? (row.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
                                 </td>
-                                <td className="py-2 px-3 text-left num font-mono font-bold text-purple-700 dark:text-purple-300">
+                                <td className="py-2 px-3 text-end num font-mono font-bold text-purple-700 dark:text-purple-300">
                                   {(row.closingCredit || 0) > 0 ? (row.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
                                 </td>
                               </tr>
@@ -1000,25 +1044,25 @@ export default function AccountingPage() {
                         </tbody>
                         <tfoot className="bg-[var(--raised)] border-t-2 border-[var(--line)] font-bold text-xs">
                           <tr>
-                            <td colSpan={2} className="py-3 px-3 text-right">
+                            <td colSpan={2} className="py-3 px-3 text-start">
                               الإجمالي العام المتوازن
                             </td>
-                            <td className="py-3 px-3 text-left num font-mono font-bold">
+                            <td className="py-3 px-3 text-end num font-mono font-bold">
                               {(totals.openingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-3 px-3 text-left num font-mono font-bold">
+                            <td className="py-3 px-3 text-end num font-mono font-bold">
                               {(totals.openingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-3 px-3 text-left num font-mono font-bold text-blue-600">
+                            <td className="py-3 px-3 text-end num font-mono font-bold text-blue-600">
                               {(totals.periodDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-3 px-3 text-left num font-mono font-bold text-purple-600">
+                            <td className="py-3 px-3 text-end num font-mono font-bold text-purple-600">
                               {(totals.periodCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-3 px-3 text-left num font-mono font-bold text-blue-700">
+                            <td className="py-3 px-3 text-end num font-mono font-bold text-blue-700">
                               {(totals.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-3 px-3 text-left num font-mono font-bold text-purple-700">
+                            <td className="py-3 px-3 text-end num font-mono font-bold text-purple-700">
                               {(totals.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </td>
                           </tr>
@@ -1374,13 +1418,13 @@ export default function AccountingPage() {
               <div className="space-y-2">
                 <h4 className="font-bold text-xs text-[var(--ink)]">أسطر القيد المحاسبي المزدوج</h4>
                 <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
-                  <table className="w-full text-xs text-right border-collapse">
+                  <table className="w-full text-xs text-start border-collapse">
                     <thead>
                       <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
                         <th className="py-2 px-3">رقم الحساب</th>
                         <th className="py-2 px-3">اسم الحساب</th>
-                        <th className="py-2 px-3 text-left num">مدين</th>
-                        <th className="py-2 px-3 text-left num">دائن</th>
+                        <th className="py-2 px-3 text-end num">مدين</th>
+                        <th className="py-2 px-3 text-end num">دائن</th>
                         <th className="py-2 px-3">البيان</th>
                       </tr>
                     </thead>
@@ -1393,10 +1437,10 @@ export default function AccountingPage() {
                           <td className="py-2 px-3 text-[var(--ink)] font-medium">
                             {line.accountNameAr || '—'}
                           </td>
-                          <td className="py-2 px-3 text-left num font-mono text-blue-600 dark:text-blue-400 font-bold">
+                          <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400 font-bold">
                             {(line.debit || 0) > 0 ? (line.debit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
                           </td>
-                          <td className="py-2 px-3 text-left num font-mono text-purple-600 dark:text-purple-400 font-bold">
+                          <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400 font-bold">
                             {(line.credit || 0) > 0 ? (line.credit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
                           </td>
                           <td className="py-2 px-3 text-[var(--muted)] text-[11px] truncate max-w-[150px]">
@@ -1407,13 +1451,13 @@ export default function AccountingPage() {
                     </tbody>
                     <tfoot className="bg-[var(--raised)] border-t border-[var(--line)] font-bold text-xs">
                       <tr>
-                        <td colSpan={2} className="py-2 px-3 text-right">
+                        <td colSpan={2} className="py-2 px-3 text-start">
                           إجمالي القيد
                         </td>
-                        <td className="py-2 px-3 text-left num font-mono text-blue-600">
+                        <td className="py-2 px-3 text-end num font-mono text-blue-600">
                           {(selectedJournal.lines?.reduce((sum, l) => sum + (l.debit || 0), 0) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="py-2 px-3 text-left num font-mono text-purple-600">
+                        <td className="py-2 px-3 text-end num font-mono text-purple-600">
                           {(selectedJournal.lines?.reduce((sum, l) => sum + (l.credit || 0), 0) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>
                         <td />
@@ -1437,5 +1481,13 @@ export default function AccountingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AccountingPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-[var(--muted)]">جاري تحميل صفحة المحاسبة...</div>}>
+      <AccountingPageContent />
+    </Suspense>
   );
 }

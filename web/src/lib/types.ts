@@ -153,6 +153,9 @@ export interface Campaign {
   expiresAt: string;
   createdAt: string;
   path: string;
+  /** Absolute link from the server (Payroll:PublicBaseUrl); prefer it over origin + path. */
+  publicUrl?: string;
+  qrCodeUrl?: string;
   responseCount: number;
   cities?: Array<{ ar: string; en: string }>;
 }
@@ -816,6 +819,8 @@ export interface PayCycle {
   stage: number;
   status: 'draft' | 'review' | 'needs_decision' | 'approved' | 'cancelled' | 'reversed';
   invoices: any[];
+  riders?: any[];
+  deductions?: any[];
   adjustmentAccounts?: Record<string, string>;
   createdBy: string;
   createdAt: string;
@@ -928,7 +933,19 @@ export interface MonthlyRiderStatement {
     source: string;
     type?: string;
     description?: string;
+    phase?: number;
+    order?: number;
+    labelAr?: string;
   }>;
+  phases?: {
+    gross: number;
+    commission: number;
+    afterCommission: number;
+    phase1: number;
+    preliminaryDue: number;
+    phase2: number;
+    phase3: number;
+  };
   net: number;
   carried: number;
   closing: number;
@@ -968,7 +985,10 @@ export interface AdvanceRequest {
   riderIqama: string;
   riderName: string;
   companyId: string;
-  type: 'cash' | 'bank';
+  type: 'cash' | 'bank' | 'internet';
+  fulfilment?: 'cash' | 'bank' | 'recharge_card';
+  networkCode?: string;
+  packageCode?: string;
   amount: number;
   vaultCode: string;
   reason: string;
@@ -989,7 +1009,7 @@ export interface AdvanceRequest {
   debtId?: string;
   journalEntryId?: string;
   proposal?: {
-    type: 'cash' | 'bank';
+    type: 'cash' | 'bank' | 'internet';
     amount: number;
     vaultCode: string;
     proposedBy: string;
@@ -1091,3 +1111,200 @@ export interface OrgResponsibleUser {
   department: string;
   rank: string;
 }
+
+export interface ErpSyncCount {
+  kind: string;
+  source: string;
+  new: number;
+  changed: number;
+  unchanged: number;
+  rejected: number;
+}
+
+export interface ErpSyncJobStatus {
+  jobId: string;
+  status: 'queued' | 'running' | 'completed' | 'refused' | 'failed';
+  mode: 'dry_run' | 'commit';
+  queuedAt: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  refusalCode?: string | null;
+  counts: ErpSyncCount[];
+}
+
+export interface ErpSyncRun {
+  id: string;
+  startedAt: string;
+  finishedAt: string;
+  status: 'completed' | 'refused' | 'failed';
+  mode: 'dry_run' | 'commit';
+  refusalCode?: string | null;
+  counts: ErpSyncCount[];
+}
+
+// =========================================================================
+// R6b / K4: Payroll Review Grid (BR §32)
+// =========================================================================
+export interface PayReviewItem {
+  key: string;
+  phase: number;
+  order: number;
+  labelAr: string;
+  amount: number;
+  editable: boolean;
+  max: number | null;
+  source: string;
+}
+
+export interface PayReviewEdit {
+  key: string;
+  from: number;
+  to: number;
+  reason: string;
+  by: string;
+  at: string;
+}
+
+export interface PayReviewRow {
+  rider: string;
+  name: string;
+  status: 'ready' | 'needs_decision';
+  review: 'pending' | 'approved';
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  gross: number;
+  commission: number;
+  afterCommission: number;
+  phase1: number;
+  preliminaryDue: number;
+  phase2: number;
+  phase3: number;
+  net: number;
+  items: PayReviewItem[];
+  edits: PayReviewEdit[];
+}
+
+export interface PayReviewTotals {
+  riders: number;
+  approved: number;
+  pending: number;
+  needsDecision: number;
+  net: number;
+}
+
+export interface PayReviewResponse {
+  cycle: {
+    id: string;
+    period: string;
+    companyId: string;
+    stage: number;
+    status: string;
+  };
+  totals: PayReviewTotals;
+  rows: PayReviewRow[];
+}
+
+// =========================================================================
+// R6b / K1: Config Lists (BR §27)
+// =========================================================================
+export interface ConfigFieldDef {
+  key: string;
+  labelAr: string;
+  type: 'text' | 'number' | 'select' | 'account' | 'bool';
+  required: boolean;
+  options?: string[];
+}
+
+export interface ConfigListItem {
+  code: string;
+  nameAr: string;
+  active: boolean;
+  values?: Record<string, any>;
+  status?: string;
+  version?: number;
+}
+
+export interface ConfigListGroup {
+  group: string;
+  labelAr: string;
+  financial: boolean;
+  fields: ConfigFieldDef[];
+  items: ConfigListItem[];
+}
+
+// =========================================================================
+// R6b / C6: Manual Journals (BR §28)
+// =========================================================================
+export interface ManualJournalLine {
+  accountCode: string;
+  accountNameAr?: string;
+  debit: number;
+  credit: number;
+  note?: string;
+}
+
+export interface ManualJournal {
+  id: string;
+  companyId: string;
+  companyName?: string;
+  date: string;
+  reference: string;
+  description: string;
+  status: 'draft' | 'approved';
+  lines: ManualJournalLine[];
+  maker: string;
+  createdAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  odooVoucherNo?: string;
+  attachmentName?: string;
+  hasAttachment?: boolean;
+  totalDebit?: number;
+  totalCredit?: number;
+}
+
+// =========================================================================
+// R6b / N2/N3: Ninja Invoice Reconciliation (BR §26, §31)
+// =========================================================================
+export interface NinjaReconciliationDiff {
+  field: string;
+  invoice: number;
+  engine: number;
+  difference: number;
+}
+
+export interface NinjaReconciliationLine {
+  row: number;
+  captainId: string;
+  status?: string;
+  reason?: string;
+  reasons?: string[];
+  diffs?: NinjaReconciliationDiff[];
+}
+
+export interface NinjaReconciliationAdjustment {
+  row: number;
+  captainId: string;
+  levelType: string;
+  finalAmount: number;
+  totalCost: number;
+}
+
+export interface NinjaInvoiceResult {
+  fileName: string;
+  supplier?: string;
+  matched: number;
+  different: number;
+  captainsCount?: number;
+  adjustments: NinjaReconciliationAdjustment[];
+  totals: Record<string, { invoice: number; engine: number; difference: number }>;
+  lines: NinjaReconciliationLine[];
+}
+
+export interface NinjaReconcileResponse {
+  period: string;
+  termsSource: string;
+  invoices: NinjaInvoiceResult[];
+}
+
+

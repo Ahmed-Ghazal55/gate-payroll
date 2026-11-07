@@ -39,6 +39,8 @@ public sealed partial class Store
         }
         finally{BufferedTransactions.Remove(tx);}
     }
+    internal static JsonObject? BufferedRecord(DbTransaction tx,string kind,string id)
+    {return BufferedTransactions.TryGetValue(tx,out var buffer)&&buffer.Rows.TryGetValue(id,out var row)&&row.Kind==kind?JsonNode.Parse(row.Body)!.AsObject():null;}
     static bool TryBuffer(DbTransaction tx,string kind,JsonObject doc)
     {
         if(!BufferedTransactions.TryGetValue(tx,out var buffer))return false;

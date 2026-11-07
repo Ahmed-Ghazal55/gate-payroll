@@ -19,7 +19,7 @@ async function put(route,body,expected=200){const r=await fetch(base+route,{meth
 async function removeForm(route,body,expected=200,auth=true){const r=await fetch(base+route,{method:'DELETE',headers:{'Content-Type':'application/json',...(auth?{Cookie:cookie}:{})},body:JSON.stringify(body)});const raw=await r.text();assert.equal(r.status,expected,raw);checks++;return JSON.parse(raw);}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
- assert.equal((await req('/health',undefined,200,false)).version,'0.15.0');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.16.0');
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
  for(const [username,role] of [['test-reviewer','Reviewer'],['test-accountant','Accountant']])await req('/api/users',{username,password,role});
  const campaign=await req('/api/campaigns',{title:'Editable campaign',days:2}),other=await req('/api/campaigns',{title:'Separate campaign',days:2});
@@ -28,6 +28,10 @@ try{
  await put('/api/campaigns/'+campaign.id,{title:'Updated campaign',fields:['city','phone']});
  const publicSchema=await req(pub,undefined,200,false);assert.deepEqual(publicSchema.fields,['city','phone']);assert.equal(publicSchema.title,'Updated campaign');
  assert.equal((await req('/api/campaigns')).find(x=>x.id===campaign.id).publicUrl,campaign.publicUrl);
+ // The list carries everything the /app copy-link and QR buttons use (path was missing before 0.16.0).
+ {const listed=(await req('/api/campaigns')).find(x=>x.id===campaign.id);assert.equal(listed.path,campaign.path);assert.ok(listed.publicUrl.endsWith(campaign.path));assert.equal(listed.responseCount,0);
+  const page=await fetch(base+listed.path);assert.equal(page.status,200);assert.match(page.headers.get('content-type')||'',/text\/html/);
+  const qr=await fetch(base+listed.qrCodeUrl,{headers:{Cookie:cookie}});assert.equal(qr.status,200);assert.match(await qr.text(),/<svg/);}
  await put('/api/campaigns/'+campaign.id,{fields:['iban']},400);await put('/api/campaigns/'+campaign.id,{fields:['city','city']},400);await put('/api/campaigns/'+campaign.id,{expiresAt:'invalid'},400);
  await req(pub,first,400,false);await req(pub,{...first,city:'Riyadh',phone:'bad'},400,false);
  const a=await req(pub,{...first,city:'Riyadh',phone:'+966500000001'},200,false),b=await req(pub,{...second,city:'Jeddah',phone:'+966500000002'},200,false);

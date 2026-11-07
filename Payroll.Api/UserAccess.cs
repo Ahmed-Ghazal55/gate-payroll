@@ -28,6 +28,8 @@ public static class UserAccess
         new("finance.bankfile.export","Treasury","الخزينة","معاينة وتصدير ملف البنك","تصدير الرواتب المعتمدة ضمن نطاق الشركة دون تسجيل دفع أو تعديل قيد."),
         new("treasury.opening","Treasury","الخزينة","اعتماد تسوية افتتاح موثقة","معاينة وتأكيد تسوية الأرصدة القديمة دون تعديل الوثائق الأصلية."),
         new("treasury.jahez.receive","Treasury","الخزينة","استلام عهدة جاهز بعد عدها","قرار مالي مستقل يطابق التصفيات والرسوم كلًا على حدة قبل ترحيلهما."),
+        new("finance.journal.create","Treasury","الخزينة","إنشاء قيد يدوي","مسودة متوازنة في نطاق الشركة والفترة المفتوحة."),
+        new("finance.journal.approve","Treasury","الخزينة","اعتماد قيد يدوي","مراجع مستقل فقط؛ العكس بقيد منفصل."),
         new("treasury.journals","Treasury","الخزينة","عرض قيود الأستاذ ضمن النطاق","عرض القيود غير النقدية مع نطاق السجل القانوني."),
         new("treasury.liability.settle","Treasury","الخزينة","سداد التزام مثبت","دفع التزام معتمد من نقدية الشركة مع فحص الرصيد والمستند."),
         new("debts.create.equipment","Debts","المديونيات","تسجيل عهد التجهيزات","لا يمنح إنشاء بقية مخالفات وخدمات الأسطول."),
@@ -178,7 +180,7 @@ public static class UserAccess
             [
                 "riders.view", "forms.review"
             ])
-    }.Select(r=>r with { DefaultPermissions=r.DefaultPermissions.Concat(AccessPolicy.CompatibilityDefaults(r.Code)).Distinct(StringComparer.Ordinal).ToArray() }).ToArray();
+    }.Select(r=>r with { DefaultPermissions=r.DefaultPermissions.Concat(AccessPolicy.CompatibilityDefaults(r.Code)).Concat(ManualJournals.Grants(r.Code)).Distinct(StringComparer.Ordinal).ToArray() }).ToArray();
 
     public static readonly string[] Roles = RolesCatalog.Select(r => r.Code).ToArray();
 
