@@ -982,7 +982,10 @@ export interface AdvanceRequest {
   riderIqama: string;
   riderName: string;
   companyId: string;
-  type: 'cash' | 'bank';
+  type: 'cash' | 'bank' | 'internet';
+  fulfilment?: 'cash' | 'bank' | 'recharge_card';
+  networkCode?: string;
+  packageCode?: string;
   amount: number;
   vaultCode: string;
   reason: string;
@@ -1003,7 +1006,7 @@ export interface AdvanceRequest {
   debtId?: string;
   journalEntryId?: string;
   proposal?: {
-    type: 'cash' | 'bank';
+    type: 'cash' | 'bank' | 'internet';
     amount: number;
     vaultCode: string;
     proposedBy: string;

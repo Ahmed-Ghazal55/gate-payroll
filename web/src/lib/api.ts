@@ -1241,7 +1241,16 @@ export const api = {
   // ========================================================
 
   // Advance Requests
-  createAdvanceRequest: (body: { riderIqama: string; type: 'cash' | 'bank'; amount: number; reason: string; vaultCode?: string }) =>
+  createAdvanceRequest: (body: {
+    riderIqama: string;
+    type: 'cash' | 'bank' | 'internet';
+    amount: number;
+    reason: string;
+    vaultCode?: string;
+    fulfilment?: 'cash' | 'bank' | 'recharge_card';
+    networkCode?: string;
+    packageCode?: string;
+  }) =>
     handleRequest<AdvanceRequest>('/advance-requests', {
       method: 'POST',
       body: JSON.stringify(body),
