@@ -816,6 +816,8 @@ export interface PayCycle {
   stage: number;
   status: 'draft' | 'review' | 'needs_decision' | 'approved' | 'cancelled' | 'reversed';
   invoices: any[];
+  riders?: any[];
+  deductions?: any[];
   adjustmentAccounts?: Record<string, string>;
   createdBy: string;
   createdAt: string;
@@ -928,7 +930,19 @@ export interface MonthlyRiderStatement {
     source: string;
     type?: string;
     description?: string;
+    phase?: number;
+    order?: number;
+    labelAr?: string;
   }>;
+  phases?: {
+    gross: number;
+    commission: number;
+    afterCommission: number;
+    phase1: number;
+    preliminaryDue: number;
+    phase2: number;
+    phase3: number;
+  };
   net: number;
   carried: number;
   closing: number;

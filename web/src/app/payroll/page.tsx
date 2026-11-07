@@ -2333,6 +2333,87 @@ function PayrollPageInner() {
             </div>
           </div>
 
+          {/* Cycle Deduction Phases Flow (BR §29) */}
+          {activeCycle && (activeCycle.riders || []).length > 0 && (() => {
+            const riders = activeCycle.riders || [];
+            const gross = riders.reduce((s: number, r: any) => s + (r.gross || 0), 0);
+            const afterCommission = riders.reduce((s: number, r: any) => s + (r.afterCommission || 0), 0);
+            const phase1 = riders.reduce((s: number, r: any) => s + (r.phase1 || 0), 0);
+            const preliminaryDue = riders.reduce((s: number, r: any) => s + (r.preliminaryDue || 0), 0);
+            const phase2 = riders.reduce((s: number, r: any) => s + (r.phase2 || 0), 0);
+            const phase3 = riders.reduce((s: number, r: any) => s + (r.phase3 || 0), 0);
+            const net = riders.reduce((s: number, r: any) => s + (r.net || 0), 0);
+
+            return (
+              <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-[var(--line)] pb-2">
+                  <div>
+                    <h4 className="font-bold text-xs sm:text-sm text-[var(--ink)]">
+                      مراحل احتساب الاستقطاعات الإجمالية للدورة (BR §29)
+                    </h4>
+                    <p className="text-[11px] text-[var(--muted)] mt-0.5">
+                      التدرج المالي لاحتساب المسير: الإجمالي → بعد العمولة → المرحلة 1 → المستحق الأولي → المرحلة 2 → المرحلة 3 → الصافي.
+                    </p>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-[var(--muted)]">
+                    {riders.length} مندوب محتسب
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-xs">
+                  <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                    <span className="text-[10px] text-[var(--muted)] block">الإجمالي (Gross)</span>
+                    <span className="num font-mono font-bold text-[var(--ink)]">
+                      {gross.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                    <span className="text-[10px] text-[var(--muted)] block">بعد العمولة</span>
+                    <span className="num font-mono font-bold text-[var(--ink)]">
+                      {afterCommission.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                    <span className="text-[10px] text-[var(--muted)] block">المرحلة 1 (تشغيلي)</span>
+                    <span className="num font-mono font-bold text-[var(--danger)]">
+                      {phase1.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/40">
+                    <span className="text-[10px] font-bold text-[var(--accent)] block">المستحق الأولي</span>
+                    <span className="num font-mono font-black text-[var(--accent)]">
+                      {preliminaryDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                    <span className="text-[10px] text-[var(--muted)] block">المرحلة 2 (مديونيات)</span>
+                    <span className="num font-mono font-bold text-[var(--danger)]">
+                      {phase2.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                    <span className="text-[10px] text-[var(--muted)] block">المرحلة 3 (تسويات)</span>
+                    <span className="num font-mono font-bold text-[var(--ink)]">
+                      {phase3.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--money-pos)]/10 border border-[var(--money-pos)]/40">
+                    <span className="text-[10px] font-bold text-[var(--money-pos)] block">الصافي النهائي</span>
+                    <span className="num font-mono font-black text-[var(--money-pos)]">
+                      {net.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* If cycle status is needs_decision, display warning banner */}
           {activeCycle?.status === 'needs_decision' && (
             <div className="p-4 rounded-2xl bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-xs text-[var(--danger)] flex items-start gap-3">
