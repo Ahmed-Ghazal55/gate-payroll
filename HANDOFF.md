@@ -45,7 +45,7 @@
   - Rider credits (6) still pending; no approval path yet.
 - Next waves: W1 tables/RiderPicker (0.18.0), W2 operations resolved views, W3 workflow gaps (Ninja approve, journal reject/delete, rule editor), W4 users/tasks/chat, W5 Capacitor rider app.
 
-## R8 Rider App (Argon: M1–M7) — 2026-11-07
+## R8 Rider App (Argon: M1–M7, F1–F4, N1–N4) — 2026-11-07
 - **Done:**
   - M1: `mobile/` scaffolded (Vite 5, TS 5.6, Capacitor 6.2 pinned, sand+dim tokens, RTL).
   - M2: screens ported (`login`, `statement`, `requests`, `debts`, `notifications`, `devices`).
@@ -54,9 +54,19 @@
   - M5: triggers wired in `FinancialCore.cs` (broadcast) & `RiderAsks.cs` (advance ask convert/decline); `serviceAccountJson` rejected on POST.
   - M6: 7/7 tests passed in `PushNotificationsTests.cs` against SQL Server (port 11433); full suite (416 tests) green.
   - M7: build script `mobile/scripts/build-debug.sh` and Ghazal setup steps in `mobile/README.md`.
-- **APK path:** `~/Private/gate-data/mobile/gate-rider-debug.apk` (built via `./scripts/build-debug.sh` after Ghazal adds `google-services.json`).
-- **Requests to Codex / Antigravity 3.8:** None (mobile and push pipeline fully isolated and self-contained).
-- **Argon weekly %:** 100% → ~93% (7 units completed).
+  - F1: Reused static `HttpClient` with 10s timeout for both FCM auth and send calls.
+  - F2: Non-blocking background `FlushOutbox` with `Interlocked` single-execution guard, draining batches of 50 until empty.
+  - F3: Retry exponential backoff (`nextAttemptAt` = +1 min, then +5 min), skipping future attempts during flush.
+  - F4: Added `legacyStoredKey: true|false` to `GET /rider-mobile/firebase-config` (re-save Firebase settings once in admin UI after deploy to strip legacy key).
+  - N1: Secure session storage using `@capacitor/preferences` with web fallback; token cleared on logout and HTTP 401.
+  - N2: Notification tap action routing (`routeNotificationLink`) to matching tabs and created Android channel `default` («إشعارات البوابة»).
+  - N3: App identity branded with Arabic name, generated letter «ب» icon & splash screen, cleaned template tests, set `versionCode 1`, `versionName 0.1.0`.
+  - N4: Offline warning banner with retry button, API error message display, and 10/10 Vitest suite for API & push routing.
+- **Test totals:**
+  - Backend Engine.Tests: 418 passed, 0 skipped, 0 failed on SQL Server.
+  - Mobile Vitest: 10 passed, 0 skipped, 0 failed.
+- **Action for Ghazal:** Re-save Firebase settings once after deploy so `firebase:config` strips any legacy stored key.
+- **Argon weekly %:** 100% → ~88% (15 units completed).
 
 ## Next
 1. Ghazal: fill the decision sheet for the 379 rows.
