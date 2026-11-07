@@ -1229,4 +1229,79 @@ export interface ConfigListGroup {
   items: ConfigListItem[];
 }
 
+// =========================================================================
+// R6b / C6: Manual Journals (BR §28)
+// =========================================================================
+export interface ManualJournalLine {
+  accountCode: string;
+  accountNameAr?: string;
+  debit: number;
+  credit: number;
+  note?: string;
+}
+
+export interface ManualJournal {
+  id: string;
+  companyId: string;
+  companyName?: string;
+  date: string;
+  reference: string;
+  description: string;
+  status: 'draft' | 'approved';
+  lines: ManualJournalLine[];
+  maker: string;
+  createdAt: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  odooVoucherNo?: string;
+  attachmentName?: string;
+  hasAttachment?: boolean;
+  totalDebit?: number;
+  totalCredit?: number;
+}
+
+// =========================================================================
+// R6b / N2/N3: Ninja Invoice Reconciliation (BR §26, §31)
+// =========================================================================
+export interface NinjaReconciliationDiff {
+  field: string;
+  invoice: number;
+  engine: number;
+  difference: number;
+}
+
+export interface NinjaReconciliationLine {
+  row: number;
+  captainId: string;
+  status?: string;
+  reason?: string;
+  reasons?: string[];
+  diffs?: NinjaReconciliationDiff[];
+}
+
+export interface NinjaReconciliationAdjustment {
+  row: number;
+  captainId: string;
+  levelType: string;
+  finalAmount: number;
+  totalCost: number;
+}
+
+export interface NinjaInvoiceResult {
+  fileName: string;
+  supplier?: string;
+  matched: number;
+  different: number;
+  captainsCount?: number;
+  adjustments: NinjaReconciliationAdjustment[];
+  totals: Record<string, { invoice: number; engine: number; difference: number }>;
+  lines: NinjaReconciliationLine[];
+}
+
+export interface NinjaReconcileResponse {
+  period: string;
+  termsSource: string;
+  invoices: NinjaInvoiceResult[];
+}
+
 

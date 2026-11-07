@@ -50,6 +50,8 @@ import type {
   PayReviewRow,
   ConfigListGroup,
   ConfigFieldDef,
+  ManualJournal,
+  NinjaReconcileResponse,
 } from './types';
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
@@ -1390,6 +1392,48 @@ export const api = {
     }),
   addConfigListField: (group: string, body: ConfigFieldDef) =>
     handleRequest<{ ok: boolean }>(`/config/lists/${encodeURIComponent(group)}/fields`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  // Manual Journals (BR §28 / C6)
+  getManualJournals: (params?: { status?: 'draft' | 'approved'; page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return handleRequest<{ items?: ManualJournal[]; total?: number; page?: number } | ManualJournal[]>(
+      `/finance/journals/manual${qs ? `?${qs}` : ''}`
+    );
+  },
+  createManualJournal: (body: {
+    companyId: string;
+    date: string;
+    reference: string;
+    description: string;
+    lines: Array<{ accountCode: string; debit: number; credit: number; note?: string }>;
+    attachment?: { fileName: string; dataBase64: string };
+    odooVoucherNo?: string;
+  }) =>
+    handleRequest<ManualJournal>('/finance/journals/manual', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  approveManualJournal: (id: string) =>
+    handleRequest<{ ok: boolean; journalId?: string }>(`/finance/journals/manual/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  reverseManualJournal: (id: string, body: { reason: string; date: string }) =>
+    handleRequest<{ ok: boolean; reversalDraftId?: string }>(`/finance/journals/manual/${encodeURIComponent(id)}/reverse`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  // Ninja Invoices Reconciliation (BR §26, §31 / N2/N3)
+  reconcileNinjaInvoices: (body: { period: string; files: Array<{ fileName: string; dataBase64: string }> }) =>
+    handleRequest<NinjaReconcileResponse>('/platforms/ninja/invoices/reconcile', {
       method: 'POST',
       body: JSON.stringify(body),
     }),

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   FileSpreadsheet,
   Layers,
@@ -31,6 +32,7 @@ import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { ErrorState, EmptyState, Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
 import type {
   TargetCoaAccount,
   TargetCoaResponse,
@@ -40,13 +42,29 @@ import type {
   TrialBalanceCompanyRow,
   IncomeStatementResponse,
   IncomeStatementCompany,
+  CompanySponsor,
   FinanceJournal,
   FinanceJournalLine,
 } from '../../lib/types';
 
-export default function AccountingPage() {
+function AccountingPageContent() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'coa' | 'journals' | 'trial' | 'income'>('coa');
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'coa' | 'manual_journals' | 'journals' | 'trial' | 'income'>('coa');
+  const [openNewManualJournal, setOpenNewManualJournal] = useState<boolean>(false);
+  const [companies, setCompanies] = useState<CompanySponsor[]>([]);
+
+  useEffect(() => {
+    api.getCompanies().then((res) => setCompanies(res || [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const action = searchParams?.get('action');
+    if (action === 'manual_journal') {
+      setActiveTab('manual_journals');
+      setOpenNewManualJournal(true);
+    }
+  }, [searchParams]);
 
   // ==========================================
   // Data States
@@ -560,6 +578,21 @@ export default function AccountingPage() {
 
         <button
           type="button"
+          id="subtab-manual-journals"
+          role="tab"
+          aria-selected={activeTab === 'manual_journals'}
+          onClick={() => setActiveTab('manual_journals')}
+          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
+            activeTab === 'manual_journals'
+              ? 'border-[var(--accent)] text-[var(--accent)]'
+              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+          }`}
+        >
+          القيود اليدوية (BR §28)
+        </button>
+
+        <button
+          type="button"
           role="tab"
           aria-selected={activeTab === 'journals'}
           onClick={() => setActiveTab('journals')}
@@ -693,6 +726,17 @@ export default function AccountingPage() {
             />
           )}
         </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB: Manual Journals (BR §28)                            */}
+      {/* ======================================================== */}
+      {activeTab === 'manual_journals' && (
+        <ManualJournalsPanel
+          companies={companies}
+          coaAccounts={coaAccounts}
+          defaultOpenNew={openNewManualJournal}
+        />
       )}
 
       {/* ======================================================== */}
@@ -1437,5 +1481,13 @@ export default function AccountingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AccountingPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-[var(--muted)]">جاري تحميل صفحة المحاسبة...</div>}>
+      <AccountingPageContent />
+    </Suspense>
   );
 }
