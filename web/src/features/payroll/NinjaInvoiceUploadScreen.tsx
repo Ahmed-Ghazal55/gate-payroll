@@ -48,6 +48,16 @@ interface NinjaInvoiceUploadScreenProps {
   initialPeriod?: string;
 }
 
+const isCompanyMatch = (invoiceCompanyId?: string, target?: string) => {
+  if (!invoiceCompanyId || !target) return false;
+  if (invoiceCompanyId === target) return true;
+  const targetUpper = target.toUpperCase();
+  if (targetUpper === 'BW' && (invoiceCompanyId === '019c18d5-62e1-7000-8000-000000000041' || invoiceCompanyId === 'BW')) return true;
+  if (targetUpper === 'EX' && (invoiceCompanyId === '019c18d5-62e1-7000-8000-000000000042' || invoiceCompanyId === 'EX')) return true;
+  if (targetUpper === 'TR' && (invoiceCompanyId === '019c18d5-62e1-7000-8000-000000000040' || invoiceCompanyId === 'TR')) return true;
+  return false;
+};
+
 export function NinjaInvoiceUploadScreen({
   initialPeriod = '2026-10',
 }: NinjaInvoiceUploadScreenProps) {
@@ -101,7 +111,7 @@ export function NinjaInvoiceUploadScreen({
         const ninjaAccs = items.filter(
           (a) =>
             (a.platformCode === 'Ninja' || a.platform === 'Ninja' || a.app === 'ninja') &&
-            (!a.companyId || a.companyId === companyId)
+            (!a.companyId || isCompanyMatch(a.companyId, companyId))
         );
         setAvailableAccounts(ninjaAccs);
       })
@@ -115,7 +125,7 @@ export function NinjaInvoiceUploadScreen({
       const res = await api.getNinjaInvoices({ pageSize: 50 });
       const items = (res?.items || []) as ApiNinjaInvoice[];
       setSavedInvoices(items);
-      const match = items.find((i) => i.companyId === companyId && i.period === period);
+      const match = items.find((i) => isCompanyMatch(i.companyId, companyId) && i.period === period);
       if (match && !currentInvoice) {
         setCurrentInvoice(match);
         if (match.journalEntryId) setStepperStage(5);

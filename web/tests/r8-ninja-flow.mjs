@@ -1,6 +1,11 @@
-// R8 Ninja First Payroll Flow Verification (A4 -> A5)
-// Real ASP.NET Core server with synthetic SQLite store & Next.js static export
-// Tests light and dim modes at 1440 and 360 viewports with screenshots in test-results/r8-web/
+// R8 Ninja First Payroll Flow Verification (WF-4)
+// Drives the real browser flow end-to-end:
+// 1. Pending invoice created by user A (maker) -> asserts maker cannot approve (maker ≠ checker).
+// 2. User B (checker) approves invoice in browser.
+// 3. Review draft has 0 blockers and per-account totals match invoice.
+// 4. Creates payroll cycle and advances stages with real buttons until lines exist.
+// 5. Opens Explain Drawer («كيف حُسب؟») and asserts net shown matches GET /api/pay/cycles/{id}/lines.
+// Tests light and dim modes at 1440 and 360 viewports with screenshots in test-results/r8-web/.
 
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -26,7 +31,7 @@ mkdirSync(resultsDir, { recursive: true });
 const pwPath = process.env.PLAYWRIGHT_MODULE || '/tmp/gate-browser/node_modules/playwright/index.mjs';
 const { chromium } = await import(pathToFileURL(pwPath));
 
-console.log('--- Starting Gate Payroll R8 Ninja Flow Test Suite ---');
+console.log('--- Starting Gate Payroll R8 Ninja Flow Test Suite (WF-4) ---');
 
 // 1. Ensure web/out exists and copy to wwwroot/app
 assert.ok(existsSync(outDir), 'web/out directory must exist. Run npm run build first.');
@@ -81,22 +86,52 @@ try {
   assert.ok(ready, `Dotnet server failed to start at ${baseUrl}. Logs: ${logs}`);
   console.log(`✓ Dotnet live API started at ${baseUrl}`);
 
-  // Setup synthetic admin
-  const adminUsername = 'r8-admin-' + randomBytes(4).toString('hex');
-  const adminPassword = 'Password123!' + randomBytes(4).toString('hex');
+  // Setup synthetic admin User A (Maker)
+  const userA = 'r8-maker-' + randomBytes(4).toString('hex');
+  const passA = 'Password123!' + randomBytes(4).toString('hex');
 
   const setupRes = await fetch(`${baseUrl}/api/auth/setup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: adminUsername, password: adminPassword }),
+    body: JSON.stringify({ username: userA, password: passA }),
   });
   assert.equal(setupRes.status, 200, 'Setup admin user should return 200');
-  const setCookie = setupRes.headers.get('set-cookie');
-  assert.ok(setCookie, 'Must receive auth cookie');
-  const authCookie = setCookie.split(';')[0];
-  console.log('✓ Admin registered and authenticated');
+  const setCookieA = setupRes.headers.get('set-cookie');
+  assert.ok(setCookieA, 'Must receive auth cookie for User A');
+  const cookieA = setCookieA.split(';')[0];
+  console.log('✓ User A (maker) registered and authenticated');
 
-  // Seed SQLite with synthetic Ninja records
+  // Create User B (Checker) via API
+  const userB = 'r8-checker-' + randomBytes(4).toString('hex');
+  const passB = 'Password123!' + randomBytes(4).toString('hex');
+
+  const createBRes = await fetch(`${baseUrl}/api/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookieA },
+    body: JSON.stringify({ username: userB, password: passB, role: 'Admin' }),
+  });
+  assert.equal(createBRes.status, 200, 'Create User B must succeed');
+
+  const loginBRes = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: userB, password: passB }),
+  });
+  assert.equal(loginBRes.status, 200, 'Login User B must succeed');
+  const setCookieB = loginBRes.headers.get('set-cookie');
+  assert.ok(setCookieB, 'Must receive auth cookie for User B');
+  const cookieB = setCookieB.split(';')[0];
+  console.log('✓ User B (checker) created and authenticated');
+
+  // Get seeded company (BW)
+  const compRes = await fetch(`${baseUrl}/api/companies`, {
+    headers: { Cookie: cookieA },
+  });
+  const companies = await compRes.json();
+  const bwCompany = companies.find((c) => c.code === 'BW' || c.id === 'BW') || companies[0] || { id: 'BW' };
+  const companyId = bwCompany.id;
+
+  // Seed baseline starting conditions only (no pre-seeded cycle or lines)
   const db = new DatabaseSync(path.join(tempDir, 'payroll.db'));
   function put(kind, record) {
     db.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?)').run(
@@ -106,14 +141,6 @@ try {
     );
   }
 
-  // Get seeded company
-  const compRes = await fetch(`${baseUrl}/api/companies`, {
-    headers: { Cookie: authCookie },
-  });
-  const companies = await compRes.json();
-  const companyId = companies[0]?.id || 'BW';
-
-  // Seed synthetic rider, accounts, invoice, review draft, cycle, lines
   const riderIqama = '2000000789';
   put('rider', {
     id: riderIqama,
@@ -123,23 +150,157 @@ try {
     status: 'active',
     sponsorshipStatus: 'internal',
     isDeliveryRider: true,
-    payCategory: 'company_car',
+    payCategory: 'sponsored_private',
   });
 
   put('platform_account', {
     id: 'NJ-ACC-001',
-    platformCode: 'Ninja',
+    platformCode: 'ninja',
     companyId: companyId,
     name: 'حساب نينجا الرياض 1',
     assignments: [
       {
         riderId: riderIqama,
-        RawEffectiveFrom: '2026-10-01T00:00:00Z',
-        RawEffectiveTo: '2026-10-31T23:59:59Z',
+        RawEffectiveFrom: '2026-10-01T00:00:00+03:00',
+        RawEffectiveTo: '2026-10-31T23:59:59+03:00',
       },
     ],
   });
 
+  put('ninja_account', {
+    id: 'ninja-captain-001',
+    platformAccountId: 'NJ-ACC-001',
+    CaptainId: 'NJ-CAP-001',
+  });
+
+  // Approved global settings for 2026-10-01
+  put('pay_setting', {
+    id: 'global-settings-2026-10',
+    kind: 'pay_setting',
+    app: 'global',
+    code: 'default',
+    version: 1,
+    status: 'approved',
+    effectiveFrom: '2026-10-01',
+    createdBy: userA,
+    approvedBy: 'financial-auditor',
+    data: {
+      name: 'إعدادات الرواتب العامة',
+      values: {
+        standardDays: 30,
+        februaryDays: 28,
+        billingCutoff: '14:00',
+        timeZone: 'Asia/Riyadh',
+        roundingDigits: 2,
+        roundingMode: 'AwayFromZero',
+        vehicleRent: { company_car: 1800, company_bike: 800, private: 0 },
+        accounts: {
+          salaryExpense: '512101',
+          vehicleIncomeCar: '421101',
+          vehicleIncomeBike: '421102',
+          outputVat: '213201',
+        },
+      },
+    },
+  });
+
+  // Approved Ninja terms for 2026-10
+  put('pay_terms', {
+    id: 'ninja-terms-2026-10',
+    kind: 'pay_terms',
+    app: 'ninja',
+    period: '2026-10',
+    code: 'default',
+    version: 1,
+    status: 'approved',
+    createdBy: userA,
+    approvedBy: 'financial-auditor',
+    data: {
+      name: 'شروط نينجا الأصلية',
+      billingModel: 'per_order',
+      parameters: {
+        pricePerOrder: 12.8571,
+        companyCostAccount: '526402',
+      },
+    },
+  });
+
+  // Approved Ninja eligibility for 2026-10
+  const rulesId = 'ninja-eligibility-2026-10';
+  put('pay_eligibility', {
+    id: rulesId,
+    kind: 'pay_eligibility',
+    app: 'ninja',
+    period: '2026-10',
+    code: 'default',
+    version: 1,
+    status: 'approved',
+    createdBy: userA,
+    approvedBy: 'auditor-chief',
+    data: {
+      name: 'شروط أهلية نينجا لشهر أكتوبر',
+      rules: [
+        { metric: 'orders', operator: 'gte', threshold: 250, effect: { type: 'zero' }, included: true },
+        { metric: 'days', operator: 'gte', threshold: 20, effect: { type: 'zero' }, included: true },
+      ],
+    },
+  });
+
+  // Approved internal Ninja scheme for 2026-10
+  const schemeId = 'ninja-scheme-2026-10';
+  put('pay_scheme', {
+    id: schemeId,
+    kind: 'pay_scheme',
+    app: 'ninja',
+    period: '2026-10',
+    code: 'default',
+    version: 1,
+    status: 'approved',
+    createdBy: userA,
+    approvedBy: 'auditor-chief',
+    data: {
+      name: 'نظام نينجا الداخلي',
+      type: 'percent_of_gross',
+      accountingRole: 'principal',
+      eligibilitySetId: rulesId,
+      parameters: {
+        categories: {
+          sponsored_company_car: { enabled: true, companyPercent: 10, chargeCompanyVehicle: false },
+          sponsored_company_bike: { enabled: true, companyPercent: 10, chargeCompanyVehicle: false },
+          sponsored_private: { enabled: true, companyPercent: 10, chargeCompanyVehicle: false },
+          external_company_car: { enabled: true, companyPercent: 10, chargeCompanyVehicle: false },
+          external_company_bike: { enabled: true, companyPercent: 10, chargeCompanyVehicle: false },
+          external_private: { enabled: true, companyPercent: 10, chargeCompanyVehicle: false },
+        },
+      },
+    },
+  });
+
+  // Approved scheme assignment for rider
+  put('pay_assignment', {
+    id: 'pay-assign-ninja-001',
+    rider: riderIqama,
+    app: 'ninja',
+    period: '2026-10',
+    status: 'approved',
+    schemeId: schemeId,
+    choiceApprovedAt: '2026-09-25T10:00:00Z',
+  });
+
+  // Seed daily operational records (25 days summing to exactly 350 orders)
+  for (let day = 1; day <= 25; day++) {
+    const dd = String(day).padStart(2, '0');
+    put('ninja_daily', {
+      id: `nd-2026-10-${dd}`,
+      companyId: companyId,
+      platformAccountId: 'NJ-ACC-001',
+      riderId: riderIqama,
+      date: `2026-10-${dd}T12:00:00Z`,
+      orders: day === 25 ? 110 : 10,
+    });
+  }
+
+  // Pending invoice created by User A (maker)
   const invoiceId = 'inv-ninja-2026-10-001';
   put('platform_invoice', {
     id: invoiceId,
@@ -148,13 +309,11 @@ try {
     period: '2026-10',
     reference: 'NJ-INV-202610-01',
     status: 'invoiced',
-    approvalStatus: 'approved',
-    createdBy: 'system',
-    approvedBy: 'financial-auditor',
+    approvalStatus: 'pending',
+    createdBy: userA,
     amountExclVat: 4500,
     deductionsTotal: 300,
     vat: 675,
-    allowedActions: ['approve', 'post'],
   });
 
   put('platform_invoice_line', {
@@ -169,248 +328,272 @@ try {
     vat: 675,
     invoiced: 4500,
     status: 'invoiced',
-  });
-
-  const cycleId = 'pay-cycle:ninja-2026-10';
-  put('pay_cycle', {
-    id: cycleId,
-    companyId: companyId,
-    period: '2026-10',
-    app: 'ninja',
-    stage: 4,
-    status: 'review',
-    createdBy: 'payroll-specialist',
-    createdAt: '2026-11-01T10:00:00Z',
-    history: [
-      { stage: 1, advancedBy: 'auditor-1', at: '2026-11-01T11:00:00Z' },
-      { stage: 2, advancedBy: 'auditor-2', at: '2026-11-01T12:00:00Z' },
-      { stage: 3, advancedBy: 'auditor-1', at: '2026-11-01T13:00:00Z' },
-      { stage: 4, advancedBy: 'auditor-3', at: '2026-11-01T14:00:00Z' },
+    deductions: [
+      { category: 'penalty', amount: 300, level: 'account_level', classifiedBy: userA },
     ],
-    invoices: [
-      {
-        invoiceId: invoiceId,
-        app: 'ninja',
-        accounts: [
-          {
-            accountId: 'NJ-ACC-001',
-            sourceLineId: 'line-nj-001',
-            baseGross: 4500,
-            incentives: 0,
-            orders: 350,
-            riders: [
-              {
-                rider: riderIqama,
-                orders: 350,
-                baseGross: 4500,
-                deduction: 300,
-                category: 'company_car',
-                days: 30,
-              },
-            ],
-          },
-        ],
-        deductions: [],
-      },
-    ],
-    riders: [
-      {
-        rider: riderIqama,
-        status: 'ready',
-        gross: 4500,
-        commission: 450,
-        afterCommission: 4050,
-        phase1: 300,
-        preliminaryDue: 3750,
-        phase2: 0,
-        phase3: 0,
-        net: 3750,
-      },
-    ],
-  });
-
-  put('pay_cycle_line', {
-    id: 'cycle-line:001',
-    cycleId: cycleId,
-    rider: riderIqama,
-    app: 'ninja',
-    period: '2026-10',
-    status: 'ready',
-    platformGross: 4500,
-    gross: 4500,
-    allocatedVehicleCharge: 400,
-    accountDeduction: 300,
-    net: 3750,
-    category: 'company_car',
-    sources: [
-      {
-        sourceLineId: 'line-nj-001',
-        accountId: 'NJ-ACC-001',
-        baseGross: 4500,
-      },
-    ],
-    lines: [
-      {
-        label: 'استحقاق الطلبات المنجزة',
-        formula: 'orders * 12.8571 SAR',
-        inputs: { orders: 350, rate: 12.8571 },
-        amount: 4500,
-        category: 'gross',
-        affectsNet: true,
-      },
-      {
-        label: 'إيجار مركبة الشركة',
-        formula: 'monthlyRent / 30 * days',
-        inputs: { monthlyRent: 400, days: 30 },
-        amount: -400,
-        category: 'vehicle',
-        affectsNet: true,
-      },
-      {
-        label: 'خصم تشغيلي من المنصة',
-        formula: 'account_deductions_share',
-        inputs: { accountDeduction: 300 },
-        amount: -300,
-        category: 'deduction',
-        affectsNet: true,
-      },
-    ],
-  });
-
-  // Seed Ninja eligibility
-  put('pay_eligibility', {
-    id: 'ninja-eligibility-2026-10',
-    kind: 'pay_eligibility',
-    app: 'ninja',
-    period: '2026-10',
-    code: 'default',
-    version: 1,
-    status: 'approved',
-    createdBy: 'system',
-    approvedBy: 'auditor-chief',
-    data: {
-      name: 'شروط أهلية نينجا لشهر أكتوبر',
-      rules: [
-        { metric: 'orders', operator: 'gte', threshold: 250, effect: { type: 'zero' }, included: true },
-        { metric: 'attendanceDays', operator: 'gte', threshold: 24, effect: { type: 'zero' }, included: true },
-      ],
-    },
   });
 
   db.close();
-  console.log('✓ Seeded synthetic database with Ninja invoice, cycle, and lines');
+  console.log('✓ Seeded baseline records into SQLite store');
 
   // Launch Playwright
   browser = await chromium.launch({ headless: true });
 
-  const [cookieName, ...cookieRest] = authCookie.split('=');
-  const cookieValue = cookieRest.join('=');
+  const parseCookie = (raw) => {
+    const [name, ...rest] = raw.split('=');
+    return { name: name.trim(), value: rest.join('=').trim() };
+  };
 
-  // Helper to test viewport and theme
-  async function testViewAndTheme(width, height, isDim, suffix) {
-    const context = await browser.newContext({
-      viewport: { width, height },
-    });
-    await context.addCookies([
+  const parsedCookieA = parseCookie(cookieA);
+  const parsedCookieB = parseCookie(cookieB);
+
+  // Step 6: Verify User A (Maker) sees NO approve button (maker ≠ checker)
+  {
+    console.log('Testing maker ≠ checker: verifying User A cannot approve own invoice...');
+    const contextA = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await contextA.addCookies([
       {
-        name: cookieName.trim(),
-        value: cookieValue.trim(),
+        name: parsedCookieA.name,
+        value: parsedCookieA.value,
         domain: '127.0.0.1',
         path: '/',
       },
     ]);
+    const pageA = await contextA.newPage();
+    await pageA.goto(`${baseUrl}/app/payroll?tab=ninja_upload&period=2026-10`, {
+      waitUntil: 'networkidle',
+    });
 
+    await pageA.waitForSelector('text=رفع الفاتورة', { timeout: 8000 });
+    const approveBtnCountA = await pageA.locator('#btn-approve-ninja-invoice').count();
+    assert.equal(
+      approveBtnCountA,
+      0,
+      'User A (maker) must see 0 approve buttons on their own invoice'
+    );
+    console.log('✓ Maker cannot approve own invoice (asserted 0 approve buttons for User A)');
+    await contextA.close();
+  }
+
+  // Step 1: User B (Checker) approves the invoice in the browser
+  {
+    console.log('Driving User B in browser: approving pending Ninja invoice...');
+    const contextB = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await contextB.addCookies([
+      {
+        name: parsedCookieB.name,
+        value: parsedCookieB.value,
+        domain: '127.0.0.1',
+        path: '/',
+      },
+    ]);
+    const pageB = await contextB.newPage();
+    await pageB.goto(`${baseUrl}/app/payroll?tab=ninja_upload&period=2026-10`, {
+      waitUntil: 'networkidle',
+    });
+
+    const approveBtn = pageB.locator('#btn-approve-ninja-invoice');
+    await approveBtn.waitFor({ state: 'visible', timeout: 8000 });
+    console.log('✓ Approve button is visible for User B (checker)');
+    await approveBtn.click();
+    await pageB.waitForTimeout(1000);
+    await pageB.waitForLoadState('networkidle');
+
+    // Verify invoice approved in UI
+    const approvedBadge = pageB.locator('text=معتمدة');
+    await approvedBadge.first().waitFor({ state: 'visible', timeout: 5000 });
+    console.log('✓ Invoice approved successfully by User B in browser');
+    await contextB.close();
+  }
+
+  // Helper to open context for User B with viewport and theme
+  async function makeUserBPage(width, height, isDim) {
+    const context = await browser.newContext({ viewport: { width, height } });
+    await context.addCookies([
+      {
+        name: parsedCookieB.name,
+        value: parsedCookieB.value,
+        domain: '127.0.0.1',
+        path: '/',
+      },
+    ]);
     const page = await context.newPage();
-
-    // Set theme in localStorage before navigating
     await page.addInitScript((dim) => {
       window.localStorage.setItem('gate_theme', dim ? 'dim' : 'light');
       window.localStorage.setItem('gate_balances_visible', 'true');
     }, isDim);
+    return { context, page };
+  }
+
+  // Matrix: Capture A4 Stepper and A5 Draft across all 4 viewport/theme configs
+  const matrix = [
+    { width: 1440, height: 900, isDim: false, suffix: '1440-light' },
+    { width: 1440, height: 900, isDim: true, suffix: '1440-dim' },
+    { width: 360, height: 780, isDim: false, suffix: '360-light' },
+    { width: 360, height: 780, isDim: true, suffix: '360-dim' },
+  ];
+
+  console.log('Capturing A4 Stepper and A5 Draft across viewports & themes...');
+  for (const { width, height, isDim, suffix } of matrix) {
+    const { context, page } = await makeUserBPage(width, height, isDim);
 
     // 1. Visit Ninja upload screen (A4)
     await page.goto(`${baseUrl}/app/payroll?tab=ninja_upload&period=2026-10`, {
       waitUntil: 'networkidle',
     });
-
-    // Check Stepper exists
     const stepper = page.locator('text=رفع الفاتورة');
     await stepper.first().waitFor({ state: 'visible', timeout: 8000 });
-    console.log(`  ✓ [${suffix}] Ninja stepper rendered on /app/payroll?tab=ninja_upload`);
-
-    // Screenshot A4 Stepper
     await page.screenshot({
       path: path.join(resultsDir, `ninja-a4-stepper-${suffix}.png`),
       fullPage: false,
     });
+    console.log(`  ✓ [${suffix}] Captured ninja-a4-stepper-${suffix}.png`);
 
-    // 2. Visit Cycle screen (A5)
+    // 2. Visit Cycle screen (A5) Draft Tab
     await page.goto(`${baseUrl}/app/payroll?tab=cycle&period=2026-10`, {
       waitUntil: 'networkidle',
     });
 
-    // Switch to Review Draft
     const draftTabBtn = page.locator('button:has-text("مسودة المراجعة المقترحة")');
     if (await draftTabBtn.count() > 0) {
       await draftTabBtn.click();
       await page.waitForTimeout(500);
-      console.log(`  ✓ [${suffix}] Switched to Review Draft tab`);
-
-      // Screenshot A5 Review Draft
-      await page.screenshot({
-        path: path.join(resultsDir, `ninja-a5-draft-${suffix}.png`),
-        fullPage: false,
-      });
+      await page.waitForLoadState('networkidle');
     }
 
-    // Switch to Active Cycle
-    const cycleTabBtn = page.locator('button:has-text("دورة الرواتب ومراحل المسير")');
-    if (await cycleTabBtn.count() > 0) {
-      await cycleTabBtn.click();
-      await page.waitForTimeout(500);
+    // Step 2 Assertions: Assert 0 blockers and per-account total equals invoice line total
+    const zeroBlockersEl = page.locator('text=0 Blockers');
+    await zeroBlockersEl.first().waitFor({ state: 'visible', timeout: 8000 });
 
-      // Verify progression history who/when is visible
-      const historyIndicator = page.locator('text=تقدم بواسطة:');
-      if (await historyIndicator.count() > 0) {
-        console.log(`  ✓ [${suffix}] Stage history who/when rendered in Stepper`);
-      }
+    const totalEl = page.locator('text=4,500.00');
+    await totalEl.first().waitFor({ state: 'visible', timeout: 5000 });
+    console.log(`  ✓ [${suffix}] Asserted 0 blockers and per-account total (4,500.00 SAR)`);
 
-      // Screenshot A5 Active Cycle
-      await page.screenshot({
-        path: path.join(resultsDir, `ninja-a5-cycle-${suffix}.png`),
-        fullPage: false,
-      });
-
-      // Click «كيف حُسب؟» explain button
-      const explainBtn = page.locator('button:has-text("كيف حُسب؟")');
-      if (await explainBtn.count() > 0) {
-        await explainBtn.first().click();
-        await page.waitForTimeout(400);
-
-        // Verify Drawer open
-        const drawerTitle = page.locator('text=تفاصيل معادلة الاستحقاق');
-        if (await drawerTitle.count() > 0) {
-          console.log(`  ✓ [${suffix}] Formula explain drawer opened successfully`);
-        }
-
-        // Screenshot Explain Drawer
-        await page.screenshot({
-          path: path.join(resultsDir, `ninja-a5-explain-${suffix}.png`),
-          fullPage: false,
-        });
-      }
-    }
+    await page.screenshot({
+      path: path.join(resultsDir, `ninja-a5-draft-${suffix}.png`),
+      fullPage: false,
+    });
+    console.log(`  ✓ [${suffix}] Captured ninja-a5-draft-${suffix}.png`);
 
     await context.close();
   }
 
-  console.log('Running test matrix: 1440 & 360 viewports in light and dim themes...');
-  await testViewAndTheme(1440, 900, false, '1440-light');
-  await testViewAndTheme(1440, 900, true, '1440-dim');
-  await testViewAndTheme(360, 780, false, '360-light');
-  await testViewAndTheme(360, 780, true, '360-dim');
+  // Step 3 & 4: User B creates cycle and advances stages 1 -> 4
+  console.log('Driving User B: creating cycle and advancing stages 1..4...');
+  let cycleId = null;
+  {
+    const { context, page } = await makeUserBPage(1440, 900, false);
+    await page.goto(`${baseUrl}/app/payroll?tab=cycle&period=2026-10`, {
+      waitUntil: 'networkidle',
+    });
 
-  console.log('🎉 ALL R8 NINJA FLOW E2E TESTS PASSED WITH SCREENSHOTS GENERATED!');
+    const draftTabBtn = page.locator('button:has-text("مسودة المراجعة المقترحة")');
+    if (await draftTabBtn.count() > 0) {
+      await draftTabBtn.click();
+      await page.waitForTimeout(500);
+      await page.waitForLoadState('networkidle');
+    }
+
+    const createCycleBtn = page.locator('button:has-text("إنشاء دورة الرواتب")');
+    await createCycleBtn.waitFor({ state: 'visible', timeout: 8000 });
+    await createCycleBtn.click();
+    console.log('✓ Clicked «إنشاء دورة الرواتب»');
+
+    // Wait for cycle view to appear
+    await page.waitForTimeout(1000);
+    await page.waitForLoadState('networkidle');
+
+    // Advance stages with the stepper button until Stage 4
+    for (let stage = 1; stage <= 4; stage++) {
+      const advanceBtn = page.locator('button:has-text("تقديم المرحلة إلى")');
+      await advanceBtn.first().waitFor({ state: 'visible', timeout: 8000 });
+      const btnText = await advanceBtn.first().textContent();
+      console.log(`  Clicking: ${btnText?.trim()}`);
+      await advanceBtn.first().click();
+      await page.waitForTimeout(800);
+      await page.waitForLoadState('networkidle');
+    }
+
+    // Verify stage 4 reached and lines exist
+    const explainBtn = page.locator('button:has-text("كيف حُسب؟")');
+    await explainBtn.first().waitFor({ state: 'visible', timeout: 8000 });
+    console.log('✓ Stage 4 reached: payroll cycle lines generated and visible in UI');
+
+    // Get cycle id from API
+    const cyclesRes = await fetch(`${baseUrl}/api/pay/cycles?period=2026-10`, {
+      headers: { Cookie: cookieB },
+    });
+    const cyclesData = await cyclesRes.json();
+    cycleId = (cyclesData.items || cyclesData)[0]?.id;
+    assert.ok(cycleId, 'Cycle must exist in API');
+    console.log('✓ Active cycle id verified from API:', cycleId);
+
+    await context.close();
+  }
+
+  // Fetch line from API to verify «كيف حُسب؟» net entitlement
+  const linesApiRes = await fetch(`${baseUrl}/api/pay/cycles/${cycleId}/lines`, {
+    headers: { Cookie: cookieB },
+  });
+  assert.equal(linesApiRes.status, 200, 'GET /api/pay/cycles/{id}/lines must succeed');
+  const linesData = await linesApiRes.json();
+  const riderLine = (linesData.items || linesData).find((l) => l.rider === riderIqama);
+  assert.ok(riderLine, 'Must find line for rider ' + riderIqama);
+  const expectedNet = riderLine.entitlement ?? riderLine.gross ?? 0;
+  const expectedNetFormatted = expectedNet.toLocaleString('en-US', { minimumFractionDigits: 2 });
+  console.log(`✓ API calculated entitlement for rider ${riderIqama}: ${expectedNetFormatted} SAR`);
+
+  // Matrix: Capture A5 Cycle and A5 Explain Drawer across all 4 viewport/theme configs
+  console.log('Capturing A5 Cycle and A5 Explain Drawer across viewports & themes...');
+  for (const { width, height, isDim, suffix } of matrix) {
+    const { context, page } = await makeUserBPage(width, height, isDim);
+
+    await page.goto(`${baseUrl}/app/payroll?tab=cycle&period=2026-10`, {
+      waitUntil: 'networkidle',
+    });
+
+    // Make sure active cycle view is selected
+    const cycleTabBtn = page.locator('button:has-text("دورة الرواتب ومراحل المسير")');
+    if (await cycleTabBtn.count() > 0) {
+      await cycleTabBtn.click();
+      await page.waitForTimeout(400);
+    }
+
+    // Verify Stepper Stage 4
+    await page.screenshot({
+      path: path.join(resultsDir, `ninja-a5-cycle-${suffix}.png`),
+      fullPage: false,
+    });
+    console.log(`  ✓ [${suffix}] Captured ninja-a5-cycle-${suffix}.png`);
+
+    // Step 5: Click «كيف حُسب؟» and assert net value matches API
+    const explainBtn = page.locator('button:has-text("كيف حُسب؟")');
+    await explainBtn.first().waitFor({ state: 'visible', timeout: 5000 });
+    await explainBtn.first().click();
+    await page.waitForTimeout(400);
+
+    // Verify Explain Drawer opened
+    const drawerHeader = page.locator(`text=شرح احتساب مستحقات المندوب: ${riderIqama}`);
+    await drawerHeader.first().waitFor({ state: 'visible', timeout: 5000 });
+
+    // Assert net shown in drawer equals API value
+    const drawerText = await page.locator('.fixed').first().textContent();
+    assert.ok(
+      drawerText.includes(expectedNetFormatted),
+      `Explain drawer must display API calculated net: ${expectedNetFormatted}`
+    );
+    console.log(`  ✓ [${suffix}] Asserted Explain Drawer net displayed matches API (${expectedNetFormatted} SAR)`);
+
+    await page.screenshot({
+      path: path.join(resultsDir, `ninja-a5-explain-${suffix}.png`),
+      fullPage: false,
+    });
+    console.log(`  ✓ [${suffix}] Captured ninja-a5-explain-${suffix}.png`);
+
+    await context.close();
+  }
+
+  console.log('🎉 ALL R8 NINJA FLOW E2E TESTS PASSED (WF-4 COMPLETE WITH ALL 16 SCREENSHOTS)!');
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (proc && proc.exitCode === null) {
