@@ -8,7 +8,7 @@
 
 ## R6c — Claude K5–K7 (2026-11-07), branch `feat/import-center` (from release/0.16.0)
 - K6: `GET /api/imports/catalog` + `GET /api/imports/templates/{companies|operations-ninja|operations-keeta|operations-hungerstation}` (imports.view). Ordered steps companies → riders → opening treasury → opening debts → bulk collect → Ninja/Keeta/HS invoice+operations → Chefz (ERP). Debt/treasury template columns moved to shared statics (no behaviour change). Docs `docs/api/imports-catalog.md`. .NET 371/371 (SQL Docker, 0 skipped).
-- K5 (private, not in repo): `~/Private/gate-data/review/debts-review-2026-10.xlsx` + script `k5_review.py`. 93 rows to review; October requests 394 / 112,202.64 reconcile exactly with «الاجماليات»; 267 riders' October requests are not inside the debt-sheet net, 8 ambiguous.
+- K5 (private, not in repo): `~/Private/gate-data/review/debts-review-2026-10.xlsx` + script `k5_review.py`. 93 rows to review; October requests 394 / 112,202.64 reconcile exactly with «الاجماليات»; source = `pro win/02 …/المديونيات اجمالي - 2026.xlsx` (corrected 2026-11-07, net 2,701,431.66); 266 riders' October requests are not inside the net, 9 ambiguous.
 - K7: `gate-finance-spec/docs/change-requests/CR-003-hungerstation-erp-review.md` (draft, needs Ghazal's approval before Omar).
 - Next: Codex `~/.agents/prompts/codex-R6c-debts-and-operations.md`, Antigravity `~/.agents/prompts/antigravity-R6c-import-center.md`.
 
