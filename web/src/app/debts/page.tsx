@@ -46,6 +46,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
+import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import type {
   DebtRecord,
   ApprovalRequest,
@@ -615,6 +616,269 @@ function DebtsPageContent() {
     }
   };
 
+  const debtsColumns: ColumnDef<DebtRecord>[] = useMemo(
+    () => [
+      {
+        key: 'iqama',
+        header: 'رقم الإقامة',
+        filterable: true,
+        render: (d) => <span className="font-mono font-bold text-[var(--accent)]">{d.iqama}</span>,
+      },
+      {
+        key: 'riderName',
+        header: 'اسم المندوب',
+        filterable: true,
+        render: (d) => <span className="font-semibold">{d.riderName || 'مندوب مسجل'}</span>,
+      },
+      {
+        key: 'category',
+        header: 'فئة البند',
+        getValue: (d) => debtCategoryLabel(d),
+        render: (d) => (
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
+            {debtCategoryLabel(d)}
+          </span>
+        ),
+      },
+      {
+        key: 'originalAmount',
+        header: 'المبلغ الأصلي',
+        numeric: true,
+        getValue: (d) => d.originalAmount ?? 0,
+        render: (d) => (
+          <span className="num text-[var(--muted)]">
+            {(d.originalAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+          </span>
+        ),
+      },
+      {
+        key: 'remainingAmount',
+        header: 'المبلغ المتبقي',
+        numeric: true,
+        getValue: (d) => d.remainingAmount ?? 0,
+        render: (d) => (
+          <span className="num font-bold text-sm text-[var(--danger)]">
+            {(d.remainingAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+          </span>
+        ),
+      },
+      {
+        key: 'monthlyInstallment',
+        header: 'القسط الشهري',
+        numeric: true,
+        getValue: (d) => d.monthlyInstallment || d.monthlyDeduction || 0,
+        render: (d) => {
+          const val = d.monthlyInstallment || d.monthlyDeduction || 0;
+          return (
+            <span className="num text-[var(--muted)]">
+              {val > 0 ? `${val.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س` : '—'}
+            </span>
+          );
+        },
+      },
+      {
+        key: 'status',
+        header: 'الحالة',
+        getValue: (d) => debtStatusLabel(d.status),
+        render: (d) => (
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              d.status === 'active'
+                ? 'bg-[var(--danger)]/10 text-[var(--danger)]'
+                : d.status === 'settled'
+                ? 'bg-[var(--money-pos)]/10 text-[var(--money-pos)]'
+                : 'bg-[var(--warning)]/10 text-[var(--warning)]'
+            }`}
+          >
+            {debtStatusLabel(d.status)}
+          </span>
+        ),
+      },
+      {
+        key: 'actions',
+        header: 'الإجراءات',
+        render: (d) => (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedDebt(d);
+              setDebtDrawerOpen(true);
+            }}
+            className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--raised)] hover:bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] transition flex items-center gap-1 cursor-pointer"
+          >
+            <Eye size={13} />
+            <span>عرض السجل</span>
+          </button>
+        ),
+      },
+    ],
+    []
+  );
+
+  const advanceColumns: ColumnDef<AdvanceRequest>[] = useMemo(
+    () => [
+      {
+        key: 'id',
+        header: 'معرف الطلب',
+        width: '90px',
+        render: (req) => <span className="font-mono text-[11px] text-[var(--muted)]">{req.id}</span>,
+      },
+      {
+        key: 'rider',
+        header: 'المندوب والإقامة',
+        getValue: (req) => `${req.riderName || ''} ${req.riderIqama || ''}`,
+        render: (req) => (
+          <div>
+            <div className="font-bold text-[var(--ink)]">{req.riderName}</div>
+            <div className="font-mono text-[11px] text-[var(--accent)]">{req.riderIqama}</div>
+          </div>
+        ),
+      },
+      {
+        key: 'type',
+        header: 'النوع والخزينة',
+        render: (req) => (
+          <div>
+            <div className="inline-flex items-center gap-1 font-semibold">
+              {req.type === 'internet' ? (
+                <Wifi size={13} className="text-sky-600" />
+              ) : req.type === 'cash' ? (
+                <Wallet size={13} />
+              ) : (
+                <Banknote size={13} />
+              )}
+              <span>
+                {req.type === 'internet'
+                  ? req.fulfilment === 'recharge_card'
+                    ? `سلفة نت (كارت ${req.networkCode || ''} ${req.packageCode || ''})`
+                    : req.fulfilment === 'bank'
+                    ? 'سلفة نت (بنكي)'
+                    : 'سلفة نت (نقدي)'
+                  : req.type === 'cash'
+                  ? 'نقدية (خزينة)'
+                  : 'بنكية (تحويل)'}
+              </span>
+            </div>
+            <div className="font-mono text-[10px] text-[var(--muted)]">{req.vaultCode}</div>
+          </div>
+        ),
+      },
+      {
+        key: 'amount',
+        header: 'المبلغ المطلوب',
+        numeric: true,
+        getValue: (req) => req.amount,
+        render: (req) => (
+          <span className="font-bold text-[var(--ink)]">
+            {req.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+          </span>
+        ),
+      },
+      {
+        key: 'requestedBy',
+        header: 'مقدم الطلب',
+        render: (req) => <span className="font-mono text-xs text-[var(--muted)]">{req.requestedBy}</span>,
+      },
+      {
+        key: 'createdAt',
+        header: 'تاريخ التقديم',
+        render: (req) => <span className="num text-xs text-[var(--muted)]">{req.createdAt?.split('T')[0]}</span>,
+      },
+      {
+        key: 'status',
+        header: 'الحالة',
+        render: (req) => renderAdvanceStatusBadge(req.status),
+      },
+      {
+        key: 'actions',
+        header: 'الإجراءات',
+        render: (req) => (
+          <div className="flex items-center gap-1.5">
+            {req.status === 'change_proposed' && req.requestedBy === user?.username && (
+              <button
+                type="button"
+                id={`btn-respond-proposal-${req.id}`}
+                onClick={() => {
+                  setProposalReq(req);
+                  setProposalAction('accept');
+                  setProposalNote('');
+                }}
+                className="px-2.5 py-1 rounded-lg bg-[var(--warning)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer"
+              >
+                الرد على الاقتراح
+              </button>
+            )}
+            <button
+              type="button"
+              id={`btn-review-advance-${req.id}`}
+              onClick={() => handleOpenReviewDrawer(req)}
+              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-xs font-bold transition cursor-pointer"
+            >
+              <Eye size={13} />
+              <span>{req.status === 'under_review' && canReviewAdvances ? 'مراجعة وبَت' : 'عرض التفاصيل'}</span>
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [canReviewAdvances, user?.username]
+  );
+
+  const approvalColumns: ColumnDef<ApprovalRequest>[] = useMemo(
+    () => [
+      {
+        key: 'id',
+        header: 'معرف الطلب',
+        width: '90px',
+        render: (app) => <span className="font-mono text-xs">{app.id}</span>,
+      },
+      {
+        key: 'kind',
+        header: 'النوع',
+        render: (app) => <span className="font-semibold">{app.kind || app.requestTypeAr || app.requestType}</span>,
+      },
+      {
+        key: 'iqama',
+        header: 'المندوب',
+        render: (app) => <span className="font-mono font-bold text-[var(--accent)]">{app.iqama}</span>,
+      },
+      {
+        key: 'amount',
+        header: 'المبلغ',
+        numeric: true,
+        getValue: (app) => app.amount,
+        render: (app) => <span className="num font-bold text-[var(--accent)]">{app.amount} ر.س</span>,
+      },
+      {
+        key: 'status',
+        header: 'الحالة',
+        render: (app) => (
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--warning)]/10 text-[var(--warning)]">
+            {app.status}
+          </span>
+        ),
+      },
+      {
+        key: 'actions',
+        header: 'الإجراءات',
+        render: (app) => (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedApproval(app);
+              setApprovalDecision('approved');
+              setApprovalNote('');
+            }}
+            className="px-3 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 cursor-pointer"
+          >
+            بت في الطلب
+          </button>
+        ),
+      },
+    ],
+    []
+  );
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -636,24 +900,43 @@ function DebtsPageContent() {
           value={`${totalRemainingDebts.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
           hint="الأرصدة المتبقية على ذمة المناديب"
           icon={Receipt}
+          active={activeTab === 'debts' && selectedCategory === 'all' && selectedStatus === 'all'}
+          onClick={() => {
+            handleTabChange('debts');
+            setSelectedCategory('all');
+            setSelectedStatus('all');
+          }}
+          loading={loading}
         />
         <StatCard
           label="أرصدة السلف المتبقية"
           value={`${totalAdvances.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
           hint="السلف النقدية والبنكية الجاري استقطاعها"
           icon={Coins}
+          active={activeTab === 'debts' && selectedCategory === 'advance'}
+          onClick={() => {
+            handleTabChange('debts');
+            setSelectedCategory(selectedCategory === 'advance' ? 'all' : 'advance');
+          }}
+          loading={loading}
         />
         <StatCard
           label="طلبات السلف بانتظار المراجعة"
           value={String(pendingAdvancesCount)}
           hint="تحتاج دراسة الملخص المالي والاعتماد"
           icon={Clock}
+          active={activeTab === 'advance_requests'}
+          onClick={() => handleTabChange(activeTab === 'advance_requests' ? 'debts' : 'advance_requests')}
+          loading={loadingAdvances}
         />
         <StatCard
           label="طلبات الاعتمادات المتبادلة"
           value={String(pendingApprovalsCount)}
           hint="طلبات بانتظار قرار الإدارة أو العمليات"
           icon={ShieldCheck}
+          active={activeTab === 'approvals'}
+          onClick={() => handleTabChange(activeTab === 'approvals' ? 'debts' : 'approvals')}
+          loading={loading}
         />
       </div>
 
@@ -776,86 +1059,17 @@ function DebtsPageContent() {
 
           {error ? (
             <ErrorState title="تعذر تحميل بيانات المديونيات" message={error} onRetry={loadData} />
-          ) : loading ? (
-            <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : filteredDebts.length === 0 ? (
-            <EmptyState
-              title="لا توجد مديونيات مسجلة"
-              description="لم يتم العثور على أي مديونيات أو سلف تطابق شروط الفلترة الحالية."
-            />
           ) : (
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-start text-xs sm:text-sm">
-                  <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                    <tr>
-                      <th className="p-3 text-start">رقم الإقامة</th>
-                      <th className="p-3 text-start">اسم المندوب</th>
-                      <th className="p-3 text-start">فئة البند</th>
-                      <th className="p-3 text-start">المبلغ الأصلي</th>
-                      <th className="p-3 text-start">المبلغ المتبقي</th>
-                      <th className="p-3 text-start">القسط الشهري</th>
-                      <th className="p-3 text-start">الحالة</th>
-                      <th className="p-3 text-start">الإجراءات</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--line)]">
-                    {filteredDebts.map((d) => (
-                      <tr key={d.id} className="hover:bg-[var(--row-hover)] transition">
-                        <td className="p-3 font-mono font-bold text-[var(--accent)]">{d.iqama}</td>
-                        <td className="p-3 font-semibold">{d.riderName || 'مندوب مسجل'}</td>
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
-                            {debtCategoryLabel(d)}
-                          </span>
-                        </td>
-                        <td className="p-3 num text-[var(--muted)]">
-                          {(d.originalAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                        </td>
-                        <td className="p-3 num font-bold text-sm text-[var(--danger)]">
-                          {(d.remainingAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                        </td>
-                        <td className="p-3 num text-[var(--muted)]">
-                          {(d.monthlyInstallment || d.monthlyDeduction || 0) > 0
-                            ? `${(d.monthlyInstallment || d.monthlyDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`
-                            : '—'}
-                        </td>
-                        <td className="p-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                              d.status === 'active'
-                                ? 'bg-[var(--danger)]/10 text-[var(--danger)]'
-                                : d.status === 'settled'
-                                ? 'bg-[var(--money-pos)]/10 text-[var(--money-pos)]'
-                                : 'bg-[var(--warning)]/10 text-[var(--warning)]'
-                            }`}
-                          >
-                            {debtStatusLabel(d.status)}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedDebt(d);
-                              setDebtDrawerOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[var(--line)] hover:bg-[var(--raised)] text-xs transition cursor-pointer"
-                          >
-                            <Eye size={13} />
-                            <span>تفاصيل</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable
+              tableId="debts-list"
+              columns={debtsColumns}
+              data={filteredDebts}
+              loading={loading}
+              emptyTitle="لا توجد مديونيات مسجلة"
+              emptyDescription="لم يتم العثور على أي مديونيات أو سلف تطابق شروط الفلترة الحالية."
+              exportFilename="debts_list"
+              showTotals={true}
+            />
           )}
         </div>
       )}
@@ -946,96 +1160,24 @@ function DebtsPageContent() {
               }
             />
           ) : (
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-start text-xs sm:text-sm">
-                  <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                    <tr>
-                      <th className="p-3 text-start">معرف الطلب</th>
-                      <th className="p-3 text-start">المندوب والإقامة</th>
-                      <th className="p-3 text-start">النوع والخزينة</th>
-                      <th className="p-3 text-start">المبلغ المطلوب</th>
-                      <th className="p-3 text-start">مقدم الطلب</th>
-                      <th className="p-3 text-start">تاريخ التقديم</th>
-                      <th className="p-3 text-start">الحالة</th>
-                      <th className="p-3 text-start">الإجراءات</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--line)]">
-                    {advanceRequests.map((req) => (
-                      <tr key={req.id} className="hover:bg-[var(--row-hover)] transition">
-                        <td className="p-3 font-mono text-[11px] text-[var(--muted)]">{req.id}</td>
-                        <td className="p-3">
-                          <div className="font-bold text-[var(--ink)]">{req.riderName}</div>
-                          <div className="font-mono text-[11px] text-[var(--accent)]">{req.riderIqama}</div>
-                        </td>
-                        <td className="p-3">
-                          <div className="inline-flex items-center gap-1 font-semibold">
-                            {req.type === 'internet' ? (
-                              <Wifi size={13} className="text-sky-600" />
-                            ) : req.type === 'cash' ? (
-                              <Wallet size={13} />
-                            ) : (
-                              <Banknote size={13} />
-                            )}
-                            <span>
-                              {req.type === 'internet'
-                                ? req.fulfilment === 'recharge_card'
-                                  ? `سلفة نت (كارت ${req.networkCode || ''} ${req.packageCode || ''})`
-                                  : req.fulfilment === 'bank'
-                                  ? 'سلفة نت (بنكي)'
-                                  : 'سلفة نت (نقدي)'
-                                : req.type === 'cash'
-                                ? 'نقدية (خزينة)'
-                                : 'بنكية (تحويل)'}
-                            </span>
-                          </div>
-                          <div className="font-mono text-[10px] text-[var(--muted)]">{req.vaultCode}</div>
-                        </td>
-                        <td className="p-3 num font-bold text-[var(--ink)]">
-                          {req.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                        </td>
-                        <td className="p-3 font-mono text-xs text-[var(--muted)]">{req.requestedBy}</td>
-                        <td className="p-3 num text-xs text-[var(--muted)]">
-                          {req.createdAt?.split('T')[0]}
-                        </td>
-                        <td className="p-3">{renderAdvanceStatusBadge(req.status)}</td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            {/* Supervisor action when proposal is pending */}
-                            {req.status === 'change_proposed' && req.requestedBy === user?.username && (
-                              <button
-                                type="button"
-                                id={`btn-respond-proposal-${req.id}`}
-                                onClick={() => {
-                                  setProposalReq(req);
-                                  setProposalAction('accept');
-                                  setProposalNote('');
-                                }}
-                                className="px-3 py-1 rounded-lg bg-[var(--warning)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer"
-                              >
-                                الرد على الاقتراح
-                              </button>
-                            )}
-
-                            {/* Reviewer / Admin action */}
-                            <button
-                              type="button"
-                              id={`btn-review-advance-${req.id}`}
-                              onClick={() => handleOpenReviewDrawer(req)}
-                              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-xs font-bold transition cursor-pointer"
-                            >
-                              <Eye size={13} />
-                              <span>{req.status === 'under_review' && canReviewAdvances ? 'مراجعة وبَت' : 'عرض التفاصيل'}</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable
+              tableId="advance-requests-list"
+              columns={advanceColumns}
+              data={advanceRequests}
+              loading={loadingAdvances}
+              emptyTitle={
+                advancesRoleView === 'review'
+                  ? 'لا توجد طلبات سلف بانتظار المراجعة'
+                  : 'لم تقم برفع أي طلبات سلف بعد'
+              }
+              emptyDescription={
+                advancesRoleView === 'review'
+                  ? 'سيظهر هنا أي طلب سلفة موجه لقسم المحاسبة حسب نظام الرتب والتوجيه المسؤول.'
+                  : 'بصفتك مشرفاً ميدانياً، يمكنك تقديم طلبات سلف نقدية أو بنكية للمناديب التابعين لإشرافك.'
+              }
+              exportFilename="advance_requests"
+              showTotals={true}
+            />
           )}
         </div>
       )}
@@ -1163,52 +1305,16 @@ function DebtsPageContent() {
       {/* ======================================================== */}
       {activeTab === 'approvals' && (
         <div className="space-y-4">
-          {approvals.length === 0 ? (
-            <EmptyState title="لا توجد طلبات اعتماد معلقة" description="كافة طلبات التكاليف والخصومات والبدلات معتمدة ومطابقة." />
-          ) : (
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
-              <table className="w-full text-start text-xs sm:text-sm">
-                <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                  <tr>
-                    <th className="p-3 text-start">معرف الطلب</th>
-                    <th className="p-3 text-start">النوع</th>
-                    <th className="p-3 text-start">المندوب</th>
-                    <th className="p-3 text-start">المبلغ</th>
-                    <th className="p-3 text-start">الحالة</th>
-                    <th className="p-3 text-start">الإجراءات</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--line)]">
-                  {approvals.map((app) => (
-                    <tr key={app.id} className="hover:bg-[var(--row-hover)] transition">
-                      <td className="p-3 font-mono text-xs">{app.id}</td>
-                      <td className="p-3 font-semibold">{app.kind || app.requestTypeAr || app.requestType}</td>
-                      <td className="p-3">{app.iqama}</td>
-                      <td className="p-3 num font-bold text-[var(--accent)]">{app.amount} ر.س</td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--warning)]/10 text-[var(--warning)]">
-                          {app.status}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedApproval(app);
-                            setApprovalDecision('approved');
-                            setApprovalNote('');
-                          }}
-                          className="px-3 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 cursor-pointer"
-                        >
-                          بت في الطلب
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DataTable
+            tableId="approvals-list"
+            columns={approvalColumns}
+            data={approvals}
+            loading={loading}
+            emptyTitle="لا توجد طلبات اعتماد معلقة"
+            emptyDescription="كافة طلبات التكاليف والخصومات والبدلات معتمدة ومطابقة."
+            exportFilename="approvals_list"
+            showTotals={true}
+          />
         </div>
       )}
 

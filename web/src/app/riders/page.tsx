@@ -40,6 +40,7 @@ import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
+import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import type {
   RiderRecord,
   RiderProfile360,
@@ -69,6 +70,7 @@ function RidersPageInner() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sponsorFilter, setSponsorFilter] = useState<string>('all');
+  const [engagementFilter, setEngagementFilter] = useState<string>('all');
 
   // Profile 360 state
   const [profileIqama, setProfileIqama] = useState<string>(searchParams?.get('iqama') || '');
@@ -293,6 +295,7 @@ function RidersPageInner() {
     return riders.filter((r) => {
       if (statusFilter !== 'all' && r.status !== statusFilter) return false;
       if (sponsorFilter !== 'all' && r.sponsor !== sponsorFilter && r.sponsorId !== sponsorFilter) return false;
+      if (engagementFilter !== 'all' && r.engagementType !== engagementFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchIqama = r.iqama?.includes(q);
@@ -302,7 +305,126 @@ function RidersPageInner() {
       }
       return true;
     });
-  }, [riders, statusFilter, sponsorFilter, searchQuery]);
+  }, [riders, statusFilter, sponsorFilter, engagementFilter, searchQuery]);
+
+  const riderColumns: ColumnDef<RiderRecord>[] = useMemo(
+    () => [
+      {
+        key: 'iqama',
+        header: 'رقم الإقامة',
+        filterable: true,
+        render: (r) => (
+          <span className="font-mono font-bold text-[var(--ink)]">
+            {maskIqama(r.iqama || r.id)}
+          </span>
+        ),
+      },
+      {
+        key: 'name',
+        header: 'اسم المندوب',
+        filterable: true,
+        render: (r) => <span className="font-semibold">{r.name}</span>,
+      },
+      {
+        key: 'sponsor',
+        header: 'الكفيل / الشركة',
+        filterable: true,
+        render: (r) => <span className="text-[var(--muted)]">{r.sponsor || '-'}</span>,
+      },
+      {
+        key: 'engagementType',
+        header: 'نوع العلاقة',
+        filterable: true,
+        getValue: (r) => (r.engagementType === 'SponsoredInternal' ? 'كفالة الشركة' : 'خارجي'),
+        render: (r) => (
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+              r.engagementType === 'SponsoredInternal'
+                ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                : 'bg-[var(--raised)] text-[var(--muted)]'
+            }`}
+          >
+            {r.engagementType === 'SponsoredInternal' ? 'كفالة الشركة' : 'خارجي'}
+          </span>
+        ),
+      },
+      {
+        key: 'operationalRole',
+        header: 'المركبة',
+        getValue: (r) => (r.operationalRole === 'Car' ? 'سيارة' : 'دباب'),
+        render: (r) => (
+          <span className="inline-flex items-center gap-1">
+            {r.operationalRole === 'Car' ? (
+              <Car size={14} className="text-[var(--accent)]" />
+            ) : (
+              <Bike size={14} className="text-[var(--muted)]" />
+            )}
+            <span>{r.operationalRole === 'Car' ? 'سيارة' : 'دباب'}</span>
+          </span>
+        ),
+      },
+      {
+        key: 'city',
+        header: 'المدينة',
+        filterable: true,
+        render: (r) => <span>{r.city || '-'}</span>,
+      },
+      {
+        key: 'platforms',
+        header: 'المنصات',
+        render: (r) => (
+          <span className="text-xs text-[var(--muted)] truncate max-w-[140px] block">
+            {r.platforms || '-'}
+          </span>
+        ),
+      },
+      {
+        key: 'status',
+        header: 'الحالة',
+        filterable: true,
+        getValue: (r) => (r.status === 'Active' ? 'نشط' : r.status === 'NeedsReview' ? 'بحاجة لمراجعة' : 'غير نشط'),
+        render: (r) => (
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              r.status === 'Active'
+                ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+                : r.status === 'NeedsReview'
+                ? 'bg-[var(--warning)]/15 text-[var(--warning)]'
+                : 'bg-[var(--muted)]/15 text-[var(--muted)]'
+            }`}
+          >
+            {r.status === 'Active' ? 'نشط' : r.status === 'NeedsReview' ? 'بحاجة لمراجعة' : 'غير نشط'}
+          </span>
+        ),
+      },
+      {
+        key: 'actions',
+        header: 'الإجراءات',
+        render: (r) => (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setProfileIqama(r.iqama || r.id);
+                setActiveTab('360');
+                loadProfile360(r.iqama || r.id);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] font-bold text-xs transition cursor-pointer"
+            >
+              الملف 360°
+            </button>
+            <Link
+              href={`/riders/statement/?iqama=${encodeURIComponent(r.iqama || r.id)}`}
+              className="px-2.5 py-1 rounded-lg bg-[var(--surface)] border border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)] text-xs font-medium transition"
+            >
+              كشف الحساب
+            </Link>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
 
   // Unique sponsors
   const sponsorsList = useMemo(() => {
@@ -348,24 +470,45 @@ function RidersPageInner() {
           value={riders.length}
           hint={`${filteredRiders.length} مندوب يطابق الفلترة الحالية`}
           icon={Users}
+          loading={loadingRiders}
+          active={engagementFilter === 'all' && statusFilter === 'all'}
+          onClick={() => {
+            setEngagementFilter('all');
+            setStatusFilter('all');
+          }}
         />
         <StatCard
           label="مناديب كفالة الشركة"
           value={riders.filter((r) => r.engagementType === 'SponsoredInternal').length}
           hint="إقامات على كفالة كيانات البوابة"
           icon={Building2}
+          loading={loadingRiders}
+          active={engagementFilter === 'SponsoredInternal'}
+          onClick={() =>
+            setEngagementFilter(engagementFilter === 'SponsoredInternal' ? 'all' : 'SponsoredInternal')
+          }
         />
         <StatCard
           label="مناديب خارجيون (Outside)"
           value={riders.filter((r) => r.engagementType === 'External').length}
           hint="تشغيل بدون كفالة مباشرة"
           icon={Car}
+          loading={loadingRiders}
+          active={engagementFilter === 'External'}
+          onClick={() =>
+            setEngagementFilter(engagementFilter === 'External' ? 'all' : 'External')
+          }
         />
         <StatCard
           label="سجلات بحاجة لمراجعة"
           value={qualityData?.needsReviewCount || riders.filter((r) => r.status === 'NeedsReview').length}
           hint="بيانات غير مكتملة أو بانتظار التدقيق"
           icon={ShieldAlert}
+          loading={loadingRiders}
+          active={statusFilter === 'NeedsReview'}
+          onClick={() =>
+            setStatusFilter(statusFilter === 'NeedsReview' ? 'all' : 'NeedsReview')
+          }
         />
       </div>
 
@@ -428,107 +571,17 @@ function RidersPageInner() {
           {/* Table */}
           {ridersError ? (
             <ErrorState title="تعذر تحميل دليل المناديب" message={ridersError} onRetry={loadDirectory} />
-          ) : loadingRiders ? (
-            <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : filteredRiders.length === 0 ? (
-            <EmptyState
-              title="لم يتم العثور على مناديب"
-              description="لا توجد سجلات مناديب تطابق معايير البحث الحالية."
-            />
           ) : (
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-start text-xs sm:text-sm">
-                  <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                    <tr>
-                      <th className="p-3 text-start">رقم الإقامة</th>
-                      <th className="p-3 text-start">اسم المندوب</th>
-                      <th className="p-3 text-start">الكفيل / الشركة</th>
-                      <th className="p-3 text-start">نوع العلاقة</th>
-                      <th className="p-3 text-start">المركبة</th>
-                      <th className="p-3 text-start">المدينة</th>
-                      <th className="p-3 text-start">المنصات</th>
-                      <th className="p-3 text-start">الحالة</th>
-                      <th className="p-3 text-start">الإجراءات</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--line)]">
-                    {filteredRiders.map((r) => (
-                      <tr key={r.id || r.iqama} className="hover:bg-[var(--row-hover)] transition">
-                        <td className="p-3 font-mono font-bold text-[var(--ink)]">
-                          {maskIqama(r.iqama || r.id)}
-                        </td>
-                        <td className="p-3 font-semibold">{r.name}</td>
-                        <td className="p-3 text-[var(--muted)]">{r.sponsor || '-'}</td>
-                        <td className="p-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                              r.engagementType === 'SponsoredInternal'
-                                ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-                                : 'bg-[var(--raised)] text-[var(--muted)]'
-                            }`}
-                          >
-                            {r.engagementType === 'SponsoredInternal' ? 'كفالة الشركة' : 'خارجي'}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <span className="inline-flex items-center gap-1">
-                            {r.operationalRole === 'Car' ? (
-                              <Car size={14} className="text-[var(--accent)]" />
-                            ) : (
-                              <Bike size={14} className="text-[var(--muted)]" />
-                            )}
-                            <span>{r.operationalRole === 'Car' ? 'سيارة' : 'دباب'}</span>
-                          </span>
-                        </td>
-                        <td className="p-3">{r.city || '-'}</td>
-                        <td className="p-3 text-xs text-[var(--muted)] truncate max-w-[140px]">
-                          {r.platforms || '-'}
-                        </td>
-                        <td className="p-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                              r.status === 'Active'
-                                ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                                : r.status === 'NeedsReview'
-                                ? 'bg-[var(--warning)]/15 text-[var(--warning)]'
-                                : 'bg-[var(--muted)]/15 text-[var(--muted)]'
-                            }`}
-                          >
-                            {r.status === 'Active' ? 'نشط' : r.status === 'NeedsReview' ? 'بحاجة لمراجعة' : 'غير نشط'}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setProfileIqama(r.iqama || r.id);
-                                setActiveTab('360');
-                                loadProfile360(r.iqama || r.id);
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] font-bold text-xs transition cursor-pointer"
-                            >
-                              الملف 360°
-                            </button>
-                            <Link
-                              href={`/riders/statement/?iqama=${encodeURIComponent(r.iqama || r.id)}`}
-                              className="px-2.5 py-1 rounded-lg bg-[var(--surface)] border border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)] text-xs font-medium transition"
-                            >
-                              كشف الحساب
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable
+              tableId="riders-directory"
+              columns={riderColumns}
+              data={filteredRiders}
+              loading={loadingRiders}
+              emptyTitle="لم يتم العثور على مناديب"
+              emptyDescription="لا توجد سجلات مناديب تطابق معايير البحث الحالية."
+              exportFilename="riders_directory"
+              showTotals={true}
+            />
           )}
         </div>
       )}

@@ -26,6 +26,7 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { StatCard } from '../../components/ui/StatCard';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import {
   NinjaReconcileResponse,
   NinjaInvoiceResult,
@@ -189,6 +190,111 @@ export function NinjaInvoiceUploadScreen({
     return map[field] || field;
   };
 
+  const captainColumns: ColumnDef<NinjaReconciliationLine>[] = useMemo(
+    () => [
+      {
+        key: 'row',
+        header: '#',
+        numeric: true,
+        width: '60px',
+        getValue: (line) => line.row,
+        render: (line) => <span className="font-mono text-[11px] text-[var(--muted)]">{line.row}</span>,
+      },
+      {
+        key: 'captainId',
+        header: 'معرف الكابتن (Captain ID)',
+        getValue: (line) => line.captainId,
+        render: (line) => <span className="font-mono font-bold text-xs text-[var(--ink)]">{line.captainId}</span>,
+      },
+      {
+        key: 'status',
+        header: 'حالة المطابقة',
+        getValue: (line) => {
+          const hasDiffs = (line.diffs && line.diffs.length > 0) || line.status === 'error';
+          return hasDiffs ? 'يوجد فرق' : 'مطابق 100%';
+        },
+        render: (line) => {
+          const hasDiffs = (line.diffs && line.diffs.length > 0) || line.status === 'error';
+          return hasDiffs ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400">
+              <AlertTriangle size={12} />
+              <span>يوجد فرق</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+              <CheckCircle size={12} />
+              <span>مطابق 100%</span>
+            </span>
+          );
+        },
+      },
+      {
+        key: 'reasons',
+        header: 'أسباب الفروقات',
+        getValue: (line) => (line.reasons || []).map(mapReasonText).join(', ') || line.reason || '',
+        render: (line) => {
+          if (line.reasons && line.reasons.length > 0) {
+            return (
+              <div className="flex flex-wrap gap-1">
+                {line.reasons.map((r, ri) => (
+                  <span
+                    key={ri}
+                    className="px-2 py-0.5 rounded-md bg-[var(--raised)] border border-[var(--line)] text-[10px] font-semibold text-[var(--ink)]"
+                  >
+                    {mapReasonText(r)}
+                  </span>
+                ))}
+              </div>
+            );
+          }
+          if (line.reason) {
+            return <span className="text-[11px] text-[var(--danger)]">{line.reason}</span>;
+          }
+          return <span className="text-[var(--muted)] text-[11px]">—</span>;
+        },
+      },
+      {
+        key: 'diffs',
+        header: 'تفاصيل الفروقات (الفاتورة vs المحرك)',
+        getValue: (line) =>
+          (line.diffs || [])
+            .map((d) => `${mapFieldLabel(d.field)}: فاتورة ${d.invoice} | محرك ${d.engine}`)
+            .join('; ') || 'مطابق',
+        render: (line) => {
+          if (line.diffs && line.diffs.length > 0) {
+            return (
+              <div className="space-y-1">
+                {line.diffs.map((d, di) => (
+                  <div
+                    key={di}
+                    className="inline-flex items-center gap-2 p-1 px-2 rounded-lg bg-[var(--raised)] text-[10px] num font-mono me-1 mb-1"
+                  >
+                    <span className="font-sans font-bold text-[var(--ink)]">
+                      {mapFieldLabel(d.field)}:
+                    </span>
+                    <span className="text-[var(--muted)]">فاتورة: {d.invoice.toFixed(2)}</span>
+                    <span>|</span>
+                    <span className="text-[var(--muted)]">محرك: {d.engine.toFixed(2)}</span>
+                    <span>|</span>
+                    <span className="text-amber-600 font-bold">
+                      الفرق: {d.difference > 0 ? `+${d.difference.toFixed(2)}` : d.difference.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            );
+          }
+          return (
+            <span className="text-[11px] text-emerald-600 font-medium">
+              كافة البنود مطابقة بدقة السنت
+            </span>
+          );
+        },
+      },
+    ],
+    []
+  );
+
   return (
     <div className="space-y-6">
       {/* Header card */}
@@ -328,18 +434,24 @@ export function NinjaInvoiceUploadScreen({
               value={overallTotals.totalCaptains}
               hint={`فترة ${reconcileResult.period}`}
               icon={Layers}
+              active={filterMode === 'all'}
+              onClick={() => setFilterMode('all')}
             />
             <StatCard
               label="مطابق تماماً"
               value={overallTotals.totalMatched}
               hint="تطابق 100% مع المحرك"
               icon={CheckCircle}
+              active={filterMode === 'matched'}
+              onClick={() => setFilterMode(filterMode === 'matched' ? 'all' : 'matched')}
             />
             <StatCard
               label="كباتن بفروقات"
               value={overallTotals.totalDifferent}
               hint="الفرق للعلم فقط (§31)"
               icon={AlertTriangle}
+              active={filterMode === 'different'}
+              onClick={() => setFilterMode(filterMode === 'different' ? 'all' : 'different')}
             />
             <StatCard
               label="تسويات الفاتورة"
@@ -499,142 +611,52 @@ export function NinjaInvoiceUploadScreen({
                     </h3>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--raised)] border border-[var(--line)]">
-                      <button
-                        type="button"
-                        onClick={() => setFilterMode('all')}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                          filterMode === 'all'
-                            ? 'bg-[var(--surface)] text-[var(--ink)] shadow-xs'
-                            : 'text-[var(--muted)]'
-                        }`}
-                      >
-                        الكل
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFilterMode('different')}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                          filterMode === 'different'
-                            ? 'bg-[var(--surface)] text-amber-600 shadow-xs'
-                            : 'text-[var(--muted)]'
-                        }`}
-                      >
-                        الفروقات فقط ({activeInvoice.different})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFilterMode('matched')}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                          filterMode === 'matched'
-                            ? 'bg-[var(--surface)] text-emerald-600 shadow-xs'
-                            : 'text-[var(--muted)]'
-                        }`}
-                      >
-                        المطابق فقط ({activeInvoice.matched})
-                      </button>
-                    </div>
-
-                    <div className="relative">
-                      <Search size={14} className="absolute start-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
-                      <input
-                        type="text"
-                        value={searchCaptain}
-                        onChange={(e) => setSearchCaptain(e.target.value)}
-                        placeholder="بحث برقم الكابتن..."
-                        className="ps-8 pe-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden w-40"
-                      />
-                    </div>
+                  <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--raised)] border border-[var(--line)]">
+                    <button
+                      type="button"
+                      onClick={() => setFilterMode('all')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        filterMode === 'all'
+                          ? 'bg-[var(--surface)] text-[var(--ink)] shadow-xs'
+                          : 'text-[var(--muted)]'
+                      }`}
+                    >
+                      الكل
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterMode('different')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        filterMode === 'different'
+                          ? 'bg-[var(--surface)] text-amber-600 shadow-xs'
+                          : 'text-[var(--muted)]'
+                      }`}
+                    >
+                      الفروقات فقط ({activeInvoice.different})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterMode('matched')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        filterMode === 'matched'
+                          ? 'bg-[var(--surface)] text-emerald-600 shadow-xs'
+                          : 'text-[var(--muted)]'
+                      }`}
+                    >
+                      المطابق فقط ({activeInvoice.matched})
+                    </button>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-start text-xs">
-                      <thead className="bg-[var(--raised)] text-[var(--muted)] border-b border-[var(--line)] font-semibold">
-                        <tr>
-                          <th className="p-3 text-start w-12">#</th>
-                          <th className="p-3 text-start">معرف الكابتن (Captain ID)</th>
-                          <th className="p-3 text-start">حالة المطابقة</th>
-                          <th className="p-3 text-start">أسباب الفروقات (إن وجدت)</th>
-                          <th className="p-3 text-start">تفاصيل الفروقات (الفاتورة vs المحرك)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--line)]">
-                        {filteredLines.map((line) => {
-                          const hasDiffs = (line.diffs && line.diffs.length > 0) || line.status === 'error';
-                          return (
-                            <tr key={line.row} className="hover:bg-[var(--row-hover)] transition">
-                              <td className="p-3 font-mono text-[11px] text-[var(--muted)]">{line.row}</td>
-                              <td className="p-3 font-mono font-bold text-xs text-[var(--ink)]">
-                                {line.captainId}
-                              </td>
-                              <td className="p-3">
-                                {hasDiffs ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400">
-                                    <AlertTriangle size={12} />
-                                    <span>يوجد فرق</span>
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                                    <CheckCircle size={12} />
-                                    <span>مطابق 100%</span>
-                                  </span>
-                                )}
-                              </td>
-                              <td className="p-3">
-                                {line.reasons && line.reasons.length > 0 ? (
-                                  <div className="flex flex-wrap gap-1">
-                                    {line.reasons.map((r, ri) => (
-                                      <span
-                                        key={ri}
-                                        className="px-2 py-0.5 rounded-md bg-[var(--raised)] border border-[var(--line)] text-[10px] font-semibold text-[var(--ink)]"
-                                      >
-                                        {mapReasonText(r)}
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : line.reason ? (
-                                  <span className="text-[11px] text-[var(--danger)]">{line.reason}</span>
-                                ) : (
-                                  <span className="text-[var(--muted)] text-[11px]">—</span>
-                                )}
-                              </td>
-                              <td className="p-3">
-                                {line.diffs && line.diffs.length > 0 ? (
-                                  <div className="space-y-1">
-                                    {line.diffs.map((d, di) => (
-                                      <div
-                                        key={di}
-                                        className="inline-flex items-center gap-2 p-1 px-2 rounded-lg bg-[var(--raised)] text-[10px] num font-mono me-1 mb-1"
-                                      >
-                                        <span className="font-sans font-bold text-[var(--ink)]">
-                                          {mapFieldLabel(d.field)}:
-                                        </span>
-                                        <span className="text-[var(--muted)]">فاتورة: {d.invoice.toFixed(2)}</span>
-                                        <span>|</span>
-                                        <span className="text-[var(--muted)]">محرك: {d.engine.toFixed(2)}</span>
-                                        <span>|</span>
-                                        <span className="text-amber-600 font-bold">
-                                          الفرق: {d.difference > 0 ? `+${d.difference.toFixed(2)}` : d.difference.toFixed(2)}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span className="text-[11px] text-emerald-600 font-medium">
-                                    كافة البنود مطابقة بدقة السنت
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <DataTable
+                  tableId="ninja-reconcile-captains"
+                  columns={captainColumns}
+                  data={filteredLines}
+                  emptyTitle="لا توجد سجلات كباتن"
+                  emptyDescription="لم يتم العثور على أي كباتن يطابقون شروط البحث والتصفية."
+                  exportFilename={`ninja_captains_${activeInvoice.fileName || 'reconcile'}`}
+                  showTotals={true}
+                />
               </div>
             </div>
           )}

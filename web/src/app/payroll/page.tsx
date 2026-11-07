@@ -48,6 +48,7 @@ import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
+import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
 import type {
@@ -217,6 +218,112 @@ function PayrollPageInner() {
   const [cycleLines, setCycleLines] = useState<PayCycleLine[]>([]);
   const [loadingLines, setLoadingLines] = useState<boolean>(false);
   const [selectedLineForExplain, setSelectedLineForExplain] = useState<PayCycleLine | null>(null);
+
+  const cycleLineColumns: ColumnDef<any>[] = useMemo(
+    () => [
+      {
+        key: 'rider',
+        header: 'إقامة المندوب',
+        filterable: true,
+        render: (line) => (
+          <Link
+            href={`/riders/statement?iqama=${line.rider}`}
+            className="font-mono font-bold text-[var(--accent)] hover:underline inline-flex items-center gap-1"
+          >
+            <span>{line.rider}</span>
+            <ExternalLink size={11} className="opacity-70" />
+          </Link>
+        ),
+      },
+      {
+        key: 'app',
+        header: 'التطبيق',
+        filterable: true,
+        render: (line) => <span className="font-mono text-xs">{line.app}</span>,
+      },
+      {
+        key: 'category',
+        header: 'الفئة',
+        render: (line) => <span className="text-xs text-[var(--muted)]">{line.category || '-'}</span>,
+      },
+      {
+        key: 'platformGross',
+        header: 'إجمالي المنصة',
+        numeric: true,
+        getValue: (line) => line.platformGross || line.gross || 0,
+        render: (line) => (
+          <span>
+            {(line.platformGross || line.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+          </span>
+        ),
+      },
+      {
+        key: 'vehicleCharge',
+        header: 'إيجار المركبة',
+        numeric: true,
+        getValue: (line) => line.allocatedVehicleCharge ?? line.vehicleCharge ?? 0,
+        render: (line) => (
+          <span className="text-[var(--muted)]">
+            {(line.allocatedVehicleCharge ?? line.vehicleCharge ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+          </span>
+        ),
+      },
+      {
+        key: 'deductions',
+        header: 'الاستقطاعات',
+        numeric: true,
+        getValue: (line) => line.accountDeduction || 0,
+        render: (line) => (
+          <span className="text-[var(--danger)]">
+            {(line.accountDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+          </span>
+        ),
+      },
+      {
+        key: 'net',
+        header: 'الصافي النهائي',
+        numeric: true,
+        getValue: (line) => line.net ?? line.entitlement ?? 0,
+        render: (line) => {
+          const net = line.net ?? line.entitlement ?? 0;
+          return (
+            <span className={`font-bold ${net < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'}`}>
+              {net.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            </span>
+          );
+        },
+      },
+      {
+        key: 'status',
+        header: 'الحالة',
+        render: (line) => (
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+              line.status === 'ready' || line.status === 'approved'
+                ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+                : 'bg-[var(--danger)]/15 text-[var(--danger)]'
+            }`}
+          >
+            {line.status === 'ready' ? 'جاهز' : line.status === 'approved' ? 'معتمد' : 'يحتاج قرار'}
+          </span>
+        ),
+      },
+      {
+        key: 'explain',
+        header: 'شرح الاحتساب',
+        render: (line) => (
+          <button
+            type="button"
+            onClick={() => setSelectedLineForExplain(line)}
+            className="px-2.5 py-1 rounded-lg bg-[var(--raised)] text-xs font-bold text-[var(--accent)] hover:bg-[var(--line)] transition cursor-pointer"
+          >
+            شرح الاحتساب (Explain)
+          </button>
+        ),
+      },
+    ],
+    []
+  );
 
   // Global settings state (effective-dated)
   const [globalSettings, setGlobalSettings] = useState<PayConfigDoc[]>([]);
@@ -2491,81 +2598,16 @@ function PayrollPageInner() {
               </span>
             </div>
 
-            {loadingLines ? (
-              <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : cycleLines.length === 0 ? (
-              <div className="p-8 text-center bg-[var(--surface)] rounded-2xl border border-[var(--line)] text-xs text-[var(--muted)]">
-                لا توجد أسطر احتساب منشأة لهذه الدورة بعد. سيتم بناء الأسطر في المرحلة 4.
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-start text-xs sm:text-sm">
-                    <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                      <tr>
-                        <th className="p-3 text-start">إقامة المندوب</th>
-                        <th className="p-3 text-start">التطبيق</th>
-                        <th className="p-3 text-start">الفئة</th>
-                        <th className="p-3 text-start">إجمالي المنصة</th>
-                        <th className="p-3 text-start">إيجار المركبة</th>
-                        <th className="p-3 text-start">الاستقطاعات</th>
-                        <th className="p-3 text-start">الصافي النهائي</th>
-                        <th className="p-3 text-start">الحالة</th>
-                        <th className="p-3 text-start">شرح الاحتساب</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--line)]">
-                      {cycleLines.map((line: any) => (
-                        <tr key={line.id || line.rider} className="hover:bg-[var(--row-hover)] transition">
-                          <td className="p-3 font-mono font-bold text-[var(--ink)]">{line.rider}</td>
-                          <td className="p-3 font-mono text-xs">{line.app}</td>
-                          <td className="p-3 text-xs text-[var(--muted)]">{line.category || '-'}</td>
-                          <td className="p-3 num font-medium">
-                            {(line.platformGross || line.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td className="p-3 num text-[var(--muted)]">
-                            {(line.allocatedVehicleCharge ?? line.vehicleCharge ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td className="p-3 num text-[var(--danger)]">
-                            {(line.accountDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td
-                            className={`p-3 num font-bold ${
-                              (line.net ?? 0) < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'
-                            }`}
-                          >
-                            {(line.net ?? line.entitlement ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                          </td>
-                          <td className="p-3">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                                line.status === 'ready' || line.status === 'approved'
-                                  ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                                  : 'bg-[var(--danger)]/15 text-[var(--danger)]'
-                              }`}
-                            >
-                              {line.status === 'ready' ? 'جاهز' : line.status === 'approved' ? 'معتمد' : 'يحتاج قرار'}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedLineForExplain(line)}
-                              className="px-2.5 py-1 rounded-lg bg-[var(--raised)] text-xs font-bold text-[var(--accent)] hover:bg-[var(--line)] transition cursor-pointer"
-                            >
-                              شرح الاحتساب (Explain)
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            <DataTable
+              tableId="pay-cycle-lines"
+              columns={cycleLineColumns}
+              data={cycleLines}
+              loading={loadingLines}
+              emptyTitle="لا توجد أسطر احتساب منشأة"
+              emptyDescription="لا توجد أسطر احتساب منشأة لهذه الدورة بعد. سيتم بناء الأسطر في المرحلة 4."
+              exportFilename={`cycle_lines_${activeCycle?.id || 'payroll'}`}
+              showTotals={true}
+            />
           </div>
         </div>
       )}

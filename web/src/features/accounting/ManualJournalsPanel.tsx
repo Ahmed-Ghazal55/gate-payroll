@@ -24,6 +24,7 @@ import { useToast } from '../../components/ui/Toast';
 import { Dialog } from '../../components/ui/Dialog';
 import { Drawer } from '../../components/ui/Drawer';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { ManualJournal, ManualJournalLine, CompanySponsor } from '../../lib/types';
 
 interface ManualJournalsPanelProps {
@@ -323,6 +324,137 @@ export function ManualJournalsPanel({
     });
   }, [journals, selectedCompanyFilter, searchQuery]);
 
+  const journalColumns: ColumnDef<ManualJournal>[] = useMemo(
+    () => [
+      {
+        key: 'id',
+        header: 'معرف القيد',
+        filterable: true,
+        render: (j) => <span className="font-mono text-[11px] text-[var(--muted)]">{j.id}</span>,
+      },
+      {
+        key: 'companyId',
+        header: 'الشركة',
+        filterable: true,
+        getValue: (j) => companies.find((c) => c.id === j.companyId)?.nameAr || j.companyName || j.companyId,
+        render: (j) => {
+          const comp = companies.find((c) => c.id === j.companyId);
+          return <span className="font-semibold text-[var(--ink)]">{comp?.nameAr || j.companyName || j.companyId}</span>;
+        },
+      },
+      {
+        key: 'date',
+        header: 'التاريخ',
+        filterable: true,
+        render: (j) => <span className="num font-medium text-[var(--ink)]">{j.date}</span>,
+      },
+      {
+        key: 'reference',
+        header: 'المرجع',
+        render: (j) => <span className="font-mono text-xs text-[var(--muted)]">{j.reference || '—'}</span>,
+      },
+      {
+        key: 'description',
+        header: 'البيان العام',
+        filterable: true,
+        render: (j) => <span className="text-xs text-[var(--ink)] max-w-xs truncate block">{j.description}</span>,
+      },
+      {
+        key: 'totalDebit',
+        header: 'المبلغ (ر.س)',
+        numeric: true,
+        getValue: (j) => j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0),
+        render: (j) => {
+          const total = j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0);
+          return <span className="num font-bold text-sm text-[var(--ink)]">{total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>;
+        },
+      },
+      {
+        key: 'maker',
+        header: 'المنشئ',
+        filterable: true,
+        render: (j) => <span className="font-mono text-xs text-[var(--muted)]">{j.maker}</span>,
+      },
+      {
+        key: 'status',
+        header: 'الحالة',
+        filterable: true,
+        render: (j) =>
+          j.status === 'approved' ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]">
+              <CheckCircle size={12} />
+              <span>معتمد</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--badge-warning-bg)] text-[var(--badge-warning-text)]">
+              <Clock size={12} />
+              <span>مسودة (بانتظار الاعتماد)</span>
+            </span>
+          ),
+      },
+      {
+        key: 'attachment',
+        header: 'مرفق',
+        render: (j) =>
+          j.hasAttachment || j.attachmentName ? (
+            <span className="text-[var(--accent)] inline-flex items-center" title={j.attachmentName || 'مرفق ثبوتي'}>
+              <Paperclip size={14} />
+            </span>
+          ) : (
+            <span className="text-[var(--muted)]">—</span>
+          ),
+      },
+      {
+        key: 'actions',
+        header: 'الإجراءات',
+        render: (j) => {
+          const isMaker = j.maker === user?.username;
+          return (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedJournal(j);
+                  setDrawerOpen(true);
+                }}
+                className="px-2.5 py-1 rounded-lg border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--raised)] transition inline-flex items-center gap-1 cursor-pointer"
+              >
+                <Eye size={13} />
+                <span>تفاصيل</span>
+              </button>
+
+              {statusTab === 'draft' && canApprove && (
+                <button
+                  type="button"
+                  disabled={isMaker}
+                  onClick={() => handleApproveJournal(j)}
+                  title={isMaker ? 'لا يجوز لمنشئ القيد اعتماده (Maker-Checker)' : 'اعتماد القيد المحاسبي'}
+                  className="px-2.5 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Check size={13} />
+                  <span>اعتماد</span>
+                </button>
+              )}
+
+              {statusTab === 'approved' && canApprove && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenReverse(j)}
+                  title="عكس القيد المحاسبي وإنشاء مسودة عكسية"
+                  className="px-2.5 py-1 rounded-lg border border-[var(--line)] text-[var(--muted)] hover:text-[var(--danger)] text-xs font-bold hover:bg-[var(--raised)] transition inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <RotateCcw size={13} />
+                  <span>عكس</span>
+                </button>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [companies, user?.username, statusTab, canApprove]
+  );
+
   return (
     <div className="space-y-6">
       {/* Header & Actions */}
@@ -416,127 +548,20 @@ export function ManualJournalsPanel({
       </div>
 
       {/* Main Table */}
-      {loading ? (
-        <div className="p-12 text-center text-xs text-[var(--muted)] animate-pulse">
-          جاري تحميل القيود المحاسبية...
-        </div>
-      ) : filteredJournals.length === 0 ? (
-        <EmptyState
-          icon={<FileText size={40} className="text-[var(--muted)]" />}
-          title={statusTab === 'draft' ? 'لا توجد قيود بانتظار الاعتماد' : 'لا توجد قيود معتمدة حتى الآن'}
-          description={
-            statusTab === 'draft'
-              ? 'كافة القيود اليدوية المنشأة تم اعتمادها أو لم يتم إنشاء مسودات جديدة.'
-              : 'لم يتم اعتماد أي قيود يدوية بعد.'
-          }
-        />
-      ) : (
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-start text-xs sm:text-sm">
-              <thead className="border-b border-[var(--line)] bg-[var(--raised)]/60 text-[var(--muted)] font-semibold">
-                <tr>
-                  <th className="p-3 text-start">معرف القيد</th>
-                  <th className="p-3 text-start">الشركة</th>
-                  <th className="p-3 text-start">التاريخ</th>
-                  <th className="p-3 text-start">المرجع</th>
-                  <th className="p-3 text-start">البيان العام</th>
-                  <th className="p-3 text-start">المبلغ (ر.س)</th>
-                  <th className="p-3 text-start">المنشئ</th>
-                  <th className="p-3 text-start">الحالة</th>
-                  <th className="p-3 text-start">مرفق</th>
-                  <th className="p-3 text-start">الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--line)]">
-                {filteredJournals.map((j) => {
-                  const companyObj = companies.find((c) => c.id === j.companyId);
-                  const total = j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0);
-                  const isMaker = j.maker === user?.username;
-
-                  return (
-                    <tr key={j.id} className="hover:bg-[var(--row-hover)] transition">
-                      <td className="p-3 font-mono text-[11px] text-[var(--muted)]">{j.id}</td>
-                      <td className="p-3 font-semibold text-[var(--ink)]">
-                        {companyObj?.nameAr || j.companyName || j.companyId}
-                      </td>
-                      <td className="p-3 num font-medium text-[var(--ink)]">{j.date}</td>
-                      <td className="p-3 font-mono text-xs text-[var(--muted)]">{j.reference || '—'}</td>
-                      <td className="p-3 text-xs text-[var(--ink)] max-w-xs truncate">{j.description}</td>
-                      <td className="p-3 num font-bold text-sm text-[var(--ink)]">
-                        {total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="p-3 font-mono text-xs text-[var(--muted)]">{j.maker}</td>
-                      <td className="p-3">
-                        {j.status === 'approved' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]">
-                            <CheckCircle size={12} />
-                            <span>معتمد</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--badge-warning-bg)] text-[var(--badge-warning-text)]">
-                            <Clock size={12} />
-                            <span>مسودة (بانتظار الاعتماد)</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        {j.hasAttachment || j.attachmentName ? (
-                          <span className="text-[var(--accent)] inline-flex items-center" title={j.attachmentName || 'مرفق ثبوتي'}>
-                            <Paperclip size={14} />
-                          </span>
-                        ) : (
-                          <span className="text-[var(--muted)]">—</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedJournal(j);
-                              setDrawerOpen(true);
-                            }}
-                            className="px-2.5 py-1 rounded-lg border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--raised)] transition inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <Eye size={13} />
-                            <span>تفاصيل</span>
-                          </button>
-
-                          {statusTab === 'draft' && canApprove && (
-                            <button
-                              type="button"
-                              disabled={isMaker}
-                              onClick={() => handleApproveJournal(j)}
-                              title={isMaker ? 'لا يجوز لمنشئ القيد اعتماده (Maker-Checker)' : 'اعتماد القيد المحاسبي'}
-                              className="px-2.5 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              <Check size={13} />
-                              <span>اعتماد</span>
-                            </button>
-                          )}
-
-                          {statusTab === 'approved' && canApprove && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenReverse(j)}
-                              title="عكس القيد المحاسبي وإنشاء مسودة عكسية"
-                              className="px-2.5 py-1 rounded-lg border border-[var(--line)] text-[var(--muted)] hover:text-[var(--danger)] text-xs font-bold hover:bg-[var(--raised)] transition inline-flex items-center gap-1 cursor-pointer"
-                            >
-                              <RotateCcw size={13} />
-                              <span>عكس</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <DataTable
+        tableId="manual-journals"
+        columns={journalColumns}
+        data={filteredJournals}
+        loading={loading}
+        emptyTitle={statusTab === 'draft' ? 'لا توجد قيود بانتظار الاعتماد' : 'لا توجد قيود معتمدة حتى الآن'}
+        emptyDescription={
+          statusTab === 'draft'
+            ? 'كافة القيود اليدوية المنشأة تم اعتمادها أو لم يتم إنشاء مسودات جديدة.'
+            : 'لم يتم اعتماد أي قيود يدوية بعد.'
+        }
+        exportFilename={`manual_journals_${statusTab}`}
+        showTotals={true}
+      />
 
       {/* DRAWER: Journal Details */}
       <Drawer
