@@ -6,6 +6,13 @@
 | Branch | release/0.16.0 (integration of feat/k-review + feat/r6b-ui + feat/r6b-accounting) |
 | Updated | 2026-11-07 by Claude |
 
+## Release 0.16.0 (2026-11-07, Claude), branch `release/0.16.0`
+- Integrates `feat/k-review` (K1–K4) + `feat/r6b-ui` (A0–A8) + `feat/r6b-accounting` (C0, C3, C4, C6, C7). C5 FCM and A9 QR not started.
+- Review fixes: K2 card-payout 409 removed (C3 posts it via `MadaAccounting.PayInternet`); internet-advance test uses scoped principals (Codex's company scope kept); general bell excludes personal count; CI gets a synthetic `Vouchers__Secret`.
+- Verified locally: .NET 367/367 (SQL Server in Docker, 0 skipped); 20 node/browser suites incl. published-app, `r6b-accounting`, `r4-backend`, `ui-qa`; `release_source --check`.
+- **Before «ادمج» (Ghazal):** set `Vouchers__Secret` (random 32–256 chars) in MonsterASP → Scripting → Environment variables. Without it every new financial document (journal, payout, settlement, cycle posting) returns 503.
+- DB move (C0) is a separate step after «انقل»: follow `docs/ops/DB-CUTOVER.md` and the numbered commands below.
+
 ## Wave 2 — Antigravity R6b UI (2026-11-07), branch `feat/r6b-ui`
 All tasks A0 through A8 from `~/.agents/prompts/antigravity-R6b-ui.md` completed, tested, and verified on 1440px and 360px:
 - **A0 (Page Sweep & Visual QA):** Completed (`765b24a`). Fixed numeric and text table alignment using logical classes (`text-start`/`text-end`), resolved RTL contrast issues, eliminated horizontal page scroll across all 16 views.
