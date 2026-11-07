@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 namespace Payroll;
 
 // Operator-only, private snapshots. There is deliberately no public migration endpoint.
-public static class StorageTransfer
+public static partial class StorageTransfer
 {
     public static JsonArray Export(Store store)=>store.Read(c=>{
         using var tx=c.BeginTransaction(System.Data.IsolationLevel.Serializable);
