@@ -12,7 +12,9 @@ public static partial class StorageTransfer
         "name","nameEn","nameAr","iqama","nationality","phone","engagementType","isEmployee","personRole","isDeliveryRider",
         "sponsorId","sponsor","companyId","cityId","city","hireDate","status","erpRiderProfileIds","erpSource","sourceId","sourceSystem",
         "sourceFingerprint","sourceRef","importedAt","erpManaged","erpFingerprint","erpImportedAt","createdAt","updatedAt","debtOnly",
-        "plateNumberAr","plateNumberEn","registrationType","plate","vehicleType","model","modelYear","make","color","vin"
+        "plateNumberAr","plateNumberEn","registrationType","plate","vehicleType","model","modelYear","make","color","vin",
+        // Company legal descriptors come from ERP (coded); legacy SQLite kept Arabic labels. Originals are archived.
+        "crType","characteristic","entityType","nameOnCertificateAr"
     };
     static readonly HashSet<string> PayrollFields = new(StringComparer.Ordinal)
     {"iban","ibanChoice","ibanSource","ibanVerified","bankName","bankCode","accountName","selectedIban","financeSponsorId","policy","policyId","payPolicy","paySchemeId","payrollPolicy","salary","salaryType","salarySystem","odooVoucherNo"};
