@@ -17,9 +17,15 @@ public static class PushNotifications
     const string DefaultTokenUri = "https://oauth2.googleapis.com/token";
     const string FcmSendUrlTemplate = "https://fcm.googleapis.com/v1/projects/{0}/messages:send";
 
+    private static readonly HttpClient DefaultHttpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
+
     // Testing hooks for offline unit tests
     public static HttpMessageHandler? TestHttpMessageHandler { get; set; }
     public static string? ServiceAccountJsonOverride { get; set; }
+
+    public static HttpClient GetHttpClient() => TestHttpMessageHandler != null
+        ? new HttpClient(TestHttpMessageHandler, disposeHandler: false) { Timeout = TimeSpan.FromSeconds(10) }
+        : DefaultHttpClient;
 
     private static string? _cachedAccessToken;
     private static DateTimeOffset _tokenExpiryUtc = DateTimeOffset.MinValue;
@@ -182,9 +188,7 @@ public static class PushNotifications
             return;
         }
 
-        HttpClient client = TestHttpMessageHandler != null
-            ? new HttpClient(TestHttpMessageHandler)
-            : new HttpClient();
+        HttpClient client = GetHttpClient();
 
         try
         {
@@ -300,7 +304,7 @@ public static class PushNotifications
         }
         finally
         {
-            if (TestHttpMessageHandler == null)
+            if (TestHttpMessageHandler != null)
             {
                 client.Dispose();
             }
