@@ -1536,7 +1536,9 @@ export const api = {
     }).then(async (res) => {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new ApiError(data?.error?.message || data?.message || 'فشل رفع فاتورة نينجا', res.status, data?.error);
+        const errMsg = typeof data.error === 'string' ? data.error : (data?.error?.message || data?.message || 'فشل رفع فاتورة نينجا');
+        const errCode = typeof data.code === 'string' ? data.code : (data?.error?.code || 'error');
+        throw new ApiError(errMsg, res.status, errCode);
       }
       return res.json() as Promise<NinjaInvoice>;
     });
