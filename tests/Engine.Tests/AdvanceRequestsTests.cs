@@ -216,4 +216,37 @@ public sealed class AdvanceRequestsTests
             Assert.AreEqual("",summary.S("lastPayrollSettlementAt"),"another rider's run is never this rider's cutoff");
         });
     }
+    // BR §25.9 / §27: internet advances (cash, bank or a mada recharge card) priced from the approved lists.
+    [TestMethod]
+    public void InternetAdvanceUsesApprovedListsAndRechargeCardWaitsForTheMadaAccount()
+    {
+        var maker=U("syn-maker","pay.manage");var checker=U("syn-checker","pay.approve");
+        static JsonObject Pkg(string code,string network,decimal price)=>new(){["code"]=code,["nameAr"]="باقة "+code,["values"]=new JsonObject{["network"]=network,["price"]=price}};
+        Run(s=>{
+            ConfigLists.Seed(s);
+            s.Write((c,tx)=>OrgDirectory.AddRouting(c,tx,Admin,new(){["operation"]="advance.payout:"+AdvanceRequests.Mada,["department"]="FIN",["minRank"]="C",["users"]=new JsonArray("syn-custodian"),["validFrom"]="2026-01-01"}));
+            var proposed=s.Write((c,tx)=>ConfigLists.Upsert(c,tx,maker,"recharge_packages",Pkg("STC30","STC",30)));Assert.IsNotNull(proposed["pending"]);
+            Assert.IsNull(s.Read(c=>ConfigLists.Current(c,null,"recharge_packages","STC30")),"a financial list change waits for approval");
+            Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>ConfigLists.Approve(c,tx,U("syn-maker","pay.manage","pay.approve"),"recharge_packages","STC30")),"maker cannot approve");
+            s.Write((c,tx)=>ConfigLists.Approve(c,tx,checker,"recharge_packages","STC30"));Assert.AreEqual(30m,s.Read(c=>ConfigLists.Current(c,null,"recharge_packages","STC30"))!["values"].N("price"));
+            Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>ConfigLists.Upsert(c,tx,maker,"recharge_packages",Pkg("X1","NOPE",10))),"unknown network");
+            Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>ConfigLists.Upsert(c,tx,maker,"deduction_types",new(){["code"]="Bad",["nameAr"]="x",["values"]=new JsonObject{["category"]="TrafficFine",["account"]="512101",["phase"]=2}})),"deductions post to 1125xx only");
+            Assert.AreEqual(2,s.Read(c=>ConfigLists.Phase(c,null,"TrafficFine")).Phase,"traffic fines are phase 2 (BR §29)");
+            s.Write((c,tx)=>ConfigLists.AddField(c,tx,maker,"operating_systems",new(){["key"]="cityNote",["labelAr"]="ملاحظة",["type"]="text"}));
+            Assert.IsTrue(s.Read(c=>ConfigLists.Fields(c,null,"operating_systems")).Any(f=>f.Key=="cityNote"));
+            var card=s.Write((c,tx)=>AdvanceRequests.Create(c,tx,Sup,new(){["riderIqama"]=Rider,["type"]="internet",["fulfilment"]="recharge_card",["networkCode"]="STC",["packageCode"]="STC30",["reason"]="Synthetic internet"}));
+            Assert.AreEqual(30m,card.N("amount"));Assert.AreEqual(AdvanceRequests.Mada,card.S("vaultCode"));Assert.AreEqual("recharge_card",card.S("fulfilment"));
+            Review(s,Acc,card.S("id"),new(){["action"]="approve",["monthlyInstallment"]=30,["coverageReason"]="Synthetic: small package"});
+            Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,card.S("id"),new(){["reference"]="SYN-CARD"})),"the mada machine posting is not enabled yet");
+        });
+        Run(s=>{
+            var r=s.Write((c,tx)=>AdvanceRequests.Create(c,tx,Sup,new(){["riderIqama"]=Rider,["type"]="internet",["fulfilment"]="cash",["amount"]=60,["reason"]="Synthetic internet cash"}));
+            Assert.AreEqual("MAIN.BW.DEBT",r.S("vaultCode"));
+            Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.Create(c,tx,Sup,new(){["riderIqama"]="2000000599",["type"]="internet",["fulfilment"]="wallet",["amount"]=60,["reason"]="bad"})));
+            AccountingPostingTests.SeedCash(s,"MAIN.BW.DEBT",1000);
+            Review(s,Acc,r.S("id"),new(){["action"]="approve",["monthlyInstallment"]=60,["coverageReason"]="Synthetic: small amount"});
+            var paid=s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,r.S("id"),new(){["reference"]="SYN-NET-1"}));
+            Assert.AreEqual("InternetAdvance",s.Read(c=>Store.Get(c,paid.S("debtId"),"debt"))!.S("category"));
+        });
+    }
 }

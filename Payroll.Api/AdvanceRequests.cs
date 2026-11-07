@@ -11,13 +11,33 @@ public static class AdvanceRequests
     static readonly string[] Final=["rejected","cancelled","paid"];
     static string Me(ClaimsPrincipal u)=>u.Identity!.Name!;
     static string Payout(string vault)=>"advance.payout:"+vault;
-    static string Category(string type)=>type=="cash"?"CashAdvance":"BankAdvance";
-    static string Type(string value){J.Need(value is "cash" or "bank","نوع السلفة نقدية (cash) أو بنكية (bank).");return value;}
+    static string Category(string type)=>type switch{"cash"=>"CashAdvance","internet"=>"InternetAdvance",_=>"BankAdvance"};
+    static string Type(string value){J.Need(value is "cash" or "bank" or "internet","نوع السلفة نقدية (cash) أو بنكية (bank) أو إنترنت (internet).");return value;}
+    // BR §25.9: how the advance reaches the rider. Cash/bank advances carry their own type; internet chooses.
+    // Custody code of the mada top-up machine; payout routing is advance.payout:MADA.
+    public const string Mada="MADA";
+    static string Fulfilment(JsonObject r)=>r.S("fulfilment",r.S("type"));
+    static string Fulfilment(string type,string requested)
+    {
+        if(type!="internet"){J.Need(requested==""||requested==type,"طريقة الصرف تخص سلفة الإنترنت فقط.");return type;}
+        J.Need(requested is "cash" or "bank" or "recharge_card","سلفة الإنترنت: نقدي أو بنكي أو كارت شحن (recharge_card).");return requested;
+    }
+    // A recharge card is priced by the approved package of the approved network (BR §27 lists).
+    static (string Network,string Package,decimal Price) Card(DbConnection c,DbTransaction tx,JsonObject input)
+    {
+        string network=input.Required("networkCode"),package=input.Required("packageCode");
+        J.Need(ConfigLists.Current(c,tx,"recharge_networks",network)!=null,"شبكة الشحن غير موجودة أو غير معتمدة.");
+        var p=ConfigLists.Current(c,tx,"recharge_packages",package)??throw new ApiError("باقة الشحن غير موجودة أو غير معتمدة.");
+        J.Need(p["values"].S("network")==network,"الباقة لا تخص الشبكة المختارة.");decimal price=p["values"].N("price");J.Need(price>0,"سعر الباقة غير محدد.");return (network,package,price);
+    }
     static decimal Amount(JsonObject input,string key){decimal v=Debts.Amount(input,key);J.Need(v>0&&v<=100000,"مبلغ السلفة غير صالح.");return v;}
     static string Period(DateTimeOffset? at=null)=>(at??DateTimeOffset.UtcNow).ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM");
-    static string Vault(string type,string sponsorId,string requested)
+    static string Vault(string type,string sponsorId,string requested,string? fulfilment=null)
     {
-        string code=requested!=""?requested:FinancialCore.DefaultVaultForSponsor(sponsorId,type=="cash"?"MAIN":"BANK",Category(type));
+        string how=fulfilment??type;
+        // The mada machine custody account is posted by the payout step (BR §25.9, Codex C3); no vault is chosen here.
+        if(how=="recharge_card")return Mada;
+        string code=requested!=""?requested:FinancialCore.DefaultVaultForSponsor(sponsorId,how=="cash"?"MAIN":"BANK",Category(type));
         FinancialCore.ValidateVaultForOperation(code,Category(type),"disbursement");return code;
     }
     static JsonObject Get(DbConnection c,DbTransaction? tx,string id)=>Store.Get(c,id,Kind,tx)?.Clone()??throw new ApiError("طلب السلفة غير موجود.",404);
@@ -30,7 +50,7 @@ public static class AdvanceRequests
     static void Save(DbConnection c,DbTransaction tx,JsonObject request,ClaimsPrincipal actor,string audit)
     {request["updatedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,Kind,request,tx);Store.Audit(c,tx,audit,request.S("id"),Me(actor));}
     static IEnumerable<string> Users(List<JsonObject> responsible)=>responsible.Select(r=>r.S("userId"));
-    static string Label(JsonObject r)=>$"{(r.S("type")=="cash"?"سلفة نقدية":"سلفة بنكية")} {r.N("amount"):0.00} ر.س — {r.S("riderName")} ({r.S("riderIqama")})";
+    static string Label(JsonObject r)=>$"{r.S("type") switch{"cash"=>"سلفة نقدية","internet"=>Fulfilment(r)=="recharge_card"?"سلفة إنترنت (كارت شحن)":"سلفة إنترنت",_=>"سلفة بنكية"}} {r.N("amount"):0.00} ر.س — {r.S("riderName")} ({r.S("riderIqama")})";
     static void Notify(DbConnection c,DbTransaction tx,JsonObject r,IEnumerable<string> users,string step,string title,ClaimsPrincipal actor,bool action)
     {Notifications.RaiseFor(c,tx,users,"advance:"+r.S("id")+":"+r.N("revision")+":"+step,title,Label(r),Me(actor),Kind,r.S("id"),action);}
 
@@ -40,11 +60,15 @@ public static class AdvanceRequests
         string iqama=DirectoryProfiles.Iqama(input.Required("riderIqama"));var rider=Store.Get(c,iqama,"rider",tx)??throw new ApiError("المندوب غير موجود.");
         J.Need(OrgDirectory.Supervises(c,tx,Me(actor),iqama),"المندوب ليس تحت إشرافك حسب نظام الرتب.",403);
         J.Need(!Store.List(c,Kind,tx).Any(r=>r.S("riderIqama")==iqama&&!Final.Contains(r.S("status"))),"للمندوب طلب سلفة مفتوح بالفعل.",409);
-        string type=Type(input.Required("type"));decimal amount=Amount(input,"amount");J.Need(input.S("reason").Trim().Length is >2 and <=500,"اكتب سبب السلفة.");
+        string type=Type(input.Required("type"));string fulfilment=Fulfilment(type,input.S("fulfilment"));
+        (string Network,string Package,decimal Price)? card=fulfilment=="recharge_card"?Card(c,tx,input):null;
+        decimal amount=card?.Price??Amount(input,"amount");J.Need(card==null||input["amount"] is null||Debts.Amount(input,"amount")==card.Value.Price,"مبلغ كارت الشحن = سعر الباقة.");
+        J.Need(input.S("reason").Trim().Length is >2 and <=500,"اكتب سبب السلفة.");
         var sponsor=FinancialCore.FindSponsor(rider.S("financeSponsorId"))??FinancialCore.FindSponsor(rider.S("sponsorId"))??FinancialCore.FindSponsor(rider.S("sponsor"))??throw new ApiError("سجل كفالة المندوب غير محدد.");
-        string vault=Vault(type,sponsor.Id,input.S("vaultCode"));
+        string vault=Vault(type,sponsor.Id,input.S("vaultCode"),fulfilment);
         var reviewers=OrgDirectory.Responsible(c,tx,Review);J.Need(reviewers.Count>0,"لا يوجد محاسب مكلّف بمراجعة السلف؛ راجع التوجيه في الأقسام والرتب.",409);
         var r=new JsonObject{["id"]="adv:"+Guid.NewGuid().ToString("N"),["riderIqama"]=iqama,["riderName"]=rider.S("name"),["companyId"]=sponsor.Id,["type"]=type,["amount"]=amount,["vaultCode"]=vault,["reason"]=input.S("reason").Trim(),
+            ["fulfilment"]=fulfilment,["networkCode"]=card?.Network,["packageCode"]=card?.Package,
             ["status"]="under_review",["revision"]=1,["requestedBy"]=Me(actor),["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["decisions"]=new JsonArray()};
         Decision(r,actor,"submitted",r.S("reason"));Save(c,tx,r,actor,"advance.requested");
         Notify(c,tx,r,Users(reviewers),"review","طلب سلفة جديد بانتظار مراجعتك",actor,true);return r;
@@ -68,12 +92,13 @@ public static class AdvanceRequests
         catch(ApiError){statement["reason"]="لا يوجد كشف لهذا الشهر بعد";}
         decimal orders=Store.List(c,"work",tx).Where(w=>w.S("iqama")==iqama&&w.S("period")==period).Sum(w=>w.N("orders"));
         decimal? forecast=expected==null?null:J.Money(expected.Value-planned);
-        string other=r.S("type")=="cash"?"bank":"cash";string otherVault="";try{otherVault=Vault(other,r.S("companyId"),"");}catch(ApiError){}
+        string other=Fulfilment(r)=="cash"?"bank":"cash";string otherVault="";try{otherVault=Vault(r.S("type")=="internet"?"internet":other,r.S("companyId"),"",other);}catch(ApiError){}
         return new(){["requestId"]=r.S("id"),["period"]=period,["rider"]=new JsonObject{["iqama"]=iqama,["name"]=r.S("riderName"),["companyId"]=r.S("companyId")},
             ["ordersThisMonth"]=orders,["statement"]=statement,["openDebtBalance"]=open,["openDebts"]=debts.Count,["plannedInstallments"]=planned,
             ["lastPayrollSettlementAt"]=last,["advancesSinceLastSettlement"]=new JsonArray(since.Select(x=>(JsonNode)x).ToArray()),
             ["forecastNet"]=forecast,["amount"]=r.N("amount"),["covered"]=forecast!=null&&forecast>=r.N("amount"),["coverageKnown"]=forecast!=null,
-            ["vaults"]=new JsonArray(new JsonObject{["type"]=r.S("type"),["code"]=r.S("vaultCode"),["balance"]=AccountingPolicy.Balance(c,tx,r.S("vaultCode")),["selected"]=true},
+            ["fulfilment"]=Fulfilment(r),["networkCode"]=r.S("networkCode"),["packageCode"]=r.S("packageCode"),
+            ["vaults"]=new JsonArray(new JsonObject{["type"]=Fulfilment(r),["code"]=r.S("vaultCode"),["balance"]=r.S("vaultCode")==Mada?0m:AccountingPolicy.Balance(c,tx,r.S("vaultCode")),["selected"]=true},
                 otherVault==""?new JsonObject{["type"]=other,["code"]="",["balance"]=0m,["selected"]=false}:new JsonObject{["type"]=other,["code"]=otherVault,["balance"]=AccountingPolicy.Balance(c,tx,otherVault),["selected"]=false})};
     }
 
@@ -102,7 +127,7 @@ public static class AdvanceRequests
         else if(action=="propose")
         {
             J.Need(note.Length is >2 and <=500,"اكتب سبب اقتراح التعديل.");var p=input["proposed"] as JsonObject??throw new ApiError("حدد التعديل المقترح.");
-            string type=p.ContainsKey("type")?Type(p.S("type")):r.S("type");decimal amount=p.ContainsKey("amount")?Amount(p,"amount"):r.N("amount");string vault=Vault(type,r.S("companyId"),p.S("vaultCode",type==r.S("type")?r.S("vaultCode"):""));
+            string type=p.ContainsKey("type")?Type(p.S("type")):r.S("type");decimal amount=p.ContainsKey("amount")?Amount(p,"amount"):r.N("amount");J.Need(type=="internet"==(r.S("type")=="internet"),"لا تحول سلفة الإنترنت لنوع آخر؛ ارفض وأنشئ طلبًا جديدًا.");string vault=Vault(type,r.S("companyId"),p.S("vaultCode",type==r.S("type")?r.S("vaultCode"):""),type=="internet"?Fulfilment(r):null);
             J.Need(type!=r.S("type")||amount!=r.N("amount")||vault!=r.S("vaultCode"),"الاقتراح لا يغير شيئًا.");
             var proposal=new JsonObject{["type"]=type,["amount"]=amount,["vaultCode"]=vault,["proposedBy"]=Me(actor)};
             Decision(r,actor,"proposed",note,who,new(){["proposal"]=proposal.DeepClone()});r["proposal"]=proposal;r["status"]="change_proposed";Save(c,tx,r,actor,"advance.change_proposed");
@@ -134,6 +159,7 @@ public static class AdvanceRequests
         J.Need(r.S("requestedBy")!=Me(actor),"صاحب الطلب لا يصرفه.",403);var who=OrgDirectory.DemandResponsible(c,tx,actor,Payout(r.S("vaultCode")));
         string reference=input.Required("reference").Trim();J.Need(reference.Length is >2 and <=120,"مرجع الصرف غير صالح.");
         string vault=r.S("vaultCode");decimal amount=r.N("amount");
+        J.Need(Fulfilment(r)!="recharge_card","صرف كارت الشحن من مكنة مدى يحتاج حساب المكنة 112404 (BR §25.9)؛ غير مفعل بعد.",409);
         if(AccountingPolicy.Balance(c,tx,vault)<amount)throw new ApiError("رصيد الخزنة أو البنك غير كافٍ للصرف؛ الطلب يبقى معتمدًا.",409);
         var rider=Store.Get(c,r.S("riderIqama"),"rider",tx)??throw new ApiError("المندوب غير موجود.");string category=Category(r.S("type"));var meta=FinancialCore.ResolveCategory(category);
         var sponsor=FinancialCore.ResolveSponsor(r.S("companyId"));var vaultAcc=FinancialCore.ValidateVaultForOperation(vault,category,"disbursement");var origin=FinancialCore.ResolveSponsor(vaultAcc.DefaultSponsorId);

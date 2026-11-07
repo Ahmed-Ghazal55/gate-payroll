@@ -109,6 +109,7 @@ public static partial class PayCycles
     public static List<JsonObject> Lines(DbConnection c,DbTransaction? tx,string id)=>Store.List(c,LineKind,tx).Where(l=>l.S("cycleId")==id).ToList();
     public static void Map(RouteGroupBuilder api,Store store)
     {
+        MapReview(api,store);
         api.MapGet("/pay/cycles",(HttpContext ctx)=>{AccessPolicy.Demand(ctx.User,"pay.view");string period=ctx.Request.Query["period"].ToString();if(period!="")J.Period(period);return store.Read(c=>ApiPagination.Apply(Store.List(c,Kind).Where(d=>Visible(ctx.User,d)&&(period==""||d.S("period")==period)),ctx.Request.Query,true));}).WithTags("Payroll").WithSummary("Read scoped monthly app cycles and stage history");
         api.MapPost("/pay/cycles",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Create(c,tx,ctx.User,input))).WithTags("Payroll").WithSummary("Review approved invoices and classify company versus account deductions");
         api.MapPost("/pay/cycles/{id}/advance",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Advance(c,tx,ctx.User,id,input))).WithTags("Payroll").WithSummary("Advance one gated stage or independently approve target payroll posting");

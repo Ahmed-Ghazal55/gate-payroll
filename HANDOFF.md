@@ -3,8 +3,17 @@
 | Field | Value |
 |---|---|
 | Current writer | none |
-| Branch | release/0.15.0 → main (Claude, 2026-11-05) |
+| Branch | feat/k-review (Claude K1–K4), from main 0.15.0 |
 | Updated | 2026-11-05 by Claude |
+
+## Wave 2 — Claude K1–K4 (2026-11-07), branch `feat/k-review`
+- K1: config lists API (`ConfigLists.cs`), 6 groups, custom fields, versions, maker-checker for financial groups, seeded defaults (BR §27/§29).
+- K2: internet advance (`type=internet`, fulfilment cash|bank|recharge_card, package price from lists, custody `MADA`). Card payout is 409 until Codex C3.
+- K3: every cycle deduction has phase/order/label; installments taken in phase order; rider summary + statement show gross → commission → phase1 → المستحق الأولي → phase2 → phase3 → net.
+- K4: review grid `GET/POST /api/pay/cycles/{id}/review…` (BR §32); stage 7 needs all rows approved.
+- COA regenerated from the spec: +112404, 421302, 512122 (411 total / 235 posting / new 89). Generator accepts «جديد (BR …)».
+- Verified: .NET 323 passed / 10 skipped (SQL needs Docker). Docs: `docs/api/pay-review.md`.
+- Parallel: Codex `feat/r6b-accounting` (prompt `~/.agents/prompts/codex-R6b-accounting.md`), Antigravity `feat/r6b-ui` (prompt `antigravity-R6b-ui.md`). Antigravity merges `feat/k-review` for A3–A6.
 
 ## Release 0.15.0 (Claude)
 - Merges `feat/r6-erp-pulls` (Codex R6a + fix1 + Hangfire R6j), `feat/r6-ui-qa` (Antigravity R6ui) and `feat/ninja-engine` (Claude N2/N3) on top of 0.14.2.
