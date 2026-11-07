@@ -48,6 +48,7 @@ import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
+import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import type {
   HsInvoice,
   HsDispute,
@@ -1051,7 +1052,7 @@ function PayrollPageInner() {
     { num: 3, title: 'تطبيق الأنظمة الداخلية', desc: 'حساب إجمالي الأجر وفق النظام المعتمد (راتب/عمولة/نسبة) لكل مندوب' },
     { num: 4, title: 'الاستقطاعات والتحملات', desc: 'حسم السلف، المخالفات، المحروقات، باقات النت، والخصومات التشغيلية' },
     { num: 5, title: 'الدمج وتحديد الصافي', desc: 'دمج مستحقات المناديب العاملين على أكثر من تطبيق وفحص الصافي السالب (§22.9.2)' },
-    { num: 6, title: 'الاعتماد المزدوج المستقل', desc: 'مراجعة المدقق المالي المستقل والتوقيع المعتمد (Maker-Checker)' },
+    { num: 6, title: 'مراجعة واعتماد المسير', desc: 'مراجعة أسطر المسير واعتماد المناديب (BR §32) تمهيداً للاعتماد النهائي' },
     { num: 7, title: 'ملف الصرف البنكي والترحيل', desc: 'إصدار ملف CSV لصرف الرواتب وترحيل القيود اليومية للدليل المستهدف' },
   ];
 
@@ -2342,6 +2343,29 @@ function PayrollPageInner() {
                   توجد بنود بصافي سالب أو موانع استحقاق تمنع استمرار التقديم الآلي للدورة دون معالجة صريحة من الإدارة المالية. يرفض الخادم الانتقال للمراحل اللاحقة حتى تسوية الموانع.
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* Stage 6: Payroll Review Grid (BR §32) */}
+          {activeCycle && activeCycle.stage >= 6 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                    مراجعة واعتماد المسير (BR §32)
+                  </h4>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">
+                    جدول مراجعة استحقاقات المناديب وتعديل الأقساط وتسويات الراتب قبل الترحيل والصرف.
+                  </p>
+                </div>
+              </div>
+              <PayrollReviewGrid
+                cycleId={activeCycle.id}
+                onCycleUpdated={() => {
+                  loadCycles();
+                  if (activeCycle) loadCycleLines(activeCycle.id);
+                }}
+              />
             </div>
           )}
 

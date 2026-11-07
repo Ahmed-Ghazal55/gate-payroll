@@ -1122,3 +1122,94 @@ export interface ErpSyncRun {
   counts: ErpSyncCount[];
 }
 
+// =========================================================================
+// R6b / K4: Payroll Review Grid (BR §32)
+// =========================================================================
+export interface PayReviewItem {
+  key: string;
+  phase: number;
+  order: number;
+  labelAr: string;
+  amount: number;
+  editable: boolean;
+  max: number | null;
+  source: string;
+}
+
+export interface PayReviewEdit {
+  key: string;
+  from: number;
+  to: number;
+  reason: string;
+  by: string;
+  at: string;
+}
+
+export interface PayReviewRow {
+  rider: string;
+  name: string;
+  status: 'ready' | 'needs_decision';
+  review: 'pending' | 'approved';
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  gross: number;
+  commission: number;
+  afterCommission: number;
+  phase1: number;
+  preliminaryDue: number;
+  phase2: number;
+  phase3: number;
+  net: number;
+  items: PayReviewItem[];
+  edits: PayReviewEdit[];
+}
+
+export interface PayReviewTotals {
+  riders: number;
+  approved: number;
+  pending: number;
+  needsDecision: number;
+  net: number;
+}
+
+export interface PayReviewResponse {
+  cycle: {
+    id: string;
+    period: string;
+    companyId: string;
+    stage: number;
+    status: string;
+  };
+  totals: PayReviewTotals;
+  rows: PayReviewRow[];
+}
+
+// =========================================================================
+// R6b / K1: Config Lists (BR §27)
+// =========================================================================
+export interface ConfigFieldDef {
+  key: string;
+  labelAr: string;
+  type: 'text' | 'number' | 'select' | 'account' | 'bool';
+  required: boolean;
+  options?: string[];
+}
+
+export interface ConfigListItem {
+  code: string;
+  nameAr: string;
+  active: boolean;
+  values?: Record<string, any>;
+  status?: string;
+  version?: number;
+}
+
+export interface ConfigListGroup {
+  group: string;
+  labelAr: string;
+  financial: boolean;
+  fields: ConfigFieldDef[];
+  items: ConfigListItem[];
+}
+
+

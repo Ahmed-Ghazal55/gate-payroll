@@ -46,6 +46,10 @@ import type {
   OrgResponsibleUser,
   ErpSyncJobStatus,
   ErpSyncRun,
+  PayReviewResponse,
+  PayReviewRow,
+  ConfigListGroup,
+  ConfigFieldDef,
 } from './types';
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
@@ -1347,4 +1351,37 @@ export const api = {
     handleRequest<ErpSyncJobStatus>(`/system/jobs/erp-sync/${encodeURIComponent(jobId)}`),
   getRecentErpSyncRuns: (limit: number = 5) =>
     handleRequest<ErpSyncRun[]>(`/system/erp-sync?limit=${limit}`),
+  getPayCycleReview: (cycleId: string, params?: { review?: string; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.review) q.set('review', params.review);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString();
+    return handleRequest<PayReviewResponse>(`/pay/cycles/${encodeURIComponent(cycleId)}/review${qs ? `?${qs}` : ''}`);
+  },
+  reviewPayCycleRider: (cycleId: string, iqama: string, body: { action: 'approve' } | { action: 'edit'; key: string; amount: number; reason: string } | { action: 'adjust'; amount: number; reason: string }) =>
+    handleRequest<PayReviewRow>(`/pay/cycles/${encodeURIComponent(cycleId)}/review/${encodeURIComponent(iqama)}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  approveAllPayCycleReview: (cycleId: string) =>
+    handleRequest<{ approved: number; skipped: number }>(`/pay/cycles/${encodeURIComponent(cycleId)}/review/approve-all`, {
+      method: 'POST',
+    }),
+  getConfigLists: () => handleRequest<ConfigListGroup[]>('/config/lists'),
+  getConfigListGroup: (group: string) => handleRequest<ConfigListGroup>(`/config/lists/${encodeURIComponent(group)}`),
+  createConfigListItem: (group: string, body: { code: string; nameAr: string; values?: Record<string, any>; active?: boolean }) =>
+    handleRequest<{ ok: boolean }>(`/config/lists/${encodeURIComponent(group)}/items`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  approveConfigListItem: (group: string, code: string) =>
+    handleRequest<{ ok: boolean }>(`/config/lists/${encodeURIComponent(group)}/items/${encodeURIComponent(code)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  addConfigListField: (group: string, body: ConfigFieldDef) =>
+    handleRequest<{ ok: boolean }>(`/config/lists/${encodeURIComponent(group)}/fields`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 };
