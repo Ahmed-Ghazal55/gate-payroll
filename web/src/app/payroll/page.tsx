@@ -49,6 +49,7 @@ import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
 import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
+import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
 import type {
   HsInvoice,
   HsDispute,
@@ -1026,6 +1027,7 @@ function PayrollPageInner() {
   // Section Tabs (Shared across Payroll)
   const sharedSectionTabs: SectionTabItem[] = [
     { id: 'platforms', label: 'منصات التشغيل والفواتير', icon: <Calculator size={16} /> },
+    { id: 'ninja_upload', label: 'رفع فاتورة نينجا', icon: <FileSpreadsheet size={16} /> },
     { id: 'current-cycle', label: 'الدورة الحالية (النظام القائم)', icon: <Layers size={16} />, badge: legacyPreview.length },
     { id: 'cycle', label: 'دورة الرواتب والمسير (0-7)', icon: <RefreshCw size={16} /> },
     { id: 'rules', label: 'محرر الأنظمة والقواعد', icon: <FileText size={16} /> },
@@ -1076,6 +1078,15 @@ function PayrollPageInner() {
         activeTab={mainTab}
         onChange={(tabId) => setMainTab(tabId)}
       />
+
+      {/* ======================================================== */}
+      {/* SECTION: NINJA INVOICE RECONCILE (BR §26, §31)           */}
+      {/* ======================================================== */}
+      {mainTab === 'ninja_upload' && (
+        <div className="space-y-6">
+          <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} />
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* SECTION 0: CURRENT PRODUCTION PAYROLL RUN (F2)          */}
@@ -1691,6 +1702,20 @@ function PayrollPageInner() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Case B: Ninja Settlements Tab (BR §26, §31) */}
+          {selectedPlatform === 'ninja' && appSubTab === 'settlements' && (
+            <div className="space-y-6">
+              <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} />
+            </div>
+          )}
+
+          {/* Fallback for other platforms settlements */}
+          {selectedPlatform !== 'hungerstation' && selectedPlatform !== 'ninja' && appSubTab === 'settlements' && (
+            <div className="p-8 text-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--muted)]">
+              تسويات وفواتير منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr} قيد التطوير والتفعيل.
             </div>
           )}
 
