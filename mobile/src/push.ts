@@ -3,12 +3,38 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { api } from './api';
 import { getActiveFcmToken, setActiveFcmToken, getSession } from './state';
 
+export function routeNotificationLink(link?: string): string {
+  const l = (link || '').toLowerCase();
+  if (l.includes('request') || l.includes('ask')) return 'requests';
+  if (l.includes('statement') || l.includes('payslip')) return 'statement';
+  if (l.includes('debt')) return 'debts';
+  if (l.includes('device') || l.includes('session')) return 'devices';
+  return 'notifications';
+}
+
 export async function initPushNotifications(): Promise<string> {
   if (!Capacitor.isNativePlatform()) {
     return getActiveFcmToken();
   }
 
   try {
+    // Create Android notification channel with Arabic name
+    if (Capacitor.getPlatform() === 'android') {
+      try {
+        await PushNotifications.createChannel({
+          id: 'default',
+          name: 'إشعارات البوابة',
+          description: 'إشعارات التعميمات وطلبات السلف والبيانات المالية',
+          importance: 5,
+          visibility: 1,
+          sound: 'default',
+          vibration: true
+        });
+      } catch (chErr) {
+        console.warn('Could not create notification channel:', chErr);
+      }
+    }
+
     let permStatus = await PushNotifications.checkPermissions();
     if (permStatus.receive === 'prompt') {
       permStatus = await PushNotifications.requestPermissions();
@@ -23,7 +49,7 @@ export async function initPushNotifications(): Promise<string> {
     return new Promise((resolve) => {
       PushNotifications.addListener('registration', async (token) => {
         const fcmToken = token.value;
-        setActiveFcmToken(fcmToken);
+        await setActiveFcmToken(fcmToken);
         const session = getSession();
         if (session?.accessToken) {
           await updateDeviceTokenOnServer(fcmToken);
