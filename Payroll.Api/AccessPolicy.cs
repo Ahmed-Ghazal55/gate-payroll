@@ -136,6 +136,8 @@ public static class AccessPolicy
         if(path=="/api/adjustments")return method=="POST"&&Has("adjustments.create");
         if(path.StartsWith("/api/policies",StringComparison.Ordinal))return method=="GET"?Has("policies.view"):Has("policies.manage");
         if(Get("/api/imports")||path=="/api/template.csv")return Has("imports.view");
+        // K6 Import Center: the catalog and empty templates are read-only for anyone who may import.
+        if(method=="GET"&&(path=="/api/imports/catalog"||path.StartsWith("/api/imports/templates/",StringComparison.Ordinal)))return Has("imports.view");
         if(path.StartsWith("/api/imports/",StringComparison.Ordinal))return method=="POST"&&(path.EndsWith("/commit",StringComparison.Ordinal)?Has("imports.commit"):Has("imports.view"));
         if(path.StartsWith("/api/campaigns",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="DELETE"?Has("forms.delete"):Has("forms.manage");
         if(path.StartsWith("/api/submissions",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="POST"&&(path.EndsWith("/review",StringComparison.Ordinal)||path=="/api/submissions/bulk-approve")&&Has("forms.review");
