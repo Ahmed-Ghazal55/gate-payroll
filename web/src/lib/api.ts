@@ -44,6 +44,8 @@ import type {
   OrgSupervision,
   OrgRouting,
   OrgResponsibleUser,
+  ErpSyncJobStatus,
+  ErpSyncRun,
 } from './types';
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
@@ -1336,4 +1338,13 @@ export const api = {
     const q = new URLSearchParams({ operation });
     return handleRequest<OrgResponsibleUser[]>(`/org/responsible?${q.toString()}`);
   },
+  getHealth: () => handleRequest<{ ok: boolean; jobs?: { enabled: boolean; lastRun?: string; nextRun?: string } }>('/health'),
+  runErpSync: (dryRun: boolean) =>
+    handleRequest<{ jobId: string }>(dryRun ? '/system/jobs/erp-sync/dry-run' : '/system/jobs/erp-sync/run', {
+      method: 'POST',
+    }),
+  getErpSyncJobStatus: (jobId: string) =>
+    handleRequest<ErpSyncJobStatus>(`/system/jobs/erp-sync/${encodeURIComponent(jobId)}`),
+  getRecentErpSyncRuns: (limit: number = 5) =>
+    handleRequest<ErpSyncRun[]>(`/system/erp-sync?limit=${limit}`),
 };

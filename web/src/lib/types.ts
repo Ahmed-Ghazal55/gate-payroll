@@ -1091,3 +1091,34 @@ export interface OrgResponsibleUser {
   department: string;
   rank: string;
 }
+
+export interface ErpSyncCount {
+  kind: string;
+  source: string;
+  new: number;
+  changed: number;
+  unchanged: number;
+  rejected: number;
+}
+
+export interface ErpSyncJobStatus {
+  jobId: string;
+  status: 'queued' | 'running' | 'completed' | 'refused' | 'failed';
+  mode: 'dry_run' | 'commit';
+  queuedAt: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  refusalCode?: string | null;
+  counts: ErpSyncCount[];
+}
+
+export interface ErpSyncRun {
+  id: string;
+  startedAt: string;
+  finishedAt: string;
+  status: 'completed' | 'refused' | 'failed';
+  mode: 'dry_run' | 'commit';
+  refusalCode?: string | null;
+  counts: ErpSyncCount[];
+}
+

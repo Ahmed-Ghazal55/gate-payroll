@@ -16,11 +16,22 @@ import {
   Palette,
   Check,
   CheckCircle,
+  Zap,
+  UserCheck,
+  PlusCircle,
+  Smartphone,
+  FileSpreadsheet,
+  ClipboardCheck,
+  Banknote,
+  FileUp,
+  RefreshCw,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useAuth } from '../../lib/auth-context';
 import type { UserProfile } from '../../lib/types';
 import { NotificationsPanel } from './NotificationsPanel';
 import { GlobalSearchModal } from './GlobalSearchModal';
+import { ErpSyncDrawer } from '../system/ErpSyncDrawer';
 
 function BreadcrumbsNav() {
   const pathname = usePathname();
@@ -95,22 +106,28 @@ export function Header({
   onPeriodChange,
 }: HeaderProps) {
   // Panel and menu open state (strictly one open at a time: R6ui-2)
-  const [openPanel, setOpenPanel] = useState<'notif' | 'theme' | 'user' | null>(null);
+  const [openPanel, setOpenPanel] = useState<'notif' | 'personal_notif' | 'theme' | 'user' | 'shortcuts' | null>(null);
 
-  // User state
-  const [user, setUser] = useState<UserProfile | null>(null);
+  // Auth context for permissions and current user
+  const { can, isAdmin, user } = useAuth();
 
   // Theme state
   const [currentTheme, setCurrentTheme] = useState<'sand' | 'light' | 'dim'>('sand');
 
   // Notifications state
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [personalUnreadCount, setPersonalUnreadCount] = useState<number>(0);
   const [approvalCount, setApprovalCount] = useState<number>(0);
+
+  // ERP Sync Drawer State
+  const [erpSyncDrawerOpen, setErpSyncDrawerOpen] = useState(false);
 
   // Search modal state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
 
   const notifMenuRef = useRef<HTMLDivElement>(null);
+  const personalNotifMenuRef = useRef<HTMLDivElement>(null);
+  const shortcutsMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
 
@@ -122,39 +139,22 @@ export function Header({
     document.documentElement.setAttribute('data-theme', initial);
   }, []);
 
-  // Fetch current user and notification counts
-  useEffect(() => {
-    let mounted = true;
-    api
-      .getMe()
-      .then((u) => {
-        if (mounted) setUser(u);
-      })
-      .catch((err) => {
-        // If 401, redirect to login
-        if (err.status === 401 && typeof window !== 'undefined') {
-          const p = window.location.pathname;
-          if (!p.startsWith('/app/login') && !p.startsWith('/app/setup')) {
-            window.location.href = `/app/login/?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`;
-          }
-        }
-      });
-
-    (async () => {
-      try {
-        const summary = await api.getNotificationsSummary();
-        if (mounted && summary) {
-          setUnreadCount(summary.unreadCount);
-          setApprovalCount(summary.approvalCount);
-        }
-      } catch {
-        // silent initial poll
+  const fetchNotificationSummary = async () => {
+    try {
+      const summary = await api.getNotificationsSummary();
+      if (summary) {
+        setUnreadCount(summary.unreadCount);
+        setPersonalUnreadCount(summary.byCategory?.personal ?? 0);
+        setApprovalCount(summary.approvalCount);
       }
-    })();
+    } catch {
+      // silent initial poll
+    }
+  };
 
-    return () => {
-      mounted = false;
-    };
+  // Initial poll for notification counts
+  useEffect(() => {
+    fetchNotificationSummary();
   }, []);
 
   // Listen for Ctrl+K / Cmd+K
@@ -163,6 +163,9 @@ export function Header({
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         setSearchModalOpen((prev) => !prev);
+      }
+      if (e.key === 'Escape') {
+        setOpenPanel(null);
       }
     }
     window.addEventListener('keydown', handleKeyDown);
@@ -180,6 +183,12 @@ export function Header({
         setOpenPanel(null);
       }
       if (openPanel === 'notif' && notifMenuRef.current && !notifMenuRef.current.contains(target)) {
+        setOpenPanel(null);
+      }
+      if (openPanel === 'personal_notif' && personalNotifMenuRef.current && !personalNotifMenuRef.current.contains(target)) {
+        setOpenPanel(null);
+      }
+      if (openPanel === 'shortcuts' && shortcutsMenuRef.current && !shortcutsMenuRef.current.contains(target)) {
         setOpenPanel(null);
       }
     }
@@ -200,6 +209,75 @@ export function Header({
     } catch (_) {}
     window.location.href = '/app/login/';
   };
+
+  // Calculate general (non-personal) unread count
+  const generalUnreadCount = Math.max(0, unreadCount - personalUnreadCount);
+
+  // Check wildcard / prefix for advance payouts
+  const canPayout =
+    can('advances.payout') ||
+    can('advances.payout:cash') ||
+    can('advances.payout:bank') ||
+    can('advances.payout:card') ||
+    Boolean(user?.permissions && user.permissions.some((p) => p.startsWith('advances.payout')));
+
+  // Shortcuts list gated by can()
+  const shortcutItems = [
+    {
+      id: 'advance-request',
+      label: 'طلب سلفة',
+      href: '/debts/?tab=advance_requests&action=new',
+      icon: <PlusCircle size={15} className="text-[var(--accent)]" />,
+      visible: can('advances.request'),
+    },
+    {
+      id: 'advance-request-net',
+      label: 'طلب سلفة نت',
+      href: '/debts/?tab=advance_requests&action=new_internet',
+      icon: <Smartphone size={15} className="text-[var(--info)]" />,
+      visible: can('advances.request'),
+    },
+    {
+      id: 'manual-journal',
+      label: 'إنشاء قيد محاسبي',
+      href: '/accounting/?action=manual_journal',
+      icon: <FileSpreadsheet size={15} className="text-[var(--warning)]" />,
+      visible: can('finance.journal.create'),
+    },
+    {
+      id: 'advance-review',
+      label: 'مراجعة السلف',
+      href: '/debts/?tab=advance_requests',
+      icon: <ClipboardCheck size={15} className="text-[var(--money-pos)]" />,
+      visible: can('advances.review'),
+    },
+    {
+      id: 'advance-payout',
+      label: 'صرف السلف',
+      href: '/treasury/?tab=advance_payouts',
+      icon: <Banknote size={15} className="text-[var(--accent)]" />,
+      visible: canPayout,
+    },
+    {
+      id: 'ninja-upload',
+      label: 'رفع فاتورة نينجا',
+      href: '/payroll/?tab=ninja_upload',
+      icon: <FileUp size={15} className="text-[var(--info)]" />,
+      visible: can('pay.view'),
+    },
+    {
+      id: 'erp-sync',
+      label: 'تحديث البيانات من ERP',
+      onClick: () => {
+        setOpenPanel(null);
+        setErpSyncDrawerOpen(true);
+      },
+      icon: <RefreshCw size={15} className="text-[var(--accent)]" />,
+      visible: can('erp.sync.run'),
+    },
+  ];
+
+  const visibleShortcuts = shortcutItems.filter((s) => s.visible);
 
   return (
     <>
@@ -284,19 +362,99 @@ export function Header({
             </Link>
           )}
 
-          {/* Notifications Bell */}
+          {/* Shortcuts Menu Button */}
+          {visibleShortcuts.length > 0 && (
+            <div className="relative" ref={shortcutsMenuRef}>
+              <button
+                type="button"
+                onClick={() => setOpenPanel((prev) => (prev === 'shortcuts' ? null : 'shortcuts'))}
+                aria-label="قائمة الاختصارات السريعة"
+                aria-expanded={openPanel === 'shortcuts'}
+                className={`p-2 rounded-xl text-[var(--ink)] hover:bg-[var(--raised)] transition ${
+                  openPanel === 'shortcuts' ? 'bg-[var(--raised)] text-[var(--accent)]' : ''
+                }`}
+              >
+                <Zap size={18} />
+              </button>
+
+              {openPanel === 'shortcuts' && (
+                <div className="absolute end-0 mt-2 w-56 rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] shadow-2xl py-2 z-40 text-xs font-medium animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3.5 py-1 text-[11px] font-bold text-[var(--muted)] border-b border-[var(--line)] mb-1 flex items-center justify-between">
+                    <span>اختصارات سريعة</span>
+                    <kbd className="text-[9px] font-mono bg-[var(--raised)] px-1.5 py-0.5 rounded text-[var(--muted)]">سريع</kbd>
+                  </div>
+                  <div className="py-1">
+                    {visibleShortcuts.map((item) =>
+                      item.href ? (
+                        <Link
+                          key={item.id}
+                          href={item.href}
+                          onClick={() => setOpenPanel(null)}
+                          className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-[var(--row-hover)] transition text-[var(--ink)] font-semibold"
+                        >
+                          {item.icon}
+                          <span>{item.label}</span>
+                        </Link>
+                      ) : (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={item.onClick}
+                          className="flex w-full items-center gap-2.5 px-3.5 py-2 hover:bg-[var(--row-hover)] transition text-start text-[var(--ink)] font-semibold"
+                        >
+                          {item.icon}
+                          <span>{item.label}</span>
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Personal Notifications Button */}
+          <div className="relative" ref={personalNotifMenuRef}>
+            <button
+              type="button"
+              onClick={() => setOpenPanel((prev) => (prev === 'personal_notif' ? null : 'personal_notif'))}
+              aria-label="إشعاراتي الشخصية"
+              aria-expanded={openPanel === 'personal_notif'}
+              className={`relative p-2 rounded-xl text-[var(--ink)] hover:bg-[var(--raised)] transition ${
+                openPanel === 'personal_notif' ? 'bg-[var(--raised)] text-[var(--accent)]' : ''
+              }`}
+            >
+              <UserCheck size={18} />
+              {personalUnreadCount > 0 && (
+                <span className="num absolute top-1 start-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--accent)] text-[9px] font-bold text-[var(--accent-ink)] px-1">
+                  {personalUnreadCount}
+                </span>
+              )}
+            </button>
+
+            <NotificationsPanel
+              open={openPanel === 'personal_notif'}
+              onClose={() => setOpenPanel(null)}
+              filterCategory="personal"
+              onUnreadCountChange={() => fetchNotificationSummary()}
+            />
+          </div>
+
+          {/* General Notifications Bell */}
           <div className="relative" ref={notifMenuRef}>
             <button
               type="button"
               onClick={() => setOpenPanel((prev) => (prev === 'notif' ? null : 'notif'))}
-              aria-label="الإشعارات"
+              aria-label="الإشعارات العامة"
               aria-expanded={openPanel === 'notif'}
-              className="relative p-2 rounded-xl text-[var(--ink)] hover:bg-[var(--raised)] transition"
+              className={`relative p-2 rounded-xl text-[var(--ink)] hover:bg-[var(--raised)] transition ${
+                openPanel === 'notif' ? 'bg-[var(--raised)] text-[var(--accent)]' : ''
+              }`}
             >
               <Bell size={18} />
-              {unreadCount > 0 && (
+              {generalUnreadCount > 0 && (
                 <span className="num absolute top-1 start-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--danger)] text-[9px] font-bold text-white px-1">
-                  {unreadCount}
+                  {generalUnreadCount}
                 </span>
               )}
             </button>
@@ -304,7 +462,8 @@ export function Header({
             <NotificationsPanel
               open={openPanel === 'notif'}
               onClose={() => setOpenPanel(null)}
-              onUnreadCountChange={setUnreadCount}
+              filterCategory="non-personal"
+              onUnreadCountChange={() => fetchNotificationSummary()}
             />
           </div>
 
@@ -428,6 +587,12 @@ export function Header({
       <GlobalSearchModal
         open={searchModalOpen}
         onClose={() => setSearchModalOpen(false)}
+      />
+
+      {/* ERP Sync Drawer */}
+      <ErpSyncDrawer
+        open={erpSyncDrawerOpen}
+        onClose={() => setErpSyncDrawerOpen(false)}
       />
     </>
   );
