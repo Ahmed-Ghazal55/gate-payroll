@@ -163,6 +163,7 @@ FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
 FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);
 TreasuryEntries.Map(api,store);
 ManualJournals.Map(api,store);
+MadaAccounting.Map(api,store);
 JahezTreasury.Map(api,store);
 LegacyCashAllocation.Map(api,store);
 JahezHandovers.Map(api,store);

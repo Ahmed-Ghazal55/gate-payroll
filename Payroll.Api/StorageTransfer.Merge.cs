@@ -17,7 +17,7 @@ public static partial class StorageTransfer
     static readonly HashSet<string> PayrollFields = new(StringComparer.Ordinal)
     {"iban","ibanChoice","ibanSource","ibanVerified","bankName","bankCode","accountName","selectedIban","financeSponsorId","policy","policyId","payPolicy","paySchemeId","payrollPolicy","salary","salaryType","salarySystem","odooVoucherNo"};
     static readonly HashSet<string> PayrollKinds = new(StringComparer.Ordinal)
-    {"user","setting","debt","debt_settlement","debt_transfer","journal","ledger","run","campaign","submission","custom_form","custom_response","form","pay_cycle","pay_cycle_line","pay_terms","pay_scheme","pay_setting","pay_assignment","pay_eligibility","advance_request","rider_ask","accounting_period","opening_reconciliation","promissory_note","rider_credit","platform_invoice","platform_invoice_line","platform_invoice_action","platform_dispute","platform_allocation","platform_deduction"};
+    {"user","setting","debt","debt_settlement","debt_transfer","journal","ledger","run","campaign","submission","custom_form","custom_response","form","pay_cycle","pay_cycle_line","pay_terms","pay_scheme","pay_setting","pay_assignment","pay_eligibility","advance_request","rider_ask","accounting_period","opening_reconciliation","promissory_note","rider_credit","platform_invoice","platform_invoice_line","platform_invoice_action","platform_dispute","platform_allocation","platform_deduction","finance_adjustment","financial_attachment","payment_voucher"};
 
     public static JsonArray ReadSnapshot(DbConnection c, DbTransaction? tx=null)
     {

@@ -9,7 +9,7 @@ public sealed class ReportingTests
     [TestMethod]
     public void RequestedTablesHaveTypedMoneyDatesAndIndexedRelationColumns()
     {
-        foreach(string name in new[]{"Riders","Companies","PlatformAccounts","AccountAssignments","Vehicles","VehicleAssignments","Debts","DebtSettlements","JournalLines","PayCycleLines","PlatformInvoices","PlatformInvoiceLines","Accounts"})Assert.IsTrue(Reporting.Tables.Any(t=>t.Name==name));Assert.AreEqual("decimal(19,4)",Reporting.Tables.Single(t=>t.Name=="JournalLines").Extra.Single(c=>c.Name=="Debit").SqlType);Assert.AreEqual("datetimeoffset(7)",Reporting.Tables.Single(t=>t.Name=="AccountAssignments").Extra.Single(c=>c.Name=="FromAt").SqlType);Assert.AreEqual(408,Reporting.Project(Reporting.Chart()).Count);
+        foreach(string name in new[]{"Riders","Companies","PlatformAccounts","AccountAssignments","Vehicles","VehicleAssignments","Debts","DebtSettlements","JournalLines","PayCycleLines","PlatformInvoices","PlatformInvoiceLines","Accounts"})Assert.IsTrue(Reporting.Tables.Any(t=>t.Name==name));Assert.AreEqual("decimal(19,4)",Reporting.Tables.Single(t=>t.Name=="JournalLines").Extra.Single(c=>c.Name=="Debit").SqlType);Assert.AreEqual("datetimeoffset(7)",Reporting.Tables.Single(t=>t.Name=="AccountAssignments").Extra.Single(c=>c.Name=="FromAt").SqlType);Assert.AreEqual(411,Reporting.Project(Reporting.Chart()).Count);
     }
     [TestMethod]
     public void SharedAccountProducesActualAssignmentsWithoutOwnerFallbackOrSecretColumns()

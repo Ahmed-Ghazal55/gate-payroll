@@ -191,14 +191,14 @@ try {
   await coaTab.click();
   await page.locator('.table-wrap table').waitFor();
 
-  // Verify stats cards: total 408, posting 232, header 176, sources: excel 294 / modified 28 / new 86
+  // Verify stats cards: total 411, posting 235, header 176, sources: excel 294 / modified 28 / new 89
   const statsValues = await page.locator('.stats .stat strong').allInnerTexts();
-  assert.equal(statsValues[0].trim(), '408', 'Total accounts must be 408');
-  assert.equal(statsValues[1].trim(), '232', 'Posting accounts must be 232');
+  assert.equal(statsValues[0].trim(), '411', 'Total accounts must be 411');
+  assert.equal(statsValues[1].trim(), '235', 'Posting accounts must be 235');
   assert.equal(statsValues[2].trim(), '176', 'Header accounts must be 176');
   assert.ok(statsValues[3].includes('294'), 'Excel source count must be 294');
   assert.ok(statsValues[3].includes('28'), 'Modified source count must be 28');
-  assert.ok(statsValues[3].includes('86'), 'New source count must be 86');
+  assert.ok(statsValues[3].includes('89'), 'New source count must be 89');
 
   // Verify source badges: header/posting, nature, type, direction
   const rows = page.locator('tbody tr.coa-row');
@@ -223,7 +223,7 @@ try {
   await searchInput.fill('الصندوق الرئيسي');
   await page.waitForTimeout(100);
   const searchRowCount = await page.locator('tbody tr.coa-row').count();
-  assert.ok(searchRowCount >= 1 && searchRowCount < 408, 'Search filters accounts');
+  assert.ok(searchRowCount >= 1 && searchRowCount < 411, 'Search filters accounts');
   const searchRowTexts = await page.locator('tbody tr.coa-row').allInnerTexts();
   assert.ok(searchRowTexts.some(t => t.includes('الصندوق الرئيسي')), 'Matching account is present');
 

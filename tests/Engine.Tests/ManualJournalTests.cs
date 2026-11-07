@@ -34,6 +34,12 @@ public sealed class ManualJournalTests
         var reviewer=Actor("synthetic-reviewer","Reviewer");Assert.IsFalse(AccessPolicy.Allowed(reviewer,"POST","/api/finance/journals/manual",Input()));
     }
     [TestMethod]
+    public void CompanyJournalPermissionDoesNotGrantAnUnassignedActualBankAccount()
+    {
+        using var f=new HungerStationInvoiceTests.Fixture();var actor=UserAccess.Principal(new JsonObject{["username"]="synthetic-scoped-finance",["role"]="FinancialAccountant",["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(Company),["accountCodes"]=new JsonArray(),["platforms"]=new JsonArray("Ninja"),["categoryCodes"]=new JsonArray()}});var input=Input();input["lines"]![0]!["accountCode"]="111201";
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>ManualJournals.Create(c,tx,actor,input)));Assert.IsFalse(MadaAccounting.Visible(actor,new(){["companyId"]=Company,["type"]="mada_topup"}));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,ManualJournals.Kind).Count));
+    }
+    [TestMethod]
     public void OpenPeriodReversalRequiresNewIndependentApprovalAndNeverChangesOriginalJournal()
     {
         using var f=new HungerStationInvoiceTests.Fixture();var draft=f.Store.Write((c,tx)=>ManualJournals.Create(c,tx,Actor(),Input()));var approved=f.Store.Write((c,tx)=>ManualJournals.Approve(c,tx,Actor("synthetic-checker"),draft.S("id")));string original=approved.S("journalEntryId"),before=f.Store.Read(c=>Store.Get(c,original,"journal"))!.ToJsonString();

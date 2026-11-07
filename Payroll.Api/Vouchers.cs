@@ -15,13 +15,13 @@ public static class Vouchers
         // Provisioned by Ghazal in server settings. Never persisted, returned or logged.
         signingKey=string.IsNullOrEmpty(secret)?null:secret.Length is >=32 and <=256?Encoding.UTF8.GetBytes(secret):throw new InvalidOperationException("Vouchers secret must have32–256characters.");
     }
-    static readonly HashSet<string> Kinds=["journal","manual_journal","advance_request","debt_settlement","ledger","payment_voucher","platform_invoice","debt"];
+    static readonly HashSet<string> Kinds=["journal","manual_journal","advance_request","debt_settlement","ledger","payment_voucher","platform_invoice","debt","finance_adjustment"];
     static string Hash(string value)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     public static string Url(string number)=>"/api/vouchers/verify/"+Uri.EscapeDataString(number);
     static string Company(JsonObject doc)=>doc.S("companyId",doc.S("collectionSponsorId",doc.S("sponsorId",doc.S("transactionType")!=""?doc.S("originSponsorId"):doc.S("creditorSponsorId",doc.S("originSponsorId")))));
     static string? Type(string kind,JsonObject doc)=>kind switch
     {"debt" when AccountingEvents.IsAdvance(doc.S("category"))&&doc.S("entryMode")=="Disbursement"&&doc.S("advanceRequestId")==""=>"AV",
-        "journal" or "manual_journal" or "platform_invoice"=>"JV","advance_request"=>"AV","debt_settlement"=>doc.S("method")=="payroll_deduction"?"JV":"RV","payment_voucher"=>"PV","ledger" when doc.S("kind")=="payment"=>"PV",_=>null};
+        "journal" or "manual_journal" or "platform_invoice" or "finance_adjustment"=>"JV","advance_request"=>"AV","debt_settlement"=>doc.S("method")=="payroll_deduction"?"JV":"RV","payment_voucher"=>"PV","ledger" when doc.S("kind")=="payment"=>"PV",_=>null};
     static string Year(JsonObject doc)
     {
         string raw=doc.S("date",doc.S("collectionDate",doc.S("createdAt",doc.S("period"))));
@@ -90,6 +90,7 @@ public static class Vouchers
             string company=Company(doc);if(!FinancialScopes.Sponsor(actor,company))continue;
             bool visible=kind switch
             {
+                "finance_adjustment"=>(AccessPolicy.Has(actor,ManualJournals.CreatePermission)||AccessPolicy.Has(actor,ManualJournals.ApprovePermission))&&MadaAccounting.Visible(actor,doc),
                 "manual_journal"=>(AccessPolicy.Has(actor,ManualJournals.CreatePermission)||AccessPolicy.Has(actor,ManualJournals.ApprovePermission))&&doc["lines"]!.AsArray().OfType<JsonObject>().All(l=>FinancialScopes.TargetAccount(actor,company,l.S("accountCode"))),
                 "journal"=>AccessPolicy.Has(actor,"treasury.journals")&&FinancialScopes.Journal(actor,doc)!=null,
                 "advance_request"=>AdvanceRequests.CanSee(c,actor,doc),

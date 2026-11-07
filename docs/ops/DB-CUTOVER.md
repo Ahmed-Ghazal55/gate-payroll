@@ -72,7 +72,7 @@ Require `verified=true`, `missing=0`, `changed=0`, `receiptPresent=true`. The CL
 
 Then **Ghazal**, MonsterASP → Scripting → Environment variables:
 
-1. Set `ConnectionStrings__DefaultConnection` to the reviewed payroll SQL value and, if enabling jobs later, `ConnectionStrings__Jobs` to **the same server and db77738**. Never paste values into tickets/commits. Keep `Jobs__Enabled=false` during verification.
+1. Set `ConnectionStrings__DefaultConnection` to the reviewed payroll SQL value and, if enabling jobs later, `ConnectionStrings__Jobs` to **the same server and db77738**. Never paste values into tickets/commits. Keep `Jobs__Enabled=false` during verification. Provision a new random32–256character `Vouchers__Secret` in server environment settings before enabling financial writes; no agent reads it.
 2. Keep `App_Data`, Data Protection keys, SQLite, WAL/SHM and local settings untouched. The original SQLite file is the rollback source.
 3. Restart the site in the panel, then remove only the owned maintenance marker and check health:
 

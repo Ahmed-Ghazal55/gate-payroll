@@ -45,7 +45,7 @@ public static class AccountingPolicy
         }
         return account;
     }
-    public static decimal Balance(DbConnection c,DbTransaction? tx,string accountCode)=>J.Money(Store.List(c,"journal",tx).SelectMany(j=>(j["lines"] as JsonArray)?.OfType<JsonObject>()??[]).Where(l=>l.S("accountCode")==accountCode).Sum(l=>l.N("debit")-l.N("credit")));
+    public static decimal Balance(DbConnection c,DbTransaction? tx,string accountCode)=>J.Money(Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>(j["lines"] as JsonArray)?.OfType<JsonObject>()??[]).Where(l=>l.S("accountCode")==accountCode||l.S("legacyVaultCode")==accountCode).Sum(l=>l.N("debit")-l.N("credit")));
     public static void RequireAvailable(decimal balance,decimal amount){J.Need(amount>=0&&amount==J.Money(amount)&&amount<=Math.Max(0,balance),"المبلغ يتجاوز الرصيد الفعلي المتاح؛ لا يمكن إنشاء رصيد بتحويل أو تسليم.");}
     public static void ValidateCompanyTransfer(FinancialCore.AccountDef from,FinancialCore.AccountDef to)
     {

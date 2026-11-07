@@ -24,7 +24,7 @@ def parse_source(value):
         return "excel"
     if value in {"Excel معدّل", "Excel معدل"} or value.partition(" ")[0] == "منقول":
         return "modified"
-    if value == "جديد":
+    if value.partition(" ")[0] == "جديد":
         return "new"
     raise ValueError("Unknown COA source")
 
@@ -98,7 +98,7 @@ def generate(source):
         mapping.append(dict(currentCode=cells[0].strip("`"), targetCodes=targets, ruleAr=cells[2], noteAr=cells[3]))
     if not mapping or len({m["currentCode"] for m in mapping}) != len(mapping):
         raise ValueError("Missing or duplicate mapping")
-    return {"schemaVersion": 1, "version": "2026-11-04.2", "source": "gate-finance-spec/docs/02-chart-of-accounts.md §§1,4,6; BUSINESS_RULES §§20,22,23,24",
+    return {"schemaVersion": 1, "version": "2026-11-07.1", "source": "gate-finance-spec/docs/02-chart-of-accounts.md §§1,4,6; BUSINESS_RULES §§20,22,23,24,25.9,29",
             "accounts": accounts, "mapping": mapping}
 
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
+using Payroll;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 [TestClass]
@@ -67,6 +68,11 @@ public sealed class TargetCoaGeneratorTests
         Assert.IsFalse(row["posting"]!.GetValue<bool>());
     }
 
+    [TestMethod]
+    public async Task NewAccountSourceCanRetainAnApprovedRuleAnnotation()
+    {
+        var result=await Generate(Leaf("11","فعال","جديد (BR §29)"),1,0,0,1,1);Assert.AreEqual(0,result.Code,result.Error);var row=result.Resource!["accounts"]![1]!.AsObject();Assert.AreEqual("new",row.S("source"));Assert.AreEqual("جديد (BR §29)",row.S("sourceNote"));
+    }
     [TestMethod]
     public async Task SourceClassifiesExcelNewModifiedAndMovedWithoutLosingOriginalText()
     {

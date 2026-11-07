@@ -28,11 +28,11 @@ chmod 700 ~/Private ~/Private/gate-data ~/Private/gate-data/sync-logs
 chmod 600 ~/Private/gate-data/erp-readonly.env ~/Private/gate-data/staging.env
 ```
 
-The agent never reads or prints these files. Do not put their contents in shell arguments, units, Git, screenshots or journal output. The importer opens ERP only as `db67927_readonly` with ReadOnly intent and verifies its DB permissions; the target guard accepts only staging `db77738`.
+The agent never reads or prints these files. Do not put their contents in shell arguments, units, Git, screenshots or journal output. The importer opens ERP only as `db67927_readonly` with ReadOnly intent and verifies its DB permissions; the target guard accepts only payroll database `db77738`.
 
 ## Network rules and SQL allowlists
 
-Ask both SQL hosting providers to allow the new VPS public IP for ERP and staging SQL Server. Ghazal verifies the two SQL host/IP mappings and adds persistent resolution (for example `/etc/hosts`) before denying outbound DNS. Keep the connection host names so TLS validation still uses the intended host. Ensure the firewall permits only outbound TCP 1433 to those two approved IPs, plus inbound SSH from the administrator's IP. Preserve the SSH management connection while applying rules. Example UFW policy, with the three IP variables supplied by Ghazal:
+Ask both SQL hosting providers to allow the new VPS public IP for ERP and payroll database SQL Server. Ghazal verifies the two SQL host/IP mappings and adds persistent resolution (for example `/etc/hosts`) before denying outbound DNS. Keep the connection host names so TLS validation still uses the intended host. Ensure the firewall permits only outbound TCP 1433 to those two approved IPs, plus inbound SSH from the administrator's IP. Preserve the SSH management connection while applying rules. Example UFW policy, with the three IP variables supplied by Ghazal:
 
 ```bash
 sudo ufw default deny incoming
@@ -65,7 +65,7 @@ The service assumes the published importer at `~/gate-sync/ErpImport.dll`. The t
 
 ## Records, refusals and stopping
 
-Each committed-mode live run appends one `erp_sync_run` containing start/end/status, counts per kind and a fixed refusal code. A refused run writes no domain source documents; the only staging additions are its counts record and an administrator-only approvals notification. Dry-runs (including this task before «حمّل») write private file logs only, never staging telemetry or schema changes. If staging itself is unavailable, the private file log remains the diagnostic fallback and the command fails.
+Each committed-mode live run appends one `erp_sync_run` containing start/end/status, counts per kind and a fixed refusal code. A refused run writes no domain source documents; the only payroll database additions are its counts record and an administrator-only approvals notification. Dry-runs (including this task before «حمّل») write private file logs only, never payroll database telemetry or schema changes. If payroll database itself is unavailable, the private file log remains the diagnostic fallback and the command fails.
 
 Administrators can read `GET /api/system/erp-sync?limit=20` (`1..100`). Other roles get 403; responses project only the documented count fields. Both modern and legacy inbox paths enforce the administrator audience. No source rows, people, financial amounts, source fingerprints or connection values enter the run record.
 

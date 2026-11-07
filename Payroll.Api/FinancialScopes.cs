@@ -70,6 +70,8 @@ public static class FinancialScopes
     {
         if(!Sponsor(user,company)||!FinanceViews.Accounts.Any(a=>a.S("code")==code&&a.B("posting")&&a.S("status")=="active"))return false;
         if(AccessPolicy.Administrator(user))return true;
+        if(FinanceViews.Accounts.Single(a=>a.S("code")==code).S("type")=="bank")
+        {string vault="BANK."+FinancialCore.ResolveSponsor(company).Code+(code=="111204"?".JAHEZ":"");return Account(user,vault);}
         var platform=PayPlatforms.Table.FirstOrDefault(p=>p.Receivable==code||p.Principal==code||p.Agent==code);
         if(platform!=null&&!Platform(user,platform.Platform))return false;
         var vaults=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault&&a.DefaultSponsorId==company&&FinanceViews.MapAccount(new(){["accountCode"]=a.Code},new(),null,null,null)==code).ToList();
@@ -79,7 +81,7 @@ public static class FinancialScopes
     public static bool Line(ClaimsPrincipal user,JsonObject line)
     {
         if(!Sponsor(user,line.S("sponsorId")))return false;
-        if(line.B("manual"))return TargetAccount(user,line.S("sponsorId"),line.S("accountCode"));
+        if(line.B("manual")||line.B("structuredFinance"))return TargetAccount(user,line.S("sponsorId"),line.S("accountCode"));
         if(line.S("chart")=="target")return AccessPolicy.Has(user,"treasury.journals")&&(line["platforms"] is JsonArray apps&&apps.Count>0?apps.All(p=>Platform(user,p!.ToString())):Platform(user,line.S("platform","HungerStation")))&&FinanceViews.Accounts.Any(a=>a.S("code")==line.S("accountCode")&&a.B("posting")&&a.S("status")=="active");
         return FinancialCore.ResolveAccount(line.S("accountCode")).IsVault?Account(user,line.S("accountCode")):AccessPolicy.Has(user,"treasury.journals");
     }

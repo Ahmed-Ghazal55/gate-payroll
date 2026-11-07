@@ -38,12 +38,12 @@ public sealed class FinanceViewsTests
     [TestMethod] public void GeneratedChartHasUniqueCodesValidParentsAndPostingLeaves()
     {
         var resource=FinanceViews.TargetChart();Assert.AreEqual(1m,resource.N("schemaVersion"));
-        var accounts=resource["accounts"]!.AsArray().OfType<JsonObject>().ToArray();Assert.AreEqual(408,accounts.Length);Assert.AreEqual(232,accounts.Count(a=>a.B("posting")&&a.S("status")=="active"));
-        Assert.AreEqual(294,accounts.Count(a=>a.S("source")=="excel"));Assert.AreEqual(28,accounts.Count(a=>a.S("source")=="modified"));Assert.AreEqual(86,accounts.Count(a=>a.S("source")=="new"));
+        var accounts=resource["accounts"]!.AsArray().OfType<JsonObject>().ToArray();Assert.AreEqual(411,accounts.Length);Assert.AreEqual(235,accounts.Count(a=>a.B("posting")&&a.S("status")=="active"));
+        Assert.AreEqual(294,accounts.Count(a=>a.S("source")=="excel"));Assert.AreEqual(28,accounts.Count(a=>a.S("source")=="modified"));Assert.AreEqual(89,accounts.Count(a=>a.S("source")=="new"));
         foreach(var account in accounts)foreach(string field in new[]{"source","sourceNote","statusNote","subledger"})Assert.IsTrue(account.ContainsKey(field));
         var codes=accounts.Select(a=>a.S("code")).ToHashSet();Assert.AreEqual(accounts.Length,codes.Count);
         foreach(var account in accounts){if(account["parent"]!=null)Assert.IsTrue(codes.Contains(account.S("parent")));if(account.B("posting"))Assert.IsFalse(accounts.Any(a=>a.S("parent")==account.S("code")));}
-        resource["accounts"]=new JsonArray();Assert.AreEqual(408,FinanceViews.TargetChart()["accounts"]!.AsArray().Count);
+        resource["accounts"]=new JsonArray();Assert.AreEqual(411,FinanceViews.TargetChart()["accounts"]!.AsArray().Count);
     }
     [TestMethod] public void TrialBalancesRollUpAndKeepAmbiguousAndUnknownCodesPerCompanyWithoutWrites()
     {

@@ -86,6 +86,8 @@ public static class AccessPolicy
             if(path.EndsWith("/transfer-sponsor",StringComparison.Ordinal))return method=="POST"&&Has("debts.transfer_sponsor");
             return method=="PUT"&&Has("debts.reschedule");
         }
+        if(path=="/api/finance/mada/balance")return method=="GET"&&(Has("advances.payout")||Has("treasury.view"));
+        if(path=="/api/finance/accounting-adjustments"||path.StartsWith("/api/finance/accounting-adjustments/",StringComparison.Ordinal))return method=="GET"?Has("finance.journal.create"):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
         if(path=="/api/finance/journals/manual"||path.StartsWith("/api/finance/journals/manual/",StringComparison.Ordinal))
             return method=="GET"?(Has("finance.journal.create")||Has("finance.journal.approve")):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
         if(path.StartsWith("/api/finance/statement/rider/",StringComparison.Ordinal)&&path.EndsWith("/monthly",StringComparison.Ordinal))return method=="GET"&&Has("pay.view")&&Has("payroll.view")&&Has("debts.view");

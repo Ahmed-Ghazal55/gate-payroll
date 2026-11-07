@@ -77,7 +77,7 @@ public static class OrgDirectory
     public static JsonObject AddRouting(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)
     {
         Manage(actor);string op=Op(input.Required("operation")),department=Department(input.Required("department"));int min=RankLevel(input.S("minRank","C"));
-        if(op.StartsWith("advance.payout:",StringComparison.Ordinal)){string vault=op["advance.payout:".Length..];J.Need(FinancialCore.ChartOfAccounts.Any(a=>a.Code==vault&&a.IsVault),"الخزنة أو البنك غير موجود.");}
+        if(op.StartsWith("advance.payout:",StringComparison.Ordinal)){string vault=op["advance.payout:".Length..];J.Need(vault=="MADA"||FinancialCore.ChartOfAccounts.Any(a=>a.Code==vault&&a.IsVault),"الخزنة أو البنك غير موجود.");}
         var users=input["users"] as JsonArray??throw new ApiError("حدد المسؤولين بأسمائهم.");J.Need(users.Count is >0 and <=20,"عدد المسؤولين غير صالح.");
         var clean=new JsonArray();foreach(var u in users.Select(x=>x?.ToString()??"").Distinct())clean.Add(User(c,tx,u));
         string from=Date(input,"validFrom",Today()),to=Date(input,"validTo");Span(from,to);

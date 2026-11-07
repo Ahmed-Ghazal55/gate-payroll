@@ -14,6 +14,8 @@ static void SavePrivate(string file,JsonNode value)
     string full=Path.GetFullPath(file),dir=Path.GetDirectoryName(full)!;
     string allowed=Path.GetFullPath(Environment.GetEnvironmentVariable("PAYROLL_CUTOVER_DIR")??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Private/gate-data/cutover"));
     if(!full.StartsWith(allowed+Path.DirectorySeparatorChar,StringComparison.Ordinal))throw new InvalidOperationException();
+    for(var ancestor=new DirectoryInfo(dir);ancestor!=null;ancestor=ancestor.Parent)
+        if(File.Exists(Path.Combine(ancestor.FullName,".git"))||Directory.Exists(Path.Combine(ancestor.FullName,".git")))throw new InvalidOperationException("Private cutover files cannot be written inside a repository.");
     Directory.CreateDirectory(dir);if(!OperatingSystem.IsWindows())File.SetUnixFileMode(dir,UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute);
     using var f=new FileStream(full,FileMode.CreateNew,FileAccess.Write,FileShare.None);
     if(!OperatingSystem.IsWindows())File.SetUnixFileMode(full,UnixFileMode.UserRead|UnixFileMode.UserWrite);
