@@ -3,8 +3,15 @@
 | Field | Value |
 |---|---|
 | Current writer | none |
-| Branch | release/0.16.0 (integration of feat/k-review + feat/r6b-ui + feat/r6b-accounting) |
-| Updated | 2026-11-07 by Claude |
+| Branch | feat/r6c-ui (from feat/import-center) |
+| Updated | 2026-11-07 by Antigravity |
+
+## R6c UI — Antigravity (2026-11-07), branch `feat/r6c-ui`
+All tasks from `~/.agents/prompts/antigravity-R6c-import-center.md` completed and verified:
+- **I1 («مركز الاستيراد» Page `/app/imports`):** Done (`ce232d9`). Dynamic data from `GET /api/imports/catalog` (no hard-coded steps/columns). Vertical stepper with 3 groups: التأسيس (1-2), الأرصدة الافتتاحية (3-5), المنصات (6-12: Ninja, Keeta, HungerStation, Chefz; invoice then operations). Cards include order #, labelAr, purposeAr, dependsOn links, noteAr, permission badge, and status chip (ready, template_only, planned, erp). Template download with auth cookie and filename from Content-Disposition. Columns viewer drawer. Upload flows: xlsx, json-rows (in-browser parser), platform-file links, and ERP sync drawer. Gated by `can(step.permission)` for upload, `imports.view` for download. Added to Sidebar and Header shortcuts.
+- **I2 (Empty, Loading, Error and Warning States):** Done (`ce232d9`). Skeleton cards for loading, Arabic error state with retry, soft dependency warning banner when earlier steps are not imported yet.
+- **I3 (Playwright Suite `web/tests/import-center.mjs` & Visual Verification):** Done (`916d0eb`). Verified catalog order (companies first, ops order Ninja → Keeta → HungerStation → Chefz), template downloads status 200 with xlsx mime, columns drawer opens/closes (Escape & outside click), zero horizontal scroll at 360px, Supervisor sees no upload buttons, synthetic riders xlsx preview flow displays preview table. Screenshots saved in `test-results/r6c-ui/`.
+- **Verification:** `npm run build` (PASS), `python3 scripts/package_web.py` (PASS), all CI browser tests PASS (`sessions-ui`, `rider-app-ui`, `rider-asks-ui`, `finance-views-ui`, `browser`, `import-center`).
 
 ## R6c — Claude K5–K7 (2026-11-07), branch `feat/import-center` (from release/0.16.0)
 - K6: `GET /api/imports/catalog` + `GET /api/imports/templates/{companies|operations-ninja|operations-keeta|operations-hungerstation}` (imports.view). Ordered steps companies → riders → opening treasury → opening debts → bulk collect → Ninja/Keeta/HS invoice+operations → Chefz (ERP). Debt/treasury template columns moved to shared statics (no behaviour change). Docs `docs/api/imports-catalog.md`. .NET 371/371 (SQL Docker, 0 skipped).
