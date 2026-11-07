@@ -535,7 +535,7 @@ export function ManualJournalsPanel({
           <select
             value={selectedCompanyFilter}
             onChange={(e) => setSelectedCompanyFilter(e.target.value)}
-            className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold focus:outline-hidden"
+            className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
           >
             <option value="all">كل الشركات والكفلاء</option>
             {companies.map((c) => (
@@ -764,7 +764,7 @@ export function ManualJournalsPanel({
                 value={newCompanyId}
                 onChange={(e) => setNewCompanyId(e.target.value)}
                 required
-                className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold focus:outline-hidden"
+                className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
               >
                 <option value="">-- اختر الشركة --</option>
                 {companies.map((c) => (

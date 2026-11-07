@@ -575,7 +575,7 @@ function RiderAppAdminPageInner() {
               <select
                 value={broadcastCategory}
                 onChange={(e) => setBroadcastCategory(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
                 <option value="operational">تشغيلي وميداني</option>
                 <option value="financial">مالي ومستحقات</option>

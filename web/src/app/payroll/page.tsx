@@ -2915,7 +2915,7 @@ function PayrollPageInner() {
             <select
               value={assignmentSourceType}
               onChange={(e) => setAssignmentSourceType(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs focus:outline-hidden"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
             >
               <option value="campaign">حملة / استبيان (Campaign)</option>
               <option value="custom_form">نموذج مخصص (Custom Form)</option>
@@ -2961,7 +2961,7 @@ function PayrollPageInner() {
             <select
               value={assignmentMappingScheme}
               onChange={(e) => setAssignmentMappingScheme(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs focus:outline-hidden"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
             >
               <option value="">حدد النظام المعتمد</option>
               {schemesList.map((sc) => (
@@ -3156,7 +3156,7 @@ function PayrollPageInner() {
               <select
                 value={approveSponsorId}
                 onChange={(e) => setApproveSponsorId(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
                 <option value="">حدد السجل المالي</option>
                 {financeCatalog?.sponsors?.map((s: any) => (
@@ -3202,7 +3202,7 @@ function PayrollPageInner() {
             <select
               value={adjIqama}
               onChange={(e) => setAdjIqama(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
             >
               <option value="">اختر المندوب</option>
               {ridersList.map((r) => (
@@ -3230,7 +3230,7 @@ function PayrollPageInner() {
               <select
                 value={adjCategory}
                 onChange={(e) => setAdjCategory(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
               >
                 <option value="fuel">وقود فعلي</option>
                 <option value="rent">إيجار مركبة</option>
@@ -3304,7 +3304,7 @@ function PayrollPageInner() {
                 const r = ridersList.find((x) => x.iqama === val);
                 if (r) setPaySponsorId(r.financeSponsorId || r.sponsorId || 'BW');
               }}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
             >
               <option value="">اختر المندوب</option>
               {ridersList.map((r) => (
@@ -3345,7 +3345,7 @@ function PayrollPageInner() {
             <select
               value={payVaultCode}
               onChange={(e) => setPayVaultCode(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] text-xs"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
             >
               <option value="">الحساب الافتراضي للسجل</option>
               {financeCatalog?.vaults?.map((v: any) => (

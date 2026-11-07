@@ -1064,7 +1064,7 @@ function RidersPageInner() {
             <select
               value={uploadDocCode}
               onChange={(e) => setUploadDocCode(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
             >
               <option value="national_id">الهوية الوطنية / الإقامة (National ID / Iqama)</option>
               <option value="driving_license">رخصة القيادة (Driving License)</option>
@@ -1092,7 +1092,7 @@ function RidersPageInner() {
                 type="date"
                 value={uploadExpiryDate}
                 onChange={(e) => setUploadExpiryDate(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               />
             </div>
           </div>

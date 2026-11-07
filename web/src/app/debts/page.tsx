@@ -1223,7 +1223,7 @@ function DebtsPageContent() {
                 <select
                   value={statementMode}
                   onChange={(e) => setStatementMode(e.target.value as any)}
-                  className="w-full p-2 rounded-xl border border-[var(--line)] text-xs focus:outline-hidden"
+                  className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
                 >
                   <option value="detailed">كشف مالي تفصيلي (360)</option>
                   <option value="simple">كشف حركات مبسط</option>
@@ -1402,7 +1402,7 @@ function DebtsPageContent() {
                 value={newReqIqama}
                 onChange={(e) => setNewReqIqama(e.target.value)}
                 required
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
               >
                 <option value="">-- اختر المندوب --</option>
                 {supervisedRiders.map((sr) => (
@@ -1564,7 +1564,7 @@ function DebtsPageContent() {
                         setNewReqAmount('');
                       }}
                       required
-                      className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold focus:outline-hidden"
+                      className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
                     >
                       <option value="">-- اختر الشبكة --</option>
                       {rechargeNetworks.map((n: any) => (
@@ -1590,7 +1590,7 @@ function DebtsPageContent() {
                         }
                       }}
                       required
-                      className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold focus:outline-hidden disabled:opacity-50"
+                      className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden disabled:opacity-50"
                     >
                       <option value="">-- اختر الباقة --</option>
                       {rechargePackages
@@ -2010,7 +2010,7 @@ function DebtsPageContent() {
                           id="select-propose-type"
                           value={proposeType}
                           onChange={(e) => setProposeType(e.target.value as any)}
-                          className="w-full p-2 rounded-xl border border-[var(--line)] text-xs focus:outline-hidden"
+                          className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
                         >
                           <option value="bank">سلفة بنكية (تحويل)</option>
                           <option value="cash">سلفة نقدية (خزينة)</option>
