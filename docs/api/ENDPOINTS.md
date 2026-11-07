@@ -45,6 +45,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/public/inquiry/payslip` | Payroll.Api/InquiryApi.cs:49 | public (rider portal: own authenticated rider) | rider form | keep |
 | POST | `/api/rider-mobile/broadcast` | Payroll.Api/FinancialCore.cs:790 | mobile.broadcast | old UI | keep |
 | POST | `/api/rider-mobile/broadcasts/{id}/ack` | Payroll.Api/FinancialCore.cs:934 | own rider session / one-time inquiry code | rider app | keep |
+| POST | `/api/rider-mobile/device-token` | Payroll.Api/PushNotifications.cs:388 | Active rider bearer token; updates caller session FCM token | rider app | keep |
 | POST | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:862 | Admin / SuperAdmin | old UI | keep |
 | POST | `/api/rider-mobile/login` | Payroll.Api/FinancialCore.cs:772 | own rider session / one-time inquiry code | rider app | keep |
 | POST | `/api/rider-mobile/logout` | Payroll.Api/MobileSessions.cs:135 | Active rider bearer token; own sessions only | rider app | keep |
