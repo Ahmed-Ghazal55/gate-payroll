@@ -88,6 +88,44 @@ public static class Debts
         Store.Save(c, "debt", debt, tx);
     }
 
+    // Template columns shared by the download endpoints and the import catalog (one source of truth).
+    public static List<ExcelColumn> BulkCollectColumns(string[] vaultChoices)=>new()
+            {
+                new("رقم الإقامة", false, null, true),
+                new("اسم المندوب / الموظف"),
+                new("المبلغ المحصل", true),
+                new("مبلغ الإعفاء الإداري", true),
+                new("رمز الصندوق أو البنك", false, vaultChoices),
+                new("رقم السند / المرجع"),
+                new("ملاحظات التسوية")
+            };
+    public static List<ExcelColumn> OpeningTemplateColumns()
+    {
+        var catChoices = FinancialCore.CategoriesCatalog.Select(x => x.Code).ToArray();
+        var spChoices = new[] { "BW", "EX", "TR" };
+        var allocChoices = new[] { "RiderFull", "SharedSplit", "CompanyFull" };
+        var modeChoices = new[] { "OpeningBalance", "Disbursement" };
+        var contraChoices = new[] { "3101" }.Concat(FinancialCore.ChartOfAccounts.Where(a => a.IsVault).Select(a => a.Code)).ToArray();
+        return new List<ExcelColumn>
+            {
+                new("رقم الإقامة (10 أرقام)", false, null, true),
+                new("اسم المندوب / الموظف"),
+                new("تصنيف المدين (Rider/Employee)", false, new[] { "Rider", "Employee" }),
+                new("كود البند أو الخدمة (Category)", false, catChoices),
+                new("السجل التجاري الدائن (BW/EX/TR)", false, spChoices),
+                new("نوع القيد (OpeningBalance/Disbursement)", false, modeChoices),
+                new("آلية التحمل (RiderFull/SharedSplit/CompanyFull)", false, allocChoices),
+                new("إجمالي مبلغ المديونية على المندوب", true),
+                new("المسدد سابقاً (إن وجد)", true),
+                new("حصة تحمل الشركة (في حال SharedSplit)", true),
+                new("القسط الشهري المستقطع", true),
+                new("شهر بداية الاستقطاع (YYYY-MM)"),
+                new("الحساب الدائن المقابل (3101 أو رمز الصندوق)", false, contraChoices),
+                new("رقم السند / المرجع"),
+                new("ملاحظات البيان"),
+                new("المنصة (Platform)", false, new[]{"Jahez","Keeta","HungerStation","Ninja","Other"})
+            };
+    }
     public static void Map(RouteGroupBuilder api, Store store)
     {
         api.MapGet("/debts", (string? sponsorId, string? category, string? status, string? iqama,HttpContext ctx) => store.Read(c =>
@@ -409,16 +447,7 @@ public static class Debts
         {
             var activeDebts = Store.List(c, "debt").Where(d => d.S("status") == "active" && d.N("remainingBalance") > 0&&FinancialScopes.Debt(ctx.User,d)&&FinancialCore.AssignedDebtSponsor(d)!=null).Take(10).ToList();
             var vaultChoices = FinancialCore.ChartOfAccounts.Where(a => a.IsVault&&FinancialScopes.Account(ctx.User,a.Code)).Select(a => a.Code).ToArray();
-            var cols = new List<ExcelColumn>
-            {
-                new("رقم الإقامة", false, null, true),
-                new("اسم المندوب / الموظف"),
-                new("المبلغ المحصل", true),
-                new("مبلغ الإعفاء الإداري", true),
-                new("رمز الصندوق أو البنك", false, vaultChoices),
-                new("رقم السند / المرجع"),
-                new("ملاحظات التسوية")
-            };
+            var cols = BulkCollectColumns(vaultChoices);
             var rows = new List<object?[]>();
             int seq = 1;
             foreach (var d in activeDebts)
@@ -642,31 +671,7 @@ public static class Debts
         // ==========================================================================================================
         api.MapGet("/debts/import-opening/template", () =>
         {
-            var catChoices = FinancialCore.CategoriesCatalog.Select(x => x.Code).ToArray();
-            var spChoices = new[] { "BW", "EX", "TR" };
-            var allocChoices = new[] { "RiderFull", "SharedSplit", "CompanyFull" };
-            var modeChoices = new[] { "OpeningBalance", "Disbursement" };
-            var contraChoices = new[] { "3101" }.Concat(FinancialCore.ChartOfAccounts.Where(a => a.IsVault).Select(a => a.Code)).ToArray();
-
-            var cols = new List<ExcelColumn>
-            {
-                new("رقم الإقامة (10 أرقام)", false, null, true),
-                new("اسم المندوب / الموظف"),
-                new("تصنيف المدين (Rider/Employee)", false, new[] { "Rider", "Employee" }),
-                new("كود البند أو الخدمة (Category)", false, catChoices),
-                new("السجل التجاري الدائن (BW/EX/TR)", false, spChoices),
-                new("نوع القيد (OpeningBalance/Disbursement)", false, modeChoices),
-                new("آلية التحمل (RiderFull/SharedSplit/CompanyFull)", false, allocChoices),
-                new("إجمالي مبلغ المديونية على المندوب", true),
-                new("المسدد سابقاً (إن وجد)", true),
-                new("حصة تحمل الشركة (في حال SharedSplit)", true),
-                new("القسط الشهري المستقطع", true),
-                new("شهر بداية الاستقطاع (YYYY-MM)"),
-                new("الحساب الدائن المقابل (3101 أو رمز الصندوق)", false, contraChoices),
-                new("رقم السند / المرجع"),
-                new("ملاحظات البيان"),
-                new("المنصة (Platform)", false, new[]{"Jahez","Keeta","HungerStation","Ninja","Other"})
-            };
+            var cols = OpeningTemplateColumns();
 
             string curMonth = DateTime.UtcNow.ToString("yyyy-MM");
             var rows = new List<object?[]>

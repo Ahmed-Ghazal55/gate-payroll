@@ -15,7 +15,7 @@ public static class TreasuryEntries
         string platform=debt.S("platform");if(platform=="")platform=input.S("platform");if(debt.S("category")=="PlatformTransferredDebt")J.Need(new[]{"Jahez","Keeta","HungerStation","Ninja","Other"}.Contains(platform),"حدد المنصة من مستند الدين التاريخي.");
         return new JsonObject{["id"]=id,["sponsorId"]=sponsor.Id,["category"]=debt.S("category"),["platform"]=platform,["iqama"]=debt.S("iqama"),["accountCode"]=AccountingEvents.ReceivableCode(debt),["expectedRemainingBalance"]=debt.N("remainingBalance"),["currentJournalBalance"]=current,["adjustment"]=J.Money(debt.N("remainingBalance")-current),["sourceRef"]=input.Required("sourceRef"),["notes"]=input.Required("notes")};
     }
-    private static readonly ExcelColumn[] OpeningColumns=[new("accountCode",Identity:true),new("sponsorCode"),new("iqama",Identity:true),new("verifiedBalance",Numeric:true),new("sourceRef"),new("notes")];
+    public static readonly ExcelColumn[] OpeningColumns=[new("accountCode",Identity:true),new("sponsorCode"),new("iqama",Identity:true),new("verifiedBalance",Numeric:true),new("sourceRef"),new("notes")];
     public static JsonArray ValidateOpening(DbConnection c,DbTransaction? tx,JsonArray rows)
     {
         J.Need(rows.Count is >0 and <=1000,"عدد صفوف تسوية الافتتاح غير صالح.");var seen=new HashSet<string>();var result=new JsonArray();

@@ -291,6 +291,13 @@ export function Header({
       visible: can('pay.view'),
     },
     {
+      id: 'import-center',
+      label: 'مركز الاستيراد',
+      href: '/imports/',
+      icon: <FileUp size={15} className="text-[var(--accent)]" />,
+      visible: can('imports.view'),
+    },
+    {
       id: 'erp-sync',
       label: 'تحديث البيانات من ERP',
       onClick: () => {

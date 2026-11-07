@@ -92,6 +92,14 @@ public sealed class DebtSheetImportTests
         }
     }
     [TestMethod]
+    public void PendingOctoberDecisionRefusesLegacyCommitEvenWithApprovedMappingAndValidRows()
+    {
+        var mapping=Mapping();mapping["octoberLoadMode"]="pending_decision";
+        var preview=DebtSheetImporter.Preview(Debt(),Deductions(),mapping,Riders());
+        Assert.IsTrue(preview.Summary.B("octoberDecisionRequired"));Assert.IsFalse(preview.Summary.B("canCommit"));
+        Assert.ThrowsExactly<ImportFailure>(()=>DebtSheetImporter.EnsureCommittable(preview));
+    }
+    [TestMethod]
     public void FifoConsumesOldBucketsAndCreatesOnlyTheRemainingCategory()
     {
         var preview=DebtSheetImporter.Preview(Debt(),Deductions(),Mapping(),Riders());Assert.IsTrue(preview.Summary.B("canCommit"));

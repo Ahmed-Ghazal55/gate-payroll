@@ -42,16 +42,16 @@ public static class PlatformDeductions
     // Account classifications are provenance, not rider debts: never infer an actual rider.
     public static void ConfirmClassified(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject invoice,JsonObject line)
     {
-        string app=PayPlatforms.For(invoice.S("platform")).App;J.Need(app=="ninja","مسار تصنيف منصة غير معتمد.");
+        string app=PayPlatforms.For(invoice.S("platform")).App;J.Need(app is "ninja" or "keeta","مسار تصنيف منصة غير معتمد.");
         AccessPolicy.Demand(actor,"pay.approve");FinancialScopes.DemandSponsor(actor,invoice.S("companyId"));
-        J.Need(FinancialScopes.Platform(actor,"Ninja"),"المنصة خارج النطاق.");
+        J.Need(FinancialScopes.Platform(actor,PayPlatforms.For(app).Platform),"المنصة خارج النطاق.");
         foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>())
         {
             J.Need(d.S("level") is "company_level" or "account_level","تصنيف الخصم مطلوب.");
             string id="platform-deducted:"+StorageTransfer.CutoverHash(JsonValue.Create(line.S("id")+":"+d.S("category")));
             if(Store.Get(c,id,Kind,tx)!=null)continue;
-            var tag=new JsonObject{["id"]=id,["platform"]="Ninja",["companyId"]=invoice.S("companyId"),["invoiceId"]=invoice.S("id"),["sourceId"]=line.S("id"),["platformAccountId"]=line.S("platformAccountId"),["category"]=d.S("category"),["level"]=d.S("level"),["amount"]=d.N("amount"),["expenseAccount"]=d.S("expenseAccount"),["status"]="confirmed",["createdBy"]=actor.Identity!.Name};
-            Store.Save(c,Kind,tag,tx);Store.Audit(c,tx,"platform.ninja.deduction_classified_confirmed",id,actor.Identity!.Name!);
+            var tag=new JsonObject{["id"]=id,["platform"]=PayPlatforms.For(app).Platform,["companyId"]=invoice.S("companyId"),["invoiceId"]=invoice.S("id"),["sourceId"]=line.S("id"),["platformAccountId"]=line.S("platformAccountId"),["category"]=d.S("category"),["level"]=d.S("level"),["amount"]=d.N("amount"),["expenseAccount"]=d.S("expenseAccount"),["status"]="confirmed",["createdBy"]=actor.Identity!.Name};
+            Store.Save(c,Kind,tag,tx);Store.Audit(c,tx,"platform."+app+".deduction_classified_confirmed",id,actor.Identity!.Name!);
         }
     }
     public static int ConfirmInvoice(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string invoiceId)

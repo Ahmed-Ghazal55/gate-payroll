@@ -15,6 +15,15 @@ public sealed class StorageCutoverTests
     static void Seed(Store store,JsonArray rows)=>store.Write((c,tx)=>{foreach(var r in rows.OfType<JsonObject>())Store.Save(c,r.S("kind"),(JsonObject)r["body"]!,tx);return true;});
 
     [TestMethod]
+    public void CompanyLegalDescriptorsUseErpCodesAndDoNotBlockTheMerge()
+    {
+        var source=new JsonArray(Row("synthetic-company","company",new(){["crType"]="رئيسي",["entityType"]="مؤسسة فردية",["characteristic"]="مؤسسة"}));
+        var target=new JsonArray(Row("synthetic-company","company",new(){["crType"]="main",["entityType"]="establishment",["characteristic"]=""}));
+        var p=StorageTransfer.PlanMerge(source,target);Assert.IsTrue(p["summary"]!.AsObject().B("ready"));
+        var row=p["rows"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("id")=="synthetic-company")["body"]!.AsObject();
+        Assert.AreEqual("main",row.S("crType"));Assert.AreEqual("establishment",row.S("entityType"));
+    }
+    [TestMethod]
     public void HrWinsPayrollWinsAndEveryOriginalSurvivesAtomicIdempotentMerge()
     {
         string dir=Path.Combine(Path.GetTempPath(),"gate-cutover-"+Guid.NewGuid().ToString("N"));

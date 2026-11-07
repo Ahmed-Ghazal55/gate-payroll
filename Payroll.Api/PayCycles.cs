@@ -30,7 +30,13 @@ public static partial class PayCycles
         else J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("status")=="reversed"&&d.S("period")==period&&d.S("companyId")==company),"حدد الدورة المعكوسة صراحة للتصحيح.");
         Scope(actor,cycle,"pay.manage");Open(c,tx,cycle);UploadInvoices(c,tx,cycle);ReviewInvoices(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_created",cycle.S("id"),actor.Identity!.Name!);return cycle;
     }
-    static void ReviewInvoices(DbConnection c,DbTransaction tx,JsonObject cycle)
+    // Read-only validation shared by operation imports and the normal staged cycle workflow.
+    public static void ValidateImportedReview(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string company,string period,JsonObject review,string permission="pay.manage")
+    {
+        var cycle=new JsonObject{["companyId"]=company,["period"]=period,["invoices"]=new JsonArray(review.Clone())};
+        Scope(actor,cycle,permission);ReviewInvoices(c,tx,cycle);ValidateRiders(c,tx,cycle,actor);
+    }
+    static void ReviewInvoices(DbConnection c,DbTransaction? tx,JsonObject cycle)
     {
         var invoices=Rows(cycle["invoices"]).OfType<JsonObject>().ToList();J.Need(invoices.Select(i=>i.S("invoiceId")).Distinct().Count()==invoices.Count,"فاتورة مكررة.");
         foreach(var review in invoices)
@@ -42,6 +48,7 @@ public static partial class PayCycles
             J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("id")!=cycle.S("id")&&d.S("status")=="approved"&&Rows(d["invoices"]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==source.S("id"))),"المصدر مستخدم في دورة معتمدة.");
             if(app=="hs")HungerStationInvoices.DemandResolvedDisputes(c,tx,source.S("id"));
             if(app=="ninja")NinjaInvoices.DemandResolvedDisputes(c,tx,source.S("id"));
+            if(app=="keeta")KeetaInvoices.Workflow.DemandResolvedDisputes(c,tx,source.S("id"));
             var accounts=Rows(review["accounts"]).OfType<JsonObject>().ToList();var deductions=Rows(review["deductions"]).OfType<JsonObject>().ToList();J.Need(accounts.Count>0&&accounts.Select(a=>a.S("accountId")).Distinct().Count()==accounts.Count,"استحقاقات اليوزرات مطلوبة بلا تكرار.");
             foreach(var a in accounts){PayValues.Fields(a,"accountId","sourceLineId","baseGross","incentives","orders","riders");Money(a,"baseGross");Money(a,"incentives");decimal orders=PayValues.Number(a,"orders",0,int.MaxValue);J.Need(orders==decimal.Truncate(orders),"طلبات فعلية صحيحة مطلوبة.");}
             foreach(var d in deductions){PayValues.Fields(d,"sourceLineId","sourceCategory","level","accountId","amount","expenseAccount");Money(d,"amount");J.Need(d.S("level") is "company_level" or "account_level","صنف كل خصم: شركة أو يوزر.");if(d.S("level")=="company_level")J.Need(PayPlatforms.Active(d.Required("expenseAccount")).StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");else J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");}
@@ -59,7 +66,7 @@ public static partial class PayCycles
             foreach(var d in deductions)
             {
                 var sourceLine=sourceLines.SingleOrDefault(l=>l.S("id")==d.Required("sourceLineId"));J.Need(sourceLine!=null,"الخصم يحتاج سطر مصدر.");
-                if(app=="ninja"&&source.S("status")=="final")
+                if((app is "ninja" or "keeta"||(app is "hs" or "chefz")&&sourceLine!["deductions"] is JsonArray)&&source.S("status")=="final")
                 {
                     var components=(sourceLine!["deductions"] as JsonArray??[]).OfType<JsonObject>().ToList();
                     var selected=components.Where(x=>d.S("sourceCategory")==""||x.S("category")==d.S("sourceCategory")).ToList();
@@ -103,7 +110,7 @@ public static partial class PayCycles
     static DateTimeOffset Time(string value){J.Need(DateTimeOffset.TryParse(value,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var time),"توقيت المصدر غير صالح.");return time;}
     static bool Overlaps(JsonObject a,string period,string from="RawEffectiveFrom",string to="RawEffectiveTo")
     {string start=a.S(from),end=a.S(to);J.Need(start!="","توقيت التكليف الفعلي مفقود.");var month=Time(period+"-01T00:00:00+03:00");return Time(start)<month.AddMonths(1)&&(end==""||Time(end)>month);}
-    static void ValidateRiders(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)
+    static void ValidateRiders(DbConnection c,DbTransaction? tx,JsonObject cycle,ClaimsPrincipal actor)
     {
         foreach(var (app,a) in Accounts(cycle))
         {

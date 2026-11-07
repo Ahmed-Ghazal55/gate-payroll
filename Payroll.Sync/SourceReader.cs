@@ -48,8 +48,17 @@ public static class SourceReader
         bool sql=connection is SqlConnection;
         byte[]? Stamp(){if(!sql)return null;using var cmd=connection.CreateCommand();cmd.CommandText="SELECT @@DBTS";return (byte[]?)cmd.ExecuteScalar();}
         var before=requireStableRowversion?Stamp():null;
+        var tables=ReadTables(connection,Catalog,cancellationToken);
+        HsFactsSource.Read(connection,tables,cancellationToken);
+        var after=requireStableRowversion?Stamp():null;
+        if(before!=null&&after!=null&&!before.SequenceEqual(after))throw new ImportFailure("source_changed_during_read");
+        return new(tables,started,DateTimeOffset.UtcNow,sql?(connection.Database=="erp_copy"?"local_read_only_copy":"read_committed_database_rowversion_stable"):"synthetic_sqlite");
+    }
+    internal static Dictionary<string,List<JsonObject>> ReadTables(DbConnection connection,IReadOnlyList<SourceTable> catalog,CancellationToken cancellationToken=default)
+    {
+        bool sql=connection is SqlConnection;
         var tables=new Dictionary<string,List<JsonObject>>(StringComparer.Ordinal);
-        foreach(var table in Catalog)
+        foreach(var table in catalog)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if(table.Optional&&!OptionalAvailable(connection,table,cancellationToken))continue;
@@ -68,10 +77,7 @@ public static class SourceReader
             }
             tables.Add(table.Name,rows);
         }
-        HsFactsSource.Read(connection,tables,cancellationToken);
-        var after=requireStableRowversion?Stamp():null;
-        if(before!=null&&after!=null&&!before.SequenceEqual(after))throw new ImportFailure("source_changed_during_read");
-        return new(tables,started,DateTimeOffset.UtcNow,sql?(connection.Database=="erp_copy"?"local_read_only_copy":"read_committed_database_rowversion_stable"):"synthetic_sqlite");
+        return tables;
     }
     static bool OptionalAvailable(DbConnection connection,SourceTable table,CancellationToken cancellationToken)
     {
