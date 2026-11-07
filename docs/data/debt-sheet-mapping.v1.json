@@ -816,5 +816,11 @@
     "identity": "K",
     "reference": "L",
     "operation": "M"
+  },
+  "deductionReconciliationPolicy": {
+    "authority": "company_sheets_totals_detail",
+    "formattedSummary": "warning_only",
+    "approvedBy": "Ghazal",
+    "approvedAt": "2026-11-07"
   }
 }

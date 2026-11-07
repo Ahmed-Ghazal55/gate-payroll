@@ -8,13 +8,14 @@ using F=DebtSheetReviewTests;
 [TestClass]
 public sealed class DebtOpeningTests
 {
-    static byte[] Deductions(bool includeMissingRejected=false,bool conflict=false)
+    static byte[] Deductions(bool includeMissingRejected=false,bool conflict=false,bool summaryDifference=false)
     {
         string[] headers=F.RequestHeader();var request=F.Request();var total=F.Request();request[9]=total[9]="112501 سلف المناديب النقدية";
         if(conflict)total[4]="31";
         var ex=new List<string[]>{headers,request};if(includeMissingRejected)ex.Add(F.Request(reference:"SYN/2026/002",status:"مرفوض"));
         var control=Enumerable.Range(0,40).Select(_=>Enumerable.Repeat("",20).ToArray()).ToArray();
         control[3][1]="SyntheticApp";control[3][3]="30";control[9][18]="30";
+        if(summaryDifference){control[3][3]="31";control[9][18]="31";}
         return F.Book([
             ("اكسبريس",ex.ToArray()),("البوابا",[headers]),("التجارية",[headers]),("الاجماليات",[headers,total]),("المرفوض",[headers]),
             ("تفصيلي الاستقطاعات",[["رقم الهوية","الاسم","استقطاعات المناديب","سلف المناديب النقدية","سلف انترنت مناديب","سلف محافظ هنقرستيشن","مخالفات مرورية مناديب","الإجمالي"],[F.Id,"SYNTHETIC","0","30","0","0","0","30"]]),
@@ -58,6 +59,8 @@ public sealed class DebtOpeningTests
         Assert.AreEqual(1m,evidence.Summary.N("rejectedMissingFromRejectedSheet"));Assert.AreEqual(1m,evidence.Summary.N("carriedAlreadyInTotals"));Assert.AreEqual(1m,evidence.Summary.N("carriedPreviousPeriod"));
         Assert.AreEqual(0m,evidence.Summary.N("octoberDocumentsToLoad"));Assert.AreEqual("SYN/2026/001",evidence.Lineage[0].S("odooVoucherNo"));
         Assert.IsFalse(DebtSheetImporter.ReconcileDeductions(DebtSheetImporter.FreezeInput(Deductions(conflict:true)),F.Mapping()).Summary.B("matched"));
+        var warnings=DebtSheetImporter.ReconcileDeductions(DebtSheetImporter.FreezeInput(Deductions(summaryDifference:true)),F.Mapping());Assert.IsTrue(warnings.Summary.B("matched"));Assert.IsTrue(warnings.Issues.OfType<JsonObject>().Any(i=>i.S("reason").StartsWith("summary_",StringComparison.Ordinal)));
+        var strict=F.Mapping();strict.Remove("deductionReconciliationPolicy");Assert.IsFalse(DebtSheetImporter.ReconcileDeductions(DebtSheetImporter.FreezeInput(Deductions(summaryDifference:true)),strict).Summary.B("matched"));
     }
     [TestMethod]
     public void ApprovedOpeningKeepsNegativeRowsBlockedAndCreatesOnlyInactiveDebtOnlyPeopleAtomically()

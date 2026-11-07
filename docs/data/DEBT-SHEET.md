@@ -14,7 +14,7 @@ This section supersedes the paused D1.6 decision below. Mapping metadata is appr
 
 A preview fingerprint binds source bytes, mapping and accepted row fingerprints. Replay is per source row/category, so fixing other rows later never replaces an already imported row. Changed previously imported financial rows are refused. `--commit` requires the fingerprint, `--after-db-move` and a target cutover receipt before Store initialization; writes are serialized and verified in the same transaction. `--verify` uses SELECT only. The agent has **not run a real commit** or completed the live ERP-history/payroll preview.
 
-Offline reconciliation reproduces approved394 /112,202.64, rejected-sheet omissions4, draft1, carried19 /4,478 with3 already in totals and16 earlier-period items. It normalizes explicitly recorded app-label aliases and reads carried values from their actual shifted columns. A real formatted-summary difference remains: cash+115 and internet−115; company sheets, receipt totals and per-rider/type detail agree. Until Ghazal resolves the pending question, this mismatch keeps canCommit=false. Offline output is `r6c-debts-continuation-offline.{json,xlsx}` so Claude's prior live lookup report is preserved.
+Offline reconciliation reproduces approved394 /112,202.64, rejected-sheet omissions4, draft1, carried19 /4,478 with3 already in totals and16 earlier-period items. It normalizes explicitly recorded app-label aliases and reads carried values from their actual shifted columns. A real formatted-summary difference remains: cash+115 and internet−115; company sheets, receipt totals and per-rider/type detail agree. Ghazal approved company sheets, receipt totals and per-rider/type detail as authoritative on2026-11-07; formatted-summary differences are warnings only, retained in JSON/XLSX. They do not block otherwise ready opening rows. Offline output is `r6c-debts-continuation-offline.{json,xlsx}` so Claude's prior live lookup report is preserved.
 
 ### Operator commands — not executed against real databases by Codex
 
@@ -24,7 +24,7 @@ cd "$HOME/Projects/active/gate-payroll-r6c"
 debt_args=(--debt-sheet "$HOME/Projects/pro win/02 بيانات وتشغيل المنصات/المديونيات اجمالي - 2026.xlsx" --deductions "$HOME/Projects/pro win/02 بيانات وتشغيل المنصات/استقطاعات المناديب.xlsx" --mapping docs/data/debt-sheet-mapping.v1.json --lookup-riders --lookup-erp-history --report "$HOME/Private/gate-data/sync-logs/r6c-debts-review.json")
 dotnet tools/ErpImport/bin/Debug/net10.0/ErpImport.dll "${debt_args[@]}" --dry-run
 ```
-**STOP** until the discrepancy is decided, canCommit=true, the database move is complete and Ghazal gives fresh «حمّل». Then **Claude runs**, using the exact fingerprint from the reviewed output:
+**STOP** until canCommit=true, the database move is complete and Ghazal gives fresh «حمّل». Then **Claude runs**, using the exact fingerprint from the reviewed output:
 ```bash
 read -r -p 'Reviewed previewFingerprint: ' debt_preview_fingerprint
 dotnet tools/ErpImport/bin/Debug/net10.0/ErpImport.dll "${debt_args[@]}" --commit --after-db-move --preview-fingerprint "$debt_preview_fingerprint"

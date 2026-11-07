@@ -118,10 +118,12 @@ public static partial class DebtSheetImporter
             carriedTotal+=amount;
             carried.Add(new JsonObject{["sheet"]=carry.Name,["row"]=i+1,["odooVoucherNo"]=reference,["amount"]=amount,["reason"]=already?"duplicate_counted_once":"carried_from_previous_period",["loaded"]=false});
         }
-        bool blocking=issues.OfType<JsonObject>().Any(i=>i.S("reason") is not ("rejected_not_in_rejected_sheet" or "draft_excluded" or "duplicate_request_counted_once"));
+        var policy=mapping["deductionReconciliationPolicy"];
+        bool summaryWarningsOnly=policy.S("authority")=="company_sheets_totals_detail"&&policy.S("formattedSummary")=="warning_only"&&policy.S("approvedBy")=="Ghazal"&&policy.S("approvedAt")=="2026-11-07";
+        bool blocking=issues.OfType<JsonObject>().Any(i=>i.S("reason") is not ("rejected_not_in_rejected_sheet" or "draft_excluded" or "duplicate_request_counted_once")&&!(summaryWarningsOnly&&i.S("reason").StartsWith("summary_",StringComparison.Ordinal)));
         var summary=new JsonObject{["matched"]=!blocking,["approvedRows"]=approved.Count,["uniqueApprovedRequests"]=unique.Count,["approvedTotal"]=unique.Sum(r=>r.Amount),["totalRows"]=totals.Count,["totalsAmount"]=totals.Sum(r=>r.Amount),
             ["rejectedMissingFromRejectedSheet"]=missingRejected,["draftsExcluded"]=drafts,["carriedRows"]=carried.Count,["carriedTotal"]=carriedTotal,["carriedAlreadyInTotals"]=duplicates,["carriedPreviousPeriod"]=carried.Count-duplicates,
-            ["octoberDocumentsToLoad"]=0,["reasonCounts"]=JsonSerializer.SerializeToNode(issues.OfType<JsonObject>().GroupBy(i=>i.S("reason")).ToDictionary(g=>g.Key,g=>g.Count()))};
+            ["octoberDocumentsToLoad"]=0,["formattedSummaryWarningsOnly"]=summaryWarningsOnly,["reasonCounts"]=JsonSerializer.SerializeToNode(issues.OfType<JsonObject>().GroupBy(i=>i.S("reason")).ToDictionary(g=>g.Key,g=>g.Count()))};
         return new(summary,issues,lineage,carried);
     }
 }

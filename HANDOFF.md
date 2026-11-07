@@ -17,7 +17,7 @@
 - Shared FIFO, separate rider_credit, approved mapping, row-level financial fingerprints, atomic pending openings+inactive identities, cutover/fingerprint guards, read-only verifier and idempotent replay. Correcting a different blocked row later adds only it. No GL/cash posting.
 - Live ERP history and payroll preview NOT RUN by Codex. Actual ready/blocked/category totals require operator run. Claude's prior lookup384 blocked is historical baseline, preserved in r6c-debts-review.json.
 - Offline reconciliation:394 approved /112,202.64, 4 rejected-sheet omissions,1 draft,19 carried /4,478,3 duplicate references counted once,16 earlier-period items flagged; per-rider/type detail matches.
-- PENDING Ghazal's answer: formatted summary cash+115 /internet−115 versus detailed sources, grand total unchanged. Strict canCommit=false retained; do not load until the question is resolved.
+- Ghazal approved2026-11-07: company sheets +receipts +per-rider/type detail are authoritative. Formatted-summary cash+115 /internet−115 remains warning-only; no October records load. Live history/payroll preview still operator-only.
 - Separate private offline outputs: ~/Private/gate-data/sync-logs/r6c-debts-continuation-offline.{json,xlsx},600/700. October references only in private reconciliation lineage, never debt documents.
 - D1 tooling commit467f3b0. D2 Keeta DONE: supplier header map and original-sheet selection, scoped signed preview/confirm, duplicate hash refusal, independent classification/approval, disputes and principal-only gated posting via PayPlatforms. No source/real DB import run.
 - D2 verification:22 focused .NET regressions passed (Keeta/Ninja/cycles/catalog),0skipped;15 synthetic HTTP checks passed. Contract:docs/api/keeta-invoices.md. D3 operations then D4 Chefz are NEXT; still no real commit/load.
@@ -29,7 +29,7 @@ cd "$HOME/Projects/active/gate-payroll-r6c"
 debt_args=(--debt-sheet "$HOME/Projects/pro win/02 بيانات وتشغيل المنصات/المديونيات اجمالي - 2026.xlsx" --deductions "$HOME/Projects/pro win/02 بيانات وتشغيل المنصات/استقطاعات المناديب.xlsx" --mapping docs/data/debt-sheet-mapping.v1.json --lookup-riders --lookup-erp-history --report "$HOME/Private/gate-data/sync-logs/r6c-debts-review.json")
 dotnet tools/ErpImport/bin/Debug/net10.0/ErpImport.dll "${debt_args[@]}" --dry-run
 ```
-2. **Ghazal** resolves formatted-summary question; review canCommit, ready/blocked totals; complete database move and give fresh «حمّل». Otherwise STOP, no load.
+2. **Ghazal** reviews canCommit, ready/blocked totals; complete database move and give fresh «حمّل». Otherwise STOP, no load.
 3. **Claude only**, after those decisions, commits exact approved fingerprint, verifies then may replay same command (added0):
 ```bash
 read -r -p 'Reviewed previewFingerprint: ' debt_preview_fingerprint
