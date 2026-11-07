@@ -147,6 +147,7 @@ NinjaBilling.Map(api,store);
 NinjaInvoices.Map(api,store);
 KeetaInvoices.Map(api,store);
 OperationsImports.Map(api,store);
+ChefzOperations.Map(api,store);
 CompanyRegistryImport.Map(api,store);
 PlatformPosting.Map(api,store);
 PaySettings.Map(api,store);

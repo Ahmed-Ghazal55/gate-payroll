@@ -14,10 +14,10 @@ public static class OperationsImports
     public static void Scope(ClaimsPrincipal actor,string app,string company,string permission="pay.manage")
     {AccessPolicy.Demand(actor,permission);FinancialScopes.DemandSponsor(actor,company);J.Need(FinancialScopes.Platform(actor,PayPlatforms.For(app).Platform),"المنصة خارج نطاق المستخدم.");}
     static string SignatureKind(string app,byte[] bytes)=>"operations:"+app+":"+Convert.ToHexString(SHA256.HashData(bytes));
-    public static JsonObject Invoice(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string app,string id)
+    public static JsonObject Invoice(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string app,string id,string permission="pay.manage")
     {
         var invoice=Store.Get(c,id,"platform_invoice",tx)??throw new ApiError("الفاتورة غير موجودة.",404);
-        Scope(actor,app,invoice.S("companyId"));
+        Scope(actor,app,invoice.S("companyId"),permission);
         J.Need(PayPlatforms.For(invoice.S("platform")).App==app&&invoice.S("approvalStatus")=="approved","يلزم اعتماد الفاتورة لنفس التطبيق أولًا.");
         J.Need(invoice.S("journalEntryId")==""&&invoice.S("reversalJournalEntryId")=="","الفاتورة مرحلة أو معكوسة؛ لا تكرر الإيراد.");J.Period(invoice.Required("period"));
         return invoice;
@@ -82,7 +82,7 @@ public static class OperationsImports
         foreach(var line in lines)
         {
             if(line.S("platformAccountId",line.S("accountId"))=="")
-            {J.Need(line.N("baseGross")==0&&line.N("incentives")==0&&line.N("orders")==0,"سطر شركة باستحقاق غير موزع يحتاج مراجعة.");continue;}
+            {J.Need(line.ContainsKey("baseGross")&&line.ContainsKey("incentives")&&line.ContainsKey("orders")&&line.N("baseGross")==0&&line.N("incentives")==0&&line.N("orders")==0,"سطر شركة باستحقاق غير موزع يحتاج مراجعة.");continue;}
             accounts.Add(Account(line));
         }
         J.Need(accounts.Count>0&&accounts.OfType<JsonObject>().Select(a=>a.S("accountId")).Distinct().Count()==accounts.Count,"يلزم سطر فاتورة واحد لكل يوزر.");
@@ -102,7 +102,7 @@ public static class OperationsImports
             decimal Number(string key,bool integer=false,bool money=false)
             {
                 J.Need(V(key)!=""&&decimal.TryParse(J.Digits(V(key)),NumberStyles.Number,CultureInfo.InvariantCulture,out _),"invalid_number: row "+(i+1));
-                decimal n=decimal.Parse(J.Digits(V(key)),NumberStyles.Number,CultureInfo.InvariantCulture);J.Need(n is >=0 and <=100000000&&(!integer||n==decimal.Truncate(n))&&(!money||n==J.Money(n)),"invalid_number: row "+(i+1));return n;
+                decimal n=decimal.Parse(J.Digits(V(key)),NumberStyles.Number,CultureInfo.InvariantCulture);J.Need(n is >=0 and <=100000000&&n==decimal.Round(n,4)&&(!integer||n==decimal.Truncate(n))&&(!money||n==J.Money(n)),"invalid_number: row "+(i+1));return n;
             }
             decimal days=Number("days",true),orders=Number("orders",true);J.Need(days<=DateTime.DaysInMonth(int.Parse(period[..4],CultureInfo.InvariantCulture),int.Parse(period[5..],CultureInfo.InvariantCulture)),"أيام التشغيل تتجاوز أيام الشهر.");
             J.Need(PaySettings.Categories.Contains(V("category")),"فئة الكفالة والمركبة مطلوبة؛ car/bike وحدهما غير كافيين.");

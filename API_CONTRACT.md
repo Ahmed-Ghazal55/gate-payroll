@@ -135,3 +135,5 @@ Deletes only the chosen form and its children atomically, records `campaign.dele
 Keeta supplier invoice preview/confirm, independent approval, disputes and posting: [Keeta invoice contract](docs/api/keeta-invoices.md).
 
 Per-app operation templates, signed imports and cycle review contract: [Operations import](docs/api/operations-import.md).
+
+Chefz already-pulled ERP facts, read-only cycle candidate: [Chefz operations](docs/api/chefz-operations.md).

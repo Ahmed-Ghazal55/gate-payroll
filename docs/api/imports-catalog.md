@@ -20,3 +20,5 @@ Operations templates share a core (`period, platformAccountId, iqama, riderName,
 pay-cycle invoice review `accounts[].riders[]`, plus app-specific metrics. Codex D3 finalises the metrics from the real invoices.
 
 R6c-D3: Ninja/Keeta/HungerStation operations now expose ready preview/commit URLs. See [operations review contract](operations-import.md), including the explicit normalized-invoice requirement for historical HS raw files. Metric columns and six pay categories come from ImportCatalog.
+
+R6c-D4: chefz_operations exposes a structured read-only review URL, no commit URL. See [Chefz operations](chefz-operations.md). The endpoint never initiates first loading.

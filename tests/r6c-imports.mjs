@@ -56,6 +56,19 @@ try{
   await call('checker',`/api/pay/apps/${app}/operations/imports/${encodeURIComponent(saved.id)}`);
   await call('admin',step.commitUrl,{...input,...view,confirm:true},409);
  }
+ // D4: read model only, counts and immutable source records checked around the HTTP request.
+ const chefzAccount='syn-chefz-account',chefzRider='2000000091';
+ put('platform_account',{id:chefzAccount,companyId:company,platformCode:'chefz',assignments:[{riderId:chefzRider,RawEffectiveFrom:'2026-10-01T00:00:00+03:00'}]});
+ put('rider_account_assignment',{id:'syn-chefz-assignment',erpSourceId:'SYN-CA',companyId:company,platformAccountId:chefzAccount,riderId:chefzRider,effectiveFrom:'2026-10-01',effectiveTo:'2026-10-15'});
+ put('chefz_settlement',{id:'syn-chefz-wallet',erpSourceId:'SYN-CW',companyId:company,platformAccountId:chefzAccount,riderId:chefzRider,assignmentSourceId:'SYN-CA',periodFrom:'2026-10-01',periodTo:'2026-10-15',chargedFrom:'2026-10-01',chargedTo:'2026-10-02',assignedDays:2,gross:100,deductions:0,vat:15,companyAmount:10,riderAmount:90});
+ put('chefz_daily',{id:'syn-chefz-daily',erpSourceId:'SYN-CD',companyId:company,platformAccountId:chefzAccount,riderId:chefzRider,assignmentSourceId:'SYN-CA',date:'2026-10-01',totalValidOffers:10,acceptedOffers:8,declinedOffers:1,missedOffers:1});
+ await call('admin','/api/users',{username:'syn-r6c-viewer',password,role:'Reviewer',customPermissions:['pay.view'],financialScope:{sponsorIds:[company],platforms:['Chefz']}});await call('viewer','/api/auth/login',{username:'syn-r6c-viewer',password});
+ const beforeRead=setupDb.prepare('SELECT id,kind,body FROM records ORDER BY id').all();
+ const read=await call('viewer','/api/pay/apps/chefz/operations/review',{companyId:company,period:'2026-10'});
+ assert.equal(read.readOnly,true);assert.equal(read.canUseInCycle,false);assert.equal(read.counts.settlements,1);assert.equal(read.review.accounts[0].riders[0].metrics.acceptedOffers,8);assert.equal(read.review.accounts[0].riders[0].orders,0);
+ assert.deepEqual(setupDb.prepare('SELECT id,kind,body FROM records ORDER BY id').all(),beforeRead,'read model must not write');
+ await call('viewer','/api/pay/apps/ninja/operations/import/commit',{},403);
+ assert.equal(catalog.find(s=>s.key==='chefz_operations').commitUrl,null);
  setupDb.close();
  console.log(`PASS R6c invoice/operations HTTP contracts: ${checks} checks`);
 }finally{

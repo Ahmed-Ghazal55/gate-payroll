@@ -31,10 +31,10 @@ public static partial class PayCycles
         Scope(actor,cycle,"pay.manage");Open(c,tx,cycle);UploadInvoices(c,tx,cycle);ReviewInvoices(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_created",cycle.S("id"),actor.Identity!.Name!);return cycle;
     }
     // Read-only validation shared by operation imports and the normal staged cycle workflow.
-    public static void ValidateImportedReview(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string company,string period,JsonObject review)
+    public static void ValidateImportedReview(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string company,string period,JsonObject review,string permission="pay.manage")
     {
         var cycle=new JsonObject{["companyId"]=company,["period"]=period,["invoices"]=new JsonArray(review.Clone())};
-        Scope(actor,cycle,"pay.manage");ReviewInvoices(c,tx,cycle);ValidateRiders(c,tx,cycle,actor);
+        Scope(actor,cycle,permission);ReviewInvoices(c,tx,cycle);ValidateRiders(c,tx,cycle,actor);
     }
     static void ReviewInvoices(DbConnection c,DbTransaction? tx,JsonObject cycle)
     {
@@ -66,7 +66,7 @@ public static partial class PayCycles
             foreach(var d in deductions)
             {
                 var sourceLine=sourceLines.SingleOrDefault(l=>l.S("id")==d.Required("sourceLineId"));J.Need(sourceLine!=null,"الخصم يحتاج سطر مصدر.");
-                if((app is "ninja" or "keeta"||app=="hs"&&sourceLine!["deductions"] is JsonArray)&&source.S("status")=="final")
+                if((app is "ninja" or "keeta"||(app is "hs" or "chefz")&&sourceLine!["deductions"] is JsonArray)&&source.S("status")=="final")
                 {
                     var components=(sourceLine!["deductions"] as JsonArray??[]).OfType<JsonObject>().ToList();
                     var selected=components.Where(x=>d.S("sourceCategory")==""||x.S("category")==d.S("sourceCategory")).ToList();

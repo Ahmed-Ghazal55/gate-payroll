@@ -44,7 +44,7 @@ public sealed class OperationsImportTests
     public void MismatchesUnknownRidersOwnerOnlyDatesAndUnreviewedNativeHsFailClosed()
     {
         using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store,"hs");
-        foreach(var change in new Action<Dictionary<string,object?>>[]{r=>r["orders"]=4,r=>r["baseGross"]=99,r=>r["deduction"]=8,r=>r["iqama"]="2000000092",r=>r["category"]="bike",r=>r["days"]=32,r=>r["from (YYYY-MM-DD)"]="2026-11-01",r=>{r["from (YYYY-MM-DD)"]="2026-10-01";r["to (YYYY-MM-DD)"]="2026-11-01";}})
+        foreach(var change in new Action<Dictionary<string,object?>>[]{r=>r["distanceKm"]=0.12345m,r=>r["orders"]=4,r=>r["baseGross"]=99,r=>r["deduction"]=8,r=>r["iqama"]="2000000092",r=>r["category"]="bike",r=>r["days"]=32,r=>r["from (YYYY-MM-DD)"]="2026-11-01",r=>{r["from (YYYY-MM-DD)"]="2026-10-01";r["to (YYYY-MM-DD)"]="2026-11-01";}})
             Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>OperationsImports.Parse(c,null,PayFixture.Maker,"hs",Input(),Workbook("hs",change))));
         Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>OperationsImports.Parse(c,null,PayFixture.Maker,"hs",Input(),Workbook("hs",twice:true))));
         var missing=DebtSheetReviewTests.Book([("Synthetic",[["period (YYYY-MM)","platformAccountId","iqama","days","orders","baseGross","deduction","category"],["2026-10",AccountId,Rider,"1","5","=NOCACHE","3","sponsored_private"]])]);

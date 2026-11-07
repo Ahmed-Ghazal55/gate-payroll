@@ -50,8 +50,8 @@ public static class ImportCatalog
         new(11,"hungerstation_operations","operations","تشغيل هنقرستيشن للمناديب","الطلبات والساعات لكل مندوب على كل حساب.",["hungerstation_invoice"],"pay.manage",
             "/api/imports/templates/operations-hungerstation","/api/pay/apps/hs/operations/import/preview","/api/pay/apps/hs/operations/import/commit","xlsx","ready",Operations(new("hsRiderId",Identity:true),new("hours",Numeric:true),new("distanceKm",Numeric:true)),OperationsRequired,
             "يلزم مصدر فاتورة معياري مراجع يثبت إجمالي اليوزر والخصومات؛ لا نخمن من صافي المندوب."),
-        new(12,"chefz_operations","operations","تشغيل شفز","يُسحب من Gate ERP (قراءة فقط)؛ لا يوجد ملف للرفع.",["riders"],"erp.sync.run",
-            null,null,null,"erp","erp",[],[],"أول تحميل يحتاج «حمّل»."),
+        new(12,"chefz_operations","operations","تشغيل شفز","يُسحب من Gate ERP (قراءة فقط)؛ لا يوجد ملف للرفع.",["riders"],"pay.view",
+            null,"/api/pay/apps/chefz/operations/review",null,"erp","erp",[],[],"نموذج قراءة فقط لما سُحب بالفعل؛ أدخل الطلبات المُسلّمة الفعلية والفئة. أول تحميل يحتاج «حمّل»."),
     ];
 
     static readonly Dictionary<string,(string File,Func<IReadOnlyList<ExcelColumn>> Columns)> Templates=new(StringComparer.Ordinal)
