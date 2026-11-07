@@ -43,12 +43,13 @@ public static class AccessPolicy
         if(path=="/api/responses")return method=="GET"&&Has("forms.view");
         if(path=="/api/search")return method=="GET";
         if(path.StartsWith("/api/operations/",StringComparison.Ordinal)||path.StartsWith("/api/riders/",StringComparison.Ordinal)&&path.EndsWith("/accounts",StringComparison.Ordinal))return method=="GET"&&Has("operations.view");
+        if(path=="/api/pay/apps/chefz/operations/review")return method=="POST"&&Has("pay.view");
         if(path.StartsWith("/api/pay/cycles/",StringComparison.Ordinal)&&path.EndsWith("/advance",StringComparison.Ordinal))return method=="POST"&&(Has("pay.manage")||Has("pay.approve"));
         if(path.StartsWith("/api/pay/",StringComparison.Ordinal))
         {if(method=="GET")return Has("pay.view");return method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");}
         if(path=="/api/platforms/ninja/terms/seed")return method=="GET"&&Has("pay.view");
         if(path=="/api/platforms/ninja/invoices/reconcile")return method=="POST"&&Has("pay.view"); // read-only recalculation
-        if(path.StartsWith("/api/platforms/ninja/invoices",StringComparison.Ordinal))
+        if(path.StartsWith("/api/platforms/ninja/invoices",StringComparison.Ordinal)||path.StartsWith("/api/platforms/keeta/invoices",StringComparison.Ordinal))
             return method=="GET"?Has("pay.view"):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)||path.EndsWith("/post",StringComparison.Ordinal)||path.EndsWith("/resolve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
         if(path.StartsWith("/api/platforms/hs/",StringComparison.Ordinal))
         {

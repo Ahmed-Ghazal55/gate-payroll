@@ -16,8 +16,8 @@ public static class ImportCatalog
     // invoice review accounts[].riders[] (orders, baseGross share, days, category, metrics). Codex D3
     // finalises the app-specific metric columns from the real invoices; these are the shared core.
     static ExcelColumn[] Operations(params ExcelColumn[] metrics)=>[new("period (YYYY-MM)"),new("platformAccountId",Identity:true),new("iqama",Identity:true),new("riderName"),
-        new("from (YYYY-MM-DD)"),new("to (YYYY-MM-DD)"),new("days",Numeric:true),new("orders",Numeric:true),new("baseGross",Numeric:true),new("category",Choices:["car","bike"]),..metrics];
-    static readonly string[] OperationsRequired=["period (YYYY-MM)","platformAccountId","iqama","days","orders","category"];
+        new("from (YYYY-MM-DD)"),new("to (YYYY-MM-DD)"),new("days",Numeric:true),new("orders",Numeric:true),new("baseGross",Numeric:true),new("deduction",Numeric:true),new("category",Choices:PaySettings.Categories),..metrics];
+    static readonly string[] OperationsRequired=["period (YYYY-MM)","platformAccountId","iqama","days","orders","baseGross","deduction","category"];
 
     public static IReadOnlyList<Step> Steps()=>
     [
@@ -38,20 +38,20 @@ public static class ImportCatalog
         new(6,"ninja_invoice","invoices","فاتورة نينجا","الفاتورة المعتمدة هي النهائي (BR §31)؛ الحساب المتوقع للعلم.",["riders"],"pay.manage",
             null,"/api/platforms/ninja/invoices","/api/platforms/ninja/invoices?commit=1","platform-file","ready",[],[],"ارفع ملف الفاتورة الأصلي من نينجا كما هو (43 عمودًا)."),
         new(7,"ninja_operations","operations","تشغيل نينجا للمناديب","مين اشتغل على كل حساب، وكام طلب ويوم، مطابقًا لسطور الفاتورة.",["ninja_invoice"],"pay.manage",
-            "/api/imports/templates/operations-ninja",null,null,"xlsx","template_only",Operations(new("captainId",Identity:true),new("attendanceDays",Numeric:true),new("hours8Days",Numeric:true),new("weekendDays",Numeric:true)),OperationsRequired,
-            "المعاينة والاعتماد يكتملوا في R6c-D3."),
+            "/api/imports/templates/operations-ninja","/api/pay/apps/ninja/operations/import/preview","/api/pay/apps/ninja/operations/import/commit","xlsx","ready",Operations(new("captainId",Identity:true),new("attendanceDays",Numeric:true),new("hours8Days",Numeric:true),new("weekendDays",Numeric:true),new("workingHours",Numeric:true),new("activeWorkingHours",Numeric:true),new("committedWorkingHours",Numeric:true),new("shiftCompliancePercent",Numeric:true),new("onTimeAttendancePercent",Numeric:true)),OperationsRequired,
+            "فاتورة معتمدة وتوزيع المشغلين الفعليين؛ التأكيد يحفظ مراجعة فقط."),
         new(8,"keeta_invoice","invoices","فاتورة كيتا","فاتورة الشرائح (الرياض / جدة).",["riders"],"pay.manage",
-            null,null,null,"platform-file","planned",[],[],"المستورد قيد البناء (R6c-D2)."),
+            null,"/api/platforms/keeta/invoices","/api/platforms/keeta/invoices?commit=1","platform-file","ready",[],[],"ارفع ورقة الفاتورة الأصلية؛ حدد sheetName لو الملف متعدد الأوراق."),
         new(9,"keeta_operations","operations","تشغيل كيتا للمناديب","الطلبات والأيام لكل مندوب على كل حساب كيتا.",["keeta_invoice"],"pay.manage",
-            "/api/imports/templates/operations-keeta",null,null,"xlsx","template_only",Operations(new("keetaCourierId",Identity:true),new("city",Choices:["الرياض","جدة"]),new("onlineHours",Numeric:true),new("slab")),OperationsRequired,
-            "المعاينة والاعتماد يكتملوا في R6c-D3."),
+            "/api/imports/templates/operations-keeta","/api/pay/apps/keeta/operations/import/preview","/api/pay/apps/keeta/operations/import/commit","xlsx","ready",Operations(new("keetaCourierId",Identity:true),new("city",Choices:["الرياض","جدة"]),new("onlineHours",Numeric:true),new("validOnlineDays",Numeric:true),new("validShifts",Numeric:true),new("peakHours",Numeric:true),new("slab")),OperationsRequired,
+            "فاتورة معتمدة وتوزيع المشغلين الفعليين؛ التأكيد يحفظ مراجعة فقط."),
         new(10,"hungerstation_invoice","invoices","فاتورة هنقرستيشن","الفاتورة الشهرية لكل سجل.",["riders"],"platforms.hs.manage",
             null,"/api/platforms/hs/invoices/import/preview","/api/platforms/hs/invoices/import/commit","platform-file","ready",[],[]),
         new(11,"hungerstation_operations","operations","تشغيل هنقرستيشن للمناديب","الطلبات والساعات لكل مندوب على كل حساب.",["hungerstation_invoice"],"pay.manage",
-            "/api/imports/templates/operations-hungerstation",null,null,"xlsx","template_only",Operations(new("hsRiderId",Identity:true),new("hours",Numeric:true)),OperationsRequired,
-            "بعد اعتماد CR-003 ممكن تيجي من ERP مباشرة بدل الرفع."),
-        new(12,"chefz_operations","operations","تشغيل شفز","يُسحب من Gate ERP (قراءة فقط)؛ لا يوجد ملف للرفع.",["riders"],"erp.sync.run",
-            null,null,null,"erp","erp",[],[],"أول تحميل يحتاج «حمّل»."),
+            "/api/imports/templates/operations-hungerstation","/api/pay/apps/hs/operations/import/preview","/api/pay/apps/hs/operations/import/commit","xlsx","ready",Operations(new("hsRiderId",Identity:true),new("hours",Numeric:true),new("distanceKm",Numeric:true)),OperationsRequired,
+            "يلزم مصدر فاتورة معياري مراجع يثبت إجمالي اليوزر والخصومات؛ لا نخمن من صافي المندوب."),
+        new(12,"chefz_operations","operations","تشغيل شفز","يُسحب من Gate ERP (قراءة فقط)؛ لا يوجد ملف للرفع.",["riders"],"pay.view",
+            null,"/api/pay/apps/chefz/operations/review",null,"erp","erp",[],[],"نموذج قراءة فقط لما سُحب بالفعل؛ أدخل الطلبات المُسلّمة الفعلية والفئة. أول تحميل يحتاج «حمّل»."),
     ];
 
     static readonly Dictionary<string,(string File,Func<IReadOnlyList<ExcelColumn>> Columns)> Templates=new(StringComparer.Ordinal)

@@ -17,7 +17,7 @@ public sealed class DebtSheetPreview(JsonObject summary,List<PlannedDocument> do
 }
 
 // Workbook contents stay in memory. The only report is aggregate totals and Excel row numbers.
-public static class DebtSheetImporter
+public static partial class DebtSheetImporter
 {
     static string Text(string value)=>System.Text.RegularExpressions.Regex.Replace(value.Trim(),@"\s+"," ");
     static string Hash(byte[] bytes)=>Convert.ToHexString(SHA256.HashData(bytes));
@@ -63,6 +63,7 @@ public static class DebtSheetImporter
 
     public static DebtSheetPreview Preview(byte[] debtBytes,byte[] deductionBytes,JsonObject mapping,List<JsonObject> riders)
     {
+        if(mapping.S("openingMethod")=="r6c_reviewed_rows_v1")throw new ImportFailure("use_reviewed_opening_preview");
         if(mapping.N("version")!=1||mapping["paymentAllocation"].S("method")!="FIFO")throw new ImportFailure("unsupported_debt_mapping");
         var debtBook=Imports.Read(debtBytes,"debts.xlsx");var deductionBook=Imports.Read(deductionBytes,"deductions.xlsx");
         var sheet=Sheet(debtBook,mapping.Required("sheet"));var detail=Sheet(deductionBook,mapping.Required("deductionsSheet"));
@@ -118,14 +119,8 @@ public static class DebtSheetImporter
                 debtTotal+=gross;paymentTotal+=payment;sheetNetTotal+=sheetNet;
                 if(!Close(gross,Money(Cell(row,grossColumn))))Error(number,"gross_mismatch");
                 if(!Close(payment,Money(Cell(row,paymentsColumn))))Error(number,"payments_mismatch");
-                decimal left=payment,credit=Math.Max(0,J.Money(payment-gross));var remainder=new Dictionary<(string Category,string Account),decimal>();
-                for(int b=0;b<buckets.Count;b++)
-                {
-                    decimal allocation=Math.Min(left,amounts[b]);left=J.Money(left-allocation);decimal balance=J.Money(amounts[b]-allocation);
-                    if(balance==0)continue;
-                    var c=buckets[b];string category=Configured(c)?c.S("category"):"needs_decision",account=c.S("account");
-                    remainder[(category,account)]=remainder.GetValueOrDefault((category,account))+balance;
-                }
+                decimal credit=Math.Max(0,J.Money(payment-gross));
+                var remainder=AllocateOpeningFifo(amounts,payment,buckets.Select(c=>{var mapped=c.Clone();if(!Configured(c))mapped["category"]="needs_decision";return mapped;}).ToList());
                 decimal opening=J.Money(remainder.Values.Sum());
                 if(!Close(opening-credit,sheetNet))Error(number,"net_mismatch");
                 if(mismatch.Contains(number))continue;
@@ -229,7 +224,8 @@ public static class DebtSheetImporter
             ["receiptAvailable"]=receiptAvailable,["receiptRows"]=receiptRows,["receiptTotal"]=J.Money(receiptTotal),["receiptReferenceCount"]=receiptReferences.Count,["receiptCompanyTotals"]=System.Text.Json.JsonSerializer.SerializeToNode(receiptCompanyTotals),["receiptMismatchedRows"]=new JsonArray(receiptMismatches.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),["receiptGrandMatched"]=!receiptAvailable||Close(receiptTotal,detailTotals.Values.Sum()),["erpAdvanceReferenceComparisonAvailable"]=false,
             ["deductionRows"]=detailRows,["deductionTotalsByColumn"]=System.Text.Json.JsonSerializer.SerializeToNode(detailTotals),["deductionMismatchedRows"]=new JsonArray(detailErrors.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),["controlAvailable"]=controlAvailable,["controlComparisons"]=new JsonArray(controlComparisons.Select(x=>(JsonNode)x).ToArray()),["controlMismatchedRows"]=new JsonArray(controlRows.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),
             ["unresolvedColumns"]=new JsonArray(unresolved.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),["mappingApproved"]=approved,["effectivePeriodConfigured"]=period,["committed"]=false,
-            ["canCommit"]=approved&&period&&unresolved.Length==0&&rows>0&&mismatch.Count==0&&detailErrors.Count==0&&controlAvailable&&controlRows.Count==0&&receiptMismatches.Count==0&&(!receiptAvailable||Close(receiptTotal,detailTotals.Values.Sum()))};
+            ["octoberDecisionRequired"]=mapping.S("octoberLoadMode")=="pending_decision",
+            ["canCommit"]=mapping.S("octoberLoadMode")!="pending_decision"&&approved&&period&&unresolved.Length==0&&rows>0&&mismatch.Count==0&&detailErrors.Count==0&&controlAvailable&&controlRows.Count==0&&receiptMismatches.Count==0&&(!receiptAvailable||Close(receiptTotal,detailTotals.Values.Sum()))};
         return new(summary,documents,fingerprint,newRiders);
     }
     public static List<JsonObject> Riders(DbConnection c)=>Store.List(c,"rider");

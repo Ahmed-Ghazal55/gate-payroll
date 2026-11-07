@@ -1,7 +1,8 @@
 {
   "version": 1,
-  "status": "proposed_approved",
-  "approvedBy": null,
+  "status": "approved",
+  "approvedBy": "Ghazal",
+  "octoberLoadMode": "included_in_net",
   "sheet": "المديونيات",
   "headerRow": 1,
   "paymentAllocation": {
@@ -622,7 +623,7 @@
       "status": "proposed"
     }
   ],
-  "effectiveFrom": null,
+  "effectiveFrom": "2026-10",
   "controlSections": [
     {
       "deductionColumn": "D",
@@ -800,5 +801,26 @@
     "اكسبرس": "EX",
     "البوابا": "BW",
     "التجارية": "TR"
+  },
+  "approvedAt": "2026-11-07",
+  "balanceAsOf": "2026-10-31",
+  "openingMethod": "r6c_reviewed_rows_v1",
+  "deductionAppAliases": {
+    "هنجر ستيشن": "هنقرستيشن",
+    "اجازة غير مسموح بها": "لا يعمل",
+    "اقامة غير مسموح بها": "لا يعمل"
+  },
+  "carriedColumns": {
+    "date": "G",
+    "amount": "J",
+    "identity": "K",
+    "reference": "L",
+    "operation": "M"
+  },
+  "deductionReconciliationPolicy": {
+    "authority": "company_sheets_totals_detail",
+    "formattedSummary": "warning_only",
+    "approvedBy": "Ghazal",
+    "approvedAt": "2026-11-07"
   }
 }
