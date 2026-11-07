@@ -1524,8 +1524,20 @@ export const api = {
     return handleRequest<any>(`/pay/review-draft?${q.toString()}`);
   },
 
+  // Riders Lookup (C6 / A7)
+  getRidersLookup: (query: string) =>
+    handleRequest<any[]>(`/riders/lookup?q=${encodeURIComponent(query)}`),
+
   // Pay Settings Lifecycle (C4 / A6)
   getPayAppDefaults: (app: string) => handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/defaults`),
+  getAppEligibility: (app: string) => handleRequest<any[]>(`/pay/apps/${encodeURIComponent(app)}/eligibility`),
+  createAppEligibility: (app: string, input: any, period?: string) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility${period ? `?period=${encodeURIComponent(period)}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  approveAppEligibility: (app: string, id: string) =>
+    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
   rejectPaySetting: (kind: string, app: string, id: string, reason: string) => {
     const url = kind === 'pay_setting'
       ? `/pay/settings/${encodeURIComponent(id)}/reject`

@@ -29,6 +29,7 @@ import { useAuth } from '../../../lib/auth-context';
 import { useToast } from '../../../components/ui/Toast';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Skeleton, EmptyState, ErrorState } from '../../../components/ui/EmptyState';
+import { RiderPicker } from '../../../components/ui/RiderPicker';
 import type { RiderStatement, RiderProfile360, MonthlyRiderStatement } from '../../../lib/types';
 
 function RiderStatementPageInner() {
@@ -228,15 +229,16 @@ function RiderStatementPageInner() {
 
         {/* Search & Filter Toolbar */}
         <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <Search size={15} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
-            <input
-              type="text"
-              placeholder="رقم إقامة المندوب..."
+          <div className="flex-1 min-w-[240px] max-w-sm">
+            <RiderPicker
               value={iqama}
-              onChange={(e) => setIqama(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && fetchStatement()}
-              className="w-full ps-9 pe-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+              onChange={(rider) => {
+                if (rider?.iqama) {
+                  setIqama(rider.iqama);
+                  fetchStatement(rider.iqama);
+                }
+              }}
+              placeholder="ابحث باسم المندوب أو رقم الإقامة..."
             />
           </div>
 

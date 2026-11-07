@@ -47,6 +47,7 @@ import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { RiderPicker } from '../../components/ui/RiderPicker';
 import type {
   DebtRecord,
   ApprovalRequest,
@@ -1395,33 +1396,13 @@ function DebtsPageContent() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">المندوب المستفيد (تحت إشرافك):</label>
-            {supervisedRiders.length > 0 ? (
-              <select
-                id="select-supervised-rider"
-                value={newReqIqama}
-                onChange={(e) => setNewReqIqama(e.target.value)}
-                required
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
-              >
-                <option value="">-- اختر المندوب --</option>
-                {supervisedRiders.map((sr) => (
-                  <option key={sr.id} value={sr.riderIqama}>
-                    {sr.riderName ? `${sr.riderName} (${sr.riderIqama})` : sr.riderIqama}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type="text"
-                id="input-req-iqama"
-                value={newReqIqama}
-                onChange={(e) => setNewReqIqama(e.target.value)}
-                placeholder="أدخل رقم إقامة المندوب (10 أرقام)..."
-                required
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
-              />
-            )}
+            <label className="text-xs font-bold text-[var(--ink)]">المندوب المستفيد:</label>
+            <RiderPicker
+              value={newReqIqama}
+              onChange={(r) => setNewReqIqama(r?.iqama || '')}
+              placeholder="ابحث بالاسم أو رقم الإقامة..."
+              required
+            />
           </div>
 
           <div className="space-y-1">
