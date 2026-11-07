@@ -78,7 +78,7 @@ public static partial class PaySettings
         PayValues.Fields(data,"name","rules");var rules=PayValues.Array(data["rules"]);if(app=="jahez")J.Need(rules.Count==0,"جاهز بلا شروط أهلية وله دورة تصفيات منفصلة.");
         foreach(var rule in rules.OfType<JsonObject>())
         {
-            PayValues.Fields(rule,"metric","operator","threshold","effect","app");if(rule.ContainsKey("app"))J.Need(PayPlatforms.App(rule.S("app"))==app,"الأهلية تخص تطبيقًا واحدًا؛ المشاركة بين التطبيقات ممنوعة.");PayValues.Name(rule.Required("metric"));J.Need(Operators.Contains(rule.S("operator")),"عامل مقارنة غير مدعوم.");PayValues.Number(rule,"threshold",-1000000000);
+            PayValues.Fields(rule,"metric","operator","threshold","effect","app","included");if(rule.ContainsKey("included"))PayValues.Flag(rule,"included");if(app=="ninja")J.Need(NinjaMetrics.Contains(rule.S("metric")),"مقياس أهلية نينجا غير مدعوم.");if(rule.ContainsKey("app"))J.Need(PayPlatforms.App(rule.S("app"))==app,"الأهلية تخص تطبيقًا واحدًا؛ المشاركة بين التطبيقات ممنوعة.");PayValues.Name(rule.Required("metric"));J.Need(Operators.Contains(rule.S("operator")),"عامل مقارنة غير مدعوم.");PayValues.Number(rule,"threshold",-1000000000);
             var effect=PayValues.Object(rule["effect"]);PayValues.Fields(effect,"type");J.Need(effect.S("type") is "next_band" or "per_order" or "zero","أثر شرط الأهلية غير مدعوم.");
         }
     }

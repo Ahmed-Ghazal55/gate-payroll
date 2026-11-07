@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:39305/"
+      "url": "http://127.0.0.1:36329/"
     }
   ],
   "paths": {
@@ -5059,6 +5059,798 @@
         }
       }
     },
+    "/api/pay/apps/{app}/terms/{id}/reject": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "app",
+                    "period",
+                    "status",
+                    "version",
+                    "data"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "app": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "effectiveFrom": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/{app}/terms/{id}": {
+      "delete": {
+        "tags": [
+          "Payroll"
+        ],
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "deleted",
+                    "id"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/{app}/schemes/{id}/reject": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "app",
+                    "period",
+                    "status",
+                    "version",
+                    "data"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "app": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "effectiveFrom": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/{app}/schemes/{id}": {
+      "delete": {
+        "tags": [
+          "Payroll"
+        ],
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "deleted",
+                    "id"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/{app}/eligibility/{id}/reject": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "app",
+                    "period",
+                    "status",
+                    "version",
+                    "data"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "app": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "effectiveFrom": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/{app}/eligibility/{id}": {
+      "delete": {
+        "tags": [
+          "Payroll"
+        ],
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "deleted",
+                    "id"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/settings/{id}/reject": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "app",
+                    "period",
+                    "status",
+                    "version",
+                    "data"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "app": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "effectiveFrom": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/settings/{id}": {
+      "delete": {
+        "tags": [
+          "Payroll"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "deleted",
+                    "id"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pay/catalog": {
       "get": {
         "tags": [
@@ -5071,7 +5863,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndJsonObjectAndboolean"
+                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndboolean"
                 }
               }
             }
@@ -5144,7 +5936,67 @@
                             "type": "string"
                           },
                           "data": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "billingModel": {
+                                "type": "string"
+                              },
+                              "accountingRole": {
+                                "type": "string"
+                              },
+                              "eligibilitySetId": {
+                                "type": "string"
+                              },
+                              "parameters": {
+                                "type": "object"
+                              },
+                              "values": {
+                                "type": "object"
+                              },
+                              "rules": {
+                                "type": "array",
+                                "items": {
+                                  "required": [
+                                    "metric",
+                                    "operator",
+                                    "threshold",
+                                    "effect"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "metric": {
+                                      "type": "string"
+                                    },
+                                    "operator": {
+                                      "type": "string"
+                                    },
+                                    "threshold": {
+                                      "type": "number"
+                                    },
+                                    "effect": {
+                                      "required": [
+                                        "type"
+                                      ],
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "included": {
+                                      "type": "boolean"
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           },
                           "createdBy": {
                             "type": "string"
@@ -5240,7 +6092,67 @@
                       "type": "string"
                     },
                     "data": {
-                      "type": "object"
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "createdBy": {
                       "type": "string"
@@ -5327,7 +6239,67 @@
                             "type": "string"
                           },
                           "data": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "billingModel": {
+                                "type": "string"
+                              },
+                              "accountingRole": {
+                                "type": "string"
+                              },
+                              "eligibilitySetId": {
+                                "type": "string"
+                              },
+                              "parameters": {
+                                "type": "object"
+                              },
+                              "values": {
+                                "type": "object"
+                              },
+                              "rules": {
+                                "type": "array",
+                                "items": {
+                                  "required": [
+                                    "metric",
+                                    "operator",
+                                    "threshold",
+                                    "effect"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "metric": {
+                                      "type": "string"
+                                    },
+                                    "operator": {
+                                      "type": "string"
+                                    },
+                                    "threshold": {
+                                      "type": "number"
+                                    },
+                                    "effect": {
+                                      "required": [
+                                        "type"
+                                      ],
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "included": {
+                                      "type": "boolean"
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           },
                           "createdBy": {
                             "type": "string"
@@ -5423,7 +6395,67 @@
                       "type": "string"
                     },
                     "data": {
-                      "type": "object"
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "createdBy": {
                       "type": "string"
@@ -5510,7 +6542,67 @@
                             "type": "string"
                           },
                           "data": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "billingModel": {
+                                "type": "string"
+                              },
+                              "accountingRole": {
+                                "type": "string"
+                              },
+                              "eligibilitySetId": {
+                                "type": "string"
+                              },
+                              "parameters": {
+                                "type": "object"
+                              },
+                              "values": {
+                                "type": "object"
+                              },
+                              "rules": {
+                                "type": "array",
+                                "items": {
+                                  "required": [
+                                    "metric",
+                                    "operator",
+                                    "threshold",
+                                    "effect"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "metric": {
+                                      "type": "string"
+                                    },
+                                    "operator": {
+                                      "type": "string"
+                                    },
+                                    "threshold": {
+                                      "type": "number"
+                                    },
+                                    "effect": {
+                                      "required": [
+                                        "type"
+                                      ],
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "included": {
+                                      "type": "boolean"
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           },
                           "createdBy": {
                             "type": "string"
@@ -5606,7 +6698,67 @@
                       "type": "string"
                     },
                     "data": {
-                      "type": "object"
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "createdBy": {
                       "type": "string"
@@ -5690,7 +6842,67 @@
                       "type": "string"
                     },
                     "data": {
-                      "type": "object"
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "createdBy": {
                       "type": "string"
@@ -5774,7 +6986,67 @@
                       "type": "string"
                     },
                     "data": {
-                      "type": "object"
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "createdBy": {
                       "type": "string"
@@ -5858,7 +7130,67 @@
                       "type": "string"
                     },
                     "data": {
-                      "type": "object"
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "createdBy": {
                       "type": "string"
@@ -5965,7 +7297,67 @@
                             "type": "string"
                           },
                           "data": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "billingModel": {
+                                "type": "string"
+                              },
+                              "accountingRole": {
+                                "type": "string"
+                              },
+                              "eligibilitySetId": {
+                                "type": "string"
+                              },
+                              "parameters": {
+                                "type": "object"
+                              },
+                              "values": {
+                                "type": "object"
+                              },
+                              "rules": {
+                                "type": "array",
+                                "items": {
+                                  "required": [
+                                    "metric",
+                                    "operator",
+                                    "threshold",
+                                    "effect"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "metric": {
+                                      "type": "string"
+                                    },
+                                    "operator": {
+                                      "type": "string"
+                                    },
+                                    "threshold": {
+                                      "type": "number"
+                                    },
+                                    "effect": {
+                                      "required": [
+                                        "type"
+                                      ],
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "included": {
+                                      "type": "boolean"
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           },
                           "createdBy": {
                             "type": "string"
@@ -6051,7 +7443,67 @@
                       "type": "string"
                     },
                     "data": {
-                      "type": "object"
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "createdBy": {
                       "type": "string"
@@ -6127,7 +7579,67 @@
                       "type": "string"
                     },
                     "data": {
-                      "type": "object"
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "billingModel": {
+                          "type": "string"
+                        },
+                        "accountingRole": {
+                          "type": "string"
+                        },
+                        "eligibilitySetId": {
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "type": "object"
+                        },
+                        "values": {
+                          "type": "object"
+                        },
+                        "rules": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "metric",
+                              "operator",
+                              "threshold",
+                              "effect"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "operator": {
+                                "type": "string"
+                              },
+                              "threshold": {
+                                "type": "number"
+                              },
+                              "effect": {
+                                "required": [
+                                  "type"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "included": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "createdBy": {
                       "type": "string"
@@ -10379,69 +11891,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful response (stored wire field names)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "required": [
-                    "id",
-                    "status"
-                  ],
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "companyId": {
-                      "type": "string"
-                    },
-                    "date": {
-                      "type": "string"
-                    },
-                    "reference": {
-                      "type": "string"
-                    },
-                    "description": {
-                      "type": "string"
-                    },
-                    "journalEntryId": {
-                      "type": "string"
-                    },
-                    "allowedActions": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "lines": {
-                      "type": "array",
-                      "items": {
-                        "required": [
-                          "accountCode",
-                          "debit",
-                          "credit"
-                        ],
-                        "type": "object",
-                        "properties": {
-                          "accountCode": {
-                            "type": "string"
-                          },
-                          "debit": {
-                            "type": "number"
-                          },
-                          "credit": {
-                            "type": "number"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
@@ -12041,37 +13491,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful response (stored wire field names)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "required": [
-                    "id"
-                  ],
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "expiresAt": {
-                      "type": "string"
-                    },
-                    "path": {
-                      "type": "string"
-                    },
-                    "kind": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
@@ -12094,34 +13514,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful response (stored wire field names)",
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
-                  "required": [
-                    "id"
-                  ],
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "expiresAt": {
-                      "type": "string"
-                    },
-                    "path": {
-                      "type": "string"
-                    },
-                    "kind": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/AnonymousTypeOfboolean"
                 }
               }
             }
@@ -12357,35 +13754,10 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful response (stored wire field names)",
+            "description": "OK",
             "content": {
               "application/json": {
-                "schema": {
-                  "required": [
-                    "id"
-                  ],
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "expiresAt": {
-                      "type": "string"
-                    },
-                    "path": {
-                      "type": "string"
-                    },
-                    "kind": {
-                      "type": "string"
-                    }
-                  }
-                }
+                "schema": {}
               }
             }
           }
@@ -12500,34 +13872,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful response (stored wire field names)",
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
-                  "required": [
-                    "id"
-                  ],
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "expiresAt": {
-                      "type": "string"
-                    },
-                    "path": {
-                      "type": "string"
-                    },
-                    "kind": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndintAndstring"
                 }
               }
             }
@@ -12831,12 +14180,13 @@
           }
         }
       },
-      "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndJsonObjectAndboolean": {
+      "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndboolean": {
         "required": [
           "apps",
           "schemeTypes",
           "categories",
           "operators",
+          "ninjaMetrics",
           "defaults",
           "defaultsAreDraftOnly"
         ],
@@ -12870,6 +14220,15 @@
             }
           },
           "operators": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "ninjaMetrics": {
             "type": [
               "null",
               "array"

@@ -4652,6 +4652,452 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pay/apps/{app}/terms/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            app: string;
+                            period: string;
+                            code?: string;
+                            version: number;
+                            status: string;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
+                            createdBy?: string;
+                            effectiveFrom?: string;
+                            allowedActions?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/{app}/terms/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            deleted: boolean;
+                            id: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/{app}/schemes/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            app: string;
+                            period: string;
+                            code?: string;
+                            version: number;
+                            status: string;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
+                            createdBy?: string;
+                            effectiveFrom?: string;
+                            allowedActions?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/{app}/schemes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            deleted: boolean;
+                            id: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/{app}/eligibility/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            app: string;
+                            period: string;
+                            code?: string;
+                            version: number;
+                            status: string;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
+                            createdBy?: string;
+                            effectiveFrom?: string;
+                            allowedActions?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/{app}/eligibility/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            deleted: boolean;
+                            id: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/settings/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            app: string;
+                            period: string;
+                            code?: string;
+                            version: number;
+                            status: string;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
+                            createdBy?: string;
+                            effectiveFrom?: string;
+                            allowedActions?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/settings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            deleted: boolean;
+                            id: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pay/catalog": {
         parameters: {
             query?: never;
@@ -4675,7 +5121,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndJsonObjectAndboolean"];
+                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndboolean"];
                     };
                 };
             };
@@ -4722,7 +5168,24 @@ export interface paths {
                                 code?: string;
                                 version: number;
                                 status: string;
-                                data: Record<string, never>;
+                                data: {
+                                    name?: string;
+                                    type?: string;
+                                    billingModel?: string;
+                                    accountingRole?: string;
+                                    eligibilitySetId?: string;
+                                    parameters?: Record<string, never>;
+                                    values?: Record<string, never>;
+                                    rules?: {
+                                        metric: string;
+                                        operator: string;
+                                        threshold: number;
+                                        effect: {
+                                            type: string;
+                                        };
+                                        included?: boolean;
+                                    }[];
+                                };
                                 createdBy?: string;
                                 effectiveFrom?: string;
                                 allowedActions?: string[];
@@ -4766,7 +5229,24 @@ export interface paths {
                             code?: string;
                             version: number;
                             status: string;
-                            data: Record<string, never>;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
                             createdBy?: string;
                             effectiveFrom?: string;
                             allowedActions?: string[];
@@ -4815,7 +5295,24 @@ export interface paths {
                                 code?: string;
                                 version: number;
                                 status: string;
-                                data: Record<string, never>;
+                                data: {
+                                    name?: string;
+                                    type?: string;
+                                    billingModel?: string;
+                                    accountingRole?: string;
+                                    eligibilitySetId?: string;
+                                    parameters?: Record<string, never>;
+                                    values?: Record<string, never>;
+                                    rules?: {
+                                        metric: string;
+                                        operator: string;
+                                        threshold: number;
+                                        effect: {
+                                            type: string;
+                                        };
+                                        included?: boolean;
+                                    }[];
+                                };
                                 createdBy?: string;
                                 effectiveFrom?: string;
                                 allowedActions?: string[];
@@ -4859,7 +5356,24 @@ export interface paths {
                             code?: string;
                             version: number;
                             status: string;
-                            data: Record<string, never>;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
                             createdBy?: string;
                             effectiveFrom?: string;
                             allowedActions?: string[];
@@ -4908,7 +5422,24 @@ export interface paths {
                                 code?: string;
                                 version: number;
                                 status: string;
-                                data: Record<string, never>;
+                                data: {
+                                    name?: string;
+                                    type?: string;
+                                    billingModel?: string;
+                                    accountingRole?: string;
+                                    eligibilitySetId?: string;
+                                    parameters?: Record<string, never>;
+                                    values?: Record<string, never>;
+                                    rules?: {
+                                        metric: string;
+                                        operator: string;
+                                        threshold: number;
+                                        effect: {
+                                            type: string;
+                                        };
+                                        included?: boolean;
+                                    }[];
+                                };
                                 createdBy?: string;
                                 effectiveFrom?: string;
                                 allowedActions?: string[];
@@ -4952,7 +5483,24 @@ export interface paths {
                             code?: string;
                             version: number;
                             status: string;
-                            data: Record<string, never>;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
                             createdBy?: string;
                             effectiveFrom?: string;
                             allowedActions?: string[];
@@ -5003,7 +5551,24 @@ export interface paths {
                             code?: string;
                             version: number;
                             status: string;
-                            data: Record<string, never>;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
                             createdBy?: string;
                             effectiveFrom?: string;
                             allowedActions?: string[];
@@ -5054,7 +5619,24 @@ export interface paths {
                             code?: string;
                             version: number;
                             status: string;
-                            data: Record<string, never>;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
                             createdBy?: string;
                             effectiveFrom?: string;
                             allowedActions?: string[];
@@ -5105,7 +5687,24 @@ export interface paths {
                             code?: string;
                             version: number;
                             status: string;
-                            data: Record<string, never>;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
                             createdBy?: string;
                             effectiveFrom?: string;
                             allowedActions?: string[];
@@ -5190,7 +5789,24 @@ export interface paths {
                                 code?: string;
                                 version: number;
                                 status: string;
-                                data: Record<string, never>;
+                                data: {
+                                    name?: string;
+                                    type?: string;
+                                    billingModel?: string;
+                                    accountingRole?: string;
+                                    eligibilitySetId?: string;
+                                    parameters?: Record<string, never>;
+                                    values?: Record<string, never>;
+                                    rules?: {
+                                        metric: string;
+                                        operator: string;
+                                        threshold: number;
+                                        effect: {
+                                            type: string;
+                                        };
+                                        included?: boolean;
+                                    }[];
+                                };
                                 createdBy?: string;
                                 effectiveFrom?: string;
                                 allowedActions?: string[];
@@ -5232,7 +5848,24 @@ export interface paths {
                             code?: string;
                             version: number;
                             status: string;
-                            data: Record<string, never>;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
                             createdBy?: string;
                             effectiveFrom?: string;
                             allowedActions?: string[];
@@ -5282,7 +5915,24 @@ export interface paths {
                             code?: string;
                             version: number;
                             status: string;
-                            data: Record<string, never>;
+                            data: {
+                                name?: string;
+                                type?: string;
+                                billingModel?: string;
+                                accountingRole?: string;
+                                eligibilitySetId?: string;
+                                parameters?: Record<string, never>;
+                                values?: Record<string, never>;
+                                rules?: {
+                                    metric: string;
+                                    operator: string;
+                                    threshold: number;
+                                    effect: {
+                                        type: string;
+                                    };
+                                    included?: boolean;
+                                }[];
+                            };
                             createdBy?: string;
                             effectiveFrom?: string;
                             allowedActions?: string[];
@@ -9284,28 +9934,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Successful response (stored wire field names) */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": {
-                            id: string;
-                            status: string;
-                            companyId?: string;
-                            date?: string;
-                            reference?: string;
-                            description?: string;
-                            journalEntryId?: string;
-                            allowedActions?: string[];
-                            lines?: {
-                                accountCode: string;
-                                debit: number;
-                                credit: number;
-                            }[];
-                        };
-                    };
+                    content?: never;
                 };
             };
         };
@@ -11146,21 +11780,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Successful response (stored wire field names) */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": {
-                            id: string;
-                            title?: string;
-                            status?: string;
-                            expiresAt?: string;
-                            path?: string;
-                            kind?: string;
-                        };
-                    };
+                    content?: never;
                 };
             };
         };
@@ -11193,20 +11818,13 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Successful response (stored wire field names) */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            id: string;
-                            title?: string;
-                            status?: string;
-                            expiresAt?: string;
-                            path?: string;
-                            kind?: string;
-                        };
+                        "application/json": components["schemas"]["AnonymousTypeOfboolean"];
                     };
                 };
             };
@@ -11432,20 +12050,13 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Successful response (stored wire field names) */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            id: string;
-                            title?: string;
-                            status?: string;
-                            expiresAt?: string;
-                            path?: string;
-                            kind?: string;
-                        };
+                        "application/json": unknown;
                     };
                 };
             };
@@ -11595,20 +12206,13 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Successful response (stored wire field names) */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            id: string;
-                            title?: string;
-                            status?: string;
-                            expiresAt?: string;
-                            path?: string;
-                            kind?: string;
-                        };
+                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndintAndstring"];
                     };
                 };
             };
@@ -11726,11 +12330,12 @@ export interface components {
             /** Format: double */
             balance: number | string;
         };
-        "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndJsonObjectAndboolean": {
+        "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndboolean": {
             apps: null | components["schemas"]["Accounts"][];
             schemeTypes: null | string[];
             categories: null | string[];
             operators: null | string[];
+            ninjaMetrics: null | string[];
             defaults: components["schemas"]["JsonObject"];
             defaultsAreDraftOnly: boolean;
         };
