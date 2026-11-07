@@ -8,6 +8,7 @@ import {
   XCircle,
   Trash2,
   RefreshCw,
+  CalendarClock,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { Campaign } from '../../lib/types';
@@ -24,6 +25,12 @@ import { DeletePreviewDialog, DeleteTarget } from './DeletePreviewDialog';
 function campaignLink(c: Campaign): string {
   if (c.publicUrl) return c.publicUrl;
   return c.path ? `${window.location.origin}${c.path}` : '';
+}
+
+// The public link also checks expiry (Program.cs Campaign()), so an "open" campaign past its date is expired.
+function campaignState(c: Campaign): 'open' | 'expired' | 'closed' {
+  if (c.status !== 'open') return 'closed';
+  return new Date(c.expiresAt).getTime() <= Date.now() ? 'expired' : 'open';
 }
 
 export interface CampaignsTabProps {
@@ -50,6 +57,25 @@ export function CampaignsTab({
 
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [qrTarget, setQrTarget] = useState<Campaign | null>(null);
+  const [extendTarget, setExtendTarget] = useState<Campaign | null>(null);
+  const [extendDays, setExtendDays] = useState(14);
+  const [extending, setExtending] = useState(false);
+
+  const handleExtend = async () => {
+    if (!extendTarget) return;
+    setExtending(true);
+    try {
+      const expiresAt = new Date(Date.now() + extendDays * 86400000).toISOString();
+      await api.updateCampaign(extendTarget.id, { expiresAt, status: 'open' });
+      toast(`تم فتح الحملة حتى ${new Date(expiresAt).toLocaleDateString('ar-SA')}`, 'success');
+      setExtendTarget(null);
+      onRefresh();
+    } catch (err: any) {
+      toast(err?.message || 'تعذر تمديد الحملة', 'danger');
+    } finally {
+      setExtending(false);
+    }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,12 +155,14 @@ export function CampaignsTab({
       render: (c) => (
         <span
           className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-            c.status === 'open'
+            campaignState(c) === 'open'
               ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+              : campaignState(c) === 'expired'
+              ? 'bg-[var(--warning)]/15 text-[var(--warning)]'
               : 'bg-[var(--muted)]/20 text-[var(--muted)]'
           }`}
         >
-          {c.status === 'open' ? 'مفتوحة للاستقبال' : 'مغلقة'}
+          {campaignState(c) === 'open' ? 'مفتوحة للاستقبال' : campaignState(c) === 'expired' ? 'منتهية الصلاحية' : 'مغلقة'}
         </span>
       ),
     },
@@ -217,6 +245,15 @@ export function CampaignsTab({
                     disabled: (c: Campaign) => c.status === 'closed',
                     onClick: (c: Campaign) => handleCloseCampaign(c.id),
                     icon: <XCircle size={14} />,
+                  },
+                ]
+              : []),
+            ...(isAdmin
+              ? [
+                  {
+                    label: 'تمديد / إعادة فتح',
+                    onClick: (c: Campaign) => setExtendTarget(c),
+                    icon: <CalendarClock size={14} />,
                   },
                 ]
               : []),
@@ -335,6 +372,48 @@ export function CampaignsTab({
         onClose={() => setDeleteTarget(null)}
         onSuccess={onRefresh}
       />
+
+      <Dialog
+        open={!!extendTarget}
+        onClose={() => (extending ? null : setExtendTarget(null))}
+        title={`تمديد / إعادة فتح: ${extendTarget?.title || ''}`}
+        description="الرابط الحالي يبقى كما هو؛ يعود لاستقبال الردود حتى التاريخ الجديد."
+        actions={
+          <>
+            <button
+              type="button"
+              disabled={extending}
+              onClick={() => setExtendTarget(null)}
+              className="px-4 py-2 text-xs font-semibold rounded-lg border border-[var(--line)] text-[var(--ink)]"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={extending}
+              onClick={handleExtend}
+              className="px-4 py-2 text-xs font-bold rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] disabled:opacity-50"
+            >
+              {extending ? 'جاري الحفظ...' : 'فتح الحملة'}
+            </button>
+          </>
+        }
+      >
+        <label className="block space-y-1.5 text-xs">
+          <span className="font-semibold text-[var(--ink)]">مدة الاستقبال من اليوم (بالأيام، 1 إلى 30)</span>
+          <input
+            type="number"
+            min={1}
+            max={30}
+            value={extendDays}
+            onChange={(e) => setExtendDays(Math.min(30, Math.max(1, Number(e.target.value) || 1)))}
+            className="w-full px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] num"
+          />
+          <span className="text-[var(--muted)]">
+            ينتهي في: {new Date(Date.now() + extendDays * 86400000).toLocaleDateString('ar-SA')}
+          </span>
+        </label>
+      </Dialog>
 
       {/* QR Code Dialog */}
       <Dialog

@@ -61,3 +61,28 @@ html[data-theme="dim"],
   --money-pos: #2DD4BF;
   --money-neg: #F87171;
 }
+
+/* Native controls (select dropdowns, date pickers, scrollbars) follow the theme.
+   Without this the browser draws a white option list with our light ink on it in dim mode.
+   Base layer so Tailwind text-* utilities on a control still win. */
+:root,
+html[data-theme="sand"],
+html[data-theme="light"] {
+  color-scheme: light;
+}
+html[data-theme="dim"] {
+  color-scheme: dark;
+}
+@layer base {
+  select,
+  input,
+  textarea {
+    color: var(--ink);
+    background-color: var(--surface);
+  }
+  select option,
+  select optgroup {
+    background-color: var(--surface);
+    color: var(--ink);
+  }
+}

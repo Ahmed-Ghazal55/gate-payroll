@@ -57,6 +57,8 @@ export interface DataTableProps<T> {
   className?: string;
 }
 
+export const PAGE_SIZES = [50, 100, 150, 200, 250, 300];
+
 export function DataTable<T extends Record<string, any>>({
   columns,
   data,
@@ -64,10 +66,10 @@ export function DataTable<T extends Record<string, any>>({
   loading = false,
   error = null,
   onRetry,
-  page = 1,
-  pageSize = 20,
-  onPageChange,
-  onPageSizeChange,
+  page: controlledPage,
+  pageSize: controlledPageSize,
+  onPageChange: controlledOnPageChange,
+  onPageSizeChange: controlledOnPageSizeChange,
   selectable = false,
   selectedIds = [],
   onSelectionChange,
@@ -78,6 +80,19 @@ export function DataTable<T extends Record<string, any>>({
   tableId = 'data-table',
   className = '',
 }: DataTableProps<T>) {
+  // Paging is controlled when the page passes page/onPageChange; otherwise the table pages itself
+  // so no caller can silently cut rows (TABLE_STANDARD: no hidden paging). Sizes 50..300 step 50.
+  const [innerPage, setInnerPage] = useState(1);
+  const [innerPageSize, setInnerPageSize] = useState(PAGE_SIZES[0]);
+  const page = controlledPage ?? innerPage;
+  const pageSize = controlledPageSize ?? innerPageSize;
+  const onPageChange = controlledOnPageChange ?? setInnerPage;
+  const onPageSizeChange = (size: number) => {
+    if (controlledOnPageSizeChange) controlledOnPageSizeChange(size);
+    else setInnerPageSize(size);
+    onPageChange(1);
+  };
+
   // Sorting state
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -219,6 +234,12 @@ export function DataTable<T extends Record<string, any>>({
 
   const effectiveTotal = totalCount !== undefined ? totalCount : sortedData.length;
   const totalPages = Math.max(1, Math.ceil(effectiveTotal / pageSize));
+
+  // A narrower filter can leave the current page past the end; go back to the last real page.
+  useEffect(() => {
+    if (page > totalPages) onPageChange(totalPages);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, totalPages]);
 
   // Selection handlers
   const handleSelectAll = (checked: boolean) => {
@@ -517,7 +538,7 @@ export function DataTable<T extends Record<string, any>>({
             سجل
           </span>
 
-          {onPageSizeChange && (
+          {(
             <div className="flex items-center gap-1.5 ms-4">
               <span>لكل صفحة:</span>
               <select
@@ -526,7 +547,7 @@ export function DataTable<T extends Record<string, any>>({
                 aria-label="عدد السجلات لكل صفحة"
                 className="py-1 px-2 rounded-md border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
-                {[10, 20, 50, 100].map((size) => (
+                {PAGE_SIZES.map((size) => (
                   <option key={size} value={size}>
                     {size}
                   </option>
@@ -537,7 +558,7 @@ export function DataTable<T extends Record<string, any>>({
         </div>
 
         {/* Page navigation buttons */}
-        {onPageChange && (
+        {totalPages > 1 && (
           <div className="flex items-center gap-1">
             <button
               type="button"

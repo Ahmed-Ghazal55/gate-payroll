@@ -3,8 +3,8 @@
 | Field | Value |
 |---|---|
 | Current writer | none |
-| Branch | release/0.17.0 (main 0.16.0 + feat/import-center + feat/r6c-ui + feat/r6c-debts-ops) |
-| Live | 0.16.0 on **db77738 (SQL Server)** since 2026-11-07 |
+| Branch | fix/0.17.1 (PR, waiting for «ادمج») |
+| Live | 0.17.0 on **db77738 (SQL Server)**; login audit confirmed in SQL |
 | Updated | 2026-11-07 by Claude |
 
 ## Project folder
@@ -35,6 +35,15 @@
 - Ghazal's decision sheet (private): `~/Private/gate-data/review/debts-blocked-creditor-2026-10.xlsx`.
   - A suggested company from ERP platform accounts: EX 62, BW 47, TR 1, conflict 6, none 263.
   - After Ghazal fills «قرار غزال», add a decisions overlay and run a new preview + commit. Only the fixed rows are added (idempotent by `DEBT-SHEET:<row>:<category>`).
+
+## R7 (Ghazal's video review 2026-11-07) — plan `~/.claude/plans/serene-hopping-clarke.md`
+- W0 hotfix 0.17.1 (Claude, PR open):
+  - /app/debts crash fixed: the UI read originalAmount/remainingAmount, the API sends totalAmount/remainingBalance.
+  - `app/error.tsx` added; expired campaigns show «منتهية» plus «تمديد / إعادة فتح».
+  - Dark-theme selects (`color-scheme`); DataTable pages itself (50–300).
+  - Opening debts had no approval_request, so they could not be approved. New `POST /debts/opening/decide` (admin, batches of 100, posts in balance month 2026-10) and a banner/drawer on /app/debts.
+  - Rider credits (6) still pending; no approval path yet.
+- Next waves: W1 tables/RiderPicker (0.18.0), W2 operations resolved views, W3 workflow gaps (Ninja approve, journal reject/delete, rule editor), W4 users/tasks/chat, W5 Capacitor rider app.
 
 ## Next
 1. Ghazal: fill the decision sheet for the 379 rows.

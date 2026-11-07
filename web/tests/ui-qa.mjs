@@ -114,6 +114,16 @@ function startStaticServer(port = 39823) {
             createdAt: new Date().toISOString(),
             path: '/forms/iban-2026',
             responseCount: 24,
+          },
+          {
+            id: 'camp-102',
+            title: 'اختيار نظام العمل',
+            kind: 'work-choice',
+            status: 'open',
+            expiresAt: new Date(Date.now() - 3 * 86400 * 1000).toISOString(),
+            createdAt: new Date().toISOString(),
+            path: '/forms/work-2026',
+            responseCount: 5,
           }
         ]));
         return;
@@ -163,8 +173,10 @@ function startStaticServer(port = 39823) {
       if (reqPath === '/api/debts' || reqPath === '/api/finance/debts') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify([
-          { id: 'debt-1', riderIqama: '2000000789', riderName: 'سالم فهد القحطاني', totalDebt: 1500, paidAmount: 500, remainingAmount: 1000, reason: 'سلفة تشغيلية', status: 'active', createdAt: new Date().toISOString() },
-          { id: 'debt-2', riderIqama: '2000000111', riderName: 'أحمد صالح المحمدي', totalDebt: 3200, paidAmount: 3200, remainingAmount: 0, reason: 'تلفيات مركبة', status: 'settled', createdAt: new Date().toISOString() }
+          // Server shape (Debts.cs / DebtSheetOpening.cs): totalAmount + remainingBalance, never originalAmount.
+          { id: 'debt-1', iqama: '2000000789', riderName: 'سالم فهد القحطاني', category: 'CashAdvance', categoryAr: 'سلفة نقدية', entryMode: 'Disbursement', totalAmount: 1500, paidAmount: 500, remainingBalance: 1000, status: 'active', createdAt: new Date().toISOString() },
+          { id: 'debt-2', iqama: '2000000111', riderName: 'أحمد صالح المحمدي', category: 'AccidentDamage', categoryAr: 'تلفيات حوادث', entryMode: 'Accrual', totalAmount: 3200, paidAmount: 3200, remainingBalance: 0, status: 'settled', createdAt: new Date().toISOString() },
+          { id: 'DEBT-SHEET:9:TrafficFine', iqama: '2000000333', riderName: 'مندوب افتتاحي', category: 'TrafficFine', categoryAr: 'مخالفات مرورية', entryMode: 'OpeningBalance', totalAmount: 420.5, paidAmount: 0, remainingBalance: 420.5, monthlyInstallment: 0, status: 'pending_approval', balanceAsOf: '2026-10-31', createdBy: 'debt-sheet-import' }
         ]));
         return;
       }
@@ -323,6 +335,31 @@ async function run() {
       await page.keyboard.press('Escape');
       console.log('    ✓ Debts Advance Request dialog typing 10 chars passed');
     }
+
+    // 3b. Debts list with server-shaped records renders (0.17.1 crash) and offers opening approval
+    console.log('  Testing Debts list renders server-shaped records...');
+    await page.goto(`${baseUrl}/debts/`);
+    await page.waitForLoadState('networkidle');
+    await page.getByText('420.50', { exact: false }).first().waitFor({ timeout: 5000 });
+    assert.equal(await page.getByText('تعذر عرض هذه الصفحة').count(), 0, 'Debts page must not hit the error boundary');
+    assert.ok(await page.getByText('أرصدة افتتاحية بانتظار الاعتماد').first().isVisible(), 'Admin sees the pending opening balances banner');
+    assert.ok(await page.locator('td span', { hasText: 'مخالفات مرورية' }).first().isVisible(), 'Category label comes from categoryAr');
+    console.log('    ✓ Debts list renders totalAmount/remainingBalance and opening banner');
+
+    // 3c. Expired campaign is labelled expired, not open
+    console.log('  Testing expired campaign label...');
+    await page.goto(`${baseUrl}/forms/`);
+    await page.waitForLoadState('networkidle');
+    await page.getByText('منتهية الصلاحية').first().waitFor({ timeout: 5000 });
+    console.log('    ✓ Expired campaign shows منتهية الصلاحية');
+
+    // 3d. Native selects follow the dim theme (white dropdown with invisible text, 0.17.0)
+    console.log('  Testing select color-scheme in dim theme...');
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dim'));
+    const scheme = await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
+    assert.equal(scheme, 'dark', `dim theme must set color-scheme dark, got ${scheme}`);
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'sand'));
+    console.log('    ✓ dim theme sets color-scheme: dark');
 
     // 4. Treasury Dialog
     console.log('  Testing Treasury Dialog...');
@@ -539,7 +576,8 @@ async function run() {
         // Click next row's action button -> previous row's menu must close!
         const nextRowBtn = page.locator('button[aria-label="خيارات السجل"]').nth(1);
         if (await nextRowBtn.isVisible().catch(() => false)) {
-          await nextRowBtn.click();
+          // The open menu can sit over the next row's button; dispatch the click to test the one-menu rule.
+          await nextRowBtn.dispatchEvent('click');
           await page.waitForTimeout(200);
           const menus = page.locator('[role="menu"][aria-label="خيارات السجل"]');
           assert.equal(await menus.count(), 1, 'Strictly only ONE row menu must be open');

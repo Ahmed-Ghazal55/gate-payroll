@@ -861,7 +861,7 @@ export function ManualJournalsPanel({
                           value={line.accountCode}
                           onChange={(e) => handleLineChange(idx, 'accountCode', e.target.value)}
                           required
-                          className="w-full p-1.5 rounded-lg border border-[var(--line)] text-xs font-semibold focus:outline-hidden"
+                          className="w-full p-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
                         >
                           <option value="">-- اختر الحساب --</option>
                           {postingAccounts.map((a) => (
