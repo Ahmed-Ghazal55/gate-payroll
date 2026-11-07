@@ -2,51 +2,40 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Codex (R8 backend worktree only) |
-| Branch | feat/r8-ninja-api, base d31adc1 (0.17.1) |
-| Live | 0.17.0 on **db77738 (SQL Server)**; login audit confirmed in SQL |
-| Updated | 2026-11-07 by Claude |
+| Current writer | none |
+| Branch | feat/r8-ninja-api; base d31adc1 (0.17.1) |
+| Updated | 2026-11-07 by Codex |
+| Live | Last handoff: 0.17.0 on SQL db77738; not rechecked this run |
 
-## Project folder
-- One working folder: `~/Projects/active/gate-payroll`. Agents work in branches here (single writer).
-- A separate worktree is used only when two agents must write at the same time, and it is removed after merge.
+## Goal now
+First real Ninja payroll, 2026-10, in the browser against db77738. Backend HTTP/SQL verification is complete; real-browser acceptance is NOT complete. Worktree is isolated while other R8 agents write. No push, merge, deploy or live database writes performed.
 
-## Done 2026-11-07
-- 0.16.0 merged (#28) and deployed.
-- **DB move (C0) done.** SQLite snapshot → db77738:
-  - merge plan `ready=true`, 833 added, 862 merged, 0 conflicts;
-  - verified: `missing=0`, `changed=0`, receipt present;
-  - results: rider 2151, submission 224, user 4, company 3.
-  - Fix: company legal descriptors (`crType`, `characteristic`, `entityType`, `nameOnCertificateAr`) are ERP-owned in the merge policy.
-  - The import needs a long command timeout on the remote server (the first run timed out and rolled back).
-  - `ConnectionStrings__DefaultConnection` set by Ghazal. The original SQLite file stays on the site as rollback.
-- **Opening debts (D1) loaded** as `pending_approval` / `OpeningBalance`, effectiveFrom 2026-10. See «Debt load» below.
-- Review fixes on R6c:
-  - the commit kept the target password (captured before `Open`);
-  - the ERP-history creditor = the sponsor on the balance date, else the latest ended period.
-- 0.17.0: Import Center (catalog + templates + UI with the free importer tab), Keeta invoices (D2), per-app operations import (D3), Chefz read model (D4). CI now runs advances, finance-views, r6b-accounting, r6c-imports and import-center.
+## R8 report (current)
+- C1: schemas for debts, cycles/lines/review, statements, Ninja invoices/actions, settings, riders list, manual journals and campaigns; pinned OpenAPI→TypeScript generation, CI check, 19 real-HTTP schema/routing assertions. Lookup awaits Claude C6; regenerate after C6/C7 integration.
+- C2: per-account upload validates every captain; errors give row numbers. One invoice per file, all company/month invoices share a cycle; hash replay is a no-op, overlapping accounts across files are rejected. Server supplies approvalStatus/allowedActions and preserves independent approval.
+- C3: GET /api/pay/review-draft returns source-bound invoices/accounts/riders, D3 or daily evidence, totals and actionable blockers. Includes uninvoiced daily accounts, missing riders, actual assignment bounds and settings/choice gaps. No writes.
+- C4: draft reject/delete for terms/schemes/eligibility/global settings, owner/admin checks and audit; validated Ninja metrics and included conditions. Real October approval/readiness NOT verified.
+- C5: full SQL Server HTTP chain passed: upload→classify→approve→dispute/resolve→D3→draft→create→stages 1–7→review→lines→statement→posting→replay→reversal. Fixed invoice journal links and reversal status; source references reach statements.
+- C6/C7: deliberately skipped; owned by Claude. Frontend and mobile worktrees untouched.
+- C8: docs/runbooks/NINJA-2026-10.md written. Live dry run NOT run: no authenticated live browser/API session; latest user forbids reading ANY ~/Private file. Wrote mode-600 not_run marker at ~/Private/gate-data/sync-logs/r8-ninja-dryrun.json; no real counts/blockers claimed.
+- Tests: 421 passed / 0 failed / 0 skipped (full dotnet test including SQL, final TRX /tmp/gate-r8-results/r8-final.trx); 19 HTTP contract assertions; generated TypeScript compiles and regeneration check passes.
+- Weekly usage: 40% before (prompt supplied) → after unavailable; no usage/quota telemetry exposed in this session.
 
-## Debt load (counts only)
-- Ready 407 rows: 419 opening debts / 953,933.71, 6 rider credits / 2,443.70, 2 inactive debt-only riders.
-- Blocked 401 rows:
-  - 379 creditor unknown. ERP has no sponsor for them: 231 exist in ERP with an empty SponsorId, 148 not in ERP.
-  - 22 other reasons: invalid or duplicate iqama, negative values, creditor conflict.
-- Sheet row 809 has no name and a net of 1,350,402.83 (≈ the sheet total). It is a totals row. The real rider net (807 rows) is 1,351,028.83. Blocked, not loaded.
-- Ghazal's decision sheet (private): `~/Private/gate-data/review/debts-blocked-creditor-2026-10.xlsx`.
-  - A suggested company from ERP platform accounts: EX 62, BW 47, TR 1, conflict 6, none 263.
-  - After Ghazal fills «قرار غزال», add a decisions overlay and run a new preview + commit. Only the fixed rows are added (idempotent by `DEBT-SHEET:<row>:<category>`).
+## How to verify (synthetic only)
+```bash
+export PAYROLL_TEST_SQL_CONNECTION='Server=localhost,11433;Database=master;User ID=sa;Password=GateSynthetic_CI_Only_723!;Encrypt=True;TrustServerCertificate=True'
+export Vouchers__Secret=GateSynthetic_CI_Only_Voucher_Key_000001
+dotnet test tests/Engine.Tests --no-restore -m:1
+node web/scripts/gen-api-types.mjs --check
+```
+Requires pinned npm dependencies in RiderForm and web. Existing Docker gate-sql-test runs on 11433; tests create/drop their own isolated synthetic databases. Never point the test connection at db77738/db67927.
 
-## R7 (Ghazal's video review 2026-11-07) — plan `~/.claude/plans/serene-hopping-clarke.md`
-- W0 hotfix 0.17.1 (Claude, PR open):
-  - /app/debts crash fixed: the UI read originalAmount/remainingAmount, the API sends totalAmount/remainingBalance.
-  - `app/error.tsx` added; expired campaigns show «منتهية» plus «تمديد / إعادة فتح».
-  - Dark-theme selects (`color-scheme`); DataTable pages itself (50–300).
-  - Opening debts had no approval_request, so they could not be approved. New `POST /debts/opening/decide` (admin, batches of 100, posts in balance month 2026-10) and a banner/drawer on /app/debts.
-  - Rider credits (6) still pending; no approval path yet.
-- Next waves: W1 tables/RiderPicker (0.18.0), W2 operations resolved views, W3 workflow gaps (Ninja approve, journal reject/delete, rule editor), W4 users/tasks/chat, W5 Capacitor rider app.
+## Next step (exact)
+1. Claude reviews this branch once and integrates Antigravity UI plus C6/C7 in the main project workflow. New UI types must import web/src/lib/api-contract.ts; no hand-written response guesses.
+2. After C6/C7: build, run node tests/r8-contract.mjs --update-snapshot, then node web/scripts/gen-api-types.mjs; extend lookup/manual-action contract fixtures to the actual implemented responses and rerun checks.
+3. Verify actual browser clicks with Ghazal; current Ninja screen in this base is reconcile-only. Run the GET-only browser snippet in docs/runbooks/NINJA-2026-10.md against the authorized existing server, after the operator confirms db77738; save counts-only output privately, mode 600.
+4. Real writes require Ghazal's «حمّل» for each specific step. Do not start a normal API against the live DB merely for a dry run: startup seeds/migrations write. No ERP writes, push, merge or deploy from this task.
 
-## Next
-0. R8 active: C1 contract → C2 invoice → C3 review draft → C4 settings → C5 synthetic SQL chain → C8 runbook/read-only dry run. C6/C7 remain with Claude. No push/merge/deploy or live writes. Weekly usage is not exposed to this session.
-1. Ghazal: fill the decision sheet for the 379 rows.
-2. Ghazal: approve CR-003 (`gate-finance-spec/docs/change-requests/CR-003-hungerstation-erp-review.md`), then send it to Omar.
-3. Passwords: rotate at the final ERP integration (Ghazal's decision 2026-11-07).
+## Existing business follow-up (from prior handoff; not rechecked)
+- Opening debts: 419 / 953,933.71 pending approval, 6 credits / 2,443.70 still lack approval path. Blocked: 379 creditor decisions + 22 other rows; totals row 809 excluded. Ghazal owns the private decision sheet.
+- Ghazal: approve finance-spec CR-003 for Omar; password rotation remains at final ERP integration.
