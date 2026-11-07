@@ -3317,7 +3317,7 @@ export interface paths {
                             status: string;
                             allowedActions?: string[];
                             journalEntryId?: string;
-                            accountIds?: string[];
+                            accountIds?: null | string[];
                             lines?: {
                                 id: string;
                                 invoiceId: string;
@@ -3389,7 +3389,7 @@ export interface paths {
                                 status: string;
                                 allowedActions?: string[];
                                 journalEntryId?: string;
-                                accountIds?: string[];
+                                accountIds?: null | string[];
                                 lines?: {
                                     id: string;
                                     invoiceId: string;
@@ -3452,7 +3452,7 @@ export interface paths {
                             status: string;
                             allowedActions?: string[];
                             journalEntryId?: string;
-                            accountIds?: string[];
+                            accountIds?: null | string[];
                             lines?: {
                                 id: string;
                                 invoiceId: string;
@@ -3490,7 +3490,7 @@ export interface paths {
                                 status: string;
                                 allowedActions?: string[];
                                 journalEntryId?: string;
-                                accountIds?: string[];
+                                accountIds?: null | string[];
                                 lines?: {
                                     id: string;
                                     invoiceId: string;
@@ -3522,6 +3522,80 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platforms/ninja/invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            platform?: string;
+                            period: string;
+                            reference?: string;
+                            amountExclVat: number;
+                            deductionsTotal: number;
+                            vat: number;
+                            approvalStatus?: string;
+                            status: string;
+                            allowedActions?: string[];
+                            journalEntryId?: string;
+                            accountIds?: null | string[];
+                            lines?: {
+                                id: string;
+                                invoiceId: string;
+                                sourceRow: number;
+                                platformAccountId?: string;
+                                lineType?: string;
+                                baseGross: number;
+                                incentives: number;
+                                deductionAmount: number;
+                                orders: number;
+                                vat: number;
+                                expected?: number;
+                                invoiced: number;
+                                difference?: number;
+                                reason?: string;
+                                status: string;
+                                deductions?: {
+                                    category: string;
+                                    amount: number;
+                                    level: string;
+                                    expenseAccount?: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3632,7 +3706,7 @@ export interface paths {
                             status: string;
                             allowedActions?: string[];
                             journalEntryId?: string;
-                            accountIds?: string[];
+                            accountIds?: null | string[];
                             lines?: {
                                 id: string;
                                 invoiceId: string;
@@ -3707,7 +3781,7 @@ export interface paths {
                             status: string;
                             allowedActions?: string[];
                             journalEntryId?: string;
-                            accountIds?: string[];
+                            accountIds?: null | string[];
                             lines?: {
                                 id: string;
                                 invoiceId: string;
@@ -3786,7 +3860,7 @@ export interface paths {
                             status: string;
                             allowedActions?: string[];
                             journalEntryId?: string;
-                            accountIds?: string[];
+                            accountIds?: null | string[];
                             lines?: {
                                 id: string;
                                 invoiceId: string;
@@ -3865,7 +3939,7 @@ export interface paths {
                             status: string;
                             allowedActions?: string[];
                             journalEntryId?: string;
-                            accountIds?: string[];
+                            accountIds?: null | string[];
                             lines?: {
                                 id: string;
                                 invoiceId: string;
@@ -3940,7 +4014,7 @@ export interface paths {
                             status: string;
                             allowedActions?: string[];
                             journalEntryId?: string;
-                            accountIds?: string[];
+                            accountIds?: null | string[];
                             lines?: {
                                 id: string;
                                 invoiceId: string;

@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:33473/"
+      "url": "http://127.0.0.1:44177/"
     }
   ],
   "paths": {
@@ -2674,7 +2674,10 @@
                       "type": "string"
                     },
                     "accountIds": {
-                      "type": "array",
+                      "type": [
+                        "null",
+                        "array"
+                      ],
                       "items": {
                         "type": "string"
                       }
@@ -2842,7 +2845,10 @@
                           "type": "string"
                         },
                         "accountIds": {
-                          "type": "array",
+                          "type": [
+                            "null",
+                            "array"
+                          ],
                           "items": {
                             "type": "string"
                           }
@@ -3001,7 +3007,10 @@
                                 "type": "string"
                               },
                               "accountIds": {
-                                "type": "array",
+                                "type": [
+                                  "null",
+                                  "array"
+                                ],
                                 "items": {
                                   "type": "string"
                                 }
@@ -3187,7 +3196,10 @@
                             "type": "string"
                           },
                           "accountIds": {
-                            "type": "array",
+                            "type": [
+                              "null",
+                              "array"
+                            ],
                             "items": {
                               "type": "string"
                             }
@@ -3293,6 +3305,184 @@
                     },
                     "pageSize": {
                       "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platforms/ninja/invoices/{id}": {
+      "get": {
+        "tags": [
+          "Platforms"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "companyId",
+                    "period",
+                    "amountExclVat",
+                    "deductionsTotal",
+                    "vat",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "amountExclVat": {
+                      "type": "number"
+                    },
+                    "deductionsTotal": {
+                      "type": "number"
+                    },
+                    "vat": {
+                      "type": "number"
+                    },
+                    "approvalStatus": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "accountIds": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "invoiceId",
+                          "sourceRow",
+                          "baseGross",
+                          "incentives",
+                          "deductionAmount",
+                          "orders",
+                          "vat",
+                          "invoiced",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "invoiceId": {
+                            "type": "string"
+                          },
+                          "sourceRow": {
+                            "type": "number"
+                          },
+                          "platformAccountId": {
+                            "type": "string"
+                          },
+                          "lineType": {
+                            "type": "string"
+                          },
+                          "baseGross": {
+                            "type": "number"
+                          },
+                          "incentives": {
+                            "type": "number"
+                          },
+                          "deductionAmount": {
+                            "type": "number"
+                          },
+                          "orders": {
+                            "type": "number"
+                          },
+                          "vat": {
+                            "type": "number"
+                          },
+                          "expected": {
+                            "type": "number"
+                          },
+                          "invoiced": {
+                            "type": "number"
+                          },
+                          "difference": {
+                            "type": "number"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "deductions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "category",
+                                "amount",
+                                "level"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                },
+                                "level": {
+                                  "type": "string"
+                                },
+                                "expenseAccount": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -3502,7 +3692,10 @@
                       "type": "string"
                     },
                     "accountIds": {
-                      "type": "array",
+                      "type": [
+                        "null",
+                        "array"
+                      ],
                       "items": {
                         "type": "string"
                       }
@@ -3678,7 +3871,10 @@
                       "type": "string"
                     },
                     "accountIds": {
-                      "type": "array",
+                      "type": [
+                        "null",
+                        "array"
+                      ],
                       "items": {
                         "type": "string"
                       }
@@ -3864,7 +4060,10 @@
                       "type": "string"
                     },
                     "accountIds": {
-                      "type": "array",
+                      "type": [
+                        "null",
+                        "array"
+                      ],
                       "items": {
                         "type": "string"
                       }
@@ -4050,7 +4249,10 @@
                       "type": "string"
                     },
                     "accountIds": {
-                      "type": "array",
+                      "type": [
+                        "null",
+                        "array"
+                      ],
                       "items": {
                         "type": "string"
                       }
@@ -4226,7 +4428,10 @@
                       "type": "string"
                     },
                     "accountIds": {
-                      "type": "array",
+                      "type": [
+                        "null",
+                        "array"
+                      ],
                       "items": {
                         "type": "string"
                       }

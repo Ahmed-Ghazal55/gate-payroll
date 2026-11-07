@@ -43,13 +43,29 @@ public sealed class NinjaInvoiceImportTests
         return memory.ToArray();
     }
     [TestMethod]
+    public void PerAccountUploadRejectsOffendingRowsAndReplayIsANoop()
+    {
+        using var f=new Fixture();byte[] bytes=Workbook();
+        f.Store.Write((c,tx)=>{Store.Save(c,"platform_account",new(){["id"]="synthetic-other-account",["companyId"]=Company,["platformCode"]="ninja"},tx);return true;});
+        var input=f.Input();input["accountIds"]=new JsonArray("synthetic-other-account");
+        var mismatch=Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>NinjaInvoices.Preview(c,Actor(),input,bytes)));StringAssert.Contains(mismatch.Message,"rows 2");
+        input["accountIds"]=new JsonArray("synthetic-ninja-platform");
+        var preview=f.Store.Read(c=>NinjaInvoices.Preview(c,Actor(),input,bytes));input["rows"]=preview["rows"]!.DeepClone();input["fingerprint"]=preview.S("fingerprint");input["confirm"]=true;
+        var invoice=f.Store.Write((c,tx)=>NinjaInvoices.Commit(c,tx,Actor(),input,bytes));
+        int audits=f.Store.Read(c=>Store.List(c,"audit").Count);
+        var replay=f.Store.Write((c,tx)=>NinjaInvoices.Commit(c,tx,Actor(),input,bytes));
+        Assert.AreEqual(invoice.S("id"),replay.S("id"));Assert.AreEqual(audits,f.Store.Read(c=>Store.List(c,"audit").Count));Assert.AreEqual(1,f.Store.Read(c=>NinjaInvoices.Lines(c,null,invoice.S("id")).Count));
+        var maker=f.Store.Read(c=>NinjaInvoices.View(c,null,Actor(),invoice));var checker=f.Store.Read(c=>NinjaInvoices.View(c,null,Actor("synthetic-checker"),invoice));
+        Assert.IsFalse(maker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));Assert.IsTrue(checker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));
+    }
+    [TestMethod]
     public void Signed43ColumnInvoiceStoresInvoicedEntitlementAndRejectsDuplicatesOrTampering()
     {
         using var f=new Fixture();byte[] bytes=Workbook(true);var preview=f.Preview(bytes);var forged=preview.Clone();forged["rows"]![0]!["lines"]![0]!["invoiced"]=1;
         Assert.ThrowsExactly<ApiError>(()=>f.Commit(bytes,forged));Assert.ThrowsExactly<ApiError>(()=>f.Commit(bytes,preview,"synthetic-other"));
         var invoice=f.Commit(bytes,preview);var line=f.Store.Read(c=>NinjaInvoices.Lines(c,null,invoice.S("id")).Single());
         Assert.AreEqual(6500m,line.N("invoiced"));Assert.AreNotEqual(line.N("expected"),line.N("invoiced"));Assert.AreEqual("vehicle type edited by the platform",line.S("reason"));Assert.AreEqual("invoiced",line.S("status"));
-        Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"platform_dispute").Count));Assert.ThrowsExactly<ApiError>(()=>f.Preview(bytes));Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"platform_invoice").Count));
+        Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"platform_dispute").Count));Assert.AreEqual(invoice.S("id"),f.Commit(bytes).S("id"));Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"platform_invoice").Count));
     }
     [TestMethod]
     public void DifferenceNeverBlocksIndependentApprovalOrGatedPostingAndVatIsBalanced()
