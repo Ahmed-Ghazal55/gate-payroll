@@ -6,6 +6,12 @@
 | Branch | release/0.16.0 (integration of feat/k-review + feat/r6b-ui + feat/r6b-accounting) |
 | Updated | 2026-11-07 by Claude |
 
+## R6c — Claude K5–K7 (2026-11-07), branch `feat/import-center` (from release/0.16.0)
+- K6: `GET /api/imports/catalog` + `GET /api/imports/templates/{companies|operations-ninja|operations-keeta|operations-hungerstation}` (imports.view). Ordered steps companies → riders → opening treasury → opening debts → bulk collect → Ninja/Keeta/HS invoice+operations → Chefz (ERP). Debt/treasury template columns moved to shared statics (no behaviour change). Docs `docs/api/imports-catalog.md`. .NET 371/371 (SQL Docker, 0 skipped).
+- K5 (private, not in repo): `~/Private/gate-data/review/debts-review-2026-10.xlsx` + script `k5_review.py`. 93 rows to review; October requests 394 / 112,202.64 reconcile exactly with «الاجماليات»; 267 riders' October requests are not inside the debt-sheet net, 8 ambiguous.
+- K7: `gate-finance-spec/docs/change-requests/CR-003-hungerstation-erp-review.md` (draft, needs Ghazal's approval before Omar).
+- Next: Codex `~/.agents/prompts/codex-R6c-debts-and-operations.md`, Antigravity `~/.agents/prompts/antigravity-R6c-import-center.md`.
+
 ## Release 0.16.0 (2026-11-07, Claude), branch `release/0.16.0`
 - Integrates `feat/k-review` (K1–K4) + `feat/r6b-ui` (A0–A8) + `feat/r6b-accounting` (C0, C3, C4, C6, C7). C5 FCM and A9 QR not started.
 - Personal notifications: counts poll every 60 s (visible tab); a new personal item plays a short Web Audio chime; toggle «صوت الإشعارات الشخصية» in the user menu (localStorage `gate_personal_sound`).

@@ -139,6 +139,7 @@ Notifications.Map(api,store);
 ErpSyncRuns.Map(api,store);
 JobsControl.Map(api);
 ConfigLists.Map(api,store);
+ImportCatalog.Map(api);
 Companies.Map(api,store);
 OrgDirectory.Map(api,store);
 AdvanceRequests.Map(api,store);
