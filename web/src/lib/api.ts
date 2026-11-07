@@ -1470,6 +1470,78 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  // Ninja Invoices & Operations Lifecycle (BR §26, §31, §32 / C1-C5)
+  getNinjaInvoices: (params?: { page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<{ items: any[]; total: number; page: number; pageSize: number }>(`/platforms/ninja/invoices${qs}`);
+  },
+  getNinjaInvoice: (id: string) => handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}`),
+  uploadNinjaInvoice: (formData: FormData, commit = false) => {
+    const qs = commit ? '?commit=1' : '';
+    const url = `/api/platforms/ninja/invoices${qs}`;
+    return fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: formData,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new ApiError(data?.error?.message || data?.message || 'فشل رفع فاتورة نينجا', res.status, data?.error);
+      }
+      return res.json();
+    });
+  },
+  approveNinjaInvoice: (id: string) =>
+    handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+  postNinjaInvoice: (id: string) =>
+    handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/post`, { method: 'POST' }),
+  classifyNinjaInvoice: (id: string, body: any) =>
+    handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/classify`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  disputeNinjaInvoice: (id: string, body: { reason: string }) =>
+    handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/dispute`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  resolveNinjaDispute: (id: string, body: { disputeId: string; reason: string }) =>
+    handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  // Pay Review Draft (C3 / A5)
+  getPayReviewDraft: (params: { app: string; period: string; companyId: string }) => {
+    const q = new URLSearchParams({
+      app: params.app,
+      period: params.period,
+      companyId: params.companyId,
+    });
+    return handleRequest<any>(`/pay/review-draft?${q.toString()}`);
+  },
+
+  // Pay Settings Lifecycle (C4 / A6)
+  getPayAppDefaults: (app: string) => handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/defaults`),
+  rejectPaySetting: (kind: string, app: string, id: string, reason: string) => {
+    const url = kind === 'pay_setting'
+      ? `/pay/settings/${encodeURIComponent(id)}/reject`
+      : `/pay/apps/${encodeURIComponent(app)}/${kind.replace('pay_', '')}/${encodeURIComponent(id)}/reject`;
+    return handleRequest<any>(url, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+  deletePaySetting: (kind: string, app: string, id: string) => {
+    const url = kind === 'pay_setting'
+      ? `/pay/settings/${encodeURIComponent(id)}`
+      : `/pay/apps/${encodeURIComponent(app)}/${kind.replace('pay_', '')}/${encodeURIComponent(id)}`;
+    return handleRequest<any>(url, { method: 'DELETE' });
+  },
+
   // Import Center (K6 / R6c)
   getImportsCatalog: () => handleRequest<ImportCatalogStep[]>('/imports/catalog'),
   downloadImportTemplate: async (templateUrl: string, fallbackFileName = 'template.xlsx'): Promise<void> => {
