@@ -41,9 +41,10 @@ public static partial class PayCycles
             J.Need(source.S("journalEntryId")==""&&source.S("reversalJournalEntryId")=="","المصدر سبق ترحيله أو عكسه؛ لا تسجل الإيراد مرتين.");
             J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("id")!=cycle.S("id")&&d.S("status")=="approved"&&Rows(d["invoices"]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==source.S("id"))),"المصدر مستخدم في دورة معتمدة.");
             if(app=="hs")HungerStationInvoices.DemandResolvedDisputes(c,tx,source.S("id"));
+            if(app=="ninja")NinjaInvoices.DemandResolvedDisputes(c,tx,source.S("id"));
             var accounts=Rows(review["accounts"]).OfType<JsonObject>().ToList();var deductions=Rows(review["deductions"]).OfType<JsonObject>().ToList();J.Need(accounts.Count>0&&accounts.Select(a=>a.S("accountId")).Distinct().Count()==accounts.Count,"استحقاقات اليوزرات مطلوبة بلا تكرار.");
             foreach(var a in accounts){PayValues.Fields(a,"accountId","sourceLineId","baseGross","incentives","orders","riders");Money(a,"baseGross");Money(a,"incentives");decimal orders=PayValues.Number(a,"orders",0,int.MaxValue);J.Need(orders==decimal.Truncate(orders),"طلبات فعلية صحيحة مطلوبة.");}
-            foreach(var d in deductions){PayValues.Fields(d,"sourceLineId","level","accountId","amount","expenseAccount");Money(d,"amount");J.Need(d.S("level") is "company_level" or "account_level","صنف كل خصم: شركة أو يوزر.");if(d.S("level")=="company_level")J.Need(PayPlatforms.Active(d.Required("expenseAccount")).StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");else J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");}
+            foreach(var d in deductions){PayValues.Fields(d,"sourceLineId","sourceCategory","level","accountId","amount","expenseAccount");Money(d,"amount");J.Need(d.S("level") is "company_level" or "account_level","صنف كل خصم: شركة أو يوزر.");if(d.S("level")=="company_level")J.Need(PayPlatforms.Active(d.Required("expenseAccount")).StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");else J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");}
             J.Need(source.ContainsKey("deductionsTotal"),"إجمالي خصومات المصدر غير مثبت؛ ارفع نسخة معيارية مراجعة قبل الاحتساب.");
             decimal gross=accounts.Sum(a=>a.N("baseGross")+a.N("incentives"));
             J.Need(gross==source.N("amountExclVat")&&source.N("vat")>=0,"مجموع استحقاقات اليوزرات لا يطابق الفاتورة قبل الضريبة والخصومات.");
@@ -55,8 +56,20 @@ public static partial class PayCycles
                 if(line?.ContainsKey("baseGross")==true)J.Need(line.N("baseGross")==a.N("baseGross")&&line.N("incentives")==a.N("incentives")&&line.N("orders")==a.N("orders"),"استحقاق اليوزر لا يطابق سطر المصدر.");
             }
             foreach(var a in accounts)J.Need(sourceLines.Any(l=>l.S("id")==a.Required("sourceLineId")&&(l.S("platformAccountId")==a.S("accountId")||l.S("accountId")==a.S("accountId"))),"استحقاق اليوزر يحتاج سطر مصدر مطابقًا.");
-            foreach(var d in deductions)J.Need(sourceLines.Any(l=>l.S("id")==d.Required("sourceLineId")&&(!l.ContainsKey("deductionAmount")||l.N("deductionAmount")==d.N("amount"))),"الخصم يحتاج سطر مصدر.");
-            J.Need(deductions.Select(d=>d.S("sourceLineId")).Distinct().Count()==deductions.Count,"مصدر خصم مكرر.");
+            foreach(var d in deductions)
+            {
+                var sourceLine=sourceLines.SingleOrDefault(l=>l.S("id")==d.Required("sourceLineId"));J.Need(sourceLine!=null,"الخصم يحتاج سطر مصدر.");
+                if(app=="ninja"&&source.S("status")=="final")
+                {
+                    var components=(sourceLine!["deductions"] as JsonArray??[]).OfType<JsonObject>().ToList();
+                    var selected=components.Where(x=>d.S("sourceCategory")==""||x.S("category")==d.S("sourceCategory")).ToList();
+                    J.Need(selected.Count>0&&selected.Sum(x=>x.N("amount"))==d.N("amount")&&selected.All(x=>x.S("level")==d.S("level")&&(x.S("level")!="company_level"||x.S("expenseAccount")==d.S("expenseAccount"))),"الخصم لا يطابق تصنيف الفاتورة المعتمد.");
+                    if(d.S("level")=="account_level")J.Need(d.S("accountId")==sourceLine.S("platformAccountId"),"يوزر الخصم لا يطابق مصدره.");
+                }
+                else J.Need(!sourceLine!.ContainsKey("deductionAmount")||sourceLine.N("deductionAmount")==d.N("amount"),"الخصم يحتاج سطر مصدر.");
+            }
+            foreach(var group in deductions.GroupBy(d=>d.S("sourceLineId")))J.Need(!(group.Any(d=>d.S("sourceCategory")=="")&&group.Count()>1),"لا تجمع إجمالي السطر مع مكوناته.");
+            J.Need(deductions.Select(d=>d.S("sourceLineId")+":"+d.S("sourceCategory")).Distinct().Count()==deductions.Count,"مصدر خصم مكرر.");
             J.Need(deductions.Sum(d=>d.N("amount"))==source.N("deductionsTotal"),"تصنيف الخصومات لا يطابق إجمالي المصدر؛ راجع الفاتورة.");
         }
     }

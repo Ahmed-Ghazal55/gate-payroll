@@ -47,6 +47,8 @@ public static class AccessPolicy
         {if(method=="GET")return Has("pay.view");return method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");}
         if(path=="/api/platforms/ninja/terms/seed")return method=="GET"&&Has("pay.view");
         if(path=="/api/platforms/ninja/invoices/reconcile")return method=="POST"&&Has("pay.view"); // read-only recalculation
+        if(path.StartsWith("/api/platforms/ninja/invoices",StringComparison.Ordinal))
+            return method=="GET"?Has("pay.view"):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)||path.EndsWith("/post",StringComparison.Ordinal)||path.EndsWith("/resolve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
         if(path.StartsWith("/api/platforms/hs/",StringComparison.Ordinal))
         {
             if(path.EndsWith("/posting",StringComparison.Ordinal))return false;

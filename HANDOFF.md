@@ -19,8 +19,9 @@
 
 ## Next step (exact)
 - C0 tooling done: read-only inventory/hashed collisions; explicit merge and originals archived atomically; WAL-safe FTPS download; docs/ops/DB-CUTOVER.md has ordered Ghazal commands. Live preview/import/switch NOT RUN (await Ghazal / «انقل»).
-- C0 verification:6/6 synthetic SQLite+Docker SQL tests,18/18 FTPS tests; build0warnings/errors. Full rerun pending after fixing reporting fixture (previous335passed/2fixture failures/0skipped).
-- Next C4 Ninja invoices; then C6 manual journals; C7 vouchers; C3 Mada/postings; optional C5 FCM.
+- C0:190851c; full337/337 .NET tests,0skipped;18/18 FTPS. No live inventory/import/switch.
+- C4: Ninja signed multipart import, duplicate refusal, invoice-final differences, classifications/disputes, gated accounting and payroll source integration;24 focused tests +15 HTTP checks passed; build0warnings/errors.
+- Next C6 manual journals; then C7 vouchers; C3 Mada/postings; optional C5 FCM.
 
 ## How to verify
 - Cache-only dotnet restore tests/Engine.Tests/Engine.Tests.csproj --source "$HOME/.nuget/packages" -p:NuGetAudit=false --disable-parallel -m:1
