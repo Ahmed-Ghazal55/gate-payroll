@@ -74,6 +74,7 @@ public static class AccessPolicy
         if(path=="/api/dashboard")return method=="GET"&&Has("payroll.view");
         if(path.StartsWith("/api/system/",StringComparison.Ordinal))return false;
         if(path=="/api/riders/sync-baseline"||path=="/api/riders/enrich-missing")return false;
+        if(path=="/api/riders/lookup")return method=="GET"; // RiderLookup.Allowed re-checks the picker permissions in the handler.
         if(path=="/api/riders/data-quality"||path=="/api/riders")return method=="GET"?Has("riders.view"):method=="POST"&&Has("riders.edit");
         if(path.StartsWith("/api/riders/",StringComparison.Ordinal))return path.EndsWith("/profile-360",StringComparison.Ordinal)?method=="GET"&&Has("riders.view_360")&&Has("debts.view"):method=="GET"?Has("riders.view_360"):method=="POST"&&path.EndsWith("/documents",StringComparison.Ordinal)&&Has("riders.edit");
         if(path.StartsWith("/api/debts",StringComparison.Ordinal))
@@ -91,7 +92,7 @@ public static class AccessPolicy
         if(path=="/api/finance/mada/balance")return method=="GET"&&(Has("advances.payout")||Has("treasury.view"));
         if(path=="/api/finance/accounting-adjustments"||path.StartsWith("/api/finance/accounting-adjustments/",StringComparison.Ordinal))return method=="GET"?Has("finance.journal.create"):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
         if(path=="/api/finance/journals/manual"||path.StartsWith("/api/finance/journals/manual/",StringComparison.Ordinal))
-            return method=="GET"?(Has("finance.journal.create")||Has("finance.journal.approve")):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
+            return method=="GET"?(Has("finance.journal.create")||Has("finance.journal.approve")):method=="DELETE"?Has("finance.journal.create")&&path.Count(ch=>ch=='/')==5:method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
         if(path.StartsWith("/api/finance/statement/rider/",StringComparison.Ordinal)&&path.EndsWith("/monthly",StringComparison.Ordinal))return method=="GET"&&Has("pay.view")&&Has("payroll.view")&&Has("debts.view");
         if(path.StartsWith("/api/finance/statement/",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
         if(path is "/api/finance/bank-file/preview" or "/api/finance/bank-file/export")return method=="POST"&&Has("finance.bankfile.export")&&Has("payroll.view");
