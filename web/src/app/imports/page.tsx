@@ -365,7 +365,6 @@ export default function ImportsPage() {
         const base64 = await fileToBase64(file);
         const payload: Record<string, any> = {
           filename: file.name,
-          fileName: file.name,
           dataBase64: base64,
         };
 
@@ -429,7 +428,6 @@ export default function ImportsPage() {
       } else {
         commitPayload = {
           filename: cur.file?.name,
-          fileName: cur.file?.name,
           dataBase64: cur.base64,
           fingerprint: cur.previewResult.fingerprint,
           rows: cur.previewResult.rows,
@@ -835,7 +833,9 @@ export default function ImportsPage() {
 
                           {/* Sample Rows Table Preview */}
                           {curUpload.previewResult.rows && curUpload.previewResult.rows.length > 0 && (() => {
-                            const pRows = curUpload.previewResult.rows;
+                            const pRows = curUpload.previewResult.rows.map((r: any) =>
+                              r && typeof r === 'object' && r.data ? r.data : r
+                            );
                             const sampleCols = Object.keys(pRows[0] || {}).slice(0, 5);
                             return (
                               <div className="overflow-x-auto rounded-lg border border-[var(--line)] bg-[var(--surface)] max-h-48">
