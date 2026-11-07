@@ -22,13 +22,24 @@ public sealed class PayReviewDraftTests
         });return f;
     }
     [TestMethod]
+    public void DailyRowsWithoutInvoiceAndExclusiveAssignmentEndAreNotSilentlyAccepted()
+    {
+        using var f=Setup();f.Store.Write((c,tx)=>
+        {
+            Store.Save(c,"ninja_daily",new(){["id"]="synthetic-r8-uninvoiced-day",["companyId"]=Company,["platformAccountId"]="synthetic-r8-uninvoiced-account",["riderId"]="2000000099",["date"]="2026-10-02",["orders"]=3},tx);
+            var account=Store.Get(c,Account,"platform_account",tx)!;account["assignments"]![0]!["RawEffectiveTo"]="2026-10-01T00:00:00+03:00";Store.Save(c,"platform_account",account,tx);return true;
+        });
+        var draft=f.Store.Read(c=>PayReviewDraft.Build(c,null,PayFixture.Maker,"ninja","2026-10",Company));Assert.IsFalse(draft.B("canCreate"));Assert.AreEqual(2,draft["unassignedOrders"]!.AsArray().Count);Assert.AreEqual(1,draft["ridersNotFound"]!.AsArray().Count);
+        Assert.IsTrue(draft["blockers"]!.AsArray().Any(b=>b.S("code")=="daily_account_not_invoiced"));Assert.IsTrue(draft["blockers"]!.AsArray().Any(b=>b.S("code")=="unassigned_orders"));
+    }
+    [TestMethod]
     public void DailyDraftTiesInvoiceAndActualOperatorWithoutWriting()
     {
         using var f=Setup();string before=f.Store.Read(c=>System.Text.Json.JsonSerializer.Serialize(ReleaseSafety.Capture(c)));
         var draft=f.Store.Read(c=>PayReviewDraft.Build(c,null,PayFixture.Maker,"ninja","2026-10",Company));Assert.IsTrue(draft.B("canCreate"),draft["blockers"]!.ToJsonString());
         var account=draft["invoices"]![0]!["accounts"]![0]!.AsObject();Assert.AreEqual(Line,account.S("sourceLineId"));Assert.AreEqual(100m,account.N("baseGross"));Assert.AreEqual(10m,account["riders"]![0]!.N("orders"));Assert.AreEqual(Line,draft["evidence"]![0].S("sourceLineId"));
         Assert.AreEqual(before,f.Store.Read(c=>System.Text.Json.JsonSerializer.Serialize(ReleaseSafety.Capture(c))));
-        var input=new JsonObject{["period"]="2026-10",["companyId"]=Company,["app"]="ninja",["invoices"]=draft["invoices"]!.DeepClone()};var forged=input.Clone();forged["invoices"]![0]!["accounts"]![0]!["riders"]![0]!["operationSourceIds"]=new JsonArray("synthetic-missing-proof");Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,forged)));
+        var input=new JsonObject{["period"]="2026-10",["companyId"]=Company,["app"]="ninja",["invoices"]=draft["invoices"]!.DeepClone()};var forged=input.Clone();forged["invoices"]![0]!["accounts"]![0]!["riders"]![0]!["operationSourceIds"]=new JsonArray("synthetic-missing-proof");Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>{PayCycles.ValidateImportedReview(c,null,PayFixture.Maker,Company,"2026-10",forged["invoices"]![0]!.AsObject());return true;}));
         Assert.AreEqual("draft",f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input)).S("status"));
     }
     [TestMethod]

@@ -3579,6 +3579,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Read a scoped Ninja invoice with available server actions */
         get: {
             parameters: {
                 query?: never;
@@ -4771,6 +4772,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Reject an owned terms draft with a reason and audit */
         post: {
             parameters: {
                 query?: never;
@@ -4843,6 +4845,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /** Delete an unapproved owned terms draft with audit */
         delete: {
             parameters: {
                 query?: never;
@@ -4883,6 +4886,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Reject an owned schemes draft with a reason and audit */
         post: {
             parameters: {
                 query?: never;
@@ -4955,6 +4959,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /** Delete an unapproved owned schemes draft with audit */
         delete: {
             parameters: {
                 query?: never;
@@ -4995,6 +5000,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Reject an owned eligibility draft with a reason and audit */
         post: {
             parameters: {
                 query?: never;
@@ -5067,6 +5073,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /** Delete an unapproved owned eligibility draft with audit */
         delete: {
             parameters: {
                 query?: never;
@@ -5107,6 +5114,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Reject an owned global settings draft with reason and audit */
         post: {
             parameters: {
                 query?: never;
@@ -5178,6 +5186,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /** Delete an unapproved owned global settings draft with audit */
         delete: {
             parameters: {
                 query?: never;
@@ -6201,13 +6210,55 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            cycle: {
+                                id: string;
+                                period: string;
+                                companyId: string;
+                                stage: number;
+                                status: string;
+                            };
+                            totals: {
+                                riders: number;
+                                approved: number;
+                                pending: number;
+                                needsDecision: number;
+                                net: number;
+                            };
+                            rows: {
+                                rider: string;
+                                name?: string;
+                                status: string;
+                                review: string;
+                                reviewedBy?: null | string;
+                                reviewedAt?: null | string;
+                                gross?: number;
+                                commission?: number;
+                                afterCommission?: number;
+                                phase1?: number;
+                                preliminaryDue?: number;
+                                phase2?: number;
+                                phase3?: number;
+                                net: number;
+                                items: {
+                                    key: string;
+                                    phase: number;
+                                    order?: number;
+                                    labelAr?: string;
+                                    amount: number;
+                                    editable: boolean;
+                                    max?: null | number;
+                                    source: string;
+                                }[];
+                                edits?: Record<string, never>[];
+                            }[];
+                        };
                     };
                 };
             };
@@ -6241,13 +6292,16 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            approved: number;
+                            skipped: number;
+                        };
                     };
                 };
             };
@@ -6284,13 +6338,39 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            rider: string;
+                            name?: string;
+                            status: string;
+                            review: string;
+                            reviewedBy?: null | string;
+                            reviewedAt?: null | string;
+                            gross?: number;
+                            commission?: number;
+                            afterCommission?: number;
+                            phase1?: number;
+                            preliminaryDue?: number;
+                            phase2?: number;
+                            phase3?: number;
+                            net: number;
+                            items: {
+                                key: string;
+                                phase: number;
+                                order?: number;
+                                labelAr?: string;
+                                amount: number;
+                                editable: boolean;
+                                max?: null | number;
+                                source: string;
+                            }[];
+                            edits?: Record<string, never>[];
+                        };
                     };
                 };
             };
@@ -6777,13 +6857,58 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            header: {
+                                rider: string;
+                                name: string;
+                                period: string;
+                                status?: string;
+                                ibanMasked?: string;
+                                cycles: Record<string, never>[];
+                            };
+                            source: string;
+                            status: string;
+                            net: number;
+                            carried: number;
+                            closing: number;
+                            balanceBasis?: string;
+                            approvedOnly?: boolean;
+                            cards: {
+                                app: string;
+                                platform?: string;
+                                gross: number;
+                                earnedGross: number;
+                                companyCommission?: number;
+                                vehicleCharge?: number;
+                                netBeforePersonal?: number;
+                                sources?: {
+                                    sourceLineId: string;
+                                    accountId: string;
+                                    operationSourceIds?: string[];
+                                    baseGross: number;
+                                    incentive?: number;
+                                    deduction?: number;
+                                }[];
+                                explain: {
+                                    label: string;
+                                    formula: string;
+                                    inputs: Record<string, never>;
+                                    amount: number;
+                                    category: string;
+                                    affectsNet?: boolean;
+                                }[];
+                            }[];
+                            deductions: Record<string, never>[];
+                            phases?: null | {
+                                [key: string]: number;
+                            };
+                        };
                     };
                 };
             };

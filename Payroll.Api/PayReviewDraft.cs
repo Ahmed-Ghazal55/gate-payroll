@@ -20,6 +20,13 @@ public static class PayReviewDraft
         try{PaySettings.Global(c,tx,period+"-01");}catch(ApiError){Block("global_settings_missing","اعتمد إعدادات الأيام والإيجار بتاريخ الشهر.","approve_settings");}
         var daily=Store.List(c,"ninja_daily",tx).Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList();
         var people=Store.List(c,"rider",tx).ToDictionary(r=>r.S("id"),StringComparer.Ordinal);
+        var invoicedAccounts=invoices.SelectMany(i=>NinjaInvoices.Lines(c,tx,i.S("id"))).Select(l=>l.S("platformAccountId")).Where(id=>id!="").ToHashSet(StringComparer.Ordinal);
+        foreach(var row in daily.Where(d=>!invoicedAccounts.Contains(d.S("platformAccountId"))))
+        {
+            unassigned.Add(new JsonObject{["sourceLineId"]=row.S("id"),["operationSourceId"]=row.S("id"),["orders"]=row.N("orders")});
+            Block("daily_account_not_invoiced","يوجد تشغيل حساب بلا سطر فاتورة مطابق؛ راجع الحساب ومصدر الفاتورة.","review_invoice_account",row.S("id"));
+            if(!people.ContainsKey(row.S("riderId")))missing.Add(new JsonObject{["sourceLineId"]=row.S("id"),["operationSourceId"]=row.S("id")});
+        }
         foreach(var invoice in invoices)
         {
             string id=invoice.S("id");
@@ -97,7 +104,7 @@ public static class PayReviewDraft
     {
         if(date.Length<10||!DateOnly.TryParse(date[..10],CultureInfo.InvariantCulture,out var day)||!DateTimeOffset.TryParse(assignment.S("RawEffectiveFrom"),CultureInfo.InvariantCulture,DateTimeStyles.None,out var from))return false;
         DateOnly start=DateOnly.FromDateTime(from.ToOffset(TimeSpan.FromHours(3)).DateTime);if(start>day)return false;
-        return assignment.S("RawEffectiveTo")==""||DateTimeOffset.TryParse(assignment.S("RawEffectiveTo"),CultureInfo.InvariantCulture,DateTimeStyles.None,out var end)&&DateOnly.FromDateTime(end.ToOffset(TimeSpan.FromHours(3)).DateTime)>=day;
+        return assignment.S("RawEffectiveTo")==""||DateTimeOffset.TryParse(assignment.S("RawEffectiveTo"),CultureInfo.InvariantCulture,DateTimeStyles.None,out var end)&&end>new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue),TimeSpan.FromHours(3));
     }
     public static void Map(RouteGroupBuilder api,Store store)=>api.MapGet("/pay/review-draft",(string app,string period,string companyId,HttpContext ctx)=>store.Read(c=>Build(c,null,ctx.User,app,period,companyId))).WithTags("Payroll").WithSummary("Read source-bound Ninja cycle input and actionable blockers without writes");
 }

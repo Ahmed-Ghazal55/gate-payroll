@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:39099/"
+      "url": "http://127.0.0.1:41027/"
     }
   ],
   "paths": {
@@ -3491,6 +3491,7 @@
         "tags": [
           "Platforms"
         ],
+        "summary": "Read a scoped Ninja invoice with available server actions",
         "parameters": [
           {
             "name": "id",
@@ -5494,6 +5495,7 @@
         "tags": [
           "Payroll"
         ],
+        "summary": "Reject an owned terms draft with a reason and audit",
         "parameters": [
           {
             "name": "app",
@@ -5647,6 +5649,7 @@
         "tags": [
           "Payroll"
         ],
+        "summary": "Delete an unapproved owned terms draft with audit",
         "parameters": [
           {
             "name": "app",
@@ -5696,6 +5699,7 @@
         "tags": [
           "Payroll"
         ],
+        "summary": "Reject an owned schemes draft with a reason and audit",
         "parameters": [
           {
             "name": "app",
@@ -5849,6 +5853,7 @@
         "tags": [
           "Payroll"
         ],
+        "summary": "Delete an unapproved owned schemes draft with audit",
         "parameters": [
           {
             "name": "app",
@@ -5898,6 +5903,7 @@
         "tags": [
           "Payroll"
         ],
+        "summary": "Reject an owned eligibility draft with a reason and audit",
         "parameters": [
           {
             "name": "app",
@@ -6051,6 +6057,7 @@
         "tags": [
           "Payroll"
         ],
+        "summary": "Delete an unapproved owned eligibility draft with audit",
         "parameters": [
           {
             "name": "app",
@@ -6100,6 +6107,7 @@
         "tags": [
           "Payroll"
         ],
+        "summary": "Reject an owned global settings draft with reason and audit",
         "parameters": [
           {
             "name": "id",
@@ -6245,6 +6253,7 @@
         "tags": [
           "Payroll"
         ],
+        "summary": "Delete an unapproved owned global settings draft with audit",
         "parameters": [
           {
             "name": "id",
@@ -8231,11 +8240,183 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "cycle",
+                    "totals",
+                    "rows"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "cycle": {
+                      "required": [
+                        "id",
+                        "period",
+                        "companyId",
+                        "stage",
+                        "status"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "period": {
+                          "type": "string"
+                        },
+                        "companyId": {
+                          "type": "string"
+                        },
+                        "stage": {
+                          "type": "number"
+                        },
+                        "status": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "totals": {
+                      "required": [
+                        "riders",
+                        "approved",
+                        "pending",
+                        "needsDecision",
+                        "net"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "riders": {
+                          "type": "number"
+                        },
+                        "approved": {
+                          "type": "number"
+                        },
+                        "pending": {
+                          "type": "number"
+                        },
+                        "needsDecision": {
+                          "type": "number"
+                        },
+                        "net": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "rider",
+                          "status",
+                          "review",
+                          "net",
+                          "items"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "rider": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "review": {
+                            "type": "string"
+                          },
+                          "reviewedBy": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "reviewedAt": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "gross": {
+                            "type": "number"
+                          },
+                          "commission": {
+                            "type": "number"
+                          },
+                          "afterCommission": {
+                            "type": "number"
+                          },
+                          "phase1": {
+                            "type": "number"
+                          },
+                          "preliminaryDue": {
+                            "type": "number"
+                          },
+                          "phase2": {
+                            "type": "number"
+                          },
+                          "phase3": {
+                            "type": "number"
+                          },
+                          "net": {
+                            "type": "number"
+                          },
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "phase",
+                                "amount",
+                                "editable",
+                                "source"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "phase": {
+                                  "type": "number"
+                                },
+                                "order": {
+                                  "type": "number"
+                                },
+                                "labelAr": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                },
+                                "editable": {
+                                  "type": "boolean"
+                                },
+                                "max": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                },
+                                "source": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "edits": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -8261,11 +8442,23 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "approved",
+                    "skipped"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "approved": {
+                      "type": "number"
+                    },
+                    "skipped": {
+                      "type": "number"
+                    }
+                  }
                 }
               }
             }
@@ -8309,11 +8502,116 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "rider",
+                    "status",
+                    "review",
+                    "net",
+                    "items"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "rider": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "review": {
+                      "type": "string"
+                    },
+                    "reviewedBy": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "reviewedAt": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "gross": {
+                      "type": "number"
+                    },
+                    "commission": {
+                      "type": "number"
+                    },
+                    "afterCommission": {
+                      "type": "number"
+                    },
+                    "phase1": {
+                      "type": "number"
+                    },
+                    "preliminaryDue": {
+                      "type": "number"
+                    },
+                    "phase2": {
+                      "type": "number"
+                    },
+                    "phase3": {
+                      "type": "number"
+                    },
+                    "net": {
+                      "type": "number"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key",
+                          "phase",
+                          "amount",
+                          "editable",
+                          "source"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "phase": {
+                            "type": "number"
+                          },
+                          "order": {
+                            "type": "number"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "editable": {
+                            "type": "boolean"
+                          },
+                          "max": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "source": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "edits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -9436,11 +9734,193 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "header",
+                    "source",
+                    "status",
+                    "net",
+                    "carried",
+                    "closing",
+                    "cards",
+                    "deductions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "header": {
+                      "required": [
+                        "rider",
+                        "name",
+                        "period",
+                        "cycles"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "rider": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "period": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "ibanMasked": {
+                          "type": "string"
+                        },
+                        "cycles": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "net": {
+                      "type": "number"
+                    },
+                    "carried": {
+                      "type": "number"
+                    },
+                    "closing": {
+                      "type": "number"
+                    },
+                    "balanceBasis": {
+                      "type": "string"
+                    },
+                    "approvedOnly": {
+                      "type": "boolean"
+                    },
+                    "cards": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "app",
+                          "gross",
+                          "earnedGross",
+                          "explain"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "app": {
+                            "type": "string"
+                          },
+                          "platform": {
+                            "type": "string"
+                          },
+                          "gross": {
+                            "type": "number"
+                          },
+                          "earnedGross": {
+                            "type": "number"
+                          },
+                          "companyCommission": {
+                            "type": "number"
+                          },
+                          "vehicleCharge": {
+                            "type": "number"
+                          },
+                          "netBeforePersonal": {
+                            "type": "number"
+                          },
+                          "sources": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "sourceLineId",
+                                "accountId",
+                                "baseGross"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "sourceLineId": {
+                                  "type": "string"
+                                },
+                                "accountId": {
+                                  "type": "string"
+                                },
+                                "operationSourceIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "baseGross": {
+                                  "type": "number"
+                                },
+                                "incentive": {
+                                  "type": "number"
+                                },
+                                "deduction": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "explain": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "label",
+                                "formula",
+                                "inputs",
+                                "amount",
+                                "category"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string"
+                                },
+                                "formula": {
+                                  "type": "string"
+                                },
+                                "inputs": {
+                                  "type": "object"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                },
+                                "category": {
+                                  "type": "string"
+                                },
+                                "affectsNet": {
+                                  "type": "boolean"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "deductions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "phases": {
+                      "type": [
+                        "null",
+                        "object"
+                      ],
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    }
+                  }
                 }
               }
             }

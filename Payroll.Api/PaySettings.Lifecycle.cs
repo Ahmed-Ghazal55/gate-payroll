@@ -24,13 +24,13 @@ public static partial class PaySettings
     }
     static void MapLifecycle(RouteGroupBuilder api,Store store)
     {
-        foreach(string section in new[]{"terms","schemes","eligibility"})
-        {
-            string kind=Kind(section);
-            api.MapPost("/pay/apps/{app}/"+section+"/{id}/reject",(string app,string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,kind,app,id,input))).WithTags("Payroll");
-            api.MapDelete("/pay/apps/{app}/"+section+"/{id}",(string app,string id,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,kind,app,id,delete:true))).WithTags("Payroll");
-        }
-        api.MapPost("/pay/settings/{id}/reject",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,"pay_setting","global",id,input))).WithTags("Payroll");
-        api.MapDelete("/pay/settings/{id}",(string id,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,"pay_setting","global",id,delete:true))).WithTags("Payroll");
+        api.MapPost("/pay/apps/{app}/terms/{id}/reject",(string app,string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,"pay_terms",app,id,input))).WithTags("Payroll").WithSummary("Reject an owned terms draft with a reason and audit");
+        api.MapDelete("/pay/apps/{app}/terms/{id}",(string app,string id,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,"pay_terms",app,id,delete:true))).WithTags("Payroll").WithSummary("Delete an unapproved owned terms draft with audit");
+        api.MapPost("/pay/apps/{app}/schemes/{id}/reject",(string app,string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,"pay_scheme",app,id,input))).WithTags("Payroll").WithSummary("Reject an owned schemes draft with a reason and audit");
+        api.MapDelete("/pay/apps/{app}/schemes/{id}",(string app,string id,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,"pay_scheme",app,id,delete:true))).WithTags("Payroll").WithSummary("Delete an unapproved owned schemes draft with audit");
+        api.MapPost("/pay/apps/{app}/eligibility/{id}/reject",(string app,string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,"pay_eligibility",app,id,input))).WithTags("Payroll").WithSummary("Reject an owned eligibility draft with a reason and audit");
+        api.MapDelete("/pay/apps/{app}/eligibility/{id}",(string app,string id,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,"pay_eligibility",app,id,delete:true))).WithTags("Payroll").WithSummary("Delete an unapproved owned eligibility draft with audit");
+        api.MapPost("/pay/settings/{id}/reject",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,"pay_setting","global",id,input))).WithTags("Payroll").WithSummary("Reject an owned global settings draft with reason and audit");
+        api.MapDelete("/pay/settings/{id}",(string id,HttpContext ctx)=>store.Write((c,tx)=>Discard(c,tx,ctx.User,"pay_setting","global",id,delete:true))).WithTags("Payroll").WithSummary("Delete an unapproved owned global settings draft with audit");
     }
 }
