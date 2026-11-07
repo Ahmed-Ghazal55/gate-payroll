@@ -66,9 +66,20 @@ public static class FinancialScopes
     public static void DemandSponsor(ClaimsPrincipal user,string id){if(!Sponsor(user,id))throw new ApiError("السجل التجاري خارج النطاق المالي للمستخدم.",403);}
     public static void DemandAccount(ClaimsPrincipal user,string code){if(!Account(user,code))throw new ApiError("الحساب المالي خارج النطاق المسند للمستخدم.",403);}
     public static void DemandDebt(ClaimsPrincipal user,JsonObject debt){if(!Debt(user,debt))throw new ApiError("المديونية خارج نطاق الشركة أو الفئة أو المنصة المسندة للمستخدم.",403);}
+    public static bool TargetAccount(ClaimsPrincipal user,string company,string code)
+    {
+        if(!Sponsor(user,company)||!FinanceViews.Accounts.Any(a=>a.S("code")==code&&a.B("posting")&&a.S("status")=="active"))return false;
+        if(AccessPolicy.Administrator(user))return true;
+        var platform=PayPlatforms.Table.FirstOrDefault(p=>p.Receivable==code||p.Principal==code||p.Agent==code);
+        if(platform!=null&&!Platform(user,platform.Platform))return false;
+        var vaults=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault&&a.DefaultSponsorId==company&&FinanceViews.MapAccount(new(){["accountCode"]=a.Code},new(),null,null,null)==code).ToList();
+        if(vaults.Count>0)return vaults.Any(a=>Account(user,a.Code));
+        return AccessPolicy.Has(user,"treasury.journals")||AccessPolicy.Has(user,ManualJournals.CreatePermission)||AccessPolicy.Has(user,ManualJournals.ApprovePermission);
+    }
     public static bool Line(ClaimsPrincipal user,JsonObject line)
     {
         if(!Sponsor(user,line.S("sponsorId")))return false;
+        if(line.B("manual"))return TargetAccount(user,line.S("sponsorId"),line.S("accountCode"));
         if(line.S("chart")=="target")return AccessPolicy.Has(user,"treasury.journals")&&(line["platforms"] is JsonArray apps&&apps.Count>0?apps.All(p=>Platform(user,p!.ToString())):Platform(user,line.S("platform","HungerStation")))&&FinanceViews.Accounts.Any(a=>a.S("code")==line.S("accountCode")&&a.B("posting")&&a.S("status")=="active");
         return FinancialCore.ResolveAccount(line.S("accountCode")).IsVault?Account(user,line.S("accountCode")):AccessPolicy.Has(user,"treasury.journals");
     }

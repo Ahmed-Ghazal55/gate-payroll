@@ -50,6 +50,7 @@ var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
 CampaignLinks.Migrate(store);
 Companies.Seed(store);
 ErpSyncRequests.SeedPermission(store);
+ManualJournals.Seed(store);
 app.MapOpenApi("/openapi/{documentName}.json").WithTags("Administration").WithSummary("Administrator-only OpenAPI document").RequireAuthorization().AddEndpointFilter(async (context, next) =>
     AccessPolicy.Administrator(context.HttpContext.User) ? await next(context) : Results.Json(new { error="التوثيق لمسؤول النظام فقط.", code="forbidden" }, statusCode:403));
 app.UseForwardedHeaders();
@@ -159,6 +160,7 @@ RiderAsks.Map(app, api, store);
 FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
 FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);
 TreasuryEntries.Map(api,store);
+ManualJournals.Map(api,store);
 JahezTreasury.Map(api,store);
 LegacyCashAllocation.Map(api,store);
 JahezHandovers.Map(api,store);

@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXACT = {'.gitignore', '.env.example', 'README_AR.md', 'DEPLOYMENT_AR.md',
          'DATA_IMPORT_AR.md', 'UPGRADE_V05_AR.md', 'UPGRADE_V07_AR.md', 'RELEASE_STATUS_AR.md', 'API_CONTRACT.md', 'TABLE_STANDARD_AR.md',
          'Payroll.Api/Payroll.Api.csproj', 'Payroll.Api/Resources/target-coa.v1.json', 'Payroll.Api/Resources/pay-defaults.v1.json',
-         'tools/ErpImport/systemd/gate-erp-sync.service', 'tools/ErpImport/systemd/gate-erp-sync.timer', 'tools/generate_target_coa.py', 'tools/api_inventory.py', 'docs/api/ENDPOINTS.md', 'docs/api/hungerstation.md', 'docs/api/ninja-invoices.md', 'docs/api/pay-framework.md', 'Payroll.Api/appsettings.json',
+         'tools/ErpImport/systemd/gate-erp-sync.service', 'tools/ErpImport/systemd/gate-erp-sync.timer', 'tools/generate_target_coa.py', 'tools/api_inventory.py', 'docs/api/ENDPOINTS.md', 'docs/api/hungerstation.md', 'docs/api/ninja-invoices.md', 'docs/api/manual-journals.md', 'docs/api/pay-framework.md', 'Payroll.Api/appsettings.json',
          'Payroll.Api/appsettings.Production.json', 'Payroll.Api/web.config',
          'Payroll.Api/wwwroot/favicon.svg', 'Payroll.Api/wwwroot/favicon.ico', 'Payroll.Api/wwwroot/index.html', 'Payroll.Api/wwwroot/app.css',
          'Frontend/tsconfig.json', 'RiderForm/package.json', 'RiderForm/package-lock.json',

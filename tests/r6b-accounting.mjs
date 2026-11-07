@@ -55,5 +55,15 @@ sys.stdout.buffer.write(out.getvalue())
  await call('checker',`/api/platforms/ninja/invoices/${id}/post`,{},409);await call('admin','/api/platforms/ninja/posting',{enabled:true});
  const posted=await call('checker',`/api/platforms/ninja/invoices/${id}/post`,{});assert.ok(posted.journalEntryId);
  await call('admin','/api/platforms/ninja/invoices',form(),400);await call('checker','/api/platforms/ninja/invoices');
+ const manual={companyId:company,date:'2026-10-20',reference:'SYNTHETIC-HTTP-MANUAL',description:'Synthetic manual operation',lines:[{accountCode:'512101',debit:25,credit:0},{accountCode:'212103',debit:0,credit:25}]};
+ await call('anon','/api/finance/journals/manual',manual,401);
+ const draft=await call('admin','/api/finance/journals/manual',manual);const manualId=encodeURIComponent(draft.id);assert.equal(draft.status,'draft');
+ const drafts=await call('checker','/api/finance/journals/manual?status=draft');assert.ok(drafts.items.some(d=>d.id===draft.id));
+ await call('admin',`/api/finance/journals/manual/${manualId}/approve`,{},403);
+ const journal=await call('checker',`/api/finance/journals/manual/${manualId}/approve`,{});assert.equal(journal.status,'approved');
+ const reversal=await call('admin',`/api/finance/journals/manual/${manualId}/reverse`,{date:'2026-11-01',reason:'Synthetic correction'});assert.equal(reversal.status,'draft');
+ await call('admin',`/api/finance/journals/manual/${encodeURIComponent(reversal.id)}/approve`,{},403);
+ await call('checker',`/api/finance/journals/manual/${encodeURIComponent(reversal.id)}/approve`,{});
+ await call('admin',`/api/finance/journals/manual/${encodeURIComponent(posted.journalEntryId)}/reverse`,{date:'2026-11-01',reason:'Synthetic invalid system journal'},404);
  console.log(`PASS R6b accounting: ${checks} HTTP checks on synthetic SQLite.`);
 }finally{if(child&&child.exitCode===null){child.kill('SIGTERM');await once(child,'exit');}rmSync(data,{recursive:true,force:true});}
