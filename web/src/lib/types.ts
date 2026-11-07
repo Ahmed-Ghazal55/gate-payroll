@@ -153,6 +153,9 @@ export interface Campaign {
   expiresAt: string;
   createdAt: string;
   path: string;
+  /** Absolute link from the server (Payroll:PublicBaseUrl); prefer it over origin + path. */
+  publicUrl?: string;
+  qrCodeUrl?: string;
   responseCount: number;
   cities?: Array<{ ar: string; en: string }>;
 }

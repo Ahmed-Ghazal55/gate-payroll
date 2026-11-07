@@ -8,6 +8,7 @@
 
 ## Release 0.16.0 (2026-11-07, Claude), branch `release/0.16.0`
 - Integrates `feat/k-review` (K1–K4) + `feat/r6b-ui` (A0–A8) + `feat/r6b-accounting` (C0, C3, C4, C6, C7). C5 FCM and A9 QR not started.
+- Fix: /app campaign «نسخ رابط النموذج» copied `origin+undefined` (list had no `path`); now uses server `publicUrl`, real QR from `qrCodeUrl` (was a static placeholder), `responseCount` returned; campaigns.mjs checks link, page and QR.
 - Personal notifications: counts poll every 60 s (visible tab); a new personal item plays a short Web Audio chime; toggle «صوت الإشعارات الشخصية» in the user menu (localStorage `gate_personal_sound`).
 - Review fixes: K2 card-payout 409 removed (C3 posts it via `MadaAccounting.PayInternet`); internet-advance test uses scoped principals (Codex's company scope kept); general bell excludes personal count; CI gets a synthetic `Vouchers__Secret`.
 - Verified locally: .NET 367/367 (SQL Server in Docker, 0 skipped); 20 node/browser suites incl. published-app, `r6b-accounting`, `r4-backend`, `ui-qa`; `release_source --check`.

@@ -28,6 +28,10 @@ try{
  await put('/api/campaigns/'+campaign.id,{title:'Updated campaign',fields:['city','phone']});
  const publicSchema=await req(pub,undefined,200,false);assert.deepEqual(publicSchema.fields,['city','phone']);assert.equal(publicSchema.title,'Updated campaign');
  assert.equal((await req('/api/campaigns')).find(x=>x.id===campaign.id).publicUrl,campaign.publicUrl);
+ // The list carries everything the /app copy-link and QR buttons use (path was missing before 0.16.0).
+ {const listed=(await req('/api/campaigns')).find(x=>x.id===campaign.id);assert.equal(listed.path,campaign.path);assert.ok(listed.publicUrl.endsWith(campaign.path));assert.equal(listed.responseCount,0);
+  const page=await fetch(base+listed.path);assert.equal(page.status,200);assert.match(page.headers.get('content-type')||'',/text\/html/);
+  const qr=await fetch(base+listed.qrCodeUrl,{headers:{Cookie:cookie}});assert.equal(qr.status,200);assert.match(await qr.text(),/<svg/);}
  await put('/api/campaigns/'+campaign.id,{fields:['iban']},400);await put('/api/campaigns/'+campaign.id,{fields:['city','city']},400);await put('/api/campaigns/'+campaign.id,{expiresAt:'invalid'},400);
  await req(pub,first,400,false);await req(pub,{...first,city:'Riyadh',phone:'bad'},400,false);
  const a=await req(pub,{...first,city:'Riyadh',phone:'+966500000001'},200,false),b=await req(pub,{...second,city:'Jeddah',phone:'+966500000002'},200,false);
