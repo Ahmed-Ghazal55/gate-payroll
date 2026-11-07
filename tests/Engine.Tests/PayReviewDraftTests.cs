@@ -28,7 +28,8 @@ public sealed class PayReviewDraftTests
         var draft=f.Store.Read(c=>PayReviewDraft.Build(c,null,PayFixture.Maker,"ninja","2026-10",Company));Assert.IsTrue(draft.B("canCreate"),draft["blockers"]!.ToJsonString());
         var account=draft["invoices"]![0]!["accounts"]![0]!.AsObject();Assert.AreEqual(Line,account.S("sourceLineId"));Assert.AreEqual(100m,account.N("baseGross"));Assert.AreEqual(10m,account["riders"]![0]!.N("orders"));Assert.AreEqual(Line,draft["evidence"]![0].S("sourceLineId"));
         Assert.AreEqual(before,f.Store.Read(c=>System.Text.Json.JsonSerializer.Serialize(ReleaseSafety.Capture(c))));
-        var input=new JsonObject{["period"]="2026-10",["companyId"]=Company,["app"]="ninja",["invoices"]=draft["invoices"]!.DeepClone()};Assert.AreEqual("draft",f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input)).S("status"));
+        var input=new JsonObject{["period"]="2026-10",["companyId"]=Company,["app"]="ninja",["invoices"]=draft["invoices"]!.DeepClone()};var forged=input.Clone();forged["invoices"]![0]!["accounts"]![0]!["riders"]![0]!["operationSourceIds"]=new JsonArray("synthetic-missing-proof");Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,forged)));
+        Assert.AreEqual("draft",f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input)).S("status"));
     }
     [TestMethod]
     public void MissingRiderAndUnassignedOrdersReturnActionableSourceBoundBlockers()

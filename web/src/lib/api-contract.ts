@@ -3313,10 +3313,21 @@ export interface paths {
                             amountExclVat: number;
                             deductionsTotal: number;
                             vat: number;
-                            approvalStatus?: string;
+                            approvalStatus: string;
                             status: string;
-                            allowedActions?: string[];
+                            allowedActions: string[];
                             journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
                             accountIds?: null | string[];
                             lines?: {
                                 id: string;
@@ -3385,10 +3396,21 @@ export interface paths {
                                 amountExclVat: number;
                                 deductionsTotal: number;
                                 vat: number;
-                                approvalStatus?: string;
+                                approvalStatus: string;
                                 status: string;
-                                allowedActions?: string[];
+                                allowedActions: string[];
                                 journalEntryId?: string;
+                                createdBy?: string;
+                                approvedBy?: string;
+                                accountingStatus?: string;
+                                reversalJournalEntryId?: string;
+                                disputes?: {
+                                    id: string;
+                                    status: string;
+                                    reason: string;
+                                    createdBy: string;
+                                    resolvedBy?: string;
+                                }[];
                                 accountIds?: null | string[];
                                 lines?: {
                                     id: string;
@@ -3448,10 +3470,21 @@ export interface paths {
                             amountExclVat: number;
                             deductionsTotal: number;
                             vat: number;
-                            approvalStatus?: string;
+                            approvalStatus: string;
                             status: string;
-                            allowedActions?: string[];
+                            allowedActions: string[];
                             journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
                             accountIds?: null | string[];
                             lines?: {
                                 id: string;
@@ -3486,10 +3519,21 @@ export interface paths {
                                 amountExclVat: number;
                                 deductionsTotal: number;
                                 vat: number;
-                                approvalStatus?: string;
+                                approvalStatus: string;
                                 status: string;
-                                allowedActions?: string[];
+                                allowedActions: string[];
                                 journalEntryId?: string;
+                                createdBy?: string;
+                                approvedBy?: string;
+                                accountingStatus?: string;
+                                reversalJournalEntryId?: string;
+                                disputes?: {
+                                    id: string;
+                                    status: string;
+                                    reason: string;
+                                    createdBy: string;
+                                    resolvedBy?: string;
+                                }[];
                                 accountIds?: null | string[];
                                 lines?: {
                                     id: string;
@@ -3561,10 +3605,21 @@ export interface paths {
                             amountExclVat: number;
                             deductionsTotal: number;
                             vat: number;
-                            approvalStatus?: string;
+                            approvalStatus: string;
                             status: string;
-                            allowedActions?: string[];
+                            allowedActions: string[];
                             journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
                             accountIds?: null | string[];
                             lines?: {
                                 id: string;
@@ -3702,10 +3757,21 @@ export interface paths {
                             amountExclVat: number;
                             deductionsTotal: number;
                             vat: number;
-                            approvalStatus?: string;
+                            approvalStatus: string;
                             status: string;
-                            allowedActions?: string[];
+                            allowedActions: string[];
                             journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
                             accountIds?: null | string[];
                             lines?: {
                                 id: string;
@@ -3777,10 +3843,21 @@ export interface paths {
                             amountExclVat: number;
                             deductionsTotal: number;
                             vat: number;
-                            approvalStatus?: string;
+                            approvalStatus: string;
                             status: string;
-                            allowedActions?: string[];
+                            allowedActions: string[];
                             journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
                             accountIds?: null | string[];
                             lines?: {
                                 id: string;
@@ -3856,10 +3933,21 @@ export interface paths {
                             amountExclVat: number;
                             deductionsTotal: number;
                             vat: number;
-                            approvalStatus?: string;
+                            approvalStatus: string;
                             status: string;
-                            allowedActions?: string[];
+                            allowedActions: string[];
                             journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
                             accountIds?: null | string[];
                             lines?: {
                                 id: string;
@@ -3935,10 +4023,21 @@ export interface paths {
                             amountExclVat: number;
                             deductionsTotal: number;
                             vat: number;
-                            approvalStatus?: string;
+                            approvalStatus: string;
                             status: string;
-                            allowedActions?: string[];
+                            allowedActions: string[];
                             journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
                             accountIds?: null | string[];
                             lines?: {
                                 id: string;
@@ -4010,10 +4109,21 @@ export interface paths {
                             amountExclVat: number;
                             deductionsTotal: number;
                             vat: number;
-                            approvalStatus?: string;
+                            approvalStatus: string;
                             status: string;
-                            allowedActions?: string[];
+                            allowedActions: string[];
                             journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
                             accountIds?: null | string[];
                             lines?: {
                                 id: string;
@@ -6233,6 +6343,8 @@ export interface paths {
                                         orders: number;
                                         riders: {
                                             rider: string;
+                                            sourceLineId?: string;
+                                            operationSourceIds?: string[];
                                             baseGross: number;
                                             orders: number;
                                             deduction: number;
@@ -6302,6 +6414,8 @@ export interface paths {
                                     orders: number;
                                     riders: {
                                         rider: string;
+                                        sourceLineId?: string;
+                                        operationSourceIds?: string[];
                                         baseGross: number;
                                         orders: number;
                                         deduction: number;
@@ -6383,6 +6497,8 @@ export interface paths {
                                     orders: number;
                                     riders: {
                                         rider: string;
+                                        sourceLineId?: string;
+                                        operationSourceIds?: string[];
                                         baseGross: number;
                                         orders: number;
                                         deduction: number;
@@ -6455,7 +6571,14 @@ export interface paths {
                                 entitlement?: number;
                                 accountDeduction?: number;
                                 allocatedVehicleCharge?: number;
-                                sources: Record<string, never>[];
+                                sources: {
+                                    sourceLineId: string;
+                                    accountId: string;
+                                    operationSourceIds?: string[];
+                                    baseGross: number;
+                                    incentive?: number;
+                                    deduction?: number;
+                                }[];
                                 lines?: Record<string, never>[];
                                 blockers?: string[];
                             }[];
@@ -6517,6 +6640,8 @@ export interface paths {
                                     orders: number;
                                     riders: {
                                         rider: string;
+                                        sourceLineId?: string;
+                                        operationSourceIds?: string[];
                                         baseGross: number;
                                         orders: number;
                                         deduction: number;

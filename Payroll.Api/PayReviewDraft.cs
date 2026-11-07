@@ -74,6 +74,8 @@ public static class PayReviewDraft
             {
                 foreach(var rider in account["riders"]!.AsArray().OfType<JsonObject>())
                 {
+                    rider["sourceLineId"]=account.S("sourceLineId");
+                    rider["operationSourceIds"]=saved!=null?new JsonArray(saved.S("id")):new JsonArray(daily.Where(d=>d.S("platformAccountId")==account.S("accountId")&&d.S("riderId")==rider.S("rider")).Select(d=>(JsonNode?)JsonValue.Create(d.S("id"))).ToArray());
                     try
                     {
                         var assignment=PayAssignments.Resolve(c,tx,rider.S("rider"),"ninja",period);var scheme=Store.Get(c,assignment.S("schemeId"),"pay_scheme",tx)!;var metrics=rider["metrics"] as JsonObject??new();

@@ -10,7 +10,7 @@ namespace Payroll;
 public static partial class PayCycles
 {
     public const string Kind="pay_cycle",LineKind="pay_cycle_line";
-    static readonly string[] SourceKinds=["platform_invoice","platform_invoice_line","platform_invoice_action","platform_dispute","platform_allocation","platform_account","vehicle","vehicle_assignment","rider","pay_assignment","pay_terms","pay_scheme","pay_eligibility","pay_setting","debt","adjustment","ledger","ledger_reversal","run","journal","platform_deduction","accounting_period","setting"];
+    static readonly string[] SourceKinds=["operations_import","ninja_daily","platform_invoice","platform_invoice_line","platform_invoice_action","platform_dispute","platform_allocation","platform_account","vehicle","vehicle_assignment","rider","pay_assignment","pay_terms","pay_scheme","pay_eligibility","pay_setting","debt","adjustment","ledger","ledger_reversal","run","journal","platform_deduction","accounting_period","setting"];
     static string Hash(string value)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     static string Fingerprint(DbConnection c,DbTransaction? tx)=>Hash(string.Join("\n",SourceKinds.SelectMany(k=>Store.List(c,k,tx).OrderBy(d=>d.S("id"),StringComparer.Ordinal).Select(d=>k+":"+FinancialImports.Canonical(d)))));
     static JsonArray Rows(JsonNode? node,int max=25000)=>PayValues.Array(node,max);
@@ -117,7 +117,20 @@ public static partial class PayCycles
             var source=Store.Get(c,a.S("accountId"),"platform_account",tx)!;var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();J.Need(shares.Count>0&&shares.Select(r=>r.S("rider")).Distinct().Count()==shares.Count,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
             foreach(var r in shares)
             {
-                PayValues.Fields(r,"rider","orders","baseGross","deduction","category","days","metrics");string id=J.Iqama(r.Required("rider"));var person=Store.Get(c,id,"rider",tx)??throw new ApiError("المندوب غير موجود.");FinancialScopes.DemandRider(actor,person);J.Need(ErpRiderClassification.ListedAsRider(person),"الموظفون خارج إطار المناديب.");
+                PayValues.Fields(r,"rider","orders","baseGross","deduction","category","days","metrics","sourceLineId","operationSourceIds");
+                if(r.ContainsKey("sourceLineId"))J.Need(r.S("sourceLineId")==a.S("sourceLineId"),"مصدر استحقاق المندوب لا يطابق سطر الفاتورة.");
+                if(r.ContainsKey("operationSourceIds"))
+                {
+                    J.Need(r["operationSourceIds"] is JsonArray proof&&proof.Count>0&&proof.All(p=>p is JsonValue j&&j.TryGetValue<string>(out _)),"مراجع مصدر التشغيل مطلوبة.");
+                    foreach(string proofId in r["operationSourceIds"]!.AsArray().Select(p=>p!.GetValue<string>()))
+                    {
+                        var day=Store.Get(c,proofId,"ninja_daily",tx);var import=Store.Get(c,proofId,OperationsImports.Kind,tx);
+                        bool dailyMatch=day!=null&&day.S("riderId")==r.S("rider")&&day.S("platformAccountId")==a.S("accountId")&&day.S("companyId")==cycle.S("companyId")&&day.S("date").StartsWith(cycle.S("period")+"-",StringComparison.Ordinal);
+                        bool importedMatch=import!=null&&import.S("invoiceId")==Store.Get(c,a.S("sourceLineId"),"platform_invoice_line",tx)?.S("invoiceId")&&(import["review"]?["accounts"] as JsonArray??[]).OfType<JsonObject>().Any(ac=>ac.S("accountId")==a.S("accountId")&&(ac["riders"] as JsonArray??[]).OfType<JsonObject>().Any(share=>share.S("rider")==r.S("rider")&&new[]{"orders","baseGross","deduction","category","days","metrics"}.All(key=>JsonNode.DeepEquals(share[key],r[key]))));
+                        J.Need(dailyMatch||importedMatch,"مرجع التشغيل لا يطابق توزيع المندوب.");
+                    }
+                }
+                string id=J.Iqama(r.Required("rider"));var person=Store.Get(c,id,"rider",tx)??throw new ApiError("المندوب غير موجود.");FinancialScopes.DemandRider(actor,person);J.Need(ErpRiderClassification.ListedAsRider(person),"الموظفون خارج إطار المناديب.");
                 J.Need((source["assignments"] as JsonArray??[]).OfType<JsonObject>().Any(x=>x.S("riderId")==id&&Overlaps(x,cycle.S("period"))),"المندوب ليس مشغلًا فعليًا لليوزر بالفترة؛ المالك المسجل ليس دليلًا.");
                 J.Need(PaySettings.Categories.Contains(r.Required("category")),"فئة الكفالة والمركبة مطلوبة للمراجعة.");Money(r,"baseGross");Money(r,"deduction");decimal orders=PayValues.Number(r,"orders",0,int.MaxValue),days=PayValues.Number(r,"days",0,31);J.Need(orders==decimal.Truncate(orders)&&days==decimal.Truncate(days),"طلبات وأيام صحيحة مطلوبة.");
             }

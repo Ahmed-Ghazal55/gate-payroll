@@ -79,7 +79,7 @@ public static partial class NinjaInvoices
         var otherIds=allInvoices.Where(i=>i.S("platform")=="Ninja"&&i.S("companyId")==company&&i.S("period")==period&&i.S("reversalJournalEntryId")==""&&i.S("status")!="reversed").Select(i=>i.S("id")).ToHashSet();
         var used=Store.List(c,"platform_invoice_line",tx).Where(l=>otherIds.Contains(l.S("invoiceId"))).Select(l=>l.S("platformAccountId")).ToHashSet();
         J.Need(!lines.OfType<JsonObject>().Any(l=>l.S("lineType")=="account"&&used.Contains(l.S("platformAccountId"))),"يوزر مسجل في فاتورة أخرى للشركة والشهر؛ استخدم العكس والتصحيح.");
-        return new(){["id"]=id,["platform"]="Ninja",["companyId"]=company,["period"]=period,["reference"]=reference,["sourceSha256"]=hash,["termsSource"]=termsSource,["accountIds"]=selection==null?null:new JsonArray(selection.Order().Select(a=>(JsonNode?)JsonValue.Create(a)).ToArray()),["amountExclVat"]=lines.OfType<JsonObject>().Sum(l=>l.N("baseGross")+l.N("incentives")),["deductionsTotal"]=lines.OfType<JsonObject>().Sum(l=>l.N("deductionAmount")),["vat"]=lines.OfType<JsonObject>().Sum(l=>l.N("vat")),["status"]="invoiced",["odooVoucherNo"]=input.S("odooVoucherNo"),["lines"]=lines};
+        return new(){["id"]=id,["platform"]="Ninja",["companyId"]=company,["period"]=period,["reference"]=reference,["sourceSha256"]=hash,["termsSource"]=termsSource,["accountIds"]=selection==null?null:new JsonArray(selection.Order().Select(a=>(JsonNode?)JsonValue.Create(a)).ToArray()),["amountExclVat"]=lines.OfType<JsonObject>().Sum(l=>l.N("baseGross")+l.N("incentives")),["deductionsTotal"]=lines.OfType<JsonObject>().Sum(l=>l.N("deductionAmount")),["vat"]=lines.OfType<JsonObject>().Sum(l=>l.N("vat")),["status"]="invoiced",["approvalStatus"]="pending",["allowedActions"]=new JsonArray("confirm"),["odooVoucherNo"]=input.S("odooVoucherNo"),["lines"]=lines};
     }
     public static JsonObject Preview(DbConnection c,ClaimsPrincipal actor,JsonObject input,byte[] bytes)
     {var rows=new JsonArray(Parse(c,null,actor,input,bytes));return new(){["rows"]=rows,["canCommit"]=true,["fingerprint"]=FinancialImports.Issue(c,PreviewKind,rows,actor.Identity!.Name!)};}
@@ -90,7 +90,7 @@ public static partial class NinjaInvoices
         {J.Need(input.B("confirm"),"أكد إعادة الملف المسجل.");return saved;}
         FinancialImports.Verify(c,tx,input,PreviewKind,actor.Identity!.Name!);
         J.Need(FinancialImports.Canonical(input["rows"])==FinancialImports.Canonical(new JsonArray(parsed.DeepClone())),"التأكيد لا يطابق الملف والمعاينة.");
-        var lines=parsed["lines"]!.AsArray().OfType<JsonObject>().Select(l=>l.Clone()).ToList();parsed.Remove("lines");parsed["approvalStatus"]="pending";parsed["createdBy"]=actor.Identity!.Name;parsed["createdAt"]=DateTimeOffset.UtcNow.ToString("O");
+        var lines=parsed["lines"]!.AsArray().OfType<JsonObject>().Select(l=>l.Clone()).ToList();parsed.Remove("lines");parsed.Remove("allowedActions");parsed["approvalStatus"]="pending";parsed["createdBy"]=actor.Identity!.Name;parsed["createdAt"]=DateTimeOffset.UtcNow.ToString("O");
         foreach(var line in lines)Store.Save(c,"platform_invoice_line",line,tx);Store.Save(c,"platform_invoice",parsed,tx);Store.Audit(c,tx,"platform.ninja.invoice_imported",parsed.S("id"),actor.Identity!.Name!);return parsed;
     }
     public static JsonObject Classify(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)

@@ -30,7 +30,7 @@ try {
  put('platform_invoice',{id:'syn-r8-invoice',platform:'Ninja',companyId:company,period:'2026-10',reference:'SYN-R8',status:'invoiced',approvalStatus:'pending',createdBy:'synthetic-r8-admin',amountExclVat:100,deductionsTotal:0,vat:15});
  put('platform_invoice_line',{id:'syn-r8-line',invoiceId:'syn-r8-invoice',sourceRow:2,baseGross:100,incentives:0,deductionAmount:0,orders:10,vat:15,invoiced:100,status:'invoiced'});
  put('pay_cycle',{id:'syn-r8-cycle',companyId:company,period:'2026-10',stage:0,status:'draft',invoices:[{invoiceId:'syn-r8-invoice',app:'ninja',accounts:[],deductions:[]}]});
- put('pay_cycle_line',{id:'syn-r8-cycle-line',cycleId:'syn-r8-cycle',rider:'2000000001',app:'ninja',status:'ready',gross:100,sources:[]});
+ put('pay_cycle_line',{id:'syn-r8-cycle-line',cycleId:'syn-r8-cycle',rider:'2000000001',app:'ninja',status:'ready',gross:100,sources:[{sourceLineId:'syn-r8-line',accountId:'syn-r8-account',baseGross:100}]});
  for(const [section,kind]of [['terms','pay_terms'],['schemes','pay_scheme'],['eligibility','pay_eligibility']])put(kind,{id:'syn-r8-'+section,kind,app:'ninja',period:'2026-10',status:'draft',version:1,data:{}});
  put('pay_setting',{id:'syn-r8-global',app:'global',period:'2026-10',status:'draft',version:1,data:{}});
  db.close();
@@ -38,6 +38,9 @@ try {
  await call('/api/finance/journals/manual',{companyId:company,date:'2026-10-01',reference:'SYN-R8',description:'Synthetic',lines:[{accountCode:'512101',debit:10,credit:0},{accountCode:'212103',debit:0,credit:10}]});
  const cases=[['/api/debts','/api/debts'],['/api/debts?page=1','/api/debts'],['/api/riders','/api/riders'],['/api/pay/cycles','/api/pay/cycles'],['/api/pay/cycles/syn-r8-cycle/lines','/api/pay/cycles/{id}/lines'],['/api/platforms/ninja/invoices','/api/platforms/ninja/invoices'],['/api/platforms/ninja/invoices/syn-r8-invoice/lines','/api/platforms/ninja/invoices/{id}/lines'],...['terms','schemes','eligibility'].map(s=>['/api/pay/apps/ninja/'+s,'/api/pay/apps/{app}/'+s]),['/api/pay/settings','/api/pay/settings'],['/api/finance/journals/manual','/api/finance/journals/manual'],['/api/campaigns','/api/campaigns']];
  for(const [url,path]of cases){const value=await call(url);const live=doc.paths[path].get.responses['200'].content['application/json'].schema;const schema=saved.paths[path].get.responses['200'].content['application/json'].schema;assert.deepEqual(live,schema,'Live schema changed: '+path);const validate=ajv.compile(schema);assert.ok(validate(value),path+': '+JSON.stringify(validate.errors));const rows=Array.isArray(value)?value:value.items;assert.ok(rows.length>0,'Nonempty contract fixture: '+path);checks++;}
+ const draft=await call('/api/pay/review-draft?app=ninja&period=2026-10&companyId='+company);
+ const draftSchema=saved.paths['/api/pay/review-draft'].get.responses['200'].content['application/json'].schema;
+ const validateDraft=ajv.compile(draftSchema);assert.ok(validateDraft(draft),JSON.stringify(validateDraft.errors));assert.ok(draft.blockers.length>0);assert.equal(draft.canCreate,false);checks++;
  const validateDebt=ajv.compile(saved.paths['/api/debts'].get.responses['200'].content['application/json'].schema);
  assert.equal(validateDebt([{id:'synthetic',originalAmount:125,remainingAmount:100,status:'active'}]),false);checks++;
  console.log(`R8 HTTP contracts: ${checks} passed`);

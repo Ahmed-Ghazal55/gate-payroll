@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:36329/"
+      "url": "http://127.0.0.1:39099/"
     }
   ],
   "paths": {
@@ -2630,7 +2630,9 @@
                     "amountExclVat",
                     "deductionsTotal",
                     "vat",
-                    "status"
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
                   ],
                   "type": "object",
                   "properties": {
@@ -2672,6 +2674,47 @@
                     },
                     "journalEntryId": {
                       "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "accountIds": {
                       "type": [
@@ -2801,7 +2844,9 @@
                         "amountExclVat",
                         "deductionsTotal",
                         "vat",
-                        "status"
+                        "status",
+                        "approvalStatus",
+                        "allowedActions"
                       ],
                       "type": "object",
                       "properties": {
@@ -2843,6 +2888,47 @@
                         },
                         "journalEntryId": {
                           "type": "string"
+                        },
+                        "createdBy": {
+                          "type": "string"
+                        },
+                        "approvedBy": {
+                          "type": "string"
+                        },
+                        "accountingStatus": {
+                          "type": "string"
+                        },
+                        "reversalJournalEntryId": {
+                          "type": "string"
+                        },
+                        "disputes": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "id",
+                              "status",
+                              "reason",
+                              "createdBy"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "createdBy": {
+                                "type": "string"
+                              },
+                              "resolvedBy": {
+                                "type": "string"
+                              }
+                            }
+                          }
                         },
                         "accountIds": {
                           "type": [
@@ -2963,7 +3049,9 @@
                               "amountExclVat",
                               "deductionsTotal",
                               "vat",
-                              "status"
+                              "status",
+                              "approvalStatus",
+                              "allowedActions"
                             ],
                             "type": "object",
                             "properties": {
@@ -3005,6 +3093,47 @@
                               },
                               "journalEntryId": {
                                 "type": "string"
+                              },
+                              "createdBy": {
+                                "type": "string"
+                              },
+                              "approvedBy": {
+                                "type": "string"
+                              },
+                              "accountingStatus": {
+                                "type": "string"
+                              },
+                              "reversalJournalEntryId": {
+                                "type": "string"
+                              },
+                              "disputes": {
+                                "type": "array",
+                                "items": {
+                                  "required": [
+                                    "id",
+                                    "status",
+                                    "reason",
+                                    "createdBy"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "type": "string"
+                                    },
+                                    "createdBy": {
+                                      "type": "string"
+                                    },
+                                    "resolvedBy": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
                               },
                               "accountIds": {
                                 "type": [
@@ -3152,7 +3281,9 @@
                           "amountExclVat",
                           "deductionsTotal",
                           "vat",
-                          "status"
+                          "status",
+                          "approvalStatus",
+                          "allowedActions"
                         ],
                         "type": "object",
                         "properties": {
@@ -3194,6 +3325,47 @@
                           },
                           "journalEntryId": {
                             "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "accountingStatus": {
+                            "type": "string"
+                          },
+                          "reversalJournalEntryId": {
+                            "type": "string"
+                          },
+                          "disputes": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "status",
+                                "reason",
+                                "createdBy"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "createdBy": {
+                                  "type": "string"
+                                },
+                                "resolvedBy": {
+                                  "type": "string"
+                                }
+                              }
+                            }
                           },
                           "accountIds": {
                             "type": [
@@ -3342,7 +3514,9 @@
                     "amountExclVat",
                     "deductionsTotal",
                     "vat",
-                    "status"
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
                   ],
                   "type": "object",
                   "properties": {
@@ -3384,6 +3558,47 @@
                     },
                     "journalEntryId": {
                       "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "accountIds": {
                       "type": [
@@ -3648,7 +3863,9 @@
                     "amountExclVat",
                     "deductionsTotal",
                     "vat",
-                    "status"
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
                   ],
                   "type": "object",
                   "properties": {
@@ -3690,6 +3907,47 @@
                     },
                     "journalEntryId": {
                       "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "accountIds": {
                       "type": [
@@ -3827,7 +4085,9 @@
                     "amountExclVat",
                     "deductionsTotal",
                     "vat",
-                    "status"
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
                   ],
                   "type": "object",
                   "properties": {
@@ -3869,6 +4129,47 @@
                     },
                     "journalEntryId": {
                       "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "accountIds": {
                       "type": [
@@ -4016,7 +4317,9 @@
                     "amountExclVat",
                     "deductionsTotal",
                     "vat",
-                    "status"
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
                   ],
                   "type": "object",
                   "properties": {
@@ -4058,6 +4361,47 @@
                     },
                     "journalEntryId": {
                       "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "accountIds": {
                       "type": [
@@ -4205,7 +4549,9 @@
                     "amountExclVat",
                     "deductionsTotal",
                     "vat",
-                    "status"
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
                   ],
                   "type": "object",
                   "properties": {
@@ -4247,6 +4593,47 @@
                     },
                     "journalEntryId": {
                       "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "accountIds": {
                       "type": [
@@ -4384,7 +4771,9 @@
                     "amountExclVat",
                     "deductionsTotal",
                     "vat",
-                    "status"
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
                   ],
                   "type": "object",
                   "properties": {
@@ -4426,6 +4815,47 @@
                     },
                     "journalEntryId": {
                       "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "accountIds": {
                       "type": [
@@ -8004,6 +8434,15 @@
                                             "rider": {
                                               "type": "string"
                                             },
+                                            "sourceLineId": {
+                                              "type": "string"
+                                            },
+                                            "operationSourceIds": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
+                                            },
                                             "baseGross": {
                                               "type": "number"
                                             },
@@ -8212,6 +8651,15 @@
                                     "properties": {
                                       "rider": {
                                         "type": "string"
+                                      },
+                                      "sourceLineId": {
+                                        "type": "string"
+                                      },
+                                      "operationSourceIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
                                       },
                                       "baseGross": {
                                         "type": "number"
@@ -8422,6 +8870,15 @@
                                       "rider": {
                                         "type": "string"
                                       },
+                                      "sourceLineId": {
+                                        "type": "string"
+                                      },
+                                      "operationSourceIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
                                       "baseGross": {
                                         "type": "number"
                                       },
@@ -8595,7 +9052,35 @@
                           "sources": {
                             "type": "array",
                             "items": {
-                              "type": "object"
+                              "required": [
+                                "sourceLineId",
+                                "accountId",
+                                "baseGross"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "sourceLineId": {
+                                  "type": "string"
+                                },
+                                "accountId": {
+                                  "type": "string"
+                                },
+                                "operationSourceIds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "baseGross": {
+                                  "type": "number"
+                                },
+                                "incentive": {
+                                  "type": "number"
+                                },
+                                "deduction": {
+                                  "type": "number"
+                                }
+                              }
                             }
                           },
                           "lines": {
@@ -8752,6 +9237,15 @@
                                     "properties": {
                                       "rider": {
                                         "type": "string"
+                                      },
+                                      "sourceLineId": {
+                                        "type": "string"
+                                      },
+                                      "operationSourceIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
                                       },
                                       "baseGross": {
                                         "type": "number"
