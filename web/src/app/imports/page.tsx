@@ -29,6 +29,7 @@ import {
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
+import { FreeImportTab } from '../../features/imports/FreeImportTab';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Drawer } from '../../components/ui/Drawer';
 import { ErpSyncDrawer } from '../../components/system/ErpSyncDrawer';
@@ -230,7 +231,7 @@ function fileToBase64(file: File): Promise<string> {
 // Main Import Center Page
 // =========================================================================
 
-export default function ImportsPage() {
+function ImportCenter() {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
 
@@ -1221,6 +1222,39 @@ export default function ImportsPage() {
 
       {/* ERP Sync Drawer (for Chefz operations) */}
       <ErpSyncDrawer open={erpDrawerOpen} onClose={() => setErpDrawerOpen(false)} />
+    </div>
+  );
+}
+
+// Two tabs: the ordered catalog (K6) and the free-form column-mapping importer that existed before it.
+export default function ImportsPage() {
+  const [tab, setTab] = useState<'center' | 'free'>('center');
+  const tabs: Array<{ id: 'center' | 'free'; label: string }> = [
+    { id: 'center', label: 'مركز الاستيراد (النماذج بالترتيب)' },
+    { id: 'free', label: 'استيراد حر بمطابقة الأعمدة' },
+  ];
+  return (
+    <div className="min-w-0 max-w-full space-y-4">
+      <div role="tablist" aria-label="طريقة الاستيراد" className="flex flex-wrap gap-2 border-b border-[var(--line)] pb-2">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            data-testid={`imports-tab-${t.id}`}
+            onClick={() => setTab(t.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold border transition ${
+              tab === t.id
+                ? 'bg-[var(--accent)] text-[var(--accent-ink)] border-transparent'
+                : 'bg-[var(--surface)] text-[var(--ink)] border-[var(--line)] hover:bg-[var(--row-hover)]'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'center' ? <ImportCenter /> : <FreeImportTab />}
     </div>
   );
 }

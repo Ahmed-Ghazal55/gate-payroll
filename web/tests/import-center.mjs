@@ -197,6 +197,12 @@ try {
 
   // Verify page header
   await page.waitForSelector('text=مركز الاستيراد');
+  // The free-form column-mapping importer stays available as a second tab.
+  await page.click('[data-testid="imports-tab-free"]');
+  await page.waitForSelector('text=استيراد بيانات التشغيل والمنصات');
+  await page.click('[data-testid="imports-tab-center"]');
+  await page.waitForSelector('text=الشركات (السجلات التجارية)');
+  console.log('✓ Free-form import tab still available next to the catalog');
 
   // Check step cards rendering in order
   const stepHeadings = await page.locator('h3').allTextContents();
