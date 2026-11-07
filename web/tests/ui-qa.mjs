@@ -388,6 +388,19 @@ async function run() {
     assert.equal(await personalDialog.isVisible().catch(() => false), false, 'Personal notifications must close when Bell is opened');
     console.log('    ✓ Opening General Bell closed Personal Notifications');
 
+    // Personal notification sound toggle (user menu): visible, flips, persists the choice.
+    await page.locator('header button[aria-label="قائمة المستخدم"]').click();
+    const soundToggle = page.locator('[data-testid="personal-sound-toggle"]');
+    await soundToggle.waitFor({ state: 'visible' });
+    assert.equal(await soundToggle.getAttribute('aria-pressed'), 'true', 'Personal sound is on by default');
+    await soundToggle.click();
+    assert.equal(await soundToggle.getAttribute('aria-pressed'), 'false', 'Toggle turns the sound off');
+    assert.equal(await page.evaluate(() => localStorage.getItem('gate_personal_sound')), 'off', 'Choice is remembered');
+    await soundToggle.click();
+    assert.equal(await page.evaluate(() => localStorage.getItem('gate_personal_sound')), 'on');
+    await page.keyboard.press('Escape');
+    console.log('    ✓ Personal notification sound toggle works and persists');
+
     // Test Shortcuts Menu (as Admin)
     await shortcutsBtn.click();
     const shortcutsMenu = page.locator('text=اختصارات سريعة').first();

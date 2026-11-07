@@ -25,12 +25,15 @@ import {
   Banknote,
   FileUp,
   RefreshCw,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import type { UserProfile } from '../../lib/types';
 import { NotificationsPanel } from './NotificationsPanel';
 import { GlobalSearchModal } from './GlobalSearchModal';
+import { personalSoundEnabled, setPersonalSoundEnabled, unlockNotificationSound, playPersonalChime } from '../../lib/notification-sound';
 import { ErpSyncDrawer } from '../system/ErpSyncDrawer';
 
 function BreadcrumbsNav() {
@@ -118,6 +121,9 @@ export function Header({
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [personalUnreadCount, setPersonalUnreadCount] = useState<number>(0);
   const [approvalCount, setApprovalCount] = useState<number>(0);
+  const [soundOn, setSoundOn] = useState<boolean>(true);
+  // null until the first poll, so existing items never ring on page load.
+  const lastPersonalRef = useRef<number | null>(null);
 
   // ERP Sync Drawer State
   const [erpSyncDrawerOpen, setErpSyncDrawerOpen] = useState(false);
@@ -145,7 +151,10 @@ export function Header({
       if (summary) {
         // The general bell excludes personal items; they have their own icon (A1).
         setUnreadCount(summary.unreadCount - (summary.byCategory?.personal ?? 0));
-        setPersonalUnreadCount(summary.byCategory?.personal ?? 0);
+        const personal = summary.byCategory?.personal ?? 0;
+        if (lastPersonalRef.current !== null && personal > lastPersonalRef.current) playPersonalChime();
+        lastPersonalRef.current = personal;
+        setPersonalUnreadCount(personal);
         setApprovalCount(summary.approvalCount);
       }
     } catch {
@@ -153,9 +162,24 @@ export function Header({
     }
   };
 
-  // Initial poll for notification counts
+  // Poll notification counts every 60 s while the tab is visible; a new personal item rings.
   useEffect(() => {
+    setSoundOn(personalSoundEnabled());
     fetchNotificationSummary();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') fetchNotificationSummary();
+    }, 60_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchNotificationSummary(); };
+    const unlock = () => unlockNotificationSound();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
   }, []);
 
   // Listen for Ctrl+K / Cmd+K
@@ -567,6 +591,22 @@ export function Header({
                 >
                   <span>إعدادات النظام والأدوار</span>
                 </Link>
+
+                <button
+                  type="button"
+                  data-testid="personal-sound-toggle"
+                  aria-pressed={soundOn}
+                  onClick={() => {
+                    const next = !soundOn;
+                    setSoundOn(next);
+                    setPersonalSoundEnabled(next);
+                    if (next) playPersonalChime();
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2 text-start text-[var(--ink)] hover:bg-[var(--row-hover)]"
+                >
+                  {soundOn ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                  <span>صوت الإشعارات الشخصية: {soundOn ? 'مفعّل' : 'مغلق'}</span>
+                </button>
 
                 <div className="border-t border-[var(--line)] my-1" />
 
