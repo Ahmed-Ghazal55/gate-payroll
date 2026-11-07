@@ -1307,4 +1307,54 @@ export interface NinjaReconcileResponse {
   invoices: NinjaInvoiceResult[];
 }
 
+// =========================================================================
+// R6c / K6: Import Center Catalog & Steps
+// =========================================================================
+export interface ImportCatalogColumn {
+  name: string;
+  required: boolean;
+  type: 'text' | 'number' | 'choice';
+  identity?: boolean;
+  choices?: string[] | null;
+}
+
+export type ImportStepUpload = 'xlsx' | 'json-rows' | 'platform-file' | 'erp';
+export type ImportStepStatus = 'ready' | 'template_only' | 'planned' | 'erp';
+export type ImportStepGroup = 'setup' | 'opening' | 'invoices' | 'operations';
+
+export interface ImportCatalogStep {
+  order: number;
+  key: string;
+  group: ImportStepGroup;
+  labelAr: string;
+  purposeAr: string;
+  dependsOn: string[];
+  permission: string;
+  templateUrl: string | null;
+  previewUrl: string | null;
+  commitUrl: string | null;
+  upload: ImportStepUpload;
+  status: ImportStepStatus;
+  noteAr?: string | null;
+  columns: ImportCatalogColumn[];
+}
+
+export interface ImportPreviewRowIssue {
+  row?: number;
+  field?: string;
+  error?: string;
+  message?: string;
+}
+
+export interface ImportPreviewResult {
+  rows?: any[];
+  errors?: any[];
+  fingerprint?: string;
+  counts?: Record<string, number>;
+  message?: string;
+  batchId?: string;
+  count?: number;
+}
+
+
 

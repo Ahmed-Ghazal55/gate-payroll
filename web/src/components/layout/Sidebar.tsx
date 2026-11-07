@@ -74,7 +74,7 @@ function SidebarInner({
       permission: 'payroll.view',
       items: [
         { id: 'dash-kpi', href: '/', label: 'لوحة المؤشرات والمهام' },
-        { id: 'dash-import', href: '/imports/', label: 'الاستيراد التشغيلي', isNew: true },
+        { id: 'dash-import', href: '/imports/', label: 'مركز الاستيراد', permission: 'imports.view', isNew: true },
       ],
     },
     {

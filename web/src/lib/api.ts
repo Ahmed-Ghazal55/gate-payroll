@@ -52,6 +52,8 @@ import type {
   ConfigFieldDef,
   ManualJournal,
   NinjaReconcileResponse,
+  ImportCatalogStep,
+  ImportPreviewResult,
 } from './types';
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
@@ -1437,4 +1439,62 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  // Import Center (K6 / R6c)
+  getImportsCatalog: () => handleRequest<ImportCatalogStep[]>('/imports/catalog'),
+  downloadImportTemplate: async (templateUrl: string, fallbackFileName = 'template.xlsx'): Promise<void> => {
+    const url = templateUrl.startsWith('http') ? templateUrl : (templateUrl.startsWith('/api') ? templateUrl : `/api${templateUrl}`);
+    const res = await fetch(url, {
+      method: 'GET',
+      credentials: 'same-origin',
+    });
+    if (res.status === 401) {
+      throw new ApiError('انتهت الجلسة أو غير مصرح لك بتحميل النموذج (401).', 401, 'unauthorized');
+    }
+    if (res.status === 403) {
+      throw new ApiError('ليس لديك صلاحية تحميل هذا النموذج (403).', 403, 'forbidden');
+    }
+    if (!res.ok) {
+      const payload: ApiErrorPayload = await res.json().catch(() => ({ error: 'فشل تحميل النموذج' }));
+      throw new ApiError(payload.error || 'تعذر تحميل النموذج من الخادم.', res.status, payload.code);
+    }
+
+    let filename = fallbackFileName;
+    const disposition = res.headers.get('content-disposition');
+    if (disposition) {
+      const match = /filename\*?=(?:UTF-8'')?["']?([^"';\n]+)["']?/i.exec(disposition);
+      if (match && match[1]) {
+        try {
+          filename = decodeURIComponent(match[1].trim());
+        } catch {
+          filename = match[1].trim();
+        }
+      }
+    }
+
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(blobUrl);
+    document.body.removeChild(a);
+  },
+  postImportPreview: (previewUrl: string, payload: any) => {
+    const endpoint = previewUrl.startsWith('/api') ? previewUrl.substring(4) : previewUrl;
+    return handleRequest<ImportPreviewResult>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  postImportCommit: (commitUrl: string, payload: any) => {
+    const endpoint = commitUrl.startsWith('/api') ? commitUrl.substring(4) : commitUrl;
+    return handleRequest<any>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
 };
