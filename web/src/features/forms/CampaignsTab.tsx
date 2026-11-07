@@ -19,6 +19,13 @@ import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
 import { DeletePreviewDialog, DeleteTarget } from './DeletePreviewDialog';
 
+
+// The server builds the public link from Payroll:PublicBaseUrl; older payloads only had a path.
+function campaignLink(c: Campaign): string {
+  if (c.publicUrl) return c.publicUrl;
+  return c.path ? `${window.location.origin}${c.path}` : '';
+}
+
 export interface CampaignsTabProps {
   campaigns: Campaign[];
   loading: boolean;
@@ -76,10 +83,17 @@ export function CampaignsTab({
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, label: string) => {
+    if (!text) {
+      toast('رابط الحملة غير متاح؛ حدّث الصفحة.', 'danger');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
       toast(`تم نسخ رابط ${label} إلى الحافظة`, 'success');
+    } catch {
+      // Clipboard blocked (permissions or non-HTTPS): show the link so it can be copied by hand.
+      window.prompt('انسخ الرابط:', text);
     }
   };
 
@@ -188,10 +202,7 @@ export function CampaignsTab({
             {
               label: 'نسخ رابط النموذج',
               onClick: (c) =>
-                copyToClipboard(
-                  `${window.location.origin}${c.path}`,
-                  c.title
-                ),
+                copyToClipboard(campaignLink(c), c.title),
               icon: <Copy size={14} />,
             },
             {
@@ -342,22 +353,16 @@ export function CampaignsTab({
       >
         <div className="flex flex-col items-center justify-center p-6 text-center space-y-3">
           <div className="h-44 w-44 rounded-2xl border-2 border-[var(--line)] bg-white p-3 flex items-center justify-center shadow-md">
-            <svg viewBox="0 0 100 100" className="w-full h-full text-black fill-current">
-              <rect x="10" y="10" width="25" height="25" fill="black" />
-              <rect x="15" y="15" width="15" height="15" fill="white" />
-              <rect x="18" y="18" width="9" height="9" fill="black" />
-              <rect x="65" y="10" width="25" height="25" fill="black" />
-              <rect x="70" y="15" width="15" height="15" fill="white" />
-              <rect x="73" y="18" width="9" height="9" fill="black" />
-              <rect x="10" y="65" width="25" height="25" fill="black" />
-              <rect x="15" y="70" width="15" height="15" fill="white" />
-              <rect x="18" y="73" width="9" height="9" fill="black" />
-              <rect x="42" y="15" width="8" height="8" fill="black" />
-              <rect x="42" y="35" width="8" height="18" fill="black" />
-              <rect x="65" y="45" width="18" height="8" fill="black" />
-              <rect x="42" y="65" width="18" height="18" fill="black" />
-              <rect x="70" y="70" width="15" height="15" fill="black" />
-            </svg>
+            {qrTarget?.qrCodeUrl ? (
+              <img
+                src={qrTarget.qrCodeUrl}
+                alt={`رمز QR لرابط ${qrTarget.title}`}
+                className="w-full h-full object-contain"
+                data-testid="campaign-qr"
+              />
+            ) : (
+              <span className="text-xs text-[var(--muted)]">رمز QR غير متاح</span>
+            )}
           </div>
           <p className="text-xs text-[var(--muted)]">
             امسح الرمز بكاميرا الجوال للانتقال لصفحة النموذج مباشرة
@@ -365,10 +370,7 @@ export function CampaignsTab({
           <button
             type="button"
             onClick={() =>
-              copyToClipboard(
-                `${window.location.origin}${qrTarget?.path}`,
-                qrTarget?.title || ''
-              )
+              qrTarget && copyToClipboard(campaignLink(qrTarget), qrTarget.title)
             }
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--line)] hover:bg-[var(--raised)] text-[var(--ink)]"
           >

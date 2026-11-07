@@ -80,6 +80,7 @@ public static class Debts
             originSpId,
             creditorSpId
         );
+        if(mode=="Disbursement")debt["payoutVoucherNo"]=Vouchers.RecordPayout(c,tx,debt,journal,fundingSponsor,debt.S("payoutOdooVoucherNo")).S("voucherNo");
         debt["receivableAccountCode"]=receivCode;
         debt["postingPeriod"]=journal.S("period");
         debt["journalEntryId"] = journal.S("id");
@@ -214,6 +215,8 @@ public static class Debts
                 ["status"] = status,
                 ["notes"] = input.S("notes"),
                 ["sourceRef"] = reference,
+                ["odooVoucherNo"] = input.S("odooVoucherNo"),
+                ["payoutOdooVoucherNo"] = AccountingEvents.IsAdvance(category)?"":input.S("odooVoucherNo"),
                 ["effectiveFrom"] = effectivePeriod,
                 ["postingPeriod"] = J.Period(input.S("postingPeriod",DateTime.UtcNow.ToString("yyyy-MM"))),
                 ["createdBy"] = ctx.User.Identity!.Name!,
@@ -368,6 +371,7 @@ public static class Debts
                 ["totalReduction"] = totalReduction,
                 ["remainingAfter"] = d.N("remainingBalance"),
                 ["receiptRef"] = receiptRef,
+                ["odooVoucherNo"] = input.S("odooVoucherNo"),
                 ["period"] = period,
                 ["collectionDate"] = input.S("collectionDate", DateTime.UtcNow.ToString("yyyy-MM-dd")),
                 ["notes"] = input.S("notes"),
@@ -494,6 +498,7 @@ public static class Debts
                         ["riderRemainingBefore"] = J.Money(riderRemaining),
                         ["targetVaultCode"] = vault,
                         ["receiptRef"] = receiptRef,
+                ["odooVoucherNo"] = input.S("odooVoucherNo"),
                         ["notes"] = notes
                     });
                 }

@@ -33,6 +33,9 @@ import {
   CheckCircle,
   XCircle,
   MessageSquare,
+  Smartphone,
+  CreditCard,
+  Wifi,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { RiderAsksCard } from '../../components/debts/RiderAsksCard';
@@ -128,7 +131,12 @@ function DebtsPageContent() {
   // New Request Form Dialog
   const [newRequestOpen, setNewRequestOpen] = useState<boolean>(false);
   const [newReqIqama, setNewReqIqama] = useState<string>('');
-  const [newReqType, setNewReqType] = useState<'cash' | 'bank'>('cash');
+  const [newReqType, setNewReqType] = useState<'cash' | 'bank' | 'internet'>('cash');
+  const [newReqFulfilment, setNewReqFulfilment] = useState<'cash' | 'bank' | 'recharge_card'>('recharge_card');
+  const [newReqNetwork, setNewReqNetwork] = useState<string>('');
+  const [newReqPackage, setNewReqPackage] = useState<string>('');
+  const [rechargeNetworks, setRechargeNetworks] = useState<any[]>([]);
+  const [rechargePackages, setRechargePackages] = useState<any[]>([]);
   const [newReqAmount, setNewReqAmount] = useState<string>('');
   const [newReqReason, setNewReqReason] = useState<string>('');
   const [submittingNewReq, setSubmittingNewReq] = useState<boolean>(false);
@@ -148,7 +156,7 @@ function DebtsPageContent() {
   const [reviewInstallment, setReviewInstallment] = useState<string>('');
   const [reviewCoverageReason, setReviewCoverageReason] = useState<string>('');
   const [reviewNote, setReviewNote] = useState<string>('');
-  const [proposeType, setProposeType] = useState<'cash' | 'bank'>('bank');
+  const [proposeType, setProposeType] = useState<'cash' | 'bank' | 'internet'>('bank');
   const [proposeAmount, setProposeAmount] = useState<string>('');
   const [submittingReview, setSubmittingReview] = useState<boolean>(false);
 
@@ -215,6 +223,27 @@ function DebtsPageContent() {
   }, []);
 
   useEffect(() => {
+    const action = searchParams?.get('action');
+    if (action === 'new') {
+      setActiveTab('advance_requests');
+      setNewReqType('cash');
+      setNewRequestOpen(true);
+    } else if (action === 'new_internet') {
+      setActiveTab('advance_requests');
+      setNewReqType('internet');
+      setNewReqFulfilment('recharge_card');
+      setNewRequestOpen(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (newRequestOpen && newReqType === 'internet') {
+      api.getConfigListGroup('recharge_networks').then((res) => setRechargeNetworks(res?.items || [])).catch(() => {});
+      api.getConfigListGroup('recharge_packages').then((res) => setRechargePackages(res?.items || [])).catch(() => {});
+    }
+  }, [newRequestOpen, newReqType]);
+
+  useEffect(() => {
     if (!canReviewAdvances && canRequestAdvances) {
       setAdvancesRoleView('mine');
     }
@@ -262,6 +291,12 @@ function DebtsPageContent() {
       toast('يرجى تعبئة جميع الحقول المطلوبة', 'warning');
       return;
     }
+    if (newReqType === 'internet' && newReqFulfilment === 'recharge_card') {
+      if (!newReqNetwork || !newReqPackage) {
+        toast('يرجى اختيار شبكة الشحن والباقة', 'warning');
+        return;
+      }
+    }
     const amt = parseFloat(newReqAmount);
     if (isNaN(amt) || amt <= 0 || amt > 100000) {
       toast('مبلغ السلفة غير صالح (1 إلى 100,000 ر.س)', 'warning');
@@ -274,12 +309,17 @@ function DebtsPageContent() {
         type: newReqType,
         amount: amt,
         reason: newReqReason.trim(),
+        fulfilment: newReqType === 'internet' ? newReqFulfilment : undefined,
+        networkCode: newReqType === 'internet' && newReqFulfilment === 'recharge_card' ? newReqNetwork : undefined,
+        packageCode: newReqType === 'internet' && newReqFulfilment === 'recharge_card' ? newReqPackage : undefined,
       });
       toast('تم تقديم طلب السلفة بنجاح وإشعار المحاسب المسؤول', 'success');
       setNewRequestOpen(false);
       setNewReqIqama('');
       setNewReqAmount('');
       setNewReqReason('');
+      setNewReqNetwork('');
+      setNewReqPackage('');
       loadAdvanceRequests();
     } catch (err: any) {
       toast(err.message || 'فشل تقديم طلب السلفة', 'danger');
@@ -849,8 +889,24 @@ function DebtsPageContent() {
                         </td>
                         <td className="p-3">
                           <div className="inline-flex items-center gap-1 font-semibold">
-                            {req.type === 'cash' ? <Wallet size={13} /> : <Banknote size={13} />}
-                            <span>{req.type === 'cash' ? 'نقدية (خزينة)' : 'بنكية (تحويل)'}</span>
+                            {req.type === 'internet' ? (
+                              <Wifi size={13} className="text-sky-600" />
+                            ) : req.type === 'cash' ? (
+                              <Wallet size={13} />
+                            ) : (
+                              <Banknote size={13} />
+                            )}
+                            <span>
+                              {req.type === 'internet'
+                                ? req.fulfilment === 'recharge_card'
+                                  ? `سلفة نت (كارت ${req.networkCode || ''} ${req.packageCode || ''})`
+                                  : req.fulfilment === 'bank'
+                                  ? 'سلفة نت (بنكي)'
+                                  : 'سلفة نت (نقدي)'
+                                : req.type === 'cash'
+                                ? 'نقدية (خزينة)'
+                                : 'بنكية (تحويل)'}
+                            </span>
                           </div>
                           <div className="font-mono text-[10px] text-[var(--muted)]">{req.vaultCode}</div>
                         </td>
@@ -1182,7 +1238,7 @@ function DebtsPageContent() {
 
           <div className="space-y-1">
             <label className="text-xs font-bold text-[var(--ink)]">نوع السلفة:</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <label
                 className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition ${
                   newReqType === 'cash'
@@ -1199,7 +1255,7 @@ function DebtsPageContent() {
                   className="sr-only"
                 />
                 <Wallet size={16} />
-                <span>نقدية (خزينة كفيل المندوب)</span>
+                <span>نقدية</span>
               </label>
 
               <label
@@ -1218,10 +1274,150 @@ function DebtsPageContent() {
                   className="sr-only"
                 />
                 <Banknote size={16} />
-                <span>بنكية (تحويل لحساب المندوب)</span>
+                <span>بنكية</span>
+              </label>
+
+              <label
+                className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition ${
+                  newReqType === 'internet'
+                    ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
+                    : 'border-[var(--line)] text-[var(--muted)]'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="advanceType"
+                  value="internet"
+                  checked={newReqType === 'internet'}
+                  onChange={() => setNewReqType('internet')}
+                  className="sr-only"
+                />
+                <Wifi size={16} />
+                <span>سلفة نت</span>
               </label>
             </div>
           </div>
+
+          {newReqType === 'internet' && (
+            <div className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/50 space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-[var(--ink)]">طريقة الصرف (Fulfilment):</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <label
+                    className={`p-2 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer transition ${
+                      newReqFulfilment === 'cash'
+                        ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)] font-bold'
+                        : 'border-[var(--line)] text-[var(--muted)]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="fulfilmentType"
+                      value="cash"
+                      checked={newReqFulfilment === 'cash'}
+                      onChange={() => setNewReqFulfilment('cash')}
+                      className="sr-only"
+                    />
+                    <Wallet size={14} />
+                    <span>نقدي</span>
+                  </label>
+
+                  <label
+                    className={`p-2 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer transition ${
+                      newReqFulfilment === 'bank'
+                        ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)] font-bold'
+                        : 'border-[var(--line)] text-[var(--muted)]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="fulfilmentType"
+                      value="bank"
+                      checked={newReqFulfilment === 'bank'}
+                      onChange={() => setNewReqFulfilment('bank')}
+                      className="sr-only"
+                    />
+                    <Banknote size={14} />
+                    <span>بنكي</span>
+                  </label>
+
+                  <label
+                    className={`p-2 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer transition ${
+                      newReqFulfilment === 'recharge_card'
+                        ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)] font-bold'
+                        : 'border-[var(--line)] text-[var(--muted)]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="fulfilmentType"
+                      value="recharge_card"
+                      checked={newReqFulfilment === 'recharge_card'}
+                      onChange={() => setNewReqFulfilment('recharge_card')}
+                      className="sr-only"
+                    />
+                    <CreditCard size={14} />
+                    <span>كارت شحن (مدى)</span>
+                  </label>
+                </div>
+              </div>
+
+              {newReqFulfilment === 'recharge_card' && (
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--ink)]">شبكة الشحن:</label>
+                    <select
+                      id="select-recharge-network"
+                      value={newReqNetwork}
+                      onChange={(e) => {
+                        const net = e.target.value;
+                        setNewReqNetwork(net);
+                        setNewReqPackage('');
+                        setNewReqAmount('');
+                      }}
+                      required
+                      className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold focus:outline-hidden"
+                    >
+                      <option value="">-- اختر الشبكة --</option>
+                      {rechargeNetworks.map((n: any) => (
+                        <option key={n.code} value={n.code}>
+                          {n.nameAr || n.code}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--ink)]">باقة الشحن:</label>
+                    <select
+                      id="select-recharge-package"
+                      value={newReqPackage}
+                      disabled={!newReqNetwork}
+                      onChange={(e) => {
+                        const pkgCode = e.target.value;
+                        setNewReqPackage(pkgCode);
+                        const pkg = rechargePackages.find((p: any) => p.code === pkgCode);
+                        if (pkg?.values?.price) {
+                          setNewReqAmount(String(pkg.values.price));
+                        }
+                      }}
+                      required
+                      className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold focus:outline-hidden disabled:opacity-50"
+                    >
+                      <option value="">-- اختر الباقة --</option>
+                      {rechargePackages
+                        .filter((p: any) => !newReqNetwork || p.values?.network === newReqNetwork)
+                        .map((p: any) => (
+                          <option key={p.code} value={p.code}>
+                            {p.nameAr || p.code} ({p.values?.price ?? 0} ر.س)
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="space-y-1">
             <label className="text-xs font-bold text-[var(--ink)]">المبلغ المطلوب (ر.س):</label>
@@ -1232,11 +1428,21 @@ function DebtsPageContent() {
               max="100000"
               step="any"
               value={newReqAmount}
+              readOnly={newReqType === 'internet' && newReqFulfilment === 'recharge_card'}
               onChange={(e) => setNewReqAmount(e.target.value)}
               placeholder="مثال: 400"
               required
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold num focus:outline-hidden"
+              className={`w-full p-2.5 rounded-xl border border-[var(--line)] text-xs font-bold num focus:outline-hidden ${
+                newReqType === 'internet' && newReqFulfilment === 'recharge_card'
+                  ? 'bg-[var(--raised)] text-[var(--muted)] cursor-not-allowed'
+                  : 'bg-[var(--surface)]'
+              }`}
             />
+            {newReqType === 'internet' && newReqFulfilment === 'recharge_card' && (
+              <p className="text-[11px] text-[var(--muted)]">
+                * يتم تحديد المبلغ تلقائياً بناءً على سعر الباقة المختارة من القوائم المعتمدة.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1">

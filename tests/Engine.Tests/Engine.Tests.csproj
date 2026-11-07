@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="../../Payroll.Api/Payroll.Api.csproj" />
     <ProjectReference Include="../../tools/ErpImport/ErpImport.csproj" />
+    <ProjectReference Include="../../tools/StoreMigration/StoreMigration.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
     <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
     <PackageReference Include="MSTest.TestAdapter" Version="4.3.3" />

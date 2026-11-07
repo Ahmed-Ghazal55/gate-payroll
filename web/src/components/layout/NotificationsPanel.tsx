@@ -10,6 +10,7 @@ import {
   ExternalLink,
   ShieldAlert,
   User,
+  UserCheck,
   Settings,
   ClipboardCheck,
   X,
@@ -23,18 +24,30 @@ export interface NotificationsPanelProps {
   open: boolean;
   onClose: () => void;
   onUnreadCountChange?: (count: number) => void;
+  filterCategory?: 'all' | 'personal' | 'non-personal';
 }
 
 export function NotificationsPanel({
   open,
   onClose,
   onUnreadCountChange,
+  filterCategory = 'all',
 }: NotificationsPanelProps) {
-  const [activeTab, setActiveTab] = useState<'all' | 'general' | 'personal' | 'tasks'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'general' | 'personal' | 'tasks'>(
+    filterCategory === 'personal' ? 'personal' : 'all'
+  );
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (filterCategory === 'personal') {
+      setActiveTab('personal');
+    } else if (activeTab === 'personal') {
+      setActiveTab('all');
+    }
+  }, [filterCategory]);
 
   const fetchNotifications = async () => {
     setLoading(true);
@@ -92,8 +105,18 @@ export function NotificationsPanel({
   const handleMarkAllRead = async () => {
     setMarkingAll(true);
     try {
-      await api.markAllNotificationsRead();
-      setItems((prev) => prev.map((item) => ({ ...item, unread: false })));
+      if (filterCategory === 'personal') {
+        const unreadPersonal = items.filter((i) => i.category === 'personal' && i.unread);
+        await Promise.all(unreadPersonal.map((i) => api.markNotificationRead(i.id)));
+        setItems((prev) => prev.map((item) => (item.category === 'personal' ? { ...item, unread: false } : item)));
+      } else if (filterCategory === 'non-personal') {
+        const unreadNonPersonal = items.filter((i) => i.category !== 'personal' && i.unread);
+        await Promise.all(unreadNonPersonal.map((i) => api.markNotificationRead(i.id)));
+        setItems((prev) => prev.map((item) => (item.category !== 'personal' ? { ...item, unread: false } : item)));
+      } else {
+        await api.markAllNotificationsRead();
+        setItems((prev) => prev.map((item) => ({ ...item, unread: false })));
+      }
       if (onUnreadCountChange) onUnreadCountChange(0);
     } catch (err) {
       console.error('Failed to mark all read:', err);
@@ -104,14 +127,27 @@ export function NotificationsPanel({
 
   if (!open) return null;
 
-  const tabs = [
-    { id: 'all' as const, label: 'الكل' },
-    { id: 'general' as const, label: 'عام' },
-    { id: 'personal' as const, label: 'مخصص' },
-    { id: 'tasks' as const, label: 'طلبات ومهام' },
-  ];
+  const scopeItems = items.filter((item) => {
+    if (filterCategory === 'personal') return item.category === 'personal';
+    if (filterCategory === 'non-personal') return item.category !== 'personal';
+    return true;
+  });
 
-  const displayedItems = items.filter((item) => {
+  const tabs =
+    filterCategory === 'non-personal'
+      ? [
+          { id: 'all' as const, label: 'الكل' },
+          { id: 'general' as const, label: 'عام' },
+          { id: 'tasks' as const, label: 'طلبات ومهام' },
+        ]
+      : [
+          { id: 'all' as const, label: 'الكل' },
+          { id: 'general' as const, label: 'عام' },
+          { id: 'personal' as const, label: 'مخصص' },
+          { id: 'tasks' as const, label: 'طلبات ومهام' },
+        ];
+
+  const displayedItems = scopeItems.filter((item) => {
     if (activeTab === 'all') return true;
     if (activeTab === 'general') return item.category === 'general';
     if (activeTab === 'personal') return item.category === 'personal';
@@ -119,7 +155,7 @@ export function NotificationsPanel({
     return true;
   });
 
-  const unreadTotal = items.filter((item) => item.unread).length;
+  const unreadTotal = scopeItems.filter((item) => item.unread).length;
 
   const categoryIcon = (cat: NotificationCategory) => {
     switch (cat) {
@@ -145,8 +181,14 @@ export function NotificationsPanel({
       {/* Panel Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--line)] bg-[var(--surface)]">
         <div className="flex items-center gap-2">
-          <Bell size={18} className="text-[var(--accent)]" />
-          <h3 className="text-sm font-bold">الإشعارات</h3>
+          {filterCategory === 'personal' ? (
+            <UserCheck size={18} className="text-[var(--accent)]" />
+          ) : (
+            <Bell size={18} className="text-[var(--accent)]" />
+          )}
+          <h3 className="text-sm font-bold">
+            {filterCategory === 'personal' ? 'إشعاراتي الشخصية' : 'الإشعارات'}
+          </h3>
           {unreadTotal > 0 && (
             <span className="num text-[11px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent)] text-[var(--accent-ink)]">
               {unreadTotal} جديد
@@ -176,39 +218,41 @@ export function NotificationsPanel({
         </div>
       </div>
 
-      {/* Category Tabs */}
-      <div className="flex items-center gap-1 px-3 pt-2 pb-1 border-b border-[var(--line)] bg-[var(--raised)]/40 overflow-x-auto no-scrollbar">
-        {tabs.map((tab) => {
-          const count = items.filter((n) => {
-            if (tab.id === 'all') return n.unread;
-            if (tab.id === 'general') return n.category === 'general' && n.unread;
-            if (tab.id === 'personal') return n.category === 'personal' && n.unread;
-            if (tab.id === 'tasks') return n.requiresAction && n.actionStatus === 'open';
-            return false;
-          }).length;
-          const isActive = activeTab === tab.id;
+      {/* Category Tabs (hidden if viewing strictly personal) */}
+      {filterCategory !== 'personal' && (
+        <div className="flex items-center gap-1 px-3 pt-2 pb-1 border-b border-[var(--line)] bg-[var(--raised)]/40 overflow-x-auto no-scrollbar">
+          {tabs.map((tab) => {
+            const count = scopeItems.filter((n) => {
+              if (tab.id === 'all') return n.unread;
+              if (tab.id === 'general') return n.category === 'general' && n.unread;
+              if (tab.id === 'personal') return n.category === 'personal' && n.unread;
+              if (tab.id === 'tasks') return n.requiresAction && n.actionStatus === 'open';
+              return false;
+            }).length;
+            const isActive = activeTab === tab.id;
 
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
-                isActive
-                  ? 'bg-[var(--surface)] text-[var(--accent)] shadow-xs'
-                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              <span>{tab.label}</span>
-              {count > 0 && (
-                <span className="num text-[10px] px-1.5 py-0.2 rounded-full bg-[var(--accent)] text-[var(--accent-ink)] font-bold">
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
+                  isActive
+                    ? 'bg-[var(--surface)] text-[var(--accent)] shadow-xs'
+                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <span>{tab.label}</span>
+                {count > 0 && (
+                  <span className="num text-[10px] px-1.5 py-0.2 rounded-full bg-[var(--accent)] text-[var(--accent-ink)] font-bold">
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Notifications List */}
       <div className="max-h-[380px] overflow-y-auto divide-y divide-[var(--line)] no-scrollbar">

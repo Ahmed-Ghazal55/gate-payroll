@@ -52,11 +52,11 @@ public sealed class NinjaBillingTests
         PaySettings.Validate("pay_terms","ninja",new(){["name"]="Synthetic",["billingModel"]="ninja_target",["parameters"]=P});
     }
 
-    static readonly string[] Header=["supplier_id","supplier_name","CAPTAIN ACTIVE STATUS","capabilty","captain_id","Zone Name","First Attended Date","Total Delivered Orders","Contract Amount","Contract Target",
+    public static readonly string[] Header=["supplier_id","supplier_name","CAPTAIN ACTIVE STATUS","capabilty","captain_id","Zone Name","First Attended Date","Total Delivered Orders","Contract Amount","Contract Target",
         "Count of First Attended Date to End of Month","Adjusted Target","Adjusted Amount","Below Target Percentage","Target Level Type","Target Deductions Amount","Target Bonus Amount","Target Total Amount",
         "Count of Attended Days","Attendance Deduction","Count of Days Less than 8 Hr","8 Hour Deductions","Deduction refund","Gasoline Support","Weekend 40 Bonus","Weekend 42 Bonus","Weekend 43 Bonus",
         "100 SAR BONUS","Supplier Performance Bonus","NAQIL BLOCKED","Penalty","on demand","STOPS WITHOUT NOTICE DEDUCTION","Final Amount","VAT","TOTAL COST"];
-    static List<string> Row(string captain,string cap,int days,int orders,int attended,decimal finalOverride=-1)
+    public static List<string> Row(string captain,string cap,int days,int orders,int attended,decimal finalOverride=-1)
     {
         var e=Eval(cap,days,orders,attended);string S(decimal v)=>v.ToString(CultureInfo.InvariantCulture);decimal final=finalOverride>=0?finalOverride:e.N("finalAmount");
         var v=new Dictionary<string,string>{["supplier_id"]="9001",["capabilty"]=cap,["captain_id"]=captain,["Total Delivered Orders"]=S(orders),["Contract Amount"]=cap.EndsWith("bike")?"5700":"6500",

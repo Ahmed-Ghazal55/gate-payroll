@@ -44,6 +44,14 @@ import type {
   OrgSupervision,
   OrgRouting,
   OrgResponsibleUser,
+  ErpSyncJobStatus,
+  ErpSyncRun,
+  PayReviewResponse,
+  PayReviewRow,
+  ConfigListGroup,
+  ConfigFieldDef,
+  ManualJournal,
+  NinjaReconcileResponse,
 } from './types';
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
@@ -1235,7 +1243,16 @@ export const api = {
   // ========================================================
 
   // Advance Requests
-  createAdvanceRequest: (body: { riderIqama: string; type: 'cash' | 'bank'; amount: number; reason: string; vaultCode?: string }) =>
+  createAdvanceRequest: (body: {
+    riderIqama: string;
+    type: 'cash' | 'bank' | 'internet';
+    amount: number;
+    reason: string;
+    vaultCode?: string;
+    fulfilment?: 'cash' | 'bank' | 'recharge_card';
+    networkCode?: string;
+    packageCode?: string;
+  }) =>
     handleRequest<AdvanceRequest>('/advance-requests', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -1336,4 +1353,88 @@ export const api = {
     const q = new URLSearchParams({ operation });
     return handleRequest<OrgResponsibleUser[]>(`/org/responsible?${q.toString()}`);
   },
+  getHealth: () => handleRequest<{ ok: boolean; jobs?: { enabled: boolean; lastRun?: string; nextRun?: string } }>('/health'),
+  runErpSync: (dryRun: boolean) =>
+    handleRequest<{ jobId: string }>(dryRun ? '/system/jobs/erp-sync/dry-run' : '/system/jobs/erp-sync/run', {
+      method: 'POST',
+    }),
+  getErpSyncJobStatus: (jobId: string) =>
+    handleRequest<ErpSyncJobStatus>(`/system/jobs/erp-sync/${encodeURIComponent(jobId)}`),
+  getRecentErpSyncRuns: (limit: number = 5) =>
+    handleRequest<ErpSyncRun[]>(`/system/erp-sync?limit=${limit}`),
+  getPayCycleReview: (cycleId: string, params?: { review?: string; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.review) q.set('review', params.review);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString();
+    return handleRequest<PayReviewResponse>(`/pay/cycles/${encodeURIComponent(cycleId)}/review${qs ? `?${qs}` : ''}`);
+  },
+  reviewPayCycleRider: (cycleId: string, iqama: string, body: { action: 'approve' } | { action: 'edit'; key: string; amount: number; reason: string } | { action: 'adjust'; amount: number; reason: string }) =>
+    handleRequest<PayReviewRow>(`/pay/cycles/${encodeURIComponent(cycleId)}/review/${encodeURIComponent(iqama)}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  approveAllPayCycleReview: (cycleId: string) =>
+    handleRequest<{ approved: number; skipped: number }>(`/pay/cycles/${encodeURIComponent(cycleId)}/review/approve-all`, {
+      method: 'POST',
+    }),
+  getConfigLists: () => handleRequest<ConfigListGroup[]>('/config/lists'),
+  getConfigListGroup: (group: string) => handleRequest<ConfigListGroup>(`/config/lists/${encodeURIComponent(group)}`),
+  createConfigListItem: (group: string, body: { code: string; nameAr: string; values?: Record<string, any>; active?: boolean }) =>
+    handleRequest<{ ok: boolean }>(`/config/lists/${encodeURIComponent(group)}/items`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  approveConfigListItem: (group: string, code: string) =>
+    handleRequest<{ ok: boolean }>(`/config/lists/${encodeURIComponent(group)}/items/${encodeURIComponent(code)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  addConfigListField: (group: string, body: ConfigFieldDef) =>
+    handleRequest<{ ok: boolean }>(`/config/lists/${encodeURIComponent(group)}/fields`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  // Manual Journals (BR §28 / C6)
+  getManualJournals: (params?: { status?: 'draft' | 'approved'; page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return handleRequest<{ items?: ManualJournal[]; total?: number; page?: number } | ManualJournal[]>(
+      `/finance/journals/manual${qs ? `?${qs}` : ''}`
+    );
+  },
+  createManualJournal: (body: {
+    companyId: string;
+    date: string;
+    reference: string;
+    description: string;
+    lines: Array<{ accountCode: string; debit: number; credit: number; note?: string }>;
+    attachment?: { fileName: string; dataBase64: string };
+    odooVoucherNo?: string;
+  }) =>
+    handleRequest<ManualJournal>('/finance/journals/manual', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  approveManualJournal: (id: string) =>
+    handleRequest<{ ok: boolean; journalId?: string }>(`/finance/journals/manual/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  reverseManualJournal: (id: string, body: { reason: string; date: string }) =>
+    handleRequest<{ ok: boolean; reversalDraftId?: string }>(`/finance/journals/manual/${encodeURIComponent(id)}/reverse`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  // Ninja Invoices Reconciliation (BR §26, §31 / N2/N3)
+  reconcileNinjaInvoices: (body: { period: string; files: Array<{ fileName: string; dataBase64: string }> }) =>
+    handleRequest<NinjaReconcileResponse>('/platforms/ninja/invoices/reconcile', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 };

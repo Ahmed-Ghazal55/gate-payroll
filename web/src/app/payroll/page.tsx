@@ -48,6 +48,8 @@ import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
+import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
+import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
 import type {
   HsInvoice,
   HsDispute,
@@ -1025,6 +1027,7 @@ function PayrollPageInner() {
   // Section Tabs (Shared across Payroll)
   const sharedSectionTabs: SectionTabItem[] = [
     { id: 'platforms', label: 'منصات التشغيل والفواتير', icon: <Calculator size={16} /> },
+    { id: 'ninja_upload', label: 'رفع فاتورة نينجا', icon: <FileSpreadsheet size={16} /> },
     { id: 'current-cycle', label: 'الدورة الحالية (النظام القائم)', icon: <Layers size={16} />, badge: legacyPreview.length },
     { id: 'cycle', label: 'دورة الرواتب والمسير (0-7)', icon: <RefreshCw size={16} /> },
     { id: 'rules', label: 'محرر الأنظمة والقواعد', icon: <FileText size={16} /> },
@@ -1051,7 +1054,7 @@ function PayrollPageInner() {
     { num: 3, title: 'تطبيق الأنظمة الداخلية', desc: 'حساب إجمالي الأجر وفق النظام المعتمد (راتب/عمولة/نسبة) لكل مندوب' },
     { num: 4, title: 'الاستقطاعات والتحملات', desc: 'حسم السلف، المخالفات، المحروقات، باقات النت، والخصومات التشغيلية' },
     { num: 5, title: 'الدمج وتحديد الصافي', desc: 'دمج مستحقات المناديب العاملين على أكثر من تطبيق وفحص الصافي السالب (§22.9.2)' },
-    { num: 6, title: 'الاعتماد المزدوج المستقل', desc: 'مراجعة المدقق المالي المستقل والتوقيع المعتمد (Maker-Checker)' },
+    { num: 6, title: 'مراجعة واعتماد المسير', desc: 'مراجعة أسطر المسير واعتماد المناديب (BR §32) تمهيداً للاعتماد النهائي' },
     { num: 7, title: 'ملف الصرف البنكي والترحيل', desc: 'إصدار ملف CSV لصرف الرواتب وترحيل القيود اليومية للدليل المستهدف' },
   ];
 
@@ -1075,6 +1078,15 @@ function PayrollPageInner() {
         activeTab={mainTab}
         onChange={(tabId) => setMainTab(tabId)}
       />
+
+      {/* ======================================================== */}
+      {/* SECTION: NINJA INVOICE RECONCILE (BR §26, §31)           */}
+      {/* ======================================================== */}
+      {mainTab === 'ninja_upload' && (
+        <div className="space-y-6">
+          <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} />
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* SECTION 0: CURRENT PRODUCTION PAYROLL RUN (F2)          */}
@@ -1690,6 +1702,20 @@ function PayrollPageInner() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Case B: Ninja Settlements Tab (BR §26, §31) */}
+          {selectedPlatform === 'ninja' && appSubTab === 'settlements' && (
+            <div className="space-y-6">
+              <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} />
+            </div>
+          )}
+
+          {/* Fallback for other platforms settlements */}
+          {selectedPlatform !== 'hungerstation' && selectedPlatform !== 'ninja' && appSubTab === 'settlements' && (
+            <div className="p-8 text-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--muted)]">
+              تسويات وفواتير منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr} قيد التطوير والتفعيل.
             </div>
           )}
 
@@ -2332,6 +2358,87 @@ function PayrollPageInner() {
             </div>
           </div>
 
+          {/* Cycle Deduction Phases Flow (BR §29) */}
+          {activeCycle && (activeCycle.riders || []).length > 0 && (() => {
+            const riders = activeCycle.riders || [];
+            const gross = riders.reduce((s: number, r: any) => s + (r.gross || 0), 0);
+            const afterCommission = riders.reduce((s: number, r: any) => s + (r.afterCommission || 0), 0);
+            const phase1 = riders.reduce((s: number, r: any) => s + (r.phase1 || 0), 0);
+            const preliminaryDue = riders.reduce((s: number, r: any) => s + (r.preliminaryDue || 0), 0);
+            const phase2 = riders.reduce((s: number, r: any) => s + (r.phase2 || 0), 0);
+            const phase3 = riders.reduce((s: number, r: any) => s + (r.phase3 || 0), 0);
+            const net = riders.reduce((s: number, r: any) => s + (r.net || 0), 0);
+
+            return (
+              <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-[var(--line)] pb-2">
+                  <div>
+                    <h4 className="font-bold text-xs sm:text-sm text-[var(--ink)]">
+                      مراحل احتساب الاستقطاعات الإجمالية للدورة (BR §29)
+                    </h4>
+                    <p className="text-[11px] text-[var(--muted)] mt-0.5">
+                      التدرج المالي لاحتساب المسير: الإجمالي → بعد العمولة → المرحلة 1 → المستحق الأولي → المرحلة 2 → المرحلة 3 → الصافي.
+                    </p>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-[var(--muted)]">
+                    {riders.length} مندوب محتسب
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-xs">
+                  <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                    <span className="text-[10px] text-[var(--muted)] block">الإجمالي (Gross)</span>
+                    <span className="num font-mono font-bold text-[var(--ink)]">
+                      {gross.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                    <span className="text-[10px] text-[var(--muted)] block">بعد العمولة</span>
+                    <span className="num font-mono font-bold text-[var(--ink)]">
+                      {afterCommission.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                    <span className="text-[10px] text-[var(--muted)] block">المرحلة 1 (تشغيلي)</span>
+                    <span className="num font-mono font-bold text-[var(--danger)]">
+                      {phase1.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/40">
+                    <span className="text-[10px] font-bold text-[var(--accent)] block">المستحق الأولي</span>
+                    <span className="num font-mono font-black text-[var(--accent)]">
+                      {preliminaryDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                    <span className="text-[10px] text-[var(--muted)] block">المرحلة 2 (مديونيات)</span>
+                    <span className="num font-mono font-bold text-[var(--danger)]">
+                      {phase2.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
+                    <span className="text-[10px] text-[var(--muted)] block">المرحلة 3 (تسويات)</span>
+                    <span className="num font-mono font-bold text-[var(--ink)]">
+                      {phase3.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[var(--money-pos)]/10 border border-[var(--money-pos)]/40">
+                    <span className="text-[10px] font-bold text-[var(--money-pos)] block">الصافي النهائي</span>
+                    <span className="num font-mono font-black text-[var(--money-pos)]">
+                      {net.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* If cycle status is needs_decision, display warning banner */}
           {activeCycle?.status === 'needs_decision' && (
             <div className="p-4 rounded-2xl bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-xs text-[var(--danger)] flex items-start gap-3">
@@ -2342,6 +2449,29 @@ function PayrollPageInner() {
                   توجد بنود بصافي سالب أو موانع استحقاق تمنع استمرار التقديم الآلي للدورة دون معالجة صريحة من الإدارة المالية. يرفض الخادم الانتقال للمراحل اللاحقة حتى تسوية الموانع.
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* Stage 6: Payroll Review Grid (BR §32) */}
+          {activeCycle && activeCycle.stage >= 6 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                    مراجعة واعتماد المسير (BR §32)
+                  </h4>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">
+                    جدول مراجعة استحقاقات المناديب وتعديل الأقساط وتسويات الراتب قبل الترحيل والصرف.
+                  </p>
+                </div>
+              </div>
+              <PayrollReviewGrid
+                cycleId={activeCycle.id}
+                onCycleUpdated={() => {
+                  loadCycles();
+                  if (activeCycle) loadCycleLines(activeCycle.id);
+                }}
+              />
             </div>
           )}
 

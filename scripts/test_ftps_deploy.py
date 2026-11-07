@@ -1,9 +1,11 @@
+from contextlib import closing
 import ftplib
 import io
 import json
 import os
 from pathlib import Path
 import tempfile
+import sqlite3
 import unittest
 from unittest.mock import patch
 import monsterasp_ftps as deploy
@@ -129,10 +131,62 @@ class FtpsLifecycleTests(unittest.TestCase):
             self.assertIn('530',str(captured.exception))
 
     def test_health_retries_until_expected_release(self):
-        responses = [io.BytesIO(json.dumps(d).encode()) for d in [{'ok': True, 'version': '0.5.1'}, {'ok': True, 'version': '0.15.0', 'dataPreservationVerified': True, 'releaseCheckpointPresent': True}]]
+        responses = [io.BytesIO(json.dumps(d).encode()) for d in [{'ok': True, 'version': '0.5.1'}, {'ok': True, 'version': '0.16.0', 'dataPreservationVerified': True, 'releaseCheckpointPresent': True}]]
         with patch.object(deploy.urllib.request, 'urlopen', side_effect=responses) as request:
             deploy.health(wait=lambda _: None)
             self.assertEqual(2, request.call_count)
+
+    def test_sql_server_site_without_sqlite_retains_all_runtime_files(self):
+        del self.ftp.files['App_Data/payroll.db']
+        self.ftp.files['App_Data/release-backups/checkpoint.json'] = b'synthetic-checkpoint'
+        before = self.ftp.files.copy()
+        deploy.prepare(self.ftp, wait=lambda _: None)
+        deploy.finish(self.ftp)
+        self.assertEqual(before, self.ftp.files)
+
+    def test_snapshot_download_requires_maintenance_and_writes_no_remote_file(self):
+        with self.assertRaisesRegex(RuntimeError, 'maintenance'):
+            deploy.download_data(self.ftp, Path(self.temp.name) / 'cutover')
+        local = Path(self.temp.name) / 'synthetic.db'
+        with closing(sqlite3.connect(local)) as connection:
+            connection.execute('CREATE TABLE records(id TEXT,kind TEXT,body TEXT)')
+            connection.execute("INSERT INTO records VALUES('synthetic','setting','{}')")
+            connection.commit()
+        self.ftp.files['App_Data/payroll.db'] = local.read_bytes()
+        self.ftp.files[deploy.MARKER] = b'Operator maintenance'
+        before = self.ftp.files.copy()
+        snapshot = deploy.download_data(self.ftp, Path(self.temp.name) / 'cutover')
+        with closing(sqlite3.connect(snapshot)) as connection:
+            self.assertEqual(1, connection.execute('SELECT COUNT(*) FROM records').fetchone()[0])
+        self.assertEqual(before, self.ftp.files)
+        self.assertEqual([], self.ftp.writes)
+        self.assertEqual(0o600, snapshot.stat().st_mode & 0o777)
+        self.assertEqual(0o700, snapshot.parent.stat().st_mode & 0o777)
+
+    def test_snapshot_download_folds_committed_wal_pages(self):
+        local = Path(self.temp.name) / 'wal.db'
+        with closing(sqlite3.connect(local)) as connection:
+            connection.execute('PRAGMA journal_mode=WAL')
+            connection.execute('CREATE TABLE records(id TEXT)')
+            connection.execute("INSERT INTO records VALUES('synthetic')")
+            connection.commit()
+            for suffix in ('', '-wal', '-shm'):
+                self.ftp.files['App_Data/payroll.db' + suffix] = Path(str(local) + suffix).read_bytes()
+            self.ftp.files[deploy.MARKER] = b'Operator maintenance'
+            snapshot = deploy.download_data(self.ftp, Path(self.temp.name) / 'cutover')
+        with closing(sqlite3.connect(snapshot)) as connection:
+            self.assertEqual(1, connection.execute('SELECT COUNT(*) FROM records').fetchone()[0])
+
+    def test_changed_runtime_snapshot_is_refused_and_maintenance_stays(self):
+        self.ftp.files[deploy.MARKER] = b'Operator maintenance'
+        local = Path(self.temp.name) / 'synthetic.db'
+        with closing(sqlite3.connect(local)) as connection:
+            connection.execute('CREATE TABLE records(id TEXT)')
+        self.ftp.files['App_Data/payroll.db'] = local.read_bytes()
+        with patch.object(deploy, 'protected_fingerprint', side_effect=['before', 'after']):
+            with self.assertRaisesRegex(RuntimeError, 'changed'):
+                deploy.download_data(self.ftp, Path(self.temp.name) / 'cutover')
+        self.assertIn(deploy.MARKER, self.ftp.files)
 
 
 class IntermediateChainTests(unittest.TestCase):

@@ -3,51 +3,88 @@
 | Field | Value |
 |---|---|
 | Current writer | none |
-| Branch | release/0.15.0 → main (Claude, 2026-11-05) |
-| Updated | 2026-11-05 by Claude |
+| Branch | release/0.16.0 (integration of feat/k-review + feat/r6b-ui + feat/r6b-accounting) |
+| Updated | 2026-11-07 by Claude |
 
-## Release 0.15.0 (Claude)
-- Merges `feat/r6-erp-pulls` (Codex R6a + fix1 + Hangfire R6j), `feat/r6-ui-qa` (Antigravity R6ui) and `feat/ninja-engine` (Claude N2/N3) on top of 0.14.2.
-- Release fixes by Claude:
-  - `Newtonsoft.Json 13.0.3` pinned (Hangfire floor 11.0.1 fails NuGet audit as an error); `Pkcs 10.0.13` pinned in `Payroll.Sync`.
-  - `JobsOptions`: a wrong Jobs target no longer crashes startup; jobs stay off and `GET /api/system/jobs` shows `blocked_unapproved_target`.
-- Verified locally: .NET 331 passed / 0 skipped (with SQL Server 2022 container), HTTP suites (erp-sync, integration, enterprise, accounting, submissions, iban-form, campaigns, finance-views), web build, release_source, check_publish.
-- Hangfire stays OFF in production: the guard accepts only a site whose own DefaultConnection is staging `db77738`. Production cutover needs «حوّل الإنتاج» plus a reviewed guard change.
-- Next: Wave 2 (K1–K3 Claude, R6b Codex, R6b Antigravity). Ghazal decisions still open: BIKE difference, deductions control mismatch, «حمّل».
+## Release 0.16.0 (2026-11-07, Claude), branch `release/0.16.0`
+- Integrates `feat/k-review` (K1–K4) + `feat/r6b-ui` (A0–A8) + `feat/r6b-accounting` (C0, C3, C4, C6, C7). C5 FCM and A9 QR not started.
+- Fix: /app campaign «نسخ رابط النموذج» copied `origin+undefined` (list had no `path`); now uses server `publicUrl`, real QR from `qrCodeUrl` (was a static placeholder), `responseCount` returned; campaigns.mjs checks link, page and QR.
+- Personal notifications: counts poll every 60 s (visible tab); a new personal item plays a short Web Audio chime; toggle «صوت الإشعارات الشخصية» in the user menu (localStorage `gate_personal_sound`).
+- Review fixes: K2 card-payout 409 removed (C3 posts it via `MadaAccounting.PayInternet`); internet-advance test uses scoped principals (Codex's company scope kept); general bell excludes personal count; CI gets a synthetic `Vouchers__Secret`.
+- Verified locally: .NET 367/367 (SQL Server in Docker, 0 skipped); 20 node/browser suites incl. published-app, `r6b-accounting`, `r4-backend`, `ui-qa`; `release_source --check`.
+- **Before «ادمج» (Ghazal):** set `Vouchers__Secret` (random 32–256 chars) in MonsterASP → Scripting → Environment variables. Without it every new financial document (journal, payout, settlement, cycle posting) returns 503.
+- DB move (C0) is a separate step after «انقل»: follow `docs/ops/DB-CUTOVER.md` and the numbered commands below.
 
-## R6a / R6j details (Codex)
-### Current scope
-Manual ERP sync is the primary workflow, with startup catch-up and optional daily10:00 Riyadh execution. The revised R6a2 prompt supersedes the old three-hour schedule. No active VPS, deployment, live enqueue or staging write was performed.
+## Wave 2 — Antigravity R6b UI (2026-11-07), branch `feat/r6b-ui`
+All tasks A0 through A8 from `~/.agents/prompts/antigravity-R6b-ui.md` completed, tested, and verified on 1440px and 360px:
+- **A0 (Page Sweep & Visual QA):** Completed (`765b24a`). Fixed numeric and text table alignment using logical classes (`text-start`/`text-end`), resolved RTL contrast issues, eliminated horizontal page scroll across all 16 views.
+- **A1 (Header Shortcuts & Personal Notifications):** Completed (`d14bde3`). Added `Zap` shortcuts menu strictly filtered by `can()` (Supervisors see only the two advance forms; omitted if 0 permissions). Added `UserCheck` personal notifications icon next to the bell, reading from `summary.byCategory.personal` while general bell excludes personal.
+- **A2 (ERP Sync Drawer Panel):** Completed (`b432cbb`). Built `ErpSyncDrawer.tsx` with live 3s polling, dry-run & commit actions, refusal code mapping to friendly Arabic, counts table, and last 5 runs history.
+- **Prerequisite Merge:** Completed (`b15cb09`). Clean merge of `feat/k-review` into `feat/r6b-ui` with 0 conflicts and 0 build errors.
+- **A3 (Payroll Review Grid - BR §32):** Completed (`703cf77`). Built `PayrollReviewGrid.tsx` and `PayrollReviewDrawer.tsx` (ResponsesTab pattern) with phase groupings, debt installment edit (0..max), salary adjustments (+/−), single-row approval, bulk approve dialog with skipped count, sticky totals bar, and Stage 6 integration.
+- **A4 (Config Lists Panels - BR §27):** Completed (`a2fd327`). Built `ConfigListsPanel.tsx` in `/app/admin` with tabs for all 6 groups, custom field schema builder, item add/edit dialog, active/inactive toggle, and maker-checker approval badge for financial groups (`pay.approve`).
+- **A5 (Statement Phases - BR §29):** Completed (`a80825a`). Added phased subtotals bar (Gross → Commission → Phase 1 → Preliminary Due → Phase 2 → Phase 3 → Net) in rider monthly statement (`/app/riders/statement`) and cycle stepper (`/app/payroll`).
+- **A6 (Internet Advance Form - BR §25.9 / K2):** Completed (`18cb691`). Added «سلفة نت» with fulfilment options (نقدي / بنكي / كارت شحن مكنة مدى). Card requests auto-populate package price as read-only from approved config lists (`recharge_networks` / `recharge_packages`). Treasury payout queue displays network and package.
+- **A7 (Manual Journal Screen - BR §28 / C6):** Completed (`701c7a9`). Built `ManualJournalsPanel.tsx` in `/app/accounting` (also opened via shortcut `?action=manual_journal`), lines grid (min 2 lines), COA posting accounts selector, live debit/credit balance indicator (green when balanced, red when diff), 2MB attachment uploader (base64), draft list, maker-checker approval, and reversal modal with mandatory reason.
+- **A8 (Ninja Invoice Reconciliation - BR §26, §31):** Completed (`e438b38`). Built `NinjaInvoiceUploadScreen.tsx` supporting 1–5 supplier `.xlsx` files against `POST /api/platforms/ninja/invoices/reconcile`. Prominent BR §31 banner: «المعتمد هو الفاتورة — الفرق للعلم», totals comparison, invoice adjustments table, and captain-by-captain comparison grid highlighting differences and reasons. Accessible via `/app/payroll?tab=ninja_upload` and platforms tab.
+- **A9 (Voucher QR & Search):** Waiting for Codex C7.
+
+### Verification Summary
+- `npm run build`: PASS (static export generated with 0 errors)
+- `python3 scripts/package_web.py`: PASS
+- `dotnet build tests/Engine.Tests/Engine.Tests.csproj`: PASS (0 warnings, 0 errors)
+- `node web/tests/ui-qa.mjs`: PASS (all Playwright checks passed with zero errors; 32 screenshots generated at 360 and 1440 in `test-results/r6b-ui/`)
+- Browser test suites: PASS (`sessions-ui.mjs`, `rider-app-ui.mjs`, `rider-asks-ui.mjs`, `finance-views-ui.mjs`, `browser.mjs`)
+
+## Wave 2 — Claude K1–K4 (2026-11-07), branch `feat/k-review`
+- K1: config lists API (`ConfigLists.cs`), 6 groups, custom fields, versions, maker-checker for financial groups, seeded defaults (BR §27/§29).
+- K2: internet advance (`type=internet`, fulfilment cash|bank|recharge_card, package price from lists, custody `MADA`). Card payout is 409 until Codex C3.
+- K3: every cycle deduction has phase/order/label; installments taken in phase order; rider summary + statement show gross → commission → phase1 → المستحق الأولي → phase2 → phase3 → net.
+- K4: review grid `GET/POST /api/pay/cycles/{id}/review…` (BR §32); stage 7 needs all rows approved.
+- COA regenerated from the spec: +112404, 421302, 512122 (411 total / 235 posting / new 89). Generator accepts «جديد (BR …)».
+- Verified: .NET 323 passed / 10 skipped (SQL needs Docker). Docs: `docs/api/pay-review.md`.
+- Parallel: Codex `feat/r6b-accounting` (prompt `~/.agents/prompts/codex-R6b-accounting.md`), Antigravity `feat/r6b-ui` (prompt `antigravity-R6b-ui.md`). Antigravity merges `feat/k-review` for A3–A6.
+
+## Scope and safety
+- R6b baseline e75683d (0.15.0); order C0 → C4 → C6 → C7 → C3 → optional C5.
+- No real database access/writes, secret reads, push, merge or deploy. ERP db67927 remains SELECT-only; db77738 is the payroll database. No payroll writes before «انقل».
+- Only this worktree changed; Claude K2/K4 and Antigravity worktrees untouched. Vouchers__Secret must be provisioned by Ghazal before financial writes.
 
 ## Done
-- R6a baseline f86596b; fixes F1..F5: ced524c, 3630d2a, d585bf2, 0277aff, 860d6ae. Mapping proposed_approved; LegacyOpeningDebt/InternetAdvance/HsWalletTopUp categories; exact branch aliases and inactive debt-only riders, excluded from payroll/cycles, same-identity reactivation. First-load approval/month/reconciliation remain required.
-- R6j-1 79d5c8c: Payroll.Sync core shared with API/CLI, caller-owned sponsor catalog; manual first acceptance unchanged. Earlier fix/library suites312 passed /0failed /0skipped.
-- Revised R6j-2 5b2837f supersedes f4b9d64 scheduling: POST /api/system/jobs/erp-sync/run and /dry-run require erp.sync.run; GET /api/system/jobs/erp-sync/{jobId} returns counts-only progress. Manual run returns jobId; shared durable admission/cooldown15min from accepted request,409while queued/running. Actor/time audited, never exposed in progress.
-- Permission catalog + one-time startup seeder reach existing SystemAdmin/FinancialManager through customPermissions; explicit denies and later revocation preserved. New SystemAdmin is a limited sync role, without users.manage or pause/resume. Admin/SuperAdmin retain existing grants.
-- Startup: CatchUpEnabled defaults true but only after Jobs + ErpSync are enabled; CatchUpHours defaults24. At most one admission per process start, based on latest successful commit (not preview). Optional daily ID erp-sync-daily, cron0 10 * * *, Asia/Riyadh; DailyEnabled defaults false.
-- Upgrade removes recurring ID erp-sync. Old serialized entry point is inert (legacy_schedule_disabled). All actual triggers use ExecuteRequest and the same safe path without overrides; single worker + SQL distributed lock + local gate, zero retries, cooperative30min cancellation. Pause/config/reservation ownership checked inside target transaction.
-- Completion/counts/gate release/refusal notification are atomic. Progress uses primary-key job links instead of JSON scans beside the writer. Four later-job IDs remain disabled metadata only. GET /api/system/jobs is Admin/SuperAdmin; pause/resume remain SuperAdmin with reason/audit and preserve admission state.
-- Revised R6j-3 da6baf2: docs/ops/HANGFIRE.md covers manual/progress/cooldown/catch-up/daily, optional AlwaysRunning and IIS /health fragment. Old systemd files remain disabled/uninstalled; VPS documentation is historical optional guidance requiring a new decision. No Dashboard mapped.
-- Revised R6j-4: admission, concurrency, permission seeding/revocation, restart/cooldown, fresh/stale success and daily SQL tests; HTTP checks and API inventory refreshed. Learning-notes appended without committing ~/.agents.
+- C0 190851c: explicit HR/SQLite-payroll merge, hashed collision inventory, private originals/fingerprints, atomic repeatable import/verification; WAL-safe FTPS snapshot. Live preview/import/switch NOT RUN.
+- C4 d42213e: signed43-column Ninja invoice import, classifications/formal disputes, invoice-final differences, scoped approval and posting gates; both payroll/standalone paths prevent duplicate revenue.
+- C6 d4302b2: manual drafts without balance effect, independent approval, open-period reversal drafts, attachments and existing-user permission seed with explicit denies preserved.
+- C7 032e415: HMAC vouchers, transactional per-company/type/year counters, immutable numbers, Odoo uniqueness/search and public status/type verification30/IP/minute.
+- C3 current changes: approved411-account chart/235posting; Mada top-up and internet cash/bank/card payout; company/custodian/balance guards, salary/admin counterparts. K2 approved-request contract tested; no K2 request creation/review implementation here.
+- Cutover CLI rehearsal: actual snapshot → preview (no writes) → import → verify → repeat on disposable SQL with synthetic data outside Git; no real private files opened. CLI rejects repository output paths.
+- Learning-notes recorded in ~/.agents/learning/log.md; no ~/.agents commit.
 
-## Verified and validation limit
-- Cached1.8.23 compatibility only: build0warnings/errors; full .NET324 passed /0failed /0skipped on synthetic SQLite + isolated Docker SQL Server2022; node tests/erp-sync.mjs54 HTTP checks. Includes startup/daily and actual single-worker/storage checks. No browser/frontend verification.
-- Source boundary246; inventory245total /235API; git diff --check clean. Own synthetic SQL container removed; gate-erp-copy-20261103 remains stopped/untouched.
-- Tracked Hangfire.AspNetCore/SqlServer remain1.8.25. Cache-only final restore fails NU1102 (only1.8.23 exists); pinned-version build/tests NOT RUN per Ghazal's no-download decision. Cached compatibility does not establish1.8.25 acceptance. No package downloads or NuGet source changes; /tmp override not committed. Rerestore before building: final assets reflect the failed pinned-version restore.
-- No live ERP query in this update, staging writes/enqueues, push, merge, deploy, host settings, VPS actions or original-file changes. All runtime tests used synthetic local data; no secrets/personal data printed.
-
-## Earlier source blockers (unchanged; no fresh live preview)
-- F5 SELECT-only snapshot2026-11-05T15:22:16Z–15:22:44Z: vehicle1/558changed,557unchanged; plateNumberAr1/plateNumberEn1/registrationType1 overlap. New odometer facts13303; refused new_kind_requires_acceptance:vehicle_odometer_reading, no overrides/load. Pre-fix drift moved from317 to332/558, dominated by daily fields. Private counts: sync-logs/r6a-f2-before.json and r6a-f2-after.json.
-- Debt preview808rows:370valid /438flagged (unmatched_company417, negative16, invalid_identity5). Inactive riders planned0, branch fallback0; D blank707/populated101, no exact approved aliases. Control reconciliation blocked23row numbers. Private report: sync-logs/r6a-fix1-debt-sheet-preview.json. Never guess companies. Missing authoritative sources: sponsorship periods, ADV/payment request tables.
+## Verification
+- Final full .NET365/365 passed,0failed/0skipped on isolated synthetic Docker SQL2022, including CLI rehearsal and company read/payout guards. Own test container removed; old ERP container untouched.
+- Build0warnings/errors;18/18 FTPS unit tests;64 combined HTTP checks; source boundary265files; inventory265routes/255API; generator and git diff --check pass. Browser/UI checks NOT RUN (only expected chart counts updated).
+- Cache-only NuGet restore (including pinned Hangfire1.8.25); npm offline generated ignored legacy assets for the backend build. No downloads/source changes.
 
 ## Next step (exact)
-- When approved1.8.25 packages exist in the local cache, restore/build/full-test without the temporary override; use isolated loopback PAYROLL_TEST_SQL_CONNECTION and require0skipped. Rerun node ERP-sync, source boundary and inventory. Do not accept cached preflight as final verification.
-- Resolve company evidence and debt month/reconciliation, then obtain fresh «حمّل» for reviewed CLI first loads and per-kind acceptance. Hosted jobs never auto-accept kinds or load the debt workbook.
-- After successful verification/deployment and explicit activation approval, Ghazal sets secret Jobs + DefaultConnection to staging db77738 (same server), ErpReadonly SELECT-only connection, Jobs:Enabled=true. Keep ErpSync:Enabled=false until first loads accepted. Then enable ErpSync, restart (startup catch-up may enqueue once); DailyEnabled remains false unless requested. AlwaysRunning is optional and host-controlled.
-- Production requires «حوّل الإنتاج» and a later reviewed target-guard change; current guards reject production. No Dashboard. No VPS/three-hour scheduler is active.
+- C3 is ready for local review with the preceding C0/C4/C6/C7 commits. No push/merge/deploy authorization is implied.
+- Merge K2 later with review: preserve AdvanceRequests.PayOut internet branch, MadaAccounting.PayInternet, voucher hooks and company read guards. K2 owns catalog/request/review/summary integration; bank fulfilment needs explicit bankAccountCode. K4 review-grid API stays Claude's scope.
+- C5 FCM is optional and NOT STARTED after the financial priority work; server delivery/token review remain open. No jobs/FCM activation occurred.
+- Ghazal runs the credential-dependent live preview, reviews counts/conflicts, then says «انقل» for that plan. First ERP-kind loads still require fresh «حمّل» afterward.
 
-## Verify (once pinned packages are cached)
-- dotnet restore tests/Engine.Tests/Engine.Tests.csproj --source "$HOME/.nuget/packages" -p:NuGetAudit=false --disable-parallel -m:1
-- dotnet build tests/Engine.Tests/Engine.Tests.csproj --no-restore -p:SkipFrontendBuild=true -m:1
-- dotnet test tests/Engine.Tests/Engine.Tests.csproj --no-build --no-restore -m:1 (isolated loopback SQL only); node tests/erp-sync.mjs
-- python3 scripts/release_source.py --check; python3 tools/api_inventory.py; git diff --check. Operations: docs/ops/HANGFIRE.md; CLI/debt: docs/data/SYNC.md and DEBT-SHEET.md.
+## Cutover commands — Ghazal only, in order
+- Full secure setup/build and secret prompts: docs/ops/DB-CUTOVER.md. No values in chat/history. Keep site and all target writers frozen throughout; Jobs__Enabled=false.
+1. Ghazal: cd ~/Projects/active/gate-payroll-r6b; python3 scripts/monsterasp_ftps.py prepare
+2. Ghazal: python3 scripts/monsterasp_ftps.py download-data
+3. Ghazal: read -r -p 'Printed snapshot path: ' cutover_snapshot; cutover_run="$(dirname "$cutover_snapshot")"
+4. Ghazal: dotnet tools/StoreMigration/bin/Debug/net10.0/StoreMigration.dll snapshot "$cutover_snapshot" "$cutover_run/source.json"
+5. Ghazal: dotnet tools/StoreMigration/bin/Debug/net10.0/StoreMigration.dll merge-preview "$cutover_run/source.json" "$cutover_run/plan.json"
+6. STOP unless ready=true, counts reviewed and Ghazal says «انقل»; then: read -r -p 'Reviewed planFingerprint: ' cutover_fingerprint
+7. Ghazal: dotnet tools/StoreMigration/bin/Debug/net10.0/StoreMigration.dll merge-import "$cutover_run/plan.json" "$cutover_fingerprint" --approved
+8. Ghazal: dotnet tools/StoreMigration/bin/Debug/net10.0/StoreMigration.dll merge-verify "$cutover_run/plan.json" "$cutover_fingerprint"
+9. Ghazal: require verified=true/missing=0/changed=0; set MonsterASP DefaultConnection to db77738, Vouchers__Secret, jobs still OFF; restart with maintenance retained.
+10. Ghazal: python3 scripts/monsterasp_ftps.py finish; python3 scripts/monsterasp_ftps.py health
+11. Ghazal: authenticated /api/system/release-check must show provider=mssql and expected inventory. Health must show dataPreservationVerified=true and releaseCheckpointPresent=true. Rollback instructions: DB-CUTOVER.md; original SQLite stays untouched.
+
+## Recheck and capacity
+- dotnet restore tests/Engine.Tests/Engine.Tests.csproj --source "$HOME/.nuget/packages" -p:NuGetAudit=false --disable-parallel -m:1; dotnet build tests/Engine.Tests/Engine.Tests.csproj --no-restore -p:SkipFrontendBuild=true -m:1
+- dotnet test tests/Engine.Tests/Engine.Tests.csproj --no-build --no-restore -m:1 with an isolated synthetic loopback PAYROLL_TEST_SQL_CONNECTION (required0skipped); python3 scripts/release_source.py --check; python3 tools/api_inventory.py; python3 tools/generate_target_coa.py --check; git diff --check.
+- Weekly % before → after: unavailable → unavailable; last86% screenshot (2026-11-05) is historical, not current.

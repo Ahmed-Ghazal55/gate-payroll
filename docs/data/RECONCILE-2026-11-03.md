@@ -1,12 +1,12 @@
 # Reconciliation — 2026-11-03
 
-Status: **loaded to staging after Ghazal’s explicit «حمّل»**. Source is the restored local READ_ONLY backup. The live attempt was refused before writes because its read changed; SQL snapshot isolation was not enabled/changed.
+Status: **loaded to payroll database after Ghazal’s explicit «حمّل»**. Source is the restored local READ_ONLY backup. The live attempt was refused before writes because its read changed; SQL snapshot isolation was not enabled/changed.
 
 Backup header finish: 2026-11-03 11:05:55 (server-clock timezone unspecified). SQL Server major 17. Original bytes verified after docker cp; source size/mtime unchanged.
 
 Load read window (UTC): 2026-11-03T17:58:31.0969517+00:00 → 2026-11-03T17:58:31.2474698+00:00. Mode: `local_read_only_copy`.
 
-| Kind | Backup source rows | New loaded | Changed | Rejected | Actual staging | Same-snapshot new/changed |
+| Kind | Backup source rows | New loaded | Changed | Rejected | Actual payroll database | Same-snapshot new/changed |
 |---|---:|---:|---:|---:|---:|---|
 | company | 3 | 3 | 0 | 0 | 3 | 0/0 |
 | commercial_registration | 3 | 0 | 0 | 3 | 0 | 0/0 |
@@ -59,8 +59,8 @@ Classification in the loaded backup: 394 sponsored delivery riders + 1698 extern
 
 A subsequent role-metadata correction updated the 2130 people/profile documents through the same Store transaction and Audit path. Final direct SQL aggregates verified 6451 domain documents, 8581 `erp-import` audit rows, eight ERP indexes, 38 administrative profiles and 2092 delivery riders. The earlier short-timeout correction attempt left zero role updates and no new audit rows; retry used a bounded 120-second import-target command timeout. No records were deleted. The correction’s automatic same-snapshot comparison returned zero new/changed rows. Its source read window (UTC): 2026-11-03T18:38:35.8082936+00:00 → 2026-11-03T18:38:35.9387705+00:00.
 
-Final independent SELECT-only dry-run after the correction: **0 new, 0 changed, 6451 unchanged**. Read window (UTC): 2026-11-03T18:46:05.3913976+00:00 → 2026-11-03T18:46:05.518964+00:00. All 12 kinds retain the same rejection reasons. This checks the current importer plan against staging without creating a Store or writing data.
+Final independent SELECT-only dry-run after the correction: **0 new, 0 changed, 6451 unchanged**. Read window (UTC): 2026-11-03T18:46:05.3913976+00:00 → 2026-11-03T18:46:05.518964+00:00. All 12 kinds retain the same rejection reasons. This checks the current importer plan against payroll database without creating a Store or writing data.
 
-Validation: build succeeded with zero warnings/errors; .NET tests 149 passed / 0 failed / 6 optional SQL-backed cases skipped, including nine synthetic importer behavior tests; standalone synthetic HTTP checks 255 passed; release-source check 149 allowlisted files; whitespace and new-file/added-line sensitive-literal checks passed. The approved staging import itself exercised SQL Server transactions, audits and all eight ERP indexes.
+Validation: build succeeded with zero warnings/errors; .NET tests 149 passed / 0 failed / 6 optional SQL-backed cases skipped, including nine synthetic importer behavior tests; standalone synthetic HTTP checks 255 passed; release-source check 149 allowlisted files; whitespace and new-file/added-line sensitive-literal checks passed. The approved payroll database import itself exercised SQL Server transactions, audits and all eight ERP indexes.
 
 No row values, names, identities, phones, IBANs or individual amounts are included. Production SQLite and ERP production data were not written.

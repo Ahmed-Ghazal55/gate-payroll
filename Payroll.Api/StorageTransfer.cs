@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 namespace Payroll;
 
 // Operator-only, private snapshots. There is deliberately no public migration endpoint.
-public static class StorageTransfer
+public static partial class StorageTransfer
 {
     public static JsonArray Export(Store store)=>store.Read(c=>{
         using var tx=c.BeginTransaction(System.Data.IsolationLevel.Serializable);
@@ -28,7 +28,7 @@ public static class StorageTransfer
         }
         return store.Write((c,tx)=>{
             using(var count=Store.Command(c,tx,"SELECT COUNT(*) FROM records"))J.Need(Convert.ToInt64(count.ExecuteScalar())==0,"وجهة النقل ليست فارغة؛ لم تُستبدل بيانات قائمة.");
-            foreach(var row in records.OfType<JsonObject>())Store.Save(c,row.S("kind"),(JsonObject)row["body"]!,tx);
+            foreach(var row in records.OfType<JsonObject>())Store.Save(c,row.S("kind"),(JsonObject)row["body"]!,tx,preserveSnapshot:true);
             Store.Audit(c,tx,"storage.migrated",fingerprint,"operator");return records.Count;
         });
     }
