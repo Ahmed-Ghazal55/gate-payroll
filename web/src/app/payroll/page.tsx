@@ -44,6 +44,17 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
+import type {
+  PayReviewDraft,
+  PayReviewBlocker,
+  PayReviewInvoice,
+  PayReviewAccount,
+  PayReviewRider,
+  PayCatalog,
+  PayEligibilityItem,
+  PayCycleItem,
+  PayCycleLineItem,
+} from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -143,9 +154,10 @@ function PayrollPageInner() {
   };
 
   // Main shared tabs: platforms · current-cycle · cycle · rules · deductions · bank · policies
+  type PayAppSubTab = 'settlements' | 'parent_terms' | 'internal_schemes' | 'eligibility' | 'accounts';
   const tabFromUrl = searchParams?.get('tab') || 'platforms';
   const appFromUrl = searchParams?.get('app') || 'hungerstation';
-  const subFromUrl = (searchParams?.get('sub') as any) || 'settlements';
+  const subFromUrl = (searchParams?.get('sub') as PayAppSubTab) || 'settlements';
   const periodFromUrl = searchParams?.get('period') || '2026-10';
   const [mainTab, setMainTab] = useState<string>(tabFromUrl);
 
@@ -160,7 +172,7 @@ function PayrollPageInner() {
   }, [selectedPlatform]);
 
   // Sub-tabs inside selected app
-  const [appSubTab, setAppSubTab] = useState<'settlements' | 'parent_terms' | 'internal_schemes' | 'eligibility' | 'accounts'>(subFromUrl);
+  const [appSubTab, setAppSubTab] = useState<PayAppSubTab>(subFromUrl);
 
   // Filters & period
   const [selectedPeriod, setSelectedPeriod] = useState<string>(periodFromUrl);
@@ -263,15 +275,15 @@ function PayrollPageInner() {
   const [committingAssignments, setCommittingAssignments] = useState<boolean>(false);
 
   // Cycle Stepper state (0-7)
-  const [cyclesList, setCyclesList] = useState<PayCycle[]>([]);
+  const [cyclesList, setCyclesList] = useState<PayCycleItem[]>([]);
   const [loadingCycles, setLoadingCycles] = useState<boolean>(false);
   const [cyclesError, setCyclesError] = useState<string | null>(null);
   const [advancingCycle, setAdvancingCycle] = useState<boolean>(false);
-  const [cycleLines, setCycleLines] = useState<PayCycleLine[]>([]);
+  const [cycleLines, setCycleLines] = useState<PayCycleLineItem[]>([]);
   const [loadingLines, setLoadingLines] = useState<boolean>(false);
-  const [selectedLineForExplain, setSelectedLineForExplain] = useState<PayCycleLine | null>(null);
+  const [selectedLineForExplain, setSelectedLineForExplain] = useState<PayCycleLineItem | null>(null);
 
-  const cycleLineColumns: ColumnDef<any>[] = useMemo(
+  const cycleLineColumns: ColumnDef<PayCycleLineItem>[] = useMemo(
     () => [
       {
         key: 'rider',
@@ -296,7 +308,7 @@ function PayrollPageInner() {
       {
         key: 'category',
         header: 'الفئة',
-        render: (line) => <span className="text-xs text-[var(--muted)]">{line.category || '-'}</span>,
+        render: (line) => <span className="text-xs text-[var(--muted)]">{'category' in line ? String((line as Record<string, unknown>).category || '-') : '-'}</span>,
       },
       {
         key: 'platformGross',
@@ -313,10 +325,10 @@ function PayrollPageInner() {
         key: 'vehicleCharge',
         header: 'إيجار المركبة',
         numeric: true,
-        getValue: (line) => line.allocatedVehicleCharge ?? line.vehicleCharge ?? 0,
+        getValue: (line) => line.allocatedVehicleCharge ?? 0,
         render: (line) => (
           <span className="text-[var(--muted)]">
-            {(line.allocatedVehicleCharge ?? line.vehicleCharge ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {(line.allocatedVehicleCharge ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
           </span>
         ),
       },
@@ -335,9 +347,9 @@ function PayrollPageInner() {
         key: 'net',
         header: 'الصافي النهائي',
         numeric: true,
-        getValue: (line) => line.net ?? line.entitlement ?? 0,
+        getValue: (line) => line.entitlement ?? line.gross ?? 0,
         render: (line) => {
-          const net = line.net ?? line.entitlement ?? 0;
+          const net = line.entitlement ?? line.gross ?? 0;
           return (
             <span className={`font-bold ${net < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'}`}>
               {net.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
@@ -380,17 +392,17 @@ function PayrollPageInner() {
 
   // Review Draft States (A5)
   const [cycleViewMode, setCycleViewMode] = useState<'draft' | 'active'>('draft');
-  const [reviewDraft, setReviewDraft] = useState<any | null>(null);
+  const [reviewDraft, setReviewDraft] = useState<PayReviewDraft | null>(null);
   const [loadingDraft, setLoadingDraft] = useState<boolean>(false);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [creatingCycle, setCreatingCycle] = useState<boolean>(false);
 
   // Rules Editor States (A6)
   const [rulesSection, setRulesSection] = useState<'eligibility' | 'global'>('eligibility');
-  const [ninjaEligibilityList, setNinjaEligibilityList] = useState<any[]>([]);
+  const [ninjaEligibilityList, setNinjaEligibilityList] = useState<PayEligibilityItem[]>([]);
   const [loadingNinjaEligibility, setLoadingNinjaEligibility] = useState<boolean>(false);
   const [ninjaEligibilityError, setNinjaEligibilityError] = useState<string | null>(null);
-  const [ninjaCatalog, setNinjaCatalog] = useState<any | null>(null);
+  const [ninjaCatalog, setNinjaCatalog] = useState<PayCatalog | null>(null);
   const [ruleModalOpen, setRuleModalOpen] = useState<boolean>(false);
   const [newRuleMetric, setNewRuleMetric] = useState<string>('orders');
   const [newRuleOperator, setNewRuleOperator] = useState<string>('gte');
@@ -402,7 +414,7 @@ function PayrollPageInner() {
   const [submittingRuleLifecycle, setSubmittingRuleLifecycle] = useState<boolean>(false);
 
   // Columns for Review Draft Accounts Breakdown
-  const draftAccountColumns: ColumnDef<any>[] = useMemo(
+  const draftAccountColumns: ColumnDef<PayReviewAccount>[] = useMemo(
     () => [
       {
         key: 'accountId',
@@ -708,17 +720,19 @@ function PayrollPageInner() {
         api.getPayCatalog(),
       ]);
       if (elRes.status === 'fulfilled') {
-        const items = (elRes.value as any)?.items || (Array.isArray(elRes.value) ? elRes.value : []);
+        const val = elRes.value;
+        const items = Array.isArray(val) ? val : (val && 'items' in val && Array.isArray(val.items) ? val.items : []);
         setNinjaEligibilityList(items);
       } else {
-        setNinjaEligibilityError(elRes.reason?.message || 'تعذر تحميل ضوابط الأهلية');
+        const reason = elRes.reason;
+        setNinjaEligibilityError(reason instanceof Error ? reason.message : 'تعذر تحميل ضوابط الأهلية');
         setNinjaEligibilityList([]);
       }
       if (catRes.status === 'fulfilled') {
         setNinjaCatalog(catRes.value);
       }
-    } catch (err: any) {
-      setNinjaEligibilityError(err.message || 'تعذر تحميل بيانات الأهلية');
+    } catch (err: unknown) {
+      setNinjaEligibilityError(err instanceof Error ? err.message : 'تعذر تحميل بيانات الأهلية');
     } finally {
       setLoadingNinjaEligibility(false);
     }
@@ -743,8 +757,8 @@ function PayrollPageInner() {
       showToast('تم إنشاء دورة الرواتب بنجاح', 'success');
       await loadCycles();
       setCycleViewMode('active');
-    } catch (err: any) {
-      showToast(err.message || 'تعذر إنشاء دورة الرواتب', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر إنشاء دورة الرواتب', 'error');
     } finally {
       setCreatingCycle(false);
     }
@@ -753,11 +767,11 @@ function PayrollPageInner() {
   // Rule Editing Handlers (A6)
   const activeNinjaEligibility = useMemo(() => {
     if (!ninjaEligibilityList || ninjaEligibilityList.length === 0) return null;
-    const forPeriod = ninjaEligibilityList.filter((d: any) => d.period === rulesMonth);
+    const forPeriod = ninjaEligibilityList.filter((d) => d.period === rulesMonth);
     if (forPeriod.length === 0) return ninjaEligibilityList[0];
-    const draft = forPeriod.find((d: any) => d.status === 'draft');
+    const draft = forPeriod.find((d) => d.status === 'draft');
     if (draft) return draft;
-    return forPeriod.sort((a: any, b: any) => (b.version || 0) - (a.version || 0))[0];
+    return forPeriod.sort((a, b) => (b.version || 0) - (a.version || 0))[0];
   }, [ninjaEligibilityList, rulesMonth]);
 
   const handleSaveNewRule = async () => {
@@ -770,7 +784,6 @@ function PayrollPageInner() {
         threshold: parseFloat(newRuleThreshold) || 0,
         effect: { type: newRuleEffectType },
         included: newRuleIncluded,
-        app: 'ninja',
       });
       await api.createAppEligibility(
         'ninja',
@@ -887,7 +900,15 @@ function PayrollPageInner() {
     }
   };
 
-  const draftRuleColumns: ColumnDef<any>[] = useMemo(
+  interface DraftRuleItem {
+    metric: string;
+    operator: string;
+    threshold: number | string;
+    effect?: { type: string; value?: number };
+    included?: boolean;
+  }
+
+  const draftRuleColumns: ColumnDef<DraftRuleItem>[] = useMemo(
     () => [
       {
         key: 'metric',
@@ -965,7 +986,7 @@ function PayrollPageInner() {
     setLoadingLines(true);
     try {
       const res = await api.getPayCycleLines(cycleId);
-      setCycleLines(res?.items || (Array.isArray(res) ? res : []));
+      setCycleLines(res?.items || []);
     } catch (_) {
       setCycleLines([]);
     } finally {
@@ -1405,7 +1426,7 @@ function PayrollPageInner() {
   };
 
   // Advance Cycle
-  const handleAdvanceCycle = async (cycle: PayCycle) => {
+  const handleAdvanceCycle = async (cycle: PayCycleItem) => {
     const nextStage = (cycle.stage || 0) + 1;
     if (nextStage > 7) {
       showToast('دورة الرواتب مكتملة ومعتمدة بالكامل في المرحلة 7', 'info');
@@ -2660,7 +2681,7 @@ function PayrollPageInner() {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[var(--line)]">
-                                  {rules.map((r: any, idx: number) => (
+                                  {rules.map((r: { metric?: string; operator?: string; threshold?: number | string; effect?: { type?: string } }, idx: number) => (
                                     <tr key={idx}>
                                       <td className="p-2.5 font-bold font-mono">{r.metric}</td>
                                       <td className="p-2.5 font-mono">{r.operator}</td>
@@ -2746,10 +2767,10 @@ function PayrollPageInner() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--line)]">
-                        {assignmentsList.map((a: any) => (
-                          <tr key={a.id || a.iqama} className="hover:bg-[var(--row-hover)] transition">
-                            <td className="p-3 font-mono font-bold text-[var(--ink)]">{a.iqama || a.riderId}</td>
-                            <td className="p-3 font-semibold">{a.riderName || '-'}</td>
+                        {assignmentsList.map((a) => (
+                          <tr key={a.id || a.rider} className="hover:bg-[var(--row-hover)] transition">
+                            <td className="p-3 font-mono font-bold text-[var(--ink)]">{a.rider}</td>
+                            <td className="p-3 font-semibold">{a.rider}</td>
                             <td className="p-3 font-mono text-xs text-[var(--accent)]">{a.schemeId || '-'}</td>
                             <td className="p-3 font-mono">{a.period}</td>
                             <td className="p-3">
@@ -2958,7 +2979,7 @@ function PayrollPageInner() {
                       </div>
 
                       <div className="space-y-2">
-                        {reviewDraft.blockers.map((b: any, idx: number) => {
+                        {reviewDraft.blockers.map((b, idx: number) => {
                           const actionInfo = BLOCKER_ACTION_MAP[b.fixAction] || { label: 'معالجة المانع', href: '/app/payroll' };
                           return (
                             <div
@@ -3053,7 +3074,7 @@ function PayrollPageInner() {
                     <DataTable
                       tableId="ninja-review-draft-accounts"
                       columns={draftAccountColumns}
-                      data={reviewDraft.invoices?.flatMap((inv: any) => inv.accounts || []) || []}
+                      data={reviewDraft.invoices?.flatMap((inv) => inv.accounts || []) || []}
                       emptyTitle="لا توجد حسابات مسجلة في الفاتورة"
                       emptyDescription="لم يتم العثور على أسطر حسابات في فاتورة نينجا المعتمدة."
                       exportFilename={`ninja_draft_accounts_${selectedPeriod}`}
@@ -3104,7 +3125,7 @@ function PayrollPageInner() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {activeCycle && activeCycle.stage < 7 && activeCycle.status !== 'approved' && (!((activeCycle as any).allowedActions) || (activeCycle as any).allowedActions.includes('advance')) && (
+                    {activeCycle && activeCycle.stage < 7 && activeCycle.status !== 'approved' && (
                       <button
                         type="button"
                         disabled={advancingCycle || activeCycle.status === 'needs_decision'}
@@ -3175,16 +3196,13 @@ function PayrollPageInner() {
                         <div className="mt-3 pt-2 border-t border-[var(--line)]/50 text-[10px] text-[var(--muted)]">
                           {st.num === 0 && activeCycle && (
                             <div>
-                              <span className="text-[var(--accent)] font-semibold">المنشئ:</span> @{activeCycle.createdBy || 'النظام'}
-                              {activeCycle.createdAt && (
-                                <span className="block text-[9px] mt-0.5 opacity-80" dir="ltr">
-                                  {new Date(activeCycle.createdAt).toLocaleString('ar-SA')}
-                                </span>
-                              )}
+                              <span className="text-[var(--accent)] font-semibold">الدورة:</span> {activeCycle.period}
                             </div>
                           )}
                           {st.num > 0 && (() => {
-                            const entry = activeCycle?.history?.find((h: any) => h.stage === st.num);
+                            const entry = (activeCycle?.history as unknown as Array<{ stage: number; advancedBy?: string; at?: string }>)?.find(
+                              (h) => h.stage === st.num
+                            );
                             if (!entry) return <span className="opacity-50">في انتظار الوصول للمرحلة</span>;
                             return (
                               <div>
@@ -3206,14 +3224,23 @@ function PayrollPageInner() {
 
           {/* Cycle Deduction Phases Flow (BR §29) */}
           {activeCycle && (activeCycle.riders || []).length > 0 && (() => {
-            const riders = activeCycle.riders || [];
-            const gross = riders.reduce((s: number, r: any) => s + (r.gross || 0), 0);
-            const afterCommission = riders.reduce((s: number, r: any) => s + (r.afterCommission || 0), 0);
-            const phase1 = riders.reduce((s: number, r: any) => s + (r.phase1 || 0), 0);
-            const preliminaryDue = riders.reduce((s: number, r: any) => s + (r.preliminaryDue || 0), 0);
-            const phase2 = riders.reduce((s: number, r: any) => s + (r.phase2 || 0), 0);
-            const phase3 = riders.reduce((s: number, r: any) => s + (r.phase3 || 0), 0);
-            const net = riders.reduce((s: number, r: any) => s + (r.net || 0), 0);
+            const riders = (activeCycle.riders || []) as Array<{
+              rider: string;
+              net: number;
+              gross?: number;
+              afterCommission?: number;
+              phase1?: number;
+              preliminaryDue?: number;
+              phase2?: number;
+              phase3?: number;
+            }>;
+            const gross = riders.reduce((s: number, r) => s + (r.gross || 0), 0);
+            const afterCommission = riders.reduce((s: number, r) => s + (r.afterCommission || 0), 0);
+            const phase1 = riders.reduce((s: number, r) => s + (r.phase1 || 0), 0);
+            const preliminaryDue = riders.reduce((s: number, r) => s + (r.preliminaryDue || 0), 0);
+            const phase2 = riders.reduce((s: number, r) => s + (r.phase2 || 0), 0);
+            const phase3 = riders.reduce((s: number, r) => s + (r.phase3 || 0), 0);
+            const net = riders.reduce((s: number, r) => s + (r.net || 0), 0);
 
             return (
               <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-3">
@@ -3478,20 +3505,15 @@ function PayrollPageInner() {
                             }`}
                           >
                             {activeNinjaEligibility.status === 'approved'
-                              ? `معتمد للقراءة فقط (@${activeNinjaEligibility.approvedBy})`
+                              ? 'معتمد للقراءة فقط'
                               : activeNinjaEligibility.status === 'rejected'
-                              ? `مرفوض (@${activeNinjaEligibility.rejectedBy})`
-                              : `مسودة قيد التعديل (@${activeNinjaEligibility.createdBy})`}
+                              ? 'مرفوض'
+                              : `مسودة قيد التعديل (@${activeNinjaEligibility.createdBy || 'النظام'})`}
                           </span>
                         </div>
                         <p className="text-xs text-[var(--muted)] mt-1">
                           تخضع شروط الأهلية لمعايير الحوكمة والاعتماد المستقل (Maker ≠ Checker). التعديل يتم في المسودة حصراً.
                         </p>
-                        {activeNinjaEligibility.status === 'rejected' && activeNinjaEligibility.rejectionReason && (
-                          <div className="mt-2 text-xs text-[var(--danger)] bg-[var(--danger)]/10 p-2.5 rounded-xl border border-[var(--danger)]/20">
-                            <strong>سبب الرفض:</strong> {activeNinjaEligibility.rejectionReason}
-                          </div>
-                        )}
                       </div>
 
                       {/* Action buttons */}
@@ -4002,8 +4024,8 @@ function PayrollPageInner() {
                 <span className="font-mono font-bold">{selectedLineForExplain.app}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[var(--muted)]">الفئة:</span>
-                <span className="font-bold">{selectedLineForExplain.category || '-'}</span>
+                <span className="text-[var(--muted)]">الحالة:</span>
+                <span className="font-bold">{selectedLineForExplain.status === 'ready' ? 'جاهز' : selectedLineForExplain.status}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">إجمالي المنصة:</span>
@@ -4014,7 +4036,7 @@ function PayrollPageInner() {
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">صافي المستحق:</span>
                 <span className="num font-bold text-[var(--money-pos)]">
-                  {(selectedLineForExplain.net ?? selectedLineForExplain.entitlement ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {(selectedLineForExplain.entitlement ?? selectedLineForExplain.gross ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                 </span>
               </div>
             </div>
@@ -4027,13 +4049,19 @@ function PayrollPageInner() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {selectedLineForExplain.lines.map((l: any, idx: number) => (
+                  {(selectedLineForExplain.lines as unknown as Array<{
+                    label?: string;
+                    category?: string;
+                    amount?: number;
+                    formula?: string;
+                    inputs?: Record<string, unknown>;
+                  }>).map((l, idx: number) => (
                     <div key={idx} className="p-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] space-y-1">
                       <div className="flex justify-between items-center">
                         <span className="font-bold text-[var(--ink)]">{l.label || l.category}</span>
                         <span
                           className={`num font-bold ${
-                            l.amount < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'
+                            (l.amount || 0) < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'
                           }`}
                         >
                           {(l.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س

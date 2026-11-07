@@ -75,7 +75,7 @@ export function NinjaInvoiceUploadScreen({
 
   // Reconcile and preview results
   const [reconcileResult, setReconcileResult] = useState<NinjaReconcileResponse | null>(null);
-  const [serverPreview, setServerPreview] = useState<any | null>(null);
+  const [serverPreview, setServerPreview] = useState<ApiNinjaInvoice | null>(null);
   const [currentInvoice, setCurrentInvoice] = useState<ApiNinjaInvoice | null>(null);
   const [savedInvoices, setSavedInvoices] = useState<ApiNinjaInvoice[]>([]);
   const [loadingSavedInvoices, setLoadingSavedInvoices] = useState<boolean>(false);
@@ -96,10 +96,10 @@ export function NinjaInvoiceUploadScreen({
   // Load platform accounts for the selected company
   useEffect(() => {
     api.getOperations('accounts', { pageSize: 200 })
-      .then((res: any) => {
+      .then((res: { items?: Array<{ id: string; code: string; name?: string; externalAccountId?: string; platformCode?: string; platform?: string; app?: string; companyId?: string }> }) => {
         const items = res?.items || [];
         const ninjaAccs = items.filter(
-          (a: any) =>
+          (a) =>
             (a.platformCode === 'Ninja' || a.platform === 'Ninja' || a.app === 'ninja') &&
             (!a.companyId || a.companyId === companyId)
         );
@@ -199,8 +199,8 @@ export function NinjaInvoiceUploadScreen({
       setServerPreview(preview);
       setStepperStage(2);
       toast('تمت عملية مطابقة فواتير نينجا بنجاح وحساب الفروقات', 'success');
-    } catch (err: any) {
-      const msg = err.message || 'فشلت مطابقة فاتورة نينجا';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشلت مطابقة فاتورة نينجا';
       setActionError(msg);
       toast(msg, 'danger');
     } finally {
@@ -221,10 +221,10 @@ export function NinjaInvoiceUploadScreen({
       formData.append('reference', reference || `NINJA-${period}`);
       formData.append('odooVoucherNo', odooVoucherNo);
       formData.append('confirm', 'true');
-      if (serverPreview?.fingerprint) {
-        formData.append('fingerprint', serverPreview.fingerprint);
+      if (serverPreview && 'fingerprint' in serverPreview && serverPreview.fingerprint) {
+        formData.append('fingerprint', String(serverPreview.fingerprint));
       }
-      if (serverPreview?.rows) {
+      if (serverPreview && 'rows' in serverPreview && serverPreview.rows) {
         formData.append('rows', JSON.stringify(serverPreview.rows));
       }
       if (uploadMode === 'per_account' && selectedAccountIds.length > 0) {
@@ -236,8 +236,8 @@ export function NinjaInvoiceUploadScreen({
       setStepperStage(3);
       toast('تم تأكيد ورفع فاتورة نينجا بنجاح', 'success');
       loadSavedInvoices();
-    } catch (err: any) {
-      const msg = err.message || 'فشل تأكيد الفاتورة';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل تأكيد الفاتورة';
       setActionError(msg);
       toast(msg, 'danger');
     } finally {
@@ -256,9 +256,9 @@ export function NinjaInvoiceUploadScreen({
       setStepperStage(4);
       toast('تم اعتماد فاتورة نينجا بنجاح', 'success');
       loadSavedInvoices();
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Maker != Checker message from API is shown verbatim as is
-      const msg = err.message || 'تعذر اعتماد الفاتورة';
+      const msg = err instanceof Error ? err.message : 'تعذر اعتماد الفاتورة';
       setActionError(msg);
       toast(msg, 'danger');
     } finally {
@@ -277,8 +277,8 @@ export function NinjaInvoiceUploadScreen({
       setStepperStage(5);
       toast('تم ترحيل الفاتورة للقيد العام (112806 / 411104 / 213201)', 'success');
       loadSavedInvoices();
-    } catch (err: any) {
-      const msg = err.message || 'تعذر ترحيل الفاتورة';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'تعذر ترحيل الفاتورة';
       setActionError(msg);
       toast(msg, 'danger');
     } finally {
@@ -310,8 +310,8 @@ export function NinjaInvoiceUploadScreen({
       setDisputeModalOpen(false);
       setDisputeReason('');
       loadSavedInvoices();
-    } catch (err: any) {
-      const msg = err.message || 'فشل معالجة الاعتراض';
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل معالجة الاعتراض';
       setActionError(msg);
       toast(msg, 'danger');
     } finally {

@@ -55,6 +55,40 @@ import type {
   ImportCatalogStep,
   ImportPreviewResult,
 } from './types';
+import type { paths, components } from './api-contract';
+
+export type ApiResp<
+  P extends keyof paths,
+  M extends keyof paths[P] = 'get'
+> = paths[P][M] extends { responses: { 200: { content: { 'application/json': infer R } } } }
+  ? R
+  : paths[P][M] extends { responses: { 200?: { content: { 'application/json': infer R } } } }
+  ? R
+  : never;
+
+export type NinjaInvoice = ApiResp<'/api/platforms/ninja/invoices/{id}'>;
+export type NinjaInvoiceLine = NonNullable<NinjaInvoice['lines']>[number];
+export type NinjaInvoicesResponse = ApiResp<'/api/platforms/ninja/invoices'>;
+
+export type PayReviewDraft = ApiResp<'/api/pay/review-draft'>;
+export type PayReviewBlocker = PayReviewDraft['blockers'][number];
+export type PayReviewInvoice = PayReviewDraft['invoices'][number];
+export type PayReviewAccount = PayReviewInvoice['accounts'][number];
+export type PayReviewRider = PayReviewAccount['riders'][number];
+
+export type RiderLookupItem = ApiResp<'/api/riders/lookup'>[number];
+
+export type PayCycleItem = ApiResp<'/api/pay/cycles'>['items'][number];
+export type PayCyclesResponse = ApiResp<'/api/pay/cycles'>;
+export type PayCycleLinesResponse = ApiResp<'/api/pay/cycles/{id}/lines'>;
+export type PayCycleLineItem = PayCycleLinesResponse['items'][number];
+
+export type PayCatalog = ApiResp<'/api/pay/catalog'>;
+export type PayEligibilityResponse = ApiResp<'/api/pay/apps/{app}/eligibility'>;
+export type PayEligibilityItem = PayEligibilityResponse['items'][number];
+
+export type ManualJournalItem = ApiResp<'/api/finance/journals/manual'>['items'][number];
+export type ManualJournalLineItem = NonNullable<ManualJournalItem['lines']>[number];
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
 
@@ -1171,12 +1205,12 @@ export const api = {
 
   getPayCycles: (period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
-    return handleRequest<any>(`/pay/cycles${q}`);
+    return handleRequest<PayCyclesResponse>(`/pay/cycles${q}`);
   },
-  createPayCycle: (input: any) =>
-    handleRequest<any>('/pay/cycles', { method: 'POST', body: JSON.stringify(input) }),
+  createPayCycle: (input: Record<string, unknown>) =>
+    handleRequest<PayCycleItem>('/pay/cycles', { method: 'POST', body: JSON.stringify(input) }),
   advancePayCycle: (id: string, input: { stage?: number; action?: string }) =>
-    handleRequest<any>(`/pay/cycles/${encodeURIComponent(id)}/advance`, {
+    handleRequest<PayCycleItem>(`/pay/cycles/${encodeURIComponent(id)}/advance`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
@@ -1185,7 +1219,7 @@ export const api = {
     if (params?.app) q.set('app', params.app);
     if (params?.rider) q.set('rider', params.rider);
     const qs = q.toString() ? `?${q.toString()}` : '';
-    return handleRequest<any>(`/pay/cycles/${encodeURIComponent(id)}/lines${qs}`);
+    return handleRequest<PayCycleLinesResponse>(`/pay/cycles/${encodeURIComponent(id)}/lines${qs}`);
   },
 
   // ==========================================
@@ -1429,13 +1463,13 @@ export const api = {
     }),
 
   // Manual Journals (BR §28 / C6)
-  getManualJournals: (params?: { status?: 'draft' | 'approved'; page?: number; limit?: number }) => {
+  getManualJournals: (params?: { status?: string; page?: number; limit?: number }) => {
     const q = new URLSearchParams();
     if (params?.status) q.set('status', params.status);
     if (params?.page) q.set('page', String(params.page));
     if (params?.limit) q.set('limit', String(params.limit));
     const qs = q.toString();
-    return handleRequest<{ items?: ManualJournal[]; total?: number; page?: number } | ManualJournal[]>(
+    return handleRequest<paths['/api/finance/journals/manual']['get']['responses']['200']['content']['application/json']>(
       `/finance/journals/manual${qs ? `?${qs}` : ''}`
     );
   },
@@ -1448,17 +1482,30 @@ export const api = {
     attachment?: { fileName: string; dataBase64: string };
     odooVoucherNo?: string;
   }) =>
-    handleRequest<ManualJournal>('/finance/journals/manual', {
+    handleRequest<ManualJournalItem>('/finance/journals/manual', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   approveManualJournal: (id: string) =>
-    handleRequest<{ ok: boolean; journalId?: string }>(`/finance/journals/manual/${encodeURIComponent(id)}/approve`, {
+    handleRequest<paths['/api/finance/journals/manual/{id}/approve']['post']['responses']['200']['content']['application/json']>(
+      `/finance/journals/manual/${encodeURIComponent(id)}/approve`, {
       method: 'POST',
       body: JSON.stringify({}),
     }),
+  rejectManualJournal: (id: string, body: { reason: string }) =>
+    handleRequest<paths['/api/finance/journals/manual/{id}/reject']['post']['responses']['200']['content']['application/json']>(
+      `/finance/journals/manual/${encodeURIComponent(id)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  deleteManualJournal: (id: string) =>
+    handleRequest<paths['/api/finance/journals/manual/{id}']['delete']['responses']['200']['content']['application/json']>(
+      `/finance/journals/manual/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
   reverseManualJournal: (id: string, body: { reason: string; date: string }) =>
-    handleRequest<{ ok: boolean; reversalDraftId?: string }>(`/finance/journals/manual/${encodeURIComponent(id)}/reverse`, {
+    handleRequest<paths['/api/finance/journals/manual/{id}/reverse']['post']['responses']['200']['content']['application/json']>(
+      `/finance/journals/manual/${encodeURIComponent(id)}/reverse`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -1476,10 +1523,10 @@ export const api = {
     if (params?.page) q.set('page', String(params.page));
     if (params?.pageSize) q.set('pageSize', String(params.pageSize));
     const qs = q.toString() ? `?${q.toString()}` : '';
-    return handleRequest<{ items: any[]; total: number; page: number; pageSize: number }>(`/platforms/ninja/invoices${qs}`);
+    return handleRequest<NinjaInvoicesResponse>(`/platforms/ninja/invoices${qs}`);
   },
-  getNinjaInvoice: (id: string) => handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}`),
-  uploadNinjaInvoice: (formData: FormData, commit = false) => {
+  getNinjaInvoice: (id: string) => handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}`),
+  uploadNinjaInvoice: (formData: FormData, commit = false): Promise<NinjaInvoice> => {
     const qs = commit ? '?commit=1' : '';
     const url = `/api/platforms/ninja/invoices${qs}`;
     return fetch(url, {
@@ -1491,25 +1538,25 @@ export const api = {
         const data = await res.json().catch(() => ({}));
         throw new ApiError(data?.error?.message || data?.message || 'فشل رفع فاتورة نينجا', res.status, data?.error);
       }
-      return res.json();
+      return res.json() as Promise<NinjaInvoice>;
     });
   },
   approveNinjaInvoice: (id: string) =>
-    handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+    handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
   postNinjaInvoice: (id: string) =>
-    handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/post`, { method: 'POST' }),
-  classifyNinjaInvoice: (id: string, body: any) =>
-    handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/classify`, {
+    handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/post`, { method: 'POST' }),
+  classifyNinjaInvoice: (id: string, body: Record<string, unknown>) =>
+    handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/classify`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   disputeNinjaInvoice: (id: string, body: { reason: string }) =>
-    handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/dispute`, {
+    handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/dispute`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   resolveNinjaDispute: (id: string, body: { disputeId: string; reason: string }) =>
-    handleRequest<any>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/resolve`, {
+    handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/resolve`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -1521,28 +1568,28 @@ export const api = {
       period: params.period,
       companyId: params.companyId,
     });
-    return handleRequest<any>(`/pay/review-draft?${q.toString()}`);
+    return handleRequest<PayReviewDraft>(`/pay/review-draft?${q.toString()}`);
   },
 
   // Riders Lookup (C6 / A7)
-  getRidersLookup: (query: string) =>
-    handleRequest<any[]>(`/riders/lookup?q=${encodeURIComponent(query)}`),
+  getRidersLookup: (query: string, limit = 20) =>
+    handleRequest<RiderLookupItem[]>(`/riders/lookup?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(String(limit))}`),
 
   // Pay Settings Lifecycle (C4 / A6)
-  getPayAppDefaults: (app: string) => handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/defaults`),
-  getAppEligibility: (app: string) => handleRequest<any[]>(`/pay/apps/${encodeURIComponent(app)}/eligibility`),
-  createAppEligibility: (app: string, input: any, period?: string) =>
-    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility${period ? `?period=${encodeURIComponent(period)}` : ''}`, {
+  getPayAppDefaults: (app: string) => handleRequest<PayCatalog['defaults']>(`/pay/apps/${encodeURIComponent(app)}/defaults`),
+  getAppEligibility: (app: string) => handleRequest<PayEligibilityResponse>(`/pay/apps/${encodeURIComponent(app)}/eligibility`),
+  createAppEligibility: (app: string, input: Record<string, unknown>, period?: string) =>
+    handleRequest<PayEligibilityItem>(`/pay/apps/${encodeURIComponent(app)}/eligibility${period ? `?period=${encodeURIComponent(period)}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
   approveAppEligibility: (app: string, id: string) =>
-    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+    handleRequest<PayEligibilityItem>(`/pay/apps/${encodeURIComponent(app)}/eligibility/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
   rejectPaySetting: (kind: string, app: string, id: string, reason: string) => {
     const url = kind === 'pay_setting'
       ? `/pay/settings/${encodeURIComponent(id)}/reject`
       : `/pay/apps/${encodeURIComponent(app)}/${kind.replace('pay_', '')}/${encodeURIComponent(id)}/reject`;
-    return handleRequest<any>(url, {
+    return handleRequest<PayEligibilityItem>(url, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
@@ -1551,7 +1598,7 @@ export const api = {
     const url = kind === 'pay_setting'
       ? `/pay/settings/${encodeURIComponent(id)}`
       : `/pay/apps/${encodeURIComponent(app)}/${kind.replace('pay_', '')}/${encodeURIComponent(id)}`;
-    return handleRequest<any>(url, { method: 'DELETE' });
+    return handleRequest<{ id: string; deleted?: boolean }>(url, { method: 'DELETE' });
   },
 
   // Import Center (K6 / R6c)

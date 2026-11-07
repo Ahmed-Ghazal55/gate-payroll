@@ -822,20 +822,36 @@ export interface PayCycle {
   sponsorId?: string;
   app?: string;
   stage: number;
-  status: 'draft' | 'review' | 'needs_decision' | 'approved' | 'cancelled' | 'reversed';
-  invoices: any[];
-  riders?: any[];
+  status: 'draft' | 'review' | 'needs_decision' | 'approved' | 'cancelled' | 'reversed' | string;
+  invoices?: any[];
+  riders?: Array<{
+    rider: string;
+    net: number;
+    carried?: number;
+    closing?: number;
+    status: string;
+    review?: string;
+    gross?: number;
+    commission?: number;
+    afterCommission?: number;
+    phase1?: number;
+    preliminaryDue?: number;
+    phase2?: number;
+    phase3?: number;
+  }>;
   deductions?: any[];
   adjustmentAccounts?: Record<string, string>;
-  createdBy: string;
-  createdAt: string;
+  createdBy?: string;
+  createdAt?: string;
   advancedBy?: string;
   approvedBy?: string;
   approvedAt?: string;
+  allowedActions?: string[];
+  journalEntryId?: string;
   history?: Array<{
     stage: number;
-    advancedBy: string;
-    at: string;
+    advancedBy?: string;
+    at?: string;
   }>;
 }
 
@@ -1250,22 +1266,30 @@ export interface ManualJournalLine {
 
 export interface ManualJournal {
   id: string;
-  companyId: string;
+  companyId?: string;
   companyName?: string;
-  date: string;
-  reference: string;
-  description: string;
-  status: 'draft' | 'approved';
-  lines: ManualJournalLine[];
-  maker: string;
-  createdAt: string;
+  date?: string;
+  reference?: string;
+  description?: string;
+  status: string;
+  lines?: ManualJournalLine[];
+  maker?: string;
+  createdBy?: string;
+  createdAt?: string;
   approvedBy?: string;
   approvedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+  reversalOfId?: string;
+  reversalReason?: string;
   odooVoucherNo?: string;
   attachmentName?: string;
   hasAttachment?: boolean;
   totalDebit?: number;
   totalCredit?: number;
+  allowedActions?: string[];
+  journalEntryId?: string;
 }
 
 // =========================================================================
