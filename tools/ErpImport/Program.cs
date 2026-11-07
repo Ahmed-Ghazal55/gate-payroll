@@ -77,6 +77,8 @@ try
         {
             List<JsonObject>? riders=null;Dictionary<string,List<JsonObject>>? history=null;
             using var read=args.Contains("--lookup-riders")?Connections.Target(targetEnv):null;
+            // Capture before Open: SqlConnection drops the password from ConnectionString once opened.
+            string? openingTarget=read?.ConnectionString;
             if(read!=null){read.Open();riders=DebtSheetImporter.Riders(read);}
             if(args.Contains("--lookup-erp-history"))
             {
@@ -99,7 +101,7 @@ try
                     if(!args.Contains("--after-db-move"))throw new ImportFailure("opening_after_db_move_required");
                     DebtSheetImporter.EnsureCommittable(opening.Preview);
                     if(Store.List(read,"cutover_receipt").Count==0)throw new ImportFailure("opening_database_move_receipt_required");
-                    var store=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),read.ConnectionString);
+                    var store=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),openingTarget);
                     opening.Review.Summary["load"]=DebtSheetImporter.CommitReviewedOpening(store,opening.Preview,fingerprint,true);
                 }
             }

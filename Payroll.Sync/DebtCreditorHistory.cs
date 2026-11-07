@@ -38,9 +38,12 @@ public static class DebtCreditorHistory
         if(periods.Any(r=>Date(r,"EffectiveFrom")==null||S(r,"EffectiveTo")!=""&&Date(r,"EffectiveTo")==null||Date(r,"EffectiveTo")<Date(r,"EffectiveFrom")))
             return new("","erp_history_invalid_period",["app.EmployeeSponsorshipPeriods"],["EffectiveFrom","EffectiveTo"],"invalid_period");
         var cutoff=new DateOnly(2026,10,31);
+        // The creditor is the sponsor on the balance date; an ended period only when none covers it.
+        var covering=periods.Where(r=>Date(r,"EffectiveFrom")<=cutoff&&(Date(r,"EffectiveTo") is not {} to||to>=cutoff)).ToArray();
         var ended=periods.Where(r=>Date(r,"EffectiveTo") is {} d&&d<=cutoff).ToArray();
         JsonObject[] selected=[];string basis="latest_known";
-        if(ended.Length>0){var latest=ended.Max(r=>Date(r,"EffectiveTo"));selected=ended.Where(r=>Date(r,"EffectiveTo")==latest).ToArray();basis="latest_period_ended_by_balance_date";}
+        if(covering.Length>0){selected=covering;basis="period_covering_balance_date";}
+        else if(ended.Length>0){var latest=ended.Max(r=>Date(r,"EffectiveTo"));selected=ended.Where(r=>Date(r,"EffectiveTo")==latest).ToArray();basis="latest_period_ended_by_balance_date";}
         else if(periods.Length>0){var latest=periods.Max(r=>Date(r,"EffectiveFrom"));selected=periods.Where(r=>Date(r,"EffectiveFrom")==latest).ToArray();}
         string[] names,columns;
         if(selected.Length>0){names=["app.Employees","app.EmployeeSponsorshipPeriods","app.Sponsors"];columns=["Employees.IqamaNo","EmployeeSponsorshipPeriods.EmployeeId","EmployeeSponsorshipPeriods.SponsorId","EmployeeSponsorshipPeriods.EffectiveFrom","EmployeeSponsorshipPeriods.EffectiveTo","Sponsors.EmployerIdentityNumber","Sponsors.CommercialRegistrationNumber","Sponsors.UnifiedNationalNumber"];}

@@ -29,9 +29,11 @@ public sealed class DebtOpeningTests
         ["EmployeeSponsorshipPeriods"]=[new(){["Id"]="closed",["EmployeeId"]="former",["SponsorId"]="source-ex",["EffectiveFrom"]="2026-01-01",["EffectiveTo"]="2026-10-20",["Status"]=4},new(){["Id"]="new",["EmployeeId"]="former",["SponsorId"]="source-bw",["EffectiveFrom"]="2026-10-21",["EffectiveTo"]=null,["Status"]=2}]
     };
     [TestMethod]
-    public void HistoryUsesLatestEndedPeriodIncludingFormerDeletedEmployeesAndAmbiguityStaysBlocked()
+    public void HistoryUsesBalanceDatePeriodThenLatestEndedIncludingFormerDeletedEmployeesAndAmbiguityStaysBlocked()
     {
         var h=History();var r=DebtCreditorHistory.Resolve(h,F.Id,FinancialCore.Sponsors);
+        Assert.AreEqual(FinancialCore.ResolveSponsor("BW").Id,r.Company);Assert.AreEqual("period_covering_balance_date",r.Basis);
+        h["EmployeeSponsorshipPeriods"][1]["EffectiveFrom"]="2026-11-05";r=DebtCreditorHistory.Resolve(h,F.Id,FinancialCore.Sponsors);
         Assert.AreEqual(FinancialCore.ResolveSponsor("EX").Id,r.Company);Assert.AreEqual("latest_period_ended_by_balance_date",r.Basis);
         h["EmployeeSponsorshipPeriods"].Add(new(){["Id"]="conflict",["EmployeeId"]="former",["SponsorId"]="source-bw",["EffectiveFrom"]="2026-02-01",["EffectiveTo"]="2026-10-20",["Status"]=4});
         Assert.AreEqual("erp_history_ambiguous_company",DebtCreditorHistory.Resolve(h,F.Id,FinancialCore.Sponsors).Reason);
