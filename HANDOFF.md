@@ -2,38 +2,53 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Antigravity (Gemini 3.8) |
-| Branch | feat/r8-ninja-web; merged feat/r8-ninja-api (d7e2feb) |
-| Updated | 2026-11-07 by Antigravity (Gemini 3.8) |
-| Live | Last handoff: 0.17.0 on SQL db77738; not rechecked this run |
+| Current writer | Claude Code (integration) |
+| Branch | release/0.18.0 = fix/0.17.1 + feat/r8-ninja-web (incl. feat/r8-ninja-api) + feat/r8-rider-app |
+| Updated | 2026-11-08 by Claude Code |
+| Live | 0.17.0 on SQL db77738; 0.17.1 (PR #30) waits for «ادمج» |
 
 ## Goal now
-First real Ninja payroll, 2026-10, in the browser against db77738. Completed fix round 1 (WF-0 to WF-4).
+Run the first real Ninja payroll for 2026-10 in the browser against db77738 (runbook `docs/runbooks/NINJA-2026-10.md`).
 
-## R8 Web Fix Round 1 (WF-0 to WF-4 Completed)
-- **WF-0 (Done - commit `217559e`):** Merged `feat/r8-ninja-api` (`d7e2feb`). Ran `node scripts/gen-api-types.mjs --check` with 0 diff.
-- **WF-1 (Done - commit `c8ba478`):** Bound all R8 endpoints in `web/src/lib/api.ts` and screens to contract types. Verified intentional typo causes `npm run build` failure, then reverted. Remaining `any` in R8 components is 0.
-- **WF-2 (Done - commit `d3350a6`):** `RiderPicker` uses server lookup only (`GET /api/riders/lookup`), displays server chips, handles Arabic error string, and shows «غير موجود — أضف المندوب أولاً». `ManualJournalsPanel` respects `allowedActions` for approve/reject/delete/reverse with a Reject Reason Dialog modal.
-- **WF-3 (Done - commit `b2981e9`):** `uploadNinjaInvoice` in `api.ts` parses `data.error` (string) and `data.code` identical to `handleRequest`.
-- **WF-4 (Done - commit `4659498`):** Rewrote `web/tests/r8-ninja-flow.mjs` to actively drive the end-to-end flow in the browser:
-  1. Starts live dotnet server and seeds only start-of-month baseline records.
-  2. Verifies User A (maker) sees no «اعتماد» button on their own invoice (`maker ≠ checker`).
-  3. User B (checker) approves invoice in browser (`#btn-approve-ninja-invoice`).
-  4. User B checks Review Draft: asserts 0 blockers (`0 Blockers`) and per-account totals equal invoice line total (4,500.00 SAR).
-  5. User B clicks «إنشاء دورة الرواتب».
-  6. User B advances stages with real buttons until stage 4 lines are generated.
-  7. Opens «كيف حُسب؟» Explain Drawer and asserts net entitlement equals API value from `GET /api/pay/cycles/{id}/lines` (4,050.00 SAR).
-  8. All 16 screenshots saved across 1440 & 360 in light & dim modes in `test-results/r8-web/`.
+## R8 status
+- **API (Codex C1–C5, C8 doc; Claude C6/C7):**
+  - OpenAPI contract `/openapi/v1.json` with a snapshot in `docs/api/openapi.v1.json`; `web/src/lib/api-contract.ts` is generated from it, and CI fails on diff.
+  - Ninja invoice: per-account upload, approve (maker ≠ checker), `allowedActions`.
+  - `GET /pay/review-draft` with blockers.
+  - Draft discard for pay settings.
+  - `GET /api/riders/lookup` (normalised Arabic search).
+  - Manual journal reject/delete.
+  - **C8 live dry-run NOT run yet.**
+- **Web (Gemini 3.8 A1–A7 + WF-0..WF-4):**
+  - Extended DataTable, StatCard filters, RiderPicker (server lookup only), Ninja stepper, review draft, cycle stages, «كيف حُسب», rules editor.
+  - R8 calls are typed from the contract.
+  - `web/tests/r8-ninja-flow.mjs` drives the real flow on a synthetic month:
+    - maker ≠ checker approve → 0 blockers → create cycle → stages 1–4;
+    - the explain net equals the API value.
+- **Mobile (Argon M1–M7, F1–F4, N1–N4):**
+  - `mobile/` Capacitor Android app.
+  - `PushNotifications.cs`: FCM v1 from env `Firebase__ServiceAccountJson`, `push_outbox`, background flush, backoff.
+  - `POST /api/rider-mobile/device-token`.
+  - Vitest 10/10.
+  - **Ghazal after deploy:** re-save the Firebase settings once (removes the legacy stored key).
+  - Then follow `mobile/README.md` steps 1–7.
 
-## Requests to Codex
-1. In `docs/api/openapi.v1.json`, expose `approvedBy`, `rejectedBy`, and `rejectionReason` on `/api/pay/apps/{app}/eligibility` so the UI can type them directly from the contract.
-2. In `docs/api/openapi.v1.json`, provide concrete schemas for `history` in `/api/pay/cycles` and `lines` in `/api/pay/cycles/{id}/lines` instead of `Record<string, never>[]`.
+## Known gaps (after integration)
+1. Contract schemas are loose, so the UI still uses casts:
+   - `history` in `/api/pay/cycles`;
+   - `lines` in `/api/pay/cycles/{id}/lines`;
+   - `approvedBy` / `rejectedBy` / `rejectionReason` on eligibility.
+2. The pay-settings lifecycle methods in `api.ts` (terms/schemes/eligibility/settings) still return `any`.
+3. The flow test checks the draft total against a fixed `4,500.00` instead of the invoice API value, and stops at stage 4 (statements and posting are not driven in the browser).
+4. In the explain drawer, long raw `parameters` JSON overflows the card on the left.
 
-## Test Results
-- `npm run build`: PASS (TypeScript exit 0, static export clean).
-- `node web/tests/ui-qa.mjs`: PASS (all tests a, b, c, d with 0 failures).
-- `node web/tests/r8-ninja-flow.mjs`: PASS (WF-4 complete, 16 screenshots generated).
-- Remaining `any` count in R8 files: 0.
+## Next
+1. Ghazal: «ادمج» PR #30 (0.17.1), then the 0.18.0 PR.
+2. Claude: C8 read-only dry-run on db77738 (counts only), output to `~/Private/gate-data/sync-logs/r8-ninja-dryrun.json`.
+3. Ghazal: «حمّل» per write step in the runbook.
+4. Ghazal: fill the decision sheet for the 379 debt rows.
+5. Passwords: rotate at the final ERP integration (Ghazal's decision 2026-11-07).
 
-## Capacity / Usage Screen %
-93% remaining before → 87% remaining after (Gemini Models weekly pool).
+## Capacity reported
+- Gemini 3.8: 93% → 87% for fix round 1.
+- Argon: 100% → ~88% for M1–N4.

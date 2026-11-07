@@ -787,37 +787,49 @@ public static class FinancialCore
             }, false);
         }).WithTags("Riders").WithSummary("Submit rider mobile login").RequireRateLimiting("sensitive");
 
-        api.MapPost("/rider-mobile/broadcast", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
+        api.MapPost("/rider-mobile/broadcast", (JsonObject input, HttpContext ctx) =>
         {
-            string category = input.S("category", "operational"); // financial | operational | administrative | form_link
-            string titleAr = input.Required("titleAr");
-            string bodyAr = input.Required("bodyAr");
-            string targetIqama = input.S("iqama", "ALL");
-            if(targetIqama=="ALL"){if(!FinancialScopes.AllCompanies(ctx.User))throw new ApiError("النشر العام يحتاج نطاقًا على جميع السجلات.",403);}
-            else FinancialScopes.DemandRider(ctx.User,Store.Get(c,J.Iqama(targetIqama),"rider",tx)??throw new ApiError("المندوب غير موجود.",404));
-            string actionUrl = input.S("actionUrl");
-            J.Need(string.IsNullOrWhiteSpace(actionUrl) || (Uri.TryCreate(actionUrl, UriKind.Absolute, out var action) && action.Scheme == "https") || (actionUrl.StartsWith("/") && !actionUrl.StartsWith("//")), "رابط الإشعار غير صالح.");
-            bool requiresAck = input.B("requiresAck");
-
-            var msg = new JsonObject
+            var msg = store.Write((c, tx) =>
             {
-                ["id"] = Guid.NewGuid().ToString("N"),
-                ["category"] = category,
-                ["titleAr"] = titleAr,
-                ["bodyAr"] = bodyAr,
-                ["targetIqama"] = targetIqama,
-                ["actionUrl"] = actionUrl,
-                ["requiresAck"] = requiresAck,
-                ["deliveryChannel"] = "in_app",
-                ["deliveryStatus"] = "stored",
-                ["acknowledgedBy"] = new JsonArray(),
-                ["sentBy"] = ctx.User.Identity!.Name!,
-                ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
-            };
-            Store.Save(c, "mobile_broadcast", msg, tx);
-            Store.Audit(c, tx, "mobile.broadcast", msg.S("id"), ctx.User.Identity!.Name!);
+                string category = input.S("category", "operational"); // financial | operational | administrative | form_link
+                string titleAr = input.Required("titleAr");
+                string bodyAr = input.Required("bodyAr");
+                string targetIqama = input.S("iqama", "ALL");
+                if (targetIqama == "ALL")
+                {
+                    if (!FinancialScopes.AllCompanies(ctx.User)) throw new ApiError("النشر العام يحتاج نطاقًا على جميع السجلات.", 403);
+                }
+                else
+                {
+                    FinancialScopes.DemandRider(ctx.User, Store.Get(c, J.Iqama(targetIqama), "rider", tx) ?? throw new ApiError("المندوب غير موجود.", 404));
+                }
+                string actionUrl = input.S("actionUrl");
+                J.Need(string.IsNullOrWhiteSpace(actionUrl) || (Uri.TryCreate(actionUrl, UriKind.Absolute, out var action) && action.Scheme == "https") || (actionUrl.StartsWith("/") && !actionUrl.StartsWith("//")), "رابط الإشعار غير صالح.");
+                bool requiresAck = input.B("requiresAck");
+
+                var m = new JsonObject
+                {
+                    ["id"] = Guid.NewGuid().ToString("N"),
+                    ["category"] = category,
+                    ["titleAr"] = titleAr,
+                    ["bodyAr"] = bodyAr,
+                    ["targetIqama"] = targetIqama,
+                    ["actionUrl"] = actionUrl,
+                    ["requiresAck"] = requiresAck,
+                    ["deliveryChannel"] = "in_app",
+                    ["deliveryStatus"] = "stored",
+                    ["acknowledgedBy"] = new JsonArray(),
+                    ["sentBy"] = ctx.User.Identity!.Name!,
+                    ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
+                };
+                Store.Save(c, "mobile_broadcast", m, tx);
+                Store.Audit(c, tx, "mobile.broadcast", m.S("id"), ctx.User.Identity!.Name!);
+                PushNotifications.EnqueueBroadcast(c, tx, m.S("id"), targetIqama, titleAr, bodyAr, actionUrl);
+                return m;
+            });
+            PushNotifications.FlushOutbox(store);
             return msg;
-        })).WithTags("Riders").WithSummary("Submit rider mobile broadcast");
+        }).WithTags("Riders").WithSummary("Submit rider mobile broadcast");
 
         // This shared read supports the existing staff cookie and the rider's bearer session.
         app.MapGet("/api/rider-mobile/broadcasts", (HttpContext ctx) =>
@@ -841,6 +853,7 @@ public static class FinancialCore
         {
             var cfg = Store.Get(c, "firebase:config", "setting");
             var sessions = Store.List(c, "mobile_session");
+            var outbox = Store.List(c, PushNotifications.Kind);
             string baseUrl = CampaignLinks.Base(app.Configuration, ctx);
             return new
             {
@@ -849,19 +862,27 @@ public static class FinancialCore
                 vapidPublicKey = cfg?.S("vapidPublicKey", "") ?? "",
                 androidPackageName = cfg?.S("androidPackageName", "com.albawaba.gate.rider") ?? "com.albawaba.gate.rider",
                 googlePlayUrl = cfg?.S("googlePlayUrl", "") ?? "",
-                hasServiceAccountJson = !string.IsNullOrWhiteSpace(cfg?.S("serviceAccountJson")),
+                hasServiceAccountJson = PushNotifications.HasServiceAccount(),
+                legacyStoredKey = !string.IsNullOrWhiteSpace(cfg?.S("serviceAccountJson")),
                 configured = cfg != null && !string.IsNullOrWhiteSpace(cfg.S("projectId")),
                 webMobilePortalUrl = baseUrl + "/rider-app",
                 inquiryPortalUrl = baseUrl + "/inquiry",
                 activeSessionsCount = sessions.Count,
                 fcmRegisteredDevicesCount = sessions.Count(s => !string.IsNullOrWhiteSpace(s.S("fcmDeviceToken"))),
+                outboxSentCount = outbox.Count(x => x.S("status") == "sent"),
+                outboxFailedCount = outbox.Count(x => x.S("status") == "failed"),
+                outboxPendingCount = outbox.Count(x => x.S("status") == "pending"),
                 updatedAt = cfg?.S("updatedAt") ?? ""
             };
         })).WithTags("Riders").WithSummary("Read rider mobile firebase config");
 
         api.MapPost("/rider-mobile/firebase-config", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
-            var existing = Store.Get(c, "firebase:config", "setting", tx);
+            if (!string.IsNullOrWhiteSpace(input.S("serviceAccountJson")))
+            {
+                throw new ApiError("لا يمكن حفظ مفتاح حساب الخدمة في قاعدة البيانات لأسباب أمنية؛ يرجى ضبط المتغير البيئي Firebase__ServiceAccountJson على السيرفر.", 400);
+            }
+
             var doc = new JsonObject
             {
                 ["id"] = "firebase:config",
@@ -870,7 +891,6 @@ public static class FinancialCore
                 ["vapidPublicKey"] = input.S("vapidPublicKey").Trim(),
                 ["androidPackageName"] = input.S("androidPackageName", "com.albawaba.gate.rider").Trim(),
                 ["googlePlayUrl"] = input.S("googlePlayUrl", "").Trim(),
-                ["serviceAccountJson"] = string.IsNullOrWhiteSpace(input.S("serviceAccountJson")) ? (existing?.S("serviceAccountJson") ?? "") : input.S("serviceAccountJson"),
                 ["updatedBy"] = ctx.User.Identity!.Name!,
                 ["updatedAt"] = DateTimeOffset.UtcNow.ToString("O")
             };
