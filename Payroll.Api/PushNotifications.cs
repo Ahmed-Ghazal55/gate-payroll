@@ -30,6 +30,7 @@ public static class PushNotifications
     private static string? _cachedAccessToken;
     private static DateTimeOffset _tokenExpiryUtc = DateTimeOffset.MinValue;
     private static readonly object _tokenLock = new();
+    private static int _isFlushing = 0;
 
     public static void ResetCache()
     {
@@ -40,6 +41,7 @@ public static class PushNotifications
         }
         TestHttpMessageHandler = null;
         ServiceAccountJsonOverride = null;
+        Interlocked.Exchange(ref _isFlushing, 0);
     }
 
     public static bool HasServiceAccount()
@@ -65,6 +67,7 @@ public static class PushNotifications
             ["link"] = link ?? "",
             ["status"] = "pending",
             ["attempts"] = 0,
+            ["nextAttemptAt"] = "",
             ["lastError"] = "",
             ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"),
             ["updatedAt"] = DateTimeOffset.UtcNow.ToString("O")
@@ -106,34 +109,55 @@ public static class PushNotifications
 
     public static async Task<int> FlushOutboxAsync(Store store)
     {
-        var pendingItems = store.Read(c =>
-            Store.List(c, Kind)
-                .Where(x => x.S("status") == "pending" && x.N("attempts") < 3)
-                .OrderBy(x => x.S("createdAt"))
-                .Take(50)
-                .ToList());
-
-        if (pendingItems.Count == 0) return 0;
-
-        int processed = 0;
-        foreach (var item in pendingItems)
+        if (Interlocked.CompareExchange(ref _isFlushing, 1, 0) != 0)
         {
-            await ProcessItemAsync(store, item);
-            processed++;
+            return 0;
         }
-        return processed;
+
+        try
+        {
+            int totalProcessed = 0;
+            while (true)
+            {
+                var nowIso = DateTimeOffset.UtcNow.ToString("O");
+                var pendingBatch = store.Read(c =>
+                    Store.List(c, Kind)
+                        .Where(x => x.S("status") == "pending" &&
+                                    x.N("attempts") < 3 &&
+                                    (string.IsNullOrEmpty(x.S("nextAttemptAt")) || string.CompareOrdinal(x.S("nextAttemptAt"), nowIso) <= 0))
+                        .OrderBy(x => x.S("createdAt"))
+                        .Take(50)
+                        .ToList());
+
+                if (pendingBatch.Count == 0) break;
+
+                foreach (var item in pendingBatch)
+                {
+                    await ProcessItemAsync(store, item);
+                    totalProcessed++;
+                }
+            }
+            return totalProcessed;
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isFlushing, 0);
+        }
     }
 
     public static void FlushOutbox(Store store)
     {
-        try
+        _ = Task.Run(async () =>
         {
-            Task.Run(() => FlushOutboxAsync(store)).GetAwaiter().GetResult();
-        }
-        catch
-        {
-            // Background push errors do not roll back callers
-        }
+            try
+            {
+                await FlushOutboxAsync(store);
+            }
+            catch
+            {
+                // Background push errors do not roll back callers
+            }
+        });
     }
 
     private static async Task ProcessItemAsync(Store store, JsonObject item)
@@ -245,6 +269,7 @@ public static class PushNotifications
                     if (row == null) return false;
                     row["status"] = "sent";
                     row["attempts"] = attempts;
+                    row["nextAttemptAt"] = "";
                     row["sentAt"] = DateTimeOffset.UtcNow.ToString("O");
                     row["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
                     Store.Save(c, Kind, row, tx);
@@ -261,7 +286,17 @@ public static class PushNotifications
                     if (row != null)
                     {
                         row["attempts"] = attempts;
-                        row["status"] = isUnregistered || attempts >= 3 ? "failed" : "pending";
+                        if (isUnregistered || attempts >= 3)
+                        {
+                            row["status"] = "failed";
+                            row["nextAttemptAt"] = "";
+                        }
+                        else
+                        {
+                            row["status"] = "pending";
+                            var delay = attempts == 1 ? TimeSpan.FromMinutes(1) : TimeSpan.FromMinutes(5);
+                            row["nextAttemptAt"] = DateTimeOffset.UtcNow.Add(delay).ToString("O");
+                        }
                         row["lastError"] = isUnregistered ? "UNREGISTERED" : $"FCM error {response.StatusCode}";
                         row["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
                         Store.Save(c, Kind, row, tx);
@@ -294,7 +329,17 @@ public static class PushNotifications
                 if (row != null)
                 {
                     row["attempts"] = attempts;
-                    row["status"] = attempts >= 3 ? "failed" : "pending";
+                    if (attempts >= 3)
+                    {
+                        row["status"] = "failed";
+                        row["nextAttemptAt"] = "";
+                    }
+                    else
+                    {
+                        row["status"] = "pending";
+                        var delay = attempts == 1 ? TimeSpan.FromMinutes(1) : TimeSpan.FromMinutes(5);
+                        row["nextAttemptAt"] = DateTimeOffset.UtcNow.Add(delay).ToString("O");
+                    }
                     row["lastError"] = ex.Message;
                     row["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
                     Store.Save(c, Kind, row, tx);
