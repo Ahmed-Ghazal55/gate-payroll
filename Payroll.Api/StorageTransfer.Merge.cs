@@ -51,6 +51,7 @@ public static partial class StorageTransfer
             if(kind!=dst.S("kind")||id!=dst.S("id")){Conflict(kind,id,"kind_or_id_case_collision");continue;}
             var sb=(JsonObject)src["body"]!;var tb=(JsonObject)dst["body"]!;
             if(CutoverHash(sb)==CutoverHash(tb))continue;
+            if(sb.S("voucherNo")!=""&&tb.S("voucherNo")!=""&&sb.S("voucherNo")!=tb.S("voucherNo")){Conflict(kind,id,"issued_voucher_collision");continue;}
             var body=PayrollKinds.Contains(kind)?sb.Clone():tb.Clone();bool unresolved=false;
             foreach(var field in sb)
             {
@@ -112,7 +113,7 @@ public static partial class StorageTransfer
                 string archiveId="cutover-origin:"+CutoverHash(JsonValue.Create(fingerprint+":"+side+":"+id));
                 Store.Save(c,"cutover_origin",new(){["id"]=archiveId,["side"]=side,["record"]=original.DeepClone(),["planFingerprint"]=fingerprint},tx);
             }
-            Store.Save(c,row.S("kind"),(JsonObject)row["body"]!,tx);
+            Store.Save(c,row.S("kind"),(JsonObject)row["body"]!,tx,preserveSnapshot:true);
         }
         Store.Save(c,"cutover_receipt",new(){["id"]="cutover:"+fingerprint,["planFingerprint"]=fingerprint,["sourceHash"]=reviewed["sourceHash"]!.DeepClone(),["targetHash"]=reviewed["targetHash"]!.DeepClone(),["at"]=DateTimeOffset.UtcNow.ToString("O")},tx);
         var result=VerifyMerge(c,reviewed,fingerprint,tx);J.Need(result.B("verified"),"cutover_verification_failed");tx.Commit();return result;

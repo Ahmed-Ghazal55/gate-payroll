@@ -20,9 +20,10 @@
 ## Next step (exact)
 - C0 tooling done: read-only inventory/hashed collisions; explicit merge and originals archived atomically; WAL-safe FTPS download; docs/ops/DB-CUTOVER.md has ordered Ghazal commands. Live preview/import/switch NOT RUN (await Ghazal / «انقل»).
 - C0:190851c; full337/337 .NET tests,0skipped;18/18 FTPS. No live inventory/import/switch.
-- C6: manual drafts/independent approval, company/account scope, private attachments, open-period reversing drafts;6/6 behavior tests +24 combined HTTP checks.
+- C7: server HMAC vouchers, atomic per-company/type/year counters, immutable numbers, Odoo uniqueness/search, public status/type verification30/min; full356/356 .NET (synthetic SQL),0skipped;56 HTTP checks.
+- C6:d4302b2 manual drafts/independent approval, company/account scope, private attachments, open-period reversing drafts;6/6 behavior tests +24 combined HTTP checks.
 - C4:d42213e Ninja signed multipart import, duplicate refusal, invoice-final differences, classifications/disputes, gated accounting and payroll source integration;24 focused tests +15 HTTP checks passed; build0warnings/errors.
-- Next C7 vouchers; then C3 Mada/postings; optional C5 FCM.
+- Next C3 Mada/postings; optional C5 FCM.
 
 ## How to verify
 - Cache-only dotnet restore tests/Engine.Tests/Engine.Tests.csproj --source "$HOME/.nuget/packages" -p:NuGetAudit=false --disable-parallel -m:1

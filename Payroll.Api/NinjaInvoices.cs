@@ -66,7 +66,7 @@ public static class NinjaInvoices
             lines.Add(new JsonObject{["id"]="ninja-line:"+Hash(id+":"+adjustment.N("row")),["invoiceId"]=id,["companyId"]=company,["period"]=period,["platform"]="Ninja",["sourceRow"]=adjustment.N("row"),["lineType"]="company",["platformAccountId"]="",["baseGross"]=0,["incentives"]=0,["deductionAmount"]=-amount,["deductions"]=new JsonArray(new JsonObject{["category"]="supplier_adjustment",["amount"]=-amount,["level"]="unclassified"}),["orders"]=0,["vat"]=J.Money(adjustment.N("totalCost")-amount),["expected"]=amount,["invoiced"]=amount,["difference"]=0,["reason"]="supplier adjustment as invoiced",["status"]="invoiced"});
         }
         J.Need(lines.Count>0,"الفاتورة فارغة.");
-        return new(){["id"]=id,["platform"]="Ninja",["companyId"]=company,["period"]=period,["reference"]=reference,["sourceSha256"]=hash,["termsSource"]=termsSource,["amountExclVat"]=lines.OfType<JsonObject>().Sum(l=>l.N("baseGross")+l.N("incentives")),["deductionsTotal"]=lines.OfType<JsonObject>().Sum(l=>l.N("deductionAmount")),["vat"]=lines.OfType<JsonObject>().Sum(l=>l.N("vat")),["status"]="invoiced",["lines"]=lines};
+        return new(){["id"]=id,["platform"]="Ninja",["companyId"]=company,["period"]=period,["reference"]=reference,["sourceSha256"]=hash,["termsSource"]=termsSource,["amountExclVat"]=lines.OfType<JsonObject>().Sum(l=>l.N("baseGross")+l.N("incentives")),["deductionsTotal"]=lines.OfType<JsonObject>().Sum(l=>l.N("deductionAmount")),["vat"]=lines.OfType<JsonObject>().Sum(l=>l.N("vat")),["status"]="invoiced",["odooVoucherNo"]=input.S("odooVoucherNo"),["lines"]=lines};
     }
     public static JsonObject Preview(DbConnection c,ClaimsPrincipal actor,JsonObject input,byte[] bytes)
     {var rows=new JsonArray(Parse(c,null,actor,input,bytes));return new(){["rows"]=rows,["canCommit"]=true,["fingerprint"]=FinancialImports.Issue(c,PreviewKind,rows,actor.Identity!.Name!)};}
@@ -128,7 +128,7 @@ public static class NinjaInvoices
         api.MapPost("/platforms/ninja/invoices",async(HttpContext ctx)=>
         {
             AccessPolicy.Demand(ctx.User,"pay.manage");J.Need(ctx.Request.HasFormContentType,"ارفع ملفxlsx كـmultipart.");var form=await ctx.Request.ReadFormAsync();J.Need(form.Files.Count==1,"ملف واحد لكل فاتورة.");var file=form.Files[0];J.Need(file.Length is >0 and <=8*1024*1024&&Path.GetExtension(file.FileName).Equals(".xlsx",StringComparison.OrdinalIgnoreCase),"ملفxlsx حتى8ميجابايت.");
-            using var buffer=new MemoryStream();await file.CopyToAsync(buffer,ctx.RequestAborted);byte[] bytes=buffer.ToArray();var input=new JsonObject{["companyId"]=form["companyId"].ToString(),["period"]=form["period"].ToString(),["reference"]=form["reference"].ToString()};
+            using var buffer=new MemoryStream();await file.CopyToAsync(buffer,ctx.RequestAborted);byte[] bytes=buffer.ToArray();var input=new JsonObject{["companyId"]=form["companyId"].ToString(),["period"]=form["period"].ToString(),["reference"]=form["reference"].ToString(),["odooVoucherNo"]=form["odooVoucherNo"].ToString()};
             if(ctx.Request.Query["commit"]!="1")return store.Read(c=>Preview(c,ctx.User,input,bytes));
             input["confirm"]=form["confirm"]=="true";input["fingerprint"]=form["fingerprint"].ToString();input["rows"]=JsonNode.Parse(form["rows"].ToString());return store.Write((c,tx)=>Commit(c,tx,ctx.User,input,bytes));
         }).DisableAntiforgery().WithTags("Platforms").WithSummary("Preview or confirm a signed Ninja XLSX invoice; invoice differences are informational");

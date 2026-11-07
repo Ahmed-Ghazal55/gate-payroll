@@ -17,7 +17,7 @@ async function call(user,route,body,status=200){
 }
 try{
  const probe=createServer();await new Promise((resolve,reject)=>{probe.once('error',reject);probe.listen(0,'127.0.0.1',resolve);});base='http://127.0.0.1:'+probe.address().port;await new Promise(resolve=>probe.close(resolve));
- child=spawn('dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,ConnectionStrings__DefaultConnection:'',Jobs__Enabled:'false',PAYROLL_DATA_DIR:data},stdio:'ignore'});
+ child=spawn('dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,ConnectionStrings__DefaultConnection:'',Jobs__Enabled:'false',Vouchers__Secret:randomBytes(32).toString('hex'),PAYROLL_DATA_DIR:data},stdio:'ignore'});
  let ready=false;for(let i=0;i<150;i++){if(child.exitCode!==null)throw Error('Synthetic API exited');try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}assert.ok(ready);
  const password=randomBytes(24).toString('hex');await call('admin','/api/auth/setup',{username:'syn-r6b-admin',password});
  await call('admin','/api/users',{username:'syn-r6b-checker',password,role:'FinancialAccountant'});await call('checker','/api/auth/login',{username:'syn-r6b-checker',password});
@@ -57,13 +57,19 @@ sys.stdout.buffer.write(out.getvalue())
  await call('admin','/api/platforms/ninja/invoices',form(),400);await call('checker','/api/platforms/ninja/invoices');
  const manual={companyId:company,date:'2026-10-20',reference:'SYNTHETIC-HTTP-MANUAL',description:'Synthetic manual operation',lines:[{accountCode:'512101',debit:25,credit:0},{accountCode:'212103',debit:0,credit:25}]};
  await call('anon','/api/finance/journals/manual',manual,401);
- const draft=await call('admin','/api/finance/journals/manual',manual);const manualId=encodeURIComponent(draft.id);assert.equal(draft.status,'draft');
+ const draft=await call('admin','/api/finance/journals/manual',manual);assert.ok(draft.voucherNo.startsWith('JV-2026-'));
+ const publicVoucher=await call('anon',draft.voucherVerifyUrl);assert.deepEqual(Object.keys(publicVoucher).sort(),['status','type']);assert.equal(publicVoucher.status,'draft');
+ const search=await call('checker','/api/search?q='+encodeURIComponent(draft.voucherNo));assert.ok(search.some(h=>h.type==='voucher'&&h.id===draft.id));const manualId=encodeURIComponent(draft.id);assert.equal(draft.status,'draft');
  const drafts=await call('checker','/api/finance/journals/manual?status=draft');assert.ok(drafts.items.some(d=>d.id===draft.id));
  await call('admin',`/api/finance/journals/manual/${manualId}/approve`,{},403);
  const journal=await call('checker',`/api/finance/journals/manual/${manualId}/approve`,{});assert.equal(journal.status,'approved');
  const reversal=await call('admin',`/api/finance/journals/manual/${manualId}/reverse`,{date:'2026-11-01',reason:'Synthetic correction'});assert.equal(reversal.status,'draft');
  await call('admin',`/api/finance/journals/manual/${encodeURIComponent(reversal.id)}/approve`,{},403);
  await call('checker',`/api/finance/journals/manual/${encodeURIComponent(reversal.id)}/approve`,{});
+ const reversed=await call('anon',draft.voucherVerifyUrl);assert.equal(reversed.status,'reversed');
+ await call('anon','/api/vouchers/verify/JV-2026-000000-00000000');
+ for(let n=0;n<27;n++)await call('anon',draft.voucherVerifyUrl);
+ await call('anon',draft.voucherVerifyUrl,undefined,429);
  await call('admin',`/api/finance/journals/manual/${encodeURIComponent(posted.journalEntryId)}/reverse`,{date:'2026-11-01',reason:'Synthetic invalid system journal'},404);
  console.log(`PASS R6b accounting: ${checks} HTTP checks on synthetic SQLite.`);
 }finally{if(child&&child.exitCode===null){child.kill('SIGTERM');await once(child,'exit');}rmSync(data,{recursive:true,force:true});}

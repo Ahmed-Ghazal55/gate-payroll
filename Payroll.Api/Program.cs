@@ -16,6 +16,7 @@ using Payroll;
 Environment.SetEnvironmentVariable("DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false).AddEnvironmentVariables();
+Vouchers.Configure(builder.Configuration["Vouchers:Secret"]);
 var dataDir = HostingSecurity.DataDirectory(Environment.GetEnvironmentVariable("PAYROLL_DATA_DIR") ?? builder.Configuration["Payroll:DataDir"] ?? "App_Data", builder.Environment.ContentRootPath, builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot"));
 Directory.CreateDirectory(dataDir);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 12 * 1024 * 1024);
@@ -43,7 +44,7 @@ builder.Services.AddOpenApi(options=>options.AddOperationTransformer((operation,
 }));
 builder.Services.AddMemoryCache(o => o.SizeLimit = 10000);
 builder.Services.AddSingleton<InquiryLimits>();
-builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
+builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
 GateJobs.Add(builder.Services,builder.Configuration,builder.Environment);
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
@@ -90,6 +91,7 @@ app.Use(async (ctx,next)=>
 app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(app.Environment.WebRootPath), OnPrepareResponse = context => { var p = context.Context.Request.Path; if (p.StartsWithSegments("/app/_next/static")) context.Context.Response.Headers.CacheControl="public, max-age=31536000, immutable"; else if (p.StartsWithSegments("/fonts") || p.StartsWithSegments("/app/fonts")) context.Context.Response.Headers.CacheControl="public, max-age=86400"; if (p.StartsWithSegments("/app") && context.File.PhysicalPath is { } html && html.EndsWith(".html", StringComparison.OrdinalIgnoreCase)) context.Context.Response.Headers["Content-Security-Policy"]=NextApp.PolicyForFile(html); } });
 app.UseRouting(); app.UseAuthorization(); app.UseRateLimiter();
 NextApp.Map(app);
+Vouchers.Map(app,store);
 app.MapGet("/health", (IJobsSchedule jobs) => new { jobs=jobs.Health(), ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent }).WithTags("Administration").WithSummary("Read  health");
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName }).WithTags("Administration").WithSummary("Read auth status");
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
@@ -271,7 +273,7 @@ api.MapPost("/payments", (JsonObject input, HttpContext ctx) => store.Write((c, 
     var sponsor=AccountingEvents.PayrollSponsor(rider,input);
     string vault=input.S("paymentVaultCode",FinancialCore.DefaultVaultForSponsor(sponsor.Id,"BANK"));
     FinancialScopes.DemandSponsor(ctx.User,sponsor.Id);FinancialScopes.DemandAccount(ctx.User,vault);FinancialScopes.DemandSponsor(ctx.User,FinancialCore.ResolveVault(vault).DefaultSponsorId!);
-    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = -amount, ["kind"] = "payment", ["sourceRef"] = reference, ["createdAt"] = Now(),["sponsorId"]=sponsor.Id,["paymentVaultCode"]=vault,["accountingVersion"]=AccountingEvents.Version,["onBehalf"]=input.B("onBehalf"),["onBehalfNote"]=input.S("onBehalfNote") };
+    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = -amount, ["kind"] = "payment", ["odooVoucherNo"]=input.S("odooVoucherNo"), ["sourceRef"] = reference, ["createdAt"] = Now(),["sponsorId"]=sponsor.Id,["paymentVaultCode"]=vault,["accountingVersion"]=AccountingEvents.Version,["onBehalf"]=input.B("onBehalf"),["onBehalfNote"]=input.S("onBehalfNote") };
     var journal=AccountingEvents.PostPayment(c,tx,doc,sponsor.Id,vault,Actor(ctx));doc["journalEntryId"]=journal.S("id");
     Store.Save(c, "ledger", doc, tx); Store.Audit(c, tx, "payment.record", doc.S("id"), Actor(ctx)); return doc;
 })).WithTags("Payroll").WithSummary("Submit payments");

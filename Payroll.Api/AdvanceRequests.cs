@@ -45,7 +45,7 @@ public static class AdvanceRequests
         string vault=Vault(type,sponsor.Id,input.S("vaultCode"));
         var reviewers=OrgDirectory.Responsible(c,tx,Review);J.Need(reviewers.Count>0,"لا يوجد محاسب مكلّف بمراجعة السلف؛ راجع التوجيه في الأقسام والرتب.",409);
         var r=new JsonObject{["id"]="adv:"+Guid.NewGuid().ToString("N"),["riderIqama"]=iqama,["riderName"]=rider.S("name"),["companyId"]=sponsor.Id,["type"]=type,["amount"]=amount,["vaultCode"]=vault,["reason"]=input.S("reason").Trim(),
-            ["status"]="under_review",["revision"]=1,["requestedBy"]=Me(actor),["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["decisions"]=new JsonArray()};
+            ["odooVoucherNo"]=input.S("odooVoucherNo"),["status"]="under_review",["revision"]=1,["requestedBy"]=Me(actor),["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["decisions"]=new JsonArray()};
         Decision(r,actor,"submitted",r.S("reason"));Save(c,tx,r,actor,"advance.requested");
         Notify(c,tx,r,Users(reviewers),"review","طلب سلفة جديد بانتظار مراجعتك",actor,true);return r;
     }
@@ -142,17 +142,18 @@ public static class AdvanceRequests
             ["originalCreditorSponsorId"]=sponsor.Id,["totalCostAmount"]=amount,["companyShareAmount"]=0m,["totalAmount"]=amount,["paidAmount"]=0m,["waivedAmount"]=0m,["remainingBalance"]=amount,["monthlyInstallment"]=r.N("monthlyInstallment"),
             ["sponsorshipSponsorId"]=sponsor.Id,["sponsorshipSponsorNameAr"]=sponsor.ShortNameAr,["originSponsorId"]=origin.Id,["originSponsorNameAr"]=origin.ShortNameAr,["creditorSponsorId"]=sponsor.Id,["creditorSponsorNameAr"]=sponsor.ShortNameAr,
             ["paymentVaultCode"]=vault,["initiatingDepartment"]="OPS",["requireMutualApproval"]=false,["status"]="active",["notes"]="طلب سلفة "+r.S("id")+" — "+r.S("reason"),["sourceRef"]="ADV-REQ:"+r.S("id"),
-            ["advanceRequestId"]=r.S("id"),["approvedBy"]=r.S("approvedBy"),["paidBy"]=Me(actor),["payoutReference"]=reference,
+            ["advanceRequestId"]=r.S("id"),["payoutOdooVoucherNo"]=input.S("odooVoucherNo"),["approvedBy"]=r.S("approvedBy"),["paidBy"]=Me(actor),["payoutReference"]=reference,
             ["effectiveFrom"]=Period(),["postingPeriod"]=Period(),["createdBy"]=Me(actor),["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};
         J.Need(!Store.List(c,"debt",tx).Any(d=>d.S("sourceRef")==debt.S("sourceRef")),"السلفة مصروفة من قبل.",409);
         Store.Save(c,"debt",debt,tx);Debts.PostCreationJournalIfNeeded(c,tx,debt,Me(actor));Store.Audit(c,tx,"debt.created",debt.S("id"),Me(actor));
         var saved=Store.Get(c,debt.S("id"),"debt",tx)!;
         Notifications.CloseTasks(c,tx,Kind,id,Me(actor));Decision(r,actor,"paid",input.S("note"),who,new(){["reference"]=reference});
+        r["payoutVoucherNo"]=saved.S("payoutVoucherNo");
         r["status"]="paid";r["debtId"]=debt.S("id");r["journalEntryId"]=saved.S("journalEntryId");r["paidBy"]=Me(actor);r["paidAt"]=DateTimeOffset.UtcNow.ToString("O");r["payoutReference"]=reference;Save(c,tx,r,actor,"advance.paid");
         Notify(c,tx,r,[r.S("requestedBy"),r.S("approvedBy")],"paid","تم صرف السلفة",actor,false);return r;
     }
 
-    static bool CanSee(DbConnection c,ClaimsPrincipal user,JsonObject r)
+    public static bool CanSee(DbConnection c,ClaimsPrincipal user,JsonObject r)
     {
         if(AccessPolicy.Administrator(user))return true;
         if(AccessPolicy.Has(user,"advances.request")&&r.S("requestedBy")==Me(user)&&OrgDirectory.Supervises(c,null,Me(user),r.S("riderIqama")))return true;

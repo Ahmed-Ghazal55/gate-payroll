@@ -28,7 +28,7 @@ public static partial class StorageTransfer
         }
         return store.Write((c,tx)=>{
             using(var count=Store.Command(c,tx,"SELECT COUNT(*) FROM records"))J.Need(Convert.ToInt64(count.ExecuteScalar())==0,"وجهة النقل ليست فارغة؛ لم تُستبدل بيانات قائمة.");
-            foreach(var row in records.OfType<JsonObject>())Store.Save(c,row.S("kind"),(JsonObject)row["body"]!,tx);
+            foreach(var row in records.OfType<JsonObject>())Store.Save(c,row.S("kind"),(JsonObject)row["body"]!,tx,preserveSnapshot:true);
             Store.Audit(c,tx,"storage.migrated",fingerprint,"operator");return records.Count;
         });
     }

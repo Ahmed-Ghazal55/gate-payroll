@@ -22,6 +22,7 @@ def permission(method,p):
  if p.startswith('/api/advance-requests'):return {'GET':'advances.request / advances.review / advances.payout; handler shows own, assigned or custodian rows'}.get(method,'advances.request' if p=='/api/advance-requests' or p.endswith('/respond') else 'advances.review + routed responsible (BR §25)' if p.endswith('/review') else 'advances.payout + routed vault custodian')
  if p.startswith('/api/rider-mobile/requests'):return 'Active rider bearer token; own asks only; routed to current supervisor'
  if p.startswith('/api/advance-requests/rider-asks'):return 'advances.request + current supervision of the rider'
+ if p.startswith('/api/vouchers/verify/'):return 'public; rate-limited; status/type only'
  if p.startswith('/api/platforms/ninja/invoices') and not p.endswith('/reconcile'):return ('pay.view' if method=='GET' else 'pay.approve' if p.endswith(('/approve','/post','/resolve')) else 'pay.manage') + '; company/Ninja scope; signed import or independent approval; posting gate'
  if p.startswith('/api/platforms/ninja/'):return 'pay.view (read-only recalculation)'
  if p.startswith('/api/finance/journals/manual'):return ('finance.journal.create OR finance.journal.approve' if method=='GET' else 'finance.journal.approve' if p.endswith('/approve') else 'finance.journal.create') + '; company/account scope; independent approval'
