@@ -38,6 +38,7 @@ import { Toolbar } from '../../components/ui/Toolbar';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import type {
   Company,
   CommercialRegistration,
@@ -1120,19 +1121,20 @@ export default function CompaniesPage() {
         <form onSubmit={handleUploadDocument} className="space-y-4 text-xs">
           <div>
             <label className="block font-semibold text-[var(--ink)] mb-1">نوع المستند</label>
-            <select
+            <SearchableSelect
               value={docType}
-              onChange={(e) => setDocType(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--focus)]"
-            >
-              <option value="شهادة السجل التجاري">شهادة السجل التجاري</option>
-              <option value="شهادة التأمينات الاجتماعية (GOSI)">شهادة التأمينات الاجتماعية (GOSI)</option>
-              <option value="شهادة الزكاة والضريبة (ZATCA)">شهادة الزكاة والضريبة (ZATCA)</option>
-              <option value="رخصة البلدية">رخصة البلدية</option>
-              <option value="اشتراك الغرفة التجارية">اشتراك الغرفة التجارية</option>
-              <option value="شهادة العنوان الوطني">شهادة العنوان الوطني</option>
-              <option value="أخرى">أخرى</option>
-            </select>
+              onChange={setDocType}
+              ariaLabel="نوع المستند"
+              options={[
+                { value: 'شهادة السجل التجاري', label: 'شهادة السجل التجاري' },
+                { value: 'شهادة التأمينات الاجتماعية (GOSI)', label: 'شهادة التأمينات الاجتماعية (GOSI)' },
+                { value: 'شهادة الزكاة والضريبة (ZATCA)', label: 'شهادة الزكاة والضريبة (ZATCA)' },
+                { value: 'رخصة البلدية', label: 'رخصة البلدية' },
+                { value: 'اشتراك الغرفة التجارية', label: 'اشتراك الغرفة التجارية' },
+                { value: 'شهادة العنوان الوطني', label: 'شهادة العنوان الوطني' },
+                { value: 'أخرى', label: 'أخرى' },
+              ]}
+            />
           </div>
 
           <div>

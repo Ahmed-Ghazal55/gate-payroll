@@ -27,6 +27,9 @@ import {
   RefreshCw,
   Volume2,
   VolumeX,
+  Calculator,
+  Percent,
+  Receipt,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -248,6 +251,27 @@ export function Header({
 
   // Shortcuts list gated by can()
   const shortcutItems = [
+    {
+      id: 'monthly-cycle',
+      label: 'تصفية شهرية',
+      href: '/payroll/?tab=cycle',
+      icon: <Calculator size={15} className="text-[var(--accent)]" />,
+      visible: can('payroll.view') || can('pay.view'),
+    },
+    {
+      id: 'advances-shortcut',
+      label: 'السلف',
+      href: '/debts/?tab=advance_requests',
+      icon: <Banknote size={15} className="text-[var(--money-pos)]" />,
+      visible: can('debts.view') || can('advances.view') || can('advances.request') || can('advances.review'),
+    },
+    {
+      id: 'deductions-shortcut',
+      label: 'الخصومات',
+      href: '/payroll/?tab=deductions',
+      icon: <Percent size={15} className="text-[var(--warning)]" />,
+      visible: can('payroll.view') || can('pay.view'),
+    },
     {
       id: 'advance-request',
       label: 'طلب سلفة',

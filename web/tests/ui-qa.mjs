@@ -361,6 +361,36 @@ async function run() {
     await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'sand'));
     console.log('    ✓ dim theme sets color-scheme: dark');
 
+    // 3e. SearchableSelect (R9 W2): type part of a name, list narrows, choosing fills the field, dark theme readable
+    console.log('  Testing SearchableSelect filtering, selection, and dark theme readability...');
+    await page.goto(`${baseUrl}/debts/`);
+    await page.waitForLoadState('networkidle');
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dim'));
+    const catSelect = page.locator('#select-debt-category');
+    await catSelect.waitFor({ state: 'visible' });
+    await catSelect.focus();
+    const listbox = page.locator('[role="listbox"]');
+    await listbox.waitFor({ state: 'visible' });
+    const initialCount = await listbox.locator('[role="option"]').count();
+    assert.ok(initialCount > 2, `SearchableSelect should open with multiple options, got ${initialCount}`);
+    const listboxColors = await listbox.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { bg: cs.backgroundColor, color: cs.color };
+    });
+    assert.notEqual(listboxColors.bg, listboxColors.color, 'SearchableSelect listbox text and background must contrast in dark theme');
+    assert.notEqual(listboxColors.bg, 'rgb(255, 255, 255)', 'SearchableSelect listbox background must be dark in dim theme');
+    await page.keyboard.type('مخالفات', { delay: 20 });
+    const narrowedCount = await listbox.locator('[role="option"]').count();
+    assert.equal(narrowedCount, 1, `Typing 'مخالفات' must narrow options to 1, got ${narrowedCount}`);
+    await listbox.locator('[role="option"]').first().click();
+    const chosenVal = await catSelect.inputValue();
+    assert.ok(chosenVal.includes('مخالفات مرورية'), `Choosing option must fill field with 'مخالفات مرورية', got '${chosenVal}'`);
+    // Reset to كافة الفئات and sand theme
+    await catSelect.click();
+    await listbox.locator('[role="option"]', { hasText: 'كافة الفئات' }).first().click();
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'sand'));
+    console.log('    ✓ SearchableSelect narrows on typing, fills field on click, and is readable in dark theme');
+
     // 4. Treasury Dialog
     console.log('  Testing Treasury Dialog...');
     await page.goto(`${baseUrl}/treasury/`);

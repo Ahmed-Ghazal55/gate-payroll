@@ -41,6 +41,7 @@ import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import type {
   RiderRecord,
   RiderProfile360,
@@ -547,18 +548,18 @@ function RidersPageInner() {
                 <option value="Inactive">غير نشط (Inactive)</option>
               </select>
 
-              <select
+              <SearchableSelect
+                id="select-rider-sponsor"
                 value={sponsorFilter}
-                onChange={(e) => setSponsorFilter(e.target.value)}
-                className="bg-[var(--surface)] border border-[var(--line)] text-xs rounded-xl px-3 py-1.5 focus:outline-hidden"
-              >
-                <option value="all">كل الكفلاء</option>
-                {sponsorsList.map((sp) => (
-                  <option key={sp} value={sp}>
-                    {sp}
-                  </option>
-                ))}
-              </select>
+                onChange={setSponsorFilter}
+                ariaLabel="تصفية حسب الكفيل"
+                placeholder="كل الكفلاء"
+                className="w-44"
+                options={[
+                  { value: 'all', label: 'كل الكفلاء' },
+                  ...sponsorsList.map((sp) => ({ value: sp, label: sp })),
+                ]}
+              />
             </div>
 
             <div className="flex items-center gap-2">
@@ -1061,18 +1062,19 @@ function RidersPageInner() {
         <div className="space-y-4 pt-2">
           <div className="space-y-1">
             <label className="text-xs font-bold text-[var(--ink)]">نوع الوثيقة الرسمية:</label>
-            <select
+            <SearchableSelect
               value={uploadDocCode}
-              onChange={(e) => setUploadDocCode(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
-            >
-              <option value="national_id">الهوية الوطنية / الإقامة (National ID / Iqama)</option>
-              <option value="driving_license">رخصة القيادة (Driving License)</option>
-              <option value="driver_card">بطاقة سائق هيئة النقل TGA (Driver Card)</option>
-              <option value="health_certificate">الكرت الصحي (Health Certificate)</option>
-              <option value="ajeer_contract">عقد إشعار أجير (Ajeer Contract)</option>
-              <option value="iban_certificate">شهادة الآيبان البنكي (Bank IBAN Certificate)</option>
-            </select>
+              onChange={setUploadDocCode}
+              ariaLabel="نوع الوثيقة الرسمية"
+              options={[
+                { value: 'national_id', label: 'الهوية الوطنية / الإقامة (National ID / Iqama)' },
+                { value: 'driving_license', label: 'رخصة القيادة (Driving License)' },
+                { value: 'driver_card', label: 'بطاقة سائق هيئة النقل TGA (Driver Card)' },
+                { value: 'health_certificate', label: 'الكرت الصحي (Health Certificate)' },
+                { value: 'ajeer_contract', label: 'عقد إشعار أجير (Ajeer Contract)' },
+                { value: 'iban_certificate', label: 'شهادة الآيبان البنكي (Bank IBAN Certificate)' },
+              ]}
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

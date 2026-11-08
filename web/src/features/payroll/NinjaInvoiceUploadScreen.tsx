@@ -57,17 +57,30 @@ const COMPANY_LABELS: Record<string, string> = {
 type DeductionGroup = { category: string; lineIds: string[]; amount: number; unclassified: number; companyOnly: boolean };
 
 const DEDUCTION_LABELS: Record<string, string> = {
-  penalty: 'غرامة (Penalty)',
+  penalty: 'غرامة (Penalty / الخصم)',
   naqilBlocked: 'حظر نقل (NAQIL BLOCKED)',
   stopsWithoutNotice: 'توقف بدون إشعار',
   supplier_adjustment: 'تعديل المورد',
   deductionRefund: 'رد خصم',
   gasolineSupport: 'دعم بنزين',
   onDemand: 'On demand',
+  other_deduction: 'خصومات أخرى',
+  penalty_fine: 'غرامة مُخالفة',
+  food_damage: 'تعويض عن تلف الطعام',
+  food_compensation: 'تعويض طعام',
+  registration_fee: 'رسوم خدمة التسجيل',
+  tga: 'خصم TGA',
+  service_fee: 'خصم رسوم الخدمة',
+  timeliness_deduction: 'خصم مكافأة التوصيل على الموعد',
+  merchant_subsidy_deduction: 'خصم إعانة التاجر',
+  other_adjustment: 'تعديل آخر',
+  other_adjustments: 'تعديلات أخرى',
+  equipment_deduction: 'خصومات المعدات',
 };
 
 interface NinjaInvoiceUploadScreenProps {
   initialPeriod?: string;
+  platform?: 'ninja' | 'keeta';
 }
 
 const isCompanyMatch = (invoiceCompanyId?: string, target?: string) => {
@@ -82,13 +95,24 @@ const isCompanyMatch = (invoiceCompanyId?: string, target?: string) => {
 
 export function NinjaInvoiceUploadScreen({
   initialPeriod = '2026-10',
+  platform = 'ninja',
 }: NinjaInvoiceUploadScreenProps) {
-  const { user, can, isAdmin } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
+  const isKeeta = platform === 'keeta';
+  const platformNameAr = isKeeta ? 'كيتا' : 'نينجا';
+  const platformPrefix = isKeeta ? 'KEETA' : 'NINJA';
 
   const [period, setPeriod] = useState<string>(initialPeriod);
   const [companyId, setCompanyId] = useState<string>('BW');
   const [odooVoucherNo, setOdooVoucherNo] = useState<string>('');
+
+  // Keeta conditional parser inputs (shown only when API needs them or workbook has >1 sheet)
+  const [sheetName, setSheetName] = useState<string>('');
+  const [companyRowsInput, setCompanyRowsInput] = useState<string>('');
+  const [needsSheetName, setNeedsSheetName] = useState<boolean>(false);
+  const [needsCompanyRows, setNeedsCompanyRows] = useState<boolean>(false);
+  const [detectedSheets, setDetectedSheets] = useState<string[]>([]);
 
   // Upload mode: consolidated (ملف مجمع للكل) or per-account (تخصيص حسابات المنصة)
   const [uploadMode, setUploadMode] = useState<'all' | 'per_account'>('all');
@@ -109,7 +133,7 @@ export function NinjaInvoiceUploadScreen({
   const [serverPreview, setServerPreview] = useState<ApiNinjaInvoice | null>(null);
   const [currentInvoice, setCurrentInvoice] = useState<ApiNinjaInvoice | null>(null);
   const [savedInvoices, setSavedInvoices] = useState<ApiNinjaInvoice[]>([]);
-  const [loadingSavedInvoices, setLoadingSavedInvoices] = useState<boolean>(false);
+  const [, setLoadingSavedInvoices] = useState<boolean>(false);
 
   // Dispute modal state
   const [disputeModalOpen, setDisputeModalOpen] = useState<boolean>(false);
@@ -127,7 +151,7 @@ export function NinjaInvoiceUploadScreen({
 
   // Filters for the captains table
   const [filterMode, setFilterMode] = useState<'all' | 'different' | 'matched'>('all');
-  const [searchCaptain, setSearchCaptain] = useState<string>('');
+  const [searchCaptain] = useState<string>('');
 
   // Load platform accounts for the selected company
   useEffect(() => {
@@ -136,33 +160,52 @@ export function NinjaInvoiceUploadScreen({
     (async () => {
       const found: OperationAccount[] = [];
       for (let page = 1; page <= 20; page++) {
-        const res = (await api.getOperations('platform_account', { page, pageSize: 200, q: 'ninja' })) as { items?: OperationAccount[]; total?: number };
+        const res = (await api.getOperations('platform_account', { page, pageSize: 200, q: platform })) as { items?: OperationAccount[]; total?: number };
         const items = res?.items || [];
         found.push(...items);
         if (items.length === 0 || found.length >= (res?.total ?? 0)) break;
       }
       if (!cancelled) {
-        setAvailableAccounts(found.filter((a) => a.platformCode?.toLowerCase() === 'ninja' && isCompanyMatch(a.companyId, companyId)));
+        setAvailableAccounts(
+          found.filter(
+            (a) => a.platformCode?.toLowerCase().includes(platform) && isCompanyMatch(a.companyId, companyId),
+          ),
+        );
       }
     })().catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [companyId]);
+  }, [companyId, platform]);
 
-  // Load saved Ninja invoices from server
+  const selectSavedInvoice = async (inv: ApiNinjaInvoice) => {
+    if (isKeeta && inv.id && !Array.isArray(inv.lines)) {
+      try {
+        const lines = await api.getKeetaInvoiceLines(inv.id);
+        setCurrentInvoice({ ...inv, lines });
+      } catch {
+        setCurrentInvoice(inv);
+      }
+    } else {
+      setCurrentInvoice(inv);
+    }
+    if (inv.journalEntryId) setStepperStage(5);
+    else if (inv.approvalStatus === 'approved') setStepperStage(4);
+    else setStepperStage(3);
+  };
+
+  // Load saved invoices from server
   const loadSavedInvoices = async (replaceCurrent = false) => {
     setLoadingSavedInvoices(true);
     try {
-      const res = await api.getNinjaInvoices({ pageSize: 50 });
+      const res = isKeeta
+        ? await api.getKeetaInvoices({ pageSize: 50 })
+        : await api.getNinjaInvoices({ pageSize: 50 });
       const items = (res?.items || []) as ApiNinjaInvoice[];
       setSavedInvoices(items);
       const match = items.find((i) => isCompanyMatch(i.companyId, companyId) && i.period === period);
       if (match && (replaceCurrent || !currentInvoice)) {
-        setCurrentInvoice(match);
-        if (match.journalEntryId) setStepperStage(5);
-        else if (match.approvalStatus === 'approved') setStepperStage(4);
-        else setStepperStage(3);
+        await selectSavedInvoice(match);
       }
     } catch {
       // ignore
@@ -177,6 +220,11 @@ export function NinjaInvoiceUploadScreen({
     setReconcileResult(null);
     setSelectedFiles([]);
     setSelectedAccountIds([]);
+    setSheetName('');
+    setCompanyRowsInput('');
+    setNeedsSheetName(false);
+    setNeedsCompanyRows(false);
+    setDetectedSheets([]);
     setActionError(null);
     setStepperStage(1);
   };
@@ -186,25 +234,46 @@ export function NinjaInvoiceUploadScreen({
     startNextInvoice();
     loadSavedInvoices(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyId, period]);
+  }, [companyId, period, platform]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     setServerPreview(null);
     setReconcileResult(null);
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    if (files.length > 5) {
-      toast('الحد الأقصى هو 5 ملفات فواتير نينجا في المرة الواحدة', 'warning');
+    if (files.length > (isKeeta ? 1 : 5)) {
+      toast(
+        isKeeta
+          ? 'يرجى رفع ملف فاتورة كيتا واحد (.xlsx) في كل مرة'
+          : 'الحد الأقصى هو 5 ملفات فواتير نينجا في المرة الواحدة',
+        'warning',
+      );
       return;
     }
     const nonXlsx = files.find((f) => !f.name.toLowerCase().endsWith('.xlsx'));
     if (nonXlsx) {
-      toast('جميع فواتير نينجا يجب أن تكون ملفات Excel بصيغة .xlsx', 'danger');
+      toast(`جميع فواتير ${platformNameAr} يجب أن تكون ملفات Excel بصيغة .xlsx`, 'danger');
       return;
     }
     setSelectedFiles(files);
     setStepperStage(1);
     setActionError(null);
+
+    if (isKeeta && files[0]) {
+      files[0]
+        .arrayBuffer()
+        .then((buf) => {
+          const text = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buf));
+          const matches = Array.from(text.matchAll(/<sheet\b[^>]*\bname="([^"]+)"/g)).map((m) => m[1]);
+          if (matches.length > 1) {
+            setDetectedSheets(matches);
+            setNeedsSheetName(true);
+          } else {
+            setDetectedSheets([]);
+          }
+        })
+        .catch(() => {});
+    }
   };
 
   const handleRemoveFile = (idx: number) => {
@@ -224,7 +293,44 @@ export function NinjaInvoiceUploadScreen({
   };
 
   // A company can have several invoices a month; the file name keeps each default reference distinct.
-  const invoiceReference = () => `NINJA-${period}-${selectedFiles[0]?.name ?? ''}`.slice(0, 200);
+  const invoiceReference = () => `${platformPrefix}-${period}-${selectedFiles[0]?.name ?? ''}`.slice(0, 200);
+
+  const appendKeetaOptions = (formData: FormData) => {
+    if (!isKeeta) return;
+    if (sheetName.trim()) {
+      formData.append('sheetName', sheetName.trim());
+    }
+    if (companyRowsInput.trim()) {
+      const rowsArr = companyRowsInput
+        .split(/[,\s]+/)
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      if (rowsArr.length > 0) {
+        formData.append('companyRows', JSON.stringify(rowsArr));
+      }
+    }
+  };
+
+  const inspectKeetaError = (msg: string) => {
+    if (!isKeeta) return;
+    if (msg.includes('ورقة الفاتورة') || msg.includes('sheetName')) {
+      setNeedsSheetName(true);
+    }
+    if (msg.includes('سطر تعديل الشركة') || msg.includes('companyRows')) {
+      setNeedsCompanyRows(true);
+      const rowMatch = /صف\s+(\d+)/.exec(msg);
+      if (rowMatch && rowMatch[1]) {
+        const rowNum = rowMatch[1];
+        setCompanyRowsInput((prev) => {
+          const existing = prev
+            .split(/[,\s]+/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          return existing.includes(rowNum) ? prev : [...existing, rowNum].join(', ');
+        });
+      }
+    }
+  };
 
   const loadCostAccounts = () => {
     if (costAccounts.length > 0) return;
@@ -244,15 +350,15 @@ export function NinjaInvoiceUploadScreen({
     setSubmittingAction(`classify:${group.category}`);
     setActionError(null);
     try {
-      const updated = await api.classifyNinjaInvoiceBatch(
-        currentInvoice.id,
-        group.lineIds.map((lineId) => ({
-          lineId,
-          category: group.category,
-          level,
-          ...(level === 'company_level' ? { expenseAccount } : {}),
-        })),
-      );
+      const items = group.lineIds.map((lineId) => ({
+        lineId,
+        category: group.category,
+        level,
+        ...(level === 'company_level' ? { expenseAccount } : {}),
+      }));
+      const updated = isKeeta
+        ? await api.classifyKeetaInvoiceBatch(currentInvoice.id, items, currentInvoice)
+        : await api.classifyNinjaInvoiceBatch(currentInvoice.id, items);
       setCurrentInvoice(updated);
       toast(`تم تصنيف ${group.lineIds.length} خصم`, 'success');
     } catch (err: unknown) {
@@ -267,27 +373,29 @@ export function NinjaInvoiceUploadScreen({
   // Step 2: Preview and Reconcile
   const handleRunReconcile = async () => {
     if (selectedFiles.length === 0) {
-      toast('يرجى اختيار ملف فاتورة نينجا واحد على الأقل (.xlsx)', 'warning');
+      toast(`يرجى اختيار ملف فاتورة ${platformNameAr} واحد على الأقل (.xlsx)`, 'warning');
       return;
     }
     setLoading(true);
     setActionError(null);
     try {
-      // 1. Reconcile detailed captain lines
-      const filePayloads = await Promise.all(selectedFiles.map((f) => readFileBase64(f)));
-      const res = await api.reconcileNinjaInvoices({
-        period,
-        files: filePayloads,
-      });
-      setReconcileResult(res);
-      setActiveInvoiceIdx(0);
+      if (!isKeeta) {
+        // 1. Reconcile detailed captain lines (Ninja only)
+        const filePayloads = await Promise.all(selectedFiles.map((f) => readFileBase64(f)));
+        const res = await api.reconcileNinjaInvoices({
+          period,
+          files: filePayloads,
+        });
+        setReconcileResult(res);
+        setActiveInvoiceIdx(0);
 
-      // The server stores one invoice per file; never drop the other files silently.
-      if (selectedFiles.length > 1) {
-        setServerPreview(null);
-        setStepperStage(2);
-        setActionError('تمت المطابقة للعلم. للحفظ ارفع كل ملف لوحده: كل ملف فاتورة مستقلة.');
-        return;
+        // The server stores one invoice per file; never drop the other files silently.
+        if (selectedFiles.length > 1) {
+          setServerPreview(null);
+          setStepperStage(2);
+          setActionError('تمت المطابقة للعلم. للحفظ ارفع كل ملف لوحده: كل ملف فاتورة مستقلة.');
+          return;
+        }
       }
 
       // 2. Run server preview check
@@ -297,16 +405,20 @@ export function NinjaInvoiceUploadScreen({
       formData.append('period', period);
       formData.append('reference', invoiceReference());
       formData.append('odooVoucherNo', odooVoucherNo);
-      if (uploadMode === 'per_account' && selectedAccountIds.length > 0) {
+      if (!isKeeta && uploadMode === 'per_account' && selectedAccountIds.length > 0) {
         selectedAccountIds.forEach((id) => formData.append('accountIds[]', id));
       }
+      appendKeetaOptions(formData);
 
-      const preview = await api.uploadNinjaInvoice(formData, false);
+      const preview = isKeeta
+        ? await api.uploadKeetaInvoice(formData, false)
+        : await api.uploadNinjaInvoice(formData, false);
       setServerPreview(preview);
       setStepperStage(2);
-      toast('تمت عملية مطابقة فواتير نينجا بنجاح وحساب الفروقات', 'success');
+      toast(`تمت عملية معاينة ومطابقة فاتورة ${platformNameAr} بنجاح`, 'success');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشلت مطابقة فاتورة نينجا';
+      const msg = err instanceof Error ? err.message : `فشلت مطابقة فاتورة ${platformNameAr}`;
+      inspectKeetaError(msg);
       setActionError(msg);
       toast(msg, 'danger');
     } finally {
@@ -333,17 +445,21 @@ export function NinjaInvoiceUploadScreen({
       if (serverPreview && 'rows' in serverPreview && serverPreview.rows) {
         formData.append('rows', JSON.stringify(serverPreview.rows));
       }
-      if (uploadMode === 'per_account' && selectedAccountIds.length > 0) {
+      if (!isKeeta && uploadMode === 'per_account' && selectedAccountIds.length > 0) {
         selectedAccountIds.forEach((id) => formData.append('accountIds[]', id));
       }
+      appendKeetaOptions(formData);
 
-      const confirmed = await api.uploadNinjaInvoice(formData, true);
+      const confirmed = isKeeta
+        ? await api.uploadKeetaInvoice(formData, true)
+        : await api.uploadNinjaInvoice(formData, true);
       setCurrentInvoice(confirmed);
       setStepperStage(3);
-      toast('تم تأكيد ورفع فاتورة نينجا بنجاح', 'success');
+      toast(`تم تأكيد ورفع فاتورة ${platformNameAr} بنجاح`, 'success');
       loadSavedInvoices();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل تأكيد الفاتورة';
+      inspectKeetaError(msg);
       setActionError(msg);
       toast(msg, 'danger');
     } finally {
@@ -351,16 +467,18 @@ export function NinjaInvoiceUploadScreen({
     }
   };
 
-  // Step 4: Approve Invoice (Allowed if server returned allowedActions.includes('approve'))
+  // Step 4: Approve Invoice (Allowed if allowedActions.includes('approve'))
   const handleApproveInvoice = async () => {
     if (!currentInvoice?.id) return;
     setSubmittingAction('approve');
     setActionError(null);
     try {
-      const updated = await api.approveNinjaInvoice(currentInvoice.id);
+      const updated = isKeeta
+        ? await api.approveKeetaInvoice(currentInvoice.id)
+        : await api.approveNinjaInvoice(currentInvoice.id);
       setCurrentInvoice(updated);
       setStepperStage(4);
-      toast('تم اعتماد فاتورة نينجا بنجاح', 'success');
+      toast(`تم اعتماد فاتورة ${platformNameAr} بنجاح`, 'success');
       loadSavedInvoices();
     } catch (err: unknown) {
       // Maker != Checker message from API is shown verbatim as is
@@ -372,16 +490,18 @@ export function NinjaInvoiceUploadScreen({
     }
   };
 
-  // Step 5: Post Invoice (Allowed if server returned allowedActions.includes('post'))
+  // Step 5: Post Invoice (Allowed if allowedActions.includes('post'))
   const handlePostInvoice = async () => {
     if (!currentInvoice?.id) return;
     setSubmittingAction('post');
     setActionError(null);
     try {
-      const updated = await api.postNinjaInvoice(currentInvoice.id);
+      const updated = isKeeta
+        ? await api.postKeetaInvoice(currentInvoice.id)
+        : await api.postNinjaInvoice(currentInvoice.id);
       setCurrentInvoice(updated);
       setStepperStage(5);
-      toast('تم ترحيل الفاتورة للقيد العام (112806 / 411104 / 213201)', 'success');
+      toast('تم ترحيل الفاتورة للقيد العام', 'success');
       loadSavedInvoices();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'تعذر ترحيل الفاتورة';
@@ -400,16 +520,28 @@ export function NinjaInvoiceUploadScreen({
     setActionError(null);
     try {
       if (isResolvingDispute) {
-        const updated = await api.resolveNinjaDispute(currentInvoice.id, {
-          disputeId: selectedDisputeId,
-          reason: disputeReason.trim(),
-        });
+        const updated = isKeeta
+          ? await api.resolveKeetaDispute(
+              currentInvoice.id,
+              { disputeId: selectedDisputeId, reason: disputeReason.trim() },
+              currentInvoice,
+            )
+          : await api.resolveNinjaDispute(currentInvoice.id, {
+              disputeId: selectedDisputeId,
+              reason: disputeReason.trim(),
+            });
         setCurrentInvoice(updated);
         toast('تم حسم الاعتراض بنجاح', 'success');
       } else {
-        const updated = await api.disputeNinjaInvoice(currentInvoice.id, {
-          reason: disputeReason.trim(),
-        });
+        const updated = isKeeta
+          ? await api.disputeKeetaInvoice(
+              currentInvoice.id,
+              { reason: disputeReason.trim() },
+              currentInvoice,
+            )
+          : await api.disputeNinjaInvoice(currentInvoice.id, {
+              reason: disputeReason.trim(),
+            });
         setCurrentInvoice(updated);
         toast('تم تسجيل الاعتراض الرسمي بنجاح', 'success');
       }
@@ -615,14 +747,84 @@ export function NinjaInvoiceUploadScreen({
   // Stepper definition
   const stepperSteps = [
     { num: 1, title: 'رفع الملف', desc: 'اختيار ملف .xlsx' },
-    { num: 2, title: 'المطابقة', desc: 'مطابقة شروط التارجت' },
+    { num: 2, title: 'المطابقة', desc: isKeeta ? 'معاينة شرائح الفاتورة' : 'مطابقة شروط التارجت' },
     { num: 3, title: 'التأكيد', desc: 'تثبيت الفاتورة بالنظام' },
     { num: 4, title: 'الاعتماد', desc: 'موافقة المراجع المستقل' },
     { num: 5, title: 'الترحيل', desc: 'قيد الحسابات العامة' },
   ];
 
-  const allowedActions = currentInvoice?.allowedActions || [];
-  const approvalBlockers = currentInvoice?.approvalBlockers || [];
+  // Use server-supplied allowedActions/approvalBlockers when present (Ninja); compute fallback when omitted (Keeta).
+  const computedView = useMemo(() => {
+    if (!currentInvoice) return { actions: [] as string[], blockers: [] as string[] };
+    if (Array.isArray(currentInvoice.allowedActions)) {
+      return {
+        actions: currentInvoice.allowedActions,
+        blockers: currentInvoice.approvalBlockers || [],
+      };
+    }
+    const actions: string[] = [];
+    const blockers: string[] = [];
+    const username = (user?.username || '').toLowerCase();
+    const createdBy = (currentInvoice.createdBy || '').toLowerCase();
+    const independent = Boolean(username && createdBy && username !== createdBy);
+    const posted = Boolean(currentInvoice.journalEntryId);
+    const status = currentInvoice.approvalStatus || 'pending';
+    type RuntimeDeduction = {
+      category: string;
+      amount: number;
+      level: string;
+      expenseAccount?: string;
+      classifiedBy?: string;
+    };
+    const parts: RuntimeDeduction[] = (currentInvoice.lines || []).flatMap(
+      (l) => (l.deductions || []) as RuntimeDeduction[],
+    );
+    const disputes = currentInvoice.disputes || [];
+
+    if (!posted) {
+      if (status === 'pending' && parts.length > 0) actions.push('classify');
+      const allClassified = parts.every(
+        (d) =>
+          (d.level === 'company_level' || d.level === 'account_level') &&
+          (d.classifiedBy || '').toLowerCase() !== username,
+      );
+      if (status === 'pending' && independent && allClassified) actions.push('approve');
+      actions.push('dispute');
+      if (disputes.some((d) => d.status === 'open' && (d.createdBy || '').toLowerCase() !== username)) {
+        actions.push('resolve');
+      }
+      if (
+        status === 'approved' &&
+        independent &&
+        disputes.every((d) => d.status === 'resolved') &&
+        parts.every((d) => d.level === 'company_level')
+      ) {
+        actions.push('post');
+      }
+    }
+
+    if (!posted && status === 'pending') {
+      if (!independent) {
+        blockers.push('أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر (فصل الصلاحيات).');
+      }
+      const unclassified = parts.filter(
+        (d) => d.level !== 'company_level' && d.level !== 'account_level',
+      ).length;
+      if (unclassified > 0) {
+        blockers.push(`${unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على اليوزر أو على الشركة).`);
+      }
+      const ownClass = parts.filter(
+        (d) => (d.classifiedBy || '').toLowerCase() === username,
+      ).length;
+      if (ownClass > 0) {
+        blockers.push(`أنت صنّفت ${ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.`);
+      }
+    }
+    return { actions, blockers };
+  }, [currentInvoice, user?.username]);
+
+  const allowedActions = computedView.actions;
+  const approvalBlockers = computedView.blockers;
   const deductionGroups: DeductionGroup[] = Object.values(
     (currentInvoice?.lines || []).reduce<Record<string, DeductionGroup>>((groups, line) => {
       for (const d of line.deductions || []) {
@@ -686,7 +888,15 @@ export function NinjaInvoiceUploadScreen({
       };
     }
     if (actionError) {
-      return { title: 'الفاتورة لم تُحفظ. أصلح السبب المذكور ثم أعد المطابقة.', detail: actionError };
+      return {
+        title: 'الفاتورة لم تُحفظ. أصلح السبب المذكور ثم أعد المطابقة.',
+        detail: actionError,
+        action: selectedFiles.length > 0 ? (
+          <button type="button" disabled={loading} onClick={handleRunReconcile} className={primaryButton}>
+            إعادة المطابقة والمعاينة
+          </button>
+        ) : undefined,
+      };
     }
     if (selectedFiles.length > 0) {
       return {
@@ -712,7 +922,7 @@ export function NinjaInvoiceUploadScreen({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-                مسار فاتورة نينجا (Ninja Invoice Stepper)
+                مسار فاتورة {platformNameAr} ({isKeeta ? 'Keeta' : 'Ninja'} Invoice Stepper)
               </h2>
               <p className="text-xs text-[var(--muted)] mt-0.5">
                 دورة الفاتورة المعتمدة: رفع ← مطابقة ← تأكيد ← اعتماد ← ترحيل (BR §26, §31).
@@ -801,7 +1011,7 @@ export function NinjaInvoiceUploadScreen({
             <button
               key={i.id}
               type="button"
-              onClick={() => setCurrentInvoice(i)}
+              onClick={() => selectSavedInvoice(i)}
               className={`px-2.5 py-1 rounded-full border cursor-pointer ${
                 currentInvoice?.id === i.id ? 'border-[var(--accent)] font-bold' : 'border-[var(--line)]'
               }`}
@@ -829,7 +1039,7 @@ export function NinjaInvoiceUploadScreen({
           <span>المعيار الملزم (BR §31): «المعتمد هو الفاتورة — الفرق للعلم»</span>
         </div>
         <p className="text-xs text-sky-800/80 dark:text-sky-300/80 leading-relaxed ps-6">
-          في منصة نينجا، الاستحقاق المالي المعتمد للكباتن هو ما ورد نصاً في فاتورة المنصة الصادرة؛ وفروقات الاحتساب المحسوبة بواسطة المحرك الداخلي هي للعلم والتدقيق التشغيلي مع المنصة ولا توقف الاعتماد أو الصرف.
+          في منصة {platformNameAr}، الاستحقاق المالي المعتمد للكباتن هو ما ورد نصاً في فاتورة المنصة الصادرة؛ وفروقات الاحتساب المحسوبة بواسطة المحرك الداخلي هي للعلم والتدقيق التشغيلي مع المنصة ولا توقف الاعتماد أو الصرف.
         </p>
       </div>
 
@@ -839,39 +1049,43 @@ export function NinjaInvoiceUploadScreen({
           <div>
             <h3 className="text-xs sm:text-sm font-bold text-[var(--ink)]">1. إعدادات رفع الفاتورة وتخصيص الحسابات:</h3>
             <p className="text-[11px] text-[var(--muted)] mt-0.5">
-              حدد وضع الرفع (ملف مجمع للكل أو تخصيص حسابات منصة نينجا محددة).
+              {isKeeta
+                ? 'ارفع ملف فاتورة كيتا الرسمي (.xlsx) بعد اختيار الشركة والشهر من الأعلى.'
+                : 'حدد وضع الرفع (ملف مجمع للكل أو تخصيص حسابات منصة نينجا محددة).'}
             </p>
           </div>
 
-          {/* Mode Switcher */}
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--raised)] border border-[var(--line)]">
-            <button
-              type="button"
-              onClick={() => setUploadMode('all')}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
-                uploadMode === 'all'
-                  ? 'bg-[var(--surface)] text-[var(--ink)] shadow-xs'
-                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              ملف مجمع للكل
-            </button>
-            <button
-              type="button"
-              onClick={() => setUploadMode('per_account')}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
-                uploadMode === 'per_account'
-                  ? 'bg-[var(--surface)] text-[var(--ink)] shadow-xs'
-                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              تخصيص حسابات المنصة
-            </button>
-          </div>
+          {/* Mode Switcher (Ninja only) */}
+          {!isKeeta && (
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--raised)] border border-[var(--line)]">
+              <button
+                type="button"
+                onClick={() => setUploadMode('all')}
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                  uploadMode === 'all'
+                    ? 'bg-[var(--surface)] text-[var(--ink)] shadow-xs'
+                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                ملف مجمع للكل
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadMode('per_account')}
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                  uploadMode === 'per_account'
+                    ? 'bg-[var(--surface)] text-[var(--ink)] shadow-xs'
+                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                تخصيص حسابات المنصة
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Per-account searchable multi-select */}
-        {uploadMode === 'per_account' && (
+        {!isKeeta && uploadMode === 'per_account' && (
           <div className="p-4 rounded-xl border border-[var(--line)] bg-[var(--raised)]/30 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-[var(--ink)]">
@@ -940,15 +1154,55 @@ export function NinjaInvoiceUploadScreen({
         )}
 
         {/* Odoo voucher is optional; the invoice reference is generated from the file name */}
-        <div className="space-y-1 sm:max-w-sm">
-          <label className="text-xs font-bold text-[var(--ink)]">رقم سند أودو (اختياري):</label>
-          <input
-            type="text"
-            placeholder="مثال: BILL/2026/10/0042"
-            value={odooVoucherNo}
-            onChange={(e) => setOdooVoucherNo(e.target.value)}
-            className="w-full px-3 py-2 text-xs rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-[var(--ink)]">رقم سند أودو (اختياري):</label>
+            <input
+              type="text"
+              placeholder="مثال: BILL/2026/10/0042"
+              value={odooVoucherNo}
+              onChange={(e) => setOdooVoucherNo(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden"
+            />
+          </div>
+
+          {isKeeta && (needsSheetName || detectedSheets.length > 1) && (
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-[var(--ink)]">ورقة الفاتورة الأصلية (sheetName):</label>
+              {detectedSheets.length > 1 ? (
+                <SearchableSelect
+                  ariaLabel="ورقة الفاتورة الأصلية"
+                  value={sheetName}
+                  onChange={setSheetName}
+                  placeholder="اختر ورقة الفاتورة الأصلية..."
+                  options={detectedSheets.map((s) => ({ value: s, label: s }))}
+                />
+              ) : (
+                <input
+                  type="text"
+                  aria-label="ورقة الفاتورة الأصلية"
+                  placeholder="اسم ورقة الفاتورة داخل الملف..."
+                  value={sheetName}
+                  onChange={(e) => setSheetName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden"
+                />
+              )}
+            </div>
+          )}
+
+          {isKeeta && needsCompanyRows && (
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-[var(--ink)]">أسطر تعديل الشركة (companyRows):</label>
+              <input
+                type="text"
+                aria-label="أسطر تعديل الشركة"
+                placeholder="مثال: 5"
+                value={companyRowsInput}
+                onChange={(e) => setCompanyRowsInput(e.target.value)}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden font-mono"
+              />
+            </div>
+          )}
         </div>
 
         {/* Drag & Drop File Upload Box */}
@@ -956,7 +1210,7 @@ export function NinjaInvoiceUploadScreen({
           <input
             type="file"
             id="ninja-file-input"
-            multiple
+            multiple={!isKeeta}
             accept=".xlsx"
             onChange={handleFileSelect}
             className="hidden"
@@ -966,10 +1220,10 @@ export function NinjaInvoiceUploadScreen({
               <Upload size={22} />
             </div>
             <div className="text-xs font-bold text-[var(--ink)]">
-              انقر لاختيار ملفات فواتير نينجا (.xlsx) أو اسحب الملفات هنا
+              انقر لاختيار ملف فاتورة {platformNameAr} (.xlsx) أو اسحب الملف هنا
             </div>
             <div className="text-[11px] text-[var(--muted)]">
-              يدعم ملفات إكسل رسمية بصيغة .xlsx بحد أقصى 5 ملفات
+              {isKeeta ? 'يدعم ملف إكسل رسمي بصيغة .xlsx' : 'يدعم ملفات إكسل رسمية بصيغة .xlsx بحد أقصى 5 ملفات'}
             </div>
           </label>
         </div>
@@ -1197,6 +1451,65 @@ export function NinjaInvoiceUploadScreen({
           </div>
         </div>
       )}
+
+      {/* Keeta Invoice Totals & Preview Summary */}
+      {isKeeta && (currentInvoice || serverPreview) && (() => {
+        type KeetaPreviewRow = {
+          amountExclVat?: number;
+          deductionsTotal?: number;
+          vat?: number;
+          lines?: Array<{ orders?: number; lineType?: string }>;
+        };
+        const previewRows = (serverPreview as { rows?: KeetaPreviewRow[] } | null)?.rows;
+        const src: KeetaPreviewRow = (currentInvoice as KeetaPreviewRow | null) ?? previewRows?.[0] ?? {};
+        const lines = src.lines || [];
+        const accountCount = lines.filter((l) => l.lineType !== 'company').length || lines.length;
+        const orders = lines.reduce((sum, l) => sum + (l.orders || 0), 0);
+        const gross = src.amountExclVat ?? 0;
+        const deductionsTotal = src.deductionsTotal ?? 0;
+        const vat = src.vat ?? 0;
+        const totalPayable = gross - deductionsTotal + vat;
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <StatCard
+              label="عدد الحسابات"
+              value={accountCount}
+              hint={`فترة ${period}`}
+              icon={Layers}
+            />
+            <StatCard
+              label="الطلبات المسلمة"
+              value={orders}
+              hint="إجمالي الطلبات"
+              icon={CheckCircle}
+            />
+            <StatCard
+              label="إجمالي المستحق (Gross)"
+              value={`${gross.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              hint="قبل الخصومات"
+              icon={DollarSign}
+            />
+            <StatCard
+              label="إجمالي الخصومات"
+              value={`${deductionsTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              hint="تخضع للتصنيف"
+              icon={AlertTriangle}
+            />
+            <StatCard
+              label="الضريبة (VAT)"
+              value={`${vat.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              hint="ضريبة القيمة المضافة"
+              icon={Percent}
+            />
+            <StatCard
+              label="الإجمالي شامل الضريبة"
+              value={`${totalPayable.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              hint="المعتمد في الصرف"
+              icon={FileCheck}
+            />
+          </div>
+        );
+      })()}
 
       {/* Results Section (Reconcile & Captains Grid) */}
       {reconcileResult && overallTotals && (

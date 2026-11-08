@@ -755,12 +755,135 @@ export interface PayCatalogApp {
   agent: string | null;
 }
 
+export interface PayBandItem {
+  min: number;
+  max?: number;
+  base?: number;
+  perOrderRate?: number;
+  extraRate?: number;
+  fuelCap?: number;
+  internet?: number;
+  multiplierMetric?: string;
+  multiplierDivisor?: number;
+}
+
+export interface NinjaLevelConfig {
+  maxBelow: number;
+  missingOrderRate: number;
+}
+
+export interface NinjaCapabilityConfig {
+  contractAmount: number;
+  contractTarget: number;
+  extraOrderRate: number;
+  perOrderRate: number;
+  levels: NinjaLevelConfig[];
+}
+
+export interface NinjaTermsParameters {
+  monthDays: 'calendar' | 'standard';
+  capabilities: Record<string, NinjaCapabilityConfig>;
+  attendance: {
+    minRatio: number;
+    deductionPercent: number;
+  };
+  shortDays: {
+    deductionPercentOfDailyAmount: number;
+  };
+  vatPercent: number;
+  companyCostAccount?: string;
+}
+
+export interface NinjaTermsSeed {
+  name: string;
+  billingModel: 'ninja_target';
+  parameters: NinjaTermsParameters;
+}
+
+export interface PaySchemeCategoryCell {
+  enabled: boolean;
+  dailyCommission?: number;
+  monthlyCommission?: number;
+  companyPercent?: number;
+  prorate?: boolean;
+  chargeCompanyVehicle?: boolean;
+  bands?: PayBandItem[];
+  fallbackRate?: number;
+  operatingCost?: number;
+  fuelCap?: number;
+  internet?: number;
+  operatingCostAccount?: string;
+}
+
+export interface PayEligibilityRule {
+  metric: string;
+  operator: string;
+  threshold: number;
+  effect: {
+    type: 'zero' | 'next_band' | 'per_order' | string;
+  };
+  included?: boolean;
+  app?: string;
+}
+
+export interface PayGlobalValues {
+  standardDays: number;
+  februaryDays: number;
+  billingCutoff: string;
+  timeZone: string;
+  roundingDigits: number;
+  roundingMode: string;
+  vehicleRent: {
+    company_car: number;
+    company_bike: number;
+    private: number;
+  };
+  accounts: {
+    salaryExpense: string;
+    vehicleIncomeCar: string;
+    vehicleIncomeBike: string;
+    outputVat: string;
+  };
+}
+
+export interface PayConfigData {
+  name?: string;
+  type?: 'daily_commission' | 'percent_of_gross' | 'target_salary' | 'monthly_commission' | 'percent_monthly_with_vehicle' | string;
+  billingModel?: 'per_order' | 'slabs' | 'flat_target' | 'ninja_target' | string;
+  accountingRole?: 'principal' | 'agent' | string;
+  eligibilitySetId?: string;
+  parameters?: {
+    categories?: Record<string, PaySchemeCategoryCell>;
+    companyCostAccount?: string;
+    pricePerOrder?: number;
+    perKmRate?: number;
+    includedKm?: number;
+    maxBillableKm?: number;
+    classRates?: Record<string, number>;
+    metric?: string;
+    bands?: PayBandItem[];
+    targetOrders?: number;
+    monthlyAmount?: number;
+    extraRate?: number;
+    shortfallPerOrder?: number;
+    prorate?: boolean;
+    monthDays?: 'calendar' | 'standard';
+    capabilities?: Record<string, NinjaCapabilityConfig>;
+    attendance?: { minRatio: number; deductionPercent: number };
+    shortDays?: { deductionPercentOfDailyAmount: number };
+    vatPercent?: number;
+  };
+  rules?: PayEligibilityRule[];
+  values?: PayGlobalValues;
+}
+
 export interface PayCatalog {
   apps: PayCatalogApp[];
   schemeTypes: string[];
   categories: string[];
   operators: string[];
-  defaults?: any;
+  ninjaMetrics?: string[];
+  defaults?: { values: PayGlobalValues };
   defaultsAreDraftOnly?: boolean;
 }
 
@@ -771,14 +894,79 @@ export interface PayConfigDoc {
   period: string;
   code: string;
   version: number;
-  status: 'draft' | 'approved';
-  data: any;
+  status: 'draft' | 'approved' | 'rejected' | string;
+  data: PayConfigData;
   createdBy: string;
   createdAt: string;
   approvedBy?: string;
   approvedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
   effectiveFrom?: string;
   copiedFromId?: string;
+  allowedActions?: string[];
+}
+
+export interface PayConfigListResponse {
+  items: PayConfigDoc[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface PayTermsCreateInput {
+  app?: string;
+  period?: string;
+  code?: string;
+  baseVersionId?: string;
+  data: {
+    name: string;
+    billingModel: 'per_order' | 'slabs' | 'flat_target' | 'ninja_target' | string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export interface PaySchemeCreateInput {
+  app?: string;
+  period?: string;
+  code: string;
+  baseVersionId?: string;
+  data: {
+    name: string;
+    type: 'daily_commission' | 'percent_of_gross' | 'target_salary' | 'monthly_commission' | 'percent_monthly_with_vehicle' | string;
+    accountingRole: 'principal' | 'agent' | string;
+    eligibilitySetId?: string;
+    parameters: {
+      categories: Record<string, PaySchemeCategoryCell>;
+    };
+  };
+}
+
+export interface PayEligibilityCreateInput {
+  app?: string;
+  period?: string;
+  code?: string;
+  baseVersionId?: string;
+  data: {
+    name: string;
+    rules: PayEligibilityRule[];
+  };
+}
+
+export interface PayGlobalCreateInput {
+  effectiveFrom: string;
+  fromDefaults?: boolean;
+  baseVersionId?: string;
+  data?: {
+    values: PayGlobalValues;
+  };
+}
+
+export interface PayCopyMonthResponse {
+  drafts: PayConfigDoc[];
+  created: number;
+  unchanged: number;
 }
 
 export interface PayAssignment {

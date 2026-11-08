@@ -39,6 +39,8 @@ import { StatCard } from '../../components/ui/StatCard';
 import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { RiderPicker } from '../../components/ui/RiderPicker';
 import { ConfigListsPanel } from '../../features/admin/ConfigListsPanel';
 import type {
   OrgCatalog,
@@ -1282,14 +1284,17 @@ function AdminPageInner() {
         <form onSubmit={handleCreateMembership} className="space-y-4 pt-2">
           <div className="space-y-1">
             <label className="text-xs font-bold text-[var(--ink)]">المستخدم:</label>
-            <input
-              type="text"
+            <SearchableSelect
               id="input-mem-userid"
-              placeholder="اسم المستخدم (مثل syn-accountant)"
               value={memUserId}
-              onChange={(e) => setMemUserId(e.target.value)}
+              onChange={setMemUserId}
+              ariaLabel="المستخدم"
+              placeholder="ابحث باسم المستخدم..."
               required
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+              options={(users as Array<{ username: string; displayNameAr?: string }>).map((u) => ({
+                value: u.username,
+                label: u.displayNameAr ? `${u.displayNameAr} (@${u.username})` : u.username,
+              }))}
             />
           </div>
 
@@ -1367,25 +1372,31 @@ function AdminPageInner() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-bold text-[var(--ink)]">المفوض (من):</label>
-              <input
-                type="text"
-                placeholder="اسم المستخدم المفوض"
+              <SearchableSelect
                 value={delFromUser}
-                onChange={(e) => setDelFromUser(e.target.value)}
+                onChange={setDelFromUser}
+                ariaLabel="المفوض"
+                placeholder="اختر المستخدم المفوض..."
                 required
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+                options={(users as Array<{ username: string; displayNameAr?: string }>).map((u) => ({
+                  value: u.username,
+                  label: u.displayNameAr ? `${u.displayNameAr} (@${u.username})` : u.username,
+                }))}
               />
             </div>
 
             <div className="space-y-1">
               <label className="text-xs font-bold text-[var(--ink)]">المفوض إليه (إلى):</label>
-              <input
-                type="text"
-                placeholder="اسم المستخدم المستلم"
+              <SearchableSelect
                 value={delToUser}
-                onChange={(e) => setDelToUser(e.target.value)}
+                onChange={setDelToUser}
+                ariaLabel="المفوض إليه"
+                placeholder="اختر المستخدم المستلم..."
                 required
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+                options={(users as Array<{ username: string; displayNameAr?: string }>).map((u) => ({
+                  value: u.username,
+                  label: u.displayNameAr ? `${u.displayNameAr} (@${u.username})` : u.username,
+                }))}
               />
             </div>
           </div>
@@ -1464,27 +1475,27 @@ function AdminPageInner() {
         <form onSubmit={handleCreateSupervision} className="space-y-4 pt-2">
           <div className="space-y-1">
             <label className="text-xs font-bold text-[var(--ink)]">المشرف المسؤول:</label>
-            <input
-              type="text"
+            <SearchableSelect
               id="input-sup-supervisor"
-              placeholder="اسم المستخدم للمشرف (مثل syn-supervisor)"
               value={supSupervisor}
-              onChange={(e) => setSupSupervisor(e.target.value)}
+              onChange={setSupSupervisor}
+              ariaLabel="المشرف المسؤول"
+              placeholder="اختر المشرف المسؤول..."
               required
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+              options={(users as Array<{ username: string; displayNameAr?: string }>).map((u) => ({
+                value: u.username,
+                label: u.displayNameAr ? `${u.displayNameAr} (@${u.username})` : u.username,
+              }))}
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">رقم إقامة المندوب (10 أرقام):</label>
-            <input
-              type="text"
-              id="input-sup-iqama"
-              placeholder="مثال: 2000000611"
+            <label className="text-xs font-bold text-[var(--ink)]">المندوب (البحث بالاسم أو رقم الإقامة):</label>
+            <RiderPicker
               value={supIqama}
-              onChange={(e) => setSupIqama(e.target.value)}
+              onChange={(r) => setSupIqama(r?.iqama || '')}
+              placeholder="ابحث باسم المندوب أو رقم الإقامة..."
               required
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
             />
           </div>
 

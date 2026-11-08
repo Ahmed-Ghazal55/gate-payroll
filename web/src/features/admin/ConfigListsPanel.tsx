@@ -23,6 +23,7 @@ import type { ConfigListGroup, ConfigListItem, ConfigFieldDef } from '../../lib/
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
 import { Dialog } from '../../components/ui/Dialog';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 
 export function ConfigListsPanel() {
   const { toast } = useToast();
@@ -34,6 +35,7 @@ export function ConfigListsPanel() {
   const [activeGroupKey, setActiveGroupKey] = useState<string>('recharge_networks');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [postingAccounts, setPostingAccounts] = useState<Array<{ code: string; nameAr?: string }>>([]);
 
   // Add / Edit Item Dialog
   const [itemDialogOpen, setItemDialogOpen] = useState<boolean>(false);
@@ -73,6 +75,10 @@ export function ConfigListsPanel() {
 
   useEffect(() => {
     fetchLists();
+    api
+      .getTargetCoa()
+      .then((res) => setPostingAccounts((res?.accounts || []).filter((a) => a.posting)))
+      .catch(() => {});
   }, []);
 
   const activeGroup = groups.find((g) => g.group === activeGroupKey) || groups[0];
@@ -460,18 +466,24 @@ export function ConfigListsPanel() {
               </label>
 
               {f.type === 'select' && f.options ? (
-                <select
-                  value={itemValues[f.key] ?? ''}
-                  onChange={(e) => setItemValues({ ...itemValues, [f.key]: e.target.value })}
-                  className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
-                >
-                  <option value="">-- اختر {f.labelAr} --</option>
-                  {f.options.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={String(itemValues[f.key] ?? '')}
+                  onChange={(val) => setItemValues({ ...itemValues, [f.key]: val })}
+                  ariaLabel={f.labelAr}
+                  placeholder={`-- اختر ${f.labelAr} --`}
+                  options={f.options.map((opt) => ({ value: opt, label: opt }))}
+                />
+              ) : f.type === 'account' ? (
+                <SearchableSelect
+                  value={String(itemValues[f.key] ?? '')}
+                  onChange={(val) => setItemValues({ ...itemValues, [f.key]: val })}
+                  ariaLabel={f.labelAr}
+                  placeholder="ابحث برقم الحساب أو اسمه (مثال: 112501)..."
+                  options={postingAccounts.map((a) => ({
+                    value: a.code,
+                    label: `${a.code} — ${a.nameAr ?? ''}`,
+                  }))}
+                />
               ) : f.type === 'number' ? (
                 <input
                   type="number"
@@ -493,7 +505,6 @@ export function ConfigListsPanel() {
               ) : (
                 <input
                   type="text"
-                  placeholder={f.type === 'account' ? 'رقم الحساب المحاسبي (مثال: 112501)' : ''}
                   value={itemValues[f.key] ?? ''}
                   onChange={(e) => setItemValues({ ...itemValues, [f.key]: e.target.value })}
                   className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono"
