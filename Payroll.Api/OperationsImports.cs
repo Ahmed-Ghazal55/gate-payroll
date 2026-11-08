@@ -63,8 +63,8 @@ public static class OperationsImports
         bool matches=false;
         foreach(var assignment in (account["assignments"] as JsonArray??[]).OfType<JsonObject>().Where(a=>a.S("riderId")==rider))
         {
-            if(!DateTimeOffset.TryParse(assignment.S("RawEffectiveFrom"),CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var start))continue;
-            var end=DateTimeOffset.MaxValue;if(assignment.S("RawEffectiveTo")!=""&&!DateTimeOffset.TryParse(assignment.S("RawEffectiveTo"),CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out end))continue;
+            if(!AssignmentSpan.From(assignment,out var start)||!AssignmentSpan.To(assignment,out var last))continue;
+            var end=last??DateTimeOffset.MaxValue;
             if(end<=start)continue;
             if(declaredFrom.HasValue?start<=declaredFrom&&end>=declaredTo:start<next&&end>month)matches=true;
         }

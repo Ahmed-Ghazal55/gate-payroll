@@ -116,7 +116,8 @@ public static partial class PayCycles
         }
     }
     static DateTimeOffset Time(string value){J.Need(DateTimeOffset.TryParse(value,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var time),"توقيت المصدر غير صالح.");return time;}
-    static bool Overlaps(JsonObject a,string period,string from="RawEffectiveFrom",string to="RawEffectiveTo")
+    static bool Overlaps(JsonObject a,string period)=>AssignmentSpan.Overlaps(a,period);
+    static bool Overlaps(JsonObject a,string period,string from,string to)
     {string start=a.S(from),end=a.S(to);J.Need(start!="","توقيت التكليف الفعلي مفقود.");var month=Time(period+"-01T00:00:00+03:00");return Time(start)<month.AddMonths(1)&&(end==""||Time(end)>month);}
     static void ValidateRiders(DbConnection c,DbTransaction? tx,JsonObject cycle,ClaimsPrincipal actor)
     {

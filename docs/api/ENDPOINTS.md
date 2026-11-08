@@ -145,12 +145,12 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/pay/apps/{app}/schemes` | Payroll.Api/PaySettings.cs:77 | pay.view; app scope; shared writes need all companies | none | keep |
 | GET | `/api/pay/apps/{app}/terms` | Payroll.Api/PaySettings.cs:76 | pay.view; app scope; shared writes need all companies | none | keep |
 | GET | `/api/pay/catalog` | Payroll.Api/PaySettings.cs:75 | pay.view; app scope; shared writes need all companies | none | keep |
-| GET | `/api/pay/cycles` | Payroll.Api/PayCycles.cs:157 | pay.view; company and every app scope | none | keep |
-| GET | `/api/pay/cycles/{id}/debt-deductions` | Payroll.Api/PayCycles.cs:155 | pay.view; company and every app scope | none | keep |
-| GET | `/api/pay/cycles/{id}/lines` | Payroll.Api/PayCycles.cs:160 | pay.view; company and every app scope | none | keep |
+| GET | `/api/pay/cycles` | Payroll.Api/PayCycles.cs:158 | pay.view; company and every app scope | none | keep |
+| GET | `/api/pay/cycles/{id}/debt-deductions` | Payroll.Api/PayCycles.cs:156 | pay.view; company and every app scope | none | keep |
+| GET | `/api/pay/cycles/{id}/lines` | Payroll.Api/PayCycles.cs:161 | pay.view; company and every app scope | none | keep |
 | GET | `/api/pay/cycles/{id}/review` | Payroll.Api/PayCycles.Review.cs:145 | pay.view; company and every app scope | none | keep |
-| GET | `/api/pay/cycles/{id}/unrecovered-costs` | Payroll.Api/PayCycles.cs:154 | pay.view; company and every app scope | none | keep |
-| GET | `/api/pay/review-draft` | Payroll.Api/PayReviewDraft.cs:128 | pay.view; app scope; shared writes need all companies | none | keep |
+| GET | `/api/pay/cycles/{id}/unrecovered-costs` | Payroll.Api/PayCycles.cs:155 | pay.view; company and every app scope | none | keep |
+| GET | `/api/pay/review-draft` | Payroll.Api/PayReviewDraft.cs:123 | pay.view; app scope; shared writes need all companies | none | keep |
 | GET | `/api/pay/settings` | Payroll.Api/PaySettings.cs:86 | pay.view; app scope; shared writes need all companies | none | keep |
 | GET | `/api/payroll/export.csv` | Payroll.Api/Program.cs:292 | payroll.view | old UI | keep |
 | GET | `/api/payroll/fingerprint` | Payroll.Api/Program.cs:275 | payroll.view | none | deprecated |
@@ -180,9 +180,9 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/pay/apps/{app}/terms` | Payroll.Api/PaySettings.cs:79 | pay.manage; app scope; shared writes need all companies | none | keep |
 | POST | `/api/pay/apps/{app}/terms/{id}/approve` | Payroll.Api/PaySettings.cs:82 | pay.approve + independent FIN checker; app scope; shared writes need all companies | none | keep |
 | POST | `/api/pay/apps/{app}/terms/{id}/reject` | Payroll.Api/PaySettings.Lifecycle.cs:27 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/cycles` | Payroll.Api/PayCycles.cs:158 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
-| POST | `/api/pay/cycles/{id}/advance` | Payroll.Api/PayCycles.cs:159 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
-| POST | `/api/pay/cycles/{id}/debt-deductions` | Payroll.Api/PayCycles.cs:156 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
+| POST | `/api/pay/cycles` | Payroll.Api/PayCycles.cs:159 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
+| POST | `/api/pay/cycles/{id}/advance` | Payroll.Api/PayCycles.cs:160 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
+| POST | `/api/pay/cycles/{id}/debt-deductions` | Payroll.Api/PayCycles.cs:157 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
 | POST | `/api/pay/cycles/{id}/review/approve-all` | Payroll.Api/PayCycles.Review.cs:146 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
 | POST | `/api/pay/cycles/{id}/review/{iqama}` | Payroll.Api/PayCycles.Review.cs:147 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
 | POST | `/api/pay/settings` | Payroll.Api/PaySettings.cs:87 | pay.manage; app scope; shared writes need all companies | none | keep |

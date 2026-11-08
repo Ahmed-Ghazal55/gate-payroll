@@ -55,7 +55,7 @@ public static class PayReviewDraft
                     if(rows.Count==0)
                     {
                         // The invoice is final (BR31); operations only say who worked. One operator on the assignment history is enough, shown as a warning.
-                        var assigned=(local["assignments"] as JsonArray??[]).OfType<JsonObject>().Where(a=>a.S("riderId")!=""&&PayReviewCategory.Overlaps(a.S("RawEffectiveFrom"),a.S("RawEffectiveTo"),period)).Select(a=>a.S("riderId")).Distinct(StringComparer.Ordinal).ToList();
+                        var assigned=(local["assignments"] as JsonArray??[]).OfType<JsonObject>().Where(a=>a.S("riderId")!=""&&AssignmentSpan.Overlaps(a,period)).Select(a=>a.S("riderId")).Distinct(StringComparer.Ordinal).ToList();
                         if(assigned.Count!=1){Block("operations_missing","لا يوجد تشغيل لهذا الحساب ولا مشغل واحد في التكليفات؛ استورد توزيع التشغيل.","import_operations",source);continue;}
                         onlyAssigned=assigned[0];Warn("operations_missing_using_assignment","لا يوجد تشغيل في ERP لهذا الحساب؛ استُخدم مشغل التكليف الوحيد وطلبات الفاتورة.",source,0,line.N("orders"));
                     }
@@ -119,11 +119,6 @@ public static class PayReviewDraft
         string dataThrough=daily.Select(d=>d.S("date")).Where(d=>d.Length>=10).Select(d=>d[..10]).DefaultIfEmpty("").Max(StringComparer.Ordinal)!;
         return new(){["app"]="ninja",["period"]=period,["companyId"]=company,["invoices"]=reviews,["blockers"]=blockers,["warnings"]=warnings,["allocationProposals"]=proposals,["dataThrough"]=dataThrough,["unassignedOrders"]=unassigned,["ridersNotFound"]=missing,["evidence"]=evidence,["canCreate"]=blockers.Count==0&&reviews.Count>0,["totals"]=new JsonObject{["gross"]=invoices.Sum(i=>i.N("amountExclVat")),["deductions"]=invoices.Sum(i=>i.N("deductionsTotal")),["vat"]=invoices.Sum(i=>i.N("vat"))}};
     }
-    static bool Covers(JsonObject assignment,string date)
-    {
-        if(date.Length<10||!DateOnly.TryParse(date[..10],CultureInfo.InvariantCulture,out var day)||!DateTimeOffset.TryParse(assignment.S("RawEffectiveFrom"),CultureInfo.InvariantCulture,DateTimeStyles.None,out var from))return false;
-        DateOnly start=DateOnly.FromDateTime(from.ToOffset(TimeSpan.FromHours(3)).DateTime);if(start>day)return false;
-        return assignment.S("RawEffectiveTo")==""||DateTimeOffset.TryParse(assignment.S("RawEffectiveTo"),CultureInfo.InvariantCulture,DateTimeStyles.None,out var end)&&end>new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue),TimeSpan.FromHours(3));
-    }
+    static bool Covers(JsonObject assignment,string date)=>AssignmentSpan.Covers(assignment,date);
     public static void Map(RouteGroupBuilder api,Store store)=>api.MapGet("/pay/review-draft",(string app,string period,string companyId,HttpContext ctx)=>store.Read(c=>Build(c,null,ctx.User,app,period,companyId))).WithTags("Payroll").WithSummary("Read source-bound Ninja cycle input and actionable blockers without writes");
 }

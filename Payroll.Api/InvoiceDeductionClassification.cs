@@ -18,7 +18,7 @@ public static class InvoiceDeductionClassification
         {
             string rider=J.Iqama(input.Required("riderId"));var person=Store.Get(c,rider,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(actor,person);
             string app=PayPlatforms.For(invoice.S("platform")).App,period=invoice.S("period");var month=DateTimeOffset.Parse(period+"-01T00:00:00+03:00");
-            J.Need(ErpRiderClassification.ListedAsRider(person)&&Store.List(c,"platform_account",tx).Any(a=>a.S("companyId")==invoice.S("companyId")&&PayPlatforms.For(a.S("platformCode")).App==app&&(a["assignments"] as JsonArray??[]).OfType<JsonObject>().Any(x=>x.S("riderId")==rider&&DateTimeOffset.TryParse(x.S("RawEffectiveFrom"),out var from)&&from<month.AddMonths(1)&&(x.S("RawEffectiveTo")==""||DateTimeOffset.TryParse(x.S("RawEffectiveTo"),out var to)&&to>month))),"المندوب ليس مشغلًا فعليًا للتطبيق في السجل والشهر.");
+            J.Need(ErpRiderClassification.ListedAsRider(person)&&Store.List(c,"platform_account",tx).Any(a=>a.S("companyId")==invoice.S("companyId")&&PayPlatforms.For(a.S("platformCode")).App==app&&(a["assignments"] as JsonArray??[]).OfType<JsonObject>().Any(x=>x.S("riderId")==rider&&AssignmentSpan.Overlaps(x,month,month.AddMonths(1)))),"المندوب ليس مشغلًا فعليًا للتطبيق في السجل والشهر.");
             deduction["riderId"]=rider;
         }
         deduction["level"]=level;deduction["classifiedBy"]=actor.Identity!.Name;

@@ -21,6 +21,16 @@ public sealed class R10OperationsAccessTests
         Assert.AreEqual(10m,draft["invoices"]![0]!["accounts"]![0]!["riders"]![0]!.N("orders"));Assert.AreEqual("2026-10-01",draft.S("dataThrough"));
     }
     [TestMethod]
+    public void ErpDateOnlyAssignmentsAreReadLikeTheLiveData()
+    {
+        var a=new JsonObject{["EffectiveFrom"]="2026-10-05T00:00:00.0000000",["EffectiveTo"]="2026-10-20T00:00:00.0000000"};
+        Assert.IsTrue(AssignmentSpan.Covers(a,"2026-10-05"));Assert.IsTrue(AssignmentSpan.Covers(a,"2026-10-20T00:00:00.0000000"));Assert.IsFalse(AssignmentSpan.Covers(a,"2026-10-21"));Assert.IsFalse(AssignmentSpan.Covers(a,"2026-10-04"));
+        Assert.IsTrue(AssignmentSpan.Overlaps(a,"2026-10"));Assert.IsFalse(AssignmentSpan.Overlaps(a,"2026-11"));
+        Assert.IsTrue(AssignmentSpan.Overlaps(new JsonObject{["EffectiveFrom"]="2026-01-01T00:00:00.0000000"},"2026-11"));
+        using var f=PayReviewDraftTests.Setup();f.Store.Write((c,tx)=>{var account=Store.Get(c,Account,"platform_account",tx)!;account["assignments"]=new JsonArray(new JsonObject{["riderId"]=Rider,["EffectiveFrom"]="2026-10-01T00:00:00.0000000",["EffectiveTo"]=""});Store.Save(c,"platform_account",account,tx);return true;});
+        var draft=Draft(f);Assert.IsTrue(draft.B("canCreate"),draft["blockers"]!.ToJsonString());
+    }
+    [TestMethod]
     public void MissingDailyUsesTheOnlyAssignedOperatorWithAWarning()
     {
         using var f=PayReviewDraftTests.Setup();f.Store.Write((c,tx)=>{using var remove=Store.Command(c,tx,"DELETE FROM records WHERE id=@id",("@id","synthetic-r8-day"));remove.ExecuteNonQuery();return true;});
