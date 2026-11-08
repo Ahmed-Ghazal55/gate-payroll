@@ -47,7 +47,18 @@ The flow test seeded the invoice and classified deductions directly, so it never
 
 **Checked against the 3 real October files** through a local temporary API (counts only): all preview and save. TR 27 lines, BW 76, EX 106 (104 + 2 company). Saved totals differ from the file by about 0.03-0.05 from per-line rounding.
 
+## Flexibility check (2026-11-08, synthetic cycles driven through the API)
+**Works:** with no negative rider, stages 1-7 pass, the journal balances, the bank file shows the right net.
+**Broken:**
+1. A negative rider stops the whole cycle at stage 4; only cancel remains. All 3 real October invoices have such captains.
+2. Review adjustment can't go negative; an instalment can't be set to 0; the adjustment account is fixed.
+3. No carry to `112507` at final approval. No separate debt-deduction stage.
+4. `DEDUCTIONS` rows can only go to the company.
+5. Posting gate has no screen, off on live.
+Ghazal's decisions and the task: Codex P2 in `~/.agents/prompts/codex-R9-shared-riders-deductions.md`. `r8-ninja-flow.mjs` asserts the stop as success and must change.
+
 ## Next blockers on real data (after 0.18.1)
+- `pay_assignment` = 0 on db77738, so every rider gets `scheme_assignment_missing` until schemes are assigned.
 - `ninja_daily` = 0 on db77738, so the review draft will show `operations_missing` for every account. Needs either the ERP pull (dry-run, then «حمّل») or the template import in «استيراد البيانات» ← «تشغيل نينجا».
 - 115 Ninja accounts have no assignments, which gives `unassigned_orders` if they operated in October.
 
