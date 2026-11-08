@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:34579/"
+      "url": "http://127.0.0.1:36261/"
     }
   ],
   "paths": {
@@ -3564,6 +3564,250 @@
         }
       }
     },
+    "/api/platforms/ninja/invoices/{id}/discard": {
+      "post": {
+        "tags": [
+          "Platforms"
+        ],
+        "summary": "Discard a pending unused invoice, retaining source rows and audit",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "companyId",
+                    "period",
+                    "amountExclVat",
+                    "deductionsTotal",
+                    "vat",
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "amountExclVat": {
+                      "type": "number"
+                    },
+                    "deductionsTotal": {
+                      "type": "number"
+                    },
+                    "vat": {
+                      "type": "number"
+                    },
+                    "approvalStatus": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "accountIds": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "invoiceId",
+                          "sourceRow",
+                          "baseGross",
+                          "incentives",
+                          "deductionAmount",
+                          "orders",
+                          "vat",
+                          "invoiced",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "invoiceId": {
+                            "type": "string"
+                          },
+                          "sourceRow": {
+                            "type": "number"
+                          },
+                          "platformAccountId": {
+                            "type": "string"
+                          },
+                          "captainId": {
+                            "type": "string"
+                          },
+                          "lineType": {
+                            "type": "string"
+                          },
+                          "baseGross": {
+                            "type": "number"
+                          },
+                          "incentives": {
+                            "type": "number"
+                          },
+                          "deductionAmount": {
+                            "type": "number"
+                          },
+                          "orders": {
+                            "type": "number"
+                          },
+                          "vat": {
+                            "type": "number"
+                          },
+                          "expected": {
+                            "type": "number"
+                          },
+                          "invoiced": {
+                            "type": "number"
+                          },
+                          "difference": {
+                            "type": "number"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "deductions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "category",
+                                "amount",
+                                "level"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                },
+                                "level": {
+                                  "type": "string"
+                                },
+                                "expenseAccount": {
+                                  "type": "string"
+                                },
+                                "riderId": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/platforms/ninja/invoices/{id}": {
       "get": {
         "tags": [
@@ -5391,10 +5635,717 @@
         "summary": "List scoped Keeta invoices",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "companyId",
+                          "period",
+                          "amountExclVat",
+                          "deductionsTotal",
+                          "vat",
+                          "status",
+                          "approvalStatus",
+                          "allowedActions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "platform": {
+                            "type": "string"
+                          },
+                          "period": {
+                            "type": "string"
+                          },
+                          "reference": {
+                            "type": "string"
+                          },
+                          "amountExclVat": {
+                            "type": "number"
+                          },
+                          "deductionsTotal": {
+                            "type": "number"
+                          },
+                          "vat": {
+                            "type": "number"
+                          },
+                          "approvalStatus": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "approvalBlockers": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "journalEntryId": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "accountingStatus": {
+                            "type": "string"
+                          },
+                          "reversalJournalEntryId": {
+                            "type": "string"
+                          },
+                          "disputes": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "status",
+                                "reason",
+                                "createdBy"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "createdBy": {
+                                  "type": "string"
+                                },
+                                "resolvedBy": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "accountIds": {
+                            "type": [
+                              "null",
+                              "array"
+                            ],
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "invoiceId",
+                                "sourceRow",
+                                "baseGross",
+                                "incentives",
+                                "deductionAmount",
+                                "orders",
+                                "vat",
+                                "invoiced",
+                                "status"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "invoiceId": {
+                                  "type": "string"
+                                },
+                                "sourceRow": {
+                                  "type": "number"
+                                },
+                                "platformAccountId": {
+                                  "type": "string"
+                                },
+                                "captainId": {
+                                  "type": "string"
+                                },
+                                "lineType": {
+                                  "type": "string"
+                                },
+                                "baseGross": {
+                                  "type": "number"
+                                },
+                                "incentives": {
+                                  "type": "number"
+                                },
+                                "deductionAmount": {
+                                  "type": "number"
+                                },
+                                "orders": {
+                                  "type": "number"
+                                },
+                                "vat": {
+                                  "type": "number"
+                                },
+                                "expected": {
+                                  "type": "number"
+                                },
+                                "invoiced": {
+                                  "type": "number"
+                                },
+                                "difference": {
+                                  "type": "number"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "deductions": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "category",
+                                      "amount",
+                                      "level"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "level": {
+                                        "type": "string"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platforms/keeta/invoices/{id}/discard": {
+      "post": {
+        "tags": [
+          "Platforms"
+        ],
+        "summary": "Discard a pending unused Keeta invoice, retaining source rows and audit",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "companyId",
+                    "period",
+                    "amountExclVat",
+                    "deductionsTotal",
+                    "vat",
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "amountExclVat": {
+                      "type": "number"
+                    },
+                    "deductionsTotal": {
+                      "type": "number"
+                    },
+                    "vat": {
+                      "type": "number"
+                    },
+                    "approvalStatus": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "accountIds": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "invoiceId",
+                          "sourceRow",
+                          "baseGross",
+                          "incentives",
+                          "deductionAmount",
+                          "orders",
+                          "vat",
+                          "invoiced",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "invoiceId": {
+                            "type": "string"
+                          },
+                          "sourceRow": {
+                            "type": "number"
+                          },
+                          "platformAccountId": {
+                            "type": "string"
+                          },
+                          "captainId": {
+                            "type": "string"
+                          },
+                          "lineType": {
+                            "type": "string"
+                          },
+                          "baseGross": {
+                            "type": "number"
+                          },
+                          "incentives": {
+                            "type": "number"
+                          },
+                          "deductionAmount": {
+                            "type": "number"
+                          },
+                          "orders": {
+                            "type": "number"
+                          },
+                          "vat": {
+                            "type": "number"
+                          },
+                          "expected": {
+                            "type": "number"
+                          },
+                          "invoiced": {
+                            "type": "number"
+                          },
+                          "difference": {
+                            "type": "number"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "deductions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "category",
+                                "amount",
+                                "level"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                },
+                                "level": {
+                                  "type": "string"
+                                },
+                                "expenseAccount": {
+                                  "type": "string"
+                                },
+                                "riderId": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platforms/keeta/invoices/{id}": {
+      "get": {
+        "tags": [
+          "Platforms"
+        ],
+        "summary": "Read scoped Keeta invoice and available actions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "companyId",
+                    "period",
+                    "amountExclVat",
+                    "deductionsTotal",
+                    "vat",
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "amountExclVat": {
+                      "type": "number"
+                    },
+                    "deductionsTotal": {
+                      "type": "number"
+                    },
+                    "vat": {
+                      "type": "number"
+                    },
+                    "approvalStatus": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "accountIds": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "invoiceId",
+                          "sourceRow",
+                          "baseGross",
+                          "incentives",
+                          "deductionAmount",
+                          "orders",
+                          "vat",
+                          "invoiced",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "invoiceId": {
+                            "type": "string"
+                          },
+                          "sourceRow": {
+                            "type": "number"
+                          },
+                          "platformAccountId": {
+                            "type": "string"
+                          },
+                          "captainId": {
+                            "type": "string"
+                          },
+                          "lineType": {
+                            "type": "string"
+                          },
+                          "baseGross": {
+                            "type": "number"
+                          },
+                          "incentives": {
+                            "type": "number"
+                          },
+                          "deductionAmount": {
+                            "type": "number"
+                          },
+                          "orders": {
+                            "type": "number"
+                          },
+                          "vat": {
+                            "type": "number"
+                          },
+                          "expected": {
+                            "type": "number"
+                          },
+                          "invoiced": {
+                            "type": "number"
+                          },
+                          "difference": {
+                            "type": "number"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "deductions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "category",
+                                "amount",
+                                "level"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                },
+                                "level": {
+                                  "type": "string"
+                                },
+                                "expenseAccount": {
+                                  "type": "string"
+                                },
+                                "riderId": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -5419,13 +6370,103 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/JsonObject"
+                    "required": [
+                      "id",
+                      "invoiceId",
+                      "sourceRow",
+                      "baseGross",
+                      "incentives",
+                      "deductionAmount",
+                      "orders",
+                      "vat",
+                      "invoiced",
+                      "status"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "invoiceId": {
+                        "type": "string"
+                      },
+                      "sourceRow": {
+                        "type": "number"
+                      },
+                      "platformAccountId": {
+                        "type": "string"
+                      },
+                      "captainId": {
+                        "type": "string"
+                      },
+                      "lineType": {
+                        "type": "string"
+                      },
+                      "baseGross": {
+                        "type": "number"
+                      },
+                      "incentives": {
+                        "type": "number"
+                      },
+                      "deductionAmount": {
+                        "type": "number"
+                      },
+                      "orders": {
+                        "type": "number"
+                      },
+                      "vat": {
+                        "type": "number"
+                      },
+                      "expected": {
+                        "type": "number"
+                      },
+                      "invoiced": {
+                        "type": "number"
+                      },
+                      "difference": {
+                        "type": "number"
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "deductions": {
+                        "type": "array",
+                        "items": {
+                          "required": [
+                            "category",
+                            "amount",
+                            "level"
+                          ],
+                          "type": "object",
+                          "properties": {
+                            "category": {
+                              "type": "string"
+                            },
+                            "amount": {
+                              "type": "number"
+                            },
+                            "level": {
+                              "type": "string"
+                            },
+                            "expenseAccount": {
+                              "type": "string"
+                            },
+                            "riderId": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }

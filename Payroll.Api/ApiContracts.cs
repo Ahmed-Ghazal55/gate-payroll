@@ -41,10 +41,10 @@ public static class ApiContracts
         if(path.StartsWith("/api/finance/journals/manual")&&!path.EndsWith("/attachment"))return get&&path.EndsWith("/manual")?Page(Journal()):Journal();
         if(path=="/api/pay/cycles/{id}/lines")return Page(CycleLine());
         if(path.StartsWith("/api/pay/cycles")&&!path.Contains("/review"))return get?Page(Cycle()):Cycle();
-        if(path.StartsWith("/api/platforms/ninja/invoices"))
+        if(path.StartsWith("/api/platforms/ninja/invoices")||path.StartsWith("/api/platforms/keeta/invoices")&&(get||path.EndsWith("/discard")))
         {
             if(path.EndsWith("/lines"))return A(InvoiceLine());
-            if(path=="/api/platforms/ninja/invoices")return get?Page(Invoice()):new(){OneOf=[Invoice(),O(new(){["rows"]=A(Invoice()),["canCommit"]=B(),["fingerprint"]=S()},"rows","canCommit","fingerprint")]};
+            if(path is "/api/platforms/ninja/invoices" or "/api/platforms/keeta/invoices")return get?Page(Invoice()):new(){OneOf=[Invoice(),O(new(){["rows"]=A(Invoice()),["canCommit"]=B(),["fingerprint"]=S()},"rows","canCommit","fingerprint")]};
             return Invoice();
         }
         if(path=="/api/pay/settings"||path.StartsWith("/api/pay/settings/{id}")||path.StartsWith("/api/pay/apps/{app}/")&&new[]{"terms","schemes","eligibility"}.Any(s=>path.Contains("/"+s)))return method=="DELETE"?O(new(){["deleted"]=B(),["id"]=S()},"deleted","id"):get?Page(Setting()):Setting();

@@ -23,6 +23,16 @@ public sealed class KeetaInvoiceTests
         return store.Write((c,tx)=>KeetaInvoices.Commit(c,tx,Actor(),confirmed,bytes));
     }
     [TestMethod]
+    public void DiscardedUploadCanBeReplacedButPendingCycleCannotBeDiscarded()
+    {
+        using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);var bytes=Workbook();var first=Commit(f.Store,bytes);string id=first.S("id");
+        f.Store.Write((c,tx)=>InvoiceDiscard.Discard(c,tx,Actor(),"keeta",id,new(){["reason"]="Replace incorrect upload"}));
+        var second=Commit(f.Store,bytes);Assert.AreNotEqual(id,second.S("id"));Assert.AreEqual(2,f.Store.Read(c=>Store.List(c,"platform_invoice_line").Count));
+        f.Store.Write((c,tx)=>{Store.Save(c,PayCycles.Kind,new(){["id"]="synthetic-pending-cycle",["status"]="draft",["invoices"]=new JsonArray(new JsonObject{["invoiceId"]=second.S("id")})},tx);return true;});
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>InvoiceDiscard.Discard(c,tx,Actor(),"keeta",second.S("id"),new(){["reason"]="Cycle protects its source"})));
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>KeetaInvoices.Workflow.Approve(c,tx,Actor("checker"),id)));
+    }
+    [TestMethod]
     public void InvoiceFinalTotalsIgnoreAppendedLocalPayrollAndBindFileActorAndCompanyState()
     {
         using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);var bytes=Workbook();var input=Input();var preview=f.Store.Read(c=>KeetaInvoices.Preview(c,Actor(),input,bytes));

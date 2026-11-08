@@ -29,8 +29,9 @@ public static partial class NinjaInvoices
         var lines=Lines(c,tx,invoice.S("id"));var parts=lines.SelectMany(l=>(l["deductions"] as JsonArray??[]).OfType<JsonObject>()).ToList();
         var disputes=Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==invoice.S("id")).ToList();
         bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve"),independent=!name.Equals(invoice.S("createdBy"),StringComparison.OrdinalIgnoreCase),cycle=InCycle(c,tx,invoice.S("id")),posted=invoice.S("journalEntryId")!="",open=!Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==invoice.S("companyId")&&p.S("period")==invoice.S("period")&&p.S("status")=="closed");
-        if(!posted&&!cycle)
+        if(InvoiceDiscard.Active(invoice)&&!posted&&!cycle)
         {
+            if(manage&&InvoiceDiscard.Can(c,tx,invoice))actions.Add("discard");
             if(manage&&invoice.S("approvalStatus")=="pending"&&parts.Count>0)actions.Add("classify");
             if(approve&&independent&&open&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>(d.S("level") is "company_level" or "account_level" or "rider_level")&&!name.Equals(d.S("classifiedBy"),StringComparison.OrdinalIgnoreCase)))actions.Add("approve");
             if(manage)actions.Add("dispute");

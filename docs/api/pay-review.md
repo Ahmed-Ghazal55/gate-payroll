@@ -12,6 +12,10 @@
 - An independent `pay.approve` user posts stage 7. Negative commission/invoice entitlements become `NegativeSalaryCarryover` on `112507`; no negative debit/credit amounts are written.
 - BR §22.9.2 remains: an ineligible Keeta salary fallback recovers operating cost and current-month fuel only up to available earnings; the rest is expense `512121`, never a new rider debt. `GET /api/pay/cycles/{id}/unrecovered-costs` exposes the management breakdown. A negative Ninja target-salary result is blocked for a separate policy decision; the Keeta exception is not extended to it.
 
+## Replace an unapproved supplier invoice (R10 F3)
+- `POST /api/platforms/{ninja|keeta}/invoices/{id}/discard {reason}` requires `pay.manage`, a pending unposted invoice and no cycle reference. It preserves the document, source rows and audit, marks it `discarded`, and removes it from active lists/review drafts. The same reference/file can be uploaded again as a new document.
+- Get the invoice to read `allowedActions`; `discard` is offered only when eligible. The historical document remains readable with no actions; approval/dispute cannot revive it.
+
 ## Debt confirmation after salary approval (stage 8)
 - `GET /api/pay/cycles/{id}/debt-deductions` returns each rider's approved salary, due items, proposed capped amounts, current debt balances, selection `max` and allowed actions. Every active due debt appears, including opening debts and carryovers with a scheduled instalment of zero. `due` remains the schedule; selecting a different amount never edits the debt schedule.
 - `POST` to the same route accepts `{action:"edit",rider,key,amount,reason}` with `amount` from zero to `min(remainingBalance, available positive net)`; a reason is required when it differs from scheduled `due`, or `{action:"confirm",rider}`, or `{action:"confirm-all"}`. Selection and confirmation require independent users (`pay.manage` / `pay.approve`).
