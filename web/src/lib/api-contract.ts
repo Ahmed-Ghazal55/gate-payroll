@@ -535,6 +535,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rider-mobile/device-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Update FCM device token for current mobile session */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnonymousTypeOfbooleanAndboolean"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/rider-mobile/login": {
         parameters: {
             query?: never;
@@ -3316,6 +3356,7 @@ export interface paths {
                             approvalStatus: string;
                             status: string;
                             allowedActions: string[];
+                            approvalBlockers?: string[];
                             journalEntryId?: string;
                             createdBy?: string;
                             approvedBy?: string;
@@ -3399,6 +3440,7 @@ export interface paths {
                                 approvalStatus: string;
                                 status: string;
                                 allowedActions: string[];
+                                approvalBlockers?: string[];
                                 journalEntryId?: string;
                                 createdBy?: string;
                                 approvedBy?: string;
@@ -3473,6 +3515,7 @@ export interface paths {
                             approvalStatus: string;
                             status: string;
                             allowedActions: string[];
+                            approvalBlockers?: string[];
                             journalEntryId?: string;
                             createdBy?: string;
                             approvedBy?: string;
@@ -3522,6 +3565,7 @@ export interface paths {
                                 approvalStatus: string;
                                 status: string;
                                 allowedActions: string[];
+                                approvalBlockers?: string[];
                                 journalEntryId?: string;
                                 createdBy?: string;
                                 approvedBy?: string;
@@ -3609,6 +3653,7 @@ export interface paths {
                             approvalStatus: string;
                             status: string;
                             allowedActions: string[];
+                            approvalBlockers?: string[];
                             journalEntryId?: string;
                             createdBy?: string;
                             approvedBy?: string;
@@ -3761,6 +3806,98 @@ export interface paths {
                             approvalStatus: string;
                             status: string;
                             allowedActions: string[];
+                            approvalBlockers?: string[];
+                            journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
+                            accountIds?: null | string[];
+                            lines?: {
+                                id: string;
+                                invoiceId: string;
+                                sourceRow: number;
+                                platformAccountId?: string;
+                                lineType?: string;
+                                baseGross: number;
+                                incentives: number;
+                                deductionAmount: number;
+                                orders: number;
+                                vat: number;
+                                expected?: number;
+                                invoiced: number;
+                                difference?: number;
+                                reason?: string;
+                                status: string;
+                                deductions?: {
+                                    category: string;
+                                    amount: number;
+                                    level: string;
+                                    expenseAccount?: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platforms/ninja/invoices/{id}/classify-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Classify many Ninja deductions in one transaction */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            platform?: string;
+                            period: string;
+                            reference?: string;
+                            amountExclVat: number;
+                            deductionsTotal: number;
+                            vat: number;
+                            approvalStatus: string;
+                            status: string;
+                            allowedActions: string[];
+                            approvalBlockers?: string[];
                             journalEntryId?: string;
                             createdBy?: string;
                             approvedBy?: string;
@@ -3847,6 +3984,7 @@ export interface paths {
                             approvalStatus: string;
                             status: string;
                             allowedActions: string[];
+                            approvalBlockers?: string[];
                             journalEntryId?: string;
                             createdBy?: string;
                             approvedBy?: string;
@@ -3937,6 +4075,7 @@ export interface paths {
                             approvalStatus: string;
                             status: string;
                             allowedActions: string[];
+                            approvalBlockers?: string[];
                             journalEntryId?: string;
                             createdBy?: string;
                             approvedBy?: string;
@@ -4027,6 +4166,7 @@ export interface paths {
                             approvalStatus: string;
                             status: string;
                             allowedActions: string[];
+                            approvalBlockers?: string[];
                             journalEntryId?: string;
                             createdBy?: string;
                             approvedBy?: string;
@@ -4113,6 +4253,7 @@ export interface paths {
                             approvalStatus: string;
                             status: string;
                             allowedActions: string[];
+                            approvalBlockers?: string[];
                             journalEntryId?: string;
                             createdBy?: string;
                             approvedBy?: string;
@@ -9409,7 +9550,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndintAndintAndstring"];
+                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndbooleanAndstringAndstringAndintAndintAndintAndintAndintAndstring"];
                     };
                 };
             };
@@ -12701,6 +12842,10 @@ export interface components {
         AnonymousTypeOfboolean: {
             ok: boolean;
         };
+        AnonymousTypeOfbooleanAndboolean: {
+            ok: boolean;
+            fcmRegistered: boolean;
+        };
         AnonymousTypeOfbooleanAndIEnumerableOfJsonObject: {
             featureEnabled: boolean;
             items: null | components["schemas"]["JsonObject"][];
@@ -13039,6 +13184,29 @@ export interface components {
             expiresAt: null | string;
             url: null | string;
         };
+        AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndbooleanAndstringAndstringAndintAndintAndintAndintAndintAndstring: {
+            projectId: null | string;
+            senderId: null | string;
+            vapidPublicKey: null | string;
+            androidPackageName: null | string;
+            googlePlayUrl: null | string;
+            hasServiceAccountJson: boolean;
+            legacyStoredKey: boolean;
+            configured: boolean;
+            webMobilePortalUrl: null | string;
+            inquiryPortalUrl: null | string;
+            /** Format: int32 */
+            activeSessionsCount: number | string;
+            /** Format: int32 */
+            fcmRegisteredDevicesCount: number | string;
+            /** Format: int32 */
+            outboxSentCount: number | string;
+            /** Format: int32 */
+            outboxFailedCount: number | string;
+            /** Format: int32 */
+            outboxPendingCount: number | string;
+            updatedAt: null | string;
+        };
         AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring: {
             id: null | string;
             category: null | string;
@@ -13048,22 +13216,6 @@ export interface components {
             requiresAck: boolean;
             acknowledged: boolean;
             createdAt: null | string;
-        };
-        AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndintAndintAndstring: {
-            projectId: null | string;
-            senderId: null | string;
-            vapidPublicKey: null | string;
-            androidPackageName: null | string;
-            googlePlayUrl: null | string;
-            hasServiceAccountJson: boolean;
-            configured: boolean;
-            webMobilePortalUrl: null | string;
-            inquiryPortalUrl: null | string;
-            /** Format: int32 */
-            activeSessionsCount: number | string;
-            /** Format: int32 */
-            fcmRegisteredDevicesCount: number | string;
-            updatedAt: null | string;
         };
         "AnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]Andstring": {
             code: null | string;

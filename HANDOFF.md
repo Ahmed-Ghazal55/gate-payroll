@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Claude Code (integration) |
-| Branch | release/0.18.0 = fix/0.17.1 + feat/r8-ninja-web (incl. feat/r8-ninja-api) + feat/r8-rider-app |
+| Current writer | none |
+| Branch | fix/0.18.1 (PR, waiting for «ادمج») |
 | Updated | 2026-11-08 by Claude Code |
-| Live | 0.17.0 on SQL db77738; 0.17.1 (PR #30) waits for «ادمج» |
+| Live | 0.18.0 on SQL db77738 |
 
 ## Goal now
 Run the first real Ninja payroll for 2026-10 in the browser against db77738 (runbook `docs/runbooks/NINJA-2026-10.md`).
@@ -33,6 +33,35 @@ Run the first real Ninja payroll for 2026-10 in the browser against db77738 (run
   - **Ghazal after deploy:** re-save the Firebase settings once (removes the legacy stored key).
   - Then follow `mobile/README.md` steps 1–7.
 
+## 0.18.1: Ninja upload could never reach approval (found from Ghazal's report)
+The flow test seeded the invoice and classified deductions directly, so it never hit these:
+1. The upload required `ninja_account` rows; db77738 has 0, so every preview failed. Now the captain also matches `platform_account.externalAccountId` (same source as the pull). Unknown or deleted captains and other-company rows are rejected with row numbers.
+2. No screen could classify deductions, and approval needs them all classified. Added a category panel and `POST /platforms/ninja/invoices/{id}/classify-batch`.
+3. No explanation when approve is hidden. The API now returns `approvalBlockers`; the screen shows them.
+4. Per-account picker was always empty: wrong kind (`accounts`) and wrong code case (`Ninja`), plus the 200 page cap.
+5. Several selected files: only the first would be saved, silently. Now reconcile only, and it asks for one file at a time. The default reference includes the file name, so a company can hold several invoices a month.
+6. `web/tests/r8-ninja-flow.mjs` now uploads a real synthetic xlsx with live-shaped accounts: maker uploads, confirms, classifies; checker approves.
+
+7. Real October files (3 companies) then exposed more: captains with a negative final (9 rows) were rejected, and `-` cells in DEDUCTIONS rows failed the number check. BR §31 says the invoice is final, so they are kept; a negative rider stops at «يحتاج قرار» in the cycle.
+8. UI: next-step card with the action button, invoice chips per company, company/month switch resets the screen, reference field removed (generated from the file name), Odoo optional. New `SearchableSelect` (manual journal accounts, cost accounts, sponsors, vaults); riders in payroll dialogs use `RiderPicker`.
+
+**Checked against the 3 real October files** through a local temporary API (counts only): all preview and save. TR 27 lines, BW 76, EX 106 (104 + 2 company). Saved totals differ from the file by about 0.03-0.05 from per-line rounding.
+
+## Flexibility check (2026-11-08, synthetic cycles driven through the API)
+**Works:** with no negative rider, stages 1-7 pass, the journal balances, the bank file shows the right net.
+**Broken:**
+1. A negative rider stops the whole cycle at stage 4; only cancel remains. All 3 real October invoices have such captains.
+2. Review adjustment can't go negative; an instalment can't be set to 0; the adjustment account is fixed.
+3. No carry to `112507` at final approval. No separate debt-deduction stage.
+4. `DEDUCTIONS` rows can only go to the company.
+5. Posting gate has no screen, off on live.
+Ghazal's decisions and the task: Codex P2 in `~/.agents/prompts/codex-R9-shared-riders-deductions.md`. `r8-ninja-flow.mjs` asserts the stop as success and must change.
+
+## Next blockers on real data (after 0.18.1)
+- `pay_assignment` = 0 on db77738, so every rider gets `scheme_assignment_missing` until schemes are assigned.
+- `ninja_daily` = 0 on db77738, so the review draft will show `operations_missing` for every account. Needs either the ERP pull (dry-run, then «حمّل») or the template import in «استيراد البيانات» ← «تشغيل نينجا».
+- 115 Ninja accounts have no assignments, which gives `unassigned_orders` if they operated in October.
+
 ## Known gaps (after integration)
 1. Contract schemas are loose, so the UI still uses casts:
    - `history` in `/api/pay/cycles`;
@@ -51,7 +80,7 @@ Full counts are in `~/Private/gate-data/sync-logs/r8-ninja-dryrun.json`.
   3. No Ninja invoice for 2026-10 has been uploaded.
 
 ## Next
-1. Ghazal: «ادمج» PR #30 (0.17.1), then PR #31 (0.18.0), then deploy.
+1. Ghazal: «ادمج» 0.18.1.
 2. Ghazal, in the browser after deploy:
    - approve the global setting as a second user;
    - enter and approve the Ninja terms, scheme and eligibility;

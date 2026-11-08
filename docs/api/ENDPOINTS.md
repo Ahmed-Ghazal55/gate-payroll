@@ -94,9 +94,9 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/platforms/hs/proposed-journals` | Payroll.Api/HungerStationInvoices.Review.cs:46 | platforms.hs.view; company/platform scope | none | new |
 | GET | `/api/platforms/keeta/invoices` | Payroll.Api/KeetaInvoices.cs:111 | pay.view; company/platform scope; signed import or independent approval; posting gate | none | new |
 | GET | `/api/platforms/keeta/invoices/{id}/lines` | Payroll.Api/KeetaInvoices.cs:112 | pay.view; company/platform scope; signed import or independent approval; posting gate | none | new |
-| GET | `/api/platforms/ninja/invoices` | Payroll.Api/NinjaInvoices.cs:153 | pay.view; company/platform scope; signed import or independent approval; posting gate | none | new |
-| GET | `/api/platforms/ninja/invoices/{id}` | Payroll.Api/NinjaInvoices.cs:154 | pay.view; company/platform scope; signed import or independent approval; posting gate | none | new |
-| GET | `/api/platforms/ninja/invoices/{id}/lines` | Payroll.Api/NinjaInvoices.cs:155 | pay.view; company/platform scope; signed import or independent approval; posting gate | none | new |
+| GET | `/api/platforms/ninja/invoices` | Payroll.Api/NinjaInvoices.cs:170 | pay.view; company/platform scope; signed import or independent approval; posting gate | none | new |
+| GET | `/api/platforms/ninja/invoices/{id}` | Payroll.Api/NinjaInvoices.cs:171 | pay.view; company/platform scope; signed import or independent approval; posting gate | none | new |
+| GET | `/api/platforms/ninja/invoices/{id}/lines` | Payroll.Api/NinjaInvoices.cs:172 | pay.view; company/platform scope; signed import or independent approval; posting gate | none | new |
 | GET | `/api/platforms/ninja/terms/seed` | Payroll.Api/NinjaBilling.cs:149 | pay.view (read-only recalculation) | none | new |
 | GET | `/api/platforms/{code}/posting` | Payroll.Api/PlatformPosting.cs:40 | Admin / SuperAdmin; audited platform gate | none | new |
 | POST | `/api/platforms/hs/allocations/{id}/approve` | Payroll.Api/HungerStationInvoices.Review.cs:56 | platforms.hs.approve; independent maker-checker; company/platform scope | none | new |
@@ -112,13 +112,14 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/platforms/keeta/invoices/{id}/dispute` | Payroll.Api/KeetaInvoices.cs:115 | pay.manage; company/platform scope; signed import or independent approval; posting gate | none | new |
 | POST | `/api/platforms/keeta/invoices/{id}/post` | Payroll.Api/KeetaInvoices.cs:117 | pay.approve; company/platform scope; signed import or independent approval; posting gate | none | new |
 | POST | `/api/platforms/keeta/invoices/{id}/resolve` | Payroll.Api/KeetaInvoices.cs:116 | pay.approve; company/platform scope; signed import or independent approval; posting gate | none | new |
-| POST | `/api/platforms/ninja/invoices` | Payroll.Api/NinjaInvoices.cs:144 | pay.manage; company/platform scope; signed import or independent approval; posting gate | none | new |
+| POST | `/api/platforms/ninja/invoices` | Payroll.Api/NinjaInvoices.cs:161 | pay.manage; company/platform scope; signed import or independent approval; posting gate | none | new |
 | POST | `/api/platforms/ninja/invoices/reconcile` | Payroll.Api/NinjaBilling.cs:150 | pay.view (read-only recalculation) | none | new |
-| POST | `/api/platforms/ninja/invoices/{id}/approve` | Payroll.Api/NinjaInvoices.cs:157 | pay.approve; company/platform scope; signed import or independent approval; posting gate | none | new |
-| POST | `/api/platforms/ninja/invoices/{id}/classify` | Payroll.Api/NinjaInvoices.cs:156 | pay.manage; company/platform scope; signed import or independent approval; posting gate | none | new |
-| POST | `/api/platforms/ninja/invoices/{id}/dispute` | Payroll.Api/NinjaInvoices.cs:158 | pay.manage; company/platform scope; signed import or independent approval; posting gate | none | new |
-| POST | `/api/platforms/ninja/invoices/{id}/post` | Payroll.Api/NinjaInvoices.cs:160 | pay.approve; company/platform scope; signed import or independent approval; posting gate | none | new |
-| POST | `/api/platforms/ninja/invoices/{id}/resolve` | Payroll.Api/NinjaInvoices.cs:159 | pay.approve; company/platform scope; signed import or independent approval; posting gate | none | new |
+| POST | `/api/platforms/ninja/invoices/{id}/approve` | Payroll.Api/NinjaInvoices.cs:175 | pay.approve; company/platform scope; signed import or independent approval; posting gate | none | new |
+| POST | `/api/platforms/ninja/invoices/{id}/classify` | Payroll.Api/NinjaInvoices.cs:173 | pay.manage; company/platform scope; signed import or independent approval; posting gate | none | new |
+| POST | `/api/platforms/ninja/invoices/{id}/classify-batch` | Payroll.Api/NinjaInvoices.cs:174 | pay.manage; company/platform scope; signed import or independent approval; posting gate | none | new |
+| POST | `/api/platforms/ninja/invoices/{id}/dispute` | Payroll.Api/NinjaInvoices.cs:176 | pay.manage; company/platform scope; signed import or independent approval; posting gate | none | new |
+| POST | `/api/platforms/ninja/invoices/{id}/post` | Payroll.Api/NinjaInvoices.cs:178 | pay.approve; company/platform scope; signed import or independent approval; posting gate | none | new |
+| POST | `/api/platforms/ninja/invoices/{id}/resolve` | Payroll.Api/NinjaInvoices.cs:177 | pay.approve; company/platform scope; signed import or independent approval; posting gate | none | new |
 | POST | `/api/platforms/{code}/posting` | Payroll.Api/PlatformPosting.cs:42 | Admin / SuperAdmin; audited platform gate | none | new |
 
 ## الرواتب

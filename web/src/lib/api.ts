@@ -1552,6 +1552,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  classifyNinjaInvoiceBatch: (id: string, items: Array<{ lineId: string; category: string; level: 'account_level' | 'company_level'; expenseAccount?: string }>) =>
+    handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/classify-batch`, {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }),
   disputeNinjaInvoice: (id: string, body: { reason: string }) =>
     handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/dispute`, {
       method: 'POST',

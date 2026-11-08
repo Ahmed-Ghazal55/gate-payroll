@@ -15,6 +15,13 @@ public static partial class NinjaInvoices
         {var account=Store.Get(c,id,"platform_account",tx);J.Need(account!=null&&account.S("companyId")==company&&PayPlatforms.For(account.S("platformCode")).App=="ninja","الحساب المختار خارج شركة نينجا.");}
         return selected;
     }
+    // ERP pull `ninja_account` is optional: the platform account's external id is the captain id (PullContracts sets CaptainId from it).
+    static List<(string Captain,string Account)> CaptainAccounts(DbConnection c,DbTransaction? tx)
+    {
+        var pulled=Store.List(c,"ninja_account",tx).Select(a=>(Captain:a.S("CaptainId",a.S("captainId")),Account:a.S("platformAccountId")));
+        var own=Store.List(c,"platform_account",tx).Where(a=>PayPlatforms.For(a.S("platformCode")).App=="ninja"&&!a.B("sourceDeleted")).Select(a=>(Captain:a.S("externalAccountId"),Account:a.S("id")));
+        return pulled.Concat(own).Where(a=>a.Captain!=""&&a.Account!="").Distinct().ToList();
+    }
     static bool InCycle(DbConnection c,DbTransaction? tx,string id)=>Store.List(c,PayCycles.Kind,tx).Any(p=>p.S("status") is not ("cancelled" or "reversed")&&(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==id));
     public static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject invoice)
     {
@@ -31,7 +38,16 @@ public static partial class NinjaInvoices
             if(approve&&independent&&open&&invoice.S("approvalStatus")=="approved"&&disputes.All(d=>d.S("status")=="resolved")&&parts.All(d=>d.S("level")=="company_level"))
             {try{PlatformPosting.Demand(c,"ninja",tx);actions.Add("post");}catch(ApiError){}}
         }
-        result["approvalStatus"]=invoice.S("approvalStatus","pending");result["allowedActions"]=actions;result["lines"]=new JsonArray(lines.Select(l=>(JsonNode?)l.Clone()).ToArray());result["disputes"]=new JsonArray(disputes.Select(d=>(JsonNode?)d.Clone()).ToArray());return result;
+        var blockers=new JsonArray();
+        if(!posted&&!cycle&&invoice.S("approvalStatus","pending")=="pending")
+        {
+            if(!approve)blockers.Add("حسابك لا يملك صلاحية اعتماد فواتير الرواتب.");
+            if(!independent)blockers.Add("أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر (فصل الصلاحيات).");
+            if(!open)blockers.Add("الفترة المحاسبية مغلقة.");
+            int unclassified=parts.Count(d=>d.S("level") is not ("company_level" or "account_level"));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على اليوزر أو على الشركة).");
+            int ownClass=parts.Count(d=>name.Equals(d.S("classifiedBy"),StringComparison.OrdinalIgnoreCase));if(ownClass>0)blockers.Add($"أنت صنّفت {ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.");
+        }
+        result["approvalBlockers"]=blockers;result["approvalStatus"]=invoice.S("approvalStatus","pending");result["allowedActions"]=actions;result["lines"]=new JsonArray(lines.Select(l=>(JsonNode?)l.Clone()).ToArray());result["disputes"]=new JsonArray(disputes.Select(d=>(JsonNode?)d.Clone()).ToArray());return result;
     }
     static JsonObject Act(Store store,HttpContext ctx,string id,Func<DbConnection,DbTransaction,JsonObject> action)=>store.Write((c,tx)=>{action(c,tx);return View(c,tx,ctx.User,Get(c,tx,ctx.User,id));});
 }

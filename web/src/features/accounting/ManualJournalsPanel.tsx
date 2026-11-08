@@ -22,6 +22,7 @@ import {
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Dialog } from '../../components/ui/Dialog';
 import { Drawer } from '../../components/ui/Drawer';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -108,6 +109,10 @@ export function ManualJournalsPanel({
       (a) => (a.posting ?? a.isPosting ?? true) && (a.status === 'active' || a.isActive !== false)
     );
   }, [coaAccounts]);
+  const accountOptions = useMemo(
+    () => postingAccounts.map((a) => ({ value: a.code, label: `${a.code} - ${a.nameAr || a.name}` })),
+    [postingAccounts],
+  );
 
   // Account map for quick lookup
   const accountMap = useMemo(() => {
@@ -983,19 +988,14 @@ export function ManualJournalsPanel({
                     <tr key={idx} className="bg-[var(--surface)]">
                       <td className="p-2 font-mono text-[var(--muted)] text-center">{idx + 1}</td>
                       <td className="p-2">
-                        <select
+                        <SearchableSelect
                           value={line.accountCode}
-                          onChange={(e) => handleLineChange(idx, 'accountCode', e.target.value)}
+                          onChange={(code) => handleLineChange(idx, 'accountCode', code)}
+                          options={accountOptions}
+                          placeholder="اكتب رقم الحساب أو جزءًا من اسمه..."
+                          ariaLabel="الحساب"
                           required
-                          className="w-full p-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
-                        >
-                          <option value="">-- اختر الحساب --</option>
-                          {postingAccounts.map((a) => (
-                            <option key={a.code} value={a.code}>
-                              {a.code} - {a.nameAr || a.name}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </td>
                       <td className="p-2">
                         <input
