@@ -98,13 +98,16 @@ public static partial class PayCycles
         }
         cycle["riders"]=summaries;if(summaries.Count==0||summaries.OfType<JsonObject>().Any(r=>r.S("status")!="ready"))cycle["status"]="needs_decision";
     }
-    static void Approve(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)
+    static bool IndependentReview(ClaimsPrincipal actor,JsonObject row)=>!row.S("reviewedBy").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase)&&!Rows(row["edits"]).OfType<JsonObject>().Any(e=>e.S("by").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase));
+    static bool Approve(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)
     {
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=cycle.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve");
         J.Need(!Rows(cycle["history"]).OfType<JsonObject>().Any(h=>h.N("stage")<7&&h.S("advancedBy").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase)),"المعتمد مستقل عن تجهيز الدورة.");
         var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0).ToList();
-        if(batch.Count==0){J.Need(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!=""),"راجع واعتمد صفًا جاهزًا أولًا؛ الحالات المعلقة لا توقف الآخرين.");return;}
-        J.Need(batch.All(r=>!r.S("reviewedBy").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase)&&!Rows(r["edits"]).OfType<JsonObject>().Any(e=>e.S("by").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase))),"المعتمد مستقل عن مراجعة وتعديل الصف.",403);
+        if(batch.Count==0){J.Need(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!=""),"راجع واعتمد صفًا جاهزًا أولًا؛ الحالات المعلقة لا توقف الآخرين.");return true;}
+        var skipped=batch.Where(r=>!IndependentReview(actor,r)).ToList();batch=batch.Where(r=>IndependentReview(actor,r)).ToList();
+        cycle["approvalResult"]=new JsonObject{["approved"]=batch.Count,["skipped"]=skipped.Count,["skippedRows"]=new JsonArray(skipped.Select(r=>(JsonNode)new JsonObject{["rider"]=r.S("rider"),["reason"]="reviewer_or_editor_is_approver"}).ToArray())};
+        if(batch.Count==0){Store.Audit(c,tx,"pay.salary_rows_skipped",cycle.S("id"),actor.Identity!.Name!);return false;}
         foreach(var (app,_) in Accounts(cycle))PlatformPosting.Demand(c,app,tx);
         bool first=cycle.S("journalEntryId")=="";string now=DateTimeOffset.UtcNow.ToString("O");cycle["approvedBy"]=actor.Identity!.Name;cycle["approvedAt"]=now;
         foreach(var row in batch)
@@ -132,7 +135,7 @@ public static partial class PayCycles
             if(invoice.S("approvalStatus")=="cycle_pending"){invoice["approvalStatus"]="approved";invoice["approvedBy"]=actor.Identity!.Name;invoice["approvedAt"]=now;}
             invoice["payCycleId"]=cycle.S("id");if(first)invoice["journalEntryId"]=journal.S("id");invoice["accountingStatus"]=complete?"posted":"partially_posted";Store.Save(c,"platform_invoice",invoice,tx);
         }
-        SnapshotDebtAfter(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);
+        SnapshotDebtAfter(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);return true;
     }
     static JsonObject PostEarnings(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor,HashSet<string> selected,bool first)
     {

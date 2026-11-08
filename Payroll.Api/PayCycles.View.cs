@@ -16,7 +16,7 @@ public static partial class PayCycles
             if(state=="partially_approved"&&manage)actions.Add("review");
             if(batch.Count==0)blockers.Add("لا توجد صفوف مراجعة جاهزة للاعتماد.");
             if(!approve)blockers.Add("صلاحية pay.approve مطلوبة.");
-            bool independent=!cycle.S("createdBy").Equals(name,StringComparison.OrdinalIgnoreCase)&&!Rows(cycle["history"]).OfType<JsonObject>().Any(h=>h.N("stage")<7&&h.S("advancedBy").Equals(name,StringComparison.OrdinalIgnoreCase))&&batch.All(r=>!r.S("reviewedBy").Equals(name,StringComparison.OrdinalIgnoreCase)&&!Rows(r["edits"]).OfType<JsonObject>().Any(e=>e.S("by").Equals(name,StringComparison.OrdinalIgnoreCase)));
+            bool independent=!cycle.S("createdBy").Equals(name,StringComparison.OrdinalIgnoreCase)&&!Rows(cycle["history"]).OfType<JsonObject>().Any(h=>h.N("stage")<7&&h.S("advancedBy").Equals(name,StringComparison.OrdinalIgnoreCase))&&batch.Any(r=>IndependentReview(actor,r));
             if(!independent)blockers.Add("اعتماد الراتب يحتاج مستخدمًا مستقلًا عن التجهيز والمراجعة.");
             foreach(string app in Accounts(cycle).Select(a=>a.App).Distinct())try{PlatformPosting.Demand(c,app,tx);}catch(ApiError){blockers.Add("بوابة الترحيل مغلقة: "+app);}
             if(approve&&independent&&batch.Count>0&&blockers.Count==0)actions.Add("approve_salaries");

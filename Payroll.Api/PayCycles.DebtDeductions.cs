@@ -74,6 +74,7 @@ public static partial class PayCycles
         }
         else
         {
+            if(action=="confirm")J.Need(rows.Single().S("salaryApprovedAt")!="","اعتمد راتب المندوب قبل تأكيد استقطاع ديونه.",409);
             var payables=Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>Rows(j["lines"]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("accountCode")=="212103").GroupBy(l=>l.S("iqama")).ToDictionary(g=>g.Key,g=>g.Sum(l=>l.N("credit")-l.N("debit")));
             foreach(var row in rows.Where(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed"))
             {

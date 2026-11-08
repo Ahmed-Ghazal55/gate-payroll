@@ -7,6 +7,26 @@ public sealed class R10ReviewFixTests
 {
     const string Rider="2000000001";
     [TestMethod]
+    public void ApproverSkipsOwnReviewsPostsOthersAndUnapprovedSalaryCannotConfirmDebt()
+    {
+        var(f,input,debt)=PayCycleTests.Setup();using(f)
+        {
+            var cycle=PayCycleTests.Through(f,input,review:false);string id=cycle.S("id");
+            f.Store.Write((c,tx)=>PayCycles.ReviewAll(c,tx,PayFixture.Checker,id));
+            var skipped=PayCycleTests.Advance(f,id,7,true);Assert.AreEqual(6m,skipped.N("stage"));Assert.AreEqual(2m,skipped["approvalResult"]!.N("skipped"));
+            Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"journal").Count(j=>j.S("payCycleId")==id)));
+            f.Store.Write((c,tx)=>PayCycles.ReviewRider(c,tx,PayFixture.Maker,id,"2000000002",new(){["action"]="approve"}));
+            var view=f.Store.Read(c=>PayCycles.View(c,null,PayFixture.Checker,Store.Get(c,id,PayCycles.Kind)!));Assert.IsTrue(view["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve_salaries"));
+            var partial=PayCycleTests.Advance(f,id,7,true);Assert.AreEqual("partially_approved",partial.S("status"));Assert.AreEqual(1m,partial["approvalResult"]!.N("approved"));Assert.AreEqual(1m,partial["approvalResult"]!.N("skipped"));
+            Assert.AreEqual(Rider,partial["approvalResult"]!["skippedRows"]![0]!.S("rider"));
+            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.DebtDeductionsAct(c,tx,PayFixture.Checker,id,new(){["action"]="confirm",["rider"]=Rider}))).Status);
+            var review=f.Store.Read(c=>PayCycles.ReviewView(c,PayFixture.Maker,id,"",""));var item=review["rows"]!.AsArray().Single(r=>r!.S("rider")==Rider)!["items"]!.AsArray().Single(i=>i!.S("key")=="debt:"+debt)!;
+            Assert.AreEqual(0m,item.N("amount"));Assert.AreEqual(15m,item.N("requestedAmount"));
+            var completed=f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Actor("synthetic-third-checker","FinancialAccountant"),id,new(){["stage"]=7}));Assert.AreEqual("approved",completed.S("status"));
+            Assert.AreEqual(2,f.Store.Read(c=>Store.List(c,"journal").Count(j=>j.S("payCycleId")==id)));
+        }
+    }
+    [TestMethod]
     public void ZeroInstallmentOpeningIsListedAndChosenDeductionPostsWithoutChangingSchedule()
     {
         var(f,input,debt)=PayCycleTests.Setup();using(f)

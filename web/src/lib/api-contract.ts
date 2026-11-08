@@ -6776,6 +6776,7 @@ export interface paths {
                                     order?: number;
                                     labelAr?: string;
                                     amount: number;
+                                    requestedAmount?: number;
                                     editable: boolean;
                                     max?: null | number;
                                     source: string;
@@ -6893,6 +6894,7 @@ export interface paths {
                                 order?: number;
                                 labelAr?: string;
                                 amount: number;
+                                requestedAmount?: number;
                                 editable: boolean;
                                 max?: null | number;
                                 source: string;
@@ -7092,6 +7094,14 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: {
+                                approvalResult?: {
+                                    approved: number;
+                                    skipped: number;
+                                    skippedRows: {
+                                        rider: string;
+                                        reason: string;
+                                    }[];
+                                };
                                 id: string;
                                 companyId: string;
                                 period: string;
@@ -7172,6 +7182,14 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
+                            approvalResult?: {
+                                approved: number;
+                                skipped: number;
+                                skippedRows: {
+                                    rider: string;
+                                    reason: string;
+                                }[];
+                            };
                             id: string;
                             companyId: string;
                             period: string;
@@ -7264,6 +7282,14 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
+                            approvalResult?: {
+                                approved: number;
+                                skipped: number;
+                                skippedRows: {
+                                    rider: string;
+                                    reason: string;
+                                }[];
+                            };
                             id: string;
                             companyId: string;
                             period: string;

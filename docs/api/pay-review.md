@@ -1,8 +1,8 @@
 # Payroll review grid, config lists, internet advance (K1–K4, BR §27, §29, §32, §25.9)
 
 ## Review grid and independent salary approval (R9 P2)
-- `GET /api/pay/cycles/{id}/review?review=pending|approved&status=ready|needs_decision` (`pay.view`) returns `{cycle,totals,rows}`. Rows include phase totals, items, edit history, `blockers`, `allowedActions`, `salaryApprovedAt` and `debtDeductionStatus`.
-- Stages 4–6 remain reachable when a rider needs a decision. At stage 7, independently approved rows post; unreviewed/blocked rows remain editable in `partially_approved` and cannot enter the bank file. Repeating stage 7 posts only newly reviewed rows. Posted rows require reversal for correction.
+- `GET /api/pay/cycles/{id}/review?review=pending|approved&status=ready|needs_decision` (`pay.view`) returns `{cycle,totals,rows}`. Debt items include `requestedAmount` separately from posted `amount`. Rows include phase totals, items, edit history, `blockers`, `allowedActions`, `salaryApprovedAt` and `debtDeductionStatus`.
+- Stages 4–6 remain reachable when a rider needs a decision. At stage 7, independently approved rows post; unreviewed/blocked rows remain editable in `partially_approved` and cannot enter the bank file. Repeating stage 7 posts only newly reviewed rows. Rows reviewed or edited by the approver are skipped; `approvalResult` returns approved/skipped counts and skipped rider/reason rows. If every row is skipped the cycle stays at stage 6. Posted rows require reversal for correction.
 - `POST /api/pay/cycles/{id}/review/{iqama}` (`pay.manage`):
   - `{action:"approve"}` approves a ready row. A negative row with no other blocker requires a written `reason`; its deficit is carried only at final salary approval.
   - `{action:"edit",key,amount,reason}` chooses an instalment from zero to the smaller of remaining balance and positive net without deducting it yet.
@@ -18,7 +18,7 @@
 
 ## Debt confirmation after salary approval (stage 8)
 - `GET /api/pay/cycles/{id}/debt-deductions` returns each rider's approved salary, due items, proposed capped amounts, current debt balances, selection `max` and allowed actions. Every active due debt appears, including opening debts and carryovers with a scheduled instalment of zero. `due` remains the schedule; selecting a different amount never edits the debt schedule.
-- `POST` to the same route accepts `{action:"edit",rider,key,amount,reason}` with `amount` from zero to `min(remainingBalance, available positive net)`; a reason is required when it differs from scheduled `due`, or `{action:"confirm",rider}`, or `{action:"confirm-all"}`. Selection and confirmation require independent users (`pay.manage` / `pay.approve`).
+- `POST` to the same route accepts `{action:"edit",rider,key,amount,reason}` with `amount` from zero to `min(remainingBalance, available positive net)`; a reason is required when it differs from scheduled `due`, or `{action:"confirm",rider}`, or `{action:"confirm-all"}`. Confirming a rider before salary approval returns 409. Selection and confirmation require independent users (`pay.manage` / `pay.approve`).
 - Confirmation caps the sum at positive salary net and available posted liability. Debt balances, instalment journals and cycle totals commit atomically. Zero defers a due item without a ledger movement; uncovered personal debt remains open. Replays never post an instalment twice.
 - `POST /api/pay/cycles/{id}/advance {stage:8}` confirms all eligible rows. The cycle reaches stage 8 after every salary row and deduction choice is confirmed. Confirmed rows can reach the bank file while another rider remains blocked.
 - Bank preview/export excludes pending salary or debt-confirmation rows. The exported amount comes from closing posted liability after confirmed deductions.

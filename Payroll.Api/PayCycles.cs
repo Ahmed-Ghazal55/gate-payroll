@@ -102,7 +102,7 @@ public static partial class PayCycles
         if(next==4)BuildLines(c,tx,cycle,actor);
         if(next==5)BuildDeductions(c,tx,cycle,actor);
         if(next==6)Merge(c,tx,cycle);
-        if(next==7)Approve(c,tx,cycle,actor);
+        if(next==7&&!Approve(c,tx,cycle,actor)){Store.Save(c,Kind,cycle,tx);return cycle;}
         cycle["stage"]=next;cycle["advancedBy"]=actor.Identity!.Name;if(next!=7)cycle["status"]=cycle.S("status")=="needs_decision"?"needs_decision":"review";
         cycle["history"]!.AsArray().Add(new JsonObject{["stage"]=next,["advancedBy"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O")});Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_advanced",id,actor.Identity!.Name!);return cycle;
     }

@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:36261/"
+      "url": "http://127.0.0.1:43527/"
     }
   ],
   "paths": {
@@ -9851,6 +9851,9 @@
                                 "amount": {
                                   "type": "number"
                                 },
+                                "requestedAmount": {
+                                  "type": "number"
+                                },
                                 "editable": {
                                   "type": "boolean"
                                 },
@@ -10065,6 +10068,9 @@
                             "type": "string"
                           },
                           "amount": {
+                            "type": "number"
+                          },
+                          "requestedAmount": {
                             "type": "number"
                           },
                           "editable": {
@@ -10475,6 +10481,40 @@
                         ],
                         "type": "object",
                         "properties": {
+                          "approvalResult": {
+                            "required": [
+                              "approved",
+                              "skipped",
+                              "skippedRows"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "approved": {
+                                "type": "number"
+                              },
+                              "skipped": {
+                                "type": "number"
+                              },
+                              "skippedRows": {
+                                "type": "array",
+                                "items": {
+                                  "required": [
+                                    "rider",
+                                    "reason"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "rider": {
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
                           "id": {
                             "type": "string"
                           },
@@ -10729,6 +10769,40 @@
                   ],
                   "type": "object",
                   "properties": {
+                    "approvalResult": {
+                      "required": [
+                        "approved",
+                        "skipped",
+                        "skippedRows"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "approved": {
+                          "type": "number"
+                        },
+                        "skipped": {
+                          "type": "number"
+                        },
+                        "skippedRows": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "rider",
+                              "reason"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "rider": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "id": {
                       "type": "string"
                     },
@@ -10983,6 +11057,40 @@
                   ],
                   "type": "object",
                   "properties": {
+                    "approvalResult": {
+                      "required": [
+                        "approved",
+                        "skipped",
+                        "skippedRows"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "approved": {
+                          "type": "number"
+                        },
+                        "skipped": {
+                          "type": "number"
+                        },
+                        "skippedRows": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "rider",
+                              "reason"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "rider": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "id": {
                       "type": "string"
                     },

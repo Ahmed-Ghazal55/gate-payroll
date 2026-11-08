@@ -8,11 +8,12 @@
 | Base | 351ed23; P2 local implementation, no push/merge/deploy or live DB access |
 
 ## Goal now
-R10 F1–F5 → A1–A2 → D1–D5, then R9 P3 (Ghazal latest instruction). Current item: F5; no live writes authorized.
+R10 F1–F5 → A1–A2 → D1–D5, then R9 P3 (Ghazal latest instruction). Current item: A1; no live writes authorized.
 First real Ninja payroll for 2026-10. Ordered task: `~/.agents/prompts/codex-R9-shared-riders-deductions.md`: P2 → P6 → P0 → P1 → P7 → P3 → P4 → P5.
 Ghazal explicitly resolved §22.9.2: preserve its exception and fix it in P2 (prompt: Scope of decision 1).
 
 ## R10 done locally
+- F5: debt review requestedAmount; confirm before salary returns 409; salary approval skips own reviewed/edited rows with approvalResult counts/reasons, posts independent rows, keeps stage 6 if all skipped. 20 focused tests + 26 HTTP contracts passed, 0 skipped.
 - F4: one cycle scan for bank pending riders and one journal scan for debt-confirmation payables, outside rider loops. Existing money/bank regression: 30 passed, 0 skipped.
 - F3: Ninja/Keeta discard routes require pay.manage + reason; preserve rows/audit, hide from active lists/drafts/search, allow reference/file replacement, reject approved/posted/cycle sources. 20 focused tests + 26 HTTP contracts passed, 0 skipped; schema/types/index updated.
 - F2: stage 8 includes zero-schedule debts/carries; selection capped by balance and positive net, reason off schedule, schedule unchanged. 19 focused tests passed, 0 skipped; HTTP contracts 22 passed; types regenerated.
@@ -49,7 +50,7 @@ Ghazal explicitly resolved §22.9.2: preserve its exception and fix it in P2 (pr
 - §32: «تأتي بنود الحوافز والتعويضات والتعديلات من قائمة مالية معتمدة تحدد الحساب والاتجاه. كل تعديل بسبب مكتوب وله قيد متوازن. اعتماد الصفوف الجاهزة لا يعتمد الحالات المعلقة؛ يبقى المعتمد مستقلًا عن التجهيز والمراجعة. بعد اعتماد الراتب يؤكد مراجع مستقل اختيار استقطاع الدين أو تأجيله، ولا يدخل المندوب ملف البنك قبله. التصحيح بعد الاعتماد بالعكس فقط.»
 
 ## Next step (exact)
-**Continue R10 at F5 in `~/.agents/prompts/codex-R10-review-fixes-access-erp.md`** (Claude's P2 review: F1-F5, then A1-A2, D1-D5), then R9 starting at P3. The text below is superseded where it differs.
+**Continue R10 at A1 in `~/.agents/prompts/codex-R10-review-fixes-access-erp.md`** (Claude's P2 review: F1-F5, then A1-A2, D1-D5), then R9 starting at P3. The text below is superseded where it differs.
 P2 backend implementation and validation complete locally; save as `feat(r9): flexible payroll review and debt confirmation (P-2)`. Claude reviews/integrates, Antigravity wires the requests above. Then P6 (account-exception design first; do not implement that exception before Ghazal confirms its design). P6/P0/P1/P7/P3/P4/P5 not started in this P2 continuation.
 Before real October payroll: approve global/Ninja settings; supply assignments and operations (`docs/runbooks/NINJA-2026-10.md`). Live writes still require step-specific «حمّل».
 Weekly % before → after: unavailable; only Ghazal's usage screen is authoritative.
