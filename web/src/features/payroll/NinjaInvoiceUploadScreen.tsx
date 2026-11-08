@@ -44,6 +44,18 @@ import {
 
 type ApiNinjaInvoice = paths['/api/platforms/ninja/invoices']['get']['responses'][200]['content']['application/json']['items'][number];
 
+type DeductionGroup = { category: string; lineIds: string[]; amount: number; unclassified: number; companyOnly: boolean };
+
+const DEDUCTION_LABELS: Record<string, string> = {
+  penalty: 'غرامة (Penalty)',
+  naqilBlocked: 'حظر نقل (NAQIL BLOCKED)',
+  stopsWithoutNotice: 'توقف بدون إشعار',
+  supplier_adjustment: 'تعديل المورد',
+  deductionRefund: 'رد خصم',
+  gasolineSupport: 'دعم بنزين',
+  onDemand: 'On demand',
+};
+
 interface NinjaInvoiceUploadScreenProps {
   initialPeriod?: string;
 }
@@ -99,23 +111,34 @@ export function NinjaInvoiceUploadScreen({
   // Active invoice tab if multiple files
   const [activeInvoiceIdx, setActiveInvoiceIdx] = useState<number>(0);
 
+  // Deduction classification (required before approval)
+  const [classLevel, setClassLevel] = useState<Record<string, 'account_level' | 'company_level'>>({});
+  const [classAccount, setClassAccount] = useState<Record<string, string>>({});
+  const [costAccounts, setCostAccounts] = useState<Array<{ code: string; nameAr?: string; posting?: boolean }>>([]);
+
   // Filters for the captains table
   const [filterMode, setFilterMode] = useState<'all' | 'different' | 'matched'>('all');
   const [searchCaptain, setSearchCaptain] = useState<string>('');
 
   // Load platform accounts for the selected company
   useEffect(() => {
-    api.getOperations('accounts', { pageSize: 200 })
-      .then((res: { items?: Array<{ id: string; code: string; name?: string; externalAccountId?: string; platformCode?: string; platform?: string; app?: string; companyId?: string }> }) => {
+    type OperationAccount = { id: string; code: string; name?: string; externalAccountId?: string; platformCode?: string; companyId?: string };
+    let cancelled = false;
+    (async () => {
+      const found: OperationAccount[] = [];
+      for (let page = 1; page <= 20; page++) {
+        const res = (await api.getOperations('platform_account', { page, pageSize: 200, q: 'ninja' })) as { items?: OperationAccount[]; total?: number };
         const items = res?.items || [];
-        const ninjaAccs = items.filter(
-          (a) =>
-            (a.platformCode === 'Ninja' || a.platform === 'Ninja' || a.app === 'ninja') &&
-            (!a.companyId || isCompanyMatch(a.companyId, companyId))
-        );
-        setAvailableAccounts(ninjaAccs);
-      })
-      .catch(() => {});
+        found.push(...items);
+        if (items.length === 0 || found.length >= (res?.total ?? 0)) break;
+      }
+      if (!cancelled) {
+        setAvailableAccounts(found.filter((a) => a.platformCode?.toLowerCase() === 'ninja' && isCompanyMatch(a.companyId, companyId)));
+      }
+    })().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [companyId]);
 
   // Load saved Ninja invoices from server
@@ -176,6 +199,47 @@ export function NinjaInvoiceUploadScreen({
     });
   };
 
+  // A company can have several invoices a month; the file name keeps each default reference distinct.
+  const invoiceReference = () => (reference.trim() || `NINJA-${period}-${selectedFiles[0]?.name ?? ''}`).slice(0, 200);
+
+  const loadCostAccounts = () => {
+    if (costAccounts.length > 0) return;
+    api.getTargetCoa()
+      .then((res) => setCostAccounts((res?.accounts || []).filter((a) => a.code.startsWith('5') && a.posting)))
+      .catch(() => {});
+  };
+
+  const handleClassifyCategory = async (group: DeductionGroup) => {
+    if (!currentInvoice?.id) return;
+    const level = classLevel[group.category] ?? (group.companyOnly ? 'company_level' : 'account_level');
+    const expenseAccount = classAccount[group.category];
+    if (level === 'company_level' && !expenseAccount) {
+      toast('اختر حساب التكلفة لخصم الشركة', 'warning');
+      return;
+    }
+    setSubmittingAction(`classify:${group.category}`);
+    setActionError(null);
+    try {
+      const updated = await api.classifyNinjaInvoiceBatch(
+        currentInvoice.id,
+        group.lineIds.map((lineId) => ({
+          lineId,
+          category: group.category,
+          level,
+          ...(level === 'company_level' ? { expenseAccount } : {}),
+        })),
+      );
+      setCurrentInvoice(updated);
+      toast(`تم تصنيف ${group.lineIds.length} خصم`, 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'تعذر تصنيف الخصومات';
+      setActionError(msg);
+      toast(msg, 'danger');
+    } finally {
+      setSubmittingAction(null);
+    }
+  };
+
   // Step 2: Preview and Reconcile
   const handleRunReconcile = async () => {
     if (selectedFiles.length === 0) {
@@ -194,12 +258,20 @@ export function NinjaInvoiceUploadScreen({
       setReconcileResult(res);
       setActiveInvoiceIdx(0);
 
+      // The server stores one invoice per file; never drop the other files silently.
+      if (selectedFiles.length > 1) {
+        setServerPreview(null);
+        setStepperStage(2);
+        setActionError('تمت المطابقة للعلم. للحفظ ارفع كل ملف لوحده: كل ملف فاتورة مستقلة.');
+        return;
+      }
+
       // 2. Run server preview check
       const formData = new FormData();
       formData.append('file', selectedFiles[0]);
       formData.append('companyId', companyId);
       formData.append('period', period);
-      formData.append('reference', reference || `NINJA-${period}`);
+      formData.append('reference', invoiceReference());
       formData.append('odooVoucherNo', odooVoucherNo);
       if (uploadMode === 'per_account' && selectedAccountIds.length > 0) {
         selectedAccountIds.forEach((id) => formData.append('accountIds[]', id));
@@ -228,7 +300,7 @@ export function NinjaInvoiceUploadScreen({
       formData.append('file', selectedFiles[0]);
       formData.append('companyId', companyId);
       formData.append('period', period);
-      formData.append('reference', reference || `NINJA-${period}`);
+      formData.append('reference', invoiceReference());
       formData.append('odooVoucherNo', odooVoucherNo);
       formData.append('confirm', 'true');
       if (serverPreview && 'fingerprint' in serverPreview && serverPreview.fingerprint) {
@@ -526,6 +598,19 @@ export function NinjaInvoiceUploadScreen({
   ];
 
   const allowedActions = currentInvoice?.allowedActions || [];
+  const approvalBlockers = currentInvoice?.approvalBlockers || [];
+  const deductionGroups: DeductionGroup[] = Object.values(
+    (currentInvoice?.lines || []).reduce<Record<string, DeductionGroup>>((groups, line) => {
+      for (const d of line.deductions || []) {
+        const group = (groups[d.category] ??= { category: d.category, lineIds: [], amount: 0, unclassified: 0, companyOnly: true });
+        group.lineIds.push(line.id);
+        group.amount += d.amount;
+        if (d.level !== 'account_level' && d.level !== 'company_level') group.unclassified += 1;
+        if (line.lineType !== 'company') group.companyOnly = false;
+      }
+      return groups;
+    }, {}),
+  );
 
   return (
     <div className="space-y-6">
@@ -860,6 +945,73 @@ export function NinjaInvoiceUploadScreen({
       {/* Action Bar (Buttons rendered ONLY from allowedActions returned by API) */}
       {currentInvoice && (
         <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-3">
+          {approvalBlockers.length > 0 && (
+            <div id="ninja-approval-blockers" className="p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 space-y-1">
+              <p className="text-xs font-bold text-[var(--ink)]">لماذا لا يظهر زر الاعتماد:</p>
+              <ul className="list-disc ps-5 text-xs text-[var(--ink)] space-y-0.5">
+                {approvalBlockers.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {allowedActions.includes('classify') && deductionGroups.length > 0 && (
+            <div id="ninja-classify-panel" className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/30 space-y-2">
+              <p className="text-xs font-bold text-[var(--ink)]">تصنيف خصومات الفاتورة: على اليوزر أم على الشركة</p>
+              {deductionGroups.map((group) => {
+                const level = classLevel[group.category] ?? (group.companyOnly ? 'company_level' : 'account_level');
+                return (
+                  <div key={group.category} data-category={group.category} className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink)]">
+                    <span className="font-bold min-w-40">{DEDUCTION_LABELS[group.category] ?? group.category}</span>
+                    <span className="font-mono text-[var(--muted)]">
+                      {group.lineIds.length} سطر · {group.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س · {group.unclassified} بلا تصنيف
+                    </span>
+                    <select
+                      aria-label="جهة تحمل الخصم"
+                      value={level}
+                      disabled={group.companyOnly}
+                      onChange={(e) => {
+                        const value = e.target.value as 'account_level' | 'company_level';
+                        setClassLevel((prev) => ({ ...prev, [group.category]: value }));
+                        if (value === 'company_level') loadCostAccounts();
+                      }}
+                      onFocus={() => group.companyOnly && loadCostAccounts()}
+                      className="px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+                    >
+                      <option value="account_level">على اليوزر</option>
+                      <option value="company_level">على الشركة</option>
+                    </select>
+                    {level === 'company_level' && (
+                      <select
+                        aria-label="حساب التكلفة"
+                        value={classAccount[group.category] ?? ''}
+                        onFocus={loadCostAccounts}
+                        onChange={(e) => setClassAccount((prev) => ({ ...prev, [group.category]: e.target.value }))}
+                        className="px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+                      >
+                        <option value="">حساب التكلفة…</option>
+                        {costAccounts.map((a) => (
+                          <option key={a.code} value={a.code}>
+                            {a.code} {a.nameAr ?? ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      type="button"
+                      disabled={submittingAction === `classify:${group.category}`}
+                      onClick={() => handleClassifyCategory(group)}
+                      className="px-3 py-1 rounded-lg bg-[var(--accent)] text-white font-bold disabled:opacity-50 cursor-pointer"
+                    >
+                      تطبيق
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">

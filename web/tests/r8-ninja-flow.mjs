@@ -1,6 +1,6 @@
 // R8 Ninja First Payroll Flow Verification (WF-4)
 // Drives the real browser flow end-to-end:
-// 1. Pending invoice created by user A (maker) -> asserts maker cannot approve (maker ≠ checker).
+// 1. User A uploads a real xlsx, confirms and classifies -> asserts maker cannot approve (maker ≠ checker).
 // 2. User B (checker) approves invoice in browser.
 // 3. Review draft has 0 blockers and per-account totals match invoice.
 // 4. Creates payroll cycle and advances stages with real buttons until lines exist.
@@ -14,6 +14,39 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
+import { crc32 } from 'node:zlib';
+
+// A real 36-column Ninja invoice with one captain and a penalty, as an uncompressed xlsx.
+function syntheticInvoice() {
+  const header = ['supplier_id','supplier_name','CAPTAIN ACTIVE STATUS','capabilty','captain_id','Zone Name','First Attended Date','Total Delivered Orders','Contract Amount','Contract Target','Count of First Attended Date to End of Month','Adjusted Target','Adjusted Amount','Below Target Percentage','Target Level Type','Target Deductions Amount','Target Bonus Amount','Target Total Amount','Count of Attended Days','Attendance Deduction','Count of Days Less than 8 Hr','8 Hour Deductions','Deduction refund','Gasoline Support','Weekend 40 Bonus','Weekend 42 Bonus','Weekend 43 Bonus','100 SAR BONUS','Supplier Performance Bonus','NAQIL BLOCKED','Penalty','on demand','STOPS WITHOUT NOTICE DEDUCTION','Final Amount','VAT','TOTAL COST'];
+  const values = { supplier_id: '9001', capabilty: 'capability_car', captain_id: 'NJ-CAP-001', 'Total Delivered Orders': '350', 'Contract Amount': '6500', 'Contract Target': '460', 'Count of First Attended Date to End of Month': '31', 'Adjusted Target': '460', 'Adjusted Amount': '6500', 'Target Total Amount': '6500', 'Count of Attended Days': '31', Penalty: '-300', 'Final Amount': '6200', VAT: '930', 'TOTAL COST': '7130' };
+  const column = (i) => { let r = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) r = String.fromCharCode(65 + ((n - 1) % 26)) + r; return r; };
+  const row = (cells, n) => `<row r="${n}">${cells.map((v, i) => `<c r="${column(i)}${n}" t="inlineStr"><is><t>${v}</t></is></c>`).join('')}</row>`;
+  const ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+  const rel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const files = {
+    'xl/workbook.xml': `<workbook xmlns="${ns}" xmlns:r="${rel}"><sheets><sheet name="Synthetic" r:id="r1"/></sheets></workbook>`,
+    'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="r1" Target="worksheets/sheet1.xml"/></Relationships>',
+    'xl/worksheets/sheet1.xml': `<worksheet xmlns="${ns}"><sheetData>${row(header, 1)}${row(header.map((h) => values[h] ?? '0'), 2)}</sheetData></worksheet>`,
+  };
+  const locals = [], centrals = [];
+  let offset = 0;
+  for (const [name, text] of Object.entries(files)) {
+    const data = Buffer.from(text), nameBytes = Buffer.from(name), crc = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(data.length, 18); local.writeUInt32LE(data.length, 22); local.writeUInt16LE(nameBytes.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6); central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(data.length, 20); central.writeUInt32LE(data.length, 24); central.writeUInt16LE(nameBytes.length, 28); central.writeUInt32LE(offset, 42);
+    locals.push(local, nameBytes, data); centrals.push(central, nameBytes);
+    offset += 30 + nameBytes.length + data.length;
+  }
+  const dir = Buffer.concat(centrals), end = Buffer.alloc(22), count = Object.keys(files).length;
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(count, 8); end.writeUInt16LE(count, 10); end.writeUInt32LE(dir.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, dir, end]);
+}
+
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -155,7 +188,10 @@ try {
 
   put('platform_account', {
     id: 'NJ-ACC-001',
-    platformCode: 'ninja',
+    // Same shape as live data: upper-case code, captain id on the account, no ninja_account pull.
+    platformCode: 'NINJA',
+    externalAccountId: 'NJ-CAP-001',
+    sourceDeleted: false,
     companyId: companyId,
     name: 'حساب نينجا الرياض 1',
     assignments: [
@@ -167,11 +203,7 @@ try {
     ],
   });
 
-  put('ninja_account', {
-    id: 'ninja-captain-001',
-    platformAccountId: 'NJ-ACC-001',
-    CaptainId: 'NJ-CAP-001',
-  });
+
 
   // Approved global settings for 2026-10-01
   put('pay_setting', {
@@ -300,39 +332,6 @@ try {
     });
   }
 
-  // Pending invoice created by User A (maker)
-  const invoiceId = 'inv-ninja-2026-10-001';
-  put('platform_invoice', {
-    id: invoiceId,
-    platform: 'Ninja',
-    companyId: companyId,
-    period: '2026-10',
-    reference: 'NJ-INV-202610-01',
-    status: 'invoiced',
-    approvalStatus: 'pending',
-    createdBy: userA,
-    amountExclVat: 4500,
-    deductionsTotal: 300,
-    vat: 675,
-  });
-
-  put('platform_invoice_line', {
-    id: 'line-nj-001',
-    invoiceId: invoiceId,
-    platformAccountId: 'NJ-ACC-001',
-    sourceRow: 2,
-    baseGross: 4500,
-    incentives: 0,
-    deductionAmount: 300,
-    orders: 350,
-    vat: 675,
-    invoiced: 4500,
-    status: 'invoiced',
-    deductions: [
-      { category: 'penalty', amount: 300, level: 'account_level', classifiedBy: userA },
-    ],
-  });
-
   db.close();
   console.log('✓ Seeded baseline records into SQLite store');
 
@@ -347,31 +346,38 @@ try {
   const parsedCookieA = parseCookie(cookieA);
   const parsedCookieB = parseCookie(cookieB);
 
-  // Step 6: Verify User A (Maker) sees NO approve button (maker ≠ checker)
+  // Steps 0 + 6: User A uploads a real xlsx, confirms, classifies, and has no approve button
   {
-    console.log('Testing maker ≠ checker: verifying User A cannot approve own invoice...');
+    console.log('Driving User A: upload, reconcile, confirm, classify...');
     const contextA = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await contextA.addCookies([
-      {
-        name: parsedCookieA.name,
-        value: parsedCookieA.value,
-        domain: '127.0.0.1',
-        path: '/',
-      },
+      { name: parsedCookieA.name, value: parsedCookieA.value, domain: '127.0.0.1', path: '/' },
     ]);
     const pageA = await contextA.newPage();
-    await pageA.goto(`${baseUrl}/app/payroll?tab=ninja_upload&period=2026-10`, {
-      waitUntil: 'networkidle',
-    });
+    await pageA.goto(`${baseUrl}/app/payroll?tab=ninja_upload&period=2026-10`, { waitUntil: 'networkidle' });
 
-    await pageA.waitForSelector('text=رفع الفاتورة', { timeout: 8000 });
-    const approveBtnCountA = await pageA.locator('#btn-approve-ninja-invoice').count();
-    assert.equal(
-      approveBtnCountA,
-      0,
-      'User A (maker) must see 0 approve buttons on their own invoice'
-    );
-    console.log('✓ Maker cannot approve own invoice (asserted 0 approve buttons for User A)');
+    await pageA.locator('input[type="file"]').first().setInputFiles({
+      name: 'ninja-synthetic-2026-10.xlsx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: syntheticInvoice(),
+    });
+    await pageA.locator('#btn-run-reconcile').click();
+    await pageA.locator('#btn-confirm-invoice').waitFor({ state: 'visible', timeout: 15000 });
+    await pageA.locator('#btn-confirm-invoice').click();
+
+    // The invoice has a penalty: without classification nobody could ever approve it.
+    const panel = pageA.locator('#ninja-classify-panel');
+    await panel.waitFor({ state: 'visible', timeout: 15000 });
+    assert.ok((await pageA.locator('#ninja-approval-blockers').textContent()).includes('بلا تصنيف'), 'Blockers must explain the unclassified deduction');
+    await panel.locator('[data-category="penalty"] button').click();
+    await panel.locator('[data-category="penalty"]', { hasText: '0 بلا تصنيف' }).waitFor({ timeout: 8000 });
+
+    assert.equal(await pageA.locator('#btn-approve-ninja-invoice').count(), 0, 'User A (maker) must see 0 approve buttons on their own invoice');
+    assert.ok((await pageA.locator('#ninja-approval-blockers').textContent()).includes('مستخدم آخر'), 'Blockers must tell the maker a second user approves');
+    console.log('✓ Maker uploaded, confirmed and classified; no approve button, reason shown');
+
+    const accounts = await (await fetch(`${baseUrl}/api/operations/platform_account?q=ninja&pageSize=200`, { headers: { Cookie: cookieA } })).json();
+    assert.ok(accounts.items.some((a) => a.platformCode === 'NINJA' && a.id), 'q=ninja must find the upper-case live account');
     await contextA.close();
   }
 
@@ -465,9 +471,10 @@ try {
     const zeroBlockersEl = page.locator('text=0 Blockers');
     await zeroBlockersEl.first().waitFor({ state: 'visible', timeout: 8000 });
 
-    const totalEl = page.locator('text=4,500.00');
-    await totalEl.first().waitFor({ state: 'visible', timeout: 5000 });
-    console.log(`  ✓ [${suffix}] Asserted 0 blockers and per-account total (4,500.00 SAR)`);
+    const invoices = await (await fetch(`${baseUrl}/api/platforms/ninja/invoices`, { headers: { Cookie: cookieB } })).json();
+    const invoicedTotal = invoices.items[0].lines[0].baseGross.toLocaleString('en-US', { minimumFractionDigits: 2 });
+    await page.locator(`text=${invoicedTotal}`).first().waitFor({ state: 'visible', timeout: 5000 });
+    console.log(`  ✓ [${suffix}] Asserted 0 blockers and per-account total equals the invoice line (${invoicedTotal} SAR)`);
 
     await page.screenshot({
       path: path.join(resultsDir, `ninja-a5-draft-${suffix}.png`),

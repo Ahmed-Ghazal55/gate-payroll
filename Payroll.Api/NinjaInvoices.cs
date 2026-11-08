@@ -45,18 +45,21 @@ public static partial class NinjaInvoices
         J.Need(existing!=null||!allInvoices.Any(i=>i.S("id")==id),"مرجع الفاتورة مسجل لملف آخر.");
         var selection=Selection(c,tx,input,company);
         var sheets=Imports.Read(bytes,"invoice.xlsx");var (terms,termsSource)=NinjaBilling.Terms(c,period,tx);var reconciled=NinjaBilling.Reconcile(sheets,period,terms,hash);ValidateNumbers(sheets);
-        var accounts=Store.List(c,"ninja_account",tx);
+        var accounts=CaptainAccounts(c,tx);var fileRows=reconciled["lines"]!.AsArray().OfType<JsonObject>().ToList();
         if(selection!=null)
         {
-            var wrong=reconciled["lines"]!.AsArray().OfType<JsonObject>().Where(row=>!accounts.Any(a=>a.S("CaptainId",a.S("captainId"))==row.S("captainId")&&selection.Contains(a.S("platformAccountId")))).Select(row=>row.N("row")).ToList();
+            var wrong=fileRows.Where(row=>!accounts.Any(a=>a.Captain==row.S("captainId")&&selection.Contains(a.Account))).Select(row=>row.N("row")).ToList();
             J.Need(wrong.Count==0,"account_scope_mismatch: rows "+string.Join(",",wrong));
         }
+        var unmatched=fileRows.Where(row=>accounts.Where(a=>a.Captain==row.S("captainId")).Select(a=>a.Account).Distinct().Count()!=1).Select(row=>row.N("row")).ToList();
+        J.Need(unmatched.Count==0,"يوزر الكابتن غير مربوط أو غير محدد بشكل فريد: rows "+string.Join(",",unmatched));
+        var otherCompany=fileRows.Where(row=>{var a=Store.Get(c,accounts.First(x=>x.Captain==row.S("captainId")).Account,"platform_account",tx);return a==null||a.S("companyId")!=company||PayPlatforms.For(a.S("platformCode")).App!="ninja";}).Select(row=>row.N("row")).ToList();
+        J.Need(otherCompany.Count==0,"يوزر الكابتن لا يطابق شركة نينجا المختارة: rows "+string.Join(",",otherCompany));
         var lines=new JsonArray();var captains=new HashSet<string>(StringComparer.Ordinal);
         foreach(var comparison in reconciled["lines"]!.AsArray().OfType<JsonObject>())
         {
             J.Need(comparison.S("status")!="error","تعذر حساب المتوقع في أحد صفوف الفاتورة.");string captain=comparison.S("captainId");J.Need(captains.Add(captain),"كابتن مكرر في الفاتورة.");
-            var matches=accounts.Where(a=>a.S("CaptainId",a.S("captainId"))==captain).Select(a=>a.S("platformAccountId")).Distinct().ToList();J.Need(matches.Count==1,"يوزر الكابتن غير مربوط أو غير محدد بشكل فريد: row "+comparison.N("row"));
-            var account=Store.Get(c,matches[0],"platform_account",tx);J.Need(account!=null&&account.S("companyId")==company&&PayPlatforms.For(account.S("platformCode")).App=="ninja","يوزر الكابتن لا يطابق شركة نينجا المختارة.");
+            var matches=accounts.Where(a=>a.Captain==captain).Select(a=>a.Account).Distinct().ToList();
             var v=comparison["invoiceValues"]!.AsObject();var pass=comparison["invoicePassThrough"]!.AsObject();
             decimal baseGross=J.Money(v.N("targetTotal")-v.N("attendanceDeduction")-v.N("shortDayDeduction"));decimal incentives=J.Money(pass.Sum(x=>Math.Max(0,x.Value!.GetValue<decimal>()))),deduction=J.Money(pass.Sum(x=>Math.Max(0,-x.Value!.GetValue<decimal>())));
             decimal invoiced=J.Money(comparison.N("invoiceFinal")),vat=J.Money(v.N("vat"));
@@ -93,13 +96,27 @@ public static partial class NinjaInvoices
         var lines=parsed["lines"]!.AsArray().OfType<JsonObject>().Select(l=>l.Clone()).ToList();parsed.Remove("lines");parsed.Remove("allowedActions");parsed["approvalStatus"]="pending";parsed["createdBy"]=actor.Identity!.Name;parsed["createdAt"]=DateTimeOffset.UtcNow.ToString("O");
         foreach(var line in lines)Store.Save(c,"platform_invoice_line",line,tx);Store.Save(c,"platform_invoice",parsed,tx);Store.Audit(c,tx,"platform.ninja.invoice_imported",parsed.S("id"),actor.Identity!.Name!);return parsed;
     }
+    static void ApplyClass(ClaimsPrincipal actor,JsonObject line,JsonObject input)
+    {
+        var deduction=(line["deductions"] as JsonArray??[]).OfType<JsonObject>().SingleOrDefault(d=>d.S("category")==input.Required("category"))??throw new ApiError("بند الخصم غير موجود.");
+        string level=input.Required("level");J.Need(level is "company_level" or "account_level"&&(line.S("lineType")!="company"||level=="company_level"),"حدد شركة أو يوزر؛ تعديل المورد على الشركة.");
+        if(level=="company_level"){string expense=PayPlatforms.Active(input.Required("expenseAccount"));J.Need(expense.StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");deduction["expenseAccount"]=expense;}else deduction.Remove("expenseAccount");
+        deduction["level"]=level;deduction["classifiedBy"]=actor.Identity!.Name;
+    }
     public static JsonObject Classify(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
         var invoice=Get(c,tx,actor,id,"pay.manage");J.Need(invoice.S("approvalStatus")=="pending"&&!InCycle(c,tx,id),"الفاتورة المعتمدة أو المرتبطة بدورة لا تتعدل.");var line=Lines(c,tx,id).SingleOrDefault(l=>l.S("id")==input.Required("lineId"))??throw new ApiError("السطر غير موجود.",404);
-        var deduction=(line["deductions"] as JsonArray??[]).OfType<JsonObject>().SingleOrDefault(d=>d.S("category")==input.Required("category"))??throw new ApiError("بند الخصم غير موجود.");
-        string level=input.Required("level");J.Need(level is "company_level" or "account_level"&&(line.S("lineType")!="company"||level=="company_level"),"حدد شركة أو يوزر؛ تعديل المورد على الشركة.");
-        if(level=="company_level"){string expense=PayPlatforms.Active(input.Required("expenseAccount"));J.Need(expense.StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");deduction["expenseAccount"]=expense;}
-        deduction["level"]=level;deduction["classifiedBy"]=actor.Identity!.Name;Store.Save(c,"platform_invoice_line",line,tx);Store.Audit(c,tx,"platform.ninja.deduction_classified",line.S("id"),actor.Identity!.Name!);return line;
+        ApplyClass(actor,line,input);Store.Save(c,"platform_invoice_line",line,tx);Store.Audit(c,tx,"platform.ninja.deduction_classified",line.S("id"),actor.Identity!.Name!);return line;
+    }
+    // One transaction per category choice: a real invoice has hundreds of captain lines.
+    public static JsonObject ClassifyBatch(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
+    {
+        var invoice=Get(c,tx,actor,id,"pay.manage");J.Need(invoice.S("approvalStatus")=="pending"&&!InCycle(c,tx,id),"الفاتورة المعتمدة أو المرتبطة بدورة لا تتعدل.");
+        var items=(input["items"] as JsonArray??[]).OfType<JsonObject>().ToList();J.Need(items.Count is >0 and <=5000,"حدد بنود التصنيف.");
+        var lines=Lines(c,tx,id).ToDictionary(l=>l.S("id"));var changed=new HashSet<string>(StringComparer.Ordinal);
+        foreach(var item in items){if(!lines.TryGetValue(item.Required("lineId"),out var line))throw new ApiError("السطر غير موجود.",404);ApplyClass(actor,line,item);changed.Add(line.S("id"));}
+        foreach(string lineId in changed)Store.Save(c,"platform_invoice_line",lines[lineId],tx);
+        Store.Audit(c,tx,"platform.ninja.deductions_classified",id,actor.Identity!.Name!);return invoice;
     }
     public static JsonObject Approve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
@@ -154,6 +171,7 @@ public static partial class NinjaInvoices
         api.MapGet("/platforms/ninja/invoices/{id}",(string id,HttpContext ctx)=>store.Read(c=>View(c,null,ctx.User,Get(c,null,ctx.User,id)))).WithTags("Platforms").WithSummary("Read a scoped Ninja invoice with available server actions");
         api.MapGet("/platforms/ninja/invoices/{id}/lines",(string id,HttpContext ctx)=>store.Read(c=>{Get(c,null,ctx.User,id);return Lines(c,null,id);})).WithTags("Platforms").WithSummary("Read invoiced Ninja entitlements and expected differences");
         api.MapPost("/platforms/ninja/invoices/{id}/classify",(string id,JsonObject input,HttpContext ctx)=>Act(store,ctx,id,(c,tx)=>Classify(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Classify an immutable Ninja deduction as company or account level");
+        api.MapPost("/platforms/ninja/invoices/{id}/classify-batch",(string id,JsonObject input,HttpContext ctx)=>Act(store,ctx,id,(c,tx)=>ClassifyBatch(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Classify many Ninja deductions in one transaction");
         api.MapPost("/platforms/ninja/invoices/{id}/approve",(string id,HttpContext ctx)=>Act(store,ctx,id,(c,tx)=>Approve(c,tx,ctx.User,id))).WithTags("Platforms").WithSummary("Independently approve invoiced Ninja facts; expected differences never block");
         api.MapPost("/platforms/ninja/invoices/{id}/dispute",(string id,JsonObject input,HttpContext ctx)=>Act(store,ctx,id,(c,tx)=>Dispute(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Record an explicit formal Ninja dispute; expected differences do not create one");
         api.MapPost("/platforms/ninja/invoices/{id}/resolve",(string id,JsonObject input,HttpContext ctx)=>Act(store,ctx,id,(c,tx)=>Dispute(c,tx,ctx.User,id,input,true))).WithTags("Platforms").WithSummary("Independently resolve a formal Ninja dispute without changing invoiced amounts");

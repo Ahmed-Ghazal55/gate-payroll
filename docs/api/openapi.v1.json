@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:38475/"
+      "url": "http://127.0.0.1:34699/"
     }
   ],
   "paths": {
@@ -354,6 +354,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/device-token": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Update FCM device token for current mobile session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousTypeOfbooleanAndboolean"
                 }
               }
             }
@@ -2672,6 +2702,12 @@
                         "type": "string"
                       }
                     },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "journalEntryId": {
                       "type": "string"
                     },
@@ -2886,6 +2922,12 @@
                             "type": "string"
                           }
                         },
+                        "approvalBlockers": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
                         "journalEntryId": {
                           "type": "string"
                         },
@@ -3086,6 +3128,12 @@
                                 "type": "string"
                               },
                               "allowedActions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "approvalBlockers": {
                                 "type": "array",
                                 "items": {
                                   "type": "string"
@@ -3323,6 +3371,12 @@
                               "type": "string"
                             }
                           },
+                          "approvalBlockers": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
                           "journalEntryId": {
                             "type": "string"
                           },
@@ -3552,6 +3606,12 @@
                       "type": "string"
                     },
                     "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
                       "type": "array",
                       "items": {
                         "type": "string"
@@ -3906,6 +3966,250 @@
                         "type": "string"
                       }
                     },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "accountIds": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "invoiceId",
+                          "sourceRow",
+                          "baseGross",
+                          "incentives",
+                          "deductionAmount",
+                          "orders",
+                          "vat",
+                          "invoiced",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "invoiceId": {
+                            "type": "string"
+                          },
+                          "sourceRow": {
+                            "type": "number"
+                          },
+                          "platformAccountId": {
+                            "type": "string"
+                          },
+                          "lineType": {
+                            "type": "string"
+                          },
+                          "baseGross": {
+                            "type": "number"
+                          },
+                          "incentives": {
+                            "type": "number"
+                          },
+                          "deductionAmount": {
+                            "type": "number"
+                          },
+                          "orders": {
+                            "type": "number"
+                          },
+                          "vat": {
+                            "type": "number"
+                          },
+                          "expected": {
+                            "type": "number"
+                          },
+                          "invoiced": {
+                            "type": "number"
+                          },
+                          "difference": {
+                            "type": "number"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "deductions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "category",
+                                "amount",
+                                "level"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                },
+                                "level": {
+                                  "type": "string"
+                                },
+                                "expenseAccount": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platforms/ninja/invoices/{id}/classify-batch": {
+      "post": {
+        "tags": [
+          "Platforms"
+        ],
+        "summary": "Classify many Ninja deductions in one transaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "companyId",
+                    "period",
+                    "amountExclVat",
+                    "deductionsTotal",
+                    "vat",
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "amountExclVat": {
+                      "type": "number"
+                    },
+                    "deductionsTotal": {
+                      "type": "number"
+                    },
+                    "vat": {
+                      "type": "number"
+                    },
+                    "approvalStatus": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "journalEntryId": {
                       "type": "string"
                     },
@@ -4123,6 +4427,12 @@
                       "type": "string"
                     },
                     "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
                       "type": "array",
                       "items": {
                         "type": "string"
@@ -4360,6 +4670,12 @@
                         "type": "string"
                       }
                     },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "journalEntryId": {
                       "type": "string"
                     },
@@ -4592,6 +4908,12 @@
                         "type": "string"
                       }
                     },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "journalEntryId": {
                       "type": "string"
                     },
@@ -4809,6 +5131,12 @@
                       "type": "string"
                     },
                     "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
                       "type": "array",
                       "items": {
                         "type": "string"
@@ -12097,7 +12425,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndintAndintAndstring"
+                  "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndbooleanAndstringAndstringAndintAndintAndintAndintAndintAndstring"
                 }
               }
             }
@@ -15254,6 +15582,21 @@
           }
         }
       },
+      "AnonymousTypeOfbooleanAndboolean": {
+        "required": [
+          "ok",
+          "fcmRegistered"
+        ],
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "fcmRegistered": {
+            "type": "boolean"
+          }
+        }
+      },
       "AnonymousTypeOfbooleanAndIEnumerableOfJsonObject": {
         "required": [
           "featureEnabled",
@@ -16968,6 +17311,126 @@
           }
         }
       },
+      "AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndbooleanAndstringAndstringAndintAndintAndintAndintAndintAndstring": {
+        "required": [
+          "projectId",
+          "senderId",
+          "vapidPublicKey",
+          "androidPackageName",
+          "googlePlayUrl",
+          "hasServiceAccountJson",
+          "legacyStoredKey",
+          "configured",
+          "webMobilePortalUrl",
+          "inquiryPortalUrl",
+          "activeSessionsCount",
+          "fcmRegisteredDevicesCount",
+          "outboxSentCount",
+          "outboxFailedCount",
+          "outboxPendingCount",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "senderId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "vapidPublicKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "androidPackageName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "googlePlayUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasServiceAccountJson": {
+            "type": "boolean"
+          },
+          "legacyStoredKey": {
+            "type": "boolean"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "webMobilePortalUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "inquiryPortalUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "activeSessionsCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "fcmRegisteredDevicesCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "outboxSentCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "outboxFailedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "outboxPendingCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "updatedAt": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring": {
         "required": [
           "id",
@@ -17018,95 +17481,6 @@
             "type": "boolean"
           },
           "createdAt": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
-      "AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndintAndintAndstring": {
-        "required": [
-          "projectId",
-          "senderId",
-          "vapidPublicKey",
-          "androidPackageName",
-          "googlePlayUrl",
-          "hasServiceAccountJson",
-          "configured",
-          "webMobilePortalUrl",
-          "inquiryPortalUrl",
-          "activeSessionsCount",
-          "fcmRegisteredDevicesCount",
-          "updatedAt"
-        ],
-        "type": "object",
-        "properties": {
-          "projectId": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "senderId": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "vapidPublicKey": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "androidPackageName": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "googlePlayUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "hasServiceAccountJson": {
-            "type": "boolean"
-          },
-          "configured": {
-            "type": "boolean"
-          },
-          "webMobilePortalUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "inquiryPortalUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "activeSessionsCount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "fcmRegisteredDevicesCount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "updatedAt": {
             "type": [
               "null",
               "string"
