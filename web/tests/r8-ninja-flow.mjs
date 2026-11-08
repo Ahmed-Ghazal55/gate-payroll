@@ -20,6 +20,9 @@ import { crc32 } from 'node:zlib';
 function syntheticInvoice() {
   const header = ['supplier_id','supplier_name','CAPTAIN ACTIVE STATUS','capabilty','captain_id','Zone Name','First Attended Date','Total Delivered Orders','Contract Amount','Contract Target','Count of First Attended Date to End of Month','Adjusted Target','Adjusted Amount','Below Target Percentage','Target Level Type','Target Deductions Amount','Target Bonus Amount','Target Total Amount','Count of Attended Days','Attendance Deduction','Count of Days Less than 8 Hr','8 Hour Deductions','Deduction refund','Gasoline Support','Weekend 40 Bonus','Weekend 42 Bonus','Weekend 43 Bonus','100 SAR BONUS','Supplier Performance Bonus','NAQIL BLOCKED','Penalty','on demand','STOPS WITHOUT NOTICE DEDUCTION','Final Amount','VAT','TOTAL COST'];
   const values = { supplier_id: '9001', capabilty: 'capability_car', captain_id: 'NJ-CAP-001', 'Total Delivered Orders': '350', 'Contract Amount': '6500', 'Contract Target': '460', 'Count of First Attended Date to End of Month': '31', 'Adjusted Target': '460', 'Adjusted Amount': '6500', 'Target Total Amount': '6500', 'Count of Attended Days': '31', Penalty: '-300', 'Final Amount': '6200', VAT: '930', 'TOTAL COST': '7130' };
+  // Real invoices: a captain with a negative final, and a DEDUCTIONS row with "-" in unused cells.
+  const negative = { supplier_id: '9001', capabilty: 'capability_car', captain_id: 'NJ-CAP-002', 'Total Delivered Orders': '1', 'Contract Amount': '6500', 'Contract Target': '460', 'Count of First Attended Date to End of Month': '31', 'Target Total Amount': '10', 'Count of Attended Days': '1', 'Attendance Deduction': '1.5', 'Count of Days Less than 8 Hr': '1', '8 Hour Deductions': '31.45', 'Final Amount': '-22.95', VAT: '-3.4425', 'TOTAL COST': '-26.3925' };
+  const adjustment = { supplier_id: '9001', captain_id: 'NJ-CAP-001', 'Target Level Type': 'DEDUCTIONS ', 'Final Amount': '-33.12', VAT: '-4.968', 'TOTAL COST': '-38.088' };
   const column = (i) => { let r = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) r = String.fromCharCode(65 + ((n - 1) % 26)) + r; return r; };
   const row = (cells, n) => `<row r="${n}">${cells.map((v, i) => `<c r="${column(i)}${n}" t="inlineStr"><is><t>${v}</t></is></c>`).join('')}</row>`;
   const ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
@@ -27,7 +30,7 @@ function syntheticInvoice() {
   const files = {
     'xl/workbook.xml': `<workbook xmlns="${ns}" xmlns:r="${rel}"><sheets><sheet name="Synthetic" r:id="r1"/></sheets></workbook>`,
     'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="r1" Target="worksheets/sheet1.xml"/></Relationships>',
-    'xl/worksheets/sheet1.xml': `<worksheet xmlns="${ns}"><sheetData>${row(header, 1)}${row(header.map((h) => values[h] ?? '0'), 2)}</sheetData></worksheet>`,
+    'xl/worksheets/sheet1.xml': `<worksheet xmlns="${ns}"><sheetData>${row(header, 1)}${row(header.map((h) => values[h] ?? '0'), 2)}${row(header.map((h) => negative[h] ?? '0'), 3)}${row(header.map((h) => adjustment[h] ?? '-'), 4)}</sheetData></worksheet>`,
   };
   const locals = [], centrals = [];
   let offset = 0;
@@ -309,6 +312,12 @@ try {
   });
 
   // Approved scheme assignment for rider
+  // Second rider: real invoices hold captains whose final amount is negative.
+  put('rider', { id: '2000000790', iqama: '2000000790', name: 'مندوب اختباري', status: 'active', sponsorId: companyId, financeSponsorId: companyId, sponsorshipStatus: 'internal', isDeliveryRider: true, payCategory: 'sponsored_private' });
+  put('platform_account', { id: 'NJ-ACC-002', platformCode: 'NINJA', externalAccountId: 'NJ-CAP-002', sourceDeleted: false, companyId, assignments: [{ riderId: '2000000790', RawEffectiveFrom: '2026-10-01T00:00:00+03:00', RawEffectiveTo: '2026-10-31T23:59:59+03:00' }] });
+  put('pay_assignment', { id: 'pay-assign-ninja-002', rider: '2000000790', app: 'ninja', period: '2026-10', status: 'approved', schemeId, choiceApprovedAt: '2026-09-25T10:00:00Z' });
+  put('ninja_daily', { id: 'nd-neg-01', companyId, platformAccountId: 'NJ-ACC-002', riderId: '2000000790', date: '2026-10-01T12:00:00Z', orders: 1 });
+
   put('pay_assignment', {
     id: 'pay-assign-ninja-001',
     rider: riderIqama,
@@ -361,9 +370,10 @@ try {
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       buffer: syntheticInvoice(),
     });
-    await pageA.locator('#btn-run-reconcile').click();
-    await pageA.locator('#btn-confirm-invoice').waitFor({ state: 'visible', timeout: 15000 });
-    await pageA.locator('#btn-confirm-invoice').click();
+    // The next-step card alone must carry the whole path.
+    const nextStep = pageA.locator('#ninja-next-step');
+    await nextStep.locator('button', { hasText: 'بدء المطابقة' }).click();
+    await nextStep.locator('button', { hasText: 'تأكيد وحفظ' }).click({ timeout: 20000 });
 
     // The invoice has a penalty: without classification nobody could ever approve it.
     const panel = pageA.locator('#ninja-classify-panel');
@@ -371,6 +381,13 @@ try {
     assert.ok((await pageA.locator('#ninja-approval-blockers').textContent()).includes('بلا تصنيف'), 'Blockers must explain the unclassified deduction');
     await panel.locator('[data-category="penalty"] button').click();
     await panel.locator('[data-category="penalty"]', { hasText: '0 بلا تصنيف' }).waitFor({ timeout: 8000 });
+    const adjustmentRow = panel.locator('[data-category="supplier_adjustment"]');
+    await adjustmentRow.locator('input[role="combobox"]').click();
+    await pageA.locator('[role="option"]').first().waitFor({ timeout: 8000 });
+    await adjustmentRow.locator('input[role="combobox"]').fill('5');
+    await pageA.locator('[role="option"]').first().click();
+    await adjustmentRow.locator('button').click();
+    await adjustmentRow.filter({ hasText: '0 بلا تصنيف' }).waitFor({ timeout: 8000 });
 
     assert.equal(await pageA.locator('#btn-approve-ninja-invoice').count(), 0, 'User A (maker) must see 0 approve buttons on their own invoice');
     assert.ok((await pageA.locator('#ninja-approval-blockers').textContent()).includes('مستخدم آخر'), 'Blockers must tell the maker a second user approves');
@@ -401,13 +418,14 @@ try {
     const approveBtn = pageB.locator('#btn-approve-ninja-invoice');
     await approveBtn.waitFor({ state: 'visible', timeout: 8000 });
     console.log('✓ Approve button is visible for User B (checker)');
-    await approveBtn.click();
+    await pageB.locator('#ninja-next-step button', { hasText: 'اعتماد الفاتورة' }).click();
     await pageB.waitForTimeout(1000);
     await pageB.waitForLoadState('networkidle');
 
     // Verify invoice approved in UI
     const approvedBadge = pageB.locator('text=معتمدة');
     await approvedBadge.first().waitFor({ state: 'visible', timeout: 5000 });
+    await pageB.locator('#ninja-next-step a', { hasText: 'فتح مسودة المراجعة' }).waitFor({ timeout: 8000 });
     console.log('✓ Invoice approved successfully by User B in browser');
     await contextB.close();
   }
@@ -531,6 +549,7 @@ try {
       headers: { Cookie: cookieB },
     });
     const cyclesData = await cyclesRes.json();
+    assert.equal((cyclesData.items || cyclesData)[0].status, 'needs_decision', 'A negative captain must stop for a decision, not be settled silently');
     cycleId = (cyclesData.items || cyclesData)[0]?.id;
     assert.ok(cycleId, 'Cycle must exist in API');
     console.log('✓ Active cycle id verified from API:', cycleId);
@@ -574,7 +593,7 @@ try {
     console.log(`  ✓ [${suffix}] Captured ninja-a5-cycle-${suffix}.png`);
 
     // Step 5: Click «كيف حُسب؟» and assert net value matches API
-    const explainBtn = page.locator('button:has-text("كيف حُسب؟")');
+    const explainBtn = page.locator('tr', { hasText: riderIqama }).locator('button:has-text("كيف حُسب؟")');
     await explainBtn.first().waitFor({ state: 'visible', timeout: 5000 });
     await explainBtn.first().click();
     await page.waitForTimeout(400);

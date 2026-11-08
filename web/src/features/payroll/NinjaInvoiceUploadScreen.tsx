@@ -31,6 +31,7 @@ import {
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { StatCard } from '../../components/ui/StatCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
@@ -43,6 +44,15 @@ import {
 } from '../../lib/types';
 
 type ApiNinjaInvoice = paths['/api/platforms/ninja/invoices']['get']['responses'][200]['content']['application/json']['items'][number];
+
+const COMPANY_LABELS: Record<string, string> = {
+  BW: 'البوابة الموكلة',
+  EX: 'البوابة إكسبريس',
+  TR: 'البوابة للتجارة',
+  '019c18d5-62e1-7000-8000-000000000041': 'البوابة الموكلة',
+  '019c18d5-62e1-7000-8000-000000000042': 'البوابة إكسبريس',
+  '019c18d5-62e1-7000-8000-000000000040': 'البوابة للتجارة',
+};
 
 type DeductionGroup = { category: string; lineIds: string[]; amount: number; unclassified: number; companyOnly: boolean };
 
@@ -78,7 +88,6 @@ export function NinjaInvoiceUploadScreen({
 
   const [period, setPeriod] = useState<string>(initialPeriod);
   const [companyId, setCompanyId] = useState<string>('BW');
-  const [reference, setReference] = useState<string>('');
   const [odooVoucherNo, setOdooVoucherNo] = useState<string>('');
 
   // Upload mode: consolidated (ملف مجمع للكل) or per-account (تخصيص حسابات المنصة)
@@ -142,14 +151,14 @@ export function NinjaInvoiceUploadScreen({
   }, [companyId]);
 
   // Load saved Ninja invoices from server
-  const loadSavedInvoices = async () => {
+  const loadSavedInvoices = async (replaceCurrent = false) => {
     setLoadingSavedInvoices(true);
     try {
       const res = await api.getNinjaInvoices({ pageSize: 50 });
       const items = (res?.items || []) as ApiNinjaInvoice[];
       setSavedInvoices(items);
       const match = items.find((i) => isCompanyMatch(i.companyId, companyId) && i.period === period);
-      if (match && !currentInvoice) {
+      if (match && (replaceCurrent || !currentInvoice)) {
         setCurrentInvoice(match);
         if (match.journalEntryId) setStepperStage(5);
         else if (match.approvalStatus === 'approved') setStepperStage(4);
@@ -162,11 +171,26 @@ export function NinjaInvoiceUploadScreen({
     }
   };
 
+  const startNextInvoice = () => {
+    setCurrentInvoice(null);
+    setServerPreview(null);
+    setReconcileResult(null);
+    setSelectedFiles([]);
+    setSelectedAccountIds([]);
+    setActionError(null);
+    setStepperStage(1);
+  };
+
+  // Another company or month is another invoice: never keep showing the previous one.
   useEffect(() => {
-    loadSavedInvoices();
+    startNextInvoice();
+    loadSavedInvoices(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, period]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setServerPreview(null);
+    setReconcileResult(null);
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     if (files.length > 5) {
@@ -200,7 +224,7 @@ export function NinjaInvoiceUploadScreen({
   };
 
   // A company can have several invoices a month; the file name keeps each default reference distinct.
-  const invoiceReference = () => (reference.trim() || `NINJA-${period}-${selectedFiles[0]?.name ?? ''}`).slice(0, 200);
+  const invoiceReference = () => `NINJA-${period}-${selectedFiles[0]?.name ?? ''}`.slice(0, 200);
 
   const loadCostAccounts = () => {
     if (costAccounts.length > 0) return;
@@ -612,6 +636,71 @@ export function NinjaInvoiceUploadScreen({
     }, {}),
   );
 
+  const savedThisMonth = savedInvoices.filter((i) => i.period === period);
+  const primaryButton = 'px-4 py-2 rounded-xl bg-[var(--accent)] text-white text-xs sm:text-sm font-bold cursor-pointer disabled:opacity-50';
+  const nextInvoiceButton = (
+    <button type="button" onClick={startNextInvoice} className="px-4 py-2 rounded-xl border border-[var(--line)] text-[var(--ink)] text-xs sm:text-sm font-bold cursor-pointer">
+      رفع فاتورة سجل آخر
+    </button>
+  );
+  const nextStep: { title: string; detail?: string; action?: React.ReactNode } = (() => {
+    if (currentInvoice?.journalEntryId) {
+      return { title: 'الفاتورة مرحّلة ومقيدة.', action: nextInvoiceButton };
+    }
+    if (currentInvoice?.approvalStatus === 'approved') {
+      return {
+        title: 'الفاتورة معتمدة. افتح مسودة المراجعة لإنشاء دورة الرواتب.',
+        action: (
+          <>
+            <a href={`/app/payroll?tab=cycle&period=${period}`} className={primaryButton}>فتح مسودة المراجعة</a>
+            {nextInvoiceButton}
+          </>
+        ),
+      };
+    }
+    if (currentInvoice) {
+      if (allowedActions.includes('approve')) {
+        return {
+          title: 'راجع الفاتورة ثم اعتمدها.',
+          action: (
+            <button type="button" disabled={submittingAction === 'approve'} onClick={handleApproveInvoice} className={primaryButton}>
+              اعتماد الفاتورة
+            </button>
+          ),
+        };
+      }
+      const unclassified = deductionGroups.reduce((n, g) => n + g.unclassified, 0);
+      if (unclassified > 0) {
+        return { title: `صنّف ${unclassified} خصم من اللوحة أسفل الصفحة.`, detail: 'لكل نوع خصم: على اليوزر أم على الشركة.', action: nextInvoiceButton };
+      }
+      return { title: 'الفاتورة محفوظة وتنتظر مراجعًا آخر.', detail: approvalBlockers.join(' '), action: nextInvoiceButton };
+    }
+    if (serverPreview) {
+      return {
+        title: 'المعاينة سليمة ولم تُحفظ بعد. أكّد لحفظ الفاتورة.',
+        action: (
+          <button type="button" disabled={submittingAction === 'confirm'} onClick={handleConfirmInvoice} className={primaryButton}>
+            تأكيد وحفظ الفاتورة
+          </button>
+        ),
+      };
+    }
+    if (actionError) {
+      return { title: 'الفاتورة لم تُحفظ. أصلح السبب المذكور ثم أعد المطابقة.', detail: actionError };
+    }
+    if (selectedFiles.length > 0) {
+      return {
+        title: `الملف جاهز لـ ${COMPANY_LABELS[companyId] ?? companyId} وشهر ${period}. ابدأ المطابقة.`,
+        action: (
+          <button type="button" disabled={loading} onClick={handleRunReconcile} className={primaryButton}>
+            بدء المطابقة والمعاينة
+          </button>
+        ),
+      };
+    }
+    return { title: 'اختر الشركة والشهر من الأعلى، ثم ارفع ملف الفاتورة.' };
+  })();
+
   return (
     <div className="space-y-6">
       {/* Header card with Company, Period and Stepper */}
@@ -695,6 +784,34 @@ export function NinjaInvoiceUploadScreen({
       </div>
 
       {/* Action Error Alert (e.g. Maker != Checker message from API verbatim) */}
+      {/* Next step: one clear instruction and one button, always on screen */}
+      <div id="ninja-next-step" className="p-4 rounded-2xl border-2 border-[var(--accent)]/50 bg-[var(--accent)]/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-xs font-bold text-[var(--accent)]">الخطوة التالية</p>
+          <p className="text-sm font-bold text-[var(--ink)]">{nextStep.title}</p>
+          {nextStep.detail && <p className="text-xs text-[var(--muted)]">{nextStep.detail}</p>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">{nextStep.action}</div>
+      </div>
+
+      {savedThisMonth.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink)]">
+          <span className="font-bold">فواتير {period}:</span>
+          {savedThisMonth.map((i) => (
+            <button
+              key={i.id}
+              type="button"
+              onClick={() => setCurrentInvoice(i)}
+              className={`px-2.5 py-1 rounded-full border cursor-pointer ${
+                currentInvoice?.id === i.id ? 'border-[var(--accent)] font-bold' : 'border-[var(--line)]'
+              }`}
+            >
+              {COMPANY_LABELS[i.companyId] ?? i.companyId}: {i.approvalStatus === 'approved' ? 'معتمدة' : 'بانتظار الاعتماد'}
+            </button>
+          ))}
+        </div>
+      )}
+
       {actionError && (
         <div className="p-4 rounded-2xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 text-[var(--danger)] space-y-1">
           <div className="flex items-center gap-2 font-bold text-xs sm:text-sm">
@@ -822,28 +939,16 @@ export function NinjaInvoiceUploadScreen({
           </div>
         )}
 
-        {/* Reference and Odoo Voucher */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">المرجع الرسمي للفاتورة (Reference):</label>
-            <input
-              type="text"
-              placeholder={`NINJA-INV-${period}-01`}
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden font-mono"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">رقم قيد/سند أودو (Odoo Voucher No):</label>
-            <input
-              type="text"
-              placeholder="مثال: BILL/2026/10/0042"
-              value={odooVoucherNo}
-              onChange={(e) => setOdooVoucherNo(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden font-mono"
-            />
-          </div>
+        {/* Odoo voucher is optional; the invoice reference is generated from the file name */}
+        <div className="space-y-1 sm:max-w-sm">
+          <label className="text-xs font-bold text-[var(--ink)]">رقم سند أودو (اختياري):</label>
+          <input
+            type="text"
+            placeholder="مثال: BILL/2026/10/0042"
+            value={odooVoucherNo}
+            onChange={(e) => setOdooVoucherNo(e.target.value)}
+            className="w-full px-3 py-2 text-xs rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden"
+          />
         </div>
 
         {/* Drag & Drop File Upload Box */}
@@ -983,20 +1088,15 @@ export function NinjaInvoiceUploadScreen({
                       <option value="company_level">على الشركة</option>
                     </select>
                     {level === 'company_level' && (
-                      <select
-                        aria-label="حساب التكلفة"
+                      <SearchableSelect
+                        ariaLabel="حساب التكلفة"
+                        className="min-w-64"
                         value={classAccount[group.category] ?? ''}
                         onFocus={loadCostAccounts}
-                        onChange={(e) => setClassAccount((prev) => ({ ...prev, [group.category]: e.target.value }))}
-                        className="px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
-                      >
-                        <option value="">حساب التكلفة…</option>
-                        {costAccounts.map((a) => (
-                          <option key={a.code} value={a.code}>
-                            {a.code} {a.nameAr ?? ''}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(code) => setClassAccount((prev) => ({ ...prev, [group.category]: code }))}
+                        placeholder="اكتب حساب التكلفة..."
+                        options={costAccounts.map((a) => ({ value: a.code, label: `${a.code} ${a.nameAr ?? ''}` }))}
+                      />
                     )}
                     <button
                       type="button"

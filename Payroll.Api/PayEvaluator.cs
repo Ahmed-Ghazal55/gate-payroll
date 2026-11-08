@@ -34,8 +34,8 @@ public static class PayEvaluator
     }
     public static IReadOnlyList<PayAllocatedShare> SplitIncentives(IEnumerable<PayRiderShare> riders,decimal accountBase,decimal incentive,JsonObject values)
     {
-        var rows=riders.OrderBy(r=>r.Rider,StringComparer.Ordinal).ToList();J.Need(rows.Count>0&&rows.Count<=25000&&rows.All(r=>r.Rider!=""&&r.Orders>=0&&r.BaseGross>=0)&&rows.Select(r=>r.Rider).Distinct().Count()==rows.Count,"بيانات استحقاق المناديب غير صالحة.");
-        J.Need(accountBase>=0&&incentive>=0&&Round(accountBase,values)==accountBase&&Round(incentive,values)==incentive&&rows.Sum(r=>r.BaseGross)==accountBase,"الإجمالي الأساسي يحتاج استحقاقًا صريحًا لكل مندوب ومطابقة الفاتورة.");
+        var rows=riders.OrderBy(r=>r.Rider,StringComparer.Ordinal).ToList();J.Need(rows.Count>0&&rows.Count<=25000&&rows.All(r=>r.Rider!=""&&r.Orders>=0)&&rows.Select(r=>r.Rider).Distinct().Count()==rows.Count,"بيانات استحقاق المناديب غير صالحة.");
+        J.Need(incentive>=0&&Round(accountBase,values)==accountBase&&Round(incentive,values)==incentive&&rows.Sum(r=>r.BaseGross)==accountBase,"الإجمالي الأساسي يحتاج استحقاقًا صريحًا لكل مندوب ومطابقة الفاتورة.");
         long totalOrders=rows.Sum(r=>(long)r.Orders);J.Need(incentive==0||totalOrders>0,"لا توزع الحوافز بلا طلبات فعلية.");decimal factor=1;for(int i=0;i<(int)values.N("roundingDigits");i++)factor*=10;decimal units=incentive*factor;
         var shares=rows.Select(r=>{decimal exact=totalOrders==0?0:units*r.Orders/totalOrders;return new{Row=r,Whole=decimal.Floor(exact),Remainder=exact-decimal.Floor(exact)};}).ToList();int remainder=(int)(units-shares.Sum(r=>r.Whole));var extra=shares.OrderByDescending(r=>r.Remainder).ThenBy(r=>r.Row.Rider,StringComparer.Ordinal).Take(remainder).Select(r=>r.Row.Rider).ToHashSet();
         return shares.Select(r=>new PayAllocatedShare(r.Row.Rider,r.Row.Orders,r.Row.BaseGross,(r.Whole+(extra.Contains(r.Row.Rider)?1:0))/factor)).ToArray();

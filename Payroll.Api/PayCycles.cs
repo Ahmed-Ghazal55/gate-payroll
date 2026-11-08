@@ -15,6 +15,8 @@ public static partial class PayCycles
     static string Fingerprint(DbConnection c,DbTransaction? tx)=>Hash(string.Join("\n",SourceKinds.SelectMany(k=>Store.List(c,k,tx).OrderBy(d=>d.S("id"),StringComparer.Ordinal).Select(d=>k+":"+FinancialImports.Canonical(d)))));
     static JsonArray Rows(JsonNode? node,int max=25000)=>PayValues.Array(node,max);
     static decimal Money(JsonObject row,string key){decimal n=PayValues.Number(row,key);J.Need(n==J.Money(n),"المبلغ بدقة هللتين.");return n;}
+    // A captain's invoiced base can be negative (BR31); deductions and incentives stay non-negative.
+    static decimal SignedMoney(JsonObject row,string key){decimal n=PayValues.Number(row,key,-1000000000);J.Need(n==J.Money(n),"المبلغ بدقة هللتين.");return n;}
     static void Open(DbConnection c,DbTransaction? tx,JsonObject cycle)=>J.Need(!Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==cycle.S("companyId")&&p.S("period")==cycle.S("postingPeriod",cycle.S("period"))&&p.S("status")=="closed"),"الفترة مغلقة؛ لا تتجاوز الإقفال.");
     static void Scope(ClaimsPrincipal actor,JsonObject cycle,string permission)
     {AccessPolicy.Demand(actor,permission);FinancialScopes.DemandSponsor(actor,cycle.S("companyId"));foreach(string app in Rows(cycle["invoices"]).OfType<JsonObject>().Select(i=>i.S("app")).Distinct())PaySettings.Scope(actor,permission,app);}
@@ -50,7 +52,7 @@ public static partial class PayCycles
             if(app=="ninja")NinjaInvoices.DemandResolvedDisputes(c,tx,source.S("id"));
             if(app=="keeta")KeetaInvoices.Workflow.DemandResolvedDisputes(c,tx,source.S("id"));
             var accounts=Rows(review["accounts"]).OfType<JsonObject>().ToList();var deductions=Rows(review["deductions"]).OfType<JsonObject>().ToList();J.Need(accounts.Count>0&&accounts.Select(a=>a.S("accountId")).Distinct().Count()==accounts.Count,"استحقاقات اليوزرات مطلوبة بلا تكرار.");
-            foreach(var a in accounts){PayValues.Fields(a,"accountId","sourceLineId","baseGross","incentives","orders","riders");Money(a,"baseGross");Money(a,"incentives");decimal orders=PayValues.Number(a,"orders",0,int.MaxValue);J.Need(orders==decimal.Truncate(orders),"طلبات فعلية صحيحة مطلوبة.");}
+            foreach(var a in accounts){PayValues.Fields(a,"accountId","sourceLineId","baseGross","incentives","orders","riders");SignedMoney(a,"baseGross");Money(a,"incentives");decimal orders=PayValues.Number(a,"orders",0,int.MaxValue);J.Need(orders==decimal.Truncate(orders),"طلبات فعلية صحيحة مطلوبة.");}
             foreach(var d in deductions){PayValues.Fields(d,"sourceLineId","sourceCategory","level","accountId","amount","expenseAccount");Money(d,"amount");J.Need(d.S("level") is "company_level" or "account_level","صنف كل خصم: شركة أو يوزر.");if(d.S("level")=="company_level")J.Need(PayPlatforms.Active(d.Required("expenseAccount")).StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");else J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");}
             J.Need(source.ContainsKey("deductionsTotal"),"إجمالي خصومات المصدر غير مثبت؛ ارفع نسخة معيارية مراجعة قبل الاحتساب.");
             decimal gross=accounts.Sum(a=>a.N("baseGross")+a.N("incentives"));
@@ -132,7 +134,7 @@ public static partial class PayCycles
                 }
                 string id=J.Iqama(r.Required("rider"));var person=Store.Get(c,id,"rider",tx)??throw new ApiError("المندوب غير موجود.");FinancialScopes.DemandRider(actor,person);J.Need(ErpRiderClassification.ListedAsRider(person),"الموظفون خارج إطار المناديب.");
                 J.Need((source["assignments"] as JsonArray??[]).OfType<JsonObject>().Any(x=>x.S("riderId")==id&&Overlaps(x,cycle.S("period"))),"المندوب ليس مشغلًا فعليًا لليوزر بالفترة؛ المالك المسجل ليس دليلًا.");
-                J.Need(PaySettings.Categories.Contains(r.Required("category")),"فئة الكفالة والمركبة مطلوبة للمراجعة.");Money(r,"baseGross");Money(r,"deduction");decimal orders=PayValues.Number(r,"orders",0,int.MaxValue),days=PayValues.Number(r,"days",0,31);J.Need(orders==decimal.Truncate(orders)&&days==decimal.Truncate(days),"طلبات وأيام صحيحة مطلوبة.");
+                J.Need(PaySettings.Categories.Contains(r.Required("category")),"فئة الكفالة والمركبة مطلوبة للمراجعة.");SignedMoney(r,"baseGross");Money(r,"deduction");decimal orders=PayValues.Number(r,"orders",0,int.MaxValue),days=PayValues.Number(r,"days",0,31);J.Need(orders==decimal.Truncate(orders)&&days==decimal.Truncate(days),"طلبات وأيام صحيحة مطلوبة.");
             }
             J.Need(shares.Sum(r=>r.N("orders"))==a.N("orders")&&shares.Sum(r=>r.N("baseGross"))==a.N("baseGross"),"طلبات واستحقاقات المشغلين لا تطابق اليوزر.");
             decimal deductions=Rows(cycle["invoices"]).OfType<JsonObject>().Where(i=>i.S("app")==app).SelectMany(i=>Rows(i["deductions"]).OfType<JsonObject>()).Where(d=>d.S("level")=="account_level"&&d.S("accountId")==a.S("accountId")).Sum(d=>d.N("amount"));J.Need(shares.Sum(r=>r.N("deduction"))==deductions,"خصم اليوزر يحتاج توزيعًا صريحًا على مشغليه؛ لا تحمل خصم الشركة عليهم.");

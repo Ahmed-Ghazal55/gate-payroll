@@ -30,7 +30,7 @@ public static partial class NinjaInvoices
             foreach(string field in fields)
             {
                 int index=header.FindIndex(h=>h.Equals(field,StringComparison.OrdinalIgnoreCase));string value=index<cells.Count?cells[index].Trim():"";
-                if(value==""||value=="-"&&field=="Contract Amount")continue;
+                if(value==""||value=="-")continue; // Adjustment rows carry "-" in every unused numeric cell.
                 J.Need(decimal.TryParse(value,NumberStyles.Float,CultureInfo.InvariantCulture,out _),"قيمة رقمية غير صالحة في الصف "+(row+1));
             }
         }
@@ -63,8 +63,9 @@ public static partial class NinjaInvoices
             var v=comparison["invoiceValues"]!.AsObject();var pass=comparison["invoicePassThrough"]!.AsObject();
             decimal baseGross=J.Money(v.N("targetTotal")-v.N("attendanceDeduction")-v.N("shortDayDeduction"));decimal incentives=J.Money(pass.Sum(x=>Math.Max(0,x.Value!.GetValue<decimal>()))),deduction=J.Money(pass.Sum(x=>Math.Max(0,-x.Value!.GetValue<decimal>())));
             decimal invoiced=J.Money(comparison.N("invoiceFinal")),vat=J.Money(v.N("vat"));
-            J.Need(baseGross>=0&&v.N("orders")>=0&&v.N("orders")==decimal.Truncate(v.N("orders"))&&vat>=0&&invoiced>=0,"المبلغ أو الطلبات غير صالحة؛ الإشعار الدائن يحتاج مسار عكس.");
-            J.Need(Math.Abs(baseGross+incentives-deduction-invoiced)<=0.02m&&Math.Abs(invoiced+vat-J.Money(v.N("totalCost")))<=0.02m&&Math.Abs(J.Money(invoiced*terms.N("vatPercent")/100)-vat)<=0.02m,"إجمالي أو ضريبة السطر لا يطابق مكونات الفاتورة.");
+            // BR31: the invoice is final, including a negative captain (few orders, larger deductions). BR29 carries a negative net as debt.
+            J.Need(v.N("orders")>=0&&v.N("orders")==decimal.Truncate(v.N("orders")),"عدد طلبات غير صالح: row "+comparison.N("row"));
+            J.Need(Math.Abs(baseGross+incentives-deduction-invoiced)<=0.02m&&Math.Abs(invoiced+vat-J.Money(v.N("totalCost")))<=0.02m&&Math.Abs(J.Money(invoiced*terms.N("vatPercent")/100)-vat)<=0.02m,"إجمالي أو ضريبة السطر لا يطابق مكونات الفاتورة: row "+comparison.N("row"));
             // Bind every cent to the invoice, retaining rounded component residual explicitly.
             decimal rounding=J.Money(invoiced-(baseGross+incentives-deduction));baseGross+=rounding;
             string reason=comparison.N("engineFinal")==invoiced?"":comparison.S("capability")=="bike"&&(comparison["reasons"] as JsonArray??[]).Any(r=>r!.ToString().StartsWith("capability_label_edited:",StringComparison.OrdinalIgnoreCase))?"vehicle type edited by the platform":"invoice differs from expected engine calculation";

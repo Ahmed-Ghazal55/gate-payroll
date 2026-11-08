@@ -42,7 +42,10 @@ The flow test seeded the invoice and classified deductions directly, so it never
 5. Several selected files: only the first would be saved, silently. Now reconcile only, and it asks for one file at a time. The default reference includes the file name, so a company can hold several invoices a month.
 6. `web/tests/r8-ninja-flow.mjs` now uploads a real synthetic xlsx with live-shaped accounts: maker uploads, confirms, classifies; checker approves.
 
-**Not checked against a real October file:** none is on this machine.
+7. Real October files (3 companies) then exposed more: captains with a negative final (9 rows) were rejected, and `-` cells in DEDUCTIONS rows failed the number check. BR §31 says the invoice is final, so they are kept; a negative rider stops at «يحتاج قرار» in the cycle.
+8. UI: next-step card with the action button, invoice chips per company, company/month switch resets the screen, reference field removed (generated from the file name), Odoo optional. New `SearchableSelect` (manual journal accounts, cost accounts, sponsors, vaults); riders in payroll dialogs use `RiderPicker`.
+
+**Checked against the 3 real October files** through a local temporary API (counts only): all preview and save. TR 27 lines, BW 76, EX 106 (104 + 2 company). Saved totals differ from the file by about 0.03-0.05 from per-line rounding.
 
 ## Next blockers on real data (after 0.18.1)
 - `ninja_daily` = 0 on db77738, so the review draft will show `operations_missing` for every account. Needs either the ERP pull (dry-run, then «حمّل») or the template import in «استيراد البيانات» ← «تشغيل نينجا».

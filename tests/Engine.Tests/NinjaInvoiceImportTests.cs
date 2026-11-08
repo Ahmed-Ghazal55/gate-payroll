@@ -30,6 +30,10 @@ public sealed class NinjaInvoiceImportTests
         if(editedBike)Set("capabilty","BIKE");
         decimal final=6500-penalty-blocked;Set("Penalty",-penalty);Set("NAQIL BLOCKED",-blocked);Set("Final Amount",final);Set("VAT",final*0.15m);Set("TOTAL COST",final*1.15m);
         if(badNumeric)Set("Penalty","not-a-number");
+        return WorkbookRows(header,row);
+    }
+    public static byte[] WorkbookRows(List<string> header,params List<string>[] dataRows)
+    {
         using var memory=new MemoryStream();using(var zip=new ZipArchive(memory,ZipArchiveMode.Create,true))
         {
             void Entry(string name,string xml){using var writer=new StreamWriter(zip.CreateEntry(name).Open(),new UTF8Encoding(false));writer.Write(xml);}
@@ -38,7 +42,7 @@ public sealed class NinjaInvoiceImportTests
             Entry("xl/_rels/workbook.xml.rels","<Relationships><Relationship Id=\"r1\" Target=\"worksheets/sheet1.xml\" /></Relationships>");
             string Col(int index){string result="";for(int n=index+1;n>0;n=(n-1)/26)result=(char)('A'+(n-1)%26)+result;return result;}
             XElement Cells(List<string> values,int number)=>new(ns+"row",new XAttribute("r",number),values.Select((v,n)=>new XElement(ns+"c",new XAttribute("r",Col(n)+number),new XAttribute("t","inlineStr"),new XElement(ns+"is",new XElement(ns+"t",v)))));
-            Entry("xl/worksheets/sheet1.xml",new XElement(ns+"worksheet",new XElement(ns+"sheetData",Cells(header,1),Cells(row,2))).ToString());
+            Entry("xl/worksheets/sheet1.xml",new XElement(ns+"worksheet",new XElement(ns+"sheetData",new[]{Cells(header,1)}.Concat(dataRows.Select((r,i)=>Cells(r,i+2))))).ToString());
         }
         return memory.ToArray();
     }
@@ -60,6 +64,27 @@ public sealed class NinjaInvoiceImportTests
         StringAssert.Contains(string.Join("|",maker["approvalBlockers"]!.AsArray()),"مستخدم آخر");Assert.IsFalse(maker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));
         checker=f.Store.Read(c=>NinjaInvoices.View(c,null,Actor("synthetic-checker"),invoice));
         Assert.IsTrue(checker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));Assert.AreEqual(0,checker["approvalBlockers"]!.AsArray().Count);
+    }
+    [TestMethod]
+    public void NegativeCaptainFromTheInvoiceIsKept()
+    {
+        using var f=new Fixture();
+        var header=NinjaBillingTests.Header.ToList();var row=NinjaBillingTests.Row("SYN-A","capability_car",31,1,1);
+        void Set(string key,string value)=>row[header.IndexOf(key)]=value;
+        Set("Target Total Amount","10");Set("Attendance Deduction","1.5");Set("8 Hour Deductions","31.45");Set("Final Amount","-22.95");Set("VAT","-3.4425");Set("TOTAL COST","-26.3925");
+        var invoice=f.Commit(WorkbookRows(header,row));
+        var line=f.Store.Read(c=>NinjaInvoices.Lines(c,null,invoice.S("id"))).Single();
+        Assert.AreEqual(-22.95m,line.N("invoiced"));Assert.AreEqual(-22.95m,line.N("baseGross"));
+    }
+    [TestMethod]
+    public void DeductionsRowWithDashesIsACompanyLine()
+    {
+        using var f=new Fixture();
+        var header=NinjaBillingTests.Header.ToList();var captain=NinjaBillingTests.Row("SYN-A","capability_car",31,460,31);
+        var adjustment=header.Select(h=>h switch{"captain_id"=>"SYN-A","supplier_id"=>"9001","Target Level Type"=>"DEDUCTIONS ","Final Amount"=>"-33.12","VAT"=>"-4.968","TOTAL COST"=>"-38.088",_=>"-"}).ToList();
+        var invoice=f.Commit(WorkbookRows(header,captain,adjustment));
+        var lines=f.Store.Read(c=>NinjaInvoices.Lines(c,null,invoice.S("id")));
+        Assert.AreEqual(2,lines.Count);Assert.AreEqual("company",lines.Single(l=>l.N("sourceRow")==3).S("lineType"));
     }
     [TestMethod]
     public void UnknownOrDeletedCaptainRejectsWithRowNumbers()

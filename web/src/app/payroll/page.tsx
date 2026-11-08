@@ -64,6 +64,8 @@ import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { RiderPicker } from '../../components/ui/RiderPicker';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
 import type {
@@ -4306,18 +4308,12 @@ function PayrollPageInner() {
 
             <div className="space-y-1">
               <label className="text-xs font-bold text-[var(--ink)]">السجل المالي صاحب المسير (Sponsor):</label>
-              <select
+              <SearchableSelect
                 value={approveSponsorId}
-                onChange={(e) => setApproveSponsorId(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
-              >
-                <option value="">حدد السجل المالي</option>
-                {financeCatalog?.sponsors?.map((s: any) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nameAr || s.name} ({s.id})
-                  </option>
-                ))}
-              </select>
+                onChange={setApproveSponsorId}
+                placeholder="حدد السجل المالي"
+                options={(financeCatalog?.sponsors ?? []).map((sp: any) => ({ value: sp.id, label: `${sp.nameAr || sp.name} (${sp.id})` }))}
+              />
             </div>
 
             <div className="pt-2 flex justify-end gap-2 border-t border-[var(--line)]">
@@ -4352,18 +4348,7 @@ function PayrollPageInner() {
         <div className="space-y-3 pt-2 text-xs">
           <div className="space-y-1">
             <label className="text-xs font-bold">المندوب:</label>
-            <select
-              value={adjIqama}
-              onChange={(e) => setAdjIqama(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
-            >
-              <option value="">اختر المندوب</option>
-              {ridersList.map((r) => (
-                <option key={r.iqama} value={r.iqama}>
-                  {r.name} ({r.iqama})
-                </option>
-              ))}
-            </select>
+            <RiderPicker value={adjIqama} onChange={(r) => setAdjIqama(r?.iqama ?? '')} />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -4449,23 +4434,14 @@ function PayrollPageInner() {
         <div className="space-y-3 pt-2 text-xs">
           <div className="space-y-1">
             <label className="text-xs font-bold">المندوب:</label>
-            <select
+            <RiderPicker
               value={payIqama}
-              onChange={(e) => {
-                const val = e.target.value;
-                setPayIqama(val);
-                const r = ridersList.find((x) => x.iqama === val);
+              onChange={(picked) => {
+                setPayIqama(picked?.iqama ?? '');
+                const r = ridersList.find((x) => x.iqama === picked?.iqama);
                 if (r) setPaySponsorId(r.financeSponsorId || r.sponsorId || 'BW');
               }}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
-            >
-              <option value="">اختر المندوب</option>
-              {ridersList.map((r) => (
-                <option key={r.iqama} value={r.iqama}>
-                  {r.name} ({r.iqama})
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -4495,18 +4471,12 @@ function PayrollPageInner() {
 
           <div className="space-y-1">
             <label className="text-xs font-bold">خزينة / حساب البنك الدافع:</label>
-            <select
+            <SearchableSelect
               value={payVaultCode}
-              onChange={(e) => setPayVaultCode(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
-            >
-              <option value="">الحساب الافتراضي للسجل</option>
-              {financeCatalog?.vaults?.map((v: any) => (
-                <option key={v.code} value={v.code}>
-                  {v.nameAr} ({v.code})
-                </option>
-              ))}
-            </select>
+              onChange={setPayVaultCode}
+              placeholder="الحساب الافتراضي للسجل"
+              options={(financeCatalog?.vaults ?? []).map((v: any) => ({ value: v.code, label: `${v.nameAr} (${v.code})` }))}
+            />
           </div>
 
           <div className="pt-2 flex justify-end gap-2 border-t border-[var(--line)]">
