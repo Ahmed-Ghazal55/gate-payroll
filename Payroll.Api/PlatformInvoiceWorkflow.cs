@@ -17,10 +17,7 @@ public sealed class PlatformInvoiceWorkflow(string app)
     public JsonObject Classify(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
         var invoice=Get(c,tx,actor,id,"pay.manage");J.Need(invoice.S("approvalStatus")=="pending","الفاتورة المعتمدة لا تتعدل.");var line=Lines(c,tx,id).SingleOrDefault(l=>l.S("id")==input.Required("lineId"))??throw new ApiError("السطر غير موجود.",404);
-        var deduction=(line["deductions"] as JsonArray??[]).OfType<JsonObject>().SingleOrDefault(d=>d.S("category")==input.Required("category"))??throw new ApiError("بند الخصم غير موجود.");
-        string level=input.Required("level");J.Need(level is "company_level" or "account_level"&&(line.S("lineType")!="company"||level=="company_level"),"حدد شركة أو يوزر؛ تعديل المورد على الشركة.");
-        if(level=="company_level"){string expense=PayPlatforms.Active(input.Required("expenseAccount"));J.Need(expense.StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");deduction["expenseAccount"]=expense;}
-        deduction["level"]=level;deduction["classifiedBy"]=actor.Identity!.Name;Store.Save(c,"platform_invoice_line",line,tx);Store.Audit(c,tx,"platform."+app+".deduction_classified",line.S("id"),actor.Identity!.Name!);return line;
+        InvoiceDeductionClassification.Apply(c,tx,actor,invoice,line,input);Store.Save(c,"platform_invoice_line",line,tx);Store.Audit(c,tx,"platform."+app+".deduction_classified",line.S("id"),actor.Identity!.Name!);return line;
     }
     public JsonObject Approve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
@@ -28,7 +25,7 @@ public sealed class PlatformInvoiceWorkflow(string app)
         if(invoice.S("approvalStatus")=="approved")return invoice;
         foreach(var line in Lines(c,tx,id))
         {
-            foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>()){J.Need(d.S("level") is "company_level" or "account_level","صنف خصومات الشركة واليوزر أولًا.");Independent(actor,d.S("classifiedBy"));}
+            foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>()){J.Need(d.S("level") is "company_level" or "account_level" or "rider_level","صنف خصومات الشركة واليوزر أولًا.");Independent(actor,d.S("classifiedBy"));}
             line["status"]="final";Store.Save(c,"platform_invoice_line",line,tx);
             PlatformDeductions.ConfirmClassified(c,tx,actor,invoice,line);
         }

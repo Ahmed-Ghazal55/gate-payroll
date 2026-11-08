@@ -45,8 +45,8 @@ public static class OperationsImports
         void Add(JsonObject line,JsonObject part,string category)
         {
             decimal amount=part==line?line.N("deductionAmount"):part.N("amount");if(amount==0)return;
-            string level=part.S("level",part.S("deductionLevel"));J.Need(amount>0&&amount==J.Money(amount)&&level is "company_level" or "account_level","يلزم تصنيف خصومات الفاتورة المعتمد قبل التشغيل.");
-            result.Add(new JsonObject{["sourceLineId"]=line.S("id"),["sourceCategory"]=category,["level"]=level,["accountId"]=level=="account_level"?line.S("platformAccountId",line.S("accountId")):"",["amount"]=amount,["expenseAccount"]=part.S("expenseAccount")});
+            string level=part.S("level",part.S("deductionLevel"));J.Need(amount>0&&amount==J.Money(amount)&&level is "company_level" or "account_level" or "rider_level","يلزم تصنيف خصومات الفاتورة المعتمد قبل التشغيل.");
+            result.Add(new JsonObject{["sourceLineId"]=line.S("id"),["sourceCategory"]=category,["level"]=level,["accountId"]=level=="account_level"?line.S("platformAccountId",line.S("accountId")):"",["amount"]=amount,["expenseAccount"]=part.S("expenseAccount"),["riderId"]=part.S("riderId")});
         }
     }
     static void Assignment(JsonObject account,string rider,string period,string from,string to)
@@ -102,7 +102,7 @@ public static class OperationsImports
             decimal Number(string key,bool integer=false,bool money=false)
             {
                 J.Need(V(key)!=""&&decimal.TryParse(J.Digits(V(key)),NumberStyles.Number,CultureInfo.InvariantCulture,out _),"invalid_number: row "+(i+1));
-                decimal n=decimal.Parse(J.Digits(V(key)),NumberStyles.Number,CultureInfo.InvariantCulture);J.Need(n is >=0 and <=100000000&&n==decimal.Round(n,4)&&(!integer||n==decimal.Truncate(n))&&(!money||n==J.Money(n)),"invalid_number: row "+(i+1));return n;
+                decimal n=decimal.Parse(J.Digits(V(key)),NumberStyles.Number,CultureInfo.InvariantCulture);J.Need(n>=(key=="baseGross"?-100000000:0)&&n<=100000000&&n==decimal.Round(n,4)&&(!integer||n==decimal.Truncate(n))&&(!money||n==J.Money(n)),"invalid_number: row "+(i+1));return n;
             }
             decimal days=Number("days",true),orders=Number("orders",true);J.Need(days<=DateTime.DaysInMonth(int.Parse(period[..4],CultureInfo.InvariantCulture),int.Parse(period[5..],CultureInfo.InvariantCulture)),"أيام التشغيل تتجاوز أيام الشهر.");
             J.Need(PaySettings.Categories.Contains(V("category")),"فئة الكفالة والمركبة مطلوبة؛ car/bike وحدهما غير كافيين.");

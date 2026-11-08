@@ -17,12 +17,12 @@ public static class PayStatements
         rider=J.Iqama(rider);period=J.Period(period);var person=Store.Get(c,rider,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);
         if(actor!=null){AccessPolicy.Demand(actor,"pay.view");AccessPolicy.Demand(actor,"payroll.view");AccessPolicy.Demand(actor,"debts.view");}
         var allLines=Store.List(c,PayCycles.LineKind,tx).Where(l=>l.S("rider")==rider&&l.S("period")==period).ToList();
-        var candidates=Store.List(c,PayCycles.Kind,tx).Where(d=>d.S("period")==period&&d.S("status") is not ("cancelled" or "reversed")&&(!approvedOnly||d.S("status")=="approved")&&allLines.Any(l=>l.S("cycleId")==d.S("id"))).ToList();
+        var candidates=Store.List(c,PayCycles.Kind,tx).Where(d=>d.S("period")==period&&d.S("status") is not ("cancelled" or "reversed")&&(!approvedOnly||d.S("status")=="approved"||d.S("status")=="partially_approved"&&(d["riders"] as JsonArray??[]).OfType<JsonObject>().Any(r=>r.S("rider")==rider&&r.S("salaryApprovedAt")!=""))&&allLines.Any(l=>l.S("cycleId")==d.S("id"))).ToList();
         var cycles=candidates.Where(d=>actor==null||PayCycles.Visible(actor,d)).ToList();if(candidates.Count>0&&cycles.Count==0)throw new ApiError("الكشف الشهري خارج نطاق الشركة أو التطبيقات.",403);
         var cards=new List<JsonObject>();var deductions=new List<JsonObject>();var refs=new List<JsonObject>();decimal net=0,carried=0,closing=0;string source="none",status="no_approved_cycle";var phases=new JsonObject();
         if(cycles.Count>0)
         {
-            source="pay_cycle";status=cycles.All(d=>d.S("status")=="approved")?"approved":"preview";
+            source="pay_cycle";status=cycles.All(d=>d.S("status")=="approved"||(d["riders"] as JsonArray??[]).OfType<JsonObject>().Any(r=>r.S("rider")==rider&&r.S("salaryApprovedAt")!=""))?"approved":"preview";
             foreach(var cycle in cycles.OrderBy(d=>d.S("companyId"),StringComparer.Ordinal))
             {
                 refs.Add(Pick(cycle,"id","companyId","period","postingPeriod","status","stage","approvedAt"));var lines=allLines.Where(l=>l.S("cycleId")==cycle.S("id")).ToList();

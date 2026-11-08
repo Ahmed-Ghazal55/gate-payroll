@@ -11,6 +11,7 @@ public sealed class PayEvaluation
     public string Rider {get;init;}="";public string App {get;init;}="";public string Period {get;init;}="";public string Category {get;init;}="";public string SchemeType {get;init;}="";public string AccountingRole {get;init;}="";
     public int Orders {get;init;}public decimal Days {get;init;}public decimal PlatformGross {get;init;}public decimal Incentives {get;init;}public decimal Gross {get;init;}public decimal CompanyCommission {get;init;}public decimal OperatingCost {get;init;}public string OperatingCostAccount {get;init;}="";
     public decimal VehicleCharge {get;init;}public decimal FuelCap {get;init;}public decimal Entitlement {get;init;}public decimal NetBeforePersonal {get;init;}public string Status {get;init;}="needs_decision";public JsonObject? Band {get;init;}
+    public bool IneligibleKeetaSalary {get;init;}public decimal RecoveredOperatingCost {get;init;}public decimal UnrecoveredOperatingCost {get;init;}public decimal UnrecoveredVehicleCharge {get;init;}
     public IReadOnlyList<PayExplain> Lines {get;init;}=[];public IReadOnlyList<string> Blockers {get;init;}=[];
 }
 
@@ -51,7 +52,7 @@ public static class PayEvaluator
         var data=PayValues.Object(scheme["data"]);PaySettings.Validate("pay_scheme",app,data);J.Need(PaySettings.Categories.Contains(facts.Category),"فئة مندوب غير معروفة.");string type=data.S("type"),role=data.S("accountingRole");var p=PayValues.Object(data["parameters"]?["categories"]?[facts.Category]);var lines=new List<PayExplain>();var blockers=new List<string>();decimal total=Round(facts.PlatformGross+facts.Incentives,values),earned=0,fee=0,cost=0,rent=0,fuelCap=0;JsonObject? chosen=null;
         void Line(string label,string formula,JsonObject inputs,decimal amount,string category,bool affects=true,string? account=null)=>lines.Add(new(label,formula,inputs,Round(amount,values),category,affects,account));
         Line("استحقاق المنصة قبل النظام الداخلي","platformGross + incentives",new(){["platformGross"]=facts.PlatformGross,["incentives"]=facts.Incentives},total,"source_gross",false);
-        if(!p.B("enabled"))blockers.Add("category_not_enabled");if(total<0)blockers.Add("negative_platform_source_requires_reversal");
+        if(!p.B("enabled"))blockers.Add("category_not_enabled");
         bool zero=false,fallback=false;int nextBands=0;
         if(data.S("eligibilitySetId")!="")
         {
@@ -102,9 +103,15 @@ public static class PayEvaluator
                 Line("مقابل حيازة المركبة","monthlyRent / monthDays × min(vehicleDays,monthDays)",new(){["type"]=expected,["vehicleDays"]=facts.VehicleDays,["monthDays"]=monthDays,["monthlyRent"]=values["vehicleRent"]?[expected]?.DeepClone()},-rent,"vehicle_charge");
             }
         }
-        string costAccount=p.S("operatingCostAccount");if(cost!=0){if(costAccount=="")blockers.Add("operating_cost_account_missing");else PayPlatforms.Active(costAccount);Line("تكلفة التشغيل المحددة","configured operatingCost",new(){["operatingCost"]=cost},-cost,"operating_cost",account:costAccount);}
-        decimal entitlement=Round(earned-cost,values),net=Round(entitlement-rent,values),commission=role=="agent"?Round(total-earned,values):fee;
-        if(net<0)blockers.Add("negative_net_requires_decision");if(role=="agent"&&commission<0)blockers.Add("negative_company_share_requires_decision");
-        return new(){Rider=facts.Rider,App=app,Period=facts.Period,Category=facts.Category,SchemeType=type,AccountingRole=role,Orders=facts.Orders,Days=days,PlatformGross=facts.PlatformGross,Incentives=facts.Incentives,Gross=Round(earned,values),CompanyCommission=commission,OperatingCost=cost,OperatingCostAccount=costAccount,VehicleCharge=rent,FuelCap=fuelCap,Entitlement=entitlement,NetBeforePersonal=net,Status=blockers.Count==0?"ready":"needs_decision",Band=chosen,Lines=lines,Blockers=blockers.Distinct().ToArray()};
+        // BR22.9.2 applies only to the ineligible Keeta salary fallback, never to commission or Ninja.
+        bool protectedSalary=app=="keeta"&&type=="target_salary"&&fallback&&!zero;
+        decimal recovered=protectedSalary?Math.Min(Math.Max(0,earned),cost):cost,unrecovered=cost-recovered;
+        string costAccount=p.S("operatingCostAccount");if(cost!=0){if(costAccount=="")blockers.Add("operating_cost_account_missing");else PayPlatforms.Active(costAccount);Line("تكلفة التشغيل المستردة","min(earnings, operatingCost) for BR22.9.2",new(){["operatingCost"]=cost,["companyCost"]=unrecovered},-recovered,"operating_cost",account:costAccount);}
+        if(unrecovered>0)Line("تكلفة عدم الصلاحية على الشركة","operatingCost - recoveredOperatingCost",new(){["operatingCost"]=cost,["recovered"]=recovered},unrecovered,"unrecovered_operating_cost",false,"512121");
+        decimal unrecoveredRent=protectedSalary?Math.Max(0,rent-Math.Max(0,earned-recovered)):0;
+        if(unrecoveredRent>0){rent-=unrecoveredRent;int i=lines.FindIndex(l=>l.Category=="vehicle_charge");if(i>=0)lines[i]=lines[i] with{Amount=-rent};Line("حيازة غير مستردة على الشركة","vehicle charge - recovered charge",new(),unrecoveredRent,"unrecovered_vehicle_cost",false,"512121");}
+        decimal entitlement=Round(earned-recovered,values),net=Round(entitlement-rent,values),commission=role=="agent"?Round(total-earned,values):fee;
+        if(net<0)blockers.Add("negative_net_requires_decision");if(role=="agent"&&commission<0&&total>=0)blockers.Add("negative_company_share_requires_decision");
+        return new(){Rider=facts.Rider,App=app,Period=facts.Period,Category=facts.Category,SchemeType=type,AccountingRole=role,Orders=facts.Orders,Days=days,PlatformGross=facts.PlatformGross,Incentives=facts.Incentives,Gross=Round(earned,values),CompanyCommission=commission,OperatingCost=cost,OperatingCostAccount=costAccount,RecoveredOperatingCost=recovered,UnrecoveredOperatingCost=unrecovered,UnrecoveredVehicleCharge=unrecoveredRent,IneligibleKeetaSalary=protectedSalary,VehicleCharge=rent,FuelCap=fuelCap,Entitlement=entitlement,NetBeforePersonal=net,Status=blockers.Count==0?"ready":"needs_decision",Band=chosen,Lines=lines,Blockers=blockers.Distinct().ToArray()};
     }
 }

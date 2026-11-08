@@ -3375,6 +3375,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -3391,6 +3392,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -3459,6 +3461,7 @@ export interface paths {
                                     invoiceId: string;
                                     sourceRow: number;
                                     platformAccountId?: string;
+                                    captainId?: string;
                                     lineType?: string;
                                     baseGross: number;
                                     incentives: number;
@@ -3475,6 +3478,7 @@ export interface paths {
                                         amount: number;
                                         level: string;
                                         expenseAccount?: string;
+                                        riderId?: string;
                                     }[];
                                 }[];
                             }[];
@@ -3534,6 +3538,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -3550,6 +3555,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         } | {
@@ -3584,6 +3590,7 @@ export interface paths {
                                     invoiceId: string;
                                     sourceRow: number;
                                     platformAccountId?: string;
+                                    captainId?: string;
                                     lineType?: string;
                                     baseGross: number;
                                     incentives: number;
@@ -3600,6 +3607,7 @@ export interface paths {
                                         amount: number;
                                         level: string;
                                         expenseAccount?: string;
+                                        riderId?: string;
                                     }[];
                                 }[];
                             }[];
@@ -3672,6 +3680,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -3688,6 +3697,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -3733,6 +3743,7 @@ export interface paths {
                             invoiceId: string;
                             sourceRow: number;
                             platformAccountId?: string;
+                            captainId?: string;
                             lineType?: string;
                             baseGross: number;
                             incentives: number;
@@ -3749,6 +3760,7 @@ export interface paths {
                                 amount: number;
                                 level: string;
                                 expenseAccount?: string;
+                                riderId?: string;
                             }[];
                         }[];
                     };
@@ -3825,6 +3837,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -3841,6 +3854,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -3916,6 +3930,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -3932,6 +3947,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -4003,6 +4019,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -4019,6 +4036,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -4094,6 +4112,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -4110,6 +4129,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -4185,6 +4205,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -4201,6 +4222,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -4272,6 +4294,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -4288,6 +4311,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -6387,6 +6411,10 @@ export interface paths {
                                 phase2?: number;
                                 phase3?: number;
                                 net: number;
+                                allowedActions?: string[];
+                                blockers?: string[];
+                                salaryApprovedAt?: string;
+                                debtDeductionStatus?: string;
                                 items: {
                                     key: string;
                                     phase: number;
@@ -6500,6 +6528,10 @@ export interface paths {
                             phase2?: number;
                             phase3?: number;
                             net: number;
+                            allowedActions?: string[];
+                            blockers?: string[];
+                            salaryApprovedAt?: string;
+                            debtDeductionStatus?: string;
                             items: {
                                 key: string;
                                 phase: number;
@@ -6511,6 +6543,162 @@ export interface paths {
                                 source: string;
                             }[];
                             edits?: Record<string, never>[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/cycles/{id}/unrecovered-costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Keeta ineligibility operating and fuel costs borne by the company */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            cycleId: string;
+                            status: string;
+                            total: number;
+                            rows: {
+                                rider: string;
+                                operatingCost: number;
+                                fuelCost: number;
+                                total: number;
+                                accountCode: string;
+                                sourceLineIds: string[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/cycles/{id}/debt-deductions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Review due debts after salary approval, capped by positive net */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            cycleId: string;
+                            stage: number;
+                            status: string;
+                            rows: {
+                                rider: string;
+                                salaryNet: number;
+                                net: number;
+                                status: string;
+                                allowedActions: string[];
+                                items: {
+                                    key: string;
+                                    source: string;
+                                    category: string;
+                                    labelAr: string;
+                                    due: number;
+                                    amount: number;
+                                    remainingBalance: number;
+                                    accountCode: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Choose zero or a due installment and independently confirm deductions */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            cycleId: string;
+                            stage: number;
+                            status: string;
+                            rows: {
+                                rider: string;
+                                salaryNet: number;
+                                net: number;
+                                status: string;
+                                allowedActions: string[];
+                                items: {
+                                    key: string;
+                                    source: string;
+                                    category: string;
+                                    labelAr: string;
+                                    due: number;
+                                    amount: number;
+                                    remainingBalance: number;
+                                    accountCode: string;
+                                }[];
+                            }[];
                         };
                     };
                 };
@@ -6553,6 +6741,9 @@ export interface paths {
                                 app?: string;
                                 stage: number;
                                 status: string;
+                                allowedActions?: string[];
+                                approvalBlockers?: string[];
+                                debtDeductionStatus?: string;
                                 invoices: {
                                     invoiceId: string;
                                     app: string;
@@ -6583,6 +6774,12 @@ export interface paths {
                                     closing?: number;
                                     status: string;
                                     review?: string;
+                                    salaryNet?: number;
+                                    carryAmount?: number;
+                                    carryDebtId?: string;
+                                    salaryApprovedAt?: string;
+                                    debtDeductionStatus?: string;
+                                    blockers?: string[];
                                 }[];
                                 journalEntryId?: string;
                                 history?: Record<string, never>[];
@@ -6624,6 +6821,9 @@ export interface paths {
                             app?: string;
                             stage: number;
                             status: string;
+                            allowedActions?: string[];
+                            approvalBlockers?: string[];
+                            debtDeductionStatus?: string;
                             invoices: {
                                 invoiceId: string;
                                 app: string;
@@ -6654,6 +6854,12 @@ export interface paths {
                                 closing?: number;
                                 status: string;
                                 review?: string;
+                                salaryNet?: number;
+                                carryAmount?: number;
+                                carryDebtId?: string;
+                                salaryApprovedAt?: string;
+                                debtDeductionStatus?: string;
+                                blockers?: string[];
                             }[];
                             journalEntryId?: string;
                             history?: Record<string, never>[];
@@ -6707,6 +6913,9 @@ export interface paths {
                             app?: string;
                             stage: number;
                             status: string;
+                            allowedActions?: string[];
+                            approvalBlockers?: string[];
+                            debtDeductionStatus?: string;
                             invoices: {
                                 invoiceId: string;
                                 app: string;
@@ -6737,6 +6946,12 @@ export interface paths {
                                 closing?: number;
                                 status: string;
                                 review?: string;
+                                salaryNet?: number;
+                                carryAmount?: number;
+                                carryDebtId?: string;
+                                salaryApprovedAt?: string;
+                                debtDeductionStatus?: string;
+                                blockers?: string[];
                             }[];
                             journalEntryId?: string;
                             history?: Record<string, never>[];

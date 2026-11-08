@@ -41,7 +41,7 @@ try {
  const draft=await call('/api/pay/review-draft?app=ninja&period=2026-10&companyId='+company);
  const draftSchema=saved.paths['/api/pay/review-draft'].get.responses['200'].content['application/json'].schema;
  const validateDraft=ajv.compile(draftSchema);assert.ok(validateDraft(draft),JSON.stringify(validateDraft.errors));assert.ok(draft.blockers.length>0);assert.equal(draft.canCreate,false);checks++;
- for(const [url,path]of [['/api/pay/cycles/syn-r8-cycle/review','/api/pay/cycles/{id}/review'],['/api/finance/statement/rider/2000000001/monthly?period=2026-10','/api/finance/statement/rider/{iqama}/monthly']]){
+ for(const [url,path]of [['/api/pay/cycles/syn-r8-cycle/debt-deductions','/api/pay/cycles/{id}/debt-deductions'],['/api/pay/cycles/syn-r8-cycle/unrecovered-costs','/api/pay/cycles/{id}/unrecovered-costs'],['/api/pay/cycles/syn-r8-cycle/review','/api/pay/cycles/{id}/review'],['/api/finance/statement/rider/2000000001/monthly?period=2026-10','/api/finance/statement/rider/{iqama}/monthly']]){
   const value=await call(url),schema=saved.paths[path].get.responses['200'].content['application/json'].schema,validate=ajv.compile(schema);assert.ok(validate(value),path+': '+JSON.stringify(validate.errors));checks++;
  }
  // Exercise lifecycle routing as an ordinary accountant, including DELETE authorization.

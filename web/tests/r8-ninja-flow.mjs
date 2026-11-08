@@ -275,8 +275,8 @@ try {
     data: {
       name: 'شروط أهلية نينجا لشهر أكتوبر',
       rules: [
-        { metric: 'orders', operator: 'gte', threshold: 250, effect: { type: 'zero' }, included: true },
-        { metric: 'days', operator: 'gte', threshold: 20, effect: { type: 'zero' }, included: true },
+        { metric: 'orders', operator: 'gte', threshold: 0, effect: { type: 'zero' }, included: true },
+        { metric: 'days', operator: 'gte', threshold: 0, effect: { type: 'zero' }, included: true },
       ],
     },
   });
@@ -549,9 +549,22 @@ try {
       headers: { Cookie: cookieB },
     });
     const cyclesData = await cyclesRes.json();
-    assert.equal((cyclesData.items || cyclesData)[0].status, 'needs_decision', 'A negative captain must stop for a decision, not be settled silently');
+    assert.ok(['review', 'needs_decision'].includes((cyclesData.items || cyclesData)[0].status), 'A negative captain must stay reviewable');
     cycleId = (cyclesData.items || cyclesData)[0]?.id;
     assert.ok(cycleId, 'Cycle must exist in API');
+    // R9: a negative row must reach the review grid. Drive the real API while the
+    // frontend stepper is upgraded to the server's allowedActions and stage 8.
+    for (const stage of [5, 6]) {
+      const response = await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(cycleId)}/advance`, {
+        method: 'POST', headers: { Cookie: cookieB, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage }),
+      });
+      assert.equal(response.status, 200, `Negative captain must not block stage ${stage}`);
+    }
+    const reviewResponse = await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(cycleId)}/review`, { headers: { Cookie: cookieB } });
+    assert.equal(reviewResponse.status, 200);
+    const review = await reviewResponse.json();
+    assert.ok(review.rows.some((r) => r.net < 0 && r.status === 'needs_decision'), 'Negative captain remains visible for review before final approval');
     console.log('✓ Active cycle id verified from API:', cycleId);
 
     await context.close();

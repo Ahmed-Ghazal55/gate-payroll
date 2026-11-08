@@ -41,6 +41,6 @@ public static class PayPosting
         decimal balance=Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>(j["lines"] as JsonArray??[]).OfType<JsonObject>().Select(l=>(J:j,L:l))).Where(x=>x.L.S("debtId")==debt.S("id")&&x.L.S("sponsorId")==company&&FinanceViews.MapAccount(x.L,x.J,debt,null,null)==code).Sum(x=>x.L.N("debit")-x.L.N("credit"));
         J.Need(balance>=amount,"رصيد ذمة الدين غير مطابق للأستاذ؛ راجع الافتتاح قبل الاستقطاع.");
         var lines=new JsonArray(Line("212103",company,amount,0,"",result.Iqama,result.Period,reference,debt:debt.S("id")),Line(code,company,0,amount,"",result.Iqama,result.Period,reference,debt:debt.S("id")));
-        return Post(c,tx,cycle,lines,cycle.S("approvedBy"),":"+reference);
+        return Post(c,tx,cycle,lines,cycle.S("debtDeductionApprovedBy",cycle.S("approvedBy")),":"+reference);
     }
 }

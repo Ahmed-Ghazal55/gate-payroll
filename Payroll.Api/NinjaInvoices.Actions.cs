@@ -32,7 +32,7 @@ public static partial class NinjaInvoices
         if(!posted&&!cycle)
         {
             if(manage&&invoice.S("approvalStatus")=="pending"&&parts.Count>0)actions.Add("classify");
-            if(approve&&independent&&open&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>(d.S("level") is "company_level" or "account_level")&&!name.Equals(d.S("classifiedBy"),StringComparison.OrdinalIgnoreCase)))actions.Add("approve");
+            if(approve&&independent&&open&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>(d.S("level") is "company_level" or "account_level" or "rider_level")&&!name.Equals(d.S("classifiedBy"),StringComparison.OrdinalIgnoreCase)))actions.Add("approve");
             if(manage)actions.Add("dispute");
             if(approve&&disputes.Any(d=>d.S("status")=="open"&&!name.Equals(d.S("createdBy"),StringComparison.OrdinalIgnoreCase)))actions.Add("resolve");
             if(approve&&independent&&open&&invoice.S("approvalStatus")=="approved"&&disputes.All(d=>d.S("status")=="resolved")&&parts.All(d=>d.S("level")=="company_level"))
@@ -44,7 +44,7 @@ public static partial class NinjaInvoices
             if(!approve)blockers.Add("حسابك لا يملك صلاحية اعتماد فواتير الرواتب.");
             if(!independent)blockers.Add("أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر (فصل الصلاحيات).");
             if(!open)blockers.Add("الفترة المحاسبية مغلقة.");
-            int unclassified=parts.Count(d=>d.S("level") is not ("company_level" or "account_level"));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على اليوزر أو على الشركة).");
+            int unclassified=parts.Count(d=>d.S("level") is not ("company_level" or "account_level" or "rider_level"));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على اليوزر أو على الشركة).");
             int ownClass=parts.Count(d=>name.Equals(d.S("classifiedBy"),StringComparison.OrdinalIgnoreCase));if(ownClass>0)blockers.Add($"أنت صنّفت {ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.");
         }
         result["approvalBlockers"]=blockers;result["approvalStatus"]=invoice.S("approvalStatus","pending");result["allowedActions"]=actions;result["lines"]=new JsonArray(lines.Select(l=>(JsonNode?)l.Clone()).ToArray());result["disputes"]=new JsonArray(disputes.Select(d=>(JsonNode?)d.Clone()).ToArray());return result;

@@ -3,93 +3,45 @@
 | Field | Value |
 |---|---|
 | Current writer | none |
-| Branch | fix/0.18.1 (PR, waiting for «ادمج») |
-| Updated | 2026-11-08 by Claude Code |
-| Live | 0.18.0 on SQL db77738 |
+| Branch | feat/r9-payroll-money |
+| Updated | 2026-11-08 by Codex |
+| Base | 351ed23; P2 local implementation, no push/merge/deploy or live DB access |
 
 ## Goal now
-Run the first real Ninja payroll for 2026-10 in the browser against db77738 (runbook `docs/runbooks/NINJA-2026-10.md`).
+First real Ninja payroll for 2026-10. Ordered task: `~/.agents/prompts/codex-R9-shared-riders-deductions.md`: P2 → P6 → P0 → P1 → P7 → P3 → P4 → P5.
+Ghazal explicitly resolved §22.9.2: preserve its exception and fix it in P2 (prompt: Scope of decision 1).
 
-## R8 status
-- **API (Codex C1–C5, C8 doc; Claude C6/C7):**
-  - OpenAPI contract `/openapi/v1.json` with a snapshot in `docs/api/openapi.v1.json`; `web/src/lib/api-contract.ts` is generated from it, and CI fails on diff.
-  - Ninja invoice: per-account upload, approve (maker ≠ checker), `allowedActions`.
-  - `GET /pay/review-draft` with blockers.
-  - Draft discard for pay settings.
-  - `GET /api/riders/lookup` (normalised Arabic search).
-  - Manual journal reject/delete.
-  - **C8 live dry-run NOT run yet.**
-- **Web (Gemini 3.8 A1–A7 + WF-0..WF-4):**
-  - Extended DataTable, StatCard filters, RiderPicker (server lookup only), Ninja stepper, review draft, cycle stages, «كيف حُسب», rules editor.
-  - R8 calls are typed from the contract.
-  - `web/tests/r8-ninja-flow.mjs` drives the real flow on a synthetic month:
-    - maker ≠ checker approve → 0 blockers → create cycle → stages 1–4;
-    - the explain net equals the API value.
-- **Mobile (Argon M1–M7, F1–F4, N1–N4):**
-  - `mobile/` Capacitor Android app.
-  - `PushNotifications.cs`: FCM v1 from env `Firebase__ServiceAccountJson`, `push_outbox`, background flush, backoff.
-  - `POST /api/rider-mobile/device-token`.
-  - Vitest 10/10.
-  - **Ghazal after deploy:** re-save the Firebase settings once (removes the legacy stored key).
-  - Then follow `mobile/README.md` steps 1–7.
+## P2 implemented locally
+- Stages 4–6 remain reachable with decision rows. Stage 7 posts reviewed rows only; `partially_approved` keeps others reviewable. Posted rows are frozen; replays do not repost them. Duplicate legacy runs are blocked for partial approvals too.
+- Negative commission/invoice entitlement stays reviewable until explicit row review and independent final salary approval; only then create one `NegativeSalaryCarryover` debt/journal on `112507`. Negative journal amounts switch debit/credit sides.
+- Ineligible Keeta salary: recover D/current-month fuel up to earnings; unrecovered cost goes to `512121`, never new rider debt. Full D remains income, fuel settles its existing `112511` receivable. GET `/pay/cycles/{id}/unrecovered-costs` gives the management breakdown.
+- Personal debt is proposed at stage 5, confirmed separately after salaries (`stage:8` or `/debt-deductions`); per-rider/all confirmation, zero/skip, positive-net and posted-payable caps, atomic balances/journals and replay protection. Pending salary/debt confirmation is excluded from bank export.
+- Signed bonuses/compensation/corrections select approved `config_list` group `pay_adjustment_types` (account + direction); financial list and final financial changes require independent users. Vehicle/platform overrides add compensating entries without changing invoice facts.
+- Invoice `DEDUCTIONS` keeps captainId; classification per line/category supports company cost, account, or explicit actual rider. Operation imports now accept signed baseGross; other numeric fields retain their validation.
+- OpenAPI, generated TypeScript, endpoint inventory and existing API docs updated. Cycle/review/debt responses expose allowedActions; cycle approvalBlockers explains gating. See `docs/api/pay-review.md` for requests.
 
-## 0.18.1: Ninja upload could never reach approval (found from Ghazal's report)
-The flow test seeded the invoice and classified deductions directly, so it never hit these:
-1. The upload required `ninja_account` rows; db77738 has 0, so every preview failed. Now the captain also matches `platform_account.externalAccountId` (same source as the pull). Unknown or deleted captains and other-company rows are rejected with row numbers.
-2. No screen could classify deductions, and approval needs them all classified. Added a category panel and `POST /platforms/ninja/invoices/{id}/classify-batch`.
-3. No explanation when approve is hidden. The API now returns `approvalBlockers`; the screen shows them.
-4. Per-account picker was always empty: wrong kind (`accounts`) and wrong code case (`Ninja`), plus the 200 page cap.
-5. Several selected files: only the first would be saved, silently. Now reconcile only, and it asks for one file at a time. The default reference includes the file name, so a company can hold several invoices a month.
-6. `web/tests/r8-ninja-flow.mjs` now uploads a real synthetic xlsx with live-shaped accounts: maker uploads, confirms, classifies; checker approves.
+## Validation
+- Full suite: 444 passed / 0 failed / 0 skipped, including isolated SQL Docker 11433. Final focused run: 20 passed / 0 failed / 0 skipped after the last partial-approval duplicate guard and resolved row-status change.
+- HTTP contract checks: 22 passed; generated API types check and git diff --check passed.
+- Browser R8 flow passed all four size/theme combinations (16 screenshots), including live API advance to stage 6 with a negative review row. Existing static web export was copied locally for regression; new P2 screens are not implemented here.
+- Three actual October Ninja files read-only through disposable local APIs: 209 lines (27 + 76 + 106), 9 negative captains, 3 completed cycles and 3 balanced salary journals, no negative debit/credit values; temporary stores deleted.
+- Real-file validation uses synthetic identities and a synthetic zero-commission scheme, with company-level invoice deduction classifications; it is not a real-payroll entitlement calculation. Actual schemes for the 9 negative captains were NOT accessed/verified. Negative Ninja target-salary results remain blocked for Ghazal's policy decision; no extension of the Keeta exception.
+- No real rows, identifiers, names or amounts were added to repo/logs. Real input manifest remains private at `/tmp/gate-r9-ninja-files.list` (600); local invocation is via temporary `/tmp/gate-r9-real/Probe.csproj` calling `R9RealFilesEvidence.Run` from repo root.
+- Verify: set PAYROLL_TEST_SQL_CONNECTION to isolated Docker loopback 11433, then `dotnet test tests/Engine.Tests/Engine.Tests.csproj -m:1 -p:UseSharedCompilation=false`; `node tests/r8-contract.mjs`; `node web/scripts/gen-api-types.mjs --check`; `node web/tests/r8-ninja-flow.mjs`.
 
-7. Real October files (3 companies) then exposed more: captains with a negative final (9 rows) were rejected, and `-` cells in DEDUCTIONS rows failed the number check. BR §31 says the invoice is final, so they are kept; a negative rider stops at «يحتاج قرار» in the cycle.
-8. UI: next-step card with the action button, invoice chips per company, company/month switch resets the screen, reference field removed (generated from the file name), Odoo optional. New `SearchableSelect` (manual journal accounts, cost accounts, sponsors, vaults); riders in payroll dialogs use `RiderPicker`.
+## Requests to Antigravity
+- Use generated contract and server allowedActions/approvalBlockers; stage 7 partial approval must leave pending rows reviewable. Wire explicit negative-row approval with reason.
+- Add stage 8 debt selection/confirm per rider or all, including zero/skip, and show why bank rows are held. Endpoint: GET/POST `/api/pay/cycles/{id}/debt-deductions` (payloads in pay-review.md).
+- Adjustment controls must choose approved pay_adjustment_types and send itemType + signed amount + reason; accountCode, if sent, must match the selected item. Add list management and unrecovered-cost report access.
+- Invoice classification must expose per-line and batch company/account/rider choices, with expense account or riderId; captainId remains visible as source.
+- Add posting-gate screen for `/api/platforms/{code}/posting`, using actual state and administrator permission. The API work is usable locally; end-to-end P2 browser completion awaits these screens.
 
-**Checked against the 3 real October files** through a local temporary API (counts only): all preview and save. TR 27 lines, BW 76, EX 106 (104 + 2 company). Saved totals differ from the file by about 0.03-0.05 from per-line rounding.
+## Proposed BR text for Ghazal to send Omar (BR file untouched)
+- §24.7: «تصل الحالات المحتاجة قرارًا إلى جدول المراجعة ولا توقف اعتماد الصفوف الجاهزة. تسبق الحوافز والتعويضات والتعديلات الاعتماد النهائي. عند الاعتماد النهائي فقط يُرحّل عجز العمولة أو الفاتورة المستحق على المندوب إلى NegativeSalaryCarryover على 112507 بقيد متوازن، مع بقاء استثناء §22.9.2؛ والموجب مستحق للمندوب. يلي اعتماد الرواتب تأكيد مستقل لاستقطاع الديون ثم ملف البنك.»
+- §29: «عجز D والوقود لمندوب راتب كيتا غير المؤهل تكلفة شركة على 512121، ولا ينشئ مديونية. تسترد الخصومات الشخصية بحد الصافي الموجب؛ الباقي يظل ذمة مفتوحة دون صافي سالب أو مصروف شركة. لا يرحّل العجز الآخر قبل انتهاء المراجعة. تؤكد الأقساط بعد الرواتب لكل مندوب أو جماعيًا، من صفر إلى المستحق وبحد الصافي الموجب؛ الصفر تأجيل بلا حركة، وتحدث الذمة والقيد معًا دون تكرار.»
+- §32: «تأتي بنود الحوافز والتعويضات والتعديلات من قائمة مالية معتمدة تحدد الحساب والاتجاه. كل تعديل بسبب مكتوب وله قيد متوازن. اعتماد الصفوف الجاهزة لا يعتمد الحالات المعلقة؛ يبقى المعتمد مستقلًا عن التجهيز والمراجعة. بعد اعتماد الراتب يؤكد مراجع مستقل اختيار استقطاع الدين أو تأجيله، ولا يدخل المندوب ملف البنك قبله. التصحيح بعد الاعتماد بالعكس فقط.»
 
-## Flexibility check (2026-11-08, synthetic cycles driven through the API)
-**Works:** with no negative rider, stages 1-7 pass, the journal balances, the bank file shows the right net.
-**Broken:**
-1. A negative rider stops the whole cycle at stage 4; only cancel remains. All 3 real October invoices have such captains.
-2. Review adjustment can't go negative; an instalment can't be set to 0; the adjustment account is fixed.
-3. No carry to `112507` at final approval. No separate debt-deduction stage.
-4. `DEDUCTIONS` rows can only go to the company.
-5. Posting gate has no screen, off on live.
-Ghazal's decisions and the task: Codex P2 in `~/.agents/prompts/codex-R9-shared-riders-deductions.md`. `r8-ninja-flow.mjs` asserts the stop as success and must change.
-
-## Next blockers on real data (after 0.18.1)
-- `pay_assignment` = 0 on db77738, so every rider gets `scheme_assignment_missing` until schemes are assigned.
-- `ninja_daily` = 0 on db77738, so the review draft will show `operations_missing` for every account. Needs either the ERP pull (dry-run, then «حمّل») or the template import in «استيراد البيانات» ← «تشغيل نينجا».
-- 115 Ninja accounts have no assignments, which gives `unassigned_orders` if they operated in October.
-
-## Known gaps (after integration)
-1. Contract schemas are loose, so the UI still uses casts:
-   - `history` in `/api/pay/cycles`;
-   - `lines` in `/api/pay/cycles/{id}/lines`;
-   - `approvedBy` / `rejectedBy` / `rejectionReason` on eligibility.
-2. The pay-settings lifecycle methods in `api.ts` (terms/schemes/eligibility/settings) still return `any`.
-3. The flow test checks the draft total against a fixed `4,500.00` instead of the invoice API value, and stops at stage 4 (statements and posting are not driven in the browser).
-4. In the explain drawer, long raw `parameters` JSON overflows the card on the left.
-
-## C8 read-only check on db77738 (2026-11-08, SELECT only)
-Full counts are in `~/Private/gate-data/sync-logs/r8-ninja-dryrun.json`.
-- **Ninja accounts:** 328 (TR 33, BW 132, EX 163). All are linked to a rider; 213 have assignment history.
-- **Blockers before a cycle can be created:**
-  1. The global pay setting for 2026-10 is still a draft.
-  2. Ninja has no terms, scheme or eligibility for 2026-10.
-  3. No Ninja invoice for 2026-10 has been uploaded.
-
-## Next
-1. Ghazal: «ادمج» 0.18.1.
-2. Ghazal, in the browser after deploy:
-   - approve the global setting as a second user;
-   - enter and approve the Ninja terms, scheme and eligibility;
-   - upload the October invoices (per account or combined);
-   - follow `docs/runbooks/NINJA-2026-10.md`.
-3. Ghazal: «حمّل» per write step in the runbook.
-4. Ghazal: fill the decision sheet for the 379 debt rows.
-5. Passwords: rotate at the final ERP integration (Ghazal's decision 2026-11-07).
-
-## Capacity reported
-- Gemini 3.8: 93% → 87% for fix round 1.
-- Argon: 100% → ~88% for M1–N4.
+## Next step (exact)
+P2 backend implementation and validation complete locally; save as `feat(r9): flexible payroll review and debt confirmation (P-2)`. Claude reviews/integrates, Antigravity wires the requests above. Then P6 (account-exception design first; do not implement that exception before Ghazal confirms its design). P6/P0/P1/P7/P3/P4/P5 not started in this P2 continuation.
+Before real October payroll: approve global/Ninja settings; supply assignments and operations (`docs/runbooks/NINJA-2026-10.md`). Live writes still require step-specific «حمّل».
+Weekly % before → after: unavailable; only Ghazal's usage screen is authoritative.
