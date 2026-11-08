@@ -132,7 +132,7 @@ public static partial class PayCycles
             if(invoice.S("approvalStatus")=="cycle_pending"){invoice["approvalStatus"]="approved";invoice["approvedBy"]=actor.Identity!.Name;invoice["approvedAt"]=now;}
             invoice["payCycleId"]=cycle.S("id");if(first)invoice["journalEntryId"]=journal.S("id");invoice["accountingStatus"]=complete?"posted":"partially_posted";Store.Save(c,"platform_invoice",invoice,tx);
         }
-        SnapshotDebtAfter(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx);
+        SnapshotDebtAfter(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);
     }
     static JsonObject PostEarnings(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor,HashSet<string> selected,bool first)
     {

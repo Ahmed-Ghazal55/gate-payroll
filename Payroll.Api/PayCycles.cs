@@ -10,9 +10,7 @@ namespace Payroll;
 public static partial class PayCycles
 {
     public const string Kind="pay_cycle",LineKind="pay_cycle_line";
-    static readonly string[] SourceKinds=["operations_import","ninja_daily","platform_invoice","platform_invoice_line","platform_invoice_action","platform_dispute","platform_allocation","platform_account","vehicle","vehicle_assignment","rider","pay_assignment","pay_terms","pay_scheme","pay_eligibility","pay_setting","debt","adjustment","ledger","ledger_reversal","run","journal","platform_deduction","accounting_period","setting","config_list_item"];
     static string Hash(string value)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
-    static string Fingerprint(DbConnection c,DbTransaction? tx)=>Hash(string.Join("\n",SourceKinds.SelectMany(k=>Store.List(c,k,tx).OrderBy(d=>d.S("id"),StringComparer.Ordinal).Select(d=>k+":"+FinancialImports.Canonical(d)))));
     static JsonArray Rows(JsonNode? node,int max=25000)=>PayValues.Array(node??new JsonArray(),max);
     static JsonArray Blockers(JsonObject row)=>row["blockers"] as JsonArray??[];
     static decimal Money(JsonObject row,string key){decimal n=PayValues.Number(row,key);J.Need(n==J.Money(n),"المبلغ بدقة هللتين.");return n;}
@@ -31,7 +29,7 @@ public static partial class PayCycles
         if(input.S("replacesCycleId")!="")
         {var prior=Store.Get(c,input.S("replacesCycleId"),Kind,tx)??throw new ApiError("الدورة الأصلية غير موجودة.");J.Need(prior.S("status")=="reversed"&&prior.S("period")==period&&prior.S("companyId")==company,"التصحيح يحتاج أصلًا معكوسًا لنفس السجل والشهر.");cycle["replacesCycleId"]=prior.S("id");cycle["postingPeriod"]=prior.S("reversalPeriod");}
         else J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("status")=="reversed"&&d.S("period")==period&&d.S("companyId")==company),"حدد الدورة المعكوسة صراحة للتصحيح.");
-        Scope(actor,cycle,"pay.manage");Open(c,tx,cycle);UploadInvoices(c,tx,cycle);ReviewInvoices(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_created",cycle.S("id"),actor.Identity!.Name!);return cycle;
+        Scope(actor,cycle,"pay.manage");Open(c,tx,cycle);UploadInvoices(c,tx,cycle);ReviewInvoices(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_created",cycle.S("id"),actor.Identity!.Name!);return cycle;
     }
     // Read-only validation shared by operation imports and the normal staged cycle workflow.
     public static void ValidateImportedReview(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string company,string period,JsonObject review,string permission="pay.manage")
@@ -94,11 +92,11 @@ public static partial class PayCycles
         {
             Scope(actor,cycle,"pay.approve");J.Need(cycle.S("status") is "approved" or "partially_approved","الدورة غير متاحة للاعتماد.");
             if(cycle.S("status")=="approved"){J.Need(cycle.S("approvedBy")==actor.Identity!.Name,"اعتماد موجود بمعتمد آخر.");return cycle;}
-            Open(c,tx,cycle);J.Need(cycle.S("sourceFingerprint")==Fingerprint(c,tx),"تغير المصدر؛ راجع العكس والتصحيح.");Approve(c,tx,cycle,actor);Store.Save(c,Kind,cycle,tx);return cycle;
+            Open(c,tx,cycle);J.Need(cycle.S("sourceFingerprint")==Fingerprint(c,tx,cycle),"تغير المصدر؛ راجع العكس والتصحيح.");Approve(c,tx,cycle,actor);Store.Save(c,Kind,cycle,tx);return cycle;
         }
         if(input.S("action").StartsWith("reversal",StringComparison.Ordinal))return Reverse(c,tx,actor,cycle,input);
         PayValues.Fields(input,"stage");J.Need(PayValues.Number(input,"stage",1,7)==current+1,"المراحل بالترتيب؛ أرسل المرحلة التالية المتوقعة.");Scope(actor,cycle,current==6?"pay.approve":"pay.manage");J.Need(cycle.S("status") is "draft" or "review" or "needs_decision","الدورة غير متاحة للمراحل.");
-        J.Need(cycle.S("sourceFingerprint")==Fingerprint(c,tx),"تغير المصدر منذ بدء المراجعة؛ أعد إنشاء دورة مراجعة مستقلة.");Open(c,tx,cycle);ReviewInvoices(c,tx,cycle);int next=current+1;
+        J.Need(cycle.S("sourceFingerprint")==Fingerprint(c,tx,cycle),"تغير المصدر منذ بدء المراجعة؛ أعد إنشاء دورة مراجعة مستقلة.");Open(c,tx,cycle);ReviewInvoices(c,tx,cycle);int next=current+1;
         if(next==2)ValidateAccounts(c,tx,cycle);
         if(next==3)ValidateRiders(c,tx,cycle,actor);
         if(next==4)BuildLines(c,tx,cycle,actor);

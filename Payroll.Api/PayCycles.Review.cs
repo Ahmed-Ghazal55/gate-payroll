@@ -55,7 +55,7 @@ public static partial class PayCycles
     static void Approved(JsonObject summary,ClaimsPrincipal actor){summary["review"]="approved";summary["reviewedBy"]=actor.Identity!.Name;summary["reviewedAt"]=DateTimeOffset.UtcNow.ToString("O");}
     public static JsonObject ReviewRider(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,string iqama,JsonObject input)
     {
-        var cycle=Reviewable(c,tx,actor,id,"pay.manage");Open(c,tx,cycle);
+        var cycle=Reviewable(c,tx,actor,id,"pay.manage");Open(c,tx,cycle);J.Need(cycle.S("sourceFingerprint")==Fingerprint(c,tx,cycle),"تغير مصدر الدورة؛ راجع المصدر قبل التعديل.");
         var summary=Rows(cycle["riders"]).OfType<JsonObject>().FirstOrDefault(r=>r.S("rider")==iqama)??throw new ApiError("المندوب ليس في هذه الدورة.",404);
         if(Store.Get(c,iqama,"rider",tx) is {} person)FinancialScopes.DemandRider(actor,person);
         J.Need(summary.S("salaryApprovedAt")=="","الراتب معتمد؛ التصحيح بالعكس فقط.",409);
@@ -64,7 +64,7 @@ public static partial class PayCycles
         {
             J.Need(Blockers(summary).Count==0,"الصف به مانع غير مالي يحتاج حسم المصدر.",409);
             if(summary.N("net")<0){summary["decisionReason"]=Reason(input);summary["resolution"]="carry_at_final_approval";}
-            Approved(summary,actor);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.review_approved",id+":"+iqama,actor.Identity!.Name!);
+            Approved(summary,actor);cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.review_approved",id+":"+iqama,actor.Identity!.Name!);
             return ReviewRow(c,tx,cycle,summary,actor);
         }
         string reason=Reason(input);
@@ -111,18 +111,18 @@ public static partial class PayCycles
         // An edit approves the row when it leaves the row ready; otherwise it stays for a decision.
         if(updated.S("status")=="ready")Approved(updated,actor);else{updated["review"]="pending";updated.Remove("reviewedBy");updated.Remove("reviewedAt");}
         if(cycle.S("status")=="needs_decision"&&Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("status")=="ready"))cycle["status"]="review";
-        Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.review_"+action,id+":"+iqama,actor.Identity!.Name!);
+        cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.review_"+action,id+":"+iqama,actor.Identity!.Name!);
         return ReviewRow(c,tx,cycle,updated,actor);
     }
     public static JsonObject ReviewAll(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
-        var cycle=Reviewable(c,tx,actor,id,"pay.manage");Open(c,tx,cycle);int approved=0,skipped=0;
+        var cycle=Reviewable(c,tx,actor,id,"pay.manage");Open(c,tx,cycle);J.Need(cycle.S("sourceFingerprint")==Fingerprint(c,tx,cycle),"تغير مصدر الدورة؛ راجع المصدر قبل التعديل.");int approved=0,skipped=0;
         foreach(var r in Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("review")!="approved"))
         {
             if(r.S("status")!="ready"||Store.Get(c,r.S("rider"),"rider",tx) is {} p&&!FinancialScopes.Rider(actor,p)){skipped++;continue;}
             Approved(r,actor);approved++;
         }
-        Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.review_approved_all",id,actor.Identity!.Name!);
+        cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.review_approved_all",id,actor.Identity!.Name!);
         return new(){["approved"]=approved,["skipped"]=skipped};
     }
     static string Reason(JsonObject input)

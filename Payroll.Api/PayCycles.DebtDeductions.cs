@@ -96,6 +96,6 @@ public static partial class PayCycles
             if(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("debtDeductionStatus")=="confirmed")){cycle["stage"]=8;cycle["debtDeductionStatus"]="confirmed";}
             SnapshotDebtAfter(c,tx,cycle);
         }
-        cycle["sourceFingerprint"]=Fingerprint(c,tx);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.debt_"+action,id,actor.Identity!.Name!);return DebtDeductionsView(c,tx,actor,id);
+        cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.debt_"+action,id,actor.Identity!.Name!);return DebtDeductionsView(c,tx,actor,id);
     }
 }

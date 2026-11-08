@@ -2,14 +2,18 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none |
+| Current writer | Codex |
 | Branch | feat/r9-payroll-money |
 | Updated | 2026-11-08 by Codex |
 | Base | 351ed23; P2 local implementation, no push/merge/deploy or live DB access |
 
 ## Goal now
+R10 F1–F5 → A1–A2 → D1–D5, then R9 P3 (Ghazal latest instruction). Current item: F2; no live writes authorized.
 First real Ninja payroll for 2026-10. Ordered task: `~/.agents/prompts/codex-R9-shared-riders-deductions.md`: P2 → P6 → P0 → P1 → P7 → P3 → P4 → P5.
 Ghazal explicitly resolved §22.9.2: preserve its exception and fix it in P2 (prompt: Scope of decision 1).
+
+## R10 done locally
+- F1: company/month/rider source fingerprint; 17 focused tests passed, 0 skipped. Real October files share one temporary API/store: 3 companies/cycles completed, 209 lines, 9 negative captains, 3 balanced journals; synthetic schemes, actual assignments still unverified.
 
 ## P2 implemented locally
 - Stages 4–6 remain reachable with decision rows. Stage 7 posts reviewed rows only; `partially_approved` keeps others reviewable. Posted rows are frozen; replays do not repost them. Duplicate legacy runs are blocked for partial approvals too.
@@ -24,7 +28,7 @@ Ghazal explicitly resolved §22.9.2: preserve its exception and fix it in P2 (pr
 - Full suite: 444 passed / 0 failed / 0 skipped, including isolated SQL Docker 11433. Final focused run: 20 passed / 0 failed / 0 skipped after the last partial-approval duplicate guard and resolved row-status change.
 - HTTP contract checks: 22 passed; generated API types check and git diff --check passed.
 - Browser R8 flow passed all four size/theme combinations (16 screenshots), including live API advance to stage 6 with a negative review row. Existing static web export was copied locally for regression; new P2 screens are not implemented here.
-- Three actual October Ninja files read-only through disposable local APIs: 209 lines (27 + 76 + 106), 9 negative captains, 3 completed cycles and 3 balanced salary journals, no negative debit/credit values; temporary stores deleted.
+- Prior P2 proof (superseded by shared-store F1 above): 209 lines (27 + 76 + 106), 9 negative captains, 3 completed cycles and 3 balanced salary journals, no negative debit/credit values; temporary stores deleted.
 - Real-file validation uses synthetic identities and a synthetic zero-commission scheme, with company-level invoice deduction classifications; it is not a real-payroll entitlement calculation. Actual schemes for the 9 negative captains were NOT accessed/verified. Negative Ninja target-salary results remain blocked for Ghazal's policy decision; no extension of the Keeta exception.
 - No real rows, identifiers, names or amounts were added to repo/logs. Real input manifest remains private at `/tmp/gate-r9-ninja-files.list` (600); local invocation is via temporary `/tmp/gate-r9-real/Probe.csproj` calling `R9RealFilesEvidence.Run` from repo root.
 - Verify: set PAYROLL_TEST_SQL_CONNECTION to isolated Docker loopback 11433, then `dotnet test tests/Engine.Tests/Engine.Tests.csproj -m:1 -p:UseSharedCompilation=false`; `node tests/r8-contract.mjs`; `node web/scripts/gen-api-types.mjs --check`; `node web/tests/r8-ninja-flow.mjs`.
@@ -42,6 +46,7 @@ Ghazal explicitly resolved §22.9.2: preserve its exception and fix it in P2 (pr
 - §32: «تأتي بنود الحوافز والتعويضات والتعديلات من قائمة مالية معتمدة تحدد الحساب والاتجاه. كل تعديل بسبب مكتوب وله قيد متوازن. اعتماد الصفوف الجاهزة لا يعتمد الحالات المعلقة؛ يبقى المعتمد مستقلًا عن التجهيز والمراجعة. بعد اعتماد الراتب يؤكد مراجع مستقل اختيار استقطاع الدين أو تأجيله، ولا يدخل المندوب ملف البنك قبله. التصحيح بعد الاعتماد بالعكس فقط.»
 
 ## Next step (exact)
+**Continue R10 at F2 in `~/.agents/prompts/codex-R10-review-fixes-access-erp.md`** (Claude's P2 review: F1-F5, then A1-A2, D1-D5), then R9 starting at P3. The text below is superseded where it differs.
 P2 backend implementation and validation complete locally; save as `feat(r9): flexible payroll review and debt confirmation (P-2)`. Claude reviews/integrates, Antigravity wires the requests above. Then P6 (account-exception design first; do not implement that exception before Ghazal confirms its design). P6/P0/P1/P7/P3/P4/P5 not started in this P2 continuation.
 Before real October payroll: approve global/Ninja settings; supply assignments and operations (`docs/runbooks/NINJA-2026-10.md`). Live writes still require step-specific «حمّل».
 Weekly % before → after: unavailable; only Ghazal's usage screen is authoritative.
