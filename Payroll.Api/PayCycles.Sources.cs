@@ -29,7 +29,10 @@ public static partial class PayCycles
         var vehicleIds=vehicleAssignments.Select(d=>d.S("vehicleId")).ToHashSet();
         Add("pay_assignment",assignments);Add("pay_scheme",schemes);Add("debt",debts);Add("vehicle_assignment",vehicleAssignments);
         Pick("pay_eligibility",d=>rulesIds.Contains(d.S("id")));Pick("vehicle",d=>vehicleIds.Contains(d.S("id")));
-        Pick("rider",d=>riders.Contains(d.S("id")));Pick("platform_account",d=>accountIds.Contains(d.S("id")));
+        // Only what the calculation reads: a routine ERP sync of a status or a registration must not strand an open cycle.
+        Add("rider",All("rider").Where(d=>riders.Contains(d.S("id"))).Select(d=>new JsonObject{["id"]=d.S("id"),["sponsorId"]=d.S("sponsorId"),["engagementType"]=d.S("engagementType"),["personRole"]=d.S("personRole"),["debtOnly"]=d.B("debtOnly")}));
+        Add("platform_account",All("platform_account").Where(d=>accountIds.Contains(d.S("id"))).Select(d=>new JsonObject{["id"]=d.S("id"),["companyId"]=d.S("companyId"),["platformCode"]=d.S("platformCode"),
+            ["assignments"]=new JsonArray((d["assignments"] as JsonArray??[]).OfType<JsonObject>().Where(a=>riders.Contains(a.S("riderId"))&&a.S("RawEffectiveFrom")!=""&&Overlaps(a,period)).Select(a=>(JsonNode?)new JsonObject{["riderId"]=a.S("riderId"),["from"]=a.S("RawEffectiveFrom"),["to"]=a.S("RawEffectiveTo")}).OrderBy(a=>a.S("riderId"),StringComparer.Ordinal).ThenBy(a=>a.S("from"),StringComparer.Ordinal).ToArray())}));
         Pick("platform_invoice",d=>invoiceIds.Contains(d.S("id")));Pick("platform_invoice_line",d=>invoiceIds.Contains(d.S("invoiceId")));
         foreach(string kind in new[]{"platform_invoice_action","platform_dispute","platform_allocation","operations_import"})Pick(kind,d=>invoiceIds.Contains(d.S("invoiceId")));
         Pick("ninja_daily",d=>accountIds.Contains(d.S("platformAccountId"))&&d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal));
@@ -38,7 +41,7 @@ public static partial class PayCycles
         Add("ledger",ledger);Pick("ledger_reversal",d=>ledgerIds.Contains(d.S("reversesLedgerId")));
         Pick("journal",j=>FinanceViews.Posted(j)&&(j.S("payCycleId")==cycle.S("id")||Rows(j["lines"]).OfType<JsonObject>().Any(l=>l.S("sponsorId")==company&&(debtIds.Contains(l.S("debtId"))||riders.Contains(l.S("iqama"))&&l.S("accountCode") is "2110" or "212103" or "1211"&&string.CompareOrdinal(j.S("period"),postingPeriod)<=0))));
         Pick("accounting_period",d=>d.S("companyId")==company&&d.S("period")==postingPeriod);
-        Pick("setting",d=>apps.Any(app=>d.S("id")=="platformPosting."+app));
+        // The posting gate is not a calculation fact and is checked when posting; opening it must not void a review.
         var tags=All("platform_deduction").Where(d=>invoiceIds.Contains(d.S("invoiceId"))||riders.Contains(d["platformDeducted"].S("rider"))&&d["platformDeducted"].S("month")==period).ToList();
         var tagIds=tags.Select(d=>d.S("id")).ToHashSet();Add("platform_deduction",tags);Pick("platform_deduction",d=>tagIds.Contains(d.S("reversesTagId")));
         var categories=debts.Select(d=>d.S("category")).Concat(All("adjustment").Where(d=>Rider(d)&&d.S("period")==period).Select(d=>d.S("category"))).ToHashSet();

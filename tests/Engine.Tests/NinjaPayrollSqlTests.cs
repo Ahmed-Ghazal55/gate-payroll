@@ -71,7 +71,7 @@ public sealed class NinjaPayrollSqlTests
             invoice=(await Request(checker,invoicePath+"/approve",new())).AsObject();Assert.AreEqual("approved",invoice.S("approvalStatus"));
             var dispute=(await Request(maker,invoicePath+"/dispute",new(){["reason"]="Synthetic formal clarification"})).AsObject();string disputeId=dispute["disputes"]![0].S("id");
             await Request(checker,invoicePath+"/resolve",new(){["disputeId"]=disputeId,["reason"]="Synthetic resolved as invoiced"});
-            var missingDraft=(await Request(maker,"/api/pay/review-draft?app=ninja&period=2026-10&companyId="+company)).AsObject();Assert.IsFalse(missingDraft.B("canCreate"));
+            var missingDraft=(await Request(maker,"/api/pay/review-draft?app=ninja&period=2026-10&companyId="+company)).AsObject();Assert.IsTrue(missingDraft["warnings"]!.AsArray().Any(w=>w.S("code")=="operations_missing_using_assignment"),"The only assigned operator is used and flagged when ERP has no daily rows.");
             var columns=ImportCatalog.Steps().Single(s=>s.Key=="ninja_operations").Columns;
             var cells=new Dictionary<string,object?>{["period (YYYY-MM)"]="2026-10",["platformAccountId"]=account,["iqama"]=rider,["days"]=30,["orders"]=460,["baseGross"]=6500m,["deduction"]=10m,["category"]="sponsored_private"};
             byte[] operations=ExcelFiles.Write(columns,[(columns.Select(col=>cells.GetValueOrDefault(col.Header)??"").ToArray())]);

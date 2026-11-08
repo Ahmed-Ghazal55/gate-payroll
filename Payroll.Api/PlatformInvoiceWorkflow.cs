@@ -30,7 +30,16 @@ public sealed class PlatformInvoiceWorkflow(string app)
                 if(open&&independent&&invoice.S("approvalStatus")=="approved"&&invoice.S("accountingRole")=="principal"&&PlatformPosting.Enabled(c,app,tx)&&parts.All(d=>d.S("level")=="company_level")&&disputes.All(d=>d.S("status")=="resolved"))actions.Add("post");
             }
         }
-        result["allowedActions"]=actions;return result;
+        var blockers=new JsonArray();
+        if(InvoiceDiscard.Active(invoice)&&invoice.S("journalEntryId")==""&&unused&&invoice.S("approvalStatus")=="pending")
+        {
+            if(!AccessPolicy.Has(actor,"pay.approve"))blockers.Add("حسابك لا يملك صلاحية اعتماد فواتير الرواتب.");
+            if(!AccessPolicy.Independent(actor,invoice.S("createdBy"),"platform.invoice_approve"))blockers.Add("أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر (فصل الصلاحيات).");
+            if(!open)blockers.Add("الفترة المحاسبية مغلقة.");
+            int unclassified=parts.Count(d=>d.S("level") is not ("company_level" or "account_level" or "rider_level"));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا.");
+            int ownClass=parts.Count(d=>d.S("classifiedBy")!=""&&!AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve"));if(ownClass>0)blockers.Add($"أنت صنّفت {ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.");
+        }
+        result["approvalBlockers"]=blockers;result["allowedActions"]=actions;return result;
     }
     public JsonObject Classify(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
