@@ -6645,6 +6645,7 @@ export interface paths {
                                     category: string;
                                     labelAr: string;
                                     due: number;
+                                    max: number;
                                     amount: number;
                                     remainingBalance: number;
                                     accountCode: string;
@@ -6694,6 +6695,7 @@ export interface paths {
                                     category: string;
                                     labelAr: string;
                                     due: number;
+                                    max: number;
                                     amount: number;
                                     remainingBalance: number;
                                     accountCode: string;

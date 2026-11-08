@@ -40,10 +40,10 @@ public sealed class PayCycleTests
         var(f,input,debt)=Setup();using(f){var cycle=Through(f,input,6,review:false);string id=cycle.S("id");
         var view=f.Store.Read(c=>PayCycles.ReviewView(c,PayFixture.Maker,id,"",""));Assert.AreEqual(2m,view["totals"]!.AsObject().N("riders"));Assert.AreEqual(0m,view["totals"]!.AsObject().N("approved"));
         var row=view["rows"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("rider")==Rider(1));var item=row["items"]!.AsArray().OfType<JsonObject>().Single(i=>i.S("key")=="debt:"+debt);
-        Assert.AreEqual(1m,item.N("phase"),"Advance is a phase-1 consumption deduction (BR §29)");Assert.AreEqual(0m,item.N("amount"),"Debt is confirmed after salary approval");Assert.AreEqual(15m,item.N("max"));Assert.IsTrue(item.B("editable"));
+        Assert.AreEqual(1m,item.N("phase"),"Advance is a phase-1 consumption deduction (BR §29)");Assert.AreEqual(0m,item.N("amount"),"Debt is confirmed after salary approval");Assert.AreEqual(50m,item.N("max"));Assert.IsTrue(item.B("editable"));
         Assert.AreEqual(row.N("afterCommission")+row.N("phase1"),row.N("preliminaryDue"));Assert.AreEqual(row.N("preliminaryDue")+row.N("phase2")+row.N("phase3"),row.N("net"));
         Assert.ThrowsExactly<ApiError>(()=>Advance(f,id,7,true),"final approval waits for the review");
-        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.ReviewRider(c,tx,PayFixture.Maker,id,Rider(1),new(){["action"]="edit",["key"]="debt:"+debt,["amount"]=16,["reason"]="more than due"})));
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.ReviewRider(c,tx,PayFixture.Maker,id,Rider(1),new(){["action"]="edit",["key"]="debt:"+debt,["amount"]=51,["reason"]="more than remaining"})));
         decimal net=row.N("net");var edited=f.Store.Write((c,tx)=>PayCycles.ReviewRider(c,tx,PayFixture.Maker,id,Rider(1),new(){["action"]="edit",["key"]="debt:"+debt,["amount"]=5,["reason"]="اتفاق مع المندوب"}));
         Assert.AreEqual("approved",edited.S("review"));Assert.AreEqual(net,edited.N("net"));Assert.AreEqual(1,edited["edits"]!.AsArray().Count);
         var adjusted=f.Store.Write((c,tx)=>PayCycles.ReviewRider(c,tx,PayFixture.Maker,id,Rider(2),new(){["action"]="adjust",["itemType"]="bonus",["amount"]=20,["reason"]="حافز إضافي"}));

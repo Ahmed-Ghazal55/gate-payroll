@@ -5,7 +5,7 @@
 - Stages 4–6 remain reachable when a rider needs a decision. At stage 7, independently approved rows post; unreviewed/blocked rows remain editable in `partially_approved` and cannot enter the bank file. Repeating stage 7 posts only newly reviewed rows. Posted rows require reversal for correction.
 - `POST /api/pay/cycles/{id}/review/{iqama}` (`pay.manage`):
   - `{action:"approve"}` approves a ready row. A negative row with no other blocker requires a written `reason`; its deficit is carried only at final salary approval.
-  - `{action:"edit",key,amount,reason}` chooses an instalment from zero to the due amount without deducting it yet.
+  - `{action:"edit",key,amount,reason}` chooses an instalment from zero to the smaller of remaining balance and positive net without deducting it yet.
   - `{action:"adjust",itemType,amount,reason}` adds a signed salary item. `itemType` selects an active, independently approved `pay_adjustment_types` entry with its target account and `direction:increase|decrease|both`. An optional `accountCode` must match that entry.
   - Editing an existing adjustment also requires `itemType`; editing a vehicle/platform deduction adds an explicit compensating item, preserving the original invoice/vehicle facts.
   - An edit approves the row if it is ready. `approve-all` skips `needs_decision` rows.
@@ -13,8 +13,8 @@
 - BR §22.9.2 remains: an ineligible Keeta salary fallback recovers operating cost and current-month fuel only up to available earnings; the rest is expense `512121`, never a new rider debt. `GET /api/pay/cycles/{id}/unrecovered-costs` exposes the management breakdown. A negative Ninja target-salary result is blocked for a separate policy decision; the Keeta exception is not extended to it.
 
 ## Debt confirmation after salary approval (stage 8)
-- `GET /api/pay/cycles/{id}/debt-deductions` returns each rider's approved salary, due items, proposed capped amounts, current debt balances and allowed actions.
-- `POST` to the same route accepts `{action:"edit",rider,key,amount,reason}` with `amount` from zero to due, or `{action:"confirm",rider}`, or `{action:"confirm-all"}`. Selection and confirmation require independent users (`pay.manage` / `pay.approve`).
+- `GET /api/pay/cycles/{id}/debt-deductions` returns each rider's approved salary, due items, proposed capped amounts, current debt balances, selection `max` and allowed actions. Every active due debt appears, including opening debts and carryovers with a scheduled instalment of zero. `due` remains the schedule; selecting a different amount never edits the debt schedule.
+- `POST` to the same route accepts `{action:"edit",rider,key,amount,reason}` with `amount` from zero to `min(remainingBalance, available positive net)`; a reason is required when it differs from scheduled `due`, or `{action:"confirm",rider}`, or `{action:"confirm-all"}`. Selection and confirmation require independent users (`pay.manage` / `pay.approve`).
 - Confirmation caps the sum at positive salary net and available posted liability. Debt balances, instalment journals and cycle totals commit atomically. Zero defers a due item without a ledger movement; uncovered personal debt remains open. Replays never post an instalment twice.
 - `POST /api/pay/cycles/{id}/advance {stage:8}` confirms all eligible rows. The cycle reaches stage 8 after every salary row and deduction choice is confirmed. Confirmed rows can reach the bank file while another rider remains blocked.
 - Bank preview/export excludes pending salary or debt-confirmation rows. The exported amount comes from closing posted liability after confirmed deductions.

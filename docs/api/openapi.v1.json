@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:34497/"
+      "url": "http://127.0.0.1:34579/"
     }
   ],
   "paths": {
@@ -9218,6 +9218,7 @@
                                 "category",
                                 "labelAr",
                                 "due",
+                                "max",
                                 "amount",
                                 "remainingBalance",
                                 "accountCode"
@@ -9237,6 +9238,9 @@
                                   "type": "string"
                                 },
                                 "due": {
+                                  "type": "number"
+                                },
+                                "max": {
                                   "type": "number"
                                 },
                                 "amount": {
@@ -9349,6 +9353,7 @@
                                 "category",
                                 "labelAr",
                                 "due",
+                                "max",
                                 "amount",
                                 "remainingBalance",
                                 "accountCode"
@@ -9368,6 +9373,9 @@
                                   "type": "string"
                                 },
                                 "due": {
+                                  "type": "number"
+                                },
+                                "max": {
                                   "type": "number"
                                 },
                                 "amount": {
