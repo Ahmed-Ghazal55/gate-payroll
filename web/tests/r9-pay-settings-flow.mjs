@@ -521,10 +521,15 @@ try {
       });
       const nextStep = pageUp.locator('#ninja-next-step');
       await nextStep.locator('button', { hasText: 'بدء المطابقة' }).click();
-      // Closing the context right after the click would abort the save, so wait for its response.
-      const saved = pageUp.waitForResponse((r) => r.request().method() === 'POST' && r.url().endsWith('/api/platforms/ninja/invoices'), { timeout: 30000 });
       await nextStep.locator('button', { hasText: 'تأكيد وحفظ' }).click({ timeout: 20000 });
-      assert.equal((await saved).status(), 200, 'Saving the invoice must succeed');
+      // Preview and save post to the same URL, so a response proves nothing. Keep the page open until the invoice exists.
+      let savedCount = 0;
+      for (let attempt = 0; attempt < 60 && savedCount === 0; attempt++) {
+        const listed = await (await fetch(`${baseUrl}/api/platforms/ninja/invoices`, { headers: { Cookie: cookieB } })).json();
+        savedCount = (listed.items || []).length;
+        if (savedCount === 0) await pageUp.waitForTimeout(500);
+      }
+      assert.ok(savedCount > 0, 'The confirmed invoice must be saved');
       console.log('✓ Ninja invoice uploaded and confirmed by User A');
       await contextUpload.close();
     }
