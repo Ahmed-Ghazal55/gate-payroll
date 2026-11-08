@@ -11,6 +11,7 @@ public interface IJobsSchedule
 {
     IReadOnlyList<JobView> List();
     string Enqueue(bool dryRun,string trigger,string actor);
+    string Enqueue(bool dryRun,string trigger,string actor,System.Text.Json.Nodes.JsonObject? overrides)=>Enqueue(dryRun,trigger,actor);
     JsonObject Status(string jobId);
     void CatchUpOnStartup();
     void EnqueueDaily();
@@ -45,10 +46,11 @@ public sealed class HangfireJobsSchedule(JobStorage storage,IRecurringJobManager
         return [new("erp-sync",options.ErpSyncEnabled&&!paused,paused?"paused":!options.ErpSyncEnabled?"disabled":active?.S("status")??"ready",LastRun:at,LastStatus:recent?.S("status")),
             new("erp-sync-daily",options.ErpSyncEnabled&&options.DailyEnabled&&!paused,paused?"paused":!options.ErpSyncEnabled||!options.DailyEnabled?"disabled":daily?.Error!=null?"failed":"scheduled",DailyCron,Zone,Utc(daily?.LastExecution),Utc(daily?.NextExecution)),..DisabledJobsSchedule.FutureIds.Select(id=>new JobView(id,false,"not_implemented"))];
     }
-    public string Enqueue(bool dryRun,string trigger,string actor)
+    public string Enqueue(bool dryRun,string trigger,string actor)=>Enqueue(dryRun,trigger,actor,null);
+    public string Enqueue(bool dryRun,string trigger,string actor,JsonObject? overrides)
     {
         RecoverInterruptedAdmission();
-        string requestId=ErpSyncRequests.Reserve(store,options,dryRun,trigger,actor,clock.GetUtcNow());
+        string requestId=ErpSyncRequests.Reserve(store,options,dryRun,trigger,actor,clock.GetUtcNow(),overrides);
         bool submitted=false;
         try
         {

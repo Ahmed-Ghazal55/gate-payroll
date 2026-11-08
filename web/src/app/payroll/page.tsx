@@ -66,6 +66,7 @@ import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { DebtDeductionStage } from '../../features/payroll/DebtDeductionStage';
 import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
 import { PaySettingsEditorModal } from '../../features/payroll/PaySettingsEditorModal';
@@ -3409,7 +3410,16 @@ function PayrollPageInner() {
                               : 'افتح مسودة المراجعة المقترحة للتحقق من الفواتير وإنشاء دورة الرواتب.'}
                           </p>
                         </>
-                      ) : activeCycle.status === 'approved' || activeCycle.stage >= 7 ? (
+                      ) : activeCycle.stage >= 7 && activeCycle.stage < 8 ? (
+                        <>
+                          <p className="text-sm font-bold text-[var(--ink)]">
+                            الرواتب اعتمدت — الخطوة التالية: تأكيد استقطاع الديون (مرحلة 8) قبل ملف البنك
+                          </p>
+                          <p className="text-xs text-[var(--muted)]">
+                            راجع جدول «مرحلة 8» تحت. اللي لسه ما اتأكدش ماينزلش في ملف البنك.
+                          </p>
+                        </>
+                      ) : activeCycle.status === 'approved' || activeCycle.stage >= 8 ? (
                         <>
                           <p className="text-sm font-bold text-[var(--ink)]">
                             اكتملت دورة الرواتب واعتمدت بالكامل (المرحلة 7) — الخطوة التالية: تصدير ملف الصرف البنكي
@@ -3809,6 +3819,15 @@ function PayrollPageInner() {
                   if (activeCycle) loadCycleLines(activeCycle.id);
                 }}
               />
+              {activeCycle.stage >= 7 && (
+                <DebtDeductionStage
+                  cycle={activeCycle}
+                  onChanged={() => {
+                    loadCycles();
+                    loadCycleLines(activeCycle.id);
+                  }}
+                />
+              )}
             </div>
           )}
 

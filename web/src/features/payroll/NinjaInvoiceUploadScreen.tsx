@@ -31,6 +31,7 @@ import {
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
+import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { StatCard } from '../../components/ui/StatCard';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -145,7 +146,9 @@ export function NinjaInvoiceUploadScreen({
   const [activeInvoiceIdx, setActiveInvoiceIdx] = useState<number>(0);
 
   // Deduction classification (required before approval)
-  const [classLevel, setClassLevel] = useState<Record<string, 'account_level' | 'company_level'>>({});
+  const [classRider, setClassRider] = useState<Record<string, string>>({});
+  const [discardReason, setDiscardReason] = useState('');
+  const [classLevel, setClassLevel] = useState<Record<string, 'account_level' | 'company_level' | 'rider_level'>>({});
   const [classAccount, setClassAccount] = useState<Record<string, string>>({});
   const [costAccounts, setCostAccounts] = useState<Array<{ code: string; nameAr?: string; posting?: boolean }>>([]);
 
@@ -347,6 +350,10 @@ export function NinjaInvoiceUploadScreen({
       toast('اختر حساب التكلفة لخصم الشركة', 'warning');
       return;
     }
+    if (level === 'rider_level' && !classRider[group.category]) {
+      toast('اختر المندوب الذي يتحمل الخصم', 'warning');
+      return;
+    }
     setSubmittingAction(`classify:${group.category}`);
     setActionError(null);
     try {
@@ -355,6 +362,7 @@ export function NinjaInvoiceUploadScreen({
         category: group.category,
         level,
         ...(level === 'company_level' ? { expenseAccount } : {}),
+        ...(level === 'rider_level' ? { riderId: classRider[group.category] } : {}),
       }));
       const updated = isKeeta
         ? await api.classifyKeetaInvoiceBatch(currentInvoice.id, items, currentInvoice)
@@ -1315,6 +1323,39 @@ export function NinjaInvoiceUploadScreen({
             </div>
           )}
 
+          {allowedActions.includes('discard') && (
+            <div id="invoice-discard" className="flex flex-wrap items-center gap-2 text-xs">
+              <input
+                aria-label="سبب استبعاد الفاتورة"
+                value={discardReason}
+                onChange={(e) => setDiscardReason(e.target.value)}
+                placeholder="سبب الاستبعاد (لرفع نسخة بدلها)"
+                className="min-w-64 px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              />
+              <button
+                type="button"
+                disabled={discardReason.trim().length < 3 || submittingAction === 'discard'}
+                onClick={async () => {
+                  setSubmittingAction('discard');
+                  try {
+                    await api.discardPlatformInvoice(isKeeta ? 'keeta' : 'ninja', currentInvoice.id, discardReason.trim());
+                    toast('تم استبعاد الفاتورة؛ تقدر ترفع نسخة جديدة.', 'success');
+                    setDiscardReason('');
+                    setCurrentInvoice(null);
+                    await loadSavedInvoices();
+                  } catch (err: unknown) {
+                    setActionError(err instanceof Error ? err.message : 'تعذر استبعاد الفاتورة');
+                  } finally {
+                    setSubmittingAction(null);
+                  }
+                }}
+                className="px-3 py-1 rounded-lg border border-[var(--danger)] text-[var(--danger)] font-bold disabled:opacity-50"
+              >
+                استبعاد الفاتورة
+              </button>
+            </div>
+          )}
+
           {allowedActions.includes('classify') && deductionGroups.length > 0 && (
             <div id="ninja-classify-panel" className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/30 space-y-2">
               <p className="text-xs font-bold text-[var(--ink)]">تصنيف خصومات الفاتورة: على اليوزر أم على الشركة</p>
@@ -1329,9 +1370,8 @@ export function NinjaInvoiceUploadScreen({
                     <select
                       aria-label="جهة تحمل الخصم"
                       value={level}
-                      disabled={group.companyOnly}
                       onChange={(e) => {
-                        const value = e.target.value as 'account_level' | 'company_level';
+                        const value = e.target.value as 'account_level' | 'company_level' | 'rider_level';
                         setClassLevel((prev) => ({ ...prev, [group.category]: value }));
                         if (value === 'company_level') loadCostAccounts();
                       }}
@@ -1340,7 +1380,15 @@ export function NinjaInvoiceUploadScreen({
                     >
                       <option value="account_level">على اليوزر</option>
                       <option value="company_level">على الشركة</option>
+                      <option value="rider_level">على مندوب محدد</option>
                     </select>
+                    {level === 'rider_level' && (
+                      <RiderPicker
+                        className="min-w-64"
+                        value={classRider[group.category] ?? ''}
+                        onChange={(rider) => setClassRider((prev) => ({ ...prev, [group.category]: rider?.iqama ?? '' }))}
+                      />
+                    )}
                     {level === 'company_level' && (
                       <SearchableSelect
                         ariaLabel="حساب التكلفة"

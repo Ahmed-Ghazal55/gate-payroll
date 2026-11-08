@@ -123,6 +123,19 @@ public static class ConfigLists
     }
     public static void Seed(Store store)
     {
+        // P2 made adjustments choose from this list; live ran v1 before the list existed.
+        store.Write((c,tx)=>
+        {
+            const string v2="migration:config-lists:v2-adjustments";
+            if(Store.Get(c,v2,"setting",tx)!=null)return false;
+            foreach(var (code,name,account,direction) in new[]{("bonus","حافز / مكافأة","512122","increase"),("compensation","تعويض","512122","increase"),("correction","تصحيح راتب بالخصم","512101","decrease")})
+            {
+                string id=ItemId("pay_adjustment_types",code);if(Store.Get(c,id,ItemKind,tx)!=null)continue;
+                var item=new JsonObject{["id"]=id,["group"]="pay_adjustment_types",["code"]=code,["version"]=0,["history"]=new JsonArray(),["active"]=true};
+                Apply(item,new JsonObject{["nameAr"]=name,["values"]=new JsonObject{["account"]=account,["direction"]=direction},["active"]=true,["by"]="system-seed"},"system-seed (BR §29)");Store.Save(c,ItemKind,item,tx);
+            }
+            Store.Save(c,"setting",new(){["id"]=v2,["version"]=1},tx);return true;
+        },false);
         const string marker="migration:config-lists:v1";
         store.Write((c,tx)=>
         {

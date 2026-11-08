@@ -31,7 +31,7 @@ public static class ImportExecutor
         if(plan.Documents.Any(d=>sourceKeys.TryGetValue((d.Kind,d.Body.S("erpSourceId")),out var ids)&&ids.Any(id=>id!=d.Body.S("id"))))throw new ImportFailure("source_identity_changed_requires_review");
         var duplicates=plan.Documents.GroupBy(d=>d.Body.S("id"),StringComparer.Ordinal).Any(g=>g.Count()>1);
         if(duplicates||plan.Documents.Any(d=>existing.TryGetValue(d.Body.S("id"),out var row)&&row.S("__targetKind")!=d.Kind))throw new ImportFailure("target_identity_collision");
-        var counters=ImportPlan.Kinds.ToDictionary(k=>k,k=>new int[3]);var changes=new List<PlannedDocument>();var vehicleFields=new Dictionary<string,int>();
+        var counters=ImportPlan.Kinds.ToDictionary(k=>k,k=>new int[3]);var changes=new List<PlannedDocument>();var vehicleFields=new Dictionary<string,int>();var changedFields=new Dictionary<string,Dictionary<string,int>>();
         foreach(var doc in plan.Documents)
         {
             cancellationToken.ThrowIfCancellationRequested();existing.TryGetValue(doc.Body.S("id"),out var previous);
@@ -43,7 +43,13 @@ public static class ImportExecutor
                 foreach(var field in doc.Body.Where(f=>!JsonNode.DeepEquals(previous[f.Key],f.Value)))
                     vehicleFields[field.Key]=vehicleFields.GetValueOrDefault(field.Key)+1;
             if(previous==null){counters[doc.Kind][0]++;changes.Add(new(doc.Kind,merged));}
-            else if(!JsonNode.DeepEquals(previous,merged)){counters[doc.Kind][1]++;changes.Add(new(doc.Kind,merged));}
+            else if(!JsonNode.DeepEquals(previous,merged))
+            {
+                counters[doc.Kind][1]++;changes.Add(new(doc.Kind,merged));
+                // Field names only, never values: explains a large-change refusal without exposing data.
+                if(!changedFields.TryGetValue(doc.Kind,out var names))changedFields[doc.Kind]=names=[];
+                foreach(var field in merged.Where(f=>!JsonNode.DeepEquals(previous![f.Key],f.Value)))names[field.Key]=names.GetValueOrDefault(field.Key)+1;
+            }
             else counters[doc.Kind][2]++;
         }
         if(commitTarget!=null)
@@ -72,6 +78,6 @@ public static class ImportExecutor
         }
         string SourceTable(string kind)=>kind switch{"company" or "commercial_registration"=>"Sponsors","city"=>"GlobalCities","rider"=>"Employees","housing"=>"Housing","housing_residence"=>"HousingResidencePeriods","vehicle"=>"Vehicles","vehicle_assignment"=>"RiderVehicleAssignments","custody_handover"=>"RiderVehicleAssignmentEvents","platform_account"=>"PlatformRiderAccounts","legal_case"=>"HrLegalCases",_=>HungerStationFacts.Kinds.Contains(kind)?HsFactsSource.Table(kind):PullContracts.Table(kind)};
         var counts=ImportPlan.Kinds.Select(k=>new KindCount(k,source.Tables.GetValueOrDefault(SourceTable(k))?.Count??0,counters[k][0],counters[k][1],counters[k][2],plan.Rejected.GetValueOrDefault(k)?.Values.Sum()??0,existing.Values.Count(r=>r.S("__targetKind")==k))).ToList();
-        return new(source.StartedAt,source.FinishedAt,source.Consistency,commitTarget!=null,counts,plan.Rejected,plan.Observations,plan.Unavailable,source.Tables.ToDictionary(t=>t.Key,t=>t.Value.Count)) {VehicleChangedFields=vehicleFields,Totals=PullContracts.Catalog.Where(x=>x.Totals!="").ToDictionary(x=>x.Kind,x=>x.Totals.Split(' ').ToDictionary(f=>f,f=>plan.Documents.Where(d=>d.Kind==x.Kind).Sum(d=>d.Body.N(f))))};
+        return new(source.StartedAt,source.FinishedAt,source.Consistency,commitTarget!=null,counts,plan.Rejected,plan.Observations,plan.Unavailable,source.Tables.ToDictionary(t=>t.Key,t=>t.Value.Count)) {VehicleChangedFields=vehicleFields,ChangedFields=changedFields,Totals=PullContracts.Catalog.Where(x=>x.Totals!="").ToDictionary(x=>x.Kind,x=>x.Totals.Split(' ').ToDictionary(f=>f,f=>plan.Documents.Where(d=>d.Kind==x.Kind).Sum(d=>d.Body.N(f))))};
     }
 }

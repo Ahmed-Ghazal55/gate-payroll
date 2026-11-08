@@ -1375,6 +1375,7 @@ export interface PayReviewEdit {
 }
 
 export interface PayReviewRow {
+  allowedActions?: string[];
   rider: string;
   name: string;
   status: 'ready' | 'needs_decision';

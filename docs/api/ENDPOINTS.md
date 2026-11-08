@@ -150,7 +150,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/pay/cycles/{id}/lines` | Payroll.Api/PayCycles.cs:160 | pay.view; company and every app scope | none | keep |
 | GET | `/api/pay/cycles/{id}/review` | Payroll.Api/PayCycles.Review.cs:145 | pay.view; company and every app scope | none | keep |
 | GET | `/api/pay/cycles/{id}/unrecovered-costs` | Payroll.Api/PayCycles.cs:154 | pay.view; company and every app scope | none | keep |
-| GET | `/api/pay/review-draft` | Payroll.Api/PayReviewDraft.cs:109 | pay.view; app scope; shared writes need all companies | none | keep |
+| GET | `/api/pay/review-draft` | Payroll.Api/PayReviewDraft.cs:127 | pay.view; app scope; shared writes need all companies | none | keep |
 | GET | `/api/pay/settings` | Payroll.Api/PaySettings.cs:86 | pay.view; app scope; shared writes need all companies | none | keep |
 | GET | `/api/payroll/export.csv` | Payroll.Api/Program.cs:292 | payroll.view | old UI | keep |
 | GET | `/api/payroll/fingerprint` | Payroll.Api/Program.cs:275 | payroll.view | none | deprecated |
@@ -325,11 +325,11 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
 | GET | `/` | Payroll.Api/LegacyUi.cs:31 | public (rider portal: own authenticated rider) | none | keep |
-| GET | `/api/admin/approval-exceptions` | Payroll.Api/UserAccess.cs:357 | see AccessPolicy + handler | none | keep |
+| GET | `/api/admin/approval-exceptions` | Payroll.Api/UserAccess.cs:404 | see AccessPolicy + handler | none | keep |
 | GET | `/api/audit` | Payroll.Api/Program.cs:319 | Admin / SuperAdmin | old UI | keep |
 | GET | `/api/auth/status` | Payroll.Api/Program.cs:98 | public (rider portal: own authenticated rider) | old UI | keep |
-| GET | `/api/config/lists` | Payroll.Api/ConfigLists.cs:153 | see AccessPolicy + handler | none | keep |
-| GET | `/api/config/lists/{group}` | Payroll.Api/ConfigLists.cs:154 | see AccessPolicy + handler | none | keep |
+| GET | `/api/config/lists` | Payroll.Api/ConfigLists.cs:166 | see AccessPolicy + handler | none | keep |
+| GET | `/api/config/lists/{group}` | Payroll.Api/ConfigLists.cs:167 | see AccessPolicy + handler | none | keep |
 | GET | `/api/imports/catalog` | Payroll.Api/ImportCatalog.cs:88 | imports.view | none | keep |
 | GET | `/api/imports/templates/{name}` | Payroll.Api/ImportCatalog.cs:89 | imports.view | none | keep |
 | GET | `/api/me` | Payroll.Api/Program.cs:183 | authenticated; category/owner visibility in handler | old UI | keep |
@@ -339,12 +339,12 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/org/responsible` | Payroll.Api/OrgDirectory.cs:117 | org.manage (Admin); dated rows, never deleted | none | keep |
 | GET | `/api/org/routing` | Payroll.Api/OrgDirectory.cs:114 | org.manage (Admin); dated rows, never deleted | none | keep |
 | GET | `/api/org/supervision` | Payroll.Api/OrgDirectory.cs:111 | advances.request (mine=1) or org.manage | none | keep |
-| GET | `/api/roles-catalog` | Payroll.Api/UserAccess.cs:349 | authenticated; category/owner visibility in handler | old UI | keep |
+| GET | `/api/roles-catalog` | Payroll.Api/UserAccess.cs:395 | authenticated; category/owner visibility in handler | old UI | keep |
 | GET | `/api/system/erp-sync` | Payroll.Api/ErpSyncRuns.cs:45 | Admin / SuperAdmin | none | keep |
 | GET | `/api/system/jobs` | Payroll.Api/JobsControl.cs:40 | Admin / SuperAdmin | none | keep |
 | GET | `/api/system/jobs/erp-sync/{jobId}` | Payroll.Api/JobsControl.cs:44 | erp.sync.run; counts only; shared cooldown + active reservation for enqueue | none | keep |
 | GET | `/api/system/release-check` | Payroll.Api/ReleaseSafety.cs:62 | Admin / SuperAdmin | none | deprecated |
-| GET | `/api/users` | Payroll.Api/UserAccess.cs:358 | Admin / SuperAdmin | old UI | keep |
+| GET | `/api/users` | Payroll.Api/UserAccess.cs:405 | Admin / SuperAdmin | old UI | keep |
 | GET | `/health` | Payroll.Api/Program.cs:97 | public (rider portal: own authenticated rider) | none | keep |
 | GET | `/legacy` | Payroll.Api/LegacyUi.cs:33 | public (rider portal: own authenticated rider) | none | keep |
 | GET | `/openapi/v1.json` | Payroll.Api/Program.cs:57 | Admin / SuperAdmin | none | new |
@@ -352,9 +352,10 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/auth/login` | Payroll.Api/Program.cs:109 | public (rider portal: own authenticated rider) | old UI | keep |
 | POST | `/api/auth/logout` | Payroll.Api/Program.cs:129 | public (rider portal: own authenticated rider) | old UI | keep |
 | POST | `/api/auth/setup` | Payroll.Api/Program.cs:99 | public (rider portal: own authenticated rider) | old UI | keep |
-| POST | `/api/config/lists/{group}/fields` | Payroll.Api/ConfigLists.cs:157 | see AccessPolicy + handler | none | keep |
-| POST | `/api/config/lists/{group}/items` | Payroll.Api/ConfigLists.cs:155 | see AccessPolicy + handler | none | keep |
-| POST | `/api/config/lists/{group}/items/{code}/approve` | Payroll.Api/ConfigLists.cs:156 | see AccessPolicy + handler | none | keep |
+| POST | `/api/config/lists/{group}/fields` | Payroll.Api/ConfigLists.cs:170 | see AccessPolicy + handler | none | keep |
+| POST | `/api/config/lists/{group}/items` | Payroll.Api/ConfigLists.cs:168 | see AccessPolicy + handler | none | keep |
+| POST | `/api/config/lists/{group}/items/{code}/approve` | Payroll.Api/ConfigLists.cs:169 | see AccessPolicy + handler | none | keep |
+| POST | `/api/me/password` | Payroll.Api/UserAccess.cs:462 | see AccessPolicy + handler | none | keep |
 | POST | `/api/org/delegations` | Payroll.Api/OrgDirectory.cs:109 | org.manage (Admin); dated rows, never deleted | none | keep |
 | POST | `/api/org/delegations/{id}/end` | Payroll.Api/OrgDirectory.cs:110 | org.manage (Admin); dated rows, never deleted | none | keep |
 | POST | `/api/org/memberships` | Payroll.Api/OrgDirectory.cs:106 | org.manage (Admin); dated rows, never deleted | none | keep |
@@ -367,9 +368,11 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/system/jobs/erp-sync/pause` | Payroll.Api/JobsControl.cs:46 | SuperAdmin only; required reason + audit; config enablement remains mandatory | none | keep |
 | POST | `/api/system/jobs/erp-sync/resume` | Payroll.Api/JobsControl.cs:48 | SuperAdmin only; required reason + audit; config enablement remains mandatory | none | keep |
 | POST | `/api/system/jobs/erp-sync/run` | Payroll.Api/JobsControl.cs:42 | erp.sync.run; counts only; shared cooldown + active reservation for enqueue | none | keep |
-| POST | `/api/users` | Payroll.Api/UserAccess.cs:360 | Admin / SuperAdmin | old UI | keep |
-| PUT | `/api/users/{id}` | Payroll.Api/UserAccess.cs:406 | Admin / SuperAdmin | none | new |
-| PUT | `/api/users/{id}/status` | Payroll.Api/UserAccess.cs:407 | Admin / SuperAdmin | old UI | keep |
+| POST | `/api/users` | Payroll.Api/UserAccess.cs:407 | Admin / SuperAdmin | old UI | keep |
+| POST | `/api/users/{id}/reset-password` | Payroll.Api/UserAccess.cs:454 | Admin / SuperAdmin | old UI | keep |
+| PUT | `/api/roles/{code}/permissions` | Payroll.Api/UserAccess.cs:471 | see AccessPolicy + handler | old UI | keep |
+| PUT | `/api/users/{id}` | Payroll.Api/UserAccess.cs:483 | Admin / SuperAdmin | none | new |
+| PUT | `/api/users/{id}/status` | Payroll.Api/UserAccess.cs:484 | Admin / SuperAdmin | old UI | keep |
 
 ## Compatibility and deprecations
 

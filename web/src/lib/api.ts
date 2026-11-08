@@ -88,6 +88,7 @@ export type PayReviewRider = PayReviewAccount['riders'][number];
 
 export type RiderLookupItem = ApiResp<'/api/riders/lookup'>[number];
 
+export type DebtDeductionsView = ApiResp<'/api/pay/cycles/{id}/debt-deductions'>;
 export type PayCycleItem = ApiResp<'/api/pay/cycles'>['items'][number];
 export type PayCyclesResponse = ApiResp<'/api/pay/cycles'>;
 export type PayCycleLinesResponse = ApiResp<'/api/pay/cycles/{id}/lines'>;
@@ -1432,9 +1433,10 @@ export const api = {
     return handleRequest<OrgResponsibleUser[]>(`/org/responsible?${q.toString()}`);
   },
   getHealth: () => handleRequest<{ ok: boolean; jobs?: { enabled: boolean; lastRun?: string; nextRun?: string } }>('/health'),
-  runErpSync: (dryRun: boolean) =>
+  runErpSync: (dryRun: boolean, overrides?: { acceptNewKinds: string[]; acceptLargeChanges: string[]; reason: string }) =>
     handleRequest<{ jobId: string }>(dryRun ? '/system/jobs/erp-sync/dry-run' : '/system/jobs/erp-sync/run', {
       method: 'POST',
+      body: JSON.stringify(overrides ?? {}),
     }),
   getErpSyncJobStatus: (jobId: string) =>
     handleRequest<ErpSyncJobStatus>(`/system/jobs/erp-sync/${encodeURIComponent(jobId)}`),
@@ -1447,7 +1449,7 @@ export const api = {
     const qs = q.toString();
     return handleRequest<PayReviewResponse>(`/pay/cycles/${encodeURIComponent(cycleId)}/review${qs ? `?${qs}` : ''}`);
   },
-  reviewPayCycleRider: (cycleId: string, iqama: string, body: { action: 'approve' } | { action: 'edit'; key: string; amount: number; reason: string } | { action: 'adjust'; amount: number; reason: string }) =>
+  reviewPayCycleRider: (cycleId: string, iqama: string, body: { action: 'approve'; reason?: string } | { action: 'edit'; key: string; amount: number; reason: string; itemType?: string } | { action: 'adjust'; amount: number; reason: string; itemType: string }) =>
     handleRequest<PayReviewRow>(`/pay/cycles/${encodeURIComponent(cycleId)}/review/${encodeURIComponent(iqama)}`, {
       method: 'POST',
       body: JSON.stringify(body),
@@ -1564,7 +1566,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  classifyNinjaInvoiceBatch: (id: string, items: Array<{ lineId: string; category: string; level: 'account_level' | 'company_level'; expenseAccount?: string }>) =>
+  discardPlatformInvoice: (platform: 'ninja' | 'keeta', id: string, reason: string) =>
+    handleRequest<unknown>(`/platforms/${platform}/invoices/${encodeURIComponent(id)}/discard`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  getPostingGate: (code: string) => handleRequest<{ code: string; enabled: boolean }>(`/platforms/${encodeURIComponent(code)}/posting`),
+  setPostingGate: (code: string, enabled: boolean, reason: string) =>
+    handleRequest<unknown>(`/platforms/${encodeURIComponent(code)}/posting`, { method: 'POST', body: JSON.stringify({ enabled, reason }) }),
+  getDebtDeductions: (cycleId: string) => handleRequest<DebtDeductionsView>(`/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`),
+  actDebtDeductions: (cycleId: string, body: { action: 'edit'; rider: string; key: string; amount: number; reason?: string } | { action: 'confirm'; rider: string } | { action: 'confirm-all' }) =>
+    handleRequest<DebtDeductionsView>(`/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`, { method: 'POST', body: JSON.stringify(body) }),
+  resetUserPassword: (id: string, password: string) =>
+    handleRequest<unknown>(`/users/${encodeURIComponent(id)}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
+  changeMyPassword: (currentPassword: string, newPassword: string) =>
+    handleRequest<unknown>('/me/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+  saveRolePermissions: (code: string, permissions: string[], reason: string) =>
+    handleRequest<unknown>(`/roles/${encodeURIComponent(code)}/permissions`, { method: 'PUT', body: JSON.stringify({ permissions, reason }) }),
+  classifyNinjaInvoiceBatch: (id: string, items: Array<{ lineId: string; category: string; level: 'account_level' | 'company_level' | 'rider_level'; expenseAccount?: string; riderId?: string }>) =>
     handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/classify-batch`, {
       method: 'POST',
       body: JSON.stringify({ items }),
@@ -1661,7 +1677,7 @@ export const api = {
     items: Array<{
       lineId: string;
       category: string;
-      level: 'account_level' | 'company_level';
+      level: 'account_level' | 'company_level' | 'rider_level';
       expenseAccount?: string;
     }>,
     baseInvoice: NinjaInvoice,

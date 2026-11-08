@@ -1563,7 +1563,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1599,7 +1603,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -7477,6 +7485,15 @@ export interface paths {
                                 fixAction: string;
                                 sourceLineId: string;
                             }[];
+                            warnings?: {
+                                code: string;
+                                message: string;
+                                sourceLineId: string;
+                                erpOrders?: number;
+                                invoiceOrders?: number;
+                            }[];
+                            allocationProposals?: Record<string, never>[];
+                            dataThrough?: string;
                             unassignedOrders: Record<string, never>[];
                             ridersNotFound: Record<string, never>[];
                             evidence: Record<string, never>[];
@@ -8385,7 +8402,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
+                        "application/json": components["schemas"]["AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
                     };
                 };
             };
@@ -8478,6 +8495,7 @@ export interface paths {
                             rankLevel?: number;
                             status: string;
                             permissions: string[];
+                            mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
                             financialScope?: Record<string, never>;
@@ -8523,6 +8541,7 @@ export interface paths {
                             rankLevel?: number;
                             status: string;
                             permissions: string[];
+                            mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
                             financialScope?: Record<string, never>;
@@ -8536,6 +8555,170 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{id}/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a temporary password the user must change at next login */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            mustChangePassword?: boolean;
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change my own password */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            mustChangePassword?: boolean;
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/roles/{code}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a role template and end its users' sessions */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -8583,6 +8766,7 @@ export interface paths {
                             rankLevel?: number;
                             status: string;
                             permissions: string[];
+                            mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
                             financialScope?: Record<string, never>;
@@ -8644,6 +8828,7 @@ export interface paths {
                             rankLevel?: number;
                             status: string;
                             permissions: string[];
+                            mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
                             financialScope?: Record<string, never>;
@@ -12139,6 +12324,7 @@ export interface paths {
                             rankLevel?: number;
                             status: string;
                             permissions: string[];
+                            mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
                             financialScope?: Record<string, never>;
@@ -13790,10 +13976,11 @@ export interface components {
             /** Format: double */
             balance: number | string;
         };
-        "AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
+        "AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
             roles: null | components["schemas"]["RoleDef"][];
             permissions: null | components["schemas"]["PermissionDef"][];
             departments: components["schemas"]["JsonArray"];
+            rolePermissions: null | Record<string, never>;
             financialScopeCatalog: components["schemas"]["AnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
         };
         "AnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {

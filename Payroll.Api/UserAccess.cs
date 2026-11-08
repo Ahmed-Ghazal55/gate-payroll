@@ -37,7 +37,6 @@ public static class UserAccess
         new("riders.view", "Riders", "دليل المناديب والملفات", "استعراض دليل المناديب", "عرض جدول المناديب وبيانات الكفالة والهوية والبحث والتصفية."),
         new("riders.view_360", "Riders", "دليل المناديب والملفات", "عرض الملف الشامل 360° والوثائق", "الاطلاع على ملف المندوب الشامل وقائمة التحقق من الوثائق السبعة وتحميل المرفقات."),
         new("riders.edit", "Riders", "دليل المناديب والملفات", "إضافة وتعديل بيانات ومرفقات المناديب", "تحديث بيانات المندوب ورفع وتجديد الوثائق الرسمية (الإقامة، الرخصة، كرت التشغيل)."),
-        new("riders.sync_baseline", "Riders", "دليل المناديب والملفات", "مزامنة واستيراد الدليل الأساسي", "استيراد ومزامنة البيانات المرجعية الشاملة للمناديب واعتمادها."),
 
         // إدارة المديونيات وطلبات الموارد البشرية والسلف
         new("debts.view", "Debts", "نظام المديونيات والاستقطاعات", "استعراض سجل المديونيات وكشوف الحساب", "عرض المديونيات النشطة والمسددة وكشف حساب المندوب 360°."),
@@ -67,19 +66,19 @@ public static class UserAccess
         new("mobile.sessions", "Approvals", "الاعتمادات المتبادلة والإشعارات", "إدارة جلسات تطبيق المندوب", "عرض وإلغاء الجلسات ضمن نطاق الشركة دون كشف رموز الدخول أو الجهاز."),
         new("mobile.broadcast", "Approvals", "الاعتمادات المتبادلة والإشعارات", "إرسال إشعارات وتوجيهات لتطبيق المندوب", "بث الإشعارات المالية والإدارية والتشغيلية وروابط النماذج لبوابة المندوب."),
 
-        new("forms.view", "Controls", "ضوابط العمليات", "عرض النماذج والردود", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("forms.delete", "Controls", "ضوابط العمليات", "حذف النماذج والردود", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("payments.record", "Controls", "ضوابط العمليات", "تسجيل دفعات الرواتب", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("adjustments.create", "Controls", "ضوابط العمليات", "تسجيل تعديلات الرواتب", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("imports.view", "Controls", "ضوابط العمليات", "معاينة مصادر التشغيل", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("imports.commit", "Controls", "ضوابط العمليات", "اعتماد استيراد التشغيل", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("policies.view", "Controls", "ضوابط العمليات", "عرض سياسات الرواتب", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("policies.manage", "Controls", "ضوابط العمليات", "إدارة واعتماد السياسات", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("inquiry.issue", "Controls", "ضوابط العمليات", "إصدار رموز استعلام مالي", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("treasury.disburse", "Controls", "ضوابط العمليات", "ترحيل صرف الخزينة", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("riders.financial_edit", "Controls", "ضوابط العمليات", "تعديل بيانات المندوب المالية", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("debts.create.housing", "Controls", "ضوابط العمليات", "إنشاء استقطاعات السكن", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
-        new("debts.create.administrative", "Controls", "ضوابط العمليات", "إنشاء خصومات إدارية", "تُفحص في الخادم ولا تمنح بمجرد ظهور الزر."),
+        new("forms.view", "Controls", "ضوابط العمليات", "عرض النماذج والردود", "عرض النماذج والحملات وردود المناديب."),
+        new("forms.delete", "Controls", "ضوابط العمليات", "حذف النماذج والردود", "حذف النماذج والردود نهائيًا."),
+        new("payments.record", "Controls", "ضوابط العمليات", "تسجيل دفعات الرواتب", "تسجيل دفعات الرواتب اليدوية في المسار القديم."),
+        new("adjustments.create", "Controls", "ضوابط العمليات", "تسجيل تعديلات الرواتب", "إضافة تعديلات رواتب في المسار القديم."),
+        new("imports.view", "Controls", "ضوابط العمليات", "معاينة مصادر التشغيل", "فتح مركز الاستيراد ومعاينة ملفات التشغيل وتحميل النماذج."),
+        new("imports.commit", "Controls", "ضوابط العمليات", "اعتماد استيراد التشغيل", "اعتماد حفظ ملف التشغيل بعد معاينته."),
+        new("policies.view", "Controls", "ضوابط العمليات", "عرض سياسات الرواتب", "الاطلاع على سياسات الرواتب."),
+        new("policies.manage", "Controls", "ضوابط العمليات", "إدارة واعتماد السياسات", "إنشاء وتعديل واعتماد سياسات الرواتب."),
+        new("inquiry.issue", "Controls", "ضوابط العمليات", "إصدار رموز استعلام مالي", "إصدار رمز يتيح للمندوب الاستعلام عن حسابه."),
+        new("treasury.disburse", "Controls", "ضوابط العمليات", "ترحيل صرف الخزينة", "ترحيل عمليات الصرف من الخزينة."),
+        new("riders.financial_edit", "Controls", "ضوابط العمليات", "تعديل بيانات المندوب المالية", "تعديل الآيبان والبيانات المالية للمندوب."),
+        new("debts.create.housing", "Controls", "ضوابط العمليات", "إنشاء استقطاعات السكن", "تسجيل استقطاعات السكن والإيجار."),
+        new("debts.create.administrative", "Controls", "ضوابط العمليات", "إنشاء خصومات إدارية", "تسجيل الخصومات الإدارية وأرصدة المديونية القديمة."),
         // الرواتب والنماذج وإدارة النظام
         new("payroll.view", "Payroll", "مسيرات الرواتب ودفتر الأستاذ", "معاينة مسيرات الرواتب ودفتر الأستاذ", "استعراض معاينات الرواتب واستقطاعات الأقساط وكشوف الرواتب."),
         new("payroll.approve", "Payroll", "مسيرات الرواتب ودفتر الأستاذ", "اعتماد مسيرات الرواتب النهائية", "قفل واعتماد مسير الرواتب الشهري وترحيل الأقساط تلقائياً."),
@@ -175,6 +174,13 @@ public static class UserAccess
                 "riders.view", "debts.view", "debts.create.equipment", "approvals.view"
             ]),
 
+        new("Supervisor", "مشرف تشغيل", "OPS", 2,
+            "متابعة مناديبه ورفع طلبات السلف لهم حسب نظام الرتب (BR §25)؛ لا يعتمد ولا يصرف.",
+            [
+                "operations.view", "riders.view", "riders.view_360",
+                "debts.view", "advances.request", "approvals.view"
+            ]),
+
         new("Reviewer", "مراجع البيانات والنماذج", "OPS", 1,
             "مراجعة وتدقيق ردود المناديب على النماذج والحملات والتحقق من الهوية وجودة بيانات الدليل.",
             [
@@ -207,7 +213,9 @@ public static class UserAccess
         string role = Role(u);
         if (role is "Admin" or "SuperAdmin") return PermissionsCatalog.Select(p => p.Code).ToArray();
         var def = ResolveRoleDef(role);
-        var set = new HashSet<string>(def.DefaultPermissions, StringComparer.OrdinalIgnoreCase);
+        // An edited role template is attached by WithRole for the current read only; never stored on the user.
+        var baseline = u[RoleBaseline] is JsonArray edited ? edited.Select(p => p?.ToString() ?? "") : def.DefaultPermissions;
+        var set = new HashSet<string>(baseline, StringComparer.OrdinalIgnoreCase);
         if (u["customPermissions"] is JsonArray custom)
         {
             foreach (var item in custom)
@@ -219,6 +227,42 @@ public static class UserAccess
         }
         if(u["deniedPermissions"] is JsonArray denied)foreach(var permission in denied)set.Remove(permission?.GetValue<string>()??"");
         return set.ToArray();
+    }
+
+    public const string RolePermissionsKind = "role_permissions", RoleBaseline = "__roleBaseline";
+    public static JsonObject WithRole(DbConnection c, DbTransaction? tx, JsonObject u)
+    {
+        var edited = Store.Get(c, Role(u), RolePermissionsKind, tx);
+        if (edited?["permissions"] is not JsonArray list) return u;
+        var copy = u.Clone(); copy[RoleBaseline] = list.DeepClone(); return copy;
+    }
+    public static bool MustChangePassword(JsonObject u) => u.B("mustChangePassword");
+    public static void SetPassword(JsonObject u, string password, bool mustChange)
+    {
+        J.Need(password.Length is >= 12 and <= 200, "كلمة المرور من12إلى200حرف.");
+        var salt = RandomNumberGenerator.GetBytes(16);
+        u["salt"] = Convert.ToBase64String(salt);
+        u["hash"] = Convert.ToBase64String(Rfc2898DeriveBytes.Pbkdf2(password, salt, 210000, HashAlgorithmName.SHA256, 32));
+        u["mustChangePassword"] = mustChange; u["securityVersion"] = Guid.NewGuid().ToString("N"); u["failedLogins"] = 0; u["lockedUntil"] = "";
+    }
+    // A delegated manager never edits administrators or themselves, and never grants what they lack.
+    static void GuardManager(DbConnection c, DbTransaction tx, ClaimsPrincipal actor, JsonObject? before, JsonObject after)
+    {
+        if (AccessPolicy.Administrator(actor)) return;
+        AccessPolicy.Demand(actor, "users.manage");
+        J.Need(before == null || !string.Equals(before.S("username"), actor.Identity?.Name, StringComparison.OrdinalIgnoreCase), "لا تعدّل صلاحيات حسابك.", 403);
+        J.Need(before == null || Role(before) is not ("Admin" or "SuperAdmin"), "تعديل مسؤول النظام لمسؤول النظام فقط.", 403);
+        J.Need(Role(after) is not ("Admin" or "SuperAdmin"), "منح دور مسؤول النظام لمسؤول النظام فقط.", 403);
+        foreach (string permission in EffectivePermissions(WithRole(c, tx, after)))
+            if (before == null || !EffectivePermissions(WithRole(c, tx, before)).Contains(permission))
+                J.Need(AccessPolicy.Has(actor, permission), "لا تمنح صلاحية لا تملكها: " + permission, 403);
+    }
+    static void AuditAccessChange(DbConnection c, DbTransaction tx, ClaimsPrincipal actor, string action, string entity, IEnumerable<string> before, IEnumerable<string> after, string note = "")
+    {
+        var old = before.ToHashSet(StringComparer.Ordinal); var fresh = after.ToHashSet(StringComparer.Ordinal);
+        Store.Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = action, ["entity"] = entity, ["actor"] = actor.Identity!.Name, ["at"] = DateTimeOffset.UtcNow.ToString("O"), ["note"] = note,
+            ["added"] = new JsonArray(fresh.Except(old).Order(StringComparer.Ordinal).Select(p => (JsonNode?)JsonValue.Create(p)).ToArray()),
+            ["removed"] = new JsonArray(old.Except(fresh).Order(StringComparer.Ordinal).Select(p => (JsonNode?)JsonValue.Create(p)).ToArray()) }, tx);
     }
 
     public static string Normalize(string name) => name.Trim().ToUpperInvariant();
@@ -250,6 +294,7 @@ public static class UserAccess
             ["rankLevel"] = RankLevel(u),
             ["status"] = Status(u),
             ["permissions"] = perms,
+            ["mustChangePassword"] = u.B("mustChangePassword"),
             ["customPermissions"] = customPerms,
             ["deniedPermissions"] = u["deniedPermissions"]?.DeepClone()??new JsonArray(),
             ["financialScope"] = FinancialScopes.Effective(u),
@@ -318,6 +363,7 @@ public static class UserAccess
     {
         var claims=new List<Claim>{new(ClaimTypes.NameIdentifier,u.S("id")),new(ClaimTypes.Name,u.S("username")),new(ClaimTypes.Role,Role(u)),new("department",Department(u)),new("rankLevel",RankLevel(u).ToString()),new("securityVersion",u.S("securityVersion"))};
         claims.AddRange(EffectivePermissions(u).Select(p=>new Claim("permission",p)));
+        if(MustChangePassword(u))claims.Add(new("mustChangePassword","true"));
         claims.AddRange(FinancialScopes.Claims(u));
         foreach(string field in new[]{"approvalExceptionUntil","approvalExceptionReason"})if(u.S(field)!="")claims.Add(new(field,u.S(field)));
         return new(new ClaimsIdentity(claims,CookieAuthenticationDefaults.AuthenticationScheme));
@@ -334,7 +380,7 @@ public static class UserAccess
         if (u == null || !Roles.Contains(Role(u)) || Status(u) != "active" || (context.Principal!.FindFirst("securityVersion") is { } version && version.Value != u.S("securityVersion")))
         { context.RejectPrincipal(); await context.HttpContext.SignOutAsync(); return; }
         // Upgrade legacy administrator cookies without invalidating a working production session.
-        context.ReplacePrincipal(Principal(u));
+        context.ReplacePrincipal(store.Read(c=>Principal(WithRole(c,null,u))));
         context.ShouldRenew = false;
     }
 
@@ -351,11 +397,12 @@ public static class UserAccess
             roles = RolesCatalog,
             permissions = PermissionsCatalog,
             departments = FinancialCore.DepartmentsCatalog,
+            rolePermissions=store.Read(c=>Store.List(c,RolePermissionsKind).ToDictionary(r=>r.S("id"),r=>r["permissions"]?.DeepClone())),
             financialScopeCatalog=new{sponsors=FinancialCore.Sponsors,accounts=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault),categories=FinancialCore.CategoriesCatalog,platforms=new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}}
         }).WithTags("Administration").WithSummary("Read roles catalog");
 
         api.MapGet("/admin/approval-exceptions",(HttpContext ctx)=>{J.Need(AccessPolicy.Administrator(ctx.User),"للمسؤول فقط.",403);return store.Read(c=>Store.List(c,"audit").Where(a=>a.S("action")=="approval.self_exception").OrderByDescending(a=>a.S("at")));}).WithTags("Administration").WithSummary("List every dated self-approval exception use for pre-launch review");
-        api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(Public))).WithTags("Administration").WithSummary("Read users");
+        api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(u => Public(WithRole(c, null, u))).ToList())).WithTags("Administration").WithSummary("Read users");
 
         api.MapPost("/users", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
@@ -377,6 +424,7 @@ public static class UserAccess
         JsonObject UpdateUser(string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             var u = Store.Get(c, id, "user", tx) ?? throw new ApiError("الحساب غير موجود.", 404);
+            var before = u.Clone();
             string role = input.S("role", Role(u)), status = input.S("status", Status(u));
             J.Need(Roles.Contains(role) && status is "active" or "suspended", "دور أو حالة غير صالحة.");
             J.Need(!(Role(u) is "Admin" or "SuperAdmin" && Status(u) == "active" && (role is not ("Admin" or "SuperAdmin") || status != "active") && Store.List(c, "user", tx).Count(x => Role(x) is "Admin" or "SuperAdmin" && Status(x) == "active") == 1), "لا يمكن تعطيل آخر مسؤول نشط.");
@@ -403,6 +451,35 @@ public static class UserAccess
             Store.Audit(c, tx, "admin.user_update", id, ctx.User.Identity!.Name!);
             return Public(u);
         });
+        api.MapPost("/users/{id}/reset-password", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
+        {
+            var u = Store.Get(c, id, "user", tx) ?? throw new ApiError("الحساب غير موجود.", 404);
+            GuardManager(c, tx, ctx.User, u, u);
+            SetPassword(u, input.Required("password"), true);
+            Store.Save(c, "user", u, tx); Store.Audit(c, tx, "admin.password_reset", id, ctx.User.Identity!.Name!);
+            return Public(WithRole(c, tx, u));
+        })).WithTags("Administration").WithSummary("Set a temporary password the user must change at next login");
+        api.MapPost("/me/password", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
+        {
+            var found = Find(c, ctx.User.Identity!.Name!, tx) ?? throw new ApiError("الحساب غير موجود.", 404);
+            J.Need(Password(found, input.S("currentPassword")), "كلمة المرور الحالية غير صحيحة.", 403);
+            string next = input.Required("newPassword"); J.Need(next != input.S("currentPassword"), "اختر كلمة مرور مختلفة.");
+            SetPassword(found, next, false);
+            Store.Save(c, "user", found, tx); Store.Audit(c, tx, "admin.password_changed", found.S("id"), found.S("username"));
+            return Public(WithRole(c, tx, found));
+        })).WithTags("Administration").WithSummary("Change my own password").RequireRateLimiting("sensitive");
+        api.MapPut("/roles/{code}/permissions", (string code, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
+        {
+            J.Need(AccessPolicy.Administrator(ctx.User), "تعديل الأدوار لمسؤول النظام فقط.", 403);
+            var def = ResolveRoleDef(code); J.Need(def.Code is not ("Admin" or "SuperAdmin"), "أدوار مسؤول النظام ثابتة.");
+            var list = input["permissions"] as JsonArray ?? throw new ApiError("حدد صلاحيات الدور."); ValidatePermissionList(list);
+            string reason = input.Required("reason").Trim(); J.Need(reason.Length is >= 3 and <= 500, "اكتب سبب تعديل الدور.");
+            var before = Store.Get(c, def.Code, RolePermissionsKind, tx)?["permissions"] as JsonArray;
+            AuditAccessChange(c, tx, ctx.User, "admin.role_permissions", def.Code, before?.Select(p => p?.ToString() ?? "") ?? def.DefaultPermissions, list.Select(p => p?.ToString() ?? ""), reason);
+            Store.Save(c, RolePermissionsKind, new() { ["id"] = def.Code, ["permissions"] = list.DeepClone(), ["updatedBy"] = ctx.User.Identity!.Name, ["updatedAt"] = DateTimeOffset.UtcNow.ToString("O") }, tx);
+            foreach (var user in Store.List(c, "user", tx).Where(u => Role(u) == def.Code)) { user["securityVersion"] = Guid.NewGuid().ToString("N"); Store.Save(c, "user", user, tx); }
+            return new JsonObject { ["code"] = def.Code, ["permissions"] = list.DeepClone() };
+        })).WithTags("Administration").WithSummary("Replace a role template and end its users' sessions");
         api.MapPut("/users/{id}", UpdateUser).WithTags("Administration").WithSummary("Update a user and invalidate existing sessions");
         api.MapPut("/users/{id}/status", UpdateUser).WithTags("Administration").WithSummary("Legacy alias for updating a user");
     }

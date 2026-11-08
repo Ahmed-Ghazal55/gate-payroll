@@ -31,15 +31,19 @@ public static partial class AccessPolicy
     public static bool Allowed(ClaimsPrincipal user,string method,string path,JsonObject? input=null)
     {
         if(user.Identity?.IsAuthenticated!=true)return false;
+        // A temporary password opens nothing but the screen that replaces it, for administrators too.
+        if(user.HasClaim("mustChangePassword","true"))return path is "/api/me" or "/api/me/password" or "/api/auth/logout";
         if(Administrator(user))return true;
         bool Get(string prefix)=>method=="GET"&&path.StartsWith(prefix,StringComparison.Ordinal);
         bool Has(string permission)=>AccessPolicy.Has(user,permission);
         if(path is "/api/me" or "/api/roles-catalog")return method=="GET";
+        if(path=="/api/me/password")return method=="POST";
+        if(path.StartsWith("/api/roles/",StringComparison.Ordinal))return false;
         if(path is "/api/system/jobs/erp-sync/run" or "/api/system/jobs/erp-sync/dry-run")return method=="POST"&&Has("erp.sync.run");
         const string syncStatus="/api/system/jobs/erp-sync/";
         if(method=="GET"&&path.StartsWith(syncStatus,StringComparison.Ordinal)&&System.Text.RegularExpressions.Regex.IsMatch(path[syncStatus.Length..],"^[1-9][0-9]{0,19}$"))return Has("erp.sync.run");
         if(path.StartsWith("/api/config/lists",StringComparison.Ordinal))return method=="GET"||method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
-        if(path.StartsWith("/api/users",StringComparison.Ordinal))return false; // User administration remains administrator-only.
+        if(path.StartsWith("/api/users",StringComparison.Ordinal))return method is "GET" or "POST" or "PUT"&&Has("users.manage"); // Handlers guard escalation and self-edit.
         if(path=="/api/responses")return method=="GET"&&Has("forms.view");
         if(path=="/api/search")return method=="GET";
         if(path.StartsWith("/api/operations/",StringComparison.Ordinal)||path.StartsWith("/api/riders/",StringComparison.Ordinal)&&path.EndsWith("/accounts",StringComparison.Ordinal))return method=="GET"&&Has("operations.view");

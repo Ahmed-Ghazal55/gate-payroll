@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:38621/"
+      "url": "http://127.0.0.1:41995/"
     }
   ],
   "paths": {
@@ -1047,6 +1047,22 @@
           "Administration"
         ],
         "summary": "Queue permission-gated ERP sync with cooldown",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/JsonObject"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -1065,6 +1081,22 @@
           "Administration"
         ],
         "summary": "Queue permission-gated counts-only ERP preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/JsonObject"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -11643,6 +11675,43 @@
                         }
                       }
                     },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "code",
+                          "message",
+                          "sourceLineId"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "sourceLineId": {
+                            "type": "string"
+                          },
+                          "erpOrders": {
+                            "type": "number"
+                          },
+                          "invoiceOrders": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "allocationProposals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "dataThrough": {
+                      "type": "string"
+                    },
                     "unassignedOrders": {
                       "type": "array",
                       "items": {
@@ -12519,7 +12588,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"
+                  "$ref": "#/components/schemas/AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"
                 }
               }
             }
@@ -12649,6 +12718,9 @@
                           "type": "string"
                         }
                       },
+                      "mustChangePassword": {
+                        "type": "boolean"
+                      },
                       "customPermissions": {
                         "type": "array",
                         "items": {
@@ -12756,6 +12828,9 @@
                         "type": "string"
                       }
                     },
+                    "mustChangePassword": {
+                      "type": "boolean"
+                    },
                     "customPermissions": {
                       "type": "array",
                       "items": {
@@ -12790,6 +12865,278 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}/reset-password": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Set a temporary password the user must change at next login",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "username",
+                    "role",
+                    "status",
+                    "permissions",
+                    "approvalExceptionUntil",
+                    "approvalExceptionReason",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "roleNameAr": {
+                      "type": "string"
+                    },
+                    "roleSummaryAr": {
+                      "type": "string"
+                    },
+                    "department": {
+                      "type": "string"
+                    },
+                    "departmentNameAr": {
+                      "type": "string"
+                    },
+                    "rankLevel": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "mustChangePassword": {
+                      "type": "boolean"
+                    },
+                    "customPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "deniedPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "financialScope": {
+                      "type": "object"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "lastLoginAt": {
+                      "type": "string"
+                    },
+                    "approvalExceptionUntil": {
+                      "type": "string"
+                    },
+                    "approvalExceptionReason": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/password": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Change my own password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "username",
+                    "role",
+                    "status",
+                    "permissions",
+                    "approvalExceptionUntil",
+                    "approvalExceptionReason",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "roleNameAr": {
+                      "type": "string"
+                    },
+                    "roleSummaryAr": {
+                      "type": "string"
+                    },
+                    "department": {
+                      "type": "string"
+                    },
+                    "departmentNameAr": {
+                      "type": "string"
+                    },
+                    "rankLevel": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "mustChangePassword": {
+                      "type": "boolean"
+                    },
+                    "customPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "deniedPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "financialScope": {
+                      "type": "object"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "lastLoginAt": {
+                      "type": "string"
+                    },
+                    "approvalExceptionUntil": {
+                      "type": "string"
+                    },
+                    "approvalExceptionReason": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/roles/{code}/permissions": {
+      "put": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Replace a role template and end its users' sessions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
                 }
               }
             }
@@ -12873,6 +13220,9 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "mustChangePassword": {
+                      "type": "boolean"
                     },
                     "customPermissions": {
                       "type": "array",
@@ -12991,6 +13341,9 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "mustChangePassword": {
+                      "type": "boolean"
                     },
                     "customPermissions": {
                       "type": "array",
@@ -16310,6 +16663,9 @@
                         "type": "string"
                       }
                     },
+                    "mustChangePassword": {
+                      "type": "boolean"
+                    },
                     "customPermissions": {
                       "type": "array",
                       "items": {
@@ -18766,11 +19122,12 @@
           }
         }
       },
-      "AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
+      "AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
         "required": [
           "roles",
           "permissions",
           "departments",
+          "rolePermissions",
           "financialScopeCatalog"
         ],
         "type": "object",
@@ -18795,6 +19152,12 @@
           },
           "departments": {
             "$ref": "#/components/schemas/JsonArray"
+          },
+          "rolePermissions": {
+            "type": [
+              "null",
+              "object"
+            ]
           },
           "financialScopeCatalog": {
             "$ref": "#/components/schemas/AnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"

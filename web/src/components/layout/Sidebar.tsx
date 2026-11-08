@@ -38,7 +38,7 @@ export interface NavGroup {
   label: string;
   icon: React.ReactNode;
   defaultHref: string;
-  permission?: string;
+  permission?: string | string[];
   badge?: number | string;
   isNew?: boolean;
   items: NavSubItem[];
@@ -125,7 +125,7 @@ function SidebarInner({
       label: 'الرواتب',
       icon: <Calculator size={18} />,
       defaultHref: '/payroll/',
-      permission: 'payroll.view',
+      permission: ['payroll.view', 'pay.view'],
       items: [
         { id: 'payroll-apps', href: '/payroll/?tab=platforms', label: 'فواتير وتسويات المنصات' },
         { id: 'payroll-cycle', href: '/payroll/?tab=cycle', label: 'دورة الرواتب والمسير' },
@@ -146,7 +146,7 @@ function SidebarInner({
         { id: 'debts-list', href: '/debts/?tab=debts', label: 'سجل المديونيات', permission: 'debts.view' },
         { id: 'debts-advance-requests', href: '/debts/?tab=advance_requests', label: 'طلبات السلف', permission: ['advances.request', 'advances.review'] },
         { id: 'debts-statement', href: '/debts/?tab=statement', label: 'كشف حساب المندوب', permission: 'debts.view' },
-        { id: 'debts-approvals', href: '/debts/?tab=approvals', label: 'منظومة الاعتمادات', permission: 'debts.approve' },
+        { id: 'debts-approvals', href: '/debts/?tab=approvals', label: 'منظومة الاعتمادات', permission: 'approvals.view' },
         { id: 'debts-promissory', href: '/debts/?tab=promissory', label: 'أرشيف سندات الأمر', permission: 'debts.view' },
       ],
     },
@@ -261,7 +261,7 @@ function SidebarInner({
     .filter((group) => {
       if (!user) return true;
       if (isAdmin) return true;
-      const hasGroupPerm = !group.permission || can(group.permission);
+      const hasGroupPerm = !group.permission || (Array.isArray(group.permission) ? group.permission.some((p) => can(p)) : can(group.permission));
       return hasGroupPerm || group.items.length > 0;
     });
 
