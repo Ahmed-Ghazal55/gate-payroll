@@ -42,9 +42,21 @@ Run the first real Ninja payroll for 2026-10 in the browser against db77738 (run
 3. The flow test checks the draft total against a fixed `4,500.00` instead of the invoice API value, and stops at stage 4 (statements and posting are not driven in the browser).
 4. In the explain drawer, long raw `parameters` JSON overflows the card on the left.
 
+## C8 read-only check on db77738 (2026-11-08, SELECT only)
+Full counts are in `~/Private/gate-data/sync-logs/r8-ninja-dryrun.json`.
+- **Ninja accounts:** 328 (TR 33, BW 132, EX 163). All are linked to a rider; 213 have assignment history.
+- **Blockers before a cycle can be created:**
+  1. The global pay setting for 2026-10 is still a draft.
+  2. Ninja has no terms, scheme or eligibility for 2026-10.
+  3. No Ninja invoice for 2026-10 has been uploaded.
+
 ## Next
-1. Ghazal: «ادمج» PR #30 (0.17.1), then the 0.18.0 PR.
-2. Claude: C8 read-only dry-run on db77738 (counts only), output to `~/Private/gate-data/sync-logs/r8-ninja-dryrun.json`.
+1. Ghazal: «ادمج» PR #30 (0.17.1), then PR #31 (0.18.0), then deploy.
+2. Ghazal, in the browser after deploy:
+   - approve the global setting as a second user;
+   - enter and approve the Ninja terms, scheme and eligibility;
+   - upload the October invoices (per account or combined);
+   - follow `docs/runbooks/NINJA-2026-10.md`.
 3. Ghazal: «حمّل» per write step in the runbook.
 4. Ghazal: fill the decision sheet for the 379 debt rows.
 5. Passwords: rotate at the final ERP integration (Ghazal's decision 2026-11-07).
