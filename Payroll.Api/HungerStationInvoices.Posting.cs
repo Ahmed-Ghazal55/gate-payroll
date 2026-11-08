@@ -30,8 +30,8 @@ public static partial class HungerStationInvoices
     public static void DemandResolvedDisputes(DbConnection c,DbTransaction? tx,string id)
     {if(HasUnresolvedDispute(c,tx,id))throw new ApiError("ترحيل الفاتورة متوقف بالكامل حتى حسم الاعتراض؛ فتح بوابة الترحيل لا يتجاوز الاعتراض.",409);}
     static bool Closed(DbConnection c,DbTransaction? tx,string company,string period)=>Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==company&&p.S("period")==period&&p.S("status")=="closed");
-    static void Independent(ClaimsPrincipal actor,JsonObject facts,string makerField="createdBy")
-    {var request=new JsonObject{["requestedBy"]=facts.S(makerField),["targetDepartment"]="FIN",["requiredRankLevel"]=1};AccessPolicy.ValidateApproval(actor,request,new JsonObject(),"platforms.hs.approve");}
+    static void Independent(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject facts,string makerField="createdBy")
+    {var request=new JsonObject{["requestedBy"]=facts.S(makerField),["targetDepartment"]="FIN",["requiredRankLevel"]=1};AccessPolicy.ValidateApproval(actor,request,new JsonObject(),"platforms.hs.approve",c,tx,"platform.hs.approve",facts);if(facts.B("selfApprovedException"))Store.Save(c,facts.S("action")!=""?ActionKind:facts.S("invoiceId")!=""?"platform_dispute":"platform_invoice",facts,tx);}
     static JsonObject PostingRow(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id)
     {
         var invoice=GetInvoice(c,tx,actor,id);var all=EffectiveLines(c,tx,id);var work=all.Where(l=>l.S("lineType")=="rider").ToList();var blockers=new List<string>();var lines=new JsonArray();string company=invoice.S("companyId"),period=invoice.S("postingPeriod",invoice.S("period"));
@@ -75,7 +75,7 @@ public static partial class HungerStationInvoices
     {Scope(actor,"platforms.hs.view");var rows=new JsonArray(PostingRow(c,null,actor,id));return new(){["rows"]=rows,["fingerprint"]=FinancialImports.Issue(c,PostingPreview,rows,actor.Identity!.Name!)};}
     public static JsonObject ApproveInvoice(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
-        Scope(actor,"platforms.hs.approve");var invoice=GetInvoice(c,tx,actor,id).Clone();Independent(actor,invoice);var revision=LatestFacts(c,tx,id);foreach(var facts in Store.List(c,ActionKind,tx).Where(a=>a.S("invoiceId")==id&&a.S("action")=="facts_revision"))Independent(actor,facts,"requestedBy");
+        Scope(actor,"platforms.hs.approve");var invoice=GetInvoice(c,tx,actor,id).Clone();Independent(c,tx,actor,invoice);var revision=LatestFacts(c,tx,id);foreach(var facts in Store.List(c,ActionKind,tx).Where(a=>a.S("invoiceId")==id&&a.S("action")=="facts_revision"))Independent(c,tx,actor,facts,"requestedBy");
         if(invoice.S("reversalJournalEntryId")!="")throw new ApiError("الفاتورة معكوسة؛ استخدم نسخة مصححة مستقلة.",409);
         if(invoice.S("approvalStatus")=="approved"&&(invoice.S("journalEntryId")!=""||!PlatformPosting.Enabled(c,"hs",tx)))return invoice;
         FinancialImports.Verify(c,tx,input,PostingPreview,actor.Identity!.Name!);J.Need(input["rows"] is JsonArray {Count:1}&&input["rows"]![0].S("invoiceId")==id,"المعاينة لا تخص الفاتورة.");var proposal=PostingRow(c,tx,actor,id);
@@ -116,7 +116,7 @@ public static partial class HungerStationInvoices
     }
     public static JsonObject ApproveReversal(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,string actionId)
     {
-        Scope(actor,"platforms.hs.approve");var invoice=GetInvoice(c,tx,actor,id).Clone();var action=Store.Get(c,actionId,ActionKind,tx)?.Clone()??throw new ApiError("طلب العكس غير موجود.",404);J.Need(action.S("action")=="reversal"&&action.S("invoiceId")==id,"طلب العكس لا يخص الفاتورة.");Independent(actor,action,"requestedBy");
+        Scope(actor,"platforms.hs.approve");var invoice=GetInvoice(c,tx,actor,id).Clone();var action=Store.Get(c,actionId,ActionKind,tx)?.Clone()??throw new ApiError("طلب العكس غير موجود.",404);J.Need(action.S("action")=="reversal"&&action.S("invoiceId")==id,"طلب العكس لا يخص الفاتورة.");Independent(c,tx,actor,action,"requestedBy");
         if(action.S("status")=="approved")return action;
         J.Need(action.S("status")=="pending"&&invoice.S("reversalJournalEntryId")==""&&!Closed(c,tx,invoice.S("companyId"),action.S("period")),"العكس منفذ أو الفترة مقفلة.");PlatformPosting.Demand(c,"hs",tx);
         var original=Store.Get(c,invoice.Required("journalEntryId"),"journal",tx)??throw new ApiError("القيد الأصلي غير موجود.");J.Need(original.S("chart")=="target"&&original.S("sourceRef")=="HS-INVOICE:"+id&&original["lines"]!.AsArray().OfType<JsonObject>().All(l=>l.S("sponsorId")==invoice.S("companyId"))&&!Store.List(c,"journal",tx).Any(j=>j.S("reversesJournalId")==original.S("id")),"القيد ليس قيد هنقر قابلًا للعكس.");var lines=new JsonArray();

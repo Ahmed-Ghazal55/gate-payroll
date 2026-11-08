@@ -254,7 +254,9 @@ public static class UserAccess
             ["deniedPermissions"] = u["deniedPermissions"]?.DeepClone()??new JsonArray(),
             ["financialScope"] = FinancialScopes.Effective(u),
             ["createdAt"] = u.S("createdAt"),
-            ["lastLoginAt"] = u.S("lastLoginAt")
+            ["lastLoginAt"] = u.S("lastLoginAt"),
+            ["approvalExceptionUntil"]=u.S("approvalExceptionUntil"),["approvalExceptionReason"]=u.S("approvalExceptionReason"),
+            ["allowedActions"]=AccessPolicy.ApprovalException(Principal(u))?new JsonArray("self_approve_exception"):new JsonArray()
         };
     }
 
@@ -317,6 +319,7 @@ public static class UserAccess
         var claims=new List<Claim>{new(ClaimTypes.NameIdentifier,u.S("id")),new(ClaimTypes.Name,u.S("username")),new(ClaimTypes.Role,Role(u)),new("department",Department(u)),new("rankLevel",RankLevel(u).ToString()),new("securityVersion",u.S("securityVersion"))};
         claims.AddRange(EffectivePermissions(u).Select(p=>new Claim("permission",p)));
         claims.AddRange(FinancialScopes.Claims(u));
+        foreach(string field in new[]{"approvalExceptionUntil","approvalExceptionReason"})if(u.S(field)!="")claims.Add(new(field,u.S(field)));
         return new(new ClaimsIdentity(claims,CookieAuthenticationDefaults.AuthenticationScheme));
     }
     // Persist only the session identity. Permissions/scopes are loaded from the current user per request.
@@ -351,6 +354,7 @@ public static class UserAccess
             financialScopeCatalog=new{sponsors=FinancialCore.Sponsors,accounts=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault),categories=FinancialCore.CategoriesCatalog,platforms=new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}}
         }).WithTags("Administration").WithSummary("Read roles catalog");
 
+        api.MapGet("/admin/approval-exceptions",(HttpContext ctx)=>{J.Need(AccessPolicy.Administrator(ctx.User),"للمسؤول فقط.",403);return store.Read(c=>Store.List(c,"audit").Where(a=>a.S("action")=="approval.self_exception").OrderByDescending(a=>a.S("at")));}).WithTags("Administration").WithSummary("List every dated self-approval exception use for pre-launch review");
         api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(Public))).WithTags("Administration").WithSummary("Read users");
 
         api.MapPost("/users", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -364,6 +368,7 @@ public static class UserAccess
             var u = Create(name, input.Required("password"), role, null, dept, rank, customPerms);
             if(input["deniedPermissions"] is JsonArray denied){ValidatePermissionList(denied);u["deniedPermissions"]=denied.DeepClone();}
             if(input["financialScope"] is JsonObject scope)u["financialScope"]=FinancialScopes.Normalize(scope);
+            AccessPolicy.ConfigureApprovalException(c,tx,ctx.User,u,input);
             Store.Save(c, "user", u, tx);
             Store.Audit(c, tx, "admin.user_create", u.S("id"), ctx.User.Identity!.Name!);
             return Public(u);
@@ -393,6 +398,7 @@ public static class UserAccess
             J.Need(FinancialCore.DepartmentsCatalog.OfType<JsonObject>().Any(d=>d.S("code")==Department(u)),"قسم غير صالح.");
             if(input.ContainsKey("rankLevel"))J.Need(input.N("rankLevel") is >=1 and <=5&&input.N("rankLevel")==Math.Truncate(input.N("rankLevel")),"رتبة غير صالحة.");
             u["securityVersion"] = Guid.NewGuid().ToString("N");
+            AccessPolicy.ConfigureApprovalException(c,tx,ctx.User,u,input);
             Store.Save(c, "user", u, tx);
             Store.Audit(c, tx, "admin.user_update", id, ctx.User.Identity!.Name!);
             return Public(u);

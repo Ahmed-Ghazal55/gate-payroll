@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 namespace Payroll;
 
 // One route policy is used by the API, UI capability list and offline review tests.
-public static class AccessPolicy
+public static partial class AccessPolicy
 {
     public static bool Administrator(ClaimsPrincipal user)=>user.IsInRole("Admin")||user.IsInRole("SuperAdmin");
     public static string[] CompatibilityDefaults(string role)=>role switch {
@@ -147,12 +147,12 @@ public static class AccessPolicy
         if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))return Has("forms.manage");
         return false;
     }
-    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide")
+    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide",System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null,string operation="approval.decide",JsonObject? record=null)
     {
         Demand(actor,permission);
         string name=actor.Identity?.Name??"";
-        bool same=string.Equals(request.S("requestedBy",request.S("createdBy")),name,StringComparison.OrdinalIgnoreCase);
-        if(same&&(!Administrator(actor)||!input.B("overrideSelf")||string.IsNullOrWhiteSpace(input.S("note"))))throw new ApiError("لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو تجاوز إداري معلل وصريح.",403);
-        if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))throw new ApiError("القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
+        J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو استثناء ghazal مؤرخ وسارٍ.",403);
+        if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))
+            J.Need(Independent(actor,name,operation+".department_rank",c,tx,record??request),"القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
     }
 }

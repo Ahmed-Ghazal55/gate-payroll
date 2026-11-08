@@ -35,7 +35,7 @@ public static partial class HungerStationInvoices
         Scope(actor,"platforms.hs.approve");var allocation=Store.Get(c,id,"platform_allocation",tx)?.Clone()??throw new ApiError("التوزيع غير موجود.",404);var line=GetLine(c,tx,actor,allocation.S("lineId"));
         J.Need(allocation.S("status")=="pending","التوزيع ليس بانتظار الاعتماد.");
         var siblings=Store.List(c,"platform_allocation",tx).Where(a=>a.S("lineId")==line.S("id")).ToList();J.Need(!siblings.Any(a=>a.S("status")=="approved")&&allocation.N("revision")==siblings.Max(a=>a.N("revision")),"تغير التوزيع؛ راجع أحدث معاينة.");
-        AccessPolicy.ValidateApproval(actor,allocation,new JsonObject(),"platforms.hs.approve");
+        AccessPolicy.ValidateApproval(actor,allocation,new JsonObject(),"platforms.hs.approve",c,tx,"platform.hs.allocation_approved",allocation);
         allocation["status"]="approved";allocation["approvedBy"]=actor.Identity!.Name;allocation["approvedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,"platform_allocation",allocation,tx);Store.Audit(c,tx,"platform.hs.allocation_approved",id,actor.Identity!.Name!);
         var updated=line.Clone();updated["allocationId"]=id;updated["status"]="pending_review";Store.Save(c,"platform_invoice_line",updated,tx);Store.Audit(c,tx,"platform.hs.invoice_line_allocated",line.S("id"),actor.Identity!.Name!);
         var invoice=GetInvoice(c,tx,actor,line.S("invoiceId")).Clone();

@@ -33,7 +33,7 @@ public static class MadaAccounting
     public static JsonObject Approve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
         AccessPolicy.Demand(actor,ManualJournals.ApprovePermission);var doc=Store.Get(c,id,Kind,tx)??throw new ApiError("العملية غير موجودة.",404);string company=doc.S("companyId"),period=doc.S("period"),type=doc.S("type");FinancialScopes.DemandSponsor(actor,company);
-        J.Need(!string.Equals(doc.S("createdBy"),actor.Identity!.Name,StringComparison.OrdinalIgnoreCase),"يلزم مراجع مستقل.",403);if(doc.S("status")=="approved")return doc;J.Need(doc.S("status")=="draft","العملية ليست مسودة جاهزة.");Open(c,tx,company,period);
+        J.Need(AccessPolicy.Independent(actor,doc.S("createdBy"),"mada.approved",c,tx,doc),"يلزم مراجع مستقل.",403);if(doc.S("status")=="approved")return doc;J.Need(doc.S("status")=="draft","العملية ليست مسودة جاهزة.");Open(c,tx,company,period);
         decimal amount=doc.N("amount");string debit,credit;
         switch(type)
         {
@@ -54,7 +54,7 @@ public static class MadaAccounting
     public static JsonObject PayInternet(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject request,JsonObject input)
     {
         AccessPolicy.Demand(actor,"advances.payout");string company=FinancialCore.ResolveSponsor(request.S("companyId")).Id,fulfilment=request.Required("fulfilment"),vault=request.S("vaultCode",request.S("vault"));FinancialScopes.DemandSponsor(actor,company);
-        J.Need(fulfilment is "cash" or "bank" or "recharge_card","طريقة تسليم النت غير صالحة.");J.Need(request.S("approvedBy")!=""&&request.S("status")=="approved","طلب معتمد مطلوب.");J.Need(!string.Equals(request.S("requestedBy"),actor.Identity!.Name,StringComparison.OrdinalIgnoreCase),"صاحب الطلب لا يصرفه.",403);
+        J.Need(fulfilment is "cash" or "bank" or "recharge_card","طريقة تسليم النت غير صالحة.");J.Need(request.S("approvedBy")!=""&&request.S("status")=="approved","طلب معتمد مطلوب.");J.Need(AccessPolicy.Independent(actor,request.S("requestedBy"),"advance.payout",c,tx,request),"صاحب الطلب لا يصرفه.",403);
         J.Need(input.Required("reference").Length is >2 and <=120,"مرجع الصرف غير صالح.");decimal amount=request.N("amount");J.Need(amount>0&&amount==J.Money(amount)&&request.N("monthlyInstallment")>0&&request.N("monthlyInstallment")<=amount,"مبلغ السلفة أو القسط غير صالح.");string period=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM");Open(c,tx,company,period);
         var rider=Store.Get(c,request.S("riderIqama"),"rider",tx)??throw new ApiError("المندوب غير موجود.");FinancialScopes.DemandRider(actor,rider);J.Need(RiderCompany(rider)==company,"شركة المندوب لا تطابق السلفة.");
         string funding,legacy="";decimal available;

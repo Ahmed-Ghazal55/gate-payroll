@@ -54,7 +54,7 @@ public static partial class PayCycles
             if(Store.Get(c,row.S("rider"),"rider",tx) is {} person)FinancialScopes.DemandRider(actor,person);
             bool approved=row.S("salaryApprovedAt")!="",confirmed=row.S("debtDeductionStatus")=="confirmed";var actions=new JsonArray();
             if(approved&&!confirmed&&cycle.S("status") is "approved" or "partially_approved")
-            {if(AccessPolicy.Has(actor,"pay.manage"))actions.Add("edit");if(AccessPolicy.Has(actor,"pay.approve")&&!row.S("debtSelectedBy",cycle.S("createdBy")).Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase))actions.Add("confirm");}
+            {if(AccessPolicy.Has(actor,"pay.manage"))actions.Add("edit");if(AccessPolicy.Has(actor,"pay.approve")&&AccessPolicy.Independent(actor,row.S("debtSelectedBy",cycle.S("createdBy")),"pay.debt_confirm"))actions.Add("confirm");}
             rows.Add(new JsonObject{["rider"]=row.S("rider"),["salaryNet"]=row.N("salaryNet",row.N("net")),["status"]=confirmed?"confirmed":approved?"pending":"salary_pending",["items"]=ProposedDebtItems(c,tx,actor,cycle,row),["net"]=row.N("net"),["allowedActions"]=actions});
         }
         return new(){["cycleId"]=id,["stage"]=cycle.N("stage"),["status"]=cycle.S("debtDeductionStatus","salary_pending"),["rows"]=rows};
@@ -78,7 +78,7 @@ public static partial class PayCycles
             var payables=Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>Rows(j["lines"]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("accountCode")=="212103").GroupBy(l=>l.S("iqama")).ToDictionary(g=>g.Key,g=>g.Sum(l=>l.N("credit")-l.N("debit")));
             foreach(var row in rows.Where(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed"))
             {
-                J.Need(!row.S("debtSelectedBy",cycle.S("createdBy")).Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase),"مؤكد الخصم غير من اختار القسط.",403);
+                J.Need(AccessPolicy.Independent(actor,row.S("debtSelectedBy",cycle.S("createdBy")),"pay.debt_confirm",c,tx,cycle),"مؤكد الخصم غير من اختار القسط.",403);
                 var proposed=ProposedDebtItems(c,tx,actor,cycle,row);var payLines=new List<PayLine>();decimal total=0;
                 foreach(var item in proposed.OfType<JsonObject>())
                 {

@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:43527/"
+      "url": "http://127.0.0.1:38621/"
     }
   ],
   "paths": {
@@ -12527,6 +12527,69 @@
         }
       }
     },
+    "/api/admin/approval-exceptions": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "List every dated self-approval exception use for pre-launch review",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "required": [
+                      "id",
+                      "action",
+                      "operation",
+                      "recordId",
+                      "maker",
+                      "actor",
+                      "at",
+                      "approvalExceptionUntil",
+                      "selfApprovedException"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "action": {
+                        "type": "string"
+                      },
+                      "operation": {
+                        "type": "string"
+                      },
+                      "recordId": {
+                        "type": "string"
+                      },
+                      "maker": {
+                        "type": "string"
+                      },
+                      "actor": {
+                        "type": "string"
+                      },
+                      "at": {
+                        "type": "string"
+                      },
+                      "approvalExceptionUntil": {
+                        "type": "string"
+                      },
+                      "selfApprovedException": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/users": {
       "get": {
         "tags": [
@@ -12535,13 +12598,91 @@
         "summary": "Read users",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/JsonObject"
+                    "required": [
+                      "id",
+                      "username",
+                      "role",
+                      "status",
+                      "permissions",
+                      "approvalExceptionUntil",
+                      "approvalExceptionReason",
+                      "allowedActions"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "username": {
+                        "type": "string"
+                      },
+                      "role": {
+                        "type": "string"
+                      },
+                      "roleNameAr": {
+                        "type": "string"
+                      },
+                      "roleSummaryAr": {
+                        "type": "string"
+                      },
+                      "department": {
+                        "type": "string"
+                      },
+                      "departmentNameAr": {
+                        "type": "string"
+                      },
+                      "rankLevel": {
+                        "type": "number"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "permissions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "customPermissions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "deniedPermissions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "financialScope": {
+                        "type": "object"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "lastLoginAt": {
+                        "type": "string"
+                      },
+                      "approvalExceptionUntil": {
+                        "type": "string"
+                      },
+                      "approvalExceptionReason": {
+                        "type": "string"
+                      },
+                      "allowedActions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -12566,11 +12707,89 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "username",
+                    "role",
+                    "status",
+                    "permissions",
+                    "approvalExceptionUntil",
+                    "approvalExceptionReason",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "roleNameAr": {
+                      "type": "string"
+                    },
+                    "roleSummaryAr": {
+                      "type": "string"
+                    },
+                    "department": {
+                      "type": "string"
+                    },
+                    "departmentNameAr": {
+                      "type": "string"
+                    },
+                    "rankLevel": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "customPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "deniedPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "financialScope": {
+                      "type": "object"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "lastLoginAt": {
+                      "type": "string"
+                    },
+                    "approvalExceptionUntil": {
+                      "type": "string"
+                    },
+                    "approvalExceptionReason": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -12606,11 +12825,89 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "username",
+                    "role",
+                    "status",
+                    "permissions",
+                    "approvalExceptionUntil",
+                    "approvalExceptionReason",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "roleNameAr": {
+                      "type": "string"
+                    },
+                    "roleSummaryAr": {
+                      "type": "string"
+                    },
+                    "department": {
+                      "type": "string"
+                    },
+                    "departmentNameAr": {
+                      "type": "string"
+                    },
+                    "rankLevel": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "customPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "deniedPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "financialScope": {
+                      "type": "object"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "lastLoginAt": {
+                      "type": "string"
+                    },
+                    "approvalExceptionUntil": {
+                      "type": "string"
+                    },
+                    "approvalExceptionReason": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -12646,11 +12943,89 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "username",
+                    "role",
+                    "status",
+                    "permissions",
+                    "approvalExceptionUntil",
+                    "approvalExceptionReason",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "roleNameAr": {
+                      "type": "string"
+                    },
+                    "roleSummaryAr": {
+                      "type": "string"
+                    },
+                    "department": {
+                      "type": "string"
+                    },
+                    "departmentNameAr": {
+                      "type": "string"
+                    },
+                    "rankLevel": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "customPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "deniedPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "financialScope": {
+                      "type": "object"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "lastLoginAt": {
+                      "type": "string"
+                    },
+                    "approvalExceptionUntil": {
+                      "type": "string"
+                    },
+                    "approvalExceptionReason": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -15886,7 +16261,92 @@
         "summary": "Read me",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "username",
+                    "role",
+                    "status",
+                    "permissions",
+                    "approvalExceptionUntil",
+                    "approvalExceptionReason",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "roleNameAr": {
+                      "type": "string"
+                    },
+                    "roleSummaryAr": {
+                      "type": "string"
+                    },
+                    "department": {
+                      "type": "string"
+                    },
+                    "departmentNameAr": {
+                      "type": "string"
+                    },
+                    "rankLevel": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "customPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "deniedPermissions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "financialScope": {
+                      "type": "object"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "lastLoginAt": {
+                      "type": "string"
+                    },
+                    "approvalExceptionUntil": {
+                      "type": "string"
+                    },
+                    "approvalExceptionReason": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

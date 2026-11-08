@@ -22,6 +22,7 @@ import {
   FileUp,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
+import { ApprovalExceptionChip } from '../../features/admin/ApprovalExceptionChip';
 
 export interface NavSubItem {
   id: string;
@@ -296,6 +297,7 @@ function SidebarInner({
       </div>
 
       {/* Navigation Groups List */}
+      <ApprovalExceptionChip collapsed={collapsed} />
       <nav className="flex-1 overflow-y-auto p-2.5 space-y-1.5 no-scrollbar">
         {!collapsed && (
           <div className="px-2.5 pt-1.5 pb-1 text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">

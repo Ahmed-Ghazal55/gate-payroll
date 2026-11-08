@@ -28,14 +28,14 @@ public static partial class NinjaInvoices
         Scope(actor,"pay.view",invoice.S("companyId"));var result=invoice.Clone();var actions=new JsonArray();string name=actor.Identity!.Name!;
         var lines=Lines(c,tx,invoice.S("id"));var parts=lines.SelectMany(l=>(l["deductions"] as JsonArray??[]).OfType<JsonObject>()).ToList();
         var disputes=Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==invoice.S("id")).ToList();
-        bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve"),independent=!name.Equals(invoice.S("createdBy"),StringComparison.OrdinalIgnoreCase),cycle=InCycle(c,tx,invoice.S("id")),posted=invoice.S("journalEntryId")!="",open=!Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==invoice.S("companyId")&&p.S("period")==invoice.S("period")&&p.S("status")=="closed");
+        bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve"),independent=AccessPolicy.Independent(actor,invoice.S("createdBy"),"platform.invoice_approve"),cycle=InCycle(c,tx,invoice.S("id")),posted=invoice.S("journalEntryId")!="",open=!Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==invoice.S("companyId")&&p.S("period")==invoice.S("period")&&p.S("status")=="closed");
         if(InvoiceDiscard.Active(invoice)&&!posted&&!cycle)
         {
             if(manage&&InvoiceDiscard.Can(c,tx,invoice))actions.Add("discard");
             if(manage&&invoice.S("approvalStatus")=="pending"&&parts.Count>0)actions.Add("classify");
-            if(approve&&independent&&open&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>(d.S("level") is "company_level" or "account_level" or "rider_level")&&!name.Equals(d.S("classifiedBy"),StringComparison.OrdinalIgnoreCase)))actions.Add("approve");
+            if(approve&&independent&&open&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>(d.S("level") is "company_level" or "account_level" or "rider_level")&&AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve")))actions.Add("approve");
             if(manage)actions.Add("dispute");
-            if(approve&&disputes.Any(d=>d.S("status")=="open"&&!name.Equals(d.S("createdBy"),StringComparison.OrdinalIgnoreCase)))actions.Add("resolve");
+            if(approve&&disputes.Any(d=>d.S("status")=="open"&&AccessPolicy.Independent(actor,d.S("createdBy"),"platform.dispute_resolve")))actions.Add("resolve");
             if(approve&&independent&&open&&invoice.S("approvalStatus")=="approved"&&disputes.All(d=>d.S("status")=="resolved")&&parts.All(d=>d.S("level")=="company_level"))
             {try{PlatformPosting.Demand(c,"ninja",tx);actions.Add("post");}catch(ApiError){}}
         }
@@ -46,7 +46,7 @@ public static partial class NinjaInvoices
             if(!independent)blockers.Add("أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر (فصل الصلاحيات).");
             if(!open)blockers.Add("الفترة المحاسبية مغلقة.");
             int unclassified=parts.Count(d=>d.S("level") is not ("company_level" or "account_level" or "rider_level"));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على اليوزر أو على الشركة).");
-            int ownClass=parts.Count(d=>name.Equals(d.S("classifiedBy"),StringComparison.OrdinalIgnoreCase));if(ownClass>0)blockers.Add($"أنت صنّفت {ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.");
+            int ownClass=parts.Count(d=>!AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve"));if(ownClass>0)blockers.Add($"أنت صنّفت {ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.");
         }
         result["approvalBlockers"]=blockers;result["approvalStatus"]=invoice.S("approvalStatus","pending");result["allowedActions"]=actions;result["lines"]=new JsonArray(lines.Select(l=>(JsonNode?)l.Clone()).ToArray());result["disputes"]=new JsonArray(disputes.Select(d=>(JsonNode?)d.Clone()).ToArray());return result;
     }

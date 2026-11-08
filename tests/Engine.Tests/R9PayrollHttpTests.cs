@@ -34,7 +34,7 @@ public sealed class R9PayrollHttpTests
         var preview=await Upload();var invoice=await Upload(preview);string invoicePath="/api/platforms/ninja/invoices/"+Uri.EscapeDataString(invoice.S("id"));
         var lines=(await f.Request(f.Maker,invoicePath+"/lines")).AsArray();var adjustment=lines.OfType<JsonObject>().Single(l=>l.S("lineType")=="company");Assert.AreEqual("SYN-A",adjustment.S("captainId"));
         await f.Request(f.Maker,invoicePath+"/classify",new(){["lineId"]=adjustment.S("id"),["category"]="supplier_adjustment",["level"]="rider_level",["riderId"]=Positive});
-        await f.Request(f.Maker,invoicePath+"/approve",new(),400);await f.Request(f.Checker,invoicePath+"/approve",new());
+        await f.Request(f.Maker,invoicePath+"/approve",new(),403);await f.Request(f.Checker,invoicePath+"/approve",new());
         var columns=ImportCatalog.Steps().Single(s=>s.Key=="ninja_operations").Columns;var rows=new List<object?[]>();
         foreach(var line in lines.OfType<JsonObject>().Where(l=>l.S("lineType")!="company"))
         {

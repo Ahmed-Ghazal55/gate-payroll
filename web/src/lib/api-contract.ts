@@ -8398,6 +8398,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/approval-exceptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every dated self-approval exception use for pre-launch review */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            action: string;
+                            operation: string;
+                            recordId: string;
+                            maker: string;
+                            actor: string;
+                            at: string;
+                            approvalExceptionUntil: string;
+                            selfApprovedException: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/users": {
         parameters: {
             query?: never;
@@ -8415,13 +8461,32 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        }[];
                     };
                 };
             };
@@ -8441,13 +8506,32 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
                     };
                 };
             };
@@ -8482,13 +8566,32 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
                     };
                 };
             };
@@ -8524,13 +8627,32 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
                     };
                 };
             };
@@ -12000,12 +12122,33 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
+                    };
                 };
             };
         };

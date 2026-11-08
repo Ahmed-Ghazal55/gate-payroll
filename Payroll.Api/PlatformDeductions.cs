@@ -59,7 +59,7 @@ public static class PlatformDeductions
         AccessPolicy.Demand(actor,"platforms.hs.approve");if(!FinancialScopes.Platform(actor,"HungerStation"))throw new ApiError("المنصة خارج النطاق المالي.",403);
         var invoice=HungerStationInvoices.GetInvoice(c,tx,actor,invoiceId);J.Need(invoice.S("approvalStatus")=="approved","وسوم الخصم تتطلب وقائع فاتورة معتمدة.");
         var request=invoice.Clone();request["requestedBy"]=invoice.S("createdBy");request["targetDepartment"]="FIN";request["requiredRankLevel"]=1;
-        AccessPolicy.ValidateApproval(actor,request,new JsonObject(),"platforms.hs.approve");int created=0;
+        AccessPolicy.ValidateApproval(actor,request,new JsonObject(),"platforms.hs.approve",c,tx,"platform.hs.deductions_confirmed",invoice);if(invoice.B("selfApprovedException"))Store.Save(c,"platform_invoice",invoice,tx);int created=0;
         var lines=HungerStationInvoices.EffectiveLines(c,tx,invoiceId);
         var allocations=Store.List(c,"platform_allocation",tx).Where(a=>a.S("invoiceId")==invoiceId&&a.S("status")=="approved").ToList();
         J.Need(lines.Where(l=>l.N("tgaAmount")!=0).All(l=>allocations.Any(a=>a.S("lineId")==l.S("id")&&a.N("amount")==Math.Abs(l.N("tgaAmount")))),"لا يمكن تثبيت وسوم TGA قبل اعتماد التوزيع الكامل.");

@@ -98,11 +98,12 @@ public static partial class PayCycles
         }
         cycle["riders"]=summaries;if(summaries.Count==0||summaries.OfType<JsonObject>().Any(r=>r.S("status")!="ready"))cycle["status"]="needs_decision";
     }
-    static bool IndependentReview(ClaimsPrincipal actor,JsonObject row)=>!row.S("reviewedBy").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase)&&!Rows(row["edits"]).OfType<JsonObject>().Any(e=>e.S("by").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase));
+    static bool IndependentReview(ClaimsPrincipal actor,JsonObject row,DbConnection? c=null,DbTransaction? tx=null,JsonObject? cycle=null)=>
+        AccessPolicy.Independent(actor,row.S("reviewedBy"),"pay.salary_review",c,tx,cycle)&&Rows(row["edits"]).OfType<JsonObject>().All(e=>AccessPolicy.Independent(actor,e.S("by"),"pay.salary_edit",c,tx,cycle));
     static bool Approve(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)
     {
-        AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=cycle.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve");
-        J.Need(!Rows(cycle["history"]).OfType<JsonObject>().Any(h=>h.N("stage")<7&&h.S("advancedBy").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase)),"المعتمد مستقل عن تجهيز الدورة.");
+        AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=cycle.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve",c,tx,"pay.salary_approved",cycle);
+        J.Need(Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation",c,tx,cycle)),"المعتمد مستقل عن تجهيز الدورة.");
         var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0).ToList();
         if(batch.Count==0){J.Need(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!=""),"راجع واعتمد صفًا جاهزًا أولًا؛ الحالات المعلقة لا توقف الآخرين.");return true;}
         var skipped=batch.Where(r=>!IndependentReview(actor,r)).ToList();batch=batch.Where(r=>IndependentReview(actor,r)).ToList();
@@ -112,6 +113,7 @@ public static partial class PayCycles
         bool first=cycle.S("journalEntryId")=="";string now=DateTimeOffset.UtcNow.ToString("O");cycle["approvedBy"]=actor.Identity!.Name;cycle["approvedAt"]=now;
         foreach(var row in batch)
         {
+            J.Need(IndependentReview(actor,row,c,tx,cycle),"يلزم مراجع مستقل.",403);
             if(row.N("net")<0)CreateCarry(c,tx,cycle,row,actor);
             SettleOperatingFuel(c,tx,cycle,row,actor);
             row["salaryNet"]=row.N("net");row["salaryApprovedAt"]=now;row["salaryApprovedBy"]=actor.Identity!.Name;row["debtDeductionStatus"]="pending";

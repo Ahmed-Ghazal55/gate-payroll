@@ -65,7 +65,7 @@ public sealed class NinjaPayrollSqlTests
             var wrong=await Upload(selected:"synthetic-r8-wrong-account",expected:400);StringAssert.Contains(wrong.S("error"),"rows 2");
             var preview=await Upload();var invoice=await Upload(preview);string invoiceId=invoice.S("id"),invoicePath="/api/platforms/ninja/invoices/"+Uri.EscapeDataString(invoiceId);Assert.AreEqual("pending",invoice.S("approvalStatus"));
             var sourceLines=(await Request(maker,invoicePath+"/lines")).AsArray();string source=sourceLines[0].S("id");
-            await Request(maker,invoicePath+"/approve",new(),400);
+            await Request(maker,invoicePath+"/approve",new(),403);
             foreach(var (category,level) in new[]{("penalty","account_level"),("naqilBlocked","company_level")})
                 await Request(maker,invoicePath+"/classify",new(){["lineId"]=source,["category"]=category,["level"]=level,["expenseAccount"]="526402"});
             invoice=(await Request(checker,invoicePath+"/approve",new())).AsObject();Assert.AreEqual("approved",invoice.S("approvalStatus"));

@@ -22,7 +22,7 @@ public static partial class HungerStationInvoices
     public static JsonObject Resolve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
         string mode=input.Required("mode");if(mode=="facts")return ReviseFacts(c,tx,actor,id,input);if(mode=="request_reversal")return RequestReversal(c,tx,actor,id,input);
-        J.Need(mode=="dispute","نوع معالجة غير معروف.");Scope(actor,"platforms.hs.approve");var invoice=GetInvoice(c,tx,actor,id).Clone();var dispute=Store.Get(c,input.Required("disputeId"),"platform_dispute",tx)?.Clone()??throw new ApiError("الاعتراض غير موجود.",404);J.Need(dispute.S("invoiceId")==id,"الاعتراض لا يخص الفاتورة.");Independent(actor,dispute);
+        J.Need(mode=="dispute","نوع معالجة غير معروف.");Scope(actor,"platforms.hs.approve");var invoice=GetInvoice(c,tx,actor,id).Clone();var dispute=Store.Get(c,input.Required("disputeId"),"platform_dispute",tx)?.Clone()??throw new ApiError("الاعتراض غير موجود.",404);J.Need(dispute.S("invoiceId")==id,"الاعتراض لا يخص الفاتورة.");Independent(c,tx,actor,dispute);
         if(dispute.S("status")=="resolved")return dispute;string outcome=input.S("outcome");J.Need(outcome is "platform_credit" or "platform_rejected"&&input.S("platformReference").Length is >0 and <=120&&input.S("reason").Length is >0 and <=500,"إثبات رد المنصة ومرجعه وسببه مطلوب؛ لا يحمل CAR لأي طرف.");
         if(outcome=="platform_rejected")
         {

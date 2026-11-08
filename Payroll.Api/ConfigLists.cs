@@ -106,7 +106,7 @@ public static class ConfigLists
         AccessPolicy.Demand(actor,"pay.approve");Group(group);
         var item=Store.Get(c,ItemId(group,code),ItemKind,tx)?.Clone()??throw new ApiError("البند غير موجود.",404);
         var pending=item["pending"] as JsonObject??throw new ApiError("لا يوجد تعديل بانتظار الاعتماد.",409);
-        J.Need(!pending.S("by").Equals(Me(actor),StringComparison.OrdinalIgnoreCase),"الاعتماد لشخص غير مقدم التعديل.",403);
+        J.Need(AccessPolicy.Independent(actor,pending.S("by"),"config.item_approved",c,tx,item),"الاعتماد لشخص غير مقدم التعديل.",403);
         Apply(item,pending,Me(actor));Store.Save(c,ItemKind,item,tx);Store.Audit(c,tx,"config.item_approved",item.S("id"),Me(actor));return item;
     }
     public static JsonObject AddField(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string group,JsonObject input)
