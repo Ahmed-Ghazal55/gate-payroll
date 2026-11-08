@@ -163,6 +163,7 @@ TableExcelApi.Map(api, store);
 UserAccess.Map(api, store);
 RiderDirectory.Map(api, store);
 Debts.Map(api, store);
+DebtOpeningApproval.Map(api, store);
 MobileSessions.Map(app, api, store);
 RiderAsks.Map(app, api, store);
 FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);

@@ -603,6 +603,28 @@ async function handleMockRequest<T>(endpoint: string, options: RequestInit = {})
 }
 
 // Exported typed API methods
+// The API stores debts with totalAmount/remainingBalance (Debts.cs); older UI code reads
+// originalAmount/remainingAmount. Normalise once here so every screen gets numbers, never undefined.
+function num(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+export function normalizeDebt(r: Record<string, unknown>): DebtRecord {
+  const total = num(r.totalAmount ?? r.originalAmount);
+  const remaining = num(r.remainingBalance ?? r.remainingAmount);
+  return {
+    ...(r as unknown as DebtRecord),
+    id: String(r.id ?? ''),
+    iqama: String(r.iqama ?? ''),
+    category: String(r.category ?? ''),
+    originalAmount: total,
+    remainingAmount: remaining,
+    monthlyInstallment: num(r.monthlyInstallment ?? r.monthlyDeduction),
+    status: String(r.status ?? 'pending_approval'),
+    createdAt: String(r.createdAt ?? r.balanceAsOf ?? ''),
+  };
+}
+
 export const api = {
   // Auth
   getAuthStatus: () => handleRequest<{ needsSetup: boolean; environment: string }>('/auth/status'),
@@ -674,6 +696,8 @@ export const api = {
   getCampaigns: () => handleRequest<Campaign[]>('/campaigns'),
   createCampaign: (data: Partial<Campaign> & { days?: number }) => handleRequest<Campaign>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
   closeCampaign: (id: string) => handleRequest<{ ok: boolean }>(`/campaigns/${id}/close`, { method: 'POST' }),
+  updateCampaign: (id: string, input: { expiresAt?: string; status?: 'open' | 'closed'; title?: string }) =>
+    handleRequest<{ ok: boolean }>(`/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
   getCampaignDeletePreview: (id: string) =>
     handleRequest<{ id: string; title: string; responseCount: number; fingerprint: string }>(
       `/campaigns/${id}/delete-preview`
@@ -938,8 +962,14 @@ export const api = {
     if (params?.status) q.set('status', params.status);
     if (params?.iqama) q.set('iqama', params.iqama);
     const qs = q.toString() ? `?${q.toString()}` : '';
-    return handleRequest<DebtRecord[]>(`/debts${qs}`);
+    return handleRequest<Array<Record<string, unknown>>>(`/debts${qs}`).then((rows) => rows.map(normalizeDebt));
   },
+
+  decideOpeningDebts: (input: { ids: string[]; decision: 'approved' | 'rejected'; note?: string }) =>
+    handleRequest<{ decision: string; processed: number; skipped: number; total: number }>('/debts/opening/decide', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 
   getRiderStatement: (iqama: string, from?: string, to?: string, sponsorId?: string) => {
     const q = new URLSearchParams();

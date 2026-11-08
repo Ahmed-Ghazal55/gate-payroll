@@ -443,8 +443,13 @@ export interface DebtRecord {
   remainingAmount: number;
   monthlyDeduction?: number;
   monthlyInstallment?: number;
-  status: 'active' | 'settled' | 'waived' | 'disputed';
+  status: 'active' | 'settled' | 'waived' | 'disputed' | 'pending_approval' | 'cancelled' | string;
   sponsorId?: string;
+  creditorSponsorId?: string;
+  creditorSponsorNameAr?: string;
+  entryMode?: string;
+  balanceAsOf?: string;
+  approvalRequestId?: string;
   createdAt: string;
   notes?: string;
   installments?: Array<{ period: string; amount: number; settled: boolean }>;

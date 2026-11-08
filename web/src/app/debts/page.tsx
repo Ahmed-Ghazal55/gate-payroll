@@ -58,6 +58,32 @@ import type {
 
 type TabId = 'debts' | 'advance_requests' | 'statements' | 'approvals' | 'promissory';
 
+
+const LEGACY_CATEGORY_AR: Record<string, string> = {
+  advance: 'سلفة نقدية',
+  CashAdvance: 'سلفة نقدية',
+  BankAdvance: 'سلفة بنكية',
+  traffic_fine: 'مخالفة مرورية',
+  equipment: 'عهدة ومعدات',
+  hr_cost: 'تكلفة HR',
+};
+function debtCategoryLabel(d: DebtRecord): string {
+  return d.categoryAr || LEGACY_CATEGORY_AR[d.category] || d.category || '—';
+}
+const DEBT_STATUS_AR: Record<string, string> = {
+  active: 'قائم',
+  settled: 'مسدد',
+  waived: 'معفي',
+  disputed: 'متنازع عليه',
+  pending_approval: 'بانتظار الاعتماد',
+  cancelled: 'ملغي',
+};
+function debtStatusLabel(status: string): string {
+  return DEBT_STATUS_AR[status] || status || '—';
+}
+const isPendingOpening = (d: DebtRecord) =>
+  d.entryMode === 'OpeningBalance' && d.status === 'pending_approval' && !d.approvalRequestId;
+
 function DebtsPageContent() {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
@@ -494,8 +520,45 @@ function DebtsPageContent() {
     });
   }, [debts, selectedCategory, selectedStatus, searchQuery]);
 
+  const categoryOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    debts.forEach((d) => m.set(d.category, debtCategoryLabel(d)));
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], 'ar'));
+  }, [debts]);
+
+  // Opening balances from the debt sheet wait for an admin decision (no approval_request exists).
+  const pendingOpening = useMemo(() => debts.filter(isPendingOpening), [debts]);
+  const pendingOpeningTotal = useMemo(() => pendingOpening.reduce((s, d) => s + (d.remainingAmount || 0), 0), [pendingOpening]);
+  const [openingDialog, setOpeningDialog] = useState<null | 'approved' | 'rejected'>(null);
+  const [openingNote, setOpeningNote] = useState('');
+  const [openingIds, setOpeningIds] = useState<string[]>([]);
+  const [openingProgress, setOpeningProgress] = useState<string>('');
+  const decideOpening = async (decision: 'approved' | 'rejected', ids: string[]) => {
+    if (decision === 'rejected' && openingNote.trim().length < 3) {
+      toast('اكتب سبب الرفض (3 أحرف على الأقل)', 'warning');
+      return;
+    }
+    let processed = 0;
+    try {
+      for (let i = 0; i < ids.length; i += 100) {
+        setOpeningProgress(`${Math.min(i + 100, ids.length)} / ${ids.length}`);
+        const r = await api.decideOpeningDebts({ ids: ids.slice(i, i + 100), decision, note: openingNote.trim() });
+        processed += r.processed;
+      }
+      toast(`${decision === 'approved' ? 'تم اعتماد' : 'تم رفض'} ${processed} رصيد افتتاحي`, 'success');
+      setOpeningDialog(null);
+      setOpeningNote('');
+      setDebtDrawerOpen(false);
+    } catch (err: any) {
+      toast(`${err.message || 'تعذر تنفيذ القرار'} — تمت معالجة ${processed} قبل التوقف`, 'danger');
+    } finally {
+      setOpeningProgress('');
+      loadData();
+    }
+  };
+
   // Derived statistics
-  const totalRemainingDebts = useMemo(() => debts.reduce((s, d) => s + (d.remainingAmount || 0), 0), [debts]);
+  const totalRemainingDebts = useMemo(() => debts.filter((d) => d.status === 'active').reduce((s, d) => s + (d.remainingAmount || 0), 0), [debts]);
   const totalAdvances = useMemo(
     () => debts.filter((d) => d.category === 'advance' || d.category === 'CashAdvance' || d.category === 'BankAdvance').reduce((s, d) => s + (d.remainingAmount || 0), 0),
     [debts]
@@ -660,12 +723,9 @@ function DebtsPageContent() {
                 className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] focus:outline-hidden"
               >
                 <option value="all">كافة الفئات</option>
-                <option value="advance">سلف نقدية</option>
-                <option value="CashAdvance">سلفة نقدية (نظام الرتب)</option>
-                <option value="BankAdvance">سلفة بنكية (نظام الرتب)</option>
-                <option value="traffic_fine">مخالفات مرورية</option>
-                <option value="equipment">عهد ومعدات</option>
-                <option value="hr_cost">تكاليف الموارد البشرية</option>
+                {categoryOptions.map(([code, label]) => (
+                  <option key={code} value={code}>{label}</option>
+                ))}
               </select>
 
               <select
@@ -678,9 +738,41 @@ function DebtsPageContent() {
                 <option value="pending_approval">بانتظار الاعتماد</option>
                 <option value="settled">مسدد بالكامل</option>
                 <option value="waived">معفي</option>
+                <option value="cancelled">ملغي / مرفوض</option>
               </select>
             </div>
           </div>
+
+          {isAdmin && pendingOpening.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--warning)]/40 bg-[var(--warning)]/10">
+              <div className="text-xs sm:text-sm text-[var(--ink)]">
+                <div className="font-bold">أرصدة افتتاحية بانتظار الاعتماد</div>
+                <div className="text-[var(--muted)] mt-0.5">
+                  <span className="num font-bold">{pendingOpening.length}</span> مديونية بإجمالي{' '}
+                  <span className="num font-bold">{pendingOpeningTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> ر.س — من شيت المديونيات بتاريخ 31-10-2026. الاعتماد يرحّل قيد الافتتاح في شهر الرصيد.
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedStatus('pending_approval')}
+                  className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] cursor-pointer"
+                >
+                  عرضها للمراجعة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpeningIds(pendingOpening.map((d) => d.id));
+                    setOpeningDialog('approved');
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 cursor-pointer"
+                >
+                  اعتماد الكل
+                </button>
+              </div>
+            </div>
+          )}
 
           {error ? (
             <ErrorState title="تعذر تحميل بيانات المديونيات" message={error} onRetry={loadData} />
@@ -718,24 +810,14 @@ function DebtsPageContent() {
                         <td className="p-3 font-semibold">{d.riderName || 'مندوب مسجل'}</td>
                         <td className="p-3">
                           <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
-                            {d.category === 'advance' || d.category === 'CashAdvance'
-                              ? 'سلفة نقدية'
-                              : d.category === 'BankAdvance'
-                              ? 'سلفة بنكية'
-                              : d.category === 'traffic_fine'
-                              ? 'مخالفة مرورية'
-                              : d.category === 'equipment'
-                              ? 'عهدة ومعدات'
-                              : d.category === 'hr_cost'
-                              ? 'تكلفة HR'
-                              : d.category}
+                            {debtCategoryLabel(d)}
                           </span>
                         </td>
                         <td className="p-3 num text-[var(--muted)]">
-                          {d.originalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          {(d.originalAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                         </td>
                         <td className="p-3 num font-bold text-sm text-[var(--danger)]">
-                          {d.remainingAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          {(d.remainingAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                         </td>
                         <td className="p-3 num text-[var(--muted)]">
                           {(d.monthlyInstallment || d.monthlyDeduction || 0) > 0
@@ -752,7 +834,7 @@ function DebtsPageContent() {
                                 : 'bg-[var(--warning)]/10 text-[var(--warning)]'
                             }`}
                           >
-                            {d.status === 'active' ? 'قائم' : d.status === 'settled' ? 'مسدد' : 'بانتظار الاعتماد'}
+                            {debtStatusLabel(d.status)}
                           </span>
                         </td>
                         <td className="p-3">
@@ -2059,19 +2141,19 @@ function DebtsPageContent() {
           setSelectedDebt(null);
         }}
         title={`تفاصيل المديونية: ${selectedDebt?.iqama || ''}`}
-        subtitle={`فئة البند: ${selectedDebt?.category || ''}`}
+        subtitle={`فئة البند: ${selectedDebt ? debtCategoryLabel(selectedDebt) : ''}`}
       >
         {selectedDebt && (
           <div className="space-y-4">
             <div className="p-4 rounded-xl bg-[var(--raised)] space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المبلغ الأصلي:</span>
-                <span className="font-bold num">{selectedDebt.originalAmount.toLocaleString('en-US')} ر.س</span>
+                <span className="font-bold num">{(selectedDebt.originalAmount ?? 0).toLocaleString('en-US')} ر.س</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المتبقي:</span>
                 <span className="font-bold num text-[var(--danger)]">
-                  {selectedDebt.remainingAmount.toLocaleString('en-US')} ر.س
+                  {(selectedDebt.remainingAmount ?? 0).toLocaleString('en-US')} ر.س
                 </span>
               </div>
               <div className="flex justify-between">
@@ -2086,9 +2168,71 @@ function DebtsPageContent() {
                 {selectedDebt.notes || 'لا توجد ملاحظات إضافية مسجلة على هذه المديونية.'}
               </p>
             </div>
+
+            {isAdmin && isPendingOpening(selectedDebt) && (
+              <div className="flex items-center gap-2 pt-2 border-t border-[var(--line)]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpeningIds([selectedDebt.id]);
+                    setOpeningDialog('approved');
+                  }}
+                  className="flex-1 px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 cursor-pointer"
+                >
+                  اعتماد الرصيد الافتتاحي
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpeningIds([selectedDebt.id]);
+                    setOpeningDialog('rejected');
+                  }}
+                  className="flex-1 px-3 py-2 rounded-xl border border-[var(--danger)]/50 text-[var(--danger)] text-xs font-bold hover:bg-[var(--danger)]/10 cursor-pointer"
+                >
+                  رفض
+                </button>
+              </div>
+            )}
           </div>
         )}
       </Drawer>
+
+      <Dialog
+        open={openingDialog !== null}
+        onClose={() => (openingProgress ? null : setOpeningDialog(null))}
+        title={openingDialog === 'rejected' ? 'رفض رصيد افتتاحي' : 'اعتماد أرصدة افتتاحية'}
+        description={`${openingIds.length} مديونية — ${openingDialog === 'rejected' ? 'تُلغى ولا يُرحّل لها قيد.' : 'تصبح قائمة ويُرحّل قيد الافتتاح (ذمم المندوب / 3101) في شهر الرصيد.'}`}
+        actions={
+          <>
+            <button
+              type="button"
+              disabled={!!openingProgress}
+              onClick={() => setOpeningDialog(null)}
+              className="px-4 py-2 rounded-xl border border-[var(--line)] text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] cursor-pointer disabled:opacity-50"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={!!openingProgress}
+              onClick={() => openingDialog && decideOpening(openingDialog, openingIds)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 ${openingDialog === 'rejected' ? 'bg-[var(--danger)] text-white' : 'bg-[var(--accent)] text-[var(--accent-ink)]'}`}
+            >
+              {openingProgress ? `جاري التنفيذ ${openingProgress}` : openingDialog === 'rejected' ? 'تأكيد الرفض' : 'تأكيد الاعتماد'}
+            </button>
+          </>
+        }
+      >
+        <label className="block space-y-1.5 text-xs">
+          <span className="font-semibold text-[var(--ink)]">{openingDialog === 'rejected' ? 'سبب الرفض (إلزامي)' : 'ملاحظة (اختياري)'}</span>
+          <textarea
+            value={openingNote}
+            onChange={(e) => setOpeningNote(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden"
+          />
+        </label>
+      </Dialog>
     </div>
   );
 }
