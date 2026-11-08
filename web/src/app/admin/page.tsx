@@ -931,7 +931,7 @@ function AdminPageInner() {
                         setQueryOperation(e.target.value);
                         loadResponsible(e.target.value);
                       }}
-                      className="p-1.5 rounded-xl border border-[var(--line)] text-xs font-mono font-bold focus:outline-hidden"
+                      className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-mono font-bold focus:outline-hidden"
                     >
                       <option value="advance.review">advance.review (مراجعة السلف)</option>
                       <option value="advance.payout:MAIN.BW.DEBT">advance.payout:MAIN.BW.DEBT (صرف كفيل BW نقدية)</option>
@@ -1079,7 +1079,7 @@ function AdminPageInner() {
               <select
                 value={auditActionFilter}
                 onChange={(e) => setAuditActionFilter(e.target.value)}
-                className="bg-[var(--surface)] border border-[var(--line)] text-xs rounded-xl px-3 py-1.5 focus:outline-hidden"
+                className="bg-[var(--surface)] text-[var(--ink)] border border-[var(--line)] text-xs rounded-xl px-3 py-1.5 focus:outline-hidden"
               >
                 <option value="all">كل التصنيفات</option>
                 <option value="advance">السلف والرتب</option>
@@ -1229,7 +1229,7 @@ function AdminPageInner() {
               <select
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
                 <option value="Accountant">محاسب (Accountant)</option>
                 <option value="Reviewer">مراجع ومدقق (Reviewer)</option>
@@ -1243,7 +1243,7 @@ function AdminPageInner() {
               <select
                 value={newDept}
                 onChange={(e) => setNewDept(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
                 <option value="FIN">المالية والحسابات (FIN)</option>
                 <option value="OPS">التشغيل الميداني (OPS)</option>
@@ -1300,7 +1300,7 @@ function AdminPageInner() {
                 id="select-mem-dept"
                 value={memDept}
                 onChange={(e) => setMemDept(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
                 <option value="FIN">المالية والحسابات (FIN)</option>
                 <option value="OPS">التشغيل الميداني (OPS)</option>
@@ -1316,7 +1316,7 @@ function AdminPageInner() {
                 id="select-mem-rank"
                 value={memRank}
                 onChange={(e) => setMemRank(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-bold focus:outline-hidden"
               >
                 <option value="A+">رتبة A+ (قيادي)</option>
                 <option value="A">رتبة A (أول)</option>
@@ -1572,7 +1572,7 @@ function AdminPageInner() {
                 id="select-route-dept"
                 value={routeDept}
                 onChange={(e) => setRouteDept(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
                 <option value="FIN">المالية والحسابات (FIN)</option>
                 <option value="OPS">التشغيل الميداني (OPS)</option>
@@ -1587,7 +1587,7 @@ function AdminPageInner() {
                 id="select-route-minrank"
                 value={routeMinRank}
                 onChange={(e) => setRouteMinRank(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold focus:outline-hidden"
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-bold focus:outline-hidden"
               >
                 <option value="A+">رتبة A+ (قيادي فقط)</option>
                 <option value="A">رتبة A أو أعلى</option>

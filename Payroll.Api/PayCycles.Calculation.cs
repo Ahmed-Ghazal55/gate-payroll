@@ -93,7 +93,11 @@ public static partial class PayCycles
             Debts.Post(c,tx,new(id,cycle.S("period"),"pay_cycle",0,rider.N("net"),rider.N("net"),rider.N("net"),0,0,payLines,[]),cycle.S("id"),payCycle:true);
         }
         foreach(var review in Rows(cycle["invoices"]).OfType<JsonObject>())
-        {var invoice=Store.Get(c,review.S("invoiceId"),"platform_invoice",tx)!;if(invoice.S("payCycleId")!=cycle.S("id"))continue;invoice["approvalStatus"]="approved";invoice["approvedBy"]=actor.Identity!.Name;invoice["approvedAt"]=cycle.S("approvedAt");invoice["journalEntryId"]=journal.S("id");Store.Save(c,"platform_invoice",invoice,tx);}
+        {
+            var invoice=Store.Get(c,review.S("invoiceId"),"platform_invoice",tx)!;
+            if(invoice.S("approvalStatus")=="cycle_pending"){invoice["approvalStatus"]="approved";invoice["approvedBy"]=actor.Identity!.Name;invoice["approvedAt"]=cycle.S("approvedAt");}
+            invoice["payCycleId"]=cycle.S("id");invoice["journalEntryId"]=journal.S("id");invoice["accountingStatus"]="posted";Store.Save(c,"platform_invoice",invoice,tx);
+        }
         cycle["debtAfter"]=new JsonArray(Rows(cycle["debtBefore"]).OfType<JsonObject>().Select(d=>(JsonNode?)Store.Get(c,d.S("id"),"debt",tx)!.Clone()).ToArray());
     }
     static JsonObject PostEarnings(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)

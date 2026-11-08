@@ -9,7 +9,7 @@ public static class GlobalSearch
     public static IReadOnlyList<Hit> Search(DbConnection c,ClaimsPrincipal user,string query)
     {
         string q=query.Trim();J.Need(q.Length is >=2 and <=200,"اكتب حرفين على الأقل وبحد أقصى 200 حرف للبحث.");
-        bool Match(params string[] values)=>values.Any(value=>value.Contains(q,StringComparison.OrdinalIgnoreCase));
+        bool Match(params string[] values)=>TextSearch.Matches(q,values);
         var hits=new List<Hit>();
         // Use the same policy gates, projections and record scope as each collection.
         if(AccessPolicy.Allowed(user,"GET","/api/riders"))

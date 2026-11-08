@@ -70,15 +70,43 @@ public static class ManualJournals
         var lines=new JsonArray();foreach(var line in journal["lines"]!.AsArray().OfType<JsonObject>())lines.Add(new JsonObject{["accountCode"]=line.S("accountCode"),["debit"]=line.N("credit"),["credit"]=line.N("debit"),["note"]=reason});
         var reversal=Create(c,tx,actor,new(){["companyId"]=original.S("companyId"),["date"]=input.Required("date"),["reference"]="REV:"+id,["description"]=reason,["lines"]=lines});reversal["reversesJournalId"]=journal.S("id");reversal["reversesManualJournalId"]=id;Store.Save(c,Kind,reversal,tx);return reversal;
     }
+    // Checker rejects with a reason; the draft stays for audit. Only a draft can be rejected.
+    public static JsonObject Reject(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
+    {
+        var draft=Get(c,tx,actor,id,ApprovePermission);J.Need(!string.Equals(actor.Identity!.Name,draft.S("createdBy"),StringComparison.OrdinalIgnoreCase),"صاحب المسودة يحذفها ولا يرفضها.",403);
+        J.Need(draft.S("status")=="draft","الرفض للمسودة فقط؛ القيد المعتمد يُعكس.");PayValues.Fields(input,"reason");string reason=input.Required("reason");J.Need(reason.Length is >=3 and <=1000,"سبب الرفض من 3 إلى 1000 حرف.");
+        draft["status"]="rejected";draft["rejectionReason"]=reason;draft["rejectedBy"]=actor.Identity!.Name;draft["rejectedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,Kind,draft,tx);Store.Audit(c,tx,"finance.manual_rejected",id,actor.Identity!.Name!);return WithActions(actor,draft,c,tx);
+    }
+    // The author (or an administrator) removes a draft or a rejected draft; nothing was posted, so nothing is reversed.
+    public static JsonObject Delete(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
+    {
+        var draft=Get(c,tx,actor,id,CreatePermission);J.Need(draft.S("status") is "draft" or "rejected","الحذف للمسودة أو المرفوضة فقط؛ القيد المعتمد يُعكس.");
+        if(!AccessPolicy.Administrator(actor)&&!string.Equals(actor.Identity!.Name,draft.S("createdBy"),StringComparison.OrdinalIgnoreCase))throw new ApiError("المسودة لصاحبها أو مسؤول النظام فقط.",403);
+        foreach(var (rid,kind) in new[]{(id,Kind),(draft.S("attachmentId"),"financial_attachment")}.Where(x=>x.Item1!=""))
+        {using var command=Store.Command(c,tx,"DELETE FROM records WHERE id=@id AND kind=@kind",("@id",rid),("@kind",kind));command.ExecuteNonQuery();}
+        Store.Audit(c,tx,"finance.manual_deleted",id,actor.Identity!.Name!);return new(){["id"]=id,["deleted"]=true};
+    }
+    // The UI renders buttons from this list only, so it never offers an action the API will refuse.
+    public static JsonObject WithActions(ClaimsPrincipal actor,JsonObject d,DbConnection c,DbTransaction? tx)
+    {
+        string me=actor.Identity?.Name??"";bool author=string.Equals(me,d.S("createdBy"),StringComparison.OrdinalIgnoreCase),admin=AccessPolicy.Administrator(actor);
+        var actions=new JsonArray();string status=d.S("status");
+        if(status=="draft"&&!author&&AccessPolicy.Has(actor,ApprovePermission)){actions.Add((JsonNode)"approve");actions.Add((JsonNode)"reject");}
+        if(status is "draft" or "rejected"&&(author||admin)&&AccessPolicy.Has(actor,CreatePermission))actions.Add((JsonNode)"delete");
+        if(status=="approved"&&d.S("reversesJournalId")==""&&AccessPolicy.Has(actor,CreatePermission)&&!Store.List(c,Kind,tx).Any(x=>x.S("reversesManualJournalId")==d.S("id")&&x.S("status")!="rejected"))actions.Add((JsonNode)"reverse");
+        var copy=d.DeepClone().AsObject();copy["allowedActions"]=actions;return copy;
+    }
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapPost("/finance/journals/manual",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Create(c,tx,ctx.User,input))).WithTags("Accounting and reports").WithSummary("Draft a balanced manual target-chart journal in an open company period");
         api.MapPost("/finance/journals/manual/{id}/approve",(string id,HttpContext ctx)=>store.Write((c,tx)=>Approve(c,tx,ctx.User,id))).WithTags("Accounting and reports").WithSummary("Independently approve a manual journal or its reversal");
+        api.MapPost("/finance/journals/manual/{id}/reject",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Reject(c,tx,ctx.User,id,input))).WithTags("Accounting and reports").WithSummary("Reject a manual journal draft with a reason (checker only)");
+        api.MapDelete("/finance/journals/manual/{id}",(string id,HttpContext ctx)=>store.Write((c,tx)=>Delete(c,tx,ctx.User,id))).WithTags("Accounting and reports").WithSummary("Delete an unposted manual journal draft (author or administrator)");
         api.MapPost("/finance/journals/manual/{id}/reverse",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Reverse(c,tx,ctx.User,id,input))).WithTags("Accounting and reports").WithSummary("Create a reasoned open-period reversal draft requiring independent approval");
         api.MapGet("/finance/journals/manual",(HttpContext ctx)=>
         {
             if(!AccessPolicy.Has(ctx.User,CreatePermission)&&!AccessPolicy.Has(ctx.User,ApprovePermission))throw new ApiError("صلاحية القيد اليدوي مطلوبة.",403);
-            return store.Read(c=>ApiPagination.Apply(Store.List(c,Kind).Where(d=>(ctx.Request.Query["status"].Count==0||d.S("status")==ctx.Request.Query["status"])&&FinancialScopes.Sponsor(ctx.User,d.S("companyId"))&&d["lines"]!.AsArray().OfType<JsonObject>().All(l=>FinancialScopes.TargetAccount(ctx.User,d.S("companyId"),l.S("accountCode")))),ctx.Request.Query,true));
+            return store.Read(c=>ApiPagination.Apply(Store.List(c,Kind).Where(d=>(ctx.Request.Query["status"].Count==0||d.S("status")==ctx.Request.Query["status"])&&FinancialScopes.Sponsor(ctx.User,d.S("companyId"))&&d["lines"]!.AsArray().OfType<JsonObject>().All(l=>FinancialScopes.TargetAccount(ctx.User,d.S("companyId"),l.S("accountCode")))).Select(d=>WithActions(ctx.User,d,c,null)),ctx.Request.Query,true));
         }).WithTags("Accounting and reports").WithSummary("List scoped manual journal drafts and approvals");
         api.MapGet("/finance/journals/manual/{id}/attachment",(string id,HttpContext ctx)=>store.Read(c=>
         {

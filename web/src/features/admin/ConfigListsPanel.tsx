@@ -463,7 +463,7 @@ export function ConfigListsPanel() {
                 <select
                   value={itemValues[f.key] ?? ''}
                   onChange={(e) => setItemValues({ ...itemValues, [f.key]: e.target.value })}
-                  className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs"
+                  className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
                 >
                   <option value="">-- اختر {f.labelAr} --</option>
                   {f.options.map((opt) => (
@@ -570,7 +570,7 @@ export function ConfigListsPanel() {
             <select
               value={fieldType}
               onChange={(e) => setFieldType(e.target.value as any)}
-              className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs"
+              className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
             >
               <option value="text">نص (Text)</option>
               <option value="number">رقمي (Number)</option>

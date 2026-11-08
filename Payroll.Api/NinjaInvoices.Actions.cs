@@ -1,0 +1,37 @@
+using System.Data.Common;
+using System.Security.Claims;
+using System.Text.Json.Nodes;
+namespace Payroll;
+
+public static partial class NinjaInvoices
+{
+    static HashSet<string>? Selection(DbConnection c,DbTransaction? tx,JsonObject input,string company)
+    {
+        if(!input.ContainsKey("accountIds"))return null;
+        J.Need(input["accountIds"] is JsonArray,"accountIds يجب أن تكون قائمة.");
+        var values=input["accountIds"]!.AsArray();J.Need(values.Count is >0 and <=1000&&values.All(v=>v is JsonValue j&&j.TryGetValue<string>(out var s)&&!string.IsNullOrWhiteSpace(s)),"حدد حسابات صالحة.");
+        var selected=values.Select(v=>v!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);J.Need(selected.Count==values.Count,"حساب مكرر في الاختيار.");
+        foreach(string id in selected)
+        {var account=Store.Get(c,id,"platform_account",tx);J.Need(account!=null&&account.S("companyId")==company&&PayPlatforms.For(account.S("platformCode")).App=="ninja","الحساب المختار خارج شركة نينجا.");}
+        return selected;
+    }
+    static bool InCycle(DbConnection c,DbTransaction? tx,string id)=>Store.List(c,PayCycles.Kind,tx).Any(p=>p.S("status") is not ("cancelled" or "reversed")&&(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==id));
+    public static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject invoice)
+    {
+        Scope(actor,"pay.view",invoice.S("companyId"));var result=invoice.Clone();var actions=new JsonArray();string name=actor.Identity!.Name!;
+        var lines=Lines(c,tx,invoice.S("id"));var parts=lines.SelectMany(l=>(l["deductions"] as JsonArray??[]).OfType<JsonObject>()).ToList();
+        var disputes=Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==invoice.S("id")).ToList();
+        bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve"),independent=!name.Equals(invoice.S("createdBy"),StringComparison.OrdinalIgnoreCase),cycle=InCycle(c,tx,invoice.S("id")),posted=invoice.S("journalEntryId")!="",open=!Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==invoice.S("companyId")&&p.S("period")==invoice.S("period")&&p.S("status")=="closed");
+        if(!posted&&!cycle)
+        {
+            if(manage&&invoice.S("approvalStatus")=="pending"&&parts.Count>0)actions.Add("classify");
+            if(approve&&independent&&open&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>(d.S("level") is "company_level" or "account_level")&&!name.Equals(d.S("classifiedBy"),StringComparison.OrdinalIgnoreCase)))actions.Add("approve");
+            if(manage)actions.Add("dispute");
+            if(approve&&disputes.Any(d=>d.S("status")=="open"&&!name.Equals(d.S("createdBy"),StringComparison.OrdinalIgnoreCase)))actions.Add("resolve");
+            if(approve&&independent&&open&&invoice.S("approvalStatus")=="approved"&&disputes.All(d=>d.S("status")=="resolved")&&parts.All(d=>d.S("level")=="company_level"))
+            {try{PlatformPosting.Demand(c,"ninja",tx);actions.Add("post");}catch(ApiError){}}
+        }
+        result["approvalStatus"]=invoice.S("approvalStatus","pending");result["allowedActions"]=actions;result["lines"]=new JsonArray(lines.Select(l=>(JsonNode?)l.Clone()).ToArray());result["disputes"]=new JsonArray(disputes.Select(d=>(JsonNode?)d.Clone()).ToArray());return result;
+    }
+    static JsonObject Act(Store store,HttpContext ctx,string id,Func<DbConnection,DbTransaction,JsonObject> action)=>store.Write((c,tx)=>{action(c,tx);return View(c,tx,ctx.User,Get(c,tx,ctx.User,id));});
+}

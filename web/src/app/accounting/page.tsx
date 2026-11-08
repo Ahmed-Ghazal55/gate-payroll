@@ -47,6 +47,13 @@ import type {
   FinanceJournalLine,
 } from '../../lib/types';
 
+const COMPANY_NAME_MAP: Record<string, string> = {
+  BW: 'شركة البوابة المقبلة (BW)',
+  EX: 'شركة إكسبرس جايت (EX)',
+  TR: 'مؤسسة النقل والتوزيع (TR)',
+  all: 'كافة المنشآت والسجلات',
+};
+
 function AccountingPageContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -910,6 +917,18 @@ function AccountingPageContent() {
 
                 return (
                   <div key={company.sponsorId || company.companyCode} className="space-y-4">
+                    {/* Header Line: Company & Period */}
+                    <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <Building size={15} className="text-[var(--accent)]" />
+                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
+                        <Calendar size={14} />
+                        <span>الفترة: <strong className="text-[var(--ink)]">{trialData.from || periodMonth} — {trialData.to || periodMonth}</strong></span>
+                      </div>
+                    </div>
+
                     {/* Balanced status banner */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-[var(--surface)] border border-[var(--line)] shadow-xs">
                       <div className="flex items-center gap-3">
@@ -1151,6 +1170,18 @@ function AccountingPageContent() {
 
                 return (
                   <div key={company.sponsorId || company.companyCode} className="space-y-6">
+                    {/* Header Line: Company & Period */}
+                    <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <Building size={15} className="text-[var(--accent)]" />
+                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
+                        <Calendar size={14} />
+                        <span>الفترة: <strong className="text-[var(--ink)]">{incomeData.from || periodMonth} — {incomeData.to || periodMonth}</strong></span>
+                      </div>
+                    </div>
+
                     {/* 3 Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--line)] shadow-xs">

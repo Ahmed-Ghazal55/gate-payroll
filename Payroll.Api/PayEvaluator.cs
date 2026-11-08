@@ -59,7 +59,7 @@ public static class PayEvaluator
             else
             {
                 Approved(eligibility,app,facts.Period);J.Need(eligibility.S("id")==data.S("eligibilitySetId"),"نسخة الأهلية لا تطابق النظام.");PaySettings.Validate("pay_eligibility",app,eligibility["data"]!.AsObject());
-                foreach(var rule in eligibility["data"]!["rules"]!.AsArray().OfType<JsonObject>())
+                foreach(var rule in eligibility["data"]!["rules"]!.AsArray().OfType<JsonObject>().Where(r=>!r.ContainsKey("included")||r.B("included")))
                 {
                     var observed=Metric(facts,rule.S("metric"),days);if(observed==null){blockers.Add("metric_missing:"+rule.S("metric"));continue;}if(Compare(observed.Value,rule.S("operator"),rule.N("threshold")))continue;
                     string effect=rule["effect"].S("type");zero|=effect=="zero";fallback|=effect=="per_order";if(effect=="next_band")nextBands++;

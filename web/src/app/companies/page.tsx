@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   ChevronRight,
   Eye,
+  EyeOff,
   FileSpreadsheet,
   X,
   Sparkles,
@@ -171,6 +172,29 @@ export default function CompaniesPage() {
   const [docExpiryDate, setDocExpiryDate] = useState('');
   const [docFile, setDocFile] = useState<File | null>(null);
   const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  // User balance visibility preference (per user, localStorage, try/catch)
+  const [showBalances, setShowBalances] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      const saved = localStorage.getItem('gate_show_balances');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleShowBalances = () => {
+    setShowBalances((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('gate_show_balances', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   // Import Modal State (Admin only)
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -424,7 +448,17 @@ export default function CompaniesPage() {
               }
             : undefined
         }
-      />
+      >
+        <button
+          type="button"
+          onClick={toggleShowBalances}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] active:scale-[0.98] transition shadow-xs"
+          title={showBalances ? 'إخفاء الأرصدة ورؤوس الأموال' : 'إظهار الأرصدة ورؤوس الأموال'}
+        >
+          {showBalances ? <EyeOff size={15} /> : <Eye size={15} />}
+          <span>{showBalances ? 'إخفاء الأرصدة' : 'إظهار الأرصدة'}</span>
+        </button>
+      </PageHeader>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -449,7 +483,7 @@ export default function CompaniesPage() {
         />
         <StatCard
           label="إجمالي رأس المال المثبت"
-          value={totalCapital.toLocaleString('en-US') + ' ر.س'}
+          value={showBalances ? totalCapital.toLocaleString('en-US') + ' ر.س' : '••••••••'}
           hint="رأس المال الكلي في السجلات"
           icon={Coins}
         />
@@ -592,7 +626,11 @@ export default function CompaniesPage() {
                           {c.city || 'جدة'}
                         </td>
                         <td className="py-3 px-4 font-mono text-xs num">
-                          {c.capitalSar ? Number(c.capitalSar).toLocaleString('en-US') + ' ر.س' : '—'}
+                          {c.capitalSar
+                            ? showBalances
+                              ? Number(c.capitalSar).toLocaleString('en-US') + ' ر.س'
+                              : '••••••••'
+                            : '—'}
                         </td>
                         <td className="py-3 px-4 font-mono text-xs num">
                           {c.sponsoredRidersCount ? (
@@ -911,7 +949,9 @@ export default function CompaniesPage() {
                     <span className="text-[var(--muted)] block mb-1">رأس المال المثبت</span>
                     <strong className="font-mono text-sm num text-[var(--money-pos)]">
                       {selectedCompany.capitalSar
-                        ? Number(selectedCompany.capitalSar).toLocaleString('en-US') + ' ر.س'
+                        ? showBalances
+                          ? Number(selectedCompany.capitalSar).toLocaleString('en-US') + ' ر.س'
+                          : '••••••••'
                         : '—'}
                     </strong>
                   </div>

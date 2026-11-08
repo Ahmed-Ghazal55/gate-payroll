@@ -28,8 +28,9 @@ public static class ApiPagination
             return value;
         }
         int page=Positive("page",1),pageSize=Math.Min(Positive("pageSize",50),200);
-        string q=query["q"].ToString().Trim(),sort=query["sort"].ToString();
-        if(q.Length>0)rows=rows.Where(r=>Text(r).Contains(q,StringComparison.OrdinalIgnoreCase)).ToList();
+        // `search` is the older UI name for `q`; both use the shared Arabic/digit normaliser.
+        string q=(query.ContainsKey("q")?query["q"]:query["search"]).ToString().Trim(),sort=query["sort"].ToString();
+        if(q.Length>0)rows=rows.Where(r=>TextSearch.Matches(q,Text(r))).ToList();
         if(sort.Length>0)
         {
             string field=sort.TrimStart('-');

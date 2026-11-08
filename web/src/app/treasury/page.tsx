@@ -589,7 +589,7 @@ function TreasuryPageContent() {
                 <select
                   value={selectedSponsor}
                   onChange={(e) => setSelectedSponsor(e.target.value)}
-                  className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold focus:outline-hidden"
+                  className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
                 >
                   <option value="all">كافة الكفلاء والشركات</option>
                   <option value="BW">بوابات الوطن (BW)</option>
