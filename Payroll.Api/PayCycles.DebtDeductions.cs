@@ -74,6 +74,7 @@ public static partial class PayCycles
         }
         else
         {
+            var payables=Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>Rows(j["lines"]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("accountCode")=="212103").GroupBy(l=>l.S("iqama")).ToDictionary(g=>g.Key,g=>g.Sum(l=>l.N("credit")-l.N("debit")));
             foreach(var row in rows.Where(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed"))
             {
                 J.Need(!row.S("debtSelectedBy",cycle.S("createdBy")).Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase),"مؤكد الخصم غير من اختار القسط.",403);
@@ -87,7 +88,7 @@ public static partial class PayCycles
                     if(amount>0){payLines.Add(new("debt_installment","قسط معتمد بعد الراتب",-amount,d.S("source")));total+=amount;}
                 }
                 J.Need(total<=Math.Max(0,row.N("salaryNet")),"الاستقطاع يتجاوز الصافي الموجب.");
-                decimal payable=Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>Rows(j["lines"]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("iqama")==row.S("rider")&&l.S("accountCode")=="212103").Sum(l=>l.N("credit")-l.N("debit"));
+                decimal payable=payables.GetValueOrDefault(row.S("rider"));
                 J.Need(total<=Math.Max(0,payable),"الصافي المتاح تغير بعد صرف أو تسوية؛ أعد المراجعة.");
                 cycle["debtDeductionApprovedBy"]=actor.Identity!.Name;Store.Save(c,Kind,cycle,tx);
                 Debts.Post(c,tx,new(row.S("rider"),cycle.S("period"),"pay_cycle",0,row.N("salaryNet"),row.N("salaryNet"),row.N("salaryNet"),0,0,payLines,[]),id,payCycle:true);
