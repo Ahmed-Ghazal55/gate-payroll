@@ -163,6 +163,7 @@ GlobalSearch.Map(api,store);
 ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);
 UserAccess.Map(api, store);
+AccessPolicy.MapBypass(api, store);
 RiderDirectory.Map(api, store);
 Debts.Map(api, store);
 DebtOpeningApproval.Map(api, store);
@@ -183,7 +184,7 @@ InquiryApi.Map(app, api, store);
 api.MapGet("/me", (HttpContext ctx) =>
 {
     var u = store.Read(c => UserAccess.Find(c, ctx.User.Identity?.Name ?? ""));
-    if (u != null) return Results.Ok(UserAccess.Public(u));
+    if (u != null) return Results.Ok(store.Read(c=>UserAccess.PublicWithBypass(c,null,u)));
     return Results.Ok(new { username = ctx.User.Identity!.Name, role = ctx.User.FindFirstValue(ClaimTypes.Role), permissions=ctx.User.FindAll("permission").Select(p=>p.Value),department=ctx.User.FindFirstValue("department"),rankLevel=ctx.User.FindFirstValue("rankLevel"), id = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) });
 }).WithTags("Administration").WithSummary("Read me");
 api.MapGet("/dashboard", (HttpContext ctx) => store.Read(c => new { riders = Store.List(c, "rider").Count(ErpRiderClassification.ListedAsRider), imports = Store.List(c, "batch").Count, pendingResponses = Store.List(c, "submission").Count(x => x.S("status") == "pending"), approvedRuns = Store.List(c, "run").Count, balance = Store.List(c, "ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)).Sum(x => x.N("amount")), latestAudit = Store.List(c, "audit").Where(_=>AccessPolicy.Administrator(ctx.User)).Take(8) })).WithTags("Home").WithSummary("Read dashboard");

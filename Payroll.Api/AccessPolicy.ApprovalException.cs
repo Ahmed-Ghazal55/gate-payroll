@@ -17,13 +17,32 @@ public static partial class AccessPolicy
     {
         if(!string.Equals(actor.Identity?.Name,maker,StringComparison.OrdinalIgnoreCase))return true;
         if(evidenceAt is {} approved)
-            return c!=null&&record?.B("selfApprovedException")==true&&string.Equals(actor.Identity?.Name,"ghazal",StringComparison.OrdinalIgnoreCase)&&Store.List(c,"audit",tx).Any(a=>a.S("action")=="approval.self_exception"&&a.S("recordId")==record.S("id")&&a.S("actor").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase)&&DateTimeOffset.TryParse(a.S("at"),out var used)&&used<=approved&&used>=approved.AddMinutes(-5)&&string.CompareOrdinal(a.S("approvalExceptionUntil"),used.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"))>=0);
-        if(!ApprovalException(actor))return false;
+        {
+            // Historical evidence: keep dated ghazal rows and new bypass audits valid.
+            if(c==null||record?.B("selfApprovedException")!=true)return false;
+            return Store.List(c,"audit",tx).Any(a=>
+                a.S("recordId")==record.S("id")&&a.S("actor").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase)
+                &&DateTimeOffset.TryParse(a.S("at"),out var used)&&used<=approved&&used>=approved.AddMinutes(-5)
+                &&(a.S("action")=="approval.bypass_maker_checker"
+                   ||(a.S("action")=="approval.self_exception"&&string.Equals(actor.Identity.Name,"ghazal",StringComparison.OrdinalIgnoreCase)
+                      &&string.CompareOrdinal(a.S("approvalExceptionUntil"),used.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"))>=0)));
+        }
+        var grant=c!=null?ActiveBypassGrant(c,tx,actor.Identity!.Name!):null;
+        bool bypass=grant!=null||BypassActive(actor,c,tx)||ApprovalException(actor);
+        if(!bypass)return false;
         if(tx!=null)
         {
             J.Need(c!=null&&record!=null&&record.S("id")!="","استثناء الاعتماد يحتاج مستندًا وسجل مراجعة.",409);
             record!["selfApprovedException"]=true;
-            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.self_exception",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["approvalExceptionUntil"]=actor.FindFirstValue("approvalExceptionUntil"),["selfApprovedException"]=true},tx);
+            if(grant!=null||BypassActive(actor,c,tx))
+            {
+                grant??=ActiveBypassGrant(c!,tx,actor.Identity!.Name!);
+                Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant?.S("id")??"",["reason"]=grant?.S("reason")??actor.FindFirstValue("approvalBypassReason")??"",["approvalBypassUntil"]=grant?.S("to")??actor.FindFirstValue("approvalBypassUntil")??"",["selfApprovedException"]=true,["badge"]="bypass_maker_checker"},tx);
+            }
+            else
+            {
+                Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.self_exception",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["approvalExceptionUntil"]=actor.FindFirstValue("approvalExceptionUntil"),["selfApprovedException"]=true},tx);
+            }
         }
         return true;
     }

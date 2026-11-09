@@ -155,7 +155,7 @@ public static partial class AccessPolicy
     {
         Demand(actor,permission);
         string name=actor.Identity?.Name??"";
-        J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو استثناء ghazal مؤرخ وسارٍ.",403);
+        J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
         if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))
             J.Need(Independent(actor,name,operation+".department_rank",c,tx,record??request),"القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
     }
