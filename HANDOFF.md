@@ -6,9 +6,10 @@
 | Branch | release/0.20.0 |
 | Updated | 2026-11-09 by Cursor (R11 T9 release prep) |
 | Live | see `/health`; DB db77738 |
+| PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/34 (do not merge yet) |
 
 ## Next step (exact)
-Ghazal: review PR `release: 0.20.0` (do not merge until Claude Code EGM review). Then decide merge and whether to «حمّل» first incremental sync on db77738. MonsterASP Jobs flags still need Ghazal.
+Ghazal: review PR #34 (do not merge until Claude Code EGM review). Then decide merge and whether to «حمّل» first incremental sync on db77738. MonsterASP Jobs flags still need Ghazal.
 
 ## R11 done
 - T1 timings + design; baseline wall ~14.4 min (identity refuse).
@@ -27,7 +28,7 @@ Ghazal: review PR `release: 0.20.0` (do not merge until Claude Code EGM review).
 - `node tests/integration.mjs` with `Vouchers__Secret`: **PASS** (75 checks).
 - `node tests/r8-contract.mjs`: **26 passed**.
 - `web npm run api:check` + `npm run build`: **PASS**.
-- `web npm run test:e2e`: blocked — Playwright missing at `/tmp/gate-browser` on this host.
+- `web npm run test:e2e`: Chromium installed; dashboard screenshots OK; failed later on notifications button locator (pre-existing UI QA flake / mock session).
 
 ## Ninja October / ValidateRiders
 - Counts-only API: `GET /pay/validate-gaps?companyId=&period=&app=ninja`.
