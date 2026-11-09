@@ -1,5 +1,20 @@
 # ERP → payroll database sync
 
+## R11 timing (T1 baseline, 2026-11-09)
+
+Every summary and private live run log now carries `phases`: `readMs`, `planMs`, `writeMs`, `rptRefreshMs`, `totalMs` (integers, counts only).
+
+Baseline dry-run against read-only ERP → staging target (`--live --consistent --dry-run --counts-only`), no commit:
+
+| metric | value |
+|---|---|
+| wall clock | 865 328 ms (~14.4 min) |
+| status | refused (`source_identity_changed_requires_review`) during compare |
+| consistent attempts | 1 (double-read matched) |
+| notes | First instrumented run exited before phases were attached to `lastSummary`; refusal path now captures phases. Re-measure after T2/T3. Target: no-change &lt; 1 min; typical daily a few minutes. |
+
+Design: [R11-DESIGN.md](R11-DESIGN.md).
+
 The selected workflow is [manual ERP sync with startup catch-up and optional daily Hangfire execution](../ops/HANGFIRE.md), disabled by default. There is no three-hour recurrence or active VPS. The old systemd files remain disabled; VPS guidance is historical/optional and requires a new explicit decision. Manual CLI acceptance remains unchanged. Hosted dry-runs record counts-only payroll database telemetry; CLI dry-runs remain private-file-only.
 
 The importer accepts `--live --consistent --dry-run` and `--live --consistent --commit`. Source and target credentials are read internally from their private env files; the only accepted target remains payroll database db77738. Any other target database is rejected. A live commit without `--consistent` is refused. A new ERP load requires Ghazal's «حمّل» after its dry-run; the certificate-load approval does not enable scheduling.

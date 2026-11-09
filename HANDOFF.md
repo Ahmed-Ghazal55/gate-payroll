@@ -2,10 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none |
-| Branch | main (0.19.0 merged from feat/r9-payroll-money) |
-| Updated | 2026-11-08 by Claude Code |
+| Current writer | Cursor 2026-11-09 20:56 +03 |
+| Branch | release/0.20.0 |
+| Updated | 2026-11-09 by Cursor (R11 start) |
 | Live | see `/health`; DB db77738 |
+
+## Next step (2026-11-09, planner)
+R11 by Cursor on `release/0.20.0`: `~/.agents/prompts/cursor-R11-erp-sync-scope-ui.md` (fast incremental ERP sync, ERP financial data scope, UI wiring, Ninja October past stage 2). Rules: BR §24.7–§38 (`ca9fdfe` in gate-finance-spec). ERP request to Omar: CR-004.
 
 ## Goal now
 First real Ninja payroll for 2026-10 in the browser. Then Keeta September. Open items audit: `~/.agents/NEXT.md`.

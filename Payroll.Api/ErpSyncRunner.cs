@@ -19,20 +19,26 @@ public sealed class ErpSyncRunner(IConfiguration config,Store store) : IErpSyncR
         var targetOptions=new SqlConnectionStringBuilder(config.GetConnectionString("DefaultConnection")??"");
         if(targetOptions.InitialCatalog!="db77738")throw new ImportFailure("unapproved_target");
         using var target=new SqlConnection(targetOptions.ConnectionString);await target.OpenAsync(token);
+        var timing=new SyncStopwatch();
         var existing=ImportExecutor.Target(target,null,token);
         var snapshot=ConsistentSync.Read(()=>SourceReader.Read(source,false,token),out _,token);
-        RunSnapshot(snapshot,existing,commit?store:null,previewed,token,commit?(c,tx)=>{JobsControl.EnsureMayCommit(c,tx,config);if(requestId!=null)ErpSyncRequests.EnsureActive(c,tx,requestId);}:null,requestId==null?null:store.Read(c=>ErpSyncRequests.Overrides(c,requestId)));
+        timing.AddRead();
+        RunSnapshot(snapshot,existing,commit?store:null,previewed,token,commit?(c,tx)=>{JobsControl.EnsureMayCommit(c,tx,config);if(requestId!=null)ErpSyncRequests.EnsureActive(c,tx,requestId);}:null,requestId==null?null:store.Read(c=>ErpSyncRequests.Overrides(c,requestId)),timing);
     }
-    public static ImportSummary RunSnapshot(SourceSnapshot source,Dictionary<string,JsonObject> existing,Store? target,Action<ImportSummary> previewed,CancellationToken token=default,Action<DbConnection,DbTransaction>? beforeCommit=null,SyncOverrides? overrides=null)
+    public static ImportSummary RunSnapshot(SourceSnapshot source,Dictionary<string,JsonObject> existing,Store? target,Action<ImportSummary> previewed,CancellationToken token=default,Action<DbConnection,DbTransaction>? beforeCommit=null,SyncOverrides? overrides=null,SyncStopwatch? timing=null)
     {
+        timing??=new SyncStopwatch();
         token.ThrowIfCancellationRequested();var plan=ImportPlan.Build(source,FinancialCore.Sponsors);
-        var preview=ImportExecutor.Run(source,plan,existing,cancellationToken:token);previewed(preview);
+        timing.AddPlan();
+        var preview=ImportExecutor.Run(source,plan,existing,cancellationToken:token) with{Phases=timing.Snapshot()};previewed(preview);
         // Scheduled runs have none. A manual run carries an administrator's named, audited acceptance.
         ConsistentSync.Validate(preview,existing,overrides??SyncOverrides.None);token.ThrowIfCancellationRequested();
         if(target==null)return preview;
         var committed=ImportExecutor.Run(source,plan,existing,target,token,beforeCommit);
+        timing.AddWrite();
+        timing.AddRptRefresh();
         var verification=target.Read(c=>ImportExecutor.Run(source,plan,ImportExecutor.Target(c,null,token),cancellationToken:token));
         if(verification.Counts.Any(c=>c.New+c.Changed!=0))throw new ImportFailure("post_load_idempotency_failed");
-        return committed;
+        return committed with{Phases=timing.Snapshot()};
     }
 }

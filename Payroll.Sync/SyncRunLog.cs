@@ -12,6 +12,7 @@ public static class SyncRunLog
         var options=new FileStreamOptions{Mode=FileMode.CreateNew,Access=FileAccess.Write,Share=FileShare.None};
         if(!OperatingSystem.IsWindows())options.UnixCreateMode=UnixFileMode.UserRead|UnixFileMode.UserWrite;
         using var file=new FileStream(name,options);
-        JsonSerializer.Serialize(file,new{startedAt=startedAt??summary?.ReadStartedAt??DateTimeOffset.UtcNow,finishedAt=DateTimeOffset.UtcNow,status,attempts,errorCode,acceptNewKinds=(overrides??SyncOverrides.None).AcceptNewKinds,acceptLargeChanges=(overrides??SyncOverrides.None).AcceptLargeChanges,summary},new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});
+        var phases=summary?.Phases??SyncPhaseTiming.Zero;
+        JsonSerializer.Serialize(file,new{startedAt=startedAt??summary?.ReadStartedAt??DateTimeOffset.UtcNow,finishedAt=DateTimeOffset.UtcNow,status,attempts,errorCode,acceptNewKinds=(overrides??SyncOverrides.None).AcceptNewKinds,acceptLargeChanges=(overrides??SyncOverrides.None).AcceptLargeChanges,phases=new{readMs=phases.ReadMs,planMs=phases.PlanMs,writeMs=phases.WriteMs,rptRefreshMs=phases.RptRefreshMs,totalMs=phases.TotalMs},summary},new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});
     }
 }
