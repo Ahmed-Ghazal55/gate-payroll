@@ -79,24 +79,16 @@ public static class BankPayrollFiles
     }
     public const string DoNotSendMark="لا يُرسل — تشغيل موازٍ";
     static bool ComparisonOnly(JsonObject input)=>input.B("comparisonOnly")||input.B("doNotSend")||input.S("mode")=="parallel_comparison";
-    static void StampDoNotSend(JsonArray rows)
-    {
-        foreach(var row in rows.OfType<JsonObject>())
-        {
-            string notes=row.S("notes");
-            if(!notes.Contains(DoNotSendMark,StringComparison.Ordinal))row["notes"]=notes==""?DoNotSendMark:DoNotSendMark+" | "+notes;
-        }
-    }
+    // BR §38.5: mark parallel-run bank files «لا يُرسل» outside the CSV body (filename, preview fields, audit), never inside BOM/CRLF/header/rows.
     public static JsonObject Preview(DbConnection c,ClaimsPrincipal user,JsonObject input)
     {
         var request=Request(user,input);var(rows,excluded)=Rows(c,null,user,request);bool comparison=ComparisonOnly(input);
-        if(comparison)StampDoNotSend(rows);
         return new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To,["basis"]=Store.List(c,PayCycles.Kind).Any(d=>d.S("status")=="approved"&&d.S("companyId")==request.Sponsor&&string.CompareOrdinal(d.S("period"),request.To)<=0)?"posted_2110_212103_closing_payable":"posted_2110_closing_payable",["comparisonOnly"]=comparison,["doNotSend"]=comparison,["doNotSendMark"]=comparison?DoNotSendMark:"",["rows"]=rows,["excludedRows"]=excluded,["previewToken"]=FinancialImports.Issue(c,Kind(request)+(comparison?":parallel":""),rows,user.Identity?.Name??""),["expiresInSeconds"]=1200,["canExport"]=rows.Count>0&&rows.OfType<JsonObject>().All(r=>r["errors"]!.AsArray().Count==0)};
     }
     public static Download Export(DbConnection c,DbTransaction tx,ClaimsPrincipal user,JsonObject input)
     {
         var request=Request(user,input);string actor=user.Identity?.Name??"";bool comparison=ComparisonOnly(input);
-        var(baseline,excluded)=Rows(c,tx,user,request);if(comparison)StampDoNotSend(baseline);
+        var(baseline,excluded)=Rows(c,tx,user,request);
         FinancialImports.Verify(c,tx,new JsonObject{["rows"]=baseline.DeepClone(),["fingerprint"]=input.S("previewToken"),["confirm"]=true},Kind(request)+(comparison?":parallel":""),actor);
         var rows=input["rows"] as JsonArray??throw new ApiError("صفوف التصدير مطلوبة.");
         var excludedIds=excluded.OfType<JsonObject>().Select(row=>row.S("iqama")).ToHashSet(StringComparer.Ordinal);
@@ -110,14 +102,17 @@ public static class BankPayrollFiles
             foreach(string field in new[]{"iban","name","iqama","address"})J.Need(row[field] is JsonValue&&row.S(field)==original.S(field),"يسمح بتعديل المبلغ والملاحظات فقط؛ أعد المعاينة لتحديث البيانات.");
             J.Need(row["bank"] is JsonValue&&(row.S("bank")==original.S("bank")||!Banks.ContainsKey(original.S("iban").Length>=6?original.S("iban").Substring(4,2):"")),"البنك يتعدل يدويًا فقط لو كود الآيبان غير معروف.");
             J.Need(row["notes"] is JsonValue notes&&notes.TryGetValue<string>(out var note)&&note.Length<=2000,"الملاحظات نص بحد أقصى 2000 حرف.");
-            if(comparison)J.Need(row.S("notes").Contains(DoNotSendMark,StringComparison.Ordinal),"ملف المقارنة يحتاج علامة «لا يُرسل» على كل صف.");
+            J.Need(!row.S("notes").Contains(DoNotSendMark,StringComparison.Ordinal),"علامة «لا يُرسل» خارج ملف البنك فقط (اسم التصدير والتدقيق والمعاينة).");
             J.Need(Validate(row,input.B("confirmBankCode40")).Count==0,"يوجد خطأ في صفوف ملف البنك؛ صححه وأعد المعاينة قبل التصدير.");
             if(row.N("amount")!=original.N("amount")||row.S("notes")!=original.S("notes")||row.S("bank")!=original.S("bank"))edited++;
             total+=row.N("amount");checkedRows.Add(row);
         }
         byte[] bytes=Csv(checkedRows);string filename=(comparison?"DO-NOT-SEND_":"")+DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)+"_bulkPayroll.csv";
         // Metadata only. Never persist the exported rows, identifiers, names, IBANs or notes.
-        Store.Save(c,"audit",new JsonObject{["id"]=Guid.NewGuid().ToString("N"),["action"]=comparison?"finance.bankfile.export_comparison_only":"finance.bankfile.export",["actor"]=actor,["at"]=DateTimeOffset.UtcNow.ToString("O"),["rowCount"]=rows.Count,["total"]=total,["editedRowCount"]=edited,["doNotSend"]=comparison},tx);
+        // Keep the normal export audit shape (7 fields). Parallel-run adds doNotSend outside the CSV.
+        var audit=new JsonObject{["id"]=Guid.NewGuid().ToString("N"),["action"]=comparison?"finance.bankfile.export_comparison_only":"finance.bankfile.export",["actor"]=actor,["at"]=DateTimeOffset.UtcNow.ToString("O"),["rowCount"]=rows.Count,["total"]=total,["editedRowCount"]=edited};
+        if(comparison)audit["doNotSend"]=true;
+        Store.Save(c,"audit",audit,tx);
         return new(bytes,filename);
     }
     public static byte[] Csv(IEnumerable<JsonObject> rows)

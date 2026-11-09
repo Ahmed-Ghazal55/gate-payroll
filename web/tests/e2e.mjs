@@ -457,7 +457,7 @@ async function run() {
       await page.waitForLoadState('networkidle');
 
       // Click notification bell
-      const bellBtn = page.locator('button[aria-label="الإشعارات"]');
+      const bellBtn = page.locator('header button[aria-label="الإشعارات العامة"]');
       await bellBtn.click();
       await page.waitForSelector('[role="dialog"][aria-label="مركز الإشعارات والتنبيهات"]');
 

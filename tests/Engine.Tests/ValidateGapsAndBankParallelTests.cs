@@ -44,9 +44,12 @@ public sealed class ValidateGapsAndBankParallelTests
         });
         var preview=f.Store.Read(c=>BankPayrollFiles.Preview(c,PayFixture.Maker,new(){["sponsorId"]=company,["period"]="2026-10",["comparisonOnly"]=true}));
         Assert.IsTrue(preview.B("doNotSend"));Assert.AreEqual(BankPayrollFiles.DoNotSendMark,preview.S("doNotSendMark"));
-        Assert.IsTrue(preview["rows"]!.AsArray().OfType<JsonObject>().All(r=>r.S("notes").Contains(BankPayrollFiles.DoNotSendMark,StringComparison.Ordinal)));
+        Assert.IsTrue(preview["rows"]!.AsArray().OfType<JsonObject>().All(r=>!r.S("notes").Contains(BankPayrollFiles.DoNotSendMark,StringComparison.Ordinal)));
         var file=f.Store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,PayFixture.Maker,new(){["sponsorId"]=company,["period"]="2026-10",["comparisonOnly"]=true,["previewToken"]=preview.S("previewToken"),["rows"]=preview["rows"]!.DeepClone()}));
         Assert.IsTrue(file.Filename.StartsWith("DO-NOT-SEND_",StringComparison.Ordinal));
-        string csv=Encoding.UTF8.GetString(file.Bytes);Assert.Contains(BankPayrollFiles.DoNotSendMark,csv);
+        string csv=Encoding.UTF8.GetString(file.Bytes);Assert.DoesNotContain(BankPayrollFiles.DoNotSendMark,csv);
+        Assert.IsTrue(csv.StartsWith("\uFEFF"+BankPayrollFiles.Header+"\r\n",StringComparison.Ordinal)||(file.Bytes[0]==0xEF&&Encoding.UTF8.GetString(file.Bytes[3..]).StartsWith(BankPayrollFiles.Header+"\r\n",StringComparison.Ordinal)));
+        var audit=f.Store.Read(c=>Store.List(c,"audit").Single(a=>a.S("action")=="finance.bankfile.export_comparison_only"));
+        Assert.IsTrue(audit.B("doNotSend"));
     }
 }

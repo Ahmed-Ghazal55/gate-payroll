@@ -13,13 +13,17 @@ Baseline dry-run against read-only ERP → staging target (`--live --consistent 
 | consistent attempts | 1 (double-read matched) |
 | notes | First instrumented run exited before phases were attached to `lastSummary`; refusal path now captures phases. Target: no-change &lt; 1 min; typical daily a few minutes. |
 
-### After T2/T3 (2026-11-09)
+### After T2/T3 local target (R11-FIX1, 2026-11-09)
 
-| metric | value |
-|---|---|
-| watermarked no-change run | **PENDING** — watermarks write only on successful `--commit`; no «حمّل» yet for db77738 |
-| code path | contentHash compare, 2 000-row `ErpMirrorWrite` batches, DatasetVersions skip, RowVersion upper bound, open-period soft reconcile |
-| how to measure | after first approved incremental commit: dry-run then second commit; read `phases` from the private run log |
+Measured `--live --consistent --commit --counts-only` against read-only ERP into a **local** SQL Server catalog named `db77738` (not MonsterASP; private `--target-env` only). Watermarks seed on commit. Open-period modules (+ workforce FK parents) stay readable; other DatasetVersions modules skip.
+
+| run | wall | readMs | planMs | writeMs | rptRefreshMs | totalMs | notes |
+|---|---:|---:|---:|---:|---:|---:|---|
+| (a) first commit (empty local target, `--accept-new-kind` ×42) | 183.3 s | 41885 | 1082 | 139156 | 0 | 182123 | full read; committed |
+| (b) follow-up commit | 40.9 s | 16984 | 1483 | 18609 | 0 | 37076 | open_period_mix; 18 tables skipped; 27 `rider_work_timeline` updates |
+| (b′) clean no-change commit | 55.8 s | 31918 | 1246 | 17005 | 0 | 50169 | 0 new / 0 changed; under 1 minute (beats ~14.4 min baseline) |
+
+Code path: contentHash compare, 2 000-row `ErpMirrorWrite` batches, DatasetVersions skip, RowVersion upper bound (only when the column exists), open-period soft reconcile without false parent-empty drops.
 
 Design: [R11-DESIGN.md](R11-DESIGN.md).
 

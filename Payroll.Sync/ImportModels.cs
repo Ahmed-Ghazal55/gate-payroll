@@ -29,4 +29,6 @@ public sealed record ImportSummary(DateTimeOffset ReadStartedAt,DateTimeOffset R
     /// <summary>full | incremental | open_period_mix</summary>
     public string ReadMode {get;init;}="full";
     public int TablesSkipped {get;init;}=0;
+    /// <summary>Catalog table names skipped via DatasetVersions (counts as unchanged, not a source drop).</summary>
+    public IReadOnlyCollection<string> SkippedTables {get;init;}=Array.Empty<string>();
 }

@@ -77,10 +77,19 @@ public static class ConsistentSync
                 continue;
             }
             if(overrides.AcceptLargeChanges.Contains(row.Kind))continue;
+            // Incremental empty delta / module skip leaves the kind unread: not a source wipe.
+            if(preview.ReadMode!="full"&&after==0&&row.Source==0&&row.New==0&&row.Changed==0)continue;
+            // Open-period re-reads are intentionally partial vs the full target baseline.
+            if(preview.ReadMode!="full"&&OpenPeriodReconcileKinds.Contains(row.Kind))continue;
             if(before-after>Math.Max(before*0.02m,1m))throw new ImportFailure("source_count_drop_over_threshold:"+row.Kind);
             // Immutable readings can grow freely after their explicit first acceptance.
             if(row.Kind=="vehicle_odometer_reading"&&row.Changed==0)continue;
             if(changes>Math.Max(before*0.10m,5m))throw new ImportFailure("kind_changes_over_threshold:"+row.Kind);
         }
     }
+    static readonly HashSet<string> OpenPeriodReconcileKinds=new(StringComparer.Ordinal)
+    {
+        "chefz_daily","chefz_settlement","chefz_order_row","ninja_daily","ninja_daily_deduction",
+        "housing_residence","jahez_transaction","platform_day_usage"
+    };
 }
