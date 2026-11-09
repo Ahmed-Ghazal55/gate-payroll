@@ -59,9 +59,9 @@ Add or complete kinds mapped exactly as ERP (no posting):
 - performance: per platform account and rider for all apps; Ninja evaluation snapshots for expected eligibility
 - Jahez money: operations, money movements, transferred debts, fees/refunds, earnings, commission policies, ledger, cashbox handovers, treasury v3
 - housing residence periods; Chefz account details + type changes + settlements + order rows
-- HungerStation wallets: **skip** (deferred §38.3)
+- **HungerStation: skip entirely** (BR §38.3 / `c00b3f9`, prompt `9dac685`) — no performance, fines, quality, wallets, or finance kinds or screens in R11. Still in testing in ERP.
 
-Update `TARGET-KINDS.md`. HungerStation remains deferred — no new HS kinds.
+Update `TARGET-KINDS.md`. No `hunger.*` kinds added in R11.
 
 ## T5 — Calculation layer (only stated BR)
 - Vehicle rent/deduction cap: never above vehicle allocated value for the period (§38.4 / §24.4).

@@ -78,7 +78,7 @@ Every row preserves exact `CaptainId` casing in the document. Missing CaptainId 
 - Current ERP metadata has no dedicated ADV/payment-request tables and no sponsorship-period table; report unavailable. Never fabricate ADV references from unrelated Jahez requests. Separate work-permit tables are absent; use actual EmployeeDocuments types only. Existing city/housing/residence/legal-case/account sources already cover operations.
 
 ## R11 T4 display-layer kinds (BR §38 / CR-004)
-Read-only mirror facts. HungerStation wallets stay deferred.
+Read-only mirror facts. **HungerStation is fully deferred** (performance, fines, quality, wallets, finance) until ERP testing finishes — no `hunger.*` kinds or new HS screens in R11 (BR §38.3, 2026-11-09).
 - `vehicle_operational_status` ← `app.VehicleOperationalStatusPeriods` (idle/hold periods).
 - `platform_day_usage` ← `app.PlatformAccountDayUsages` (orders/hours/cash/deductions/offers; open-period soft reconcile).
 - `chefz_account_type_change` ← `chefz.AccountTypeChanges`.
