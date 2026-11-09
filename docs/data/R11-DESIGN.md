@@ -94,9 +94,10 @@ OpenAPI snapshot refreshed; `api-contract.ts` regenerated. Client methods + scre
 Version `0.20.0` in `ReleaseSafety.cs` and `docs/api/ENDPOINTS.md`. Tests listed in the prompt. One PR, no merge. HANDOFF updated; writer lock cleared.
 
 ## Open BR / planner items (do not invent)
-1. §37 VAT account named (`213201` / Dr `112801`) — report posts VAT with maker-checker.
+1. §37 VAT accounts are named (`Dr 112801` / `Cr 213201`) and implemented in `JahezReconciliation` with maker-checker (BR `7fbe4de`).
 2. CR-004 change feed not yet in ERP — watermarks + open-period reconcile are the workaround; full change feed is Omar’s side.
-3. EGM formal review: Claude Code.
+3. EGM formal review: Claude Code (Cursor EGM adapter still unverified).
+4. True no-change incremental wall-clock on a watermarked target still needs a first successful commit (watermarks are written only on commit). Until Ghazal’s «حمّل» on db77738, report that timing as PENDING; baseline remains the T1 dry-run.
 
 ## Skills used
 backend-design (query-discipline, migration-safety, idempotency, performance, observability), hunt-n-plus-one pattern via dictionaries, TDD for new calc rules, verification-before-completion, frontend-design + chrome-devtools for T8.

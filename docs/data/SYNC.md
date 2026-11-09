@@ -11,7 +11,15 @@ Baseline dry-run against read-only ERP → staging target (`--live --consistent 
 | wall clock | 865 328 ms (~14.4 min) |
 | status | refused (`source_identity_changed_requires_review`) during compare |
 | consistent attempts | 1 (double-read matched) |
-| notes | First instrumented run exited before phases were attached to `lastSummary`; refusal path now captures phases. Re-measure after T2/T3. Target: no-change &lt; 1 min; typical daily a few minutes. |
+| notes | First instrumented run exited before phases were attached to `lastSummary`; refusal path now captures phases. Target: no-change &lt; 1 min; typical daily a few minutes. |
+
+### After T2/T3 (2026-11-09)
+
+| metric | value |
+|---|---|
+| watermarked no-change run | **PENDING** — watermarks write only on successful `--commit`; no «حمّل» yet for db77738 |
+| code path | contentHash compare, 2 000-row `ErpMirrorWrite` batches, DatasetVersions skip, RowVersion upper bound, open-period soft reconcile |
+| how to measure | after first approved incremental commit: dry-run then second commit; read `phases` from the private run log |
 
 Design: [R11-DESIGN.md](R11-DESIGN.md).
 
