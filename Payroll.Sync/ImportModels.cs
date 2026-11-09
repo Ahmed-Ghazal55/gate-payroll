@@ -26,4 +26,7 @@ public sealed record ImportSummary(DateTimeOffset ReadStartedAt,DateTimeOffset R
     public Dictionary<string,Dictionary<string,int>> ChangedFields {get;init;}=[];
     public Dictionary<string,Dictionary<string,decimal>> Totals {get;init;}=[];
     public SyncPhaseTiming Phases {get;init;}=SyncPhaseTiming.Zero;
+    /// <summary>full | incremental | open_period_mix</summary>
+    public string ReadMode {get;init;}="full";
+    public int TablesSkipped {get;init;}=0;
 }

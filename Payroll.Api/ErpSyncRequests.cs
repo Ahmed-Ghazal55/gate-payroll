@@ -32,17 +32,18 @@ public static class ErpSyncRequests
     public static JsonObject? ReadOverrides(ClaimsPrincipal actor,JsonObject? input)
     {
         var fresh=input?["acceptNewKinds"] as JsonArray;var large=input?["acceptLargeChanges"] as JsonArray;
-        if((fresh?.Count??0)==0&&(large?.Count??0)==0)return null;
+        bool full=input?.B("fullResync")==true;
+        if((fresh?.Count??0)==0&&(large?.Count??0)==0&&!full)return null;
         J.Need(AccessPolicy.Administrator(actor),"قبول التجاوز لمسؤول النظام فقط.",403);
         string reason=input!.S("reason").Trim();J.Need(reason.Length is >=3 and <=500&&!reason.Any(char.IsControl),"اكتب سبب قبول التجاوز.");
         foreach(var kind in (fresh??[]).Concat(large??[]))J.Need(ImportPlan.Kinds.Contains(kind?.ToString()??""),"نوع بيانات غير معروف.");
-        return new(){["acceptNewKinds"]=(fresh??[]).DeepClone(),["acceptLargeChanges"]=(large??[]).DeepClone(),["reason"]=reason};
+        return new(){["acceptNewKinds"]=(fresh??[]).DeepClone(),["acceptLargeChanges"]=(large??[]).DeepClone(),["fullResync"]=full,["reason"]=reason};
     }
     public static SyncOverrides Overrides(DbConnection c,string id)
     {
         var row=Store.Get(c,id,Kind)?["overrides"] as JsonObject;if(row==null)return SyncOverrides.None;
         static IEnumerable<string> Names(JsonNode? list)=>(list as JsonArray??[]).Select(k=>k?.ToString()??"");
-        return SyncOverrides.Named(Names(row["acceptNewKinds"]),Names(row["acceptLargeChanges"]));
+        return SyncOverrides.Named(Names(row["acceptNewKinds"]),Names(row["acceptLargeChanges"]),row.B("fullResync"),row.S("reason"));
     }
     public static void Link(Store store,string id,string jobId)
     {

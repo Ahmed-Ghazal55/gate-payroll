@@ -13,6 +13,7 @@ public static class SyncRunLog
         if(!OperatingSystem.IsWindows())options.UnixCreateMode=UnixFileMode.UserRead|UnixFileMode.UserWrite;
         using var file=new FileStream(name,options);
         var phases=summary?.Phases??SyncPhaseTiming.Zero;
-        JsonSerializer.Serialize(file,new{startedAt=startedAt??summary?.ReadStartedAt??DateTimeOffset.UtcNow,finishedAt=DateTimeOffset.UtcNow,status,attempts,errorCode,acceptNewKinds=(overrides??SyncOverrides.None).AcceptNewKinds,acceptLargeChanges=(overrides??SyncOverrides.None).AcceptLargeChanges,phases=new{readMs=phases.ReadMs,planMs=phases.PlanMs,writeMs=phases.WriteMs,rptRefreshMs=phases.RptRefreshMs,totalMs=phases.TotalMs},summary},new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});
+        var o=overrides??SyncOverrides.None;
+        JsonSerializer.Serialize(file,new{startedAt=startedAt??summary?.ReadStartedAt??DateTimeOffset.UtcNow,finishedAt=DateTimeOffset.UtcNow,status,attempts,errorCode,acceptNewKinds=o.AcceptNewKinds,acceptLargeChanges=o.AcceptLargeChanges,fullResync=o.FullResync,phases=new{readMs=phases.ReadMs,planMs=phases.PlanMs,writeMs=phases.WriteMs,rptRefreshMs=phases.RptRefreshMs,totalMs=phases.TotalMs},summary},new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});
     }
 }

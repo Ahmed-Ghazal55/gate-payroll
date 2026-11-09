@@ -15,6 +15,15 @@ Baseline dry-run against read-only ERP → staging target (`--live --consistent 
 
 Design: [R11-DESIGN.md](R11-DESIGN.md).
 
+### R11 incremental reads (T2)
+
+After the first successful commit, the target stores watermarks in `sync.SourceWatermarks` (SQLite: `sync_source_watermarks`). Later runs:
+
+- skip modules whose `app.DatasetVersions` row is unchanged;
+- read Auditable/Temporal tables with `RowVersion > last AND RowVersion < MIN_ACTIVE_ROWVERSION()` (one upper bound per run; no double full read);
+- re-read open periods (current + previous Riyadh month) for hard-delete/edit-in-place tables and soft-mark missing target rows (`sourceDeleted`, never hard delete);
+- accept `--full-resync <reason>` (admin API: `fullResync` + `reason`) as the only full-table read path once watermarks exist.
+
 The selected workflow is [manual ERP sync with startup catch-up and optional daily Hangfire execution](../ops/HANGFIRE.md), disabled by default. There is no three-hour recurrence or active VPS. The old systemd files remain disabled; VPS guidance is historical/optional and requires a new explicit decision. Manual CLI acceptance remains unchanged. Hosted dry-runs record counts-only payroll database telemetry; CLI dry-runs remain private-file-only.
 
 The importer accepts `--live --consistent --dry-run` and `--live --consistent --commit`. Source and target credentials are read internally from their private env files; the only accepted target remains payroll database db77738. Any other target database is rejected. A live commit without `--consistent` is refused. A new ERP load requires Ghazal's «حمّل» after its dry-run; the certificate-load approval does not enable scheduling.

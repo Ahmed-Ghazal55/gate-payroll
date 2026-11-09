@@ -42,7 +42,7 @@ try
 {
     if(args.Contains("--help"))
     {
-        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--counts-only] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON [--review-through-six] [--lookup-riders] [--lookup-erp-history] [--verify] [--preview-fingerprint SHA256] [--after-db-move]]");return 0;
+        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--full-resync REASON] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--counts-only] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON [--review-through-six] [--lookup-riders] [--lookup-erp-history] [--verify] [--preview-fingerprint SHA256] [--after-db-move]]");return 0;
     }
     overrides=SyncOverrides.Parse(args);
     if(args.Contains("--commit")&&args.Contains("--dry-run"))throw new ImportFailure("conflicting_modes");
@@ -161,16 +161,21 @@ try
     // Dry-run opens only read connections: never construct Store until --commit.
     phase="reading_target";
     using var targetRead=Connections.Target(targetEnv);string targetConnection=targetRead.ConnectionString;targetRead.Open();var existing=ImportExecutor.Target(targetRead);
+    SourceWatermarks.Ensure(targetRead);var watermarks=SourceWatermarks.Load(targetRead);
     phase="reading_source";
     timing=new SyncStopwatch();
     if(source.Database!="erp_copy"&&args.Contains("--commit")&&!args.Contains("--consistent"))throw new ImportFailure("live_commit_requires_consistent");
-    var snapshot=args.Contains("--consistent")?ConsistentSync.Read(()=>SourceReader.Read(source,false),out attempts):SourceReader.Read(source);
+    bool useIncremental=!overrides.FullResync&&watermarks.Count>0&&source is Microsoft.Data.SqlClient.SqlConnection;
+    SourceSnapshot snapshot;
+    if(useIncremental){attempts=1;snapshot=SourceReader.Read(source,false,watermarks,false);}
+    else snapshot=args.Contains("--consistent")?ConsistentSync.Read(()=>SourceReader.Read(source,false,null,overrides.FullResync),out attempts):SourceReader.Read(source,true,null,overrides.FullResync);
     timing.AddRead();
     phase="building_plan";
     var plan=ImportPlan.Build(snapshot,FinancialCore.Sponsors);
+    foreach(var missing in OpenPeriodReconcile.MissingAsSoftDeleted(snapshot,plan,existing))plan.Documents.Add(missing);
     timing.AddPlan();
     phase="comparing_target";
-    lastSummary=ImportExecutor.Run(snapshot,plan,existing);
+    lastSummary=ImportExecutor.Run(snapshot,plan,existing) with{ReadMode=snapshot.ReadMode,TablesSkipped=snapshot.TablesSkipped};
     if(live||args.Contains("--consistent"))ConsistentSync.Validate(lastSummary,existing,overrides);
     Store? targetStore=null;
     phase="initializing_target_store";
@@ -187,7 +192,15 @@ try
         timing.AddWrite();
         // rpt refresh is wired in T3; keep the phase slot so baselines stay comparable.
         timing.AddRptRefresh();
-        summary=summary with{Phases=timing.Snapshot()};lastSummary=summary;
+        summary=summary with{Phases=timing.Snapshot(),ReadMode=snapshot.ReadMode,TablesSkipped=snapshot.TablesSkipped};lastSummary=summary;
+        phase="saving_watermarks";
+        targetStore.Write((c,tx)=>
+        {
+            var next=new Dictionary<string,string>(snapshot.NextWatermarks??new Dictionary<string,string>(),StringComparer.OrdinalIgnoreCase);
+            foreach(var ds in SourceWatermarks.ReadDatasetVersions(source,runId,DateTimeOffset.UtcNow))next[ds.TableName]=ds.LastValue;
+            SourceWatermarks.Save(c,tx,SourceWatermarks.FromNext(next,runId,DateTimeOffset.UtcNow,watermarks));
+            return true;
+        });
         string verifiedJson=JsonSerializer.Serialize(args.Contains("--counts-only")?summary with{Totals=[]}:summary,new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});
         var payload=System.Text.Json.Nodes.JsonNode.Parse(verifiedJson)!.AsObject();
         payload["sameSnapshotVerification"]=JsonSerializer.SerializeToNode(args.Contains("--counts-only")?verification with{Totals=[]}:verification,new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -199,7 +212,7 @@ try
     {
         timing.AddWrite();
         timing.AddRptRefresh();
-        summary=summary with{Phases=timing.Snapshot()};lastSummary=summary;
+        summary=summary with{Phases=timing.Snapshot(),ReadMode=snapshot.ReadMode,TablesSkipped=snapshot.TablesSkipped};lastSummary=summary;
         string json=JsonSerializer.Serialize(args.Contains("--counts-only")?summary with{Totals=[]}:summary,new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});
         if(Arg("--report") is {} report)File.WriteAllText(report,json);Console.WriteLine(json);
     }
