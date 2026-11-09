@@ -50,11 +50,22 @@ public static partial class PayCycles
             {
                 string account=cycle["adjustmentAccounts"].S(a.S("id"));J.Need(account!="","كل تعديل يحتاج حسابًا محددًا على الشجرة الجديدة.");PayPlatforms.Active(account);J.Need(account.StartsWith(a.N("amount")>0?'5':'4'),"نوع حساب التعديل لا يطابق الإضافة أو الخصم.");var ph=a.N("amount")>0?(3,90,"تعديل راتب / حافز"):ConfigLists.Phase(c,tx,a.S("category"));deductions.Add(new JsonObject{["rider"]=rider,["category"]=a.S("category"),["amount"]=a.N("amount"),["source"]=a.S("id"),["accountCode"]=account,["type"]="adjustment",["phase"]=ph.Item1,["order"]=ph.Item2,["labelAr"]=ph.Item3});available+=a.N("amount");
             }
-            foreach(var debt in Store.List(c,"debt",tx).Where(d=>d.S("iqama")==rider&&d.S("status")=="active"&&!PlatformDeductions.Skip(tags,d)&&string.CompareOrdinal(d.S("effectiveFrom","0000-00"),period)<=0&&string.CompareOrdinal(d.S("lastDeductionPeriod"),period)<0).OrderBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Phase).ThenBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Order).ThenBy(d=>d.S("createdAt")).ThenBy(d=>d.S("id")))
+            foreach(var debt in Store.List(c,"debt",tx).Where(d=>d.S("iqama")==rider&&d.S("status")=="active"&&d.N("remainingBalance")>0&&!PlatformDeductions.Skip(tags,d)&&string.CompareOrdinal(d.S("effectiveFrom","0000-00"),period)<=0&&string.CompareOrdinal(d.S("lastDeductionPeriod"),period)<0).OrderBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Phase).ThenBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Order).ThenBy(d=>d.S("createdAt")).ThenBy(d=>d.S("id")))
             {
-                decimal amount=J.Money(Math.Min(Math.Max(0,available),Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment"))));if(amount<=0)continue;FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);var dp=ConfigLists.Phase(c,tx,debt.S("category"));deductions.Add(new JsonObject{["rider"]=rider,["category"]="debt_installment",["debtCategory"]=debt.S("category"),["amount"]=-amount,["computed"]=-amount,["source"]=debt.S("id"),["accountCode"]=account,["type"]="debt",["phase"]=dp.Phase,["order"]=dp.Order,["labelAr"]=dp.LabelAr});debtBefore.Add(debt.Clone());available-=amount;
+                decimal amount=J.Money(debt.S("category")=="FuelOverage"&&debt.S("effectiveFrom")==period&&group.Any(l=>l.B("ineligibleKeetaSalary"))?debt.N("remainingBalance"):Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment")));FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);var dp=ConfigLists.Phase(c,tx,debt.S("category"));deductions.Add(new JsonObject{["rider"]=rider,["category"]="debt_installment",["debtCategory"]=debt.S("category"),["amount"]=0,["requestedAmount"]=amount,["computed"]=-amount,["source"]=debt.S("id"),["accountCode"]=account,["type"]="debt",["phase"]=dp.Phase,["order"]=dp.Order,["labelAr"]=dp.LabelAr});debtBefore.Add(debt.Clone());
             }
         }
+        foreach(var invoice in Rows(cycle["invoices"]).OfType<JsonObject>())
+        foreach(var d in Rows(invoice["deductions"]).OfType<JsonObject>().Where(d=>d.S("level")=="rider_level"))
+            deductions.Add(new JsonObject{["rider"]=d.S("riderId"),["category"]=d.S("sourceCategory"),["source"]=d.S("sourceLineId"),["amount"]=-d.N("amount"),["accountCode"]=PayPlatforms.For(invoice.S("app")).Receivable,["app"]=invoice.S("app"),["type"]="platform_rider",["phase"]=1,["order"]=5,["labelAr"]="خصم فاتورة على المندوب"});
+        // Current-month Keeta fallback fuel is operating cost, not a personal instalment.
+        foreach(var d in deductions.OfType<JsonObject>().Where(d=>d.S("type")=="debt"&&d.S("debtCategory")=="FuelOverage"))
+        {
+            var debt=Store.Get(c,d.S("source"),"debt",tx)!;
+            if(debt.S("effectiveFrom")==period&&groupProtected(d.S("rider")))
+            {J.Need(d.S("accountCode")=="112511","وقود راتب كيتا غير المؤهل يحتاج ذمة الوقود 112511 وفق §22.9.2.");d["type"]="fuel_recovery";d["fuelTotal"]=debt.N("remainingBalance");}
+        }
+        bool groupProtected(string rider)=>lines.Any(l=>l.S("rider")==rider&&l.B("ineligibleKeetaSalary"));
         cycle["deductions"]=deductions;cycle["debtBefore"]=debtBefore;
     }
     // BR §29: gross → commission → phase 1 → «المستحق الأولي» → phase 2 → phase 3 → net. Deductions are negative.
@@ -68,58 +79,93 @@ public static partial class PayCycles
     }
     static void Merge(DbConnection c,DbTransaction tx,JsonObject cycle)
     {
-        var summaries=new JsonArray();var lines=Lines(c,tx,cycle.S("id"));foreach(var group in lines.GroupBy(l=>l.S("rider")))
+        var prior=Rows(cycle["riders"]).OfType<JsonObject>().ToDictionary(r=>r.S("rider"));var summaries=new JsonArray();var lines=Lines(c,tx,cycle.S("id"));foreach(var group in lines.GroupBy(l=>l.S("rider")))
         {
-            string rider=group.Key,period=cycle.S("period");J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("id")!=cycle.S("id")&&d.S("status")=="approved"&&Lines(c,tx,d.S("id")).Any(l=>l.S("rider")==rider&&l.S("period")==period)),"المندوب معتمد بالفعل في دورة أخرى للشهر؛ لا تكرر الاستقطاع.");
+            string rider=group.Key,period=cycle.S("period");J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("id")!=cycle.S("id")&&d.S("status") is "approved" or "partially_approved"&&Lines(c,tx,d.S("id")).Any(l=>l.S("rider")==rider&&l.S("period")==period)),"المندوب معتمد بالفعل في دورة أخرى للشهر؛ لا تكرر الاستقطاع.");
+            if(prior.TryGetValue(rider,out var saved)&&saved.S("salaryApprovedAt")!=""){summaries.Add(saved.Clone());continue;}
+            var fuel=Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==rider&&d.S("type")=="fuel_recovery").ToList();
+            foreach(var d in fuel){d["amount"]=0;d["companyCost"]=0;}
             decimal net=group.Sum(l=>l.N("entitlement")-l.N("accountDeduction")-l.N("allocatedVehicleCharge"))+Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==rider).Sum(d=>d.N("amount"));
+            foreach(var d in fuel){decimal recovered=Math.Min(Math.Max(0,net),d.N("fuelTotal"));d["amount"]=-recovered;d["companyCost"]=d.N("fuelTotal")-recovered;net-=recovered;}
             decimal carried=Store.List(c,"journal",tx).Where(FinanceViews.Posted).Where(j=>string.CompareOrdinal(j.S("period"),cycle.S("postingPeriod",period))<=0).SelectMany(j=>(j["lines"] as JsonArray??[]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("iqama")==rider&&l.S("accountCode") is "2110" or "212103").Sum(l=>l.N("credit")-l.N("debit"));
             bool deficit=Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>(j["lines"] as JsonArray??[]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("iqama")==rider&&l.S("accountCode")=="1211").Sum(l=>l.N("debit")-l.N("credit"))>0;
-            bool blocked=net<0||deficit||group.Any(l=>l.S("status")!="ready");var summary=new JsonObject{["rider"]=rider,["net"]=J.Money(net),["carried"]=J.Money(carried),["closing"]=J.Money(carried+net),["status"]=blocked?"needs_decision":"ready"};
+            var hard=group.SelectMany(l=>Blockers(l).Select(b=>b!.ToString())).Where(b=>b!="negative_net_requires_decision").Distinct().ToList();
+            if(deficit)hard.Add("legacy_deficit_requires_resolution");
+            // A negative Ninja salary is not covered by the Keeta-only exception.
+            if(net<0&&group.Any(l=>l.S("app")=="ninja"&&l.S("schemeType")=="target_salary"))hard.Add("negative_ninja_salary_requires_policy");
+            bool blocked=net<0||hard.Count>0;var summary=new JsonObject{["rider"]=rider,["net"]=J.Money(net),["carried"]=J.Money(carried),["closing"]=J.Money(carried+net),["status"]=blocked?"needs_decision":"ready",["blockers"]=new JsonArray(hard.Select(b=>(JsonNode?)JsonValue.Create(b)).ToArray())};
             Phases(summary,group,Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==rider));summaries.Add(summary);
         }
         cycle["riders"]=summaries;if(summaries.Count==0||summaries.OfType<JsonObject>().Any(r=>r.S("status")!="ready"))cycle["status"]="needs_decision";
     }
-    static void Approve(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)
+    static bool IndependentReview(ClaimsPrincipal actor,JsonObject row,DbConnection? c=null,DbTransaction? tx=null,JsonObject? cycle=null)=>
+        AccessPolicy.Independent(actor,row.S("reviewedBy"),"pay.salary_review",c,tx,cycle)&&Rows(row["edits"]).OfType<JsonObject>().All(e=>AccessPolicy.Independent(actor,e.S("by"),"pay.salary_edit",c,tx,cycle));
+    static bool Approve(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)
     {
-        AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=cycle.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve");J.Need(!Rows(cycle["history"]).OfType<JsonObject>().Any(h=>h.S("advancedBy").Equals(actor.Identity!.Name,StringComparison.OrdinalIgnoreCase)),"المعتمد مستقل عن كل من جهز أو راجع مراحل الدورة.");
-        J.Need(Rows(cycle["riders"]).Count>0&&Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("status")=="ready"),"توجد مبالغ تحتاج قرارًا؛ لا اعتماد ولا إنشاء مديونية تلقائية.");
-        J.Need(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("review")=="approved"),"راجع واعتمد كل المناديب في جدول المراجعة أولًا (اعتماد واحد أو اعتماد الكل).");
+        AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=cycle.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve",c,tx,"pay.salary_approved",cycle);
+        J.Need(Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation",c,tx,cycle)),"المعتمد مستقل عن تجهيز الدورة.");
+        var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0).ToList();
+        if(batch.Count==0){J.Need(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!=""),"راجع واعتمد صفًا جاهزًا أولًا؛ الحالات المعلقة لا توقف الآخرين.");return true;}
+        var skipped=batch.Where(r=>!IndependentReview(actor,r)).ToList();batch=batch.Where(r=>IndependentReview(actor,r)).ToList();
+        cycle["approvalResult"]=new JsonObject{["approved"]=batch.Count,["skipped"]=skipped.Count,["skippedRows"]=new JsonArray(skipped.Select(r=>(JsonNode)new JsonObject{["rider"]=r.S("rider"),["reason"]="reviewer_or_editor_is_approver"}).ToArray())};
+        if(batch.Count==0){Store.Audit(c,tx,"pay.salary_rows_skipped",cycle.S("id"),actor.Identity!.Name!);return false;}
         foreach(var (app,_) in Accounts(cycle))PlatformPosting.Demand(c,app,tx);
-        cycle["approvedBy"]=actor.Identity!.Name;cycle["approvedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,Kind,cycle,tx);
-        var journal=PostEarnings(c,tx,cycle,actor);cycle["journalEntryId"]=journal.S("id");Store.Save(c,Kind,cycle,tx);
-        foreach(var rider in Rows(cycle["riders"]).OfType<JsonObject>())
+        bool first=cycle.S("journalEntryId")=="";string now=DateTimeOffset.UtcNow.ToString("O");cycle["approvedBy"]=actor.Identity!.Name;cycle["approvedAt"]=now;
+        foreach(var row in batch)
         {
-            string id=rider.S("rider");var payLines=Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==id&&d.S("type")=="debt"&&d.N("amount")!=0).Select(d=>new PayLine("debt_installment","قسط وفق الاتفاق",d.N("amount"),d.S("source"))).ToList();
-            Debts.Post(c,tx,new(id,cycle.S("period"),"pay_cycle",0,rider.N("net"),rider.N("net"),rider.N("net"),0,0,payLines,[]),cycle.S("id"),payCycle:true);
+            J.Need(IndependentReview(actor,row,c,tx,cycle),"يلزم مراجع مستقل.",403);
+            if(row.N("net")<0)CreateCarry(c,tx,cycle,row,actor);
+            SettleOperatingFuel(c,tx,cycle,row,actor);
+            row["salaryNet"]=row.N("net");row["salaryApprovedAt"]=now;row["salaryApprovedBy"]=actor.Identity!.Name;row["debtDeductionStatus"]="pending";
         }
+        Store.Save(c,Kind,cycle,tx);
+        var journal=PostEarnings(c,tx,cycle,actor,batch.Select(r=>r.S("rider")).ToHashSet(),first);if(first)cycle["journalEntryId"]=journal.S("id");
+        foreach(var row in batch)
+        {
+            row["salaryJournalEntryId"]=journal.S("id");row["status"]="ready";
+            if(row.N("salaryNet")<0)
+            {
+                decimal carry=-row.N("salaryNet");row["net"]=0;row["phase3"]=row.N("phase3")+carry;row["closing"]=row.N("carried");
+                Rows(cycle["deductions"]).Add(new JsonObject{["rider"]=row.S("rider"),["category"]="NegativeSalaryCarryover",["amount"]=carry,["type"]="carryover",["source"]=row.S("carryDebtId"),["accountCode"]="112507",["phase"]=3,["order"]=100,["labelAr"]="ترحيل العجز عند الاعتماد النهائي"});
+            }
+        }
+        bool complete=Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!="");
+        cycle["status"]=complete?"approved":"partially_approved";cycle["debtDeductionStatus"]="pending";
         foreach(var review in Rows(cycle["invoices"]).OfType<JsonObject>())
         {
             var invoice=Store.Get(c,review.S("invoiceId"),"platform_invoice",tx)!;
-            if(invoice.S("approvalStatus")=="cycle_pending"){invoice["approvalStatus"]="approved";invoice["approvedBy"]=actor.Identity!.Name;invoice["approvedAt"]=cycle.S("approvedAt");}
-            invoice["payCycleId"]=cycle.S("id");invoice["journalEntryId"]=journal.S("id");invoice["accountingStatus"]="posted";Store.Save(c,"platform_invoice",invoice,tx);
+            if(invoice.S("approvalStatus")=="cycle_pending"){invoice["approvalStatus"]="approved";invoice["approvedBy"]=actor.Identity!.Name;invoice["approvedAt"]=now;}
+            invoice["payCycleId"]=cycle.S("id");if(first)invoice["journalEntryId"]=journal.S("id");invoice["accountingStatus"]=complete?"posted":"partially_posted";Store.Save(c,"platform_invoice",invoice,tx);
         }
-        cycle["debtAfter"]=new JsonArray(Rows(cycle["debtBefore"]).OfType<JsonObject>().Select(d=>(JsonNode?)Store.Get(c,d.S("id"),"debt",tx)!.Clone()).ToArray());
+        SnapshotDebtAfter(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);return true;
     }
-    static JsonObject PostEarnings(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)
+    static JsonObject PostEarnings(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor,HashSet<string> selected,bool first)
     {
         var journalLines=new JsonArray();string company=cycle.S("companyId"),period=cycle.S("period");var global=PaySettings.Global(c,tx,period+"-01");var accounts=global["data"]!["values"]!["accounts"]!;
-        void Add(string code,decimal debit,decimal credit,string app,string rider,string source,string account=""){if(debit==0&&credit==0)return;journalLines.Add(PayPosting.Line(code,company,J.Money(debit),J.Money(credit),app,rider,period,source,account));}
-        foreach(var line in Lines(c,tx,cycle.S("id")))
+        void Add(string code,decimal debit,decimal credit,string app,string rider,string source,string account="",string debt=""){decimal signed=J.Money(debit-credit);if(signed==0)return;journalLines.Add(PayPosting.Line(code,company,Math.Max(0,signed),Math.Max(0,-signed),app,rider,period,source,account,debt));}
+        foreach(var line in Lines(c,tx,cycle.S("id")).Where(l=>selected.Contains(l.S("rider"))))
         {
             string app=line.S("app"),rider=line.S("rider"),id=line.S("id");decimal total=line.N("platformGross")+line.N("incentives"),earned=line.N("gross");string recv=PayPlatforms.For(app).Receivable;
             foreach(var source in Rows(line["sources"]).OfType<JsonObject>())Add(recv,source.N("baseGross")+source.N("incentive"),0,app,rider,source.S("sourceLineId"),source.S("accountId"));
             if(line.S("accountingRole")=="agent"){Add("212103",0,earned,app,rider,id);Add(PayPlatforms.Revenue(app,"agent"),0,total-earned,app,rider,id);}else{Add(PayPlatforms.Revenue(app,"principal"),0,total,app,rider,id);Add(accounts.S("salaryExpense"),earned,0,app,rider,id);Add("212103",0,earned,app,rider,id);}
             decimal rent=line.N("allocatedVehicleCharge"),cost=line.N("operatingCost"),deduction=line.N("accountDeduction");
-            Add("212103",cost,0,app,rider,id);Add(line.S("operatingCostAccount"),0,cost,app,rider,id);
-            string vehicleIncome=accounts.S(line.S("vehicleType")=="company_car"?"vehicleIncomeCar":"vehicleIncomeBike");Add("212103",rent,0,app,rider,id);Add(vehicleIncome,0,rent,app,rider,id);
+            Add("212103",line.N("recoveredOperatingCost",cost),0,app,rider,id);Add("512121",line.N("unrecoveredOperatingCost"),0,app,rider,id);Add(line.S("operatingCostAccount"),0,cost,app,rider,id);
+            string vehicleIncome=accounts.S(line.S("vehicleType")=="company_car"?"vehicleIncomeCar":"vehicleIncomeBike");Add("212103",rent,0,app,rider,id);Add("512121",line.N("unrecoveredVehicleCharge"),0,app,rider,id);Add(vehicleIncome,0,rent+line.N("unrecoveredVehicleCharge"),app,rider,id);
             foreach(var source in Rows(line["sources"]).OfType<JsonObject>()){Add("212103",source.N("deduction"),0,app,rider,source.S("sourceLineId"),source.S("accountId"));Add(recv,0,source.N("deduction"),app,rider,source.S("sourceLineId"),source.S("accountId"));}
         }
-        foreach(var invoice in Rows(cycle["invoices"]).OfType<JsonObject>())
+        foreach(var invoice in Rows(cycle["invoices"]).OfType<JsonObject>().Where(_=>first))
         {
             string app=invoice.S("app"),id=invoice.S("invoiceId"),recv=PayPlatforms.For(app).Receivable;var source=Store.Get(c,id,"platform_invoice",tx)!;Add(recv,source.N("vat"),0,app,"",id);Add(accounts.S("outputVat"),0,source.N("vat"),app,"",id);
             foreach(var d in Rows(invoice["deductions"]).OfType<JsonObject>().Where(d=>d.S("level")=="company_level")){Add(d.S("expenseAccount"),d.N("amount"),0,app,"",d.S("sourceLineId"));Add(recv,0,d.N("amount"),app,"",d.S("sourceLineId"));}
         }
-        foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("type") is "adjustment" or "review_adjustment")){decimal amount=d.N("amount");Add(d.S("accountCode"),amount>0?amount:0,amount<0?-amount:0,"",d.S("rider"),d.S("source"));Add("212103",amount<0?-amount:0,amount>0?amount:0,"",d.S("rider"),d.S("source"));}
-        J.Need(journalLines.Count>0,"لا توجد مبالغ للترحيل.");return PayPosting.Post(c,tx,cycle,journalLines,actor.Identity!.Name!);
+        foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>selected.Contains(d.S("rider"))&&d.S("type") is "adjustment" or "review_adjustment")){decimal amount=d.N("amount");Add(d.S("accountCode"),amount>0?amount:0,amount<0?-amount:0,"",d.S("rider"),d.S("source"));Add("212103",amount<0?-amount:0,amount>0?amount:0,"",d.S("rider"),d.S("source"));}
+        foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>selected.Contains(d.S("rider"))&&d.S("type") is "platform_rider" or "fuel_recovery"))
+        {
+            string rider=d.S("rider"),source=d.S("source");decimal recovered=-d.N("amount"),companyCost=d.N("companyCost");
+            Add("212103",recovered,0,d.S("app"),rider,source,debt:d.S("type")=="fuel_recovery"?source:"");Add("512121",companyCost,0,d.S("app"),rider,source,debt:d.S("type")=="fuel_recovery"?source:"");Add(d.S("accountCode"),0,recovered+companyCost,d.S("app"),rider,source,debt:d.S("type")=="fuel_recovery"?source:"");
+        }
+        foreach(var row in Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>selected.Contains(r.S("rider"))&&r.N("salaryNet")<0))
+        {Add("112507",-row.N("salaryNet"),0,"",row.S("rider"),row.S("carryDebtId"),debt:row.S("carryDebtId"));Add("212103",0,-row.N("salaryNet"),"",row.S("rider"),row.S("carryDebtId"),debt:row.S("carryDebtId"));}
+        J.Need(journalLines.Count>0,"لا توجد مبالغ للترحيل.");return PayPosting.Post(c,tx,cycle,journalLines,actor.Identity!.Name!,first?"":":salary:"+Hash(string.Join(",",selected.Order())));
     }
 }

@@ -11,6 +11,7 @@ public sealed class SyncOverrides
     public static SyncOverrides None { get; }=new([],[]);
     private SyncOverrides(IEnumerable<string> newKinds,IEnumerable<string> largeChanges)
     {AcceptNewKinds=Array.AsReadOnly(newKinds.Order(StringComparer.Ordinal).ToArray());AcceptLargeChanges=Array.AsReadOnly(largeChanges.Order(StringComparer.Ordinal).ToArray());}
+    public static SyncOverrides Named(IEnumerable<string> newKinds,IEnumerable<string> largeChanges)=>new(newKinds.Distinct(StringComparer.Ordinal),largeChanges.Distinct(StringComparer.Ordinal));
     public static SyncOverrides Parse(string[] args)
     {
         var newKinds=new HashSet<string>(StringComparer.Ordinal);var large=new HashSet<string>(StringComparer.Ordinal);

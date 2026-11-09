@@ -65,13 +65,13 @@ public sealed class NinjaPayrollSqlTests
             var wrong=await Upload(selected:"synthetic-r8-wrong-account",expected:400);StringAssert.Contains(wrong.S("error"),"rows 2");
             var preview=await Upload();var invoice=await Upload(preview);string invoiceId=invoice.S("id"),invoicePath="/api/platforms/ninja/invoices/"+Uri.EscapeDataString(invoiceId);Assert.AreEqual("pending",invoice.S("approvalStatus"));
             var sourceLines=(await Request(maker,invoicePath+"/lines")).AsArray();string source=sourceLines[0].S("id");
-            await Request(maker,invoicePath+"/approve",new(),400);
+            await Request(maker,invoicePath+"/approve",new(),403);
             foreach(var (category,level) in new[]{("penalty","account_level"),("naqilBlocked","company_level")})
                 await Request(maker,invoicePath+"/classify",new(){["lineId"]=source,["category"]=category,["level"]=level,["expenseAccount"]="526402"});
             invoice=(await Request(checker,invoicePath+"/approve",new())).AsObject();Assert.AreEqual("approved",invoice.S("approvalStatus"));
             var dispute=(await Request(maker,invoicePath+"/dispute",new(){["reason"]="Synthetic formal clarification"})).AsObject();string disputeId=dispute["disputes"]![0].S("id");
             await Request(checker,invoicePath+"/resolve",new(){["disputeId"]=disputeId,["reason"]="Synthetic resolved as invoiced"});
-            var missingDraft=(await Request(maker,"/api/pay/review-draft?app=ninja&period=2026-10&companyId="+company)).AsObject();Assert.IsFalse(missingDraft.B("canCreate"));
+            var missingDraft=(await Request(maker,"/api/pay/review-draft?app=ninja&period=2026-10&companyId="+company)).AsObject();Assert.IsTrue(missingDraft["warnings"]!.AsArray().Any(w=>w.S("code")=="operations_missing_using_assignment"),"The only assigned operator is used and flagged when ERP has no daily rows.");
             var columns=ImportCatalog.Steps().Single(s=>s.Key=="ninja_operations").Columns;
             var cells=new Dictionary<string,object?>{["period (YYYY-MM)"]="2026-10",["platformAccountId"]=account,["iqama"]=rider,["days"]=30,["orders"]=460,["baseGross"]=6500m,["deduction"]=10m,["category"]="sponsored_private"};
             byte[] operations=ExcelFiles.Write(columns,[(columns.Select(col=>cells.GetValueOrDefault(col.Header)??"").ToArray())]);
@@ -87,7 +87,7 @@ public sealed class NinjaPayrollSqlTests
             var linePage=(await Request(maker,cyclePath+"/lines")).AsObject();var payLine=linePage["items"]![0]!.AsObject();Assert.AreEqual(6500m,payLine.N("platformGross"));Assert.AreEqual(source,payLine["sources"]![0].S("sourceLineId"));Assert.AreEqual(1,payLine["sources"]![0]!["operationSourceIds"]!.AsArray().Count);
             decimal net=cycle["riders"]![0]!.N("net");Assert.AreEqual(6490m,net);Assert.AreEqual(6470m,net-20m,"The company bears its classified 20; the rider bears only 10.");
             await Request(maker,cyclePath+"/review/approve-all",new());await Request(maker,cyclePath+"/advance",new(){["stage"]=7},403);
-            cycle=(await Request(checker,cyclePath+"/advance",new(){["stage"]=7})).AsObject();Assert.AreEqual("approved",cycle.S("status"));
+            cycle=(await Request(checker,cyclePath+"/advance",new(){["stage"]=7})).AsObject();Assert.AreEqual("approved",cycle.S("status"));await Request(checker,cyclePath+"/debt-deductions",new(){["action"]="confirm-all"});
             var statement=(await Request(checker,"/api/finance/statement/rider/"+rider+"/monthly?period=2026-10")).AsObject();Assert.AreEqual(net,statement.N("net"));Assert.AreEqual("approved",statement.S("status"));Assert.AreEqual(1,statement["cards"]!.AsArray().Count);Assert.AreEqual(source,statement["cards"]![0]!["sources"]![0].S("sourceLineId"));
             var journals=store.Read(c=>Store.List(c,"journal").Where(j=>j.S("payCycleId")==id).ToList());Assert.AreEqual(1,journals.Count);Assert.AreEqual(journals[0].N("totalDebit"),journals[0].N("totalCredit"));string journalBody=journals[0].ToJsonString();
             decimal receivable=journals[0]["lines"]!.AsArray().OfType<JsonObject>().Where(l=>l.S("accountCode")=="112806").Sum(l=>l.N("debit")-l.N("credit"));Assert.AreEqual(6470m+970.50m,receivable);

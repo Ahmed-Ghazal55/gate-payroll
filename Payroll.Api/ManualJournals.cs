@@ -55,7 +55,7 @@ public static class ManualJournals
     }
     public static JsonObject Approve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
-        var draft=Get(c,tx,actor,id,ApprovePermission);J.Need(!string.Equals(actor.Identity!.Name,draft.S("createdBy"),StringComparison.OrdinalIgnoreCase),"صاحب المسودة لا يعتمدها.",403);if(draft.S("status")=="approved")return draft;
+        var draft=Get(c,tx,actor,id,ApprovePermission);J.Need(AccessPolicy.Independent(actor,draft.S("createdBy"),"finance.manual_approved",c,tx,draft),"صاحب المسودة لا يعتمدها.",403);if(draft.S("status")=="approved")return draft;
         J.Need(draft.S("status")=="draft","المسودة غير جاهزة للاعتماد.");Open(c,tx,draft.S("companyId"),draft.S("period"));
         string reversal=draft.S("reversesJournalId");if(reversal!="")J.Need(!Store.List(c,"journal",tx).Any(j=>j.S("reversesJournalId")==reversal),"القيد معكوس بالفعل.");
         var journal=FinancialCore.PostJournal(c,tx,"manual"+(reversal==""?"":"_reversal"),draft.S("description"),draft.S("period"),"MANUAL:"+id,draft["lines"]!.DeepClone().AsArray(),actor.Identity!.Name!,originSponsorId:draft.S("companyId"),creditorSponsorId:draft.S("companyId"),targetChart:true,reversesJournalId:reversal==""?null:reversal,payChart:true,journalDate:draft.S("date"),manualJournalId:id);
@@ -73,7 +73,7 @@ public static class ManualJournals
     // Checker rejects with a reason; the draft stays for audit. Only a draft can be rejected.
     public static JsonObject Reject(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
-        var draft=Get(c,tx,actor,id,ApprovePermission);J.Need(!string.Equals(actor.Identity!.Name,draft.S("createdBy"),StringComparison.OrdinalIgnoreCase),"صاحب المسودة يحذفها ولا يرفضها.",403);
+        var draft=Get(c,tx,actor,id,ApprovePermission);J.Need(AccessPolicy.Independent(actor,draft.S("createdBy"),"finance.manual_rejected",c,tx,draft),"صاحب المسودة يحذفها ولا يرفضها.",403);
         J.Need(draft.S("status")=="draft","الرفض للمسودة فقط؛ القيد المعتمد يُعكس.");PayValues.Fields(input,"reason");string reason=input.Required("reason");J.Need(reason.Length is >=3 and <=1000,"سبب الرفض من 3 إلى 1000 حرف.");
         draft["status"]="rejected";draft["rejectionReason"]=reason;draft["rejectedBy"]=actor.Identity!.Name;draft["rejectedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,Kind,draft,tx);Store.Audit(c,tx,"finance.manual_rejected",id,actor.Identity!.Name!);return WithActions(actor,draft,c,tx);
     }
@@ -91,7 +91,7 @@ public static class ManualJournals
     {
         string me=actor.Identity?.Name??"";bool author=string.Equals(me,d.S("createdBy"),StringComparison.OrdinalIgnoreCase),admin=AccessPolicy.Administrator(actor);
         var actions=new JsonArray();string status=d.S("status");
-        if(status=="draft"&&!author&&AccessPolicy.Has(actor,ApprovePermission)){actions.Add((JsonNode)"approve");actions.Add((JsonNode)"reject");}
+        if(status=="draft"&&AccessPolicy.Independent(actor,d.S("createdBy"),"finance.manual_approved")&&AccessPolicy.Has(actor,ApprovePermission)){actions.Add((JsonNode)"approve");actions.Add((JsonNode)"reject");}
         if(status is "draft" or "rejected"&&(author||admin)&&AccessPolicy.Has(actor,CreatePermission))actions.Add((JsonNode)"delete");
         if(status=="approved"&&d.S("reversesJournalId")==""&&AccessPolicy.Has(actor,CreatePermission)&&!Store.List(c,Kind,tx).Any(x=>x.S("reversesManualJournalId")==d.S("id")&&x.S("status")!="rejected"))actions.Add((JsonNode)"reverse");
         var copy=d.DeepClone().AsObject();copy["allowedActions"]=actions;return copy;

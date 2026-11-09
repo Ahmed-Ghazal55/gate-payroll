@@ -33,7 +33,7 @@ public static partial class PaySettings
     public static JsonObject Approve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string kind,string app,string id)
     {
         bool global=kind=="pay_setting";app=global?"global":PayPlatforms.App(app);Scope(actor,"pay.approve",global?null:app,true);var doc=Store.Get(c,id,kind,tx)?.Clone()??throw new ApiError("الإعداد غير موجود.",404);J.Need(doc.S("app")==app,"الإعداد يخص تطبيقًا آخر.");
-        AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve");if(doc.S("status")=="approved")return doc;
+        AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve",c,tx,"pay.config_approved",doc);if(doc.S("status")=="approved")return doc;
         J.Need(doc.S("status")=="draft"&&!Store.List(c,kind,tx).Any(d=>d.S("app")==app&&d.S("period")==doc.S("period")&&d.S("code")==doc.S("code")&&d.N("version")>doc.N("version")),"اعتمد أحدث مسودة فقط.");Validate(kind,app,doc["data"]!.AsObject());References(c,tx,doc,true);doc["status"]="approved";doc["approvedBy"]=actor.Identity!.Name;doc["approvedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,kind,doc,tx);Store.Audit(c,tx,"pay.config_approved",id,actor.Identity!.Name!);return doc;
     }
     public static JsonObject Resolve(DbConnection c,DbTransaction? tx,string kind,string app,string period,string code="default")=>Store.List(c,kind,tx).Where(d=>d.S("app")==PayPlatforms.App(app)&&d.S("period")==J.Period(period)&&d.S("code")==code&&d.S("status")=="approved").OrderByDescending(d=>d.N("version")).FirstOrDefault()??throw new ApiError("لا توجد نسخة إعداد معتمدة للتطبيق والشهر.",409);
@@ -60,7 +60,14 @@ public static partial class PaySettings
     static object List(Store store,HttpContext ctx,string kind,string app)
     {
         bool global=kind=="pay_setting";app=global?"global":PayPlatforms.App(app);Scope(ctx.User,"pay.view",global?null:app);string period=ctx.Request.Query["period"].ToString();if(period!="")J.Period(period);
-        return store.Read(c=>ApiPagination.Apply(Store.List(c,kind).Where(d=>d.S("app")==app&&(period==""||d.S("period")==period)).OrderBy(d=>d.S("code")).ThenByDescending(d=>d.N("version")),ctx.Request.Query,true));
+        return store.Read(c=>ApiPagination.Apply(Store.List(c,kind).Where(d=>d.S("app")==app&&(period==""||d.S("period")==period)).OrderBy(d=>d.S("code")).ThenByDescending(d=>d.N("version")).Select(d=>WithActions(ctx.User,d)),ctx.Request.Query,true));
+    }
+    public static JsonObject WithActions(ClaimsPrincipal actor,JsonObject doc)
+    {
+        var result=doc.Clone();var actions=new JsonArray();
+        if(doc.S("status")=="draft"&&AccessPolicy.Has(actor,"pay.approve"))
+        {try{AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new(),"pay.approve");actions.Add("approve");}catch(ApiError){}}
+        result["allowedActions"]=actions;return result;
     }
     public static void Map(RouteGroupBuilder api,Store store)
     {

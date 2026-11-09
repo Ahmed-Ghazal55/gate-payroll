@@ -121,6 +121,9 @@ export function SearchableSelect({
           setOpen(true);
           setActive(0);
         }}
+        onClick={() => {
+          setOpen(true);
+        }}
         onBlur={() => {
           setOpen(false);
           setQuery('');

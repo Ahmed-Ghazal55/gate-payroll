@@ -66,8 +66,27 @@ import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { DebtDeductionStage } from '../../features/payroll/DebtDeductionStage';
 import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
+import { PaySettingsEditorModal } from '../../features/payroll/PaySettingsEditorModal';
+import { PaySettingsCycleReview } from '../../features/payroll/PaySettingsCycleReview';
+import { RiderAssignmentsWorkspace } from '../../features/payroll/RiderAssignmentsWorkspace';
+import { RuleRecordWorkspace } from '../../features/payroll/RuleRecordWorkspace';
+import {
+  createEmptyTermsForm,
+  createEmptySchemeForm,
+  createEmptyEligibilityForm,
+  termsFormFromNinjaSeed,
+  validateTermsForm,
+  validateSchemeForm,
+  validateEligibilityForm,
+} from '../../features/payroll/PaySettingsValidation';
+import type {
+  TermsFormState,
+  SchemeFormState,
+  EligibilityFormState,
+} from '../../features/payroll/PaySettingsValidation';
 import type {
   HsInvoice,
   HsDispute,
@@ -400,7 +419,7 @@ function PayrollPageInner() {
   const [creatingCycle, setCreatingCycle] = useState<boolean>(false);
 
   // Rules Editor States (A6)
-  const [rulesSection, setRulesSection] = useState<'eligibility' | 'global'>('eligibility');
+  const [rulesSection, setRulesSection] = useState<'eligibility' | 'record' | 'global'>('eligibility');
   const [ninjaEligibilityList, setNinjaEligibilityList] = useState<PayEligibilityItem[]>([]);
   const [loadingNinjaEligibility, setLoadingNinjaEligibility] = useState<boolean>(false);
   const [ninjaEligibilityError, setNinjaEligibilityError] = useState<string | null>(null);
@@ -408,12 +427,38 @@ function PayrollPageInner() {
   const [ruleModalOpen, setRuleModalOpen] = useState<boolean>(false);
   const [newRuleMetric, setNewRuleMetric] = useState<string>('orders');
   const [newRuleOperator, setNewRuleOperator] = useState<string>('gte');
-  const [newRuleThreshold, setNewRuleThreshold] = useState<string>('100');
+  const [newRuleThreshold, setNewRuleThreshold] = useState<string>('');
   const [newRuleEffectType, setNewRuleEffectType] = useState<string>('zero');
   const [newRuleIncluded, setNewRuleIncluded] = useState<boolean>(true);
   const [rejectModalOpen, setRejectModalOpen] = useState<boolean>(false);
   const [rejectionReason, setRejectionReason] = useState<string>('');
   const [submittingRuleLifecycle, setSubmittingRuleLifecycle] = useState<boolean>(false);
+
+  // Pay Settings Form States (S1 / S2)
+  const [settingsFormKind, setSettingsFormKind] = useState<'terms' | 'scheme' | 'eligibility' | null>(null);
+  const [termsForm, setTermsForm] = useState<TermsFormState>(() => createEmptyTermsForm('hs'));
+  const [schemeForm, setSchemeForm] = useState<SchemeFormState>(() => createEmptySchemeForm('hs'));
+  const [eligibilityForm, setEligibilityForm] = useState<EligibilityFormState>(() => createEmptyEligibilityForm());
+  const [settingsFormError, setSettingsFormError] = useState<string | null>(null);
+  const [savingSettingsForm, setSavingSettingsForm] = useState<boolean>(false);
+  const [loadingNinjaSeed, setLoadingNinjaSeed] = useState<boolean>(false);
+
+  // Editor Modal States (S2 / S5)
+  const [editorModalOpen, setEditorModalOpen] = useState<boolean>(false);
+  const [editorKind, setEditorKind] = useState<'terms' | 'scheme' | 'eligibility' | 'account_exception' | null>(null);
+  const [editingDoc, setEditingDoc] = useState<PayConfigDoc | null>(null);
+
+  // Reject / Delete Setting States (S2)
+  const [rejectSettingModalOpen, setRejectSettingModalOpen] = useState<boolean>(false);
+  const [rejectSettingDoc, setRejectSettingDoc] = useState<PayConfigDoc | null>(null);
+  const [rejectSettingKind, setRejectSettingKind] = useState<'terms' | 'scheme' | 'eligibility' | null>(null);
+  const [rejectSettingReason, setRejectSettingReason] = useState<string>('');
+
+  // Cycle Review and Diff States (S3)
+  const [prevTermsList, setPrevTermsList] = useState<PayConfigDoc[]>([]);
+  const [prevSchemesList, setPrevSchemesList] = useState<PayConfigDoc[]>([]);
+  const [prevEligibilityList, setPrevEligibilityList] = useState<PayConfigDoc[]>([]);
+  const [showCycleReview, setShowCycleReview] = useState<boolean>(false);
 
   // Columns for Review Draft Accounts Breakdown
   const draftAccountColumns: ColumnDef<PayReviewAccount>[] = useMemo(
@@ -613,6 +658,11 @@ function PayrollPageInner() {
     try {
       const res = await api.getPayTerms(appSlug, selectedPeriod);
       setTermsList(res?.items || (Array.isArray(res) ? res : []));
+      const prevMonth = getPreviousMonth(selectedPeriod);
+      api
+        .getPayTerms(appSlug, prevMonth)
+        .then((r) => setPrevTermsList(r?.items || (Array.isArray(r) ? r : [])))
+        .catch(() => setPrevTermsList([]));
     } catch (err: any) {
       setTermsError(err.message || 'تعذر تحميل شروط المنصة');
       setTermsList([]);
@@ -628,6 +678,11 @@ function PayrollPageInner() {
     try {
       const res = await api.getPaySchemes(appSlug, selectedPeriod);
       setSchemesList(res?.items || (Array.isArray(res) ? res : []));
+      const prevMonth = getPreviousMonth(selectedPeriod);
+      api
+        .getPaySchemes(appSlug, prevMonth)
+        .then((r) => setPrevSchemesList(r?.items || (Array.isArray(r) ? r : [])))
+        .catch(() => setPrevSchemesList([]));
     } catch (err: any) {
       setSchemesError(err.message || 'تعذر تحميل الأنظمة الداخلية');
       setSchemesList([]);
@@ -640,6 +695,7 @@ function PayrollPageInner() {
   const loadEligibility = async () => {
     if (appSlug === 'jahez') {
       setEligibilityList([]);
+      setPrevEligibilityList([]);
       return;
     }
     setLoadingEligibility(true);
@@ -647,6 +703,11 @@ function PayrollPageInner() {
     try {
       const res = await api.getPayEligibility(appSlug, selectedPeriod);
       setEligibilityList(res?.items || (Array.isArray(res) ? res : []));
+      const prevMonth = getPreviousMonth(selectedPeriod);
+      api
+        .getPayEligibility(appSlug, prevMonth)
+        .then((r) => setPrevEligibilityList(r?.items || (Array.isArray(r) ? r : [])))
+        .catch(() => setPrevEligibilityList([]));
     } catch (err: any) {
       setEligibilityError(err.message || 'تعذر تحميل ضوابط الأهلية');
       setEligibilityList([]);
@@ -777,13 +838,18 @@ function PayrollPageInner() {
   }, [ninjaEligibilityList, rulesMonth]);
 
   const handleSaveNewRule = async () => {
+    const trimmedThreshold = newRuleThreshold.trim();
+    if (trimmedThreshold === '' || Number.isNaN(Number(trimmedThreshold))) {
+      showToast('يرجى إدخال قيمة الحد الأدنى (Threshold) للشرط قبل الحفظ', 'error');
+      return;
+    }
     setSubmittingRuleLifecycle(true);
     try {
       const existingRules = [...(activeNinjaEligibility?.data?.rules || [])];
       existingRules.push({
         metric: newRuleMetric,
         operator: newRuleOperator,
-        threshold: parseFloat(newRuleThreshold) || 0,
+        threshold: parseFloat(trimmedThreshold),
         effect: { type: newRuleEffectType },
         included: newRuleIncluded,
       });
@@ -795,11 +861,12 @@ function PayrollPageInner() {
         },
         rulesMonth
       );
-      showToast('تمت إضافة الشرط إلى مسودة الأهلية بنجاح', 'success');
+      showToast('تمت إضافة الشرط إلى نسخة الأهلية بنجاح', 'success');
       setRuleModalOpen(false);
+      setNewRuleThreshold('');
       await loadNinjaEligibility();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر إضافة الشرط', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر إضافة الشرط', 'error');
     } finally {
       setSubmittingRuleLifecycle(false);
     }
@@ -877,26 +944,26 @@ function PayrollPageInner() {
   };
 
   const handleCreateNewNinjaDraft = async () => {
+    const existingRules = activeNinjaEligibility?.data?.rules || [];
+    if (existingRules.length === 0) {
+      setNewRuleThreshold('');
+      setRuleModalOpen(true);
+      return;
+    }
     setSubmittingRuleLifecycle(true);
     try {
-      const initialRules = activeNinjaEligibility?.data?.rules && activeNinjaEligibility.data.rules.length > 0
-        ? activeNinjaEligibility.data.rules
-        : [
-            { metric: 'orders', operator: 'gte', threshold: 100, effect: { type: 'zero' }, included: true },
-            { metric: 'attendanceDays', operator: 'gte', threshold: 24, effect: { type: 'zero' }, included: true },
-          ];
       await api.createAppEligibility(
         'ninja',
         {
           name: `شروط أهلية نينجا ${rulesMonth}`,
-          rules: initialRules,
+          rules: existingRules,
         },
         rulesMonth
       );
-      showToast('تم إنشاء مسودة شروط أهلية جديدة لشهر ' + rulesMonth, 'success');
+      showToast('تم إنشاء نسخة شروط أهلية جديدة لشهر ' + rulesMonth, 'success');
       await loadNinjaEligibility();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر إنشاء مسودة شروط الأهلية', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر إنشاء نسخة شروط الأهلية', 'error');
     } finally {
       setSubmittingRuleLifecycle(false);
     }
@@ -1241,139 +1308,134 @@ function PayrollPageInner() {
     }
   };
 
-  const handleCreateDraftTerms = async () => {
-    try {
-      const defaultData =
-        appSlug === 'keeta'
-          ? {
-              name: 'شروط كيتا الأصلية',
-              billingModel: 'slabs',
-              parameters: {
-                metric: 'orders',
-                bands: [
-                  { min: 0, max: 100, base: 10 },
-                  { min: 101, max: 500, base: 12 },
-                ],
-              },
-            }
-          : appSlug === 'ninja'
-          ? {
-              name: 'شروط نينجا الأصلية',
-              billingModel: 'flat_target',
-              parameters: {
-                targetOrders: 450,
-                monthlyAmount: 5700,
-                extraRate: 12,
-                shortfallPerOrder: 15,
-                prorate: false,
-              },
-            }
-          : {
-              name: `شروط ${appSlug} الأصلية`,
-              billingModel: 'per_order',
-              parameters: { pricePerOrder: 10, companyCostAccount: '526402' },
-            };
+  const isSelfMaker = (doc: PayConfigDoc) =>
+    Boolean(doc.createdBy && user?.username && doc.createdBy.toLowerCase() === user.username.toLowerCase());
 
-      await api.createPayTerms(appSlug, { data: defaultData }, selectedPeriod);
-      showToast('تم إنشاء مسودة شروط المنصة بنجاح', 'success');
-      loadTerms();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر إنشاء مسودة الشروط', 'error');
-    }
+  const handleOpenTermsForm = () => {
+    setEditorKind('terms');
+    setEditingDoc(null);
+    setEditorModalOpen(true);
+  };
+
+  const handleEditTerms = (doc: PayConfigDoc) => {
+    setEditorKind('terms');
+    setEditingDoc(doc);
+    setEditorModalOpen(true);
   };
 
   const handleApproveTerms = async (termsDoc: PayConfigDoc) => {
+    if (isSelfMaker(termsDoc)) {
+      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
+      return;
+    }
     try {
       await api.approvePayTerms(appSlug, termsDoc.id);
       showToast('تم اعتماد شروط المنصة بنجاح وتثبيتها للقراءة فقط', 'success');
       loadTerms();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر اعتماد شروط المنصة', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر اعتماد شروط المنصة', 'error');
     }
   };
 
-  const handleCreateDraftScheme = async () => {
-    try {
-      const categories = [
-        'sponsored_company_car',
-        'sponsored_company_bike',
-        'sponsored_private',
-        'external_company_car',
-        'external_company_bike',
-        'external_private',
-      ];
-      const cells: Record<string, any> = {};
-      categories.forEach((c) => {
-        cells[c] = { enabled: true, dailyCommission: 10, chargeCompanyVehicle: false };
-      });
+  const handleOpenSchemeForm = () => {
+    setEditorKind('scheme');
+    setEditingDoc(null);
+    setEditorModalOpen(true);
+  };
 
-      const body: any = {
-        period: selectedPeriod,
-        code: `${appSlug}-commission`,
-        data: {
-          name: `نظام ${appSlug} الداخلي`,
-          type: 'daily_commission',
-          accountingRole: 'agent',
-          parameters: { categories: cells },
-        },
-      };
-
-      // If approved eligibility exists for app and period, link it
-      const approvedEl = eligibilityList.find((e) => e.status === 'approved');
-      if (approvedEl) {
-        body.data.eligibilitySetId = approvedEl.id;
-      }
-
-      await api.createPayScheme(appSlug, body, selectedPeriod);
-      showToast('تم إنشاء مسودة النظام الداخلي بنجاح', 'success');
-      loadSchemes();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر إنشاء مسودة النظام الداخلي', 'error');
-    }
+  const handleEditScheme = (doc: PayConfigDoc) => {
+    setEditorKind('scheme');
+    setEditingDoc(doc);
+    setEditorModalOpen(true);
   };
 
   const handleApproveScheme = async (schemeDoc: PayConfigDoc) => {
+    if (isSelfMaker(schemeDoc)) {
+      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
+      return;
+    }
     try {
       await api.approvePayScheme(appSlug, schemeDoc.id);
       showToast('تم اعتماد النظام الداخلي بنجاح', 'success');
       loadSchemes();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر اعتماد النظام الداخلي', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر اعتماد النظام الداخلي', 'error');
     }
   };
 
-  const handleCreateDraftEligibility = async () => {
+  const handleOpenEligibilityForm = () => {
     if (appSlug === 'jahez') return;
-    try {
-      const body = {
-        period: selectedPeriod,
-        data: {
-          name: `ضوابط أهلية ${appSlug}`,
-          rules: [
-            {
-              metric: 'orders',
-              operator: 'gte',
-              threshold: 10,
-              effect: { type: 'zero' },
-            },
-          ],
-        },
-      };
-      await api.createPayEligibility(appSlug, body, selectedPeriod);
-      showToast('تم إنشاء مسودة ضوابط الأهلية بنجاح', 'success');
-      loadEligibility();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر إنشاء مسودة ضوابط الأهلية', 'error');
-    }
+    setEditorKind('eligibility');
+    setEditingDoc(null);
+    setEditorModalOpen(true);
+  };
+
+  const handleEditEligibility = (doc: PayConfigDoc) => {
+    if (appSlug === 'jahez') return;
+    setEditorKind('eligibility');
+    setEditingDoc(doc);
+    setEditorModalOpen(true);
   };
 
   const handleApproveEligibility = async (elDoc: PayConfigDoc) => {
+    if (isSelfMaker(elDoc)) {
+      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
+      return;
+    }
     try {
       await api.approvePayEligibility(appSlug, elDoc.id);
       showToast('تم اعتماد ضوابط الأهلية بنجاح', 'success');
       loadEligibility();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر اعتماد ضوابط الأهلية', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر اعتماد ضوابط الأهلية', 'error');
+    }
+  };
+
+  const handleOpenRejectSetting = (doc: PayConfigDoc, kind: 'terms' | 'scheme' | 'eligibility') => {
+    setRejectSettingDoc(doc);
+    setRejectSettingKind(kind);
+    setRejectSettingReason('');
+    setRejectSettingModalOpen(true);
+  };
+
+  const handleConfirmRejectSetting = async () => {
+    if (!rejectSettingDoc || !rejectSettingKind) return;
+    if (!rejectSettingReason.trim()) {
+      showToast('يرجى كتابة سبب الرفض لتوثيقه في سجل التدقيق المالي', 'error');
+      return;
+    }
+    try {
+      await api.rejectPaySetting(
+        rejectSettingKind === 'terms' ? 'pay_terms' : rejectSettingKind === 'scheme' ? 'pay_scheme' : 'pay_eligibility',
+        appSlug,
+        rejectSettingDoc.id,
+        rejectSettingReason.trim()
+      );
+      showToast('تم رفض المسودة وتوثيق سبب الرفض بنجاح', 'success');
+      setRejectSettingModalOpen(false);
+      setRejectSettingDoc(null);
+      if (rejectSettingKind === 'terms') await loadTerms();
+      if (rejectSettingKind === 'scheme') await loadSchemes();
+      if (rejectSettingKind === 'eligibility') await loadEligibility();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر رفض الإعداد', 'error');
+    }
+  };
+
+  const handleDeleteSetting = async (doc: PayConfigDoc, kind: 'terms' | 'scheme' | 'eligibility') => {
+    if (!confirm(`هل أنت متأكد من حذف هذه المسودة (${doc.data?.name || doc.code}) نهائياً؟`)) return;
+    try {
+      await api.deletePaySetting(
+        kind === 'terms' ? 'pay_terms' : kind === 'scheme' ? 'pay_scheme' : 'pay_eligibility',
+        appSlug,
+        doc.id
+      );
+      showToast('تم حذف المسودة بنجاح من سجلات النظام', 'success');
+      if (kind === 'terms') await loadTerms();
+      if (kind === 'scheme') await loadSchemes();
+      if (kind === 'eligibility') await loadEligibility();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر حذف المسودة', 'error');
     }
   };
 
@@ -1394,7 +1456,7 @@ function PayrollPageInner() {
       };
       const res = await api.previewPayAssignments(appSlug, payload);
       setAssignmentPreviewResult(res);
-      showToast(`تمت معاينة خيارات ${res.total ?? res.rows?.length ?? 0} مندوب بنجاح`, 'success');
+      showToast(`تمت معاينة خيارات ${res.rows?.length ?? 0} مندوب بنجاح`, 'success');
     } catch (err: any) {
       showToast(err.message || 'تعذر معاينة استيراد خيارات المناديب', 'error');
     } finally {
@@ -1631,11 +1693,16 @@ function PayrollPageInner() {
       />
 
       {/* ======================================================== */}
-      {/* SECTION: NINJA INVOICE RECONCILE (BR §26, §31)           */}
+      {/* SECTION: NINJA / KEETA INVOICE RECONCILE (BR §26, §31)   */}
       {/* ======================================================== */}
       {mainTab === 'ninja_upload' && (
         <div className="space-y-6">
-          <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} />
+          <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} platform="ninja" />
+        </div>
+      )}
+      {mainTab === 'keeta_upload' && (
+        <div className="space-y-6">
+          <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} platform="keeta" />
         </div>
       )}
 
@@ -2259,12 +2326,19 @@ function PayrollPageInner() {
           {/* Case B: Ninja Settlements Tab (BR §26, §31) */}
           {selectedPlatform === 'ninja' && appSubTab === 'settlements' && (
             <div className="space-y-6">
-              <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} />
+              <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} platform="ninja" />
+            </div>
+          )}
+
+          {/* Case C: Keeta Settlements Tab (BR §26, §31 / R9 W1) */}
+          {selectedPlatform === 'keeta' && appSubTab === 'settlements' && (
+            <div className="space-y-6">
+              <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} platform="keeta" />
             </div>
           )}
 
           {/* Fallback for other platforms settlements */}
-          {selectedPlatform !== 'hungerstation' && selectedPlatform !== 'ninja' && appSubTab === 'settlements' && (
+          {selectedPlatform !== 'hungerstation' && selectedPlatform !== 'ninja' && selectedPlatform !== 'keeta' && appSubTab === 'settlements' && (
             <div className="p-8 text-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--muted)]">
               تسويات وفواتير منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr} قيد التطوير والتفعيل.
             </div>
@@ -2278,7 +2352,7 @@ function PayrollPageInner() {
               <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-                    الشروط الأصلية (Parent Company Terms) · منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr}
+                    عقد المنصة (Parent Company Terms) · منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr}
                   </h3>
                   <p className="text-xs text-[var(--muted)] mt-1">
                     إدارة نموذج الفوترة والتعاقد الأصلي مع المنصة. تخضع لاعتماد مستخدم ثانٍ مستقل (Maker-Checker).
@@ -2288,22 +2362,65 @@ function PayrollPageInner() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => setShowCycleReview((prev) => !prev)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer ${
+                      showCycleReview
+                        ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
+                        : 'bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--line)]'
+                    }`}
+                  >
+                    <span>{showCycleReview ? 'إخفاء مقارنة الدورة' : 'مقارنة الدورة والفروقات (Diff)'}</span>
+                  </button>
+
+                  <button
+                    type="button"
                     disabled={copyingMonth}
                     onClick={() => handleCopyMonth(appSlug)}
                     className="px-3.5 py-2 rounded-xl bg-[var(--raised)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--line)] transition inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <Copy size={14} />
-                    <span>انسخ الشهر السابق</span>
+                    <span>اعتماد نفس إعدادات الشهر السابق</span>
                   </button>
+
                   <button
                     type="button"
-                    onClick={handleCreateDraftTerms}
+                    onClick={handleOpenTermsForm}
                     className="px-3.5 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition cursor-pointer"
                   >
-                    + إنشاء مسودة جديدة
+                    + إعداد عقد المنصة
                   </button>
                 </div>
               </div>
+
+              {/* Cycle Review and Diff Viewer */}
+              {showCycleReview && (
+                <PaySettingsCycleReview
+                  period={selectedPeriod}
+                  previousPeriod={getPreviousMonth(selectedPeriod)}
+                  appSlug={appSlug}
+                  appNameAr={platformsList.find((p) => p.id === selectedPlatform)?.nameAr || appSlug}
+                  currentUser={user?.username || ''}
+                  termsList={termsList}
+                  schemesList={schemesList}
+                  eligibilityList={eligibilityList}
+                  prevTermsList={prevTermsList}
+                  prevSchemesList={prevSchemesList}
+                  prevEligibilityList={prevEligibilityList}
+                  onCopyPreviousMonth={() => handleCopyMonth(appSlug)}
+                  copying={copyingMonth}
+                  onEditSetting={(doc, kind) => {
+                    if (kind === 'terms') handleEditTerms(doc);
+                    if (kind === 'scheme') handleEditScheme(doc);
+                    if (kind === 'eligibility') handleEditEligibility(doc);
+                  }}
+                  onApproveSetting={(doc, kind) => {
+                    if (kind === 'terms') handleApproveTerms(doc);
+                    if (kind === 'scheme') handleApproveScheme(doc);
+                    if (kind === 'eligibility') handleApproveEligibility(doc);
+                  }}
+                  onRejectSetting={(doc, kind) => handleOpenRejectSetting(doc, kind)}
+                />
+              )}
 
               {loadingTerms ? (
                 <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
@@ -2314,10 +2431,10 @@ function PayrollPageInner() {
                 <ErrorState title="تعذر تحميل الشروط" message={termsError} onRetry={loadTerms} />
               ) : termsList.length === 0 ? (
                 <EmptyState
-                  title="لا توجد إعدادات لهذا الشهر — انسخ الشهر السابق أو أنشئ مسودة"
-                  description="لم يتم العثور على شروط تعاقد مسجلة لهذا التطبيق في الشهر المحدد. يمكنك نسخ إعدادات الشهر السابق بضغطة زر أو إنشاء مسودة جديدة."
+                  title={`لا توجد إعدادات لعقد المنصة لشهر ${selectedPeriod}`}
+                  description="لم يتم العثور على عقد مسجل لهذا التطبيق في الشهر المحدد. يمكنك اعتماد نفس إعدادات الشهر السابق بنقرة زر أو إنشاء نسخة جديدة."
                   action={{
-                    label: 'انسخ الشهر السابق الآن',
+                    label: 'اعتماد نفس إعدادات الشهر السابق',
                     onClick: () => handleCopyMonth(appSlug),
                   }}
                 />
@@ -2325,6 +2442,7 @@ function PayrollPageInner() {
                 <div className="space-y-4">
                   {termsList.map((t) => {
                     const isApproved = t.status === 'approved';
+                    const isMaker = isSelfMaker(t);
                     return (
                       <div
                         key={t.id}
@@ -2337,7 +2455,7 @@ function PayrollPageInner() {
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div className="flex items-center gap-2">
                             <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                              {t.data?.name || 'شروط التعاقد الأصلية'} (إصدار #{t.version})
+                              {t.data?.name || 'عقد المنصة الأصلي'} (إصدار #{t.version})
                             </h4>
                             <span
                               className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
@@ -2346,8 +2464,13 @@ function PayrollPageInner() {
                                   : 'bg-[var(--warning)]/15 text-[var(--warning)]'
                               }`}
                             >
-                              {isApproved ? `معتمد من @${t.approvedBy}` : 'مسودة قيد المراجعة'}
+                              {isApproved ? `معتمدة من @${t.approvedBy}` : 'بانتظار الاعتماد'}
                             </span>
+                            {t.createdBy && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--raised)] font-mono text-[var(--muted)]">
+                                أنشأه: @{t.createdBy}
+                              </span>
+                            )}
                             {isApproved && (
                               <span className="inline-flex items-center gap-1 text-[11px] text-[var(--muted)]">
                                 <Lock size={12} />
@@ -2356,15 +2479,44 @@ function PayrollPageInner() {
                             )}
                           </div>
 
-                          {!isApproved && (
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => handleApproveTerms(t)}
-                              className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer"
+                              onClick={() => handleEditTerms(t)}
+                              className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--raised)] transition cursor-pointer"
                             >
-                              اعتماد الشروط (Maker-Checker)
+                              {isApproved ? 'إنشاء إصدار معدّل' : 'تعديل الإعداد'}
                             </button>
-                          )}
+
+                            {!isApproved && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isMaker}
+                                  title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد العقد'}
+                                  onClick={() => handleApproveTerms(t)}
+                                  className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
+                                >
+                                  اعتماد العقد (Maker-Checker)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenRejectSetting(t, 'terms')}
+                                  className="px-3 py-1.5 rounded-xl border border-[var(--danger)]/30 text-[var(--danger)] text-xs font-bold hover:bg-[var(--danger)]/10 transition cursor-pointer"
+                                >
+                                  رفض
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSetting(t, 'terms')}
+                                  className="px-2.5 py-1.5 rounded-xl text-[var(--danger)] text-xs hover:bg-[var(--danger)]/10 transition cursor-pointer"
+                                  title="حذف المسودة"
+                                >
+                                  حذف
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
 
                         {/* Terms parameters card */}
@@ -2381,7 +2533,7 @@ function PayrollPageInner() {
                               <span className="font-mono">{t.createdAt?.slice(0, 10) || '-'}</span>
                             </div>
                             <div>
-                              <span className="text-[var(--muted)] block">بواسطة:</span>
+                              <span className="text-[var(--muted)] block">أنشئت بواسطة:</span>
                               <span className="font-mono">@{t.createdBy || 'system'}</span>
                             </div>
                             <div>
@@ -2428,14 +2580,14 @@ function PayrollPageInner() {
                     className="px-3.5 py-2 rounded-xl bg-[var(--raised)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--line)] transition inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <Copy size={14} />
-                    <span>انسخ الشهر السابق</span>
+                    <span>اعتماد نفس إعدادات الشهر السابق</span>
                   </button>
                   <button
                     type="button"
-                    onClick={handleCreateDraftScheme}
+                    onClick={handleOpenSchemeForm}
                     className="px-3.5 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition cursor-pointer"
                   >
-                    + إنشاء مسودة نظام
+                    + إضافة نظام داخلي
                   </button>
                 </div>
               </div>
@@ -2449,10 +2601,10 @@ function PayrollPageInner() {
                 <ErrorState title="تعذر تحميل الأنظمة" message={schemesError} onRetry={loadSchemes} />
               ) : schemesList.length === 0 ? (
                 <EmptyState
-                  title="لا توجد إعدادات لهذا الشهر — انسخ الشهر السابق أو أنشئ مسودة"
-                  description="لم يتم العثور على أنظمة داخلية مسجلة لهذا التطبيق في الشهر المحدد. انسخ الشهر السابق أو أنشئ مسودة جديدة."
+                  title={`لا توجد أنظمة داخلية مسجلة لشهر ${selectedPeriod}`}
+                  description="لم يتم العثور على أنظمة داخلية مسجلة لهذا التطبيق في الشهر المحدد. انسخ الشهر السابق أو أنشئ نظاماً داخلياً جديداً."
                   action={{
-                    label: 'انسخ الشهر السابق الآن',
+                    label: 'اعتماد نفس إعدادات الشهر السابق',
                     onClick: () => handleCopyMonth(appSlug),
                   }}
                 />
@@ -2460,6 +2612,7 @@ function PayrollPageInner() {
                 <div className="space-y-4">
                   {schemesList.map((sc) => {
                     const isApproved = sc.status === 'approved';
+                    const isMaker = isSelfMaker(sc);
                     const categories = sc.data?.parameters?.categories || {};
                     return (
                       <div
@@ -2482,10 +2635,18 @@ function PayrollPageInner() {
                                   : 'bg-[var(--warning)]/15 text-[var(--warning)]'
                               }`}
                             >
-                              {isApproved ? `معتمد من @${sc.approvedBy}` : 'مسودة قيد المراجعة'}
+                              {isApproved ? `معتمدة من @${sc.approvedBy}` : 'بانتظار الاعتماد'}
                             </span>
+                            {sc.createdBy && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--raised)] font-mono text-[var(--muted)]">
+                                أنشأه: @{sc.createdBy}
+                              </span>
+                            )}
                             <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--raised)] font-mono">
                               صفة: {sc.data?.accountingRole === 'principal' ? 'أصيل (Principal)' : 'وكيل (Agent)'}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-mono">
+                              نوع: {sc.data?.type || 'daily_commission'}
                             </span>
                             {isApproved && (
                               <span className="inline-flex items-center gap-1 text-[11px] text-[var(--muted)]">
@@ -2495,15 +2656,44 @@ function PayrollPageInner() {
                             )}
                           </div>
 
-                          {!isApproved && (
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => handleApproveScheme(sc)}
-                              className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer"
+                              onClick={() => handleEditScheme(sc)}
+                              className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--raised)] transition cursor-pointer"
                             >
-                              اعتماد النظام الداخلي (Maker-Checker)
+                              {isApproved ? 'إنشاء إصدار معدّل' : 'تعديل الإعداد'}
                             </button>
-                          )}
+
+                            {!isApproved && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isMaker}
+                                  title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد النظام'}
+                                  onClick={() => handleApproveScheme(sc)}
+                                  className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
+                                >
+                                  اعتماد النظام (Maker-Checker)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenRejectSetting(sc, 'scheme')}
+                                  className="px-3 py-1.5 rounded-xl border border-[var(--danger)]/30 text-[var(--danger)] text-xs font-bold hover:bg-[var(--danger)]/10 transition cursor-pointer"
+                                >
+                                  رفض
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSetting(sc, 'scheme')}
+                                  className="px-2.5 py-1.5 rounded-xl text-[var(--danger)] text-xs hover:bg-[var(--danger)]/10 transition cursor-pointer"
+                                  title="حذف المسودة"
+                                >
+                                  حذف
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
 
                         {/* 6 Category cells table */}
@@ -2591,6 +2781,18 @@ function PayrollPageInner() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
+                        onClick={() => setShowCycleReview((prev) => !prev)}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer ${
+                          showCycleReview
+                            ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
+                            : 'bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--line)]'
+                        }`}
+                      >
+                        <span>{showCycleReview ? 'إخفاء مقارنة الدورة' : 'مقارنة الدورة والفروقات (Diff)'}</span>
+                      </button>
+
+                      <button
+                        type="button"
                         disabled={copyingMonth}
                         onClick={() => handleCopyMonth(appSlug)}
                         className="px-3.5 py-2 rounded-xl bg-[var(--raised)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--line)] transition inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
@@ -2600,13 +2802,42 @@ function PayrollPageInner() {
                       </button>
                       <button
                         type="button"
-                        onClick={handleCreateDraftEligibility}
+                        onClick={handleOpenEligibilityForm}
                         className="px-3.5 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition cursor-pointer"
                       >
-                        + إنشاء مسودة أهلية
+                        + إعداد جدول شروط الأهلية
                       </button>
                     </div>
                   </div>
+
+                  {showCycleReview && (
+                    <PaySettingsCycleReview
+                      period={selectedPeriod}
+                      previousPeriod={getPreviousMonth(selectedPeriod)}
+                      appSlug={appSlug}
+                      appNameAr={platformsList.find((p) => p.id === selectedPlatform)?.nameAr || appSlug}
+                      currentUser={user?.username || ''}
+                      termsList={termsList}
+                      schemesList={schemesList}
+                      eligibilityList={eligibilityList}
+                      prevTermsList={prevTermsList}
+                      prevSchemesList={prevSchemesList}
+                      prevEligibilityList={prevEligibilityList}
+                      onCopyPreviousMonth={() => handleCopyMonth(appSlug)}
+                      copying={copyingMonth}
+                      onEditSetting={(doc, kind) => {
+                        if (kind === 'terms') handleEditTerms(doc);
+                        if (kind === 'scheme') handleEditScheme(doc);
+                        if (kind === 'eligibility') handleEditEligibility(doc);
+                      }}
+                      onApproveSetting={(doc, kind) => {
+                        if (kind === 'terms') handleApproveTerms(doc);
+                        if (kind === 'scheme') handleApproveScheme(doc);
+                        if (kind === 'eligibility') handleApproveEligibility(doc);
+                      }}
+                      onRejectSetting={(doc, kind) => handleOpenRejectSetting(doc, kind)}
+                    />
+                  )}
 
                   {loadingEligibility ? (
                     <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
@@ -2628,6 +2859,7 @@ function PayrollPageInner() {
                     <div className="space-y-4">
                       {eligibilityList.map((el) => {
                         const isApproved = el.status === 'approved';
+                        const isMaker = isSelfMaker(el);
                         const rules = el.data?.rules || [];
                         return (
                           <div
@@ -2650,8 +2882,13 @@ function PayrollPageInner() {
                                       : 'bg-[var(--warning)]/15 text-[var(--warning)]'
                                   }`}
                                 >
-                                  {isApproved ? `معتمد من @${el.approvedBy}` : 'مسودة قيد المراجعة'}
+                                  {isApproved ? `معتمدة من @${el.approvedBy}` : 'بانتظار الاعتماد'}
                                 </span>
+                                {el.createdBy && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--raised)] font-mono text-[var(--muted)]">
+                                    أنشأه: @{el.createdBy}
+                                  </span>
+                                )}
                                 {isApproved && (
                                   <span className="inline-flex items-center gap-1 text-[11px] text-[var(--muted)]">
                                     <Lock size={12} />
@@ -2660,15 +2897,44 @@ function PayrollPageInner() {
                                 )}
                               </div>
 
-                              {!isApproved && (
+                              <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => handleApproveEligibility(el)}
-                                  className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer"
+                                  onClick={() => handleEditEligibility(el)}
+                                  className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--raised)] transition cursor-pointer"
                                 >
-                                  اعتماد الأهلية (Maker-Checker)
+                                  {isApproved ? 'إنشاء إصدار معدّل' : 'تعديل الإعداد'}
                                 </button>
-                              )}
+
+                                {!isApproved && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      disabled={isMaker}
+                                      title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد الأهلية'}
+                                      onClick={() => handleApproveEligibility(el)}
+                                      className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
+                                    >
+                                      اعتماد الأهلية (Maker-Checker)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenRejectSetting(el, 'eligibility')}
+                                      className="px-3 py-1.5 rounded-xl border border-[var(--danger)]/30 text-[var(--danger)] text-xs font-bold hover:bg-[var(--danger)]/10 transition cursor-pointer"
+                                    >
+                                      رفض
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteSetting(el, 'eligibility')}
+                                      className="px-2.5 py-1.5 rounded-xl text-[var(--danger)] text-xs hover:bg-[var(--danger)]/10 transition cursor-pointer"
+                                      title="حذف المسودة"
+                                    >
+                                      حذف
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
 
                             {/* Rules table */}
@@ -2707,87 +2973,20 @@ function PayrollPageInner() {
           )}
 
           {/* ======================================================== */}
-          {/* SCHEME CHOICES & ASSIGNMENTS SUB-TAB (F1 / R4.3)         */}
+          {/* SCHEME CHOICES & ASSIGNMENTS SUB-TAB (F1 / R4.3 / S4)     */}
           {/* ======================================================== */}
           {appSubTab === 'accounts' && (
-            <div className="space-y-6">
-              <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-                    ربط الحسابات وتكليفات الأنظمة (Assignments R4.3) · منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr}
-                  </h3>
-                  <p className="text-xs text-[var(--muted)] mt-1">
-                    توزيع خيارات الأنظمة المعتمدة للمناديب بناءً على ردود النماذج والاستبيانات عبر تدفق المعاينة والتأكيد.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAssignmentsImportModalOpen(true);
-                      setAssignmentPreviewResult(null);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs sm:text-sm font-bold hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <ArrowRightLeft size={15} />
-                    <span>استيراد وتوزيع خيارات المناديب (R4.3)</span>
-                  </button>
-                </div>
-              </div>
-
-              {loadingAssignments ? (
-                <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ) : assignmentsError ? (
-                <ErrorState title="تعذر تحميل التكليفات" message={assignmentsError} onRetry={loadAssignments} />
-              ) : assignmentsList.length === 0 ? (
-                <EmptyState
-                  title={`لا توجد خيارات أنظمة مسجلة لمنصة ${selectedPlatform} لشهر ${selectedPeriod}`}
-                  description="استخدم زر «استيراد وتوزيع خيارات المناديب» بالأعلى لربط ردود النماذج بالأنظمة المعتمدة."
-                  action={{
-                    label: 'فتح شاشة استيراد الخيارات',
-                    onClick: () => {
-                      setAssignmentsImportModalOpen(true);
-                      setAssignmentPreviewResult(null);
-                    },
-                  }}
-                />
-              ) : (
-                <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-start text-xs sm:text-sm">
-                      <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                        <tr>
-                          <th className="p-3 text-start">إقامة المندوب</th>
-                          <th className="p-3 text-start">اسم المندوب</th>
-                          <th className="p-3 text-start">معرف النظام (Scheme ID)</th>
-                          <th className="p-3 text-start">الشهر</th>
-                          <th className="p-3 text-start">الحالة</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--line)]">
-                        {assignmentsList.map((a) => (
-                          <tr key={a.id || a.rider} className="hover:bg-[var(--row-hover)] transition">
-                            <td className="p-3 font-mono font-bold text-[var(--ink)]">{a.rider}</td>
-                            <td className="p-3 font-semibold">{a.rider}</td>
-                            <td className="p-3 font-mono text-xs text-[var(--accent)]">{a.schemeId || '-'}</td>
-                            <td className="p-3 font-mono">{a.period}</td>
-                            <td className="p-3">
-                              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[var(--money-pos)]/15 text-[var(--money-pos)]">
-                                معتمد
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
+            <RiderAssignmentsWorkspace
+              appSlug={appSlug}
+              appNameAr={platformsList.find((p) => p.id === selectedPlatform)?.nameAr || selectedPlatform}
+              period={selectedPeriod}
+              schemesList={schemesList}
+              ridersList={ridersList}
+              onOpenImportModal={() => {
+                setAssignmentsImportModalOpen(true);
+                setAssignmentPreviewResult(null);
+              }}
+            />
           )}
         </div>
       )}
@@ -2924,13 +3123,21 @@ function PayrollPageInner() {
                     />
                   </div>
 
-                  {/* Create Cycle Action Banner */}
-                  <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
+                  {/* Next-Step Card for Review Draft (R9 W3) */}
+                  <div
+                    id="draft-next-step"
+                    className="p-4 rounded-2xl border-2 border-[var(--accent)]/40 bg-[var(--accent)]/5 flex flex-wrap items-center justify-between gap-3"
+                  >
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                          إنشاء دورة الرواتب لشهر {selectedPeriod}
-                        </h4>
+                      <span className="text-[11px] font-bold text-[var(--accent)]">الخطوة التالية</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-bold text-[var(--ink)]">
+                          {reviewDraft.blockers && reviewDraft.blockers.length > 0
+                            ? `يوجد ${reviewDraft.blockers.length} مانع يمنع إنشاء دورة الرواتب لشهر ${selectedPeriod} — عالج الموانع أولاً`
+                            : reviewDraft.canCreate
+                            ? `مسودة المراجعة جاهزة (0 موانع) — أنشئ دورة الرواتب لشهر ${selectedPeriod}`
+                            : `لا توجد فواتير معتمدة في المسودة لشهر ${selectedPeriod} — ارفع واعتمد الفاتورة أولاً`}
+                        </p>
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
                             reviewDraft.canCreate && (!reviewDraft.blockers || reviewDraft.blockers.length === 0)
@@ -2945,29 +3152,81 @@ function PayrollPageInner() {
                       </div>
                       <p className="text-xs text-[var(--muted)]">
                         {reviewDraft.blockers && reviewDraft.blockers.length > 0
-                          ? `يمنع الخادم إنشاء الدورة في وجود موانع استحقاق (${reviewDraft.blockers.length} مانع). قم بتسوية الموانع عبر الروابط المباشرة أدناه.`
-                          : 'كافة شروط الفاتورة والتشغيل والأنظمة معتمدة ومطابقة، يمكنك بدء دورة الرواتب الآن.'}
+                          ? `السبب الأول: ${reviewDraft.blockers[0].message} (${reviewDraft.blockers[0].code}). استخدم الروابط المباشرة لإصلاح الموانع.`
+                          : reviewDraft.canCreate
+                          ? 'كافة شروط الفاتورة والتشغيل والأنظمة معتمدة ومطابقة، اضغط الزر لبدء دورة الرواتب الآن.'
+                          : 'انتقل لشاشة رفع واعتماد الفاتورة لتجهيز مدخلات مسودة المراجعة.'}
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={creatingCycle || !reviewDraft.canCreate || (reviewDraft.blockers && reviewDraft.blockers.length > 0)}
-                      onClick={handleCreateCycleFromDraft}
-                      className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2 shadow-xs"
-                    >
-                      {creatingCycle ? (
-                        <>
-                          <RefreshCw size={15} className="animate-spin" />
-                          <span>جاري إنشاء الدورة...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={15} />
-                          <span>إنشاء دورة الرواتب</span>
-                        </>
-                      )}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {reviewDraft.blockers && reviewDraft.blockers.length > 0 ? (
+                        Array.from(new Set(reviewDraft.blockers.map((b) => b.fixAction))).map((fixAct) => {
+                          const actionInfo = BLOCKER_ACTION_MAP[fixAct] || {
+                            label: 'معالجة المانع',
+                            href: '/app/payroll',
+                          };
+                          return (
+                            <a
+                              key={fixAct}
+                              href={actionInfo.href}
+                              onClick={(e) => {
+                                if (fixAct === 'open_cycle') {
+                                  e.preventDefault();
+                                  setCycleViewMode('active');
+                                } else if (
+                                  fixAct === 'upload_invoice' ||
+                                  fixAct === 'approve_invoice' ||
+                                  fixAct === 'resolve_dispute' ||
+                                  fixAct === 'classify_invoice'
+                                ) {
+                                  e.preventDefault();
+                                  setMainTab('ninja_upload');
+                                } else if (fixAct === 'approve_settings') {
+                                  e.preventDefault();
+                                  setMainTab('rules');
+                                }
+                              }}
+                              className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition inline-flex items-center gap-1.5 shadow-xs"
+                            >
+                              <span>{actionInfo.label}</span>
+                              <ChevronRight size={14} />
+                            </a>
+                          );
+                        })
+                      ) : !reviewDraft.canCreate ? (
+                        <a
+                          href="/app/payroll?tab=ninja_upload"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setMainTab('ninja_upload');
+                          }}
+                          className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition inline-flex items-center gap-1.5 shadow-xs"
+                        >
+                          <span>رفع فاتورة نينجا</span>
+                          <ChevronRight size={14} />
+                        </a>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        disabled={creatingCycle || !reviewDraft.canCreate || (reviewDraft.blockers && reviewDraft.blockers.length > 0)}
+                        onClick={handleCreateCycleFromDraft}
+                        className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2 shadow-xs"
+                      >
+                        {creatingCycle ? (
+                          <>
+                            <RefreshCw size={15} className="animate-spin" />
+                            <span>جاري إنشاء الدورة...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={15} />
+                            <span>إنشاء دورة الرواتب</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Blockers Section */}
@@ -3002,13 +3261,30 @@ function PayrollPageInner() {
                                 )}
                               </div>
 
-                              <Link
+                              <a
                                 href={actionInfo.href}
+                                onClick={(e) => {
+                                  if (b.fixAction === 'open_cycle') {
+                                    e.preventDefault();
+                                    setCycleViewMode('active');
+                                  } else if (
+                                    b.fixAction === 'upload_invoice' ||
+                                    b.fixAction === 'approve_invoice' ||
+                                    b.fixAction === 'resolve_dispute' ||
+                                    b.fixAction === 'classify_invoice'
+                                  ) {
+                                    e.preventDefault();
+                                    setMainTab('ninja_upload');
+                                  } else if (b.fixAction === 'approve_settings') {
+                                    e.preventDefault();
+                                    setMainTab('rules');
+                                  }
+                                }}
                                 className="px-3 py-1.5 rounded-xl bg-[var(--raised)] text-[var(--accent)] font-bold hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] transition inline-flex items-center gap-1 shrink-0"
                               >
                                 <span>{actionInfo.label}</span>
                                 <ChevronRight size={13} />
-                              </Link>
+                              </a>
                             </div>
                           );
                         })}
@@ -3032,13 +3308,13 @@ function PayrollPageInner() {
                           يوجد <strong>{reviewDraft.unassignedOrders.length}</strong> وقائع تشغيل بلا مشغل فعلي مطابق في الفترة.
                         </span>
                       </div>
-                      <Link
+                      <a
                         href="/app/operations?tab=accounts"
                         className="font-bold text-[var(--accent)] hover:underline inline-flex items-center gap-1 text-xs shrink-0"
                       >
                         <span>ربط المشغل الفعلي</span>
                         <ChevronRight size={13} />
-                      </Link>
+                      </a>
                     </div>
                   )}
 
@@ -3050,13 +3326,13 @@ function PayrollPageInner() {
                           يوجد <strong>{reviewDraft.ridersNotFound.length}</strong> أسطر تشغيل تخص مناديب غير مسجلين في الدليل.
                         </span>
                       </div>
-                      <Link
+                      <a
                         href="/app/riders"
                         className="font-bold text-[var(--accent)] hover:underline inline-flex items-center gap-1 text-xs shrink-0"
                       >
                         <span>إضافة ومزامنة المناديب</span>
                         <ChevronRight size={13} />
-                      </Link>
+                      </a>
                     </div>
                   )}
 
@@ -3091,6 +3367,225 @@ function PayrollPageInner() {
           {/* VIEW 2: ACTIVE CYCLE STAGES (0-7) */}
           {cycleViewMode === 'active' && (
             <div className="space-y-6">
+              {/* Next-Step Card for Active Cycle (R9 W3) */}
+              {(() => {
+                const cycleRiders = (activeCycle?.riders || []) as Array<{
+                  rider: string;
+                  status?: string;
+                  review?: string;
+                }>;
+                const unapprovedRiders = cycleRiders.filter((r) => r.review !== 'approved').length;
+                const cycleHistory = (activeCycle?.history || []) as unknown as Array<{
+                  stage: number;
+                  advancedBy?: string;
+                }>;
+                const uname = (user?.username || '').toLowerCase();
+                const createdByUser =
+                  activeCycle && 'createdBy' in activeCycle && typeof activeCycle.createdBy === 'string'
+                    ? activeCycle.createdBy
+                    : '';
+                const isParticipant = Boolean(
+                  uname &&
+                    activeCycle &&
+                    (createdByUser.toLowerCase() === uname ||
+                      cycleHistory.some((h) => (h.advancedBy || '').toLowerCase() === uname))
+                );
+                const draftBlockers = reviewDraft?.blockers || [];
+
+                return (
+                  <div
+                    id="cycle-next-step"
+                    className="p-4 rounded-2xl border-2 border-[var(--accent)]/40 bg-[var(--accent)]/5 flex flex-wrap items-center justify-between gap-3"
+                  >
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold text-[var(--accent)]">الخطوة التالية</span>
+                      {!activeCycle ? (
+                        <>
+                          <p className="text-sm font-bold text-[var(--ink)]">
+                            لا توجد دورة رواتب قائمة لشهر {selectedPeriod} — ابدأ من مسودة المراجعة لإنشاء الدورة
+                          </p>
+                          <p className="text-xs text-[var(--muted)]">
+                            {draftBlockers.length > 0
+                              ? `يوجد ${draftBlockers.length} مانع يمنع إنشاء الدورة حالياً (${draftBlockers[0].message}). عالج الموانع أو افتح مسودة المراجعة.`
+                              : 'افتح مسودة المراجعة المقترحة للتحقق من الفواتير وإنشاء دورة الرواتب.'}
+                          </p>
+                        </>
+                      ) : activeCycle.stage >= 7 && activeCycle.stage < 8 ? (
+                        <>
+                          <p className="text-sm font-bold text-[var(--ink)]">
+                            الرواتب اعتمدت — الخطوة التالية: تأكيد استقطاع الديون (مرحلة 8) قبل ملف البنك
+                          </p>
+                          <p className="text-xs text-[var(--muted)]">
+                            راجع جدول «مرحلة 8» تحت. اللي لسه ما اتأكدش ماينزلش في ملف البنك.
+                          </p>
+                        </>
+                      ) : activeCycle.status === 'approved' || activeCycle.stage >= 8 ? (
+                        <>
+                          <p className="text-sm font-bold text-[var(--ink)]">
+                            اكتملت دورة الرواتب واعتمدت بالكامل (المرحلة 7) — الخطوة التالية: تصدير ملف الصرف البنكي
+                          </p>
+                          <p className="text-xs text-[var(--muted)]">
+                            تم ترحيل القيد المحاسبي واعتماد المسير النهائي. انتقل للخزينة لتصدير ملف البنك (CSV).
+                          </p>
+                        </>
+                      ) : activeCycle.status === 'needs_decision' ? (
+                        <>
+                          <p className="text-sm font-bold text-[var(--danger)]">
+                            الدورة متوقفة عند المرحلة {activeCycle.stage} وتحتاج قراراً مالياً (§22.9.2)
+                          </p>
+                          <p className="text-xs text-[var(--muted)]">
+                            لماذا توقف التقديم؟ توجد أسطر مناديب بصافي سالب أو عجز سابق أو شروط غير مكتملة تمنع التقديم الآلي. راجع الأسطر أو عدّل الأقساط والتسويات للمتابعة.
+                          </p>
+                        </>
+                      ) : activeCycle.stage === 6 ? (
+                        unapprovedRiders > 0 ? (
+                          <>
+                            <p className="text-sm font-bold text-[var(--ink)]">
+                              المرحلة 6 (مراجعة المسير): اعتمد المناديب المتبقين ({unapprovedRiders} مندوب) في جدول المراجعة أدناه قبل الاعتماد النهائي
+                            </p>
+                            <p className="text-xs text-[var(--muted)]">
+                              يشترط النظام مراجعة واعتماد جميع أسطر المناديب في جدول المراجعة (اعتماد فردي أو اعتماد الكل) قبل الانتقال للمرحلة 7.
+                            </p>
+                          </>
+                        ) : isParticipant ? (
+                          <>
+                            <p className="text-sm font-bold text-[var(--ink)]">
+                              تم اعتماد جميع المناديب في جدول المراجعة — بانتظار مستخدم مستقل لاعتماد المرحلة 7 والترحيل
+                            </p>
+                            <p className="text-xs text-[var(--muted)]">
+                              لماذا لا يكتمل الاعتماد النهائي بحسابك؟ قاعدة الرقابة المستقلة (Maker ≠ Checker) تشترط أن يكون معتمد المرحلة 7 مستقلاً عن من أنشأ الدورة أو قدّم مراحلها.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-bold text-[var(--ink)]">
+                              جميع المناديب معتمدون في جدول المراجعة — الخطوة التالية: اعتماد المرحلة 7 وترحيل القيد المحاسبي
+                            </p>
+                            <p className="text-xs text-[var(--muted)]">
+                              {cycleSteps[7]?.desc || 'الاعتماد النهائي وترحيل قيود الاستحقاق والمديونيات.'}
+                            </p>
+                          </>
+                        )
+                      ) : (
+                        <>
+                          <p className="text-sm font-bold text-[var(--ink)]">
+                            المرحلة الحالية ({activeCycle.stage}: {cycleSteps[activeCycle.stage]?.title}) جاهزة — الخطوة التالية: التقديم إلى المرحلة {activeCycle.stage + 1} ({cycleSteps[activeCycle.stage + 1]?.title})
+                          </p>
+                          <p className="text-xs text-[var(--muted)]">
+                            {cycleSteps[activeCycle.stage + 1]?.desc || ''}
+                          </p>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {!activeCycle ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setCycleViewMode('draft')}
+                            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+                          >
+                            <span>فتح مسودة المراجعة</span>
+                            <ChevronRight size={14} />
+                          </button>
+                          {Array.from(new Set(draftBlockers.map((b) => b.fixAction))).map((fixAct) => {
+                            const actionInfo = BLOCKER_ACTION_MAP[fixAct] || {
+                              label: 'معالجة المانع',
+                              href: '/app/payroll',
+                            };
+                            return (
+                              <a
+                                key={fixAct}
+                                href={actionInfo.href}
+                                onClick={(e) => {
+                                  if (
+                                    fixAct === 'upload_invoice' ||
+                                    fixAct === 'approve_invoice' ||
+                                    fixAct === 'resolve_dispute' ||
+                                    fixAct === 'classify_invoice'
+                                  ) {
+                                    e.preventDefault();
+                                    setMainTab('ninja_upload');
+                                  } else if (fixAct === 'approve_settings') {
+                                    e.preventDefault();
+                                    setMainTab('rules');
+                                  }
+                                }}
+                                className="px-3.5 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-bold text-xs hover:bg-[var(--raised)] transition inline-flex items-center gap-1"
+                              >
+                                <span>{actionInfo.label}</span>
+                                <ChevronRight size={13} />
+                              </a>
+                            );
+                          })}
+                        </>
+                      ) : activeCycle.status === 'approved' || activeCycle.stage >= 7 ? (
+                        <>
+                          <Link
+                            href="/treasury/?tab=bank_file"
+                            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition inline-flex items-center gap-1.5 shadow-xs"
+                          >
+                            <span>تصدير ملف البنك (CSV)</span>
+                            <ChevronRight size={14} />
+                          </Link>
+                          <Link
+                            href="/accounting"
+                            className="px-3.5 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-bold text-xs hover:bg-[var(--raised)] transition inline-flex items-center gap-1"
+                          >
+                            <span>مراجعة القيود المحاسبية</span>
+                            <ChevronRight size={13} />
+                          </Link>
+                        </>
+                      ) : activeCycle.status === 'needs_decision' ? (
+                        <>
+                          <a
+                            href="/app/debts"
+                            className="px-3.5 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs hover:opacity-90 transition inline-flex items-center gap-1 shadow-xs"
+                          >
+                            <span>مراجعة المديونيات والسلف</span>
+                            <ChevronRight size={13} />
+                          </a>
+                          <a
+                            href="/app/operations"
+                            className="px-3.5 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-bold text-xs hover:bg-[var(--raised)] transition inline-flex items-center gap-1"
+                          >
+                            <span>مراجعة التشغيل اليومي</span>
+                            <ChevronRight size={13} />
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => setCycleViewMode('draft')}
+                            className="px-3.5 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-bold text-xs hover:bg-[var(--raised)] transition cursor-pointer"
+                          >
+                            مسودة المراجعة
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={advancingCycle}
+                          onClick={() => handleAdvanceCycle(activeCycle)}
+                          className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-xs"
+                        >
+                          {advancingCycle ? (
+                            <>
+                              <RefreshCw size={14} className="animate-spin" />
+                              <span>جاري التقديم...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>تقديم المرحلة إلى [{activeCycle.stage + 1}: {cycleSteps[activeCycle.stage + 1]?.title}]</span>
+                              <ChevronRight size={16} />
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
@@ -3124,29 +3619,6 @@ function PayrollPageInner() {
                     <p className="text-xs sm:text-sm text-[var(--muted)] mt-1">
                       مراحل احتساب الرواتب والمسيرات وفق نموذج العمل المالي المعتمد في BR §24.7
                     </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {activeCycle && activeCycle.stage < 7 && activeCycle.status !== 'approved' && (
-                      <button
-                        type="button"
-                        disabled={advancingCycle || activeCycle.status === 'needs_decision'}
-                        onClick={() => handleAdvanceCycle(activeCycle)}
-                        className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-xs"
-                      >
-                        {advancingCycle ? (
-                          <>
-                            <RefreshCw size={14} className="animate-spin" />
-                            <span>جاري التقديم...</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>تقديم المرحلة إلى [{activeCycle.stage + 1}: {cycleSteps[activeCycle.stage + 1]?.title}]</span>
-                            <ChevronRight size={16} />
-                          </>
-                        )}
-                      </button>
-                    )}
                   </div>
                 </div>
 
@@ -3347,6 +3819,15 @@ function PayrollPageInner() {
                   if (activeCycle) loadCycleLines(activeCycle.id);
                 }}
               />
+              {activeCycle.stage >= 7 && (
+                <DebtDeductionStage
+                  cycle={activeCycle}
+                  onChanged={() => {
+                    loadCycles();
+                    loadCycleLines(activeCycle.id);
+                  }}
+                />
+              )}
             </div>
           )}
 
@@ -3414,6 +3895,19 @@ function PayrollPageInner() {
                       : `مسودة (v${activeNinjaEligibility.version})`}
                   </span>
                 )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setRulesSection('record')}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
+                  rulesSection === 'record'
+                    ? 'bg-[var(--accent)] text-[var(--accent-ink)] shadow-xs'
+                    : 'bg-[var(--raised)] text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <Layers size={15} />
+                <span>سجل القواعد وتخصيصات الحسابات (S5)</span>
               </button>
 
               <button
@@ -3605,7 +4099,24 @@ function PayrollPageInner() {
             </div>
           )}
 
-          {/* SECTION B: GLOBAL SETTINGS (Existing F1) */}
+          {/* SECTION B: RULE RECORD & ACCOUNT EXCEPTIONS (S5) */}
+          {rulesSection === 'record' && (
+            <RuleRecordWorkspace
+              appSlug={appSlug}
+              appNameAr={platformsList.find((p) => p.id === selectedPlatform)?.nameAr || appSlug}
+              period={rulesMonth}
+              onOpenExceptionModal={() => {
+                setEditorKind('account_exception');
+                setEditingDoc(null);
+                setEditorModalOpen(true);
+              }}
+              activeEligibilityDoc={activeNinjaEligibility}
+              activeTermsDoc={termsList.find((t) => t.status === 'approved') || termsList[0] || null}
+              activeSchemeDoc={schemesList.find((s) => s.status === 'approved') || schemesList[0] || null}
+            />
+          )}
+
+          {/* SECTION C: GLOBAL SETTINGS (Existing F1) */}
           {rulesSection === 'global' && (
             <div className="space-y-6">
               <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
@@ -3674,9 +4185,9 @@ function PayrollPageInner() {
               {(() => {
                 const setting = globalSettings[0];
                 const isApproved = setting.status === 'approved';
-                const v = setting.data?.values || {};
-                const rent = v.vehicleRent || {};
-                const acc = v.accounts || {};
+                const v = setting.data?.values;
+                const rent = v?.vehicleRent;
+                const acc = v?.accounts;
 
                 return (
                   <div
@@ -3713,19 +4224,19 @@ function PayrollPageInner() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2">
                       <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
                         <span className="text-[var(--muted)] block">أيام الشهر القياسية:</span>
-                        <span className="font-bold text-[var(--ink)] num">{v.standardDays || 30} يوماً</span>
+                        <span className="font-bold text-[var(--ink)] num">{v?.standardDays || 30} يوماً</span>
                       </div>
                       <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
                         <span className="text-[var(--muted)] block">أيام شهر فبراير:</span>
-                        <span className="font-bold text-[var(--ink)] num">{v.februaryDays || 28} يوماً</span>
+                        <span className="font-bold text-[var(--ink)] num">{v?.februaryDays || 28} يوماً</span>
                       </div>
                       <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
                         <span className="text-[var(--muted)] block">موعد قطع اليوم:</span>
-                        <span className="font-mono font-bold">{v.billingCutoff || '00:00'}</span>
+                        <span className="font-mono font-bold">{v?.billingCutoff || '00:00'}</span>
                       </div>
                       <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
                         <span className="text-[var(--muted)] block">النطاق الزمني:</span>
-                        <span className="font-mono font-bold">{v.timeZone || 'Asia/Riyadh'}</span>
+                        <span className="font-mono font-bold">{v?.timeZone || 'Asia/Riyadh'}</span>
                       </div>
                     </div>
 
@@ -3736,7 +4247,7 @@ function PayrollPageInner() {
                           مصفوفة الفئات (الكفالة × المركبة) · شبكة الـ 6 أعمدة المعتمدة
                         </h4>
                         <p className="text-xs text-[var(--muted)] mt-0.5">
-                          تحديد تكلفة إيجار المركبة اليومي (سيارة {rent.company_car || 60} ر.س / دباب {rent.company_bike || 26.67} ر.س / خاص 0 ر.س) وحسابات التوجيه.
+                          تحديد تكلفة إيجار المركبة اليومي (سيارة {rent?.company_car || 60} ر.س / دباب {rent?.company_bike || 26.67} ر.س / خاص 0 ر.س) وحسابات التوجيه.
                         </p>
                       </div>
 
@@ -3756,20 +4267,20 @@ function PayrollPageInner() {
                           <tbody className="divide-y divide-[var(--line)]">
                             <tr>
                               <td className="p-3 font-semibold">إيجار المركبة اليومي</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent.company_car || '60.00'} ر.س</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent.company_bike || '26.67'} ر.س</td>
+                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_car || '60.00'} ر.س</td>
+                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_bike || '26.67'} ر.س</td>
                               <td className="p-3 num text-[var(--muted)]">0.00 ر.س</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent.company_car || '60.00'} ر.س</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent.company_bike || '26.67'} ر.س</td>
+                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_car || '60.00'} ر.س</td>
+                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_bike || '26.67'} ر.س</td>
                               <td className="p-3 num text-[var(--muted)]">0.00 ر.س</td>
                             </tr>
                             <tr>
                               <td className="p-3 font-semibold">حساب إيراد الإيجار</td>
-                              <td className="p-3 font-mono text-xs">{acc.vehicleIncomeCar || '411102'}</td>
-                              <td className="p-3 font-mono text-xs">{acc.vehicleIncomeBike || '411102'}</td>
+                              <td className="p-3 font-mono text-xs">{acc?.vehicleIncomeCar || '411102'}</td>
+                              <td className="p-3 font-mono text-xs">{acc?.vehicleIncomeBike || '411102'}</td>
                               <td className="p-3 text-[var(--muted)]">-</td>
-                              <td className="p-3 font-mono text-xs">{acc.vehicleIncomeCar || '411102'}</td>
-                              <td className="p-3 font-mono text-xs">{acc.vehicleIncomeBike || '411102'}</td>
+                              <td className="p-3 font-mono text-xs">{acc?.vehicleIncomeCar || '411102'}</td>
+                              <td className="p-3 font-mono text-xs">{acc?.vehicleIncomeBike || '411102'}</td>
                               <td className="p-3 text-[var(--muted)]">-</td>
                             </tr>
                           </tbody>
@@ -3951,18 +4462,16 @@ function PayrollPageInner() {
 
           <div className="space-y-1">
             <label className="text-xs font-bold text-[var(--ink)]">النظام المستهدف المعتمد (Scheme):</label>
-            <select
+            <SearchableSelect
               value={assignmentMappingScheme}
-              onChange={(e) => setAssignmentMappingScheme(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
-            >
-              <option value="">حدد النظام المعتمد</option>
-              {schemesList.map((sc) => (
-                <option key={sc.id} value={sc.id}>
-                  {sc.data?.name} (#{sc.version}) - {sc.id}
-                </option>
-              ))}
-            </select>
+              onChange={setAssignmentMappingScheme}
+              placeholder="حدد النظام المعتمد..."
+              ariaLabel="النظام المستهدف المعتمد"
+              options={schemesList.map((sc) => ({
+                value: sc.id,
+                label: `${sc.data?.name ?? sc.id} (#${sc.version}) - ${sc.id}`,
+              }))}
+            />
           </div>
 
           <div className="pt-2 flex items-center justify-between border-t border-[var(--line)]">
@@ -4099,17 +4608,16 @@ function PayrollPageInner() {
         <div className="space-y-4 text-xs pt-2">
           <div className="space-y-1">
             <label className="font-bold text-[var(--ink)] block">المقياس المطلوب (Metric):</label>
-            <select
+            <SearchableSelect
               value={newRuleMetric}
-              onChange={(e) => setNewRuleMetric(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
-            >
-              {(ninjaCatalog?.ninjaMetrics || Object.keys(NINJA_METRICS_MAP)).map((m: string) => (
-                <option key={m} value={m}>
-                  {NINJA_METRICS_MAP[m] || m}
-                </option>
-              ))}
-            </select>
+              onChange={setNewRuleMetric}
+              ariaLabel="المقياس المطلوب"
+              placeholder="اختر المقياس المطلوب..."
+              options={(ninjaCatalog?.ninjaMetrics || Object.keys(NINJA_METRICS_MAP)).map((m: string) => ({
+                value: m,
+                label: NINJA_METRICS_MAP[m] || m,
+              }))}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -4365,19 +4873,20 @@ function PayrollPageInner() {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold">التصنيف:</label>
-              <select
+              <SearchableSelect
                 value={adjCategory}
-                onChange={(e) => setAdjCategory(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
-              >
-                <option value="fuel">وقود فعلي</option>
-                <option value="rent">إيجار مركبة</option>
-                <option value="housing">سكن</option>
-                <option value="internet">اتصالات</option>
-                <option value="advance">سلفة</option>
-                <option value="hr">تحملات HR</option>
-                <option value="adjustment">تسوية أخرى</option>
-              </select>
+                onChange={setAdjCategory}
+                ariaLabel="التصنيف"
+                options={[
+                  { value: 'fuel', label: 'وقود فعلي' },
+                  { value: 'rent', label: 'إيجار مركبة' },
+                  { value: 'housing', label: 'سكن' },
+                  { value: 'internet', label: 'اتصالات' },
+                  { value: 'advance', label: 'سلفة' },
+                  { value: 'hr', label: 'تحملات HR' },
+                  { value: 'adjustment', label: 'تسوية أخرى' },
+                ]}
+              />
             </div>
           </div>
 
@@ -4654,6 +5163,103 @@ function PayrollPageInner() {
             </div>
           </div>
         )}
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* MODAL: PAY SETTINGS EDITOR (S2 / S5)                     */}
+      {/* ======================================================== */}
+      <PaySettingsEditorModal
+        open={editorModalOpen}
+        onClose={() => {
+          setEditorModalOpen(false);
+          setEditingDoc(null);
+          setEditorKind(null);
+        }}
+        kind={editorKind}
+        appSlug={appSlug}
+        period={selectedPeriod}
+        initialDoc={editingDoc}
+        approvedEligibilityList={eligibilityList.filter((e) => e.status === 'approved')}
+        catalog={ninjaCatalog}
+        onSaved={() => {
+          if (editorKind === 'terms') loadTerms();
+          if (editorKind === 'scheme') loadSchemes();
+          if (editorKind === 'eligibility') loadEligibility();
+          if (editorKind === 'account_exception') {
+            showToast('تم حفظ الاستثناء الفردي بنجاح', 'success');
+          }
+        }}
+      />
+
+      {/* ======================================================== */}
+      {/* DIALOG: REJECT SETTING DRAFT (S2)                        */}
+      {/* ======================================================== */}
+      <Dialog
+        open={rejectSettingModalOpen}
+        onClose={() => {
+          setRejectSettingModalOpen(false);
+          setRejectSettingDoc(null);
+          setRejectSettingKind(null);
+        }}
+        title="رفض مسودة إعدادات الأجور"
+        description="توثيق سبب الرفض في سجل التدقيق المالي وإعادة المسودة للمنشئ لتعديلها."
+      >
+        <div className="space-y-4 pt-2">
+          <div className="p-3 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs space-y-1">
+            <div className="flex justify-between">
+              <span className="text-[var(--muted)]">الإعداد:</span>
+              <span className="font-bold text-[var(--ink)]">
+                {rejectSettingDoc?.data?.name || rejectSettingDoc?.code || rejectSettingDoc?.id}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--muted)]">المنشئ:</span>
+              <span className="font-mono">@{rejectSettingDoc?.createdBy || 'غير محدد'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--muted)]">النوع:</span>
+              <span className="font-mono">
+                {rejectSettingKind === 'terms'
+                  ? 'عقد منصة (Parent Terms)'
+                  : rejectSettingKind === 'scheme'
+                  ? 'نظام داخلي (Pay Scheme)'
+                  : 'ضوابط أهلية (Eligibility)'}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-[var(--ink)]">سبب الرفض (إلزامي للتدقيق):</label>
+            <textarea
+              rows={3}
+              value={rejectSettingReason}
+              onChange={(e) => setRejectSettingReason(e.target.value)}
+              placeholder="اكتب أسباب رفض هذا الإعداد بالتفصيل ليتمكن المنشئ من تصحيحه..."
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden"
+            />
+          </div>
+
+          <div className="pt-3 border-t border-[var(--line)] flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setRejectSettingModalOpen(false);
+                setRejectSettingDoc(null);
+                setRejectSettingKind(null);
+              }}
+              className="px-4 py-2 rounded-xl border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:bg-[var(--raised)] transition cursor-pointer"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmRejectSetting}
+              className="px-4 py-2 rounded-xl bg-[var(--danger)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer"
+            >
+              تأكيد الرفض
+            </button>
+          </div>
+        </div>
       </Dialog>
     </div>
   );

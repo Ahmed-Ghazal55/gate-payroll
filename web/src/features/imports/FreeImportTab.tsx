@@ -26,6 +26,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 
 function ImportsPageInner() {
   const { user } = useAuth();
@@ -353,17 +354,13 @@ function ImportsPageInner() {
               <div className="space-y-3 pt-2">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-[var(--ink)]">ورقة العمل (Sheet):</label>
-                  <select
+                  <SearchableSelect
                     value={selectedSheet}
-                    onChange={(e) => setSelectedSheet(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
-                  >
-                    {sheets.map((sh) => (
-                      <option key={sh} value={sh}>
-                        {sh}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setSelectedSheet}
+                    ariaLabel="ورقة العمل"
+                    placeholder="اختر ورقة العمل..."
+                    options={sheets.map((sh) => ({ value: sh, label: sh }))}
+                  />
                 </div>
 
                 <div className="space-y-1">
@@ -440,66 +437,55 @@ function ImportsPageInner() {
                   <label className="text-xs font-bold text-[var(--ink)]">
                     عمود رقم الإقامة / المعرف <span className="text-[var(--danger)]">*</span>:
                   </label>
-                  <select
+                  <SearchableSelect
                     value={mappingIqama}
-                    onChange={(e) => setMappingIqama(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
-                  >
-                    <option value="">-- اختر العمود --</option>
-                    {sheetHeaders.map((h) => (
-                      <option key={h} value={h}>
-                        {h}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setMappingIqama}
+                    ariaLabel="عمود رقم الإقامة"
+                    placeholder="-- اختر العمود --"
+                    options={sheetHeaders.map((h) => ({ value: h, label: h }))}
+                  />
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-[var(--ink)]">عمود اسم المندوب (اختياري):</label>
-                  <select
+                  <SearchableSelect
                     value={mappingName}
-                    onChange={(e) => setMappingName(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
-                  >
-                    <option value="">-- بدون مطابقة --</option>
-                    {sheetHeaders.map((h) => (
-                      <option key={h} value={h}>
-                        {h}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setMappingName}
+                    ariaLabel="عمود اسم المندوب"
+                    placeholder="-- بدون مطابقة --"
+                    options={[
+                      { value: '', label: '-- بدون مطابقة --' },
+                      ...sheetHeaders.map((h) => ({ value: h, label: h })),
+                    ]}
+                  />
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-[var(--ink)]">عمود عدد الطلبات المنجزة:</label>
-                  <select
+                  <SearchableSelect
                     value={mappingOrders}
-                    onChange={(e) => setMappingOrders(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
-                  >
-                    <option value="">-- بدون مطابقة --</option>
-                    {sheetHeaders.map((h) => (
-                      <option key={h} value={h}>
-                        {h}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setMappingOrders}
+                    ariaLabel="عمود عدد الطلبات"
+                    placeholder="-- بدون مطابقة --"
+                    options={[
+                      { value: '', label: '-- بدون مطابقة --' },
+                      ...sheetHeaders.map((h) => ({ value: h, label: h })),
+                    ]}
+                  />
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-[var(--ink)]">عمود إجمالي المستحقات / المبالغ:</label>
-                  <select
+                  <SearchableSelect
                     value={mappingAmount}
-                    onChange={(e) => setMappingAmount(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
-                  >
-                    <option value="">-- بدون مطابقة --</option>
-                    {sheetHeaders.map((h) => (
-                      <option key={h} value={h}>
-                        {h}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setMappingAmount}
+                    ariaLabel="عمود إجمالي المستحقات"
+                    placeholder="-- بدون مطابقة --"
+                    options={[
+                      { value: '', label: '-- بدون مطابقة --' },
+                      ...sheetHeaders.map((h) => ({ value: h, label: h })),
+                    ]}
+                  />
                 </div>
               </div>
 

@@ -56,11 +56,15 @@ public static class BankPayrollFiles
             if(string.CompareOrdinal(journal.S("period"),request.From)>=0)eligible.Add(iqama);
             amounts[iqama]=amounts.GetValueOrDefault(iqama)+line.N("credit")-line.N("debit");
         }
+        var pendingRiders=Store.List(c,PayCycles.Kind,tx).Where(d=>d.S("companyId")==request.Sponsor&&d.S("status") is not ("cancelled" or "reversed")&&string.CompareOrdinal(d.S("period"),request.To)<=0)
+            .SelectMany(d=>(d["riders"] as JsonArray??[]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&d.S("status")!="approved"||r.S("debtDeductionStatus")=="pending")).Select(r=>r.S("rider")).ToHashSet(StringComparer.Ordinal);
         var rows=new JsonArray();var excluded=new JsonArray();foreach(string iqama in eligible.OrderBy(value=>value,StringComparer.Ordinal))
         {
             riders.TryGetValue(iqama,out var rider);
             if(rider.B("isEmployee")||rider.S("personRole") is "Employee" or "employee" or "administrative")continue;
             decimal balance=amounts.GetValueOrDefault(iqama);
+            bool pendingCycle=pendingRiders.Contains(iqama);
+            if(pendingCycle){excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]="pay_cycle_pending_salary_or_debt_confirmation"});continue;}
             if(balance<=0)
             {
                 excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]=balance==0?"zero_balance":"rider_owes_company"});

@@ -202,7 +202,7 @@ public sealed class AccountingReviewTests
         Reject(()=>AccessPolicy.ValidateApproval(User("HRSpecialist"),request,new()),403);
         Reject(()=>AccessPolicy.ValidateApproval(User("Accountant","reviewer","approvals.decide"),request,new()),403);
         Reject(()=>AccessPolicy.ValidateApproval(User("Admin","requester"),request,new()),403);
-        AccessPolicy.ValidateApproval(User("Admin","requester"),request,new JsonObject{["overrideSelf"]=true,["note"]="Emergency override with evidence"});
+        Reject(()=>AccessPolicy.ValidateApproval(User("Admin","requester"),request,new JsonObject{["overrideSelf"]=true,["note"]="Legacy override cannot bypass dated exception"}),403);
     }
     [TestMethod] public void CollectionAndOpeningTemplatesKeepTheirOwnExactCanonicalHeaderWidths()
     {

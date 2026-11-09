@@ -664,7 +664,7 @@ public static class FinancialCore
         {
             var req = Store.Get(c, id, "approval_request", tx) ?? throw new ApiError("طلب الاعتماد غير موجود.", 404);
             if(!FinancialScopes.Approval(ctx.User,req,c,tx))throw new ApiError("الطلب خارج نطاق القسم/السجل المسند لك.",403);
-            AccessPolicy.ValidateApproval(ctx.User,req,input);
+            AccessPolicy.ValidateApproval(ctx.User,req,input,c:c,tx:tx,operation:"approval.decide",record:req);
             J.Need(req.S("status") == "pending" || req.S("status") == "suspended", "تم البت في هذا الطلب مسبقاً.");
             string decision = input.Required("decision"); // approved | rejected | suspended
             J.Need(decision is "approved" or "rejected" or "suspended", "قرار غير صالح: استخدم approved أو rejected أو suspended.");
@@ -673,7 +673,7 @@ public static class FinancialCore
 
             req["status"] = decision;
             req["decisionNote"] = note;
-            req["administrativeSelfOverride"] = AccessPolicy.Administrator(ctx.User) && input.B("overrideSelf") && string.Equals(req.S("requestedBy",req.S("createdBy")),ctx.User.Identity!.Name,StringComparison.OrdinalIgnoreCase);
+            req["administrativeSelfOverride"] = req.B("selfApprovedException");
             req["decidedBy"] = ctx.User.Identity!.Name!;
             req["decidedAt"] = DateTimeOffset.UtcNow.ToString("O");
             Store.Save(c, "approval_request", req, tx);

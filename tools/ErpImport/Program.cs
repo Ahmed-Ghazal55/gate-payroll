@@ -160,7 +160,8 @@ try
     if(live||args.Contains("--consistent"))ConsistentSync.Validate(lastSummary,existing,overrides);
     Store? targetStore=null;
     phase="initializing_target_store";
-    if(args.Contains("--commit"))targetStore=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),targetConnection);
+    // Managed SNI on Linux can hang forever in SqlBulkCopy over a MARS session; the importer never needs MARS.
+    if(args.Contains("--commit"))targetStore=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(targetConnection){MultipleActiveResultSets=false}.ConnectionString);
     phase="saving_or_comparing";
     var summary=ImportExecutor.Run(snapshot,plan,existing,targetStore);lastSummary=summary;
     string json=JsonSerializer.Serialize(args.Contains("--counts-only")?summary with{Totals=[]}:summary,new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});

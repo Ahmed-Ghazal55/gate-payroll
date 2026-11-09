@@ -32,7 +32,9 @@ public static class PayAssignments
         foreach(var response in Snapshots(original,sourceType,formId))
         {
             if(response.S("status")!="approved"){pending++;continue;}string at=response.S("approvedAt",response.S("reviewedAt")),by=response.S("approvedBy",response.S("reviewedBy"));
-            if(!at.Contains('T')||!DateTimeOffset.TryParse(at,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var approved)||by==""||response.S("createdBy")!=""&&response.S("createdBy")==by){Error("approval_evidence_missing_or_self");continue;}
+            if(!at.Contains('T')||!DateTimeOffset.TryParse(at,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var approved)||by==""){Error("approval_evidence_missing_or_self");continue;}
+            var checker=UserAccess.Principal(new JsonObject{["username"]=by,["role"]="Reviewer"});
+            if(!AccessPolicy.Independent(checker,response.S("createdBy"),"pay.assignment.evidence",c,record:response,evidenceAt:approved)){Error("approval_evidence_missing_or_self");continue;}
             if(approved>=Cutoff(period)){late++;continue;}var answers=sourceType=="campaign"?response:response["answers"] as JsonObject??new();string rider=answers.S(riderField);try{J.Iqama(rider);}catch(ApiError){Error("invalid_rider_identity");continue;}
             if(Store.Get(c,rider,"rider") is not {} person||!ErpRiderClassification.ListedAsRider(person)){Error("actual_rider_missing");continue;}FinancialScopes.DemandRider(actor,person);candidates.Add((response,rider,answers.S(field),approved.ToUniversalTime(),by));
         }

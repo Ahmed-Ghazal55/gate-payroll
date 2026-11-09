@@ -78,7 +78,7 @@ public static class Vouchers
         string status=doc.S("status",doc.S("approvalStatus","posted")),journal=index.S("recordKind")=="journal"?doc.S("id"):doc.S("journalEntryId");
         if(journal!=""&&Store.List(c,"journal").Any(j=>j.S("reversesJournalId")==journal))status="reversed";
         // Public fixed projection: never amount, party, company, actor, source or internal identifier.
-        string[] allowed=["draft","pending","invoiced","final","approved","under_review","awaiting_response","awaiting_supervisor","paid","rejected","cancelled","posted","active","settled","reversed","disputed"];
+        string[] allowed=["discarded","draft","pending","invoiced","final","approved","under_review","awaiting_response","awaiting_supervisor","paid","rejected","cancelled","posted","active","settled","reversed","disputed"];
         if(!allowed.Contains(status))status="recorded";
         return new(){["status"]=status,["type"]=number.Split('-')[0]};
     }
@@ -87,6 +87,7 @@ public static class Vouchers
         foreach(string kind in Kinds)
         foreach(var doc in Store.List(c,kind).Where(d=>new[]{d.S("voucherNo"),d.S("odooVoucherNo")}.Any(v=>v.Contains(query,StringComparison.OrdinalIgnoreCase))))
         {
+            if(kind=="platform_invoice"&&!InvoiceDiscard.Active(doc))continue;
             string company=Company(doc);if(!FinancialScopes.Sponsor(actor,company))continue;
             bool visible=kind switch
             {

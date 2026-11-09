@@ -21,14 +21,14 @@ public sealed class ErpSyncRunner(IConfiguration config,Store store) : IErpSyncR
         using var target=new SqlConnection(targetOptions.ConnectionString);await target.OpenAsync(token);
         var existing=ImportExecutor.Target(target,null,token);
         var snapshot=ConsistentSync.Read(()=>SourceReader.Read(source,false,token),out _,token);
-        RunSnapshot(snapshot,existing,commit?store:null,previewed,token,commit?(c,tx)=>{JobsControl.EnsureMayCommit(c,tx,config);if(requestId!=null)ErpSyncRequests.EnsureActive(c,tx,requestId);}:null);
+        RunSnapshot(snapshot,existing,commit?store:null,previewed,token,commit?(c,tx)=>{JobsControl.EnsureMayCommit(c,tx,config);if(requestId!=null)ErpSyncRequests.EnsureActive(c,tx,requestId);}:null,requestId==null?null:store.Read(c=>ErpSyncRequests.Overrides(c,requestId)));
     }
-    public static ImportSummary RunSnapshot(SourceSnapshot source,Dictionary<string,JsonObject> existing,Store? target,Action<ImportSummary> previewed,CancellationToken token=default,Action<DbConnection,DbTransaction>? beforeCommit=null)
+    public static ImportSummary RunSnapshot(SourceSnapshot source,Dictionary<string,JsonObject> existing,Store? target,Action<ImportSummary> previewed,CancellationToken token=default,Action<DbConnection,DbTransaction>? beforeCommit=null,SyncOverrides? overrides=null)
     {
         token.ThrowIfCancellationRequested();var plan=ImportPlan.Build(source,FinancialCore.Sponsors);
         var preview=ImportExecutor.Run(source,plan,existing,cancellationToken:token);previewed(preview);
-        // Automatic callers have no acceptance parameters and always use SyncOverrides.None.
-        ConsistentSync.Validate(preview,existing,SyncOverrides.None);token.ThrowIfCancellationRequested();
+        // Scheduled runs have none. A manual run carries an administrator's named, audited acceptance.
+        ConsistentSync.Validate(preview,existing,overrides??SyncOverrides.None);token.ThrowIfCancellationRequested();
         if(target==null)return preview;
         var committed=ImportExecutor.Run(source,plan,existing,target,token,beforeCommit);
         var verification=target.Read(c=>ImportExecutor.Run(source,plan,ImportExecutor.Target(c,null,token),cancellationToken:token));

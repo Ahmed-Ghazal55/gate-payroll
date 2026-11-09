@@ -28,10 +28,10 @@ public static class JobsControl
         // already queued job cannot write after pause, if schedule removal is interrupted.
         schedule.Reconcile(paused);
     }
-    static object Queue(HttpContext ctx,IJobsSchedule schedule,bool dryRun)
+    static object Queue(HttpContext ctx,IJobsSchedule schedule,bool dryRun,JsonObject? input)
     {
-        AccessPolicy.Demand(ctx.User,ErpSyncRequests.Permission);
-        try{return new{jobId=schedule.Enqueue(dryRun,dryRun?"dry_run":"manual",ctx.User.Identity!.Name!),queued=true};}
+        AccessPolicy.Demand(ctx.User,ErpSyncRequests.Permission);var overrides=ErpSyncRequests.ReadOverrides(ctx.User,input);
+        try{return new{jobId=schedule.Enqueue(dryRun,dryRun?"dry_run":"manual",ctx.User.Identity!.Name!,overrides),queued=true};}
         catch(ImportFailure e) when(e.Code is "sync_in_progress" or "sync_cooldown" or "erp_sync_paused_or_disabled")
         {throw new ApiError(e.Code=="sync_in_progress"?"توجد مزامنة قيد التنفيذ.":e.Code=="sync_cooldown"?"انتظر 15 دقيقة بين طلبات المزامنة.":"المزامنة متوقفة أو غير مفعلة.",409);}
     }
@@ -39,8 +39,8 @@ public static class JobsControl
     {
         api.MapGet("/system/jobs",(HttpContext ctx,JobsOptions options,IJobsSchedule schedule)=>
         {AccessPolicy.Demand(ctx.User,"users.manage");if(!AccessPolicy.Administrator(ctx.User))throw new ApiError("للمسؤول فقط.",403);return schedule.List();}).WithTags("Administration").WithSummary("Read safe background job status");
-        api.MapPost("/system/jobs/erp-sync/run",(HttpContext ctx,IJobsSchedule schedule)=>Queue(ctx,schedule,false)).WithTags("Administration").WithSummary("Queue permission-gated ERP sync with cooldown");
-        api.MapPost("/system/jobs/erp-sync/dry-run",(HttpContext ctx,IJobsSchedule schedule)=>Queue(ctx,schedule,true)).WithTags("Administration").WithSummary("Queue permission-gated counts-only ERP preview");
+        api.MapPost("/system/jobs/erp-sync/run",(HttpContext ctx,IJobsSchedule schedule,JsonObject? input)=>Queue(ctx,schedule,false,input)).WithTags("Administration").WithSummary("Queue permission-gated ERP sync with cooldown");
+        api.MapPost("/system/jobs/erp-sync/dry-run",(HttpContext ctx,IJobsSchedule schedule,JsonObject? input)=>Queue(ctx,schedule,true,input)).WithTags("Administration").WithSummary("Queue permission-gated counts-only ERP preview");
         api.MapGet("/system/jobs/erp-sync/{jobId}",(string jobId,HttpContext ctx,IJobsSchedule schedule,JobsOptions options,Store store)=>
         {AccessPolicy.Demand(ctx.User,ErpSyncRequests.Permission);return options.Enabled?schedule.Status(jobId):store.Read(c=>ErpSyncRequests.View(c,jobId));}).WithTags("Administration").WithSummary("Read counts-only ERP job progress");
         api.MapPost("/system/jobs/erp-sync/pause",(HttpContext ctx,JsonObject input,JobsOptions options,IJobsSchedule schedule,Store store)=>

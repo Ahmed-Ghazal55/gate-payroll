@@ -52,6 +52,16 @@ import type {
   ConfigFieldDef,
   ManualJournal,
   NinjaReconcileResponse,
+  NinjaTermsSeed,
+  PayConfigDoc,
+  PayConfigListResponse,
+  PayTermsCreateInput,
+  PaySchemeCreateInput,
+  PayEligibilityCreateInput,
+  PayGlobalCreateInput,
+  PayCopyMonthResponse,
+  PayAssignment,
+  PayAssignmentPreviewResult,
   ImportCatalogStep,
   ImportPreviewResult,
 } from './types';
@@ -78,6 +88,7 @@ export type PayReviewRider = PayReviewAccount['riders'][number];
 
 export type RiderLookupItem = ApiResp<'/api/riders/lookup'>[number];
 
+export type DebtDeductionsView = ApiResp<'/api/pay/cycles/{id}/debt-deductions'>;
 export type PayCycleItem = ApiResp<'/api/pay/cycles'>['items'][number];
 export type PayCyclesResponse = ApiResp<'/api/pay/cycles'>;
 export type PayCycleLinesResponse = ApiResp<'/api/pay/cycles/{id}/lines'>;
@@ -1132,73 +1143,75 @@ export const api = {
   // ==========================================
   // Pay Framework APIs (0.14.0 / R4.1 - R4.5)
   // ==========================================
-  getPayCatalog: () => handleRequest<any>('/pay/catalog'),
+  getPayCatalog: () => handleRequest<PayCatalog>('/pay/catalog'),
+
+  getNinjaTermsSeed: () => handleRequest<NinjaTermsSeed>('/platforms/ninja/terms/seed'),
 
   getPayTerms: (app: string, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
-    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`);
+    return handleRequest<PayConfigListResponse>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`);
   },
-  createPayTerms: (app: string, input: any, period?: string) => {
+  createPayTerms: (app: string, input: PayTermsCreateInput, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
-    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`, {
+    return handleRequest<PayConfigDoc>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`, {
       method: 'POST',
       body: JSON.stringify(input),
     });
   },
   approvePayTerms: (app: string, id: string) =>
-    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/terms/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+    handleRequest<PayConfigDoc>(`/pay/apps/${encodeURIComponent(app)}/terms/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
 
   getPaySchemes: (app: string, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
-    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/schemes${q}`);
+    return handleRequest<PayConfigListResponse>(`/pay/apps/${encodeURIComponent(app)}/schemes${q}`);
   },
-  createPayScheme: (app: string, input: any, period?: string) => {
+  createPayScheme: (app: string, input: PaySchemeCreateInput, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
-    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/schemes${q}`, {
+    return handleRequest<PayConfigDoc>(`/pay/apps/${encodeURIComponent(app)}/schemes${q}`, {
       method: 'POST',
       body: JSON.stringify(input),
     });
   },
   approvePayScheme: (app: string, id: string) =>
-    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/schemes/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+    handleRequest<PayConfigDoc>(`/pay/apps/${encodeURIComponent(app)}/schemes/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
 
   getPayEligibility: (app: string, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
-    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility${q}`);
+    return handleRequest<PayConfigListResponse>(`/pay/apps/${encodeURIComponent(app)}/eligibility${q}`);
   },
-  createPayEligibility: (app: string, input: any, period?: string) => {
+  createPayEligibility: (app: string, input: PayEligibilityCreateInput, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
-    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility${q}`, {
+    return handleRequest<PayConfigDoc>(`/pay/apps/${encodeURIComponent(app)}/eligibility${q}`, {
       method: 'POST',
       body: JSON.stringify(input),
     });
   },
   approvePayEligibility: (app: string, id: string) =>
-    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/eligibility/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+    handleRequest<PayConfigDoc>(`/pay/apps/${encodeURIComponent(app)}/eligibility/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
 
   copyPayMonth: (app: string, from: string, to: string) =>
-    handleRequest<{ drafts: any[]; created: number; unchanged: number }>(
+    handleRequest<PayCopyMonthResponse>(
       `/pay/apps/${encodeURIComponent(app)}/copy?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
       { method: 'POST' }
     ),
 
-  getGlobalPaySettings: () => handleRequest<any>('/pay/settings'),
-  createGlobalPaySettings: (input: any) =>
-    handleRequest<any>('/pay/settings', { method: 'POST', body: JSON.stringify(input) }),
+  getGlobalPaySettings: () => handleRequest<PayConfigListResponse>('/pay/settings'),
+  createGlobalPaySettings: (input: PayGlobalCreateInput) =>
+    handleRequest<PayConfigDoc>('/pay/settings', { method: 'POST', body: JSON.stringify(input) }),
   approveGlobalPaySettings: (id: string) =>
-    handleRequest<any>(`/pay/settings/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+    handleRequest<PayConfigDoc>(`/pay/settings/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
 
   getPayAssignments: (app: string, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
-    return handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/assignments${q}`);
+    return handleRequest<{ items: PayAssignment[]; total: number; page: number; pageSize: number }>(`/pay/apps/${encodeURIComponent(app)}/assignments${q}`);
   },
-  previewPayAssignments: (app: string, input: any) =>
-    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/assignments/import/preview`, {
+  previewPayAssignments: (app: string, input: { period: string; sourceType: string; formId: string; fieldId: string; mapping: Record<string, string>; riderFieldId?: string }) =>
+    handleRequest<PayAssignmentPreviewResult>(`/pay/apps/${encodeURIComponent(app)}/assignments/import/preview`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  commitPayAssignments: (app: string, input: any) =>
-    handleRequest<any>(`/pay/apps/${encodeURIComponent(app)}/assignments/import/commit`, {
+  commitPayAssignments: (app: string, input: { period: string; rows: PayAssignment[]; fingerprint: string; confirm?: boolean }) =>
+    handleRequest<{ imported: number; unchanged: number }>(`/pay/apps/${encodeURIComponent(app)}/assignments/import/commit`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
@@ -1420,9 +1433,10 @@ export const api = {
     return handleRequest<OrgResponsibleUser[]>(`/org/responsible?${q.toString()}`);
   },
   getHealth: () => handleRequest<{ ok: boolean; jobs?: { enabled: boolean; lastRun?: string; nextRun?: string } }>('/health'),
-  runErpSync: (dryRun: boolean) =>
+  runErpSync: (dryRun: boolean, overrides?: { acceptNewKinds: string[]; acceptLargeChanges: string[]; reason: string }) =>
     handleRequest<{ jobId: string }>(dryRun ? '/system/jobs/erp-sync/dry-run' : '/system/jobs/erp-sync/run', {
       method: 'POST',
+      body: JSON.stringify(overrides ?? {}),
     }),
   getErpSyncJobStatus: (jobId: string) =>
     handleRequest<ErpSyncJobStatus>(`/system/jobs/erp-sync/${encodeURIComponent(jobId)}`),
@@ -1435,7 +1449,7 @@ export const api = {
     const qs = q.toString();
     return handleRequest<PayReviewResponse>(`/pay/cycles/${encodeURIComponent(cycleId)}/review${qs ? `?${qs}` : ''}`);
   },
-  reviewPayCycleRider: (cycleId: string, iqama: string, body: { action: 'approve' } | { action: 'edit'; key: string; amount: number; reason: string } | { action: 'adjust'; amount: number; reason: string }) =>
+  reviewPayCycleRider: (cycleId: string, iqama: string, body: { action: 'approve'; reason?: string } | { action: 'edit'; key: string; amount: number; reason: string; itemType?: string } | { action: 'adjust'; amount: number; reason: string; itemType: string }) =>
     handleRequest<PayReviewRow>(`/pay/cycles/${encodeURIComponent(cycleId)}/review/${encodeURIComponent(iqama)}`, {
       method: 'POST',
       body: JSON.stringify(body),
@@ -1552,7 +1566,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  classifyNinjaInvoiceBatch: (id: string, items: Array<{ lineId: string; category: string; level: 'account_level' | 'company_level'; expenseAccount?: string }>) =>
+  discardPlatformInvoice: (platform: 'ninja' | 'keeta', id: string, reason: string) =>
+    handleRequest<unknown>(`/platforms/${platform}/invoices/${encodeURIComponent(id)}/discard`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  getPostingGate: (code: string) => handleRequest<{ code: string; enabled: boolean }>(`/platforms/${encodeURIComponent(code)}/posting`),
+  setPostingGate: (code: string, enabled: boolean, reason: string) =>
+    handleRequest<unknown>(`/platforms/${encodeURIComponent(code)}/posting`, { method: 'POST', body: JSON.stringify({ enabled, reason }) }),
+  getDebtDeductions: (cycleId: string) => handleRequest<DebtDeductionsView>(`/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`),
+  actDebtDeductions: (cycleId: string, body: { action: 'edit'; rider: string; key: string; amount: number; reason?: string } | { action: 'confirm'; rider: string } | { action: 'confirm-all' }) =>
+    handleRequest<DebtDeductionsView>(`/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`, { method: 'POST', body: JSON.stringify(body) }),
+  resetUserPassword: (id: string, password: string) =>
+    handleRequest<unknown>(`/users/${encodeURIComponent(id)}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
+  changeMyPassword: (currentPassword: string, newPassword: string) =>
+    handleRequest<unknown>('/me/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+  saveRolePermissions: (code: string, permissions: string[], reason: string) =>
+    handleRequest<unknown>(`/roles/${encodeURIComponent(code)}/permissions`, { method: 'PUT', body: JSON.stringify({ permissions, reason }) }),
+  classifyNinjaInvoiceBatch: (id: string, items: Array<{ lineId: string; category: string; level: 'account_level' | 'company_level' | 'rider_level'; expenseAccount?: string; riderId?: string }>) =>
     handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/classify-batch`, {
       method: 'POST',
       body: JSON.stringify({ items }),
@@ -1567,6 +1595,139 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  // Keeta Invoices & Operations Lifecycle (BR §26, §31, §32 / R9 W1)
+  getKeetaInvoices: (params?: { page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<NinjaInvoicesResponse>(`/platforms/keeta/invoices${qs}`);
+  },
+  getKeetaInvoiceLines: (id: string) =>
+    handleRequest<NinjaInvoiceLine[]>(`/platforms/keeta/invoices/${encodeURIComponent(id)}/lines`),
+  uploadKeetaInvoice: (formData: FormData, commit = false): Promise<NinjaInvoice> => {
+    const qs = commit ? '?commit=1' : '';
+    const url = `/api/platforms/keeta/invoices${qs}`;
+    return fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: formData,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string | { message?: string; code?: string };
+          message?: string;
+          code?: string;
+        };
+        const errObj = typeof data.error === 'object' && data.error !== null ? data.error : undefined;
+        const errMsg =
+          typeof data.error === 'string'
+            ? data.error
+            : errObj?.message || data?.message || 'فشل رفع فاتورة كيتا';
+        const errCode =
+          typeof data.code === 'string' ? data.code : errObj?.code || 'error';
+        throw new ApiError(errMsg, res.status, errCode);
+      }
+      const raw = (await res.json()) as NinjaInvoice & { invoice?: NinjaInvoice };
+      const inv: NinjaInvoice = raw.invoice ? raw.invoice : raw;
+      if (commit && inv.id && !Array.isArray(inv.lines)) {
+        const lines = await handleRequest<NinjaInvoiceLine[]>(
+          `/platforms/keeta/invoices/${encodeURIComponent(inv.id)}/lines`,
+        ).catch(() => [] as NinjaInvoiceLine[]);
+        return { ...inv, lines };
+      }
+      return inv;
+    });
+  },
+  approveKeetaInvoice: async (id: string): Promise<NinjaInvoice> => {
+    const inv = await handleRequest<NinjaInvoice>(
+      `/platforms/keeta/invoices/${encodeURIComponent(id)}/approve`,
+      { method: 'POST' },
+    );
+    if (inv.id && !Array.isArray(inv.lines)) {
+      const lines = await handleRequest<NinjaInvoiceLine[]>(
+        `/platforms/keeta/invoices/${encodeURIComponent(inv.id)}/lines`,
+      ).catch(() => [] as NinjaInvoiceLine[]);
+      return { ...inv, lines };
+    }
+    return inv;
+  },
+  postKeetaInvoice: async (id: string): Promise<NinjaInvoice> => {
+    const raw = await handleRequest<NinjaInvoice & { invoice?: NinjaInvoice }>(
+      `/platforms/keeta/invoices/${encodeURIComponent(id)}/post`,
+      { method: 'POST' },
+    );
+    const inv: NinjaInvoice = raw.invoice ? raw.invoice : raw;
+    if (inv.id && !Array.isArray(inv.lines)) {
+      const lines = await handleRequest<NinjaInvoiceLine[]>(
+        `/platforms/keeta/invoices/${encodeURIComponent(inv.id)}/lines`,
+      ).catch(() => [] as NinjaInvoiceLine[]);
+      return { ...inv, lines };
+    }
+    return inv;
+  },
+  classifyKeetaInvoice: (id: string, body: Record<string, unknown>) =>
+    handleRequest<NinjaInvoiceLine>(`/platforms/keeta/invoices/${encodeURIComponent(id)}/classify`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  classifyKeetaInvoiceBatch: async (
+    id: string,
+    items: Array<{
+      lineId: string;
+      category: string;
+      level: 'account_level' | 'company_level' | 'rider_level';
+      expenseAccount?: string;
+    }>,
+    baseInvoice: NinjaInvoice,
+  ): Promise<NinjaInvoice> => {
+    for (const item of items) {
+      await handleRequest<NinjaInvoiceLine>(
+        `/platforms/keeta/invoices/${encodeURIComponent(id)}/classify`,
+        {
+          method: 'POST',
+          body: JSON.stringify(item),
+        },
+      );
+    }
+    const lines = await handleRequest<NinjaInvoiceLine[]>(
+      `/platforms/keeta/invoices/${encodeURIComponent(id)}/lines`,
+    );
+    return { ...baseInvoice, lines };
+  },
+  disputeKeetaInvoice: async (
+    id: string,
+    body: { reason: string },
+    baseInvoice: NinjaInvoice,
+  ): Promise<NinjaInvoice> => {
+    const disp = await handleRequest<NonNullable<NinjaInvoice['disputes']>[number]>(
+      `/platforms/keeta/invoices/${encodeURIComponent(id)}/dispute`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      },
+    );
+    const existing = baseInvoice.disputes || [];
+    return { ...baseInvoice, disputes: [...existing, disp] };
+  },
+  resolveKeetaDispute: async (
+    id: string,
+    body: { disputeId: string; reason: string },
+    baseInvoice: NinjaInvoice,
+  ): Promise<NinjaInvoice> => {
+    const resolved = await handleRequest<NonNullable<NinjaInvoice['disputes']>[number]>(
+      `/platforms/keeta/invoices/${encodeURIComponent(id)}/resolve`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      },
+    );
+    const existing = (baseInvoice.disputes || []).map((d) =>
+      d.id === resolved.id ? resolved : d,
+    );
+    return { ...baseInvoice, disputes: existing };
+  },
 
   // Pay Review Draft (C3 / A5)
   getPayReviewDraft: (params: { app: string; period: string; companyId: string }) => {
@@ -1593,18 +1754,20 @@ export const api = {
   approveAppEligibility: (app: string, id: string) =>
     handleRequest<PayEligibilityItem>(`/pay/apps/${encodeURIComponent(app)}/eligibility/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
   rejectPaySetting: (kind: string, app: string, id: string, reason: string) => {
+    const section = kind === 'pay_scheme' ? 'schemes' : kind === 'pay_terms' ? 'terms' : kind.replace('pay_', '');
     const url = kind === 'pay_setting'
       ? `/pay/settings/${encodeURIComponent(id)}/reject`
-      : `/pay/apps/${encodeURIComponent(app)}/${kind.replace('pay_', '')}/${encodeURIComponent(id)}/reject`;
-    return handleRequest<PayEligibilityItem>(url, {
+      : `/pay/apps/${encodeURIComponent(app)}/${section}/${encodeURIComponent(id)}/reject`;
+    return handleRequest<PayConfigDoc>(url, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
   },
   deletePaySetting: (kind: string, app: string, id: string) => {
+    const section = kind === 'pay_scheme' ? 'schemes' : kind === 'pay_terms' ? 'terms' : kind.replace('pay_', '');
     const url = kind === 'pay_setting'
       ? `/pay/settings/${encodeURIComponent(id)}`
-      : `/pay/apps/${encodeURIComponent(app)}/${kind.replace('pay_', '')}/${encodeURIComponent(id)}`;
+      : `/pay/apps/${encodeURIComponent(app)}/${section}/${encodeURIComponent(id)}`;
     return handleRequest<{ id: string; deleted?: boolean }>(url, { method: 'DELETE' });
   },
 

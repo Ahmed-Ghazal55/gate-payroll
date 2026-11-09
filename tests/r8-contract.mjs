@@ -33,6 +33,7 @@ try {
  put('pay_cycle_line',{id:'syn-r8-cycle-line',cycleId:'syn-r8-cycle',rider:'2000000001',app:'ninja',period:'2026-10',status:'ready',platformGross:100,entitlement:100,gross:100,sources:[{sourceLineId:'syn-r8-line',accountId:'syn-r8-account',baseGross:100}]});
  for(const [section,kind]of [['terms','pay_terms'],['schemes','pay_scheme'],['eligibility','pay_eligibility']])put(kind,{id:'syn-r8-'+section,kind,app:'ninja',period:'2026-10',status:'draft',version:1,data:{}});
  put('pay_setting',{id:'syn-r8-global',app:'global',period:'2026-10',status:'draft',version:1,data:{}});
+ for(const app of ["ninja","keeta"])put("platform_invoice",{id:"syn-discard-"+app,platform:app==="ninja"?"Ninja":"Keeta",companyId:company,period:"2026-10",reference:"SYN-DISCARD-"+app,status:"invoiced",approvalStatus:"pending",createdBy:"synthetic-r8-admin",amountExclVat:100,deductionsTotal:0,vat:15});
  db.close();
  await call('/api/campaigns',{title:'Synthetic R8',days:2});
  await call('/api/finance/journals/manual',{companyId:company,date:'2026-10-01',reference:'SYN-R8',description:'Synthetic',lines:[{accountCode:'512101',debit:10,credit:0},{accountCode:'212103',debit:0,credit:10}]});
@@ -41,8 +42,13 @@ try {
  const draft=await call('/api/pay/review-draft?app=ninja&period=2026-10&companyId='+company);
  const draftSchema=saved.paths['/api/pay/review-draft'].get.responses['200'].content['application/json'].schema;
  const validateDraft=ajv.compile(draftSchema);assert.ok(validateDraft(draft),JSON.stringify(validateDraft.errors));assert.ok(draft.blockers.length>0);assert.equal(draft.canCreate,false);checks++;
- for(const [url,path]of [['/api/pay/cycles/syn-r8-cycle/review','/api/pay/cycles/{id}/review'],['/api/finance/statement/rider/2000000001/monthly?period=2026-10','/api/finance/statement/rider/{iqama}/monthly']]){
+ for(const [url,path]of [['/api/pay/cycles/syn-r8-cycle/debt-deductions','/api/pay/cycles/{id}/debt-deductions'],['/api/pay/cycles/syn-r8-cycle/unrecovered-costs','/api/pay/cycles/{id}/unrecovered-costs'],['/api/pay/cycles/syn-r8-cycle/review','/api/pay/cycles/{id}/review'],['/api/finance/statement/rider/2000000001/monthly?period=2026-10','/api/finance/statement/rider/{iqama}/monthly']]){
   const value=await call(url),schema=saved.paths[path].get.responses['200'].content['application/json'].schema,validate=ajv.compile(schema);assert.ok(validate(value),path+': '+JSON.stringify(validate.errors));checks++;
+ }
+ for(const app of ["ninja","keeta"]){
+  const route="/api/platforms/"+app+"/invoices/syn-discard-"+app;const before=await call(route);assert.ok(before.allowedActions.includes("discard"));
+  const discarded=await call(route+"/discard",{reason:"Synthetic source replacement"}),schema=saved.paths["/api/platforms/"+app+"/invoices/{id}/discard"].post.responses["200"].content["application/json"].schema;assert.ok(ajv.compile(schema)(discarded));assert.equal(discarded.status,"discarded");assert.deepEqual(discarded.allowedActions,[]);checks++;
+  await call(route+"/discard",{reason:"Synthetic repeat"},409);const listing=await call("/api/platforms/"+app+"/invoices");assert.ok(!listing.items.some(i=>i.id===discarded.id));checks++;
  }
  // Exercise lifecycle routing as an ordinary accountant, including DELETE authorization.
  const password=randomBytes(24).toString('hex');

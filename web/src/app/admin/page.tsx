@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useCallback, useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   ShieldCheck,
@@ -39,7 +39,10 @@ import { StatCard } from '../../components/ui/StatCard';
 import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { RiderPicker } from '../../components/ui/RiderPicker';
 import { ConfigListsPanel } from '../../features/admin/ConfigListsPanel';
+import { RolePermissionsEditor, UserAccessDialog, type AccessCatalog, type AccessUser } from '../../features/admin/UserAccessDialog';
 import type {
   OrgCatalog,
   OrgMembership,
@@ -68,6 +71,13 @@ function AdminPageInner() {
   const [loadingUsers, setLoadingUsers] = useState<boolean>(true);
   const [usersError, setUsersError] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState<string>('');
+
+  const [accessCatalog, setAccessCatalog] = useState<AccessCatalog | null>(null);
+  const [editingUser, setEditingUser] = useState<AccessUser | null>(null);
+  const loadAccessCatalog = useCallback(() => {
+    api.getRolesCatalog().then(setAccessCatalog).catch(() => setAccessCatalog(null));
+  }, []);
+  useEffect(() => { loadAccessCatalog(); }, [loadAccessCatalog]);
 
   // Add User Dialog State
   const [addUserOpen, setAddUserOpen] = useState<boolean>(false);
@@ -530,6 +540,7 @@ function AdminPageInner() {
                       <th className="p-3 text-start">القسم</th>
                       <th className="p-3 text-start">الصلاحيات المخصصة</th>
                       <th className="p-3 text-start">الحالة</th>
+                      <th className="p-3 text-start">إجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
@@ -538,7 +549,7 @@ function AdminPageInner() {
                         <td className="p-3 font-mono font-bold text-[var(--ink)]">
                           @{u.username}
                         </td>
-                        <td className="p-3 font-medium">{u.role}</td>
+                        <td className="p-3 font-medium">{u.roleNameAr || u.role}</td>
                         <td className="p-3">
                           <span className="px-2 py-0.5 rounded-md text-xs font-mono bg-[var(--raised)]">
                             {u.department || 'ALL'}
@@ -550,10 +561,29 @@ function AdminPageInner() {
                             : 'حسب الدور الأساسي'}
                         </td>
                         <td className="p-3">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[var(--money-pos)]/15 text-[var(--money-pos)]">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${u.status === 'suspended' ? 'bg-[var(--danger)]/15 text-[var(--danger)]' : 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'}`}>
                             <CheckCircle2 size={12} />
-                            <span>نشط</span>
+                            <span>{u.status === 'suspended' ? 'موقوف' : 'نشط'}</span>
                           </span>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex gap-1.5">
+                            <button type="button" data-user-edit={u.username} disabled={!accessCatalog} onClick={() => setEditingUser(u)} className="rounded-md border border-[var(--line)] px-2 py-1 text-xs font-bold disabled:opacity-50">تعديل</button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await api.updateUser(u.id, { status: u.status === 'suspended' ? 'active' : 'suspended' });
+                                  loadUsers();
+                                } catch (err: any) {
+                                  toast(err.message || 'تعذر تغيير الحالة', 'danger');
+                                }
+                              }}
+                              className="rounded-md border border-[var(--line)] px-2 py-1 text-xs font-bold"
+                            >
+                              {u.status === 'suspended' ? 'تفعيل' : 'إيقاف'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -563,6 +593,20 @@ function AdminPageInner() {
             </div>
           )}
         </div>
+      )}
+
+      {activeTab === 'users' && accessCatalog && isAdmin && (
+        <RolePermissionsEditor catalog={accessCatalog} onSaved={loadAccessCatalog} />
+      )}
+      {editingUser && accessCatalog && (
+        <UserAccessDialog
+          user={editingUser}
+          users={users}
+          catalog={accessCatalog}
+          isAdmin={isAdmin}
+          onClose={() => setEditingUser(null)}
+          onSaved={() => { setEditingUser(null); loadUsers(); }}
+        />
       )}
 
       {/* ======================================================== */}
@@ -1282,14 +1326,17 @@ function AdminPageInner() {
         <form onSubmit={handleCreateMembership} className="space-y-4 pt-2">
           <div className="space-y-1">
             <label className="text-xs font-bold text-[var(--ink)]">المستخدم:</label>
-            <input
-              type="text"
+            <SearchableSelect
               id="input-mem-userid"
-              placeholder="اسم المستخدم (مثل syn-accountant)"
               value={memUserId}
-              onChange={(e) => setMemUserId(e.target.value)}
+              onChange={setMemUserId}
+              ariaLabel="المستخدم"
+              placeholder="ابحث باسم المستخدم..."
               required
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+              options={(users as Array<{ username: string; displayNameAr?: string }>).map((u) => ({
+                value: u.username,
+                label: u.displayNameAr ? `${u.displayNameAr} (@${u.username})` : u.username,
+              }))}
             />
           </div>
 
@@ -1367,25 +1414,31 @@ function AdminPageInner() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-bold text-[var(--ink)]">المفوض (من):</label>
-              <input
-                type="text"
-                placeholder="اسم المستخدم المفوض"
+              <SearchableSelect
                 value={delFromUser}
-                onChange={(e) => setDelFromUser(e.target.value)}
+                onChange={setDelFromUser}
+                ariaLabel="المفوض"
+                placeholder="اختر المستخدم المفوض..."
                 required
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+                options={(users as Array<{ username: string; displayNameAr?: string }>).map((u) => ({
+                  value: u.username,
+                  label: u.displayNameAr ? `${u.displayNameAr} (@${u.username})` : u.username,
+                }))}
               />
             </div>
 
             <div className="space-y-1">
               <label className="text-xs font-bold text-[var(--ink)]">المفوض إليه (إلى):</label>
-              <input
-                type="text"
-                placeholder="اسم المستخدم المستلم"
+              <SearchableSelect
                 value={delToUser}
-                onChange={(e) => setDelToUser(e.target.value)}
+                onChange={setDelToUser}
+                ariaLabel="المفوض إليه"
+                placeholder="اختر المستخدم المستلم..."
                 required
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+                options={(users as Array<{ username: string; displayNameAr?: string }>).map((u) => ({
+                  value: u.username,
+                  label: u.displayNameAr ? `${u.displayNameAr} (@${u.username})` : u.username,
+                }))}
               />
             </div>
           </div>
@@ -1464,27 +1517,27 @@ function AdminPageInner() {
         <form onSubmit={handleCreateSupervision} className="space-y-4 pt-2">
           <div className="space-y-1">
             <label className="text-xs font-bold text-[var(--ink)]">المشرف المسؤول:</label>
-            <input
-              type="text"
+            <SearchableSelect
               id="input-sup-supervisor"
-              placeholder="اسم المستخدم للمشرف (مثل syn-supervisor)"
               value={supSupervisor}
-              onChange={(e) => setSupSupervisor(e.target.value)}
+              onChange={setSupSupervisor}
+              ariaLabel="المشرف المسؤول"
+              placeholder="اختر المشرف المسؤول..."
               required
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+              options={(users as Array<{ username: string; displayNameAr?: string }>).map((u) => ({
+                value: u.username,
+                label: u.displayNameAr ? `${u.displayNameAr} (@${u.username})` : u.username,
+              }))}
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">رقم إقامة المندوب (10 أرقام):</label>
-            <input
-              type="text"
-              id="input-sup-iqama"
-              placeholder="مثال: 2000000611"
+            <label className="text-xs font-bold text-[var(--ink)]">المندوب (البحث بالاسم أو رقم الإقامة):</label>
+            <RiderPicker
               value={supIqama}
-              onChange={(e) => setSupIqama(e.target.value)}
+              onChange={(r) => setSupIqama(r?.iqama || '')}
+              placeholder="ابحث باسم المندوب أو رقم الإقامة..."
               required
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
             />
           </div>
 

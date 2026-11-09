@@ -32,6 +32,23 @@ public sealed class NinjaInvoiceImportTests
         if(badNumeric)Set("Penalty","not-a-number");
         return WorkbookRows(header,row);
     }
+    [TestMethod]
+    public void DiscardRetainsRowsAllowsSameReferenceAndCannotApproveDiscardedInvoice()
+    {
+        using var f=new Fixture();var bytes=Workbook();var first=f.Commit(bytes);string id=first.S("id");
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>InvoiceDiscard.Discard(c,tx,new System.Security.Claims.ClaimsPrincipal(),"ninja",id,new(){["reason"]="No permission"})));
+        Assert.IsTrue(f.Store.Read(c=>NinjaInvoices.View(c,null,Actor(),first))["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="discard"));
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>InvoiceDiscard.Discard(c,tx,Actor(),"ninja",id,new(){["reason"]=" "})));
+        f.Store.Write((c,tx)=>InvoiceDiscard.Discard(c,tx,Actor(),"ninja",id,new(){["reason"]="Replace incorrect supplier rows"}));
+        Assert.AreEqual(1,f.Store.Read(c=>NinjaInvoices.Lines(c,null,id).Count));
+        Assert.AreEqual(0,f.Store.Read(c=>NinjaInvoices.View(c,null,Actor(),NinjaInvoices.Get(c,null,Actor(),id)))["allowedActions"]!.AsArray().Count);
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>NinjaInvoices.Approve(c,tx,Actor("checker"),id)));
+        var replacement=f.Commit(bytes);Assert.AreNotEqual(id,replacement.S("id"));Assert.AreEqual(first.S("reference"),replacement.S("reference"));
+        Assert.AreEqual(2,f.Store.Read(c=>Store.List(c,"platform_invoice_line").Count));
+        f.Store.Write((c,tx)=>NinjaInvoices.Approve(c,tx,Actor("checker"),replacement.S("id")));
+        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>InvoiceDiscard.Discard(c,tx,Actor(),"ninja",replacement.S("id"),new(){["reason"]="Approved invoice cannot discard"})));
+        Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"audit").Count(a=>a.S("action")=="platform.ninja.invoice_discarded")));
+    }
     public static byte[] WorkbookRows(List<string> header,params List<string>[] dataRows)
     {
         using var memory=new MemoryStream();using(var zip=new ZipArchive(memory,ZipArchiveMode.Create,true))

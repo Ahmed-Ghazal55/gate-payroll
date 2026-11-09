@@ -18,6 +18,7 @@ import { Toolbar } from '../../components/ui/Toolbar';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { Dialog } from '../../components/ui/Dialog';
 import { ErrorState } from '../../components/ui/EmptyState';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
 import { ReviewDrawer } from './ReviewDrawer';
@@ -313,18 +314,18 @@ export function ResponsesTab({
         extraControls={
           <div className="flex items-center gap-2">
             {/* Campaign filter */}
-            <select
+            <SearchableSelect
+              id="select-campaign-filter"
               value={campaignFilter}
-              onChange={(e) => setCampaignFilter(e.target.value)}
-              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden"
-            >
-              <option value="">كل الحملات</option>
-              {campaigns.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
+              onChange={setCampaignFilter}
+              ariaLabel="تصفية حسب الحملة"
+              placeholder="كل الحملات"
+              className="w-52"
+              options={[
+                { value: '', label: 'كل الحملات' },
+                ...campaigns.map((c) => ({ value: c.id, label: c.title })),
+              ]}
+            />
 
             {/* Bulk actions */}
             {canReview && selectedIds.length > 0 && (

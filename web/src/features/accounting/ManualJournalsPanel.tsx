@@ -617,18 +617,18 @@ export function ManualJournalsPanel({
             />
           </div>
 
-          <select
+          <SearchableSelect
+            id="select-journal-company-filter"
             value={selectedCompanyFilter}
-            onChange={(e) => setSelectedCompanyFilter(e.target.value)}
-            className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
-          >
-            <option value="all">كل الشركات والكفلاء</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nameAr}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedCompanyFilter}
+            ariaLabel="تصفية حسب الشركة"
+            placeholder="كل الشركات والكفلاء"
+            className="w-48"
+            options={[
+              { value: 'all', label: 'كل الشركات والكفلاء' },
+              ...companies.map((c) => ({ value: c.id, label: c.nameAr })),
+            ]}
+          />
         </div>
       </div>
 
@@ -865,20 +865,15 @@ export function ManualJournalsPanel({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)]">
             <div className="space-y-1">
               <label className="text-xs font-bold text-[var(--ink)]">الشركة / الكفيل: *</label>
-              <select
+              <SearchableSelect
                 id="select-journal-company"
                 value={newCompanyId}
-                onChange={(e) => setNewCompanyId(e.target.value)}
+                onChange={setNewCompanyId}
+                ariaLabel="الشركة / الكفيل"
+                placeholder="-- اختر الشركة --"
                 required
-                className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
-              >
-                <option value="">-- اختر الشركة --</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nameAr}
-                  </option>
-                ))}
-              </select>
+                options={companies.map((c) => ({ value: c.id, label: c.nameAr }))}
+              />
             </div>
 
             <div className="space-y-1">

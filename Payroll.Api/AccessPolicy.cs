@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 namespace Payroll;
 
 // One route policy is used by the API, UI capability list and offline review tests.
-public static class AccessPolicy
+public static partial class AccessPolicy
 {
     public static bool Administrator(ClaimsPrincipal user)=>user.IsInRole("Admin")||user.IsInRole("SuperAdmin");
     public static string[] CompatibilityDefaults(string role)=>role switch {
@@ -31,15 +31,19 @@ public static class AccessPolicy
     public static bool Allowed(ClaimsPrincipal user,string method,string path,JsonObject? input=null)
     {
         if(user.Identity?.IsAuthenticated!=true)return false;
+        // A temporary password opens nothing but the screen that replaces it, for administrators too.
+        if(user.HasClaim("mustChangePassword","true"))return path is "/api/me" or "/api/me/password" or "/api/auth/logout";
         if(Administrator(user))return true;
         bool Get(string prefix)=>method=="GET"&&path.StartsWith(prefix,StringComparison.Ordinal);
         bool Has(string permission)=>AccessPolicy.Has(user,permission);
         if(path is "/api/me" or "/api/roles-catalog")return method=="GET";
+        if(path=="/api/me/password")return method=="POST";
+        if(path.StartsWith("/api/roles/",StringComparison.Ordinal))return false;
         if(path is "/api/system/jobs/erp-sync/run" or "/api/system/jobs/erp-sync/dry-run")return method=="POST"&&Has("erp.sync.run");
         const string syncStatus="/api/system/jobs/erp-sync/";
         if(method=="GET"&&path.StartsWith(syncStatus,StringComparison.Ordinal)&&System.Text.RegularExpressions.Regex.IsMatch(path[syncStatus.Length..],"^[1-9][0-9]{0,19}$"))return Has("erp.sync.run");
         if(path.StartsWith("/api/config/lists",StringComparison.Ordinal))return method=="GET"||method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
-        if(path.StartsWith("/api/users",StringComparison.Ordinal))return false; // User administration remains administrator-only.
+        if(path.StartsWith("/api/users",StringComparison.Ordinal))return method is "GET" or "POST" or "PUT"&&Has("users.manage"); // Handlers guard escalation and self-edit.
         if(path=="/api/responses")return method=="GET"&&Has("forms.view");
         if(path=="/api/search")return method=="GET";
         if(path.StartsWith("/api/operations/",StringComparison.Ordinal)||path.StartsWith("/api/riders/",StringComparison.Ordinal)&&path.EndsWith("/accounts",StringComparison.Ordinal))return method=="GET"&&Has("operations.view");
@@ -147,12 +151,12 @@ public static class AccessPolicy
         if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))return Has("forms.manage");
         return false;
     }
-    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide")
+    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide",System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null,string operation="approval.decide",JsonObject? record=null)
     {
         Demand(actor,permission);
         string name=actor.Identity?.Name??"";
-        bool same=string.Equals(request.S("requestedBy",request.S("createdBy")),name,StringComparison.OrdinalIgnoreCase);
-        if(same&&(!Administrator(actor)||!input.B("overrideSelf")||string.IsNullOrWhiteSpace(input.S("note"))))throw new ApiError("لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو تجاوز إداري معلل وصريح.",403);
-        if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))throw new ApiError("القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
+        J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو استثناء ghazal مؤرخ وسارٍ.",403);
+        if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))
+            J.Need(Independent(actor,name,operation+".department_rank",c,tx,record??request),"القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
     }
 }

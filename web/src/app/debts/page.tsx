@@ -48,6 +48,7 @@ import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { RiderPicker } from '../../components/ui/RiderPicker';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import type {
   DebtRecord,
   ApprovalRequest,
@@ -1001,16 +1002,18 @@ function DebtsPageContent() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <select
+              <SearchableSelect
+                id="select-debt-category"
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كافة الفئات</option>
-                {categoryOptions.map(([code, label]) => (
-                  <option key={code} value={code}>{label}</option>
-                ))}
-              </select>
+                onChange={setSelectedCategory}
+                ariaLabel="تصفية حسب الفئة"
+                placeholder="كافة الفئات"
+                className="w-44"
+                options={[
+                  { value: 'all', label: 'كافة الفئات' },
+                  ...categoryOptions.map(([code, label]) => ({ value: code, label })),
+                ]}
+              />
 
               <select
                 value={selectedStatus}
@@ -1535,53 +1538,49 @@ function DebtsPageContent() {
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-[var(--ink)]">شبكة الشحن:</label>
-                    <select
+                    <SearchableSelect
                       id="select-recharge-network"
                       value={newReqNetwork}
-                      onChange={(e) => {
-                        const net = e.target.value;
+                      ariaLabel="شبكة الشحن"
+                      placeholder="-- اختر الشبكة --"
+                      required
+                      onChange={(net) => {
                         setNewReqNetwork(net);
                         setNewReqPackage('');
                         setNewReqAmount('');
                       }}
-                      required
-                      className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
-                    >
-                      <option value="">-- اختر الشبكة --</option>
-                      {rechargeNetworks.map((n: any) => (
-                        <option key={n.code} value={n.code}>
-                          {n.nameAr || n.code}
-                        </option>
-                      ))}
-                    </select>
+                      options={(rechargeNetworks as Array<{ code: string; nameAr?: string }>).map((n) => ({
+                        value: n.code,
+                        label: n.nameAr || n.code,
+                      }))}
+                    />
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-[var(--ink)]">باقة الشحن:</label>
-                    <select
+                    <SearchableSelect
                       id="select-recharge-package"
                       value={newReqPackage}
+                      ariaLabel="باقة الشحن"
+                      placeholder="-- اختر الباقة --"
                       disabled={!newReqNetwork}
-                      onChange={(e) => {
-                        const pkgCode = e.target.value;
+                      required
+                      onChange={(pkgCode) => {
                         setNewReqPackage(pkgCode);
-                        const pkg = rechargePackages.find((p: any) => p.code === pkgCode);
+                        const pkg = (rechargePackages as Array<{ code: string; values?: { price?: number | string } }>).find(
+                          (p) => p.code === pkgCode
+                        );
                         if (pkg?.values?.price) {
                           setNewReqAmount(String(pkg.values.price));
                         }
                       }}
-                      required
-                      className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden disabled:opacity-50"
-                    >
-                      <option value="">-- اختر الباقة --</option>
-                      {rechargePackages
-                        .filter((p: any) => !newReqNetwork || p.values?.network === newReqNetwork)
-                        .map((p: any) => (
-                          <option key={p.code} value={p.code}>
-                            {p.nameAr || p.code} ({p.values?.price ?? 0} ر.س)
-                          </option>
-                        ))}
-                    </select>
+                      options={(rechargePackages as Array<{ code: string; nameAr?: string; values?: { network?: string; price?: number | string } }>)
+                        .filter((p) => !newReqNetwork || p.values?.network === newReqNetwork)
+                        .map((p) => ({
+                          value: p.code,
+                          label: `${p.nameAr || p.code} (${p.values?.price ?? 0} ر.س)`,
+                        }))}
+                    />
                   </div>
                 </div>
               )}

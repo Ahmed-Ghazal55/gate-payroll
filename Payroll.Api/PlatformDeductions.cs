@@ -47,10 +47,10 @@ public static class PlatformDeductions
         J.Need(FinancialScopes.Platform(actor,PayPlatforms.For(app).Platform),"المنصة خارج النطاق.");
         foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>())
         {
-            J.Need(d.S("level") is "company_level" or "account_level","تصنيف الخصم مطلوب.");
+            J.Need(d.S("level") is "company_level" or "account_level" or "rider_level","تصنيف الخصم مطلوب.");
             string id="platform-deducted:"+StorageTransfer.CutoverHash(JsonValue.Create(line.S("id")+":"+d.S("category")));
             if(Store.Get(c,id,Kind,tx)!=null)continue;
-            var tag=new JsonObject{["id"]=id,["platform"]=PayPlatforms.For(app).Platform,["companyId"]=invoice.S("companyId"),["invoiceId"]=invoice.S("id"),["sourceId"]=line.S("id"),["platformAccountId"]=line.S("platformAccountId"),["category"]=d.S("category"),["level"]=d.S("level"),["amount"]=d.N("amount"),["expenseAccount"]=d.S("expenseAccount"),["status"]="confirmed",["createdBy"]=actor.Identity!.Name};
+            var tag=new JsonObject{["id"]=id,["platform"]=PayPlatforms.For(app).Platform,["companyId"]=invoice.S("companyId"),["invoiceId"]=invoice.S("id"),["sourceId"]=line.S("id"),["platformAccountId"]=line.S("platformAccountId"),["category"]=d.S("category"),["level"]=d.S("level"),["riderId"]=d.S("riderId"),["amount"]=d.N("amount"),["expenseAccount"]=d.S("expenseAccount"),["status"]="confirmed",["createdBy"]=actor.Identity!.Name};
             Store.Save(c,Kind,tag,tx);Store.Audit(c,tx,"platform."+app+".deduction_classified_confirmed",id,actor.Identity!.Name!);
         }
     }
@@ -59,7 +59,7 @@ public static class PlatformDeductions
         AccessPolicy.Demand(actor,"platforms.hs.approve");if(!FinancialScopes.Platform(actor,"HungerStation"))throw new ApiError("المنصة خارج النطاق المالي.",403);
         var invoice=HungerStationInvoices.GetInvoice(c,tx,actor,invoiceId);J.Need(invoice.S("approvalStatus")=="approved","وسوم الخصم تتطلب وقائع فاتورة معتمدة.");
         var request=invoice.Clone();request["requestedBy"]=invoice.S("createdBy");request["targetDepartment"]="FIN";request["requiredRankLevel"]=1;
-        AccessPolicy.ValidateApproval(actor,request,new JsonObject(),"platforms.hs.approve");int created=0;
+        AccessPolicy.ValidateApproval(actor,request,new JsonObject(),"platforms.hs.approve",c,tx,"platform.hs.deductions_confirmed",invoice);if(invoice.B("selfApprovedException"))Store.Save(c,"platform_invoice",invoice,tx);int created=0;
         var lines=HungerStationInvoices.EffectiveLines(c,tx,invoiceId);
         var allocations=Store.List(c,"platform_allocation",tx).Where(a=>a.S("invoiceId")==invoiceId&&a.S("status")=="approved").ToList();
         J.Need(lines.Where(l=>l.N("tgaAmount")!=0).All(l=>allocations.Any(a=>a.S("lineId")==l.S("id")&&a.N("amount")==Math.Abs(l.N("tgaAmount")))),"لا يمكن تثبيت وسوم TGA قبل اعتماد التوزيع الكامل.");

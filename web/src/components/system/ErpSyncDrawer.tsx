@@ -36,6 +36,15 @@ const REFUSAL_MESSAGES: Record<string, string> = {
   unapproved_target: 'الهدف مقفل أو بانتظار الاعتماد المالي.',
 };
 
+// The guard refuses with `code:kind`; the kind is what an administrator can accept for one run.
+function refusalParts(code: string): { message: string; kind: string; field: 'acceptNewKinds' | 'acceptLargeChanges' | '' } {
+  const [head, kind = ''] = code.split(':');
+  if (head === 'new_kind_requires_acceptance') return { message: `نوع بيانات جديد يحتاج قبولك أول مرة: ${kind}`, kind, field: 'acceptNewKinds' };
+  if (head === 'kind_changes_over_threshold') return { message: `التغييرات في ${kind} أكبر من حد الأمان 10%.`, kind, field: 'acceptLargeChanges' };
+  if (head === 'source_count_drop_over_threshold') return { message: `عدد سجلات ${kind} في ERP نقص عن الموجود عندنا أكثر من الحد.`, kind, field: 'acceptLargeChanges' };
+  return { message: REFUSAL_MESSAGES[code] || code, kind: '', field: '' };
+}
+
 const KIND_LABELS: Record<string, string> = {
   riders: 'المناديب',
   rider: 'المناديب',
@@ -141,11 +150,14 @@ export function ErpSyncDrawer({ open, onClose }: ErpSyncDrawerProps) {
     };
   }, [activeJobId, open]);
 
+  const [accepted, setAccepted] = useState<{ acceptNewKinds: string[]; acceptLargeChanges: string[] }>({ acceptNewKinds: [], acceptLargeChanges: [] });
+  const [overrideReason, setOverrideReason] = useState('');
   const handleTrigger = async (dryRun: boolean) => {
     setTriggerError(null);
     setTriggering(dryRun ? 'dry_run' : 'commit');
     try {
-      const res = await api.runErpSync(dryRun);
+      const hasAccepted = accepted.acceptNewKinds.length + accepted.acceptLargeChanges.length > 0;
+      const res = await api.runErpSync(dryRun, hasAccepted ? { ...accepted, reason: overrideReason } : undefined);
       if (res?.jobId) {
         setActiveJobId(res.jobId);
         setActiveJob({
@@ -295,9 +307,36 @@ export function ErpSyncDrawer({ open, onClose }: ErpSyncDrawerProps) {
             {activeJob.refusalCode && (
               <div className="rounded-lg bg-[var(--warning)]/10 border border-[var(--warning)]/30 p-2.5 text-xs text-[var(--warning)]">
                 <span className="font-bold">ملاحظة الخادم: </span>
-                <span>
-                  {REFUSAL_MESSAGES[activeJob.refusalCode] || activeJob.refusalCode}
-                </span>
+                <span>{refusalParts(activeJob.refusalCode).message}</span>
+                {(() => {
+                  const refusal = refusalParts(activeJob.refusalCode!);
+                  if (!refusal.field) return null;
+                  const field = refusal.field;
+                  return (
+                    <div className="mt-2 space-y-2">
+                      <p>الخطوة التالية: راجع الأعداد، ولو مقبولة اكتب السبب ثم اضغط قبول، وبعدها شغّل المعاينة تاني.</p>
+                      <input
+                        id="erp-override-reason"
+                        value={overrideReason}
+                        onChange={(e) => setOverrideReason(e.target.value)}
+                        placeholder="سبب القبول (مطلوب)"
+                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[var(--ink)]"
+                      />
+                      <button
+                        type="button"
+                        id="erp-override-accept"
+                        disabled={overrideReason.trim().length < 3}
+                        onClick={() => setAccepted((prev) => ({ ...prev, [field]: Array.from(new Set([...prev[field], refusal.kind])) }))}
+                        className="rounded-md bg-[var(--accent)] px-2.5 py-1 font-bold text-white disabled:opacity-50"
+                      >
+                        قبول {refusal.kind} لهذه المرة
+                      </button>
+                      {accepted.acceptNewKinds.length + accepted.acceptLargeChanges.length > 0 && (
+                        <p>مقبول للتشغيل القادم: {[...accepted.acceptNewKinds, ...accepted.acceptLargeChanges].join('، ')}</p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -413,7 +452,7 @@ export function ErpSyncDrawer({ open, onClose }: ErpSyncDrawerProps) {
 
                     {run.refusalCode ? (
                       <span className="text-[var(--warning)] truncate max-w-[220px]" title={run.refusalCode}>
-                        {REFUSAL_MESSAGES[run.refusalCode] || run.refusalCode}
+                        {refusalParts(run.refusalCode).message}
                       </span>
                     ) : (
                       <div className="flex items-center gap-2 text-[10px] font-mono">

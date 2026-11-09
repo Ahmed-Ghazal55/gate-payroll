@@ -12,9 +12,11 @@ public static class PayReviewDraft
     {
         J.Need(PayPlatforms.App(app)=="ninja","المراجعة المقترحة متاحة لنينجا فقط.");period=J.Period(period);string company=FinancialCore.ResolveSponsor(companyId).Id;
         OperationsImports.Scope(actor,"ninja",company,"pay.view");
-        var blockers=new JsonArray();var reviews=new JsonArray();var evidence=new JsonArray();var unassigned=new JsonArray();var missing=new JsonArray();
-        void Block(string code,string message,string action,string source="")=>blockers.Add(new JsonObject{["code"]=code,["message"]=message,["fixAction"]=action,["sourceLineId"]=source});
-        var invoices=Store.List(c,"platform_invoice",tx).Where(i=>i.S("platform")=="Ninja"&&i.S("companyId")==company&&i.S("period")==period&&i.S("status")!="reversed"&&i.S("accountingStatus")!="reversed").OrderBy(i=>i.S("id"),StringComparer.Ordinal).ToList();
+        var blockers=new JsonArray();var warnings=new JsonArray();var proposals=new JsonArray();var reviews=new JsonArray();var evidence=new JsonArray();var unassigned=new JsonArray();var missing=new JsonArray();
+        // One account produces one blocker per code, not one per operating day.
+        void Block(string code,string message,string action,string source=""){if(!blockers.OfType<JsonObject>().Any(b=>b.S("code")==code&&b.S("sourceLineId")==source))blockers.Add(new JsonObject{["code"]=code,["message"]=message,["fixAction"]=action,["sourceLineId"]=source});}
+        void Warn(string code,string message,string source,decimal? erp=null,decimal? invoiced=null)=>warnings.Add(new JsonObject{["code"]=code,["message"]=message,["sourceLineId"]=source,["erpOrders"]=erp,["invoiceOrders"]=invoiced});
+        var invoices=Store.List(c,"platform_invoice",tx).Where(i=>InvoiceDiscard.Active(i)&&i.S("platform")=="Ninja"&&i.S("companyId")==company&&i.S("period")==period&&i.S("status")!="reversed"&&i.S("accountingStatus")!="reversed").OrderBy(i=>i.S("id"),StringComparer.Ordinal).ToList();
         if(invoices.Count==0)Block("invoice_missing","ارفع واعتمد فاتورة نينجا للشركة والشهر.","upload_invoice");
         foreach(string kind in new[]{"pay_terms","pay_eligibility"})try{PaySettings.Resolve(c,tx,kind,"ninja",period);}catch(ApiError){Block(kind+"_missing","إعداد نينجا للشهر غير معتمد: "+kind,"approve_settings");}
         try{PaySettings.Global(c,tx,period+"-01");}catch(ApiError){Block("global_settings_missing","اعتمد إعدادات الأيام والإيجار بتاريخ الشهر.","approve_settings");}
@@ -24,7 +26,7 @@ public static class PayReviewDraft
         foreach(var row in daily.Where(d=>!invoicedAccounts.Contains(d.S("platformAccountId"))))
         {
             unassigned.Add(new JsonObject{["sourceLineId"]=row.S("id"),["operationSourceId"]=row.S("id"),["orders"]=row.N("orders")});
-            Block("daily_account_not_invoiced","يوجد تشغيل حساب بلا سطر فاتورة مطابق؛ راجع الحساب ومصدر الفاتورة.","review_invoice_account",row.S("id"));
+            Block("daily_account_not_invoiced","يوجد تشغيل حساب بلا سطر فاتورة مطابق؛ راجع الحساب ومصدر الفاتورة.","review_invoice_account",row.S("platformAccountId"));
             if(!people.ContainsKey(row.S("riderId")))missing.Add(new JsonObject{["sourceLineId"]=row.S("id"),["operationSourceId"]=row.S("id")});
         }
         foreach(var invoice in invoices)
@@ -49,7 +51,14 @@ public static class PayReviewDraft
                     var local=Store.Get(c,accountId,"platform_account",tx);
                     if(local==null||local.S("companyId")!=company||PayPlatforms.For(local.S("platformCode")).App!="ninja"){Block("account_missing","اربط سطر الفاتورة بحساب نينجا للشركة.","link_account",source);continue;}
                     var rows=daily.Where(d=>d.S("platformAccountId")==accountId).ToList();
-                    if(rows.Count==0){Block("operations_missing","استورد تشغيل الحساب وتوزيع المناديب الفعليين.","import_operations",source);continue;}
+                    string? onlyAssigned=null;
+                    if(rows.Count==0)
+                    {
+                        // The invoice is final (BR31); operations only say who worked. One operator on the assignment history is enough, shown as a warning.
+                        var assigned=(local["assignments"] as JsonArray??[]).OfType<JsonObject>().Where(a=>a.S("riderId")!=""&&AssignmentSpan.Overlaps(a,period)).Select(a=>a.S("riderId")).Distinct(StringComparer.Ordinal).ToList();
+                        if(assigned.Count!=1){Block("operations_missing","لا يوجد تشغيل لهذا الحساب ولا مشغل واحد في التكليفات؛ استورد توزيع التشغيل.","import_operations",source);continue;}
+                        onlyAssigned=assigned[0];Warn("operations_missing_using_assignment","لا يوجد تشغيل في ERP لهذا الحساب؛ استُخدم مشغل التكليف الوحيد وطلبات الفاتورة.",source,0,line.N("orders"));
+                    }
                     if(rows.Any(d=>d.S("date").Length<10)){Block("daily_date_invalid","تاريخ التشغيل غير صالح.","review_operations",source);continue;}
                     if(rows.GroupBy(d=>d.S("date")[..10]+":"+d.S("riderId")).Any(g=>g.Count()>1)){Block("daily_duplicate","توجد بيانات يومية مكررة؛ راجع مصدر التشغيل.","review_operations",source);continue;}
                     bool valid=true;
@@ -61,14 +70,22 @@ public static class PayReviewDraft
                         else {FinancialScopes.DemandRider(actor,person);if(!ErpRiderClassification.ListedAsRider(person)||person.B("debtOnly")){Block("rider_ineligible","المصدر لا يخص مندوب تشغيل فعال.","review_rider",source);valid=false;}}
                         if(row.N("orders")<0||row.N("orders")!=decimal.Truncate(row.N("orders"))){Block("orders_invalid","عدد طلبات التشغيل غير صالح.","review_operations",source);valid=false;}
                     }
-                    if(rows.Sum(d=>d.N("orders"))!=line.N("orders")){Block("orders_mismatch","طلبات التشغيل لا تطابق الفاتورة؛ استورد توزيعًا مراجعًا دون تغيير الفاتورة.","import_operations",source);valid=false;}
                     if(!valid)continue;
+                    decimal erpOrders=rows.Sum(d=>d.N("orders"));
+                    if(rows.Count>0&&erpOrders!=line.N("orders"))Warn("orders_variance",erpOrders>line.N("orders")?"طلبات ERP أعلى من الفاتورة؛ راجع المصدر. الفاتورة هي المعتمدة.":"طلبات ERP أقل من الفاتورة؛ الفاتورة هي المعتمدة.",source,erpOrders,line.N("orders"));
                     decimal accountDeduction=(line["deductions"] as JsonArray??[]).OfType<JsonObject>().Where(d=>d.S("level")=="account_level").Sum(d=>d.N("amount"));
-                    // A multi-operator base and deduction need explicit D3 review; never infer them from ownership or time.
+                    // A multi-operator split is proposed from ERP's share but never accepted without a reviewer.
                     var groups=rows.GroupBy(d=>d.S("riderId")).ToList();
-                    if(groups.Count!=1){Block("allocation_required","يوجد أكثر من مشغل؛ استورد توزيع الاستحقاق والخصم المراجع.","import_operations",source);continue;}
-                    var group=groups.Single();string riderId=group.Key;var personRow=people[riderId];string category=personRow.S("payCategory");
-                    if(!PaySettings.Categories.Contains(category)){Block("category_missing","حدد فئة الكفالة والمركبة في ملف التشغيل المراجع.","import_operations",source);continue;}
+                    if(groups.Count>1)
+                    {
+                        proposals.Add(new JsonObject{["sourceLineId"]=source,["accountId"]=accountId,["riders"]=PayReviewCategory.Propose(groups.Select(g=>(g.Key,g.Sum(d=>d.N("orders")))).OrderBy(x=>x.Key,StringComparer.Ordinal).ToList(),line.N("orders"),line.N("baseGross"),accountDeduction)});
+                        Block("allocation_required","يوجد أكثر من مشغل؛ راجع التوزيع المقترح ثم استورده.","import_operations",source);continue;
+                    }
+                    string riderId=onlyAssigned??groups.Single().Key;
+                    if(!people.TryGetValue(riderId,out var personRow)){missing.Add(new JsonObject{["sourceLineId"]=source});Block("rider_not_found","أضف المندوب المرتبط بمصدر التشغيل.","sync_riders",source);continue;}
+                    FinancialScopes.DemandRider(actor,personRow);if(!ErpRiderClassification.ListedAsRider(personRow)||personRow.B("debtOnly")){Block("rider_ineligible","المصدر لا يخص مندوب تشغيل فعال.","review_rider",source);continue;}
+                    string category=PayReviewCategory.Derive(c,tx,personRow,period);
+                    if(!PaySettings.Categories.Contains(category)){Block("category_missing","تعذر تحديد فئة الكفالة والمركبة؛ حددها في ملف التشغيل المراجع.","import_operations",source);continue;}
                     var riderDays=daily.Where(d=>d.S("riderId")==riderId).Select(d=>d.S("date")[..10]).Distinct().Count();
                     var riderShare=new JsonObject{["rider"]=riderId,["orders"]=line.N("orders"),["baseGross"]=line.N("baseGross"),["deduction"]=accountDeduction,["category"]=category,["days"]=riderDays,["metrics"]=new JsonObject()};
                     account["riders"]!.AsArray().Add(riderShare);
@@ -83,6 +100,7 @@ public static class PayReviewDraft
                 {
                     rider["sourceLineId"]=account.S("sourceLineId");
                     rider["operationSourceIds"]=saved!=null?new JsonArray(saved.S("id")):new JsonArray(daily.Where(d=>d.S("platformAccountId")==account.S("accountId")&&d.S("riderId")==rider.S("rider")).Select(d=>(JsonNode?)JsonValue.Create(d.S("id"))).ToArray());
+                    if(rider["operationSourceIds"]!.AsArray().Count==0)rider.Remove("operationSourceIds"); // Assignment-only operator: no daily proof exists.
                     try
                     {
                         var assignment=PayAssignments.Resolve(c,tx,rider.S("rider"),"ninja",period);var scheme=Store.Get(c,assignment.S("schemeId"),"pay_scheme",tx)!;var metrics=rider["metrics"] as JsonObject??new();
@@ -98,13 +116,9 @@ public static class PayReviewDraft
             if(blockers.Count==0)try{PayCycles.ValidateImportedReview(c,tx,actor,company,period,review,"pay.view");}catch(ApiError e){Block("review_invalid",e.Message,"import_operations",id);}
         }
         if(Store.List(c,PayCycles.Kind,tx).Any(p=>p.S("companyId")==company&&p.S("period")==period&&p.S("status") is not ("cancelled" or "reversed")))Block("cycle_exists","توجد دورة للشركة والشهر؛ أكملها أو ألغ المسودة قبل الإعادة.","open_cycle");
-        return new(){["app"]="ninja",["period"]=period,["companyId"]=company,["invoices"]=reviews,["blockers"]=blockers,["unassignedOrders"]=unassigned,["ridersNotFound"]=missing,["evidence"]=evidence,["canCreate"]=blockers.Count==0&&reviews.Count>0,["totals"]=new JsonObject{["gross"]=invoices.Sum(i=>i.N("amountExclVat")),["deductions"]=invoices.Sum(i=>i.N("deductionsTotal")),["vat"]=invoices.Sum(i=>i.N("vat"))}};
+        string dataThrough=daily.Select(d=>d.S("date")).Where(d=>d.Length>=10).Select(d=>d[..10]).DefaultIfEmpty("").Max(StringComparer.Ordinal)!;
+        return new(){["app"]="ninja",["period"]=period,["companyId"]=company,["invoices"]=reviews,["blockers"]=blockers,["warnings"]=warnings,["allocationProposals"]=proposals,["dataThrough"]=dataThrough,["unassignedOrders"]=unassigned,["ridersNotFound"]=missing,["evidence"]=evidence,["canCreate"]=blockers.Count==0&&reviews.Count>0,["totals"]=new JsonObject{["gross"]=invoices.Sum(i=>i.N("amountExclVat")),["deductions"]=invoices.Sum(i=>i.N("deductionsTotal")),["vat"]=invoices.Sum(i=>i.N("vat"))}};
     }
-    static bool Covers(JsonObject assignment,string date)
-    {
-        if(date.Length<10||!DateOnly.TryParse(date[..10],CultureInfo.InvariantCulture,out var day)||!DateTimeOffset.TryParse(assignment.S("RawEffectiveFrom"),CultureInfo.InvariantCulture,DateTimeStyles.None,out var from))return false;
-        DateOnly start=DateOnly.FromDateTime(from.ToOffset(TimeSpan.FromHours(3)).DateTime);if(start>day)return false;
-        return assignment.S("RawEffectiveTo")==""||DateTimeOffset.TryParse(assignment.S("RawEffectiveTo"),CultureInfo.InvariantCulture,DateTimeStyles.None,out var end)&&end>new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue),TimeSpan.FromHours(3));
-    }
+    static bool Covers(JsonObject assignment,string date)=>AssignmentSpan.Covers(assignment,date);
     public static void Map(RouteGroupBuilder api,Store store)=>api.MapGet("/pay/review-draft",(string app,string period,string companyId,HttpContext ctx)=>store.Read(c=>Build(c,null,ctx.User,app,period,companyId))).WithTags("Payroll").WithSummary("Read source-bound Ninja cycle input and actionable blockers without writes");
 }

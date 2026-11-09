@@ -11,7 +11,7 @@ public static class ErpSyncRequests
     public const string Kind="erp_sync_request",Permission="erp.sync.run";
     public static readonly TimeSpan Cooldown=TimeSpan.FromMinutes(15);
     public static bool ValidId(string id)=>Regex.IsMatch(id,"^erp-sync-request:[a-f0-9]{32}$");
-    public static string Reserve(Store store,JobsOptions options,bool dryRun,string trigger,string actor,DateTimeOffset at)
+    public static string Reserve(Store store,JobsOptions options,bool dryRun,string trigger,string actor,DateTimeOffset at,JsonObject? overrides=null)
     {
         J.Need(options.Enabled,"خدمة المهام غير مفعلة.",409);
         if(!new[]{"manual","dry_run","startup","daily"}.Contains(trigger))throw new ImportFailure("invalid_sync_trigger");
@@ -23,10 +23,26 @@ public static class ErpSyncRequests
             if(control.S("activeRequestId")!="")throw new ImportFailure("sync_in_progress");
             if(DateTimeOffset.TryParse(control.S("lastAcceptedAt"),out var previous)&&at-previous<Cooldown)throw new ImportFailure("sync_cooldown");
             string id="erp-sync-request:"+Guid.NewGuid().ToString("N");
-            Store.Save(c,Kind,new(){["id"]=id,["status"]="queued",["mode"]=dryRun?"dry_run":"commit",["trigger"]=trigger,["requestedBy"]=actor,["queuedAt"]=at.ToString("O"),["counts"]=new JsonArray()},tx);
+            Store.Save(c,Kind,new(){["id"]=id,["status"]="queued",["mode"]=dryRun?"dry_run":"commit",["trigger"]=trigger,["requestedBy"]=actor,["queuedAt"]=at.ToString("O"),["counts"]=new JsonArray(),["overrides"]=overrides?.DeepClone()},tx);if(overrides!=null)Store.Audit(c,tx,"jobs.erp_sync_override",id,actor);
             control["activeRequestId"]=id;control["lastAcceptedAt"]=at.ToString("O");Store.Save(c,JobsControl.Kind,control,tx);
             Store.Audit(c,tx,"jobs.erp_sync_requested",id,actor);return id;
         },false);
+    }
+    // Administrator-only, per run, with a reason. Kinds must exist; there is no permanent bypass.
+    public static JsonObject? ReadOverrides(ClaimsPrincipal actor,JsonObject? input)
+    {
+        var fresh=input?["acceptNewKinds"] as JsonArray;var large=input?["acceptLargeChanges"] as JsonArray;
+        if((fresh?.Count??0)==0&&(large?.Count??0)==0)return null;
+        J.Need(AccessPolicy.Administrator(actor),"قبول التجاوز لمسؤول النظام فقط.",403);
+        string reason=input!.S("reason").Trim();J.Need(reason.Length is >=3 and <=500&&!reason.Any(char.IsControl),"اكتب سبب قبول التجاوز.");
+        foreach(var kind in (fresh??[]).Concat(large??[]))J.Need(ImportPlan.Kinds.Contains(kind?.ToString()??""),"نوع بيانات غير معروف.");
+        return new(){["acceptNewKinds"]=(fresh??[]).DeepClone(),["acceptLargeChanges"]=(large??[]).DeepClone(),["reason"]=reason};
+    }
+    public static SyncOverrides Overrides(DbConnection c,string id)
+    {
+        var row=Store.Get(c,id,Kind)?["overrides"] as JsonObject;if(row==null)return SyncOverrides.None;
+        static IEnumerable<string> Names(JsonNode? list)=>(list as JsonArray??[]).Select(k=>k?.ToString()??"");
+        return SyncOverrides.Named(Names(row["acceptNewKinds"]),Names(row["acceptLargeChanges"]));
     }
     public static void Link(Store store,string id,string jobId)
     {

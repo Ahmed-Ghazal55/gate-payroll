@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -19,6 +19,7 @@ import { Drawer } from '../../components/ui/Drawer';
 import { api, ApiError } from '../../lib/api';
 import type { PayReviewRow, PayReviewItem, PayReviewEdit } from '../../lib/types';
 import { useToast } from '../../components/ui/Toast';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 
 export interface PayrollReviewDrawerProps {
   open: boolean;
@@ -46,6 +47,16 @@ export function PayrollReviewDrawer({
   const [adjustAmount, setAdjustAmount] = useState<string>('');
   const [adjustReason, setAdjustReason] = useState<string>('');
 
+  const [itemType, setItemType] = useState('');
+  const [itemTypes, setItemTypes] = useState<Array<{ value: string; label: string }>>([]);
+  const [decisionReason, setDecisionReason] = useState('');
+  useEffect(() => {
+    if (!open) return;
+    api.getConfigListGroup('pay_adjustment_types')
+      .then((g) => setItemTypes(g.items.filter((i) => i.active && i.status !== 'pending').map((i) => ({ value: i.code, label: `${i.nameAr} (${i.values?.account ?? ''})` }))))
+      .catch(() => setItemTypes([]));
+  }, [open]);
+
   if (!row) return null;
 
   const maskIqama = (iqama: string) => {
@@ -56,7 +67,11 @@ export function PayrollReviewDrawer({
   const handleApprove = async () => {
     setSubmitting(true);
     try {
-      const updated = await api.reviewPayCycleRider(cycleId, row.rider, { action: 'approve' });
+      if (row.net < 0 && decisionReason.trim().length < 3) {
+        toast('الصافي سالب: اكتب سبب القرار. سيتحول العجز إلى مديونية عند الاعتماد النهائي.', 'warning');
+        return;
+      }
+      const updated = await api.reviewPayCycleRider(cycleId, row.rider, row.net < 0 ? { action: 'approve', reason: decisionReason.trim() } : { action: 'approve' });
       toast('تم اعتماد بيانات واستحقاق المندوب بنجاح.', 'success');
       onRowUpdated(updated);
     } catch (err: any) {
@@ -81,6 +96,7 @@ export function PayrollReviewDrawer({
     try {
       const updated = await api.reviewPayCycleRider(cycleId, row.rider, {
         action: 'edit',
+        ...(item.key.startsWith('debt:') ? {} : { itemType }),
         key: item.key,
         amount: val,
         reason: editReason.trim(),
@@ -112,6 +128,7 @@ export function PayrollReviewDrawer({
     try {
       const updated = await api.reviewPayCycleRider(cycleId, row.rider, {
         action: 'adjust',
+        itemType,
         amount: val,
         reason: adjustReason.trim(),
       });
@@ -160,17 +177,26 @@ export function PayrollReviewDrawer({
               إغلاق
             </button>
 
-            {row.review !== 'approved' && (
+            {row.review !== 'approved' && (<>
+              {row.net < 0 && (
+                <input
+                  id="review-negative-reason"
+                  value={decisionReason}
+                  onChange={(e) => setDecisionReason(e.target.value)}
+                  placeholder="سبب اعتماد الصف السالب (يتحول مديونية عند الاعتماد النهائي)"
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] p-2 text-xs text-[var(--ink)]"
+                />
+              )}
               <button
                 type="button"
-                disabled={submitting || row.status === 'needs_decision'}
+                disabled={submitting || !(row.allowedActions ?? []).includes('approve')}
                 onClick={handleApprove}
                 className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
               >
                 {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                 <span>اعتماد المندوب</span>
               </button>
-            )}
+            </>)}
           </div>
         </div>
       }
@@ -376,6 +402,9 @@ export function PayrollReviewDrawer({
                         >
                           إلغاء
                         </button>
+                        {!item.key.startsWith('debt:') && (
+                          <SearchableSelect ariaLabel="بند التعديل" value={itemType} onChange={setItemType} placeholder="اكتب بند التعديل..." options={itemTypes} />
+                        )}
                         <button
                           type="button"
                           disabled={submitting}
@@ -416,6 +445,13 @@ export function PayrollReviewDrawer({
               <h5 className="font-bold text-[var(--accent)]">إضافة تسوية على الراتب</h5>
               <div className="flex items-center gap-2">
                 <label className="text-[11px] font-bold text-[var(--ink)] shrink-0">المبلغ (+ / -):</label>
+                <SearchableSelect
+                  ariaLabel="بند التعديل"
+                  value={itemType}
+                  onChange={setItemType}
+                  placeholder="اكتب بند التعديل..."
+                  options={itemTypes}
+                />
                 <input
                   type="number"
                   step="0.01"

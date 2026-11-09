@@ -1563,7 +1563,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1599,7 +1603,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -3375,6 +3383,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -3391,6 +3400,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -3459,6 +3469,7 @@ export interface paths {
                                     invoiceId: string;
                                     sourceRow: number;
                                     platformAccountId?: string;
+                                    captainId?: string;
                                     lineType?: string;
                                     baseGross: number;
                                     incentives: number;
@@ -3475,6 +3486,7 @@ export interface paths {
                                         amount: number;
                                         level: string;
                                         expenseAccount?: string;
+                                        riderId?: string;
                                     }[];
                                 }[];
                             }[];
@@ -3534,6 +3546,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -3550,6 +3563,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         } | {
@@ -3584,6 +3598,7 @@ export interface paths {
                                     invoiceId: string;
                                     sourceRow: number;
                                     platformAccountId?: string;
+                                    captainId?: string;
                                     lineType?: string;
                                     baseGross: number;
                                     incentives: number;
@@ -3600,11 +3615,105 @@ export interface paths {
                                         amount: number;
                                         level: string;
                                         expenseAccount?: string;
+                                        riderId?: string;
                                     }[];
                                 }[];
                             }[];
                             canCommit: boolean;
                             fingerprint: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platforms/ninja/invoices/{id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard a pending unused invoice, retaining source rows and audit */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            platform?: string;
+                            period: string;
+                            reference?: string;
+                            amountExclVat: number;
+                            deductionsTotal: number;
+                            vat: number;
+                            approvalStatus: string;
+                            status: string;
+                            allowedActions: string[];
+                            approvalBlockers?: string[];
+                            journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
+                            accountIds?: null | string[];
+                            lines?: {
+                                id: string;
+                                invoiceId: string;
+                                sourceRow: number;
+                                platformAccountId?: string;
+                                captainId?: string;
+                                lineType?: string;
+                                baseGross: number;
+                                incentives: number;
+                                deductionAmount: number;
+                                orders: number;
+                                vat: number;
+                                expected?: number;
+                                invoiced: number;
+                                difference?: number;
+                                reason?: string;
+                                status: string;
+                                deductions?: {
+                                    category: string;
+                                    amount: number;
+                                    level: string;
+                                    expenseAccount?: string;
+                                    riderId?: string;
+                                }[];
+                            }[];
                         };
                     };
                 };
@@ -3672,6 +3781,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -3688,6 +3798,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -3733,6 +3844,7 @@ export interface paths {
                             invoiceId: string;
                             sourceRow: number;
                             platformAccountId?: string;
+                            captainId?: string;
                             lineType?: string;
                             baseGross: number;
                             incentives: number;
@@ -3749,6 +3861,7 @@ export interface paths {
                                 amount: number;
                                 level: string;
                                 expenseAccount?: string;
+                                riderId?: string;
                             }[];
                         }[];
                     };
@@ -3825,6 +3938,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -3841,6 +3955,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -3916,6 +4031,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -3932,6 +4048,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -4003,6 +4120,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -4019,6 +4137,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -4094,6 +4213,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -4110,6 +4230,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -4185,6 +4306,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -4201,6 +4323,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -4272,6 +4395,7 @@ export interface paths {
                                 invoiceId: string;
                                 sourceRow: number;
                                 platformAccountId?: string;
+                                captainId?: string;
                                 lineType?: string;
                                 baseGross: number;
                                 incentives: number;
@@ -4288,6 +4412,7 @@ export interface paths {
                                     amount: number;
                                     level: string;
                                     expenseAccount?: string;
+                                    riderId?: string;
                                 }[];
                             }[];
                         };
@@ -4318,13 +4443,69 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            items: {
+                                id: string;
+                                companyId: string;
+                                platform?: string;
+                                period: string;
+                                reference?: string;
+                                amountExclVat: number;
+                                deductionsTotal: number;
+                                vat: number;
+                                approvalStatus: string;
+                                status: string;
+                                allowedActions: string[];
+                                approvalBlockers?: string[];
+                                journalEntryId?: string;
+                                createdBy?: string;
+                                approvedBy?: string;
+                                accountingStatus?: string;
+                                reversalJournalEntryId?: string;
+                                disputes?: {
+                                    id: string;
+                                    status: string;
+                                    reason: string;
+                                    createdBy: string;
+                                    resolvedBy?: string;
+                                }[];
+                                accountIds?: null | string[];
+                                lines?: {
+                                    id: string;
+                                    invoiceId: string;
+                                    sourceRow: number;
+                                    platformAccountId?: string;
+                                    captainId?: string;
+                                    lineType?: string;
+                                    baseGross: number;
+                                    incentives: number;
+                                    deductionAmount: number;
+                                    orders: number;
+                                    vat: number;
+                                    expected?: number;
+                                    invoiced: number;
+                                    difference?: number;
+                                    reason?: string;
+                                    status: string;
+                                    deductions?: {
+                                        category: string;
+                                        amount: number;
+                                        level: string;
+                                        expenseAccount?: string;
+                                        riderId?: string;
+                                    }[];
+                                }[];
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -4357,6 +4538,188 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/platforms/keeta/invoices/{id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard a pending unused Keeta invoice, retaining source rows and audit */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            platform?: string;
+                            period: string;
+                            reference?: string;
+                            amountExclVat: number;
+                            deductionsTotal: number;
+                            vat: number;
+                            approvalStatus: string;
+                            status: string;
+                            allowedActions: string[];
+                            approvalBlockers?: string[];
+                            journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
+                            accountIds?: null | string[];
+                            lines?: {
+                                id: string;
+                                invoiceId: string;
+                                sourceRow: number;
+                                platformAccountId?: string;
+                                captainId?: string;
+                                lineType?: string;
+                                baseGross: number;
+                                incentives: number;
+                                deductionAmount: number;
+                                orders: number;
+                                vat: number;
+                                expected?: number;
+                                invoiced: number;
+                                difference?: number;
+                                reason?: string;
+                                status: string;
+                                deductions?: {
+                                    category: string;
+                                    amount: number;
+                                    level: string;
+                                    expenseAccount?: string;
+                                    riderId?: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platforms/keeta/invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read scoped Keeta invoice and available actions */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            platform?: string;
+                            period: string;
+                            reference?: string;
+                            amountExclVat: number;
+                            deductionsTotal: number;
+                            vat: number;
+                            approvalStatus: string;
+                            status: string;
+                            allowedActions: string[];
+                            approvalBlockers?: string[];
+                            journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
+                            accountIds?: null | string[];
+                            lines?: {
+                                id: string;
+                                invoiceId: string;
+                                sourceRow: number;
+                                platformAccountId?: string;
+                                captainId?: string;
+                                lineType?: string;
+                                baseGross: number;
+                                incentives: number;
+                                deductionAmount: number;
+                                orders: number;
+                                vat: number;
+                                expected?: number;
+                                invoiced: number;
+                                difference?: number;
+                                reason?: string;
+                                status: string;
+                                deductions?: {
+                                    category: string;
+                                    amount: number;
+                                    level: string;
+                                    expenseAccount?: string;
+                                    riderId?: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/platforms/keeta/invoices/{id}/lines": {
         parameters: {
             query?: never;
@@ -4376,13 +4739,37 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            invoiceId: string;
+                            sourceRow: number;
+                            platformAccountId?: string;
+                            captainId?: string;
+                            lineType?: string;
+                            baseGross: number;
+                            incentives: number;
+                            deductionAmount: number;
+                            orders: number;
+                            vat: number;
+                            expected?: number;
+                            invoiced: number;
+                            difference?: number;
+                            reason?: string;
+                            status: string;
+                            deductions?: {
+                                category: string;
+                                amount: number;
+                                level: string;
+                                expenseAccount?: string;
+                                riderId?: string;
+                            }[];
+                        }[];
                     };
                 };
             };
@@ -6387,12 +6774,17 @@ export interface paths {
                                 phase2?: number;
                                 phase3?: number;
                                 net: number;
+                                allowedActions?: string[];
+                                blockers?: string[];
+                                salaryApprovedAt?: string;
+                                debtDeductionStatus?: string;
                                 items: {
                                     key: string;
                                     phase: number;
                                     order?: number;
                                     labelAr?: string;
                                     amount: number;
+                                    requestedAmount?: number;
                                     editable: boolean;
                                     max?: null | number;
                                     source: string;
@@ -6500,17 +6892,180 @@ export interface paths {
                             phase2?: number;
                             phase3?: number;
                             net: number;
+                            allowedActions?: string[];
+                            blockers?: string[];
+                            salaryApprovedAt?: string;
+                            debtDeductionStatus?: string;
                             items: {
                                 key: string;
                                 phase: number;
                                 order?: number;
                                 labelAr?: string;
                                 amount: number;
+                                requestedAmount?: number;
                                 editable: boolean;
                                 max?: null | number;
                                 source: string;
                             }[];
                             edits?: Record<string, never>[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/cycles/{id}/unrecovered-costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Keeta ineligibility operating and fuel costs borne by the company */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            cycleId: string;
+                            status: string;
+                            total: number;
+                            rows: {
+                                rider: string;
+                                operatingCost: number;
+                                fuelCost: number;
+                                total: number;
+                                accountCode: string;
+                                sourceLineIds: string[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/cycles/{id}/debt-deductions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Review due debts after salary approval, capped by positive net */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            cycleId: string;
+                            stage: number;
+                            status: string;
+                            rows: {
+                                rider: string;
+                                salaryNet: number;
+                                net: number;
+                                status: string;
+                                allowedActions: string[];
+                                items: {
+                                    key: string;
+                                    source: string;
+                                    category: string;
+                                    labelAr: string;
+                                    due: number;
+                                    max: number;
+                                    amount: number;
+                                    remainingBalance: number;
+                                    accountCode: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Choose zero or a due installment and independently confirm deductions */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            cycleId: string;
+                            stage: number;
+                            status: string;
+                            rows: {
+                                rider: string;
+                                salaryNet: number;
+                                net: number;
+                                status: string;
+                                allowedActions: string[];
+                                items: {
+                                    key: string;
+                                    source: string;
+                                    category: string;
+                                    labelAr: string;
+                                    due: number;
+                                    max: number;
+                                    amount: number;
+                                    remainingBalance: number;
+                                    accountCode: string;
+                                }[];
+                            }[];
                         };
                     };
                 };
@@ -6547,12 +7102,23 @@ export interface paths {
                     content: {
                         "application/json": {
                             items: {
+                                approvalResult?: {
+                                    approved: number;
+                                    skipped: number;
+                                    skippedRows: {
+                                        rider: string;
+                                        reason: string;
+                                    }[];
+                                };
                                 id: string;
                                 companyId: string;
                                 period: string;
                                 app?: string;
                                 stage: number;
                                 status: string;
+                                allowedActions?: string[];
+                                approvalBlockers?: string[];
+                                debtDeductionStatus?: string;
                                 invoices: {
                                     invoiceId: string;
                                     app: string;
@@ -6583,6 +7149,12 @@ export interface paths {
                                     closing?: number;
                                     status: string;
                                     review?: string;
+                                    salaryNet?: number;
+                                    carryAmount?: number;
+                                    carryDebtId?: string;
+                                    salaryApprovedAt?: string;
+                                    debtDeductionStatus?: string;
+                                    blockers?: string[];
                                 }[];
                                 journalEntryId?: string;
                                 history?: Record<string, never>[];
@@ -6618,12 +7190,23 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
+                            approvalResult?: {
+                                approved: number;
+                                skipped: number;
+                                skippedRows: {
+                                    rider: string;
+                                    reason: string;
+                                }[];
+                            };
                             id: string;
                             companyId: string;
                             period: string;
                             app?: string;
                             stage: number;
                             status: string;
+                            allowedActions?: string[];
+                            approvalBlockers?: string[];
+                            debtDeductionStatus?: string;
                             invoices: {
                                 invoiceId: string;
                                 app: string;
@@ -6654,6 +7237,12 @@ export interface paths {
                                 closing?: number;
                                 status: string;
                                 review?: string;
+                                salaryNet?: number;
+                                carryAmount?: number;
+                                carryDebtId?: string;
+                                salaryApprovedAt?: string;
+                                debtDeductionStatus?: string;
+                                blockers?: string[];
                             }[];
                             journalEntryId?: string;
                             history?: Record<string, never>[];
@@ -6701,12 +7290,23 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
+                            approvalResult?: {
+                                approved: number;
+                                skipped: number;
+                                skippedRows: {
+                                    rider: string;
+                                    reason: string;
+                                }[];
+                            };
                             id: string;
                             companyId: string;
                             period: string;
                             app?: string;
                             stage: number;
                             status: string;
+                            allowedActions?: string[];
+                            approvalBlockers?: string[];
+                            debtDeductionStatus?: string;
                             invoices: {
                                 invoiceId: string;
                                 app: string;
@@ -6737,6 +7337,12 @@ export interface paths {
                                 closing?: number;
                                 status: string;
                                 review?: string;
+                                salaryNet?: number;
+                                carryAmount?: number;
+                                carryDebtId?: string;
+                                salaryApprovedAt?: string;
+                                debtDeductionStatus?: string;
+                                blockers?: string[];
                             }[];
                             journalEntryId?: string;
                             history?: Record<string, never>[];
@@ -6879,6 +7485,15 @@ export interface paths {
                                 fixAction: string;
                                 sourceLineId: string;
                             }[];
+                            warnings?: {
+                                code: string;
+                                message: string;
+                                sourceLineId: string;
+                                erpOrders?: number;
+                                invoiceOrders?: number;
+                            }[];
+                            allocationProposals?: Record<string, never>[];
+                            dataThrough?: string;
                             unassignedOrders: Record<string, never>[];
                             ridersNotFound: Record<string, never>[];
                             evidence: Record<string, never>[];
@@ -7787,7 +8402,53 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
+                        "application/json": components["schemas"]["AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/approval-exceptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every dated self-approval exception use for pre-launch review */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            action: string;
+                            operation: string;
+                            recordId: string;
+                            maker: string;
+                            actor: string;
+                            at: string;
+                            approvalExceptionUntil: string;
+                            selfApprovedException: boolean;
+                        }[];
                     };
                 };
             };
@@ -7817,13 +8478,33 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            mustChangePassword?: boolean;
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        }[];
                     };
                 };
             };
@@ -7843,6 +8524,189 @@ export interface paths {
                 };
             };
             responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            mustChangePassword?: boolean;
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{id}/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a temporary password the user must change at next login */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            mustChangePassword?: boolean;
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change my own password */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            mustChangePassword?: boolean;
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/roles/{code}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a role template and end its users' sessions */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
                 /** @description OK */
                 200: {
                     headers: {
@@ -7854,6 +8718,7 @@ export interface paths {
                 };
             };
         };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7884,13 +8749,33 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            mustChangePassword?: boolean;
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
                     };
                 };
             };
@@ -7926,13 +8811,33 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            mustChangePassword?: boolean;
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
                     };
                 };
             };
@@ -11402,12 +12307,34 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            id: string;
+                            username: string;
+                            role: string;
+                            roleNameAr?: string;
+                            roleSummaryAr?: string;
+                            department?: string;
+                            departmentNameAr?: string;
+                            rankLevel?: number;
+                            status: string;
+                            permissions: string[];
+                            mustChangePassword?: boolean;
+                            customPermissions?: string[];
+                            deniedPermissions?: string[];
+                            financialScope?: Record<string, never>;
+                            createdAt?: string;
+                            lastLoginAt?: string;
+                            approvalExceptionUntil: string;
+                            approvalExceptionReason: string;
+                            allowedActions: string[];
+                        };
+                    };
                 };
             };
         };
@@ -13049,10 +13976,11 @@ export interface components {
             /** Format: double */
             balance: number | string;
         };
-        "AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
+        "AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
             roles: null | components["schemas"]["RoleDef"][];
             permissions: null | components["schemas"]["PermissionDef"][];
             departments: components["schemas"]["JsonArray"];
+            rolePermissions: null | Record<string, never>;
             financialScopeCatalog: components["schemas"]["AnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
         };
         "AnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {

@@ -32,7 +32,7 @@ try{
  await call('checker','/api/platforms/keeta/invoices?commit=1',upload(preview),409);
  const invoice=await call('admin','/api/platforms/keeta/invoices?commit=1',upload(preview));
  const lines=await call('checker',`/api/platforms/keeta/invoices/${encodeURIComponent(invoice.id)}/lines`);assert.equal(lines[0].invoiced,100);
- await call('admin',`/api/platforms/keeta/invoices/${encodeURIComponent(invoice.id)}/approve`,{},400);
+ await call('admin',`/api/platforms/keeta/invoices/${encodeURIComponent(invoice.id)}/approve`,{},403);
  await call('checker',`/api/platforms/keeta/invoices/${encodeURIComponent(invoice.id)}/approve`,{});
  await call('checker',`/api/platforms/keeta/invoices/${encodeURIComponent(invoice.id)}/post`,{},409); // gate remains OFF
  await call('admin','/api/platforms/keeta/invoices',upload(),400); // duplicate bytes refused

@@ -17,6 +17,7 @@ public static class ConfigLists
         new("recharge_networks","شبكات الشحن",false,[]),
         new("recharge_packages","باقات الشحن",true,[new("network","الشبكة","select",true),new("price","السعر","number",true)]),
         new("deduction_types","أنواع الاستقطاع",true,[new("category","فئة الدين","select",true),new("account","الحساب","account",true),new("phase","المرحلة","number",true,["1","2","3"]),new("order","الترتيب داخل المرحلة","number",false)]),
+        new("pay_adjustment_types","بنود تعديل الرواتب",true,[new("account","الحساب","account",true),new("direction","الاتجاه","select",true,["increase","decrease","both"])]),
         new("operating_systems","أنظمة التشغيل",false,[]),
         new("pay_systems","أنظمة الرواتب",false,[]),
         new("salary_classifications","تصنيفات الرواتب",false,[]),
@@ -80,6 +81,7 @@ public static class ConfigLists
             J.Need(values.S("account").StartsWith("1125",StringComparison.Ordinal),"حساب الاستقطاع يكون من ذمم المناديب 1125xx.");
             J.Need(values.N("phase") is 1 or 2 or 3,"المرحلة 1 أو 2 أو 3.");
         }
+        if(group=="pay_adjustment_types")J.Need(values.S("account").StartsWith('5')||values.S("account").StartsWith('4'),"تعديل الراتب يحتاج حساب مصروف أو إيراد على الشجرة.");
         return values;
     }
     public static JsonObject Upsert(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string group,JsonObject input)
@@ -104,7 +106,7 @@ public static class ConfigLists
         AccessPolicy.Demand(actor,"pay.approve");Group(group);
         var item=Store.Get(c,ItemId(group,code),ItemKind,tx)?.Clone()??throw new ApiError("البند غير موجود.",404);
         var pending=item["pending"] as JsonObject??throw new ApiError("لا يوجد تعديل بانتظار الاعتماد.",409);
-        J.Need(pending.S("by")!=Me(actor),"الاعتماد لشخص غير مقدم التعديل.",403);
+        J.Need(AccessPolicy.Independent(actor,pending.S("by"),"config.item_approved",c,tx,item),"الاعتماد لشخص غير مقدم التعديل.",403);
         Apply(item,pending,Me(actor));Store.Save(c,ItemKind,item,tx);Store.Audit(c,tx,"config.item_approved",item.S("id"),Me(actor));return item;
     }
     public static JsonObject AddField(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string group,JsonObject input)
@@ -121,6 +123,19 @@ public static class ConfigLists
     }
     public static void Seed(Store store)
     {
+        // P2 made adjustments choose from this list; live ran v1 before the list existed.
+        store.Write((c,tx)=>
+        {
+            const string v2="migration:config-lists:v2-adjustments";
+            if(Store.Get(c,v2,"setting",tx)!=null)return false;
+            foreach(var (code,name,account,direction) in new[]{("bonus","حافز / مكافأة","512122","increase"),("compensation","تعويض","512122","increase"),("correction","تصحيح راتب بالخصم","512101","decrease")})
+            {
+                string id=ItemId("pay_adjustment_types",code);if(Store.Get(c,id,ItemKind,tx)!=null)continue;
+                var item=new JsonObject{["id"]=id,["group"]="pay_adjustment_types",["code"]=code,["version"]=0,["history"]=new JsonArray(),["active"]=true};
+                Apply(item,new JsonObject{["nameAr"]=name,["values"]=new JsonObject{["account"]=account,["direction"]=direction},["active"]=true,["by"]="system-seed"},"system-seed (BR §29)");Store.Save(c,ItemKind,item,tx);
+            }
+            Store.Save(c,"setting",new(){["id"]=v2,["version"]=1},tx);return true;
+        },false);
         const string marker="migration:config-lists:v1";
         store.Write((c,tx)=>
         {

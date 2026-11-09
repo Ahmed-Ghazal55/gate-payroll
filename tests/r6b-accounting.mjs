@@ -49,7 +49,7 @@ sys.stdout.buffer.write(out.getvalue())
  await call('anon','/api/platforms/ninja/invoices',undefined,401);
  const preview=await call('admin','/api/platforms/ninja/invoices',form());assert.equal(preview.canCommit,true);assert.equal(preview.rows[0].lines[0].invoiced,6500);
  const invoice=await call('admin','/api/platforms/ninja/invoices?commit=1',form(preview));const id=encodeURIComponent(invoice.id);
- await call('admin',`/api/platforms/ninja/invoices/${id}/approve`,{},400);
+ await call('admin',`/api/platforms/ninja/invoices/${id}/approve`,{},403);
  const final=await call('checker',`/api/platforms/ninja/invoices/${id}/approve`,{});assert.equal(final.status,'final');
  const lines=await call('checker',`/api/platforms/ninja/invoices/${id}/lines`);assert.equal(lines[0].invoiced,6500);assert.equal(lines[0].reason,'vehicle type edited by the platform');
  await call('checker',`/api/platforms/ninja/invoices/${id}/post`,{},409);await call('admin','/api/platforms/ninja/posting',{enabled:true});

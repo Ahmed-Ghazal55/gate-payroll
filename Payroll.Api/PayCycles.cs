@@ -10,10 +10,9 @@ namespace Payroll;
 public static partial class PayCycles
 {
     public const string Kind="pay_cycle",LineKind="pay_cycle_line";
-    static readonly string[] SourceKinds=["operations_import","ninja_daily","platform_invoice","platform_invoice_line","platform_invoice_action","platform_dispute","platform_allocation","platform_account","vehicle","vehicle_assignment","rider","pay_assignment","pay_terms","pay_scheme","pay_eligibility","pay_setting","debt","adjustment","ledger","ledger_reversal","run","journal","platform_deduction","accounting_period","setting"];
     static string Hash(string value)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
-    static string Fingerprint(DbConnection c,DbTransaction? tx)=>Hash(string.Join("\n",SourceKinds.SelectMany(k=>Store.List(c,k,tx).OrderBy(d=>d.S("id"),StringComparer.Ordinal).Select(d=>k+":"+FinancialImports.Canonical(d)))));
-    static JsonArray Rows(JsonNode? node,int max=25000)=>PayValues.Array(node,max);
+    static JsonArray Rows(JsonNode? node,int max=25000)=>PayValues.Array(node??new JsonArray(),max);
+    static JsonArray Blockers(JsonObject row)=>row["blockers"] as JsonArray??[];
     static decimal Money(JsonObject row,string key){decimal n=PayValues.Number(row,key);J.Need(n==J.Money(n),"المبلغ بدقة هللتين.");return n;}
     // A captain's invoiced base can be negative (BR31); deductions and incentives stay non-negative.
     static decimal SignedMoney(JsonObject row,string key){decimal n=PayValues.Number(row,key,-1000000000);J.Need(n==J.Money(n),"المبلغ بدقة هللتين.");return n;}
@@ -30,7 +29,7 @@ public static partial class PayCycles
         if(input.S("replacesCycleId")!="")
         {var prior=Store.Get(c,input.S("replacesCycleId"),Kind,tx)??throw new ApiError("الدورة الأصلية غير موجودة.");J.Need(prior.S("status")=="reversed"&&prior.S("period")==period&&prior.S("companyId")==company,"التصحيح يحتاج أصلًا معكوسًا لنفس السجل والشهر.");cycle["replacesCycleId"]=prior.S("id");cycle["postingPeriod"]=prior.S("reversalPeriod");}
         else J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("status")=="reversed"&&d.S("period")==period&&d.S("companyId")==company),"حدد الدورة المعكوسة صراحة للتصحيح.");
-        Scope(actor,cycle,"pay.manage");Open(c,tx,cycle);UploadInvoices(c,tx,cycle);ReviewInvoices(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_created",cycle.S("id"),actor.Identity!.Name!);return cycle;
+        Scope(actor,cycle,"pay.manage");Open(c,tx,cycle);UploadInvoices(c,tx,cycle);ReviewInvoices(c,tx,cycle);cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_created",cycle.S("id"),actor.Identity!.Name!);return cycle;
     }
     // Read-only validation shared by operation imports and the normal staged cycle workflow.
     public static void ValidateImportedReview(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string company,string period,JsonObject review,string permission="pay.manage")
@@ -47,13 +46,13 @@ public static partial class PayCycles
             var source=Store.Get(c,review.Required("invoiceId"),"platform_invoice",tx)??throw new ApiError("الفاتورة المصدر غير موجودة.");
             J.Need(PayPlatforms.For(source.S("platform")).App==app&&source.S("period")==cycle.S("period")&&source.S("companyId")==cycle.S("companyId")&&(source.S("approvalStatus")=="approved"||source.S("approvalStatus")=="cycle_pending"&&source.S("payCycleId")==cycle.S("id")),"المصدر يحتاج اعتمادًا لنفس التطبيق والسجل والشهر.");
             J.Need(source.S("journalEntryId")==""&&source.S("reversalJournalEntryId")=="","المصدر سبق ترحيله أو عكسه؛ لا تسجل الإيراد مرتين.");
-            J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("id")!=cycle.S("id")&&d.S("status")=="approved"&&Rows(d["invoices"]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==source.S("id"))),"المصدر مستخدم في دورة معتمدة.");
+            J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("id")!=cycle.S("id")&&d.S("status") is "approved" or "partially_approved"&&Rows(d["invoices"]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==source.S("id"))),"المصدر مستخدم في دورة معتمدة.");
             if(app=="hs")HungerStationInvoices.DemandResolvedDisputes(c,tx,source.S("id"));
             if(app=="ninja")NinjaInvoices.DemandResolvedDisputes(c,tx,source.S("id"));
             if(app=="keeta")KeetaInvoices.Workflow.DemandResolvedDisputes(c,tx,source.S("id"));
             var accounts=Rows(review["accounts"]).OfType<JsonObject>().ToList();var deductions=Rows(review["deductions"]).OfType<JsonObject>().ToList();J.Need(accounts.Count>0&&accounts.Select(a=>a.S("accountId")).Distinct().Count()==accounts.Count,"استحقاقات اليوزرات مطلوبة بلا تكرار.");
             foreach(var a in accounts){PayValues.Fields(a,"accountId","sourceLineId","baseGross","incentives","orders","riders");SignedMoney(a,"baseGross");Money(a,"incentives");decimal orders=PayValues.Number(a,"orders",0,int.MaxValue);J.Need(orders==decimal.Truncate(orders),"طلبات فعلية صحيحة مطلوبة.");}
-            foreach(var d in deductions){PayValues.Fields(d,"sourceLineId","sourceCategory","level","accountId","amount","expenseAccount");Money(d,"amount");J.Need(d.S("level") is "company_level" or "account_level","صنف كل خصم: شركة أو يوزر.");if(d.S("level")=="company_level")J.Need(PayPlatforms.Active(d.Required("expenseAccount")).StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");else J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");}
+            foreach(var d in deductions){PayValues.Fields(d,"sourceLineId","sourceCategory","level","accountId","amount","expenseAccount","riderId");Money(d,"amount");J.Need(d.S("level") is "company_level" or "account_level" or "rider_level","صنف كل خصم: شركة أو يوزر.");if(d.S("level")=="company_level")J.Need(PayPlatforms.Active(d.Required("expenseAccount")).StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");else if(d.S("level")=="account_level")J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");}
             J.Need(source.ContainsKey("deductionsTotal"),"إجمالي خصومات المصدر غير مثبت؛ ارفع نسخة معيارية مراجعة قبل الاحتساب.");
             decimal gross=accounts.Sum(a=>a.N("baseGross")+a.N("incentives"));
             J.Need(gross==source.N("amountExclVat")&&source.N("vat")>=0,"مجموع استحقاقات اليوزرات لا يطابق الفاتورة قبل الضريبة والخصومات.");
@@ -74,6 +73,7 @@ public static partial class PayCycles
                     var selected=components.Where(x=>d.S("sourceCategory")==""||x.S("category")==d.S("sourceCategory")).ToList();
                     J.Need(selected.Count>0&&selected.Sum(x=>x.N("amount"))==d.N("amount")&&selected.All(x=>x.S("level")==d.S("level")&&(x.S("level")!="company_level"||x.S("expenseAccount")==d.S("expenseAccount"))),"الخصم لا يطابق تصنيف الفاتورة المعتمد.");
                     if(d.S("level")=="account_level")J.Need(d.S("accountId")==sourceLine.S("platformAccountId"),"يوزر الخصم لا يطابق مصدره.");
+                    if(d.S("level")=="rider_level")J.Need(selected.All(x=>x.S("riderId")==d.Required("riderId"))&&accounts.SelectMany(a=>Rows(a["riders"]).OfType<JsonObject>()).Any(r=>r.S("rider")==d.S("riderId")),"مندوب الخصم لا يطابق التصنيف أو توزيع التشغيل.");
                 }
                 else J.Need(!sourceLine!.ContainsKey("deductionAmount")||sourceLine.N("deductionAmount")==d.N("amount"),"الخصم يحتاج سطر مصدر.");
             }
@@ -87,17 +87,23 @@ public static partial class PayCycles
         var cycle=Store.Get(c,id,Kind,tx)?.Clone()??throw new ApiError("الدورة غير موجودة.",404);int current=(int)cycle.N("stage");
         if(input.S("action")=="cancel")
         {Scope(actor,cycle,"pay.manage");J.Need(cycle.S("status") is "draft" or "review" or "needs_decision","لا تلغ دورة معتمدة؛ اطلب العكس.");cycle["status"]="cancelled";Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_cancelled",id,actor.Identity!.Name!);return cycle;}
-        if(cycle.S("status")=="approved"&&input.N("stage")==7){Scope(actor,cycle,"pay.approve");J.Need(cycle.S("approvedBy")==actor.Identity!.Name,"اعتماد موجود بالفعل بمعتمد آخر.");return cycle;}
+        if(current>=7&&input.N("stage")==8){DebtDeductionsAct(c,tx,actor,id,new(){["action"]="confirm-all"});return Store.Get(c,id,Kind,tx)!;}
+        if(current>=7&&input.N("stage")==7)
+        {
+            Scope(actor,cycle,"pay.approve");J.Need(cycle.S("status") is "approved" or "partially_approved","الدورة غير متاحة للاعتماد.");
+            if(cycle.S("status")=="approved"){J.Need(cycle.S("approvedBy")==actor.Identity!.Name,"اعتماد موجود بمعتمد آخر.");return cycle;}
+            Open(c,tx,cycle);J.Need(cycle.S("sourceFingerprint")==Fingerprint(c,tx,cycle),"تغير المصدر؛ راجع العكس والتصحيح.");Approve(c,tx,cycle,actor);Store.Save(c,Kind,cycle,tx);return cycle;
+        }
         if(input.S("action").StartsWith("reversal",StringComparison.Ordinal))return Reverse(c,tx,actor,cycle,input);
-        PayValues.Fields(input,"stage");J.Need(PayValues.Number(input,"stage",1,7)==current+1,"المراحل بالترتيب؛ أرسل المرحلة التالية المتوقعة.");Scope(actor,cycle,current==6?"pay.approve":"pay.manage");J.Need(cycle.S("status") is "draft" or "review","الدورة معتمدة أو تحتاج قرارًا؛ أنشئ نسخة مصححة.");
-        J.Need(cycle.S("sourceFingerprint")==Fingerprint(c,tx),"تغير المصدر منذ بدء المراجعة؛ أعد إنشاء دورة مراجعة مستقلة.");Open(c,tx,cycle);ReviewInvoices(c,tx,cycle);int next=current+1;
+        PayValues.Fields(input,"stage");J.Need(PayValues.Number(input,"stage",1,7)==current+1,"المراحل بالترتيب؛ أرسل المرحلة التالية المتوقعة.");Scope(actor,cycle,current==6?"pay.approve":"pay.manage");J.Need(cycle.S("status") is "draft" or "review" or "needs_decision","الدورة غير متاحة للمراحل.");
+        J.Need(cycle.S("sourceFingerprint")==Fingerprint(c,tx,cycle),"تغير المصدر منذ بدء المراجعة؛ أعد إنشاء دورة مراجعة مستقلة.");Open(c,tx,cycle);ReviewInvoices(c,tx,cycle);int next=current+1;
         if(next==2)ValidateAccounts(c,tx,cycle);
         if(next==3)ValidateRiders(c,tx,cycle,actor);
         if(next==4)BuildLines(c,tx,cycle,actor);
         if(next==5)BuildDeductions(c,tx,cycle,actor);
         if(next==6)Merge(c,tx,cycle);
-        if(next==7)Approve(c,tx,cycle,actor);
-        cycle["stage"]=next;cycle["advancedBy"]=actor.Identity!.Name;cycle["status"]=next==7?"approved":cycle.S("status")=="needs_decision"?"needs_decision":"review";
+        if(next==7&&!Approve(c,tx,cycle,actor)){Store.Save(c,Kind,cycle,tx);return cycle;}
+        cycle["stage"]=next;cycle["advancedBy"]=actor.Identity!.Name;if(next!=7)cycle["status"]=cycle.S("status")=="needs_decision"?"needs_decision":"review";
         cycle["history"]!.AsArray().Add(new JsonObject{["stage"]=next,["advancedBy"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O")});Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_advanced",id,actor.Identity!.Name!);return cycle;
     }
     static IEnumerable<(string App,JsonObject Account)> Accounts(JsonObject cycle)=>Rows(cycle["invoices"]).OfType<JsonObject>().SelectMany(i=>Rows(i["accounts"]).OfType<JsonObject>().Select(a=>(i.S("app"),a)));
@@ -110,7 +116,8 @@ public static partial class PayCycles
         }
     }
     static DateTimeOffset Time(string value){J.Need(DateTimeOffset.TryParse(value,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var time),"توقيت المصدر غير صالح.");return time;}
-    static bool Overlaps(JsonObject a,string period,string from="RawEffectiveFrom",string to="RawEffectiveTo")
+    static bool Overlaps(JsonObject a,string period)=>AssignmentSpan.Overlaps(a,period);
+    static bool Overlaps(JsonObject a,string period,string from,string to)
     {string start=a.S(from),end=a.S(to);J.Need(start!="","توقيت التكليف الفعلي مفقود.");var month=Time(period+"-01T00:00:00+03:00");return Time(start)<month.AddMonths(1)&&(end==""||Time(end)>month);}
     static void ValidateRiders(DbConnection c,DbTransaction? tx,JsonObject cycle,ClaimsPrincipal actor)
     {
@@ -145,9 +152,12 @@ public static partial class PayCycles
     public static void Map(RouteGroupBuilder api,Store store)
     {
         MapReview(api,store);
-        api.MapGet("/pay/cycles",(HttpContext ctx)=>{AccessPolicy.Demand(ctx.User,"pay.view");string period=ctx.Request.Query["period"].ToString();if(period!="")J.Period(period);return store.Read(c=>ApiPagination.Apply(Store.List(c,Kind).Where(d=>Visible(ctx.User,d)&&(period==""||d.S("period")==period)),ctx.Request.Query,true));}).WithTags("Payroll").WithSummary("Read scoped monthly app cycles and stage history");
-        api.MapPost("/pay/cycles",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Create(c,tx,ctx.User,input))).WithTags("Payroll").WithSummary("Review approved invoices and classify company versus account deductions");
-        api.MapPost("/pay/cycles/{id}/advance",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Advance(c,tx,ctx.User,id,input))).WithTags("Payroll").WithSummary("Advance one gated stage or independently approve target payroll posting");
+        api.MapGet("/pay/cycles/{id}/unrecovered-costs",(string id,HttpContext ctx)=>store.Read(c=>UnrecoveredCosts(c,ctx.User,id))).WithTags("Payroll").WithSummary("Read Keeta ineligibility operating and fuel costs borne by the company");
+        api.MapGet("/pay/cycles/{id}/debt-deductions",(string id,HttpContext ctx)=>store.Read(c=>DebtDeductionsView(c,null,ctx.User,id))).WithTags("Payroll").WithSummary("Review due debts after salary approval, capped by positive net");
+        api.MapPost("/pay/cycles/{id}/debt-deductions",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>DebtDeductionsAct(c,tx,ctx.User,id,input))).WithTags("Payroll").WithSummary("Choose zero or a due installment and independently confirm deductions");
+        api.MapGet("/pay/cycles",(HttpContext ctx)=>{AccessPolicy.Demand(ctx.User,"pay.view");string period=ctx.Request.Query["period"].ToString();if(period!="")J.Period(period);return store.Read(c=>ApiPagination.Apply(Store.List(c,Kind).Where(d=>Visible(ctx.User,d)&&(period==""||d.S("period")==period)).Select(d=>View(c,null,ctx.User,d)),ctx.Request.Query,true));}).WithTags("Payroll").WithSummary("Read scoped monthly app cycles and stage history");
+        api.MapPost("/pay/cycles",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Create(c,tx,ctx.User,input)))).WithTags("Payroll").WithSummary("Review approved invoices and classify company versus account deductions");
+        api.MapPost("/pay/cycles/{id}/advance",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Advance(c,tx,ctx.User,id,input)))).WithTags("Payroll").WithSummary("Advance one gated stage or independently approve target payroll posting");
         api.MapGet("/pay/cycles/{id}/lines",(string id,HttpContext ctx)=>store.Read(c=>{var cycle=Store.Get(c,id,Kind)??throw new ApiError("الدورة غير موجودة.",404);Scope(ctx.User,cycle,"pay.view");string app=ctx.Request.Query["app"].ToString(),rider=ctx.Request.Query["rider"].ToString();return ApiPagination.Apply(Lines(c,null,id).Where(l=>(app==""||l.S("app")==app)&&(rider==""||l.S("rider")==rider)),ctx.Request.Query,true);})).WithTags("Payroll").WithSummary("Read scoped cycle calculations with formula evidence");
     }
 }

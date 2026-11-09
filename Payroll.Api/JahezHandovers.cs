@@ -27,10 +27,10 @@ public static class JahezHandovers
     {
         AccessPolicy.Demand(actor,"treasury.jahez.receive");var request=Store.Get(c,id,"jahez_handover",tx)??throw new ApiError("طلب التسليم غير موجود.",404);var owner=FinancialCore.ResolveSponsor(request.S("sponsorId"));FinancialScopes.DemandSponsor(actor,owner.Id);
         J.Need(request.S("status")=="pending","تم البت في التسليم؛ لا يُرحّل مرة ثانية.");
-        if(!AccessPolicy.Administrator(actor)&&(actor.FindFirstValue("department")!="FIN"||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<2))throw new ApiError("استلام العهدة للمالية بالرتبة المناسبة.",403);
+        if(!AccessPolicy.Administrator(actor)&&(actor.FindFirstValue("department")!="FIN"||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<2))J.Need(AccessPolicy.Independent(actor,actor.Identity!.Name!,"jahez.handover.department_rank",c,tx,request),"استلام العهدة للمالية بالرتبة المناسبة.",403);
         if(request.N("settlementAmount")>0)FinancialScopes.DemandAccount(actor,$"MAIN.{owner.Code}.SET");if(request.N("feeAmount")>0)FinancialScopes.DemandAccount(actor,$"MAIN.{owner.Code}.FEE");
         bool same=string.Equals(request.S("submittedBy"),actor.Identity!.Name,StringComparison.OrdinalIgnoreCase);
-        if(same&&(!AccessPolicy.Administrator(actor)||!input.B("overrideSelf")||input.S("note")==""))throw new ApiError("يلزم مستلم مستقل؛ تجاوز المدير يحتاج تأكيدًا صريحًا وسببًا مسجلًا.",403);
+        J.Need(AccessPolicy.Independent(actor,request.S("submittedBy"),"jahez.handover_decide",c,tx,request),"يلزم مستلم مستقل.",403);
         if(approve)
         {
             J.Need(input.ContainsKey("settlementCounted")&&input.ContainsKey("feeCounted"),"أدخل العد الفعلي لكل من التصفيات والرسوم، بما فيه الصفر.");

@@ -31,6 +31,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const u = await api.getMe();
       setUser(u);
+      // The server opens nothing else until a temporary password is replaced.
+      if (typeof window !== 'undefined' && (u as { mustChangePassword?: boolean }).mustChangePassword && !window.location.pathname.includes('/change-password')) {
+        window.location.href = '/app/change-password/';
+      }
     } catch (err: any) {
       if (err instanceof ApiError && err.status === 401) {
         if (typeof window !== 'undefined') {
