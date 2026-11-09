@@ -41,8 +41,10 @@ import type {
   BankPayrollFilePreview,
   AdvanceRequest,
 } from '../../lib/types';
+import { JahezWorkspace } from '../../features/treasury/JahezWorkspace';
+import { TreasuryExtrasPanel } from '../../features/treasury/TreasuryExtrasPanel';
 
-type TabId = 'vaults' | 'advance_payouts' | 'bank_file' | 'movements';
+type TabId = 'vaults' | 'advance_payouts' | 'bank_file' | 'movements' | 'jahez' | 'extras';
 
 function TreasuryPageContent() {
   const { user, can, isAdmin } = useAuth();
@@ -55,6 +57,8 @@ function TreasuryPageContent() {
     if (tabFromUrl === 'advance_payouts') return 'advance_payouts';
     if (tabFromUrl === 'bank_file') return 'bank_file';
     if (tabFromUrl === 'movements') return 'movements';
+    if (tabFromUrl === 'jahez') return 'jahez';
+    if (tabFromUrl === 'extras') return 'extras';
     return 'vaults';
   }, [tabFromUrl]);
 
@@ -85,6 +89,7 @@ function TreasuryPageContent() {
   const [loadingBankFile, setLoadingBankFile] = useState<boolean>(false);
   const [bankFileError, setBankFileError] = useState<string | null>(null);
   const [exportingBankFile, setExportingBankFile] = useState<boolean>(false);
+  const [comparisonOnly, setComparisonOnly] = useState<boolean>(false);
 
   // Drawer state for account details
   const [selectedAccount, setSelectedAccount] = useState<FinanceAccount | null>(null);
@@ -142,12 +147,13 @@ function TreasuryPageContent() {
     }
   };
 
-  const loadBankFilePreview = async (period: string, sponsorId?: string) => {
+  const loadBankFilePreview = async (period: string, sponsorId?: string, parallel = comparisonOnly) => {
     setLoadingBankFile(true);
     setBankFileError(null);
     try {
       const sp = sponsorId === 'all' ? undefined : sponsorId;
-      const preview = await api.previewBankFile({ period, sponsorId: sp });
+      if (!sp) { setBankFileError('اختر شركة كفيلة لمعاينة ملف البنك'); setBankFilePreview(null); return; }
+      const preview = await api.previewBankFile({ period, sponsorId: sp, comparisonOnly: parallel });
       setBankFilePreview(preview);
     } catch (err: any) {
       const msg = err.message || 'تعذر تحميل معاينة ملف صرف البنك';
@@ -172,17 +178,34 @@ function TreasuryPageContent() {
     } else if (activeTab === 'advance_payouts') {
       loadAdvancePayouts();
     }
-  }, [activeTab, selectedPeriod, selectedSponsor]);
+  }, [activeTab, selectedPeriod, selectedSponsor, comparisonOnly]);
 
   const handleExportBankCsv = async () => {
     setExportingBankFile(true);
     try {
       const sp = selectedSponsor === 'all' ? undefined : selectedSponsor;
-      const blob = await api.exportBankFile({ period: selectedPeriod, sponsorId: sp });
+      if (!sp || !bankFilePreview) throw new Error('معاينة ملف البنك مطلوبة مع شركة محددة');
+      const rows = bankFilePreview.records.map((r) => ({
+        bank: r.bank || r.bankName,
+        iban: r.iban,
+        amount: r.amount,
+        notes: r.notes || '',
+        name: r.name || r.riderName,
+        iqama: r.iqama || r.riderIqama,
+        address: r.address || '',
+        errors: r.errors || [],
+      }));
+      const blob = await api.exportBankFile({
+        period: selectedPeriod,
+        sponsorId: sp,
+        comparisonOnly,
+        previewToken: bankFilePreview.previewToken,
+        rows,
+      });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `bank-payroll-${selectedPeriod}.csv`;
+      a.download = `${comparisonOnly ? 'DO-NOT-SEND_' : ''}bank-payroll-${selectedPeriod}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -326,6 +349,8 @@ function TreasuryPageContent() {
               alert: advancePayouts.length > 0,
             },
             { id: 'bank_file' as TabId, label: 'ملف صرف البنك (CSV)', count: bankFilePreview?.validRecordsCount },
+            { id: 'jahez' as TabId, label: 'جاهز (مطابقة وخزينة)' },
+            { id: 'extras' as TabId, label: 'مدا والتزامات وتوزيع قديم' },
             { id: 'movements' as TabId, label: 'سجل حركات الخزينة والقيود', count: journals.length },
           ].map((tab) => (
             <button
@@ -597,21 +622,30 @@ function TreasuryPageContent() {
                   <option value="WZ">وصول الرواد (WZ)</option>
                 </select>
               </div>
+              <label className="inline-flex items-center gap-2 text-xs font-bold mt-5 cursor-pointer">
+                <input type="checkbox" checked={comparisonOnly} onChange={(e) => setComparisonOnly(e.target.checked)} />
+                تشغيل موازٍ — لا يُرسل
+              </label>
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                disabled={exportingBankFile || !bankFilePreview || !bankFilePreview.canExport}
+                disabled={exportingBankFile || !bankFilePreview || !bankFilePreview.canExport || selectedSponsor === 'all'}
                 onClick={handleExportBankCsv}
                 className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs inline-flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
               >
                 <Download size={14} />
-                <span>{exportingBankFile ? 'جاري التصدير...' : 'تحميل ملف البنك (CSV)'}</span>
+                <span>{exportingBankFile ? 'جاري التصدير...' : comparisonOnly ? 'تحميل ملف مقارنة (لا يُرسل)' : 'تحميل ملف البنك (CSV)'}</span>
               </button>
             </div>
           </div>
 
+          {comparisonOnly && bankFilePreview?.doNotSendMark && (
+            <div className="p-3 rounded-xl border border-[var(--warning)]/40 bg-[var(--warning)]/10 text-xs font-bold text-[var(--warning)]">
+              {bankFilePreview.doNotSendMark} — الملف للمقارنة فقط ولن يُرسل للبنك.
+            </div>
+          )}
           {bankFileError ? (
             <ErrorState
               title="تعذر تحميل ملف البنك"
@@ -709,6 +743,10 @@ function TreasuryPageContent() {
       {/* ======================================================== */}
       {/* Sub-tab 4: سجل حركات الخزينة والقيود                      */}
       {/* ======================================================== */}
+
+      {activeTab === 'jahez' && <JahezWorkspace />}
+      {activeTab === 'extras' && <TreasuryExtrasPanel />}
+
       {activeTab === 'movements' && (
         <div className="space-y-4">
           <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">

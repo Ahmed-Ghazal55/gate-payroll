@@ -160,6 +160,8 @@ function SidebarInner({
         { id: 'treasury-vaults', href: '/treasury/?tab=vaults', label: 'أرصدة الخزينة (1110-1140)', permission: 'treasury.view' },
         { id: 'treasury-advance-payouts', href: '/treasury/?tab=advance_payouts', label: 'صرف السلف المعتمدة', permission: 'advances.payout' },
         { id: 'treasury-bankfile', href: '/treasury/?tab=bank_file', label: 'ملف صرف الرواتب البنكي', permission: 'treasury.view' },
+        { id: 'treasury-jahez', href: '/treasury/?tab=jahez', label: 'جاهز — مطابقة وخزينة', permission: 'treasury.view' },
+        { id: 'treasury-extras', href: '/treasury/?tab=extras', label: 'مدا والتزامات وتوزيع قديم', permission: 'treasury.view' },
         { id: 'treasury-movements', href: '/treasury/?tab=movements', label: 'سجل القيود والحركات', permission: 'treasury.view' },
       ],
     },

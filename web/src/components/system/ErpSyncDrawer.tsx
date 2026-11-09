@@ -152,12 +152,29 @@ export function ErpSyncDrawer({ open, onClose }: ErpSyncDrawerProps) {
 
   const [accepted, setAccepted] = useState<{ acceptNewKinds: string[]; acceptLargeChanges: string[] }>({ acceptNewKinds: [], acceptLargeChanges: [] });
   const [overrideReason, setOverrideReason] = useState('');
+  const [fullResync, setFullResync] = useState(false);
+  const [pauseReason, setPauseReason] = useState('');
+  const [pausing, setPausing] = useState<'pause' | 'resume' | null>(null);
   const handleTrigger = async (dryRun: boolean) => {
     setTriggerError(null);
     setTriggering(dryRun ? 'dry_run' : 'commit');
     try {
       const hasAccepted = accepted.acceptNewKinds.length + accepted.acceptLargeChanges.length > 0;
-      const res = await api.runErpSync(dryRun, hasAccepted ? { ...accepted, reason: overrideReason } : undefined);
+      const overrides =
+        hasAccepted || fullResync
+          ? {
+              acceptNewKinds: accepted.acceptNewKinds,
+              acceptLargeChanges: accepted.acceptLargeChanges,
+              reason: overrideReason || (fullResync ? 'full resync' : ''),
+              fullResync,
+            }
+          : undefined;
+      if (overrides && (overrides.reason || '').trim().length < 3 && (hasAccepted || fullResync)) {
+        setTriggerError('سبب القبول أو إعادة المزامنة الكاملة مطلوب (3 أحرف على الأقل).');
+        setTriggering(null);
+        return;
+      }
+      const res = await api.runErpSync(dryRun, overrides);
       if (res?.jobId) {
         setActiveJobId(res.jobId);
         setActiveJob({
@@ -221,6 +238,18 @@ export function ErpSyncDrawer({ open, onClose }: ErpSyncDrawerProps) {
             <p className="text-[11px] text-[var(--muted)] mt-0.5">
               يمكنك المعاينة أولاً لمراجعة الفروقات دون تطبيق أي تغييرات، أو التحديث المباشر.
             </p>
+            <label className="mt-2 inline-flex items-center gap-2 text-[11px] font-semibold cursor-pointer">
+              <input type="checkbox" checked={fullResync} onChange={(e) => setFullResync(e.target.checked)} />
+              إعادة مزامنة كاملة (fullResync) — يحتاج سببًا
+            </label>
+            {(fullResync || accepted.acceptNewKinds.length + accepted.acceptLargeChanges.length > 0) && (
+              <input
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                placeholder="سبب التشغيل / إعادة المزامنة"
+                className="mt-2 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] p-1.5 text-[var(--ink)] text-[11px]"
+              />
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -250,6 +279,44 @@ export function ErpSyncDrawer({ open, onClose }: ErpSyncDrawerProps) {
                 <RefreshCw size={14} />
               )}
               <span>تحديث الآن</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border border-[var(--line)] bg-[var(--surface)] space-y-2">
+          <h4 className="text-xs font-bold">إيقاف / استئناف الجدولة</h4>
+          <input
+            value={pauseReason}
+            onChange={(e) => setPauseReason(e.target.value)}
+            placeholder="سبب الإيقاف أو الاستئناف (مطلوب)"
+            className="w-full rounded-md border border-[var(--line)] bg-[var(--raised)] p-1.5 text-[11px]"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={pausing !== null || pauseReason.trim().length < 3}
+              onClick={async () => {
+                setPausing('pause'); setTriggerError(null);
+                try { await api.pauseErpSync(pauseReason.trim()); }
+                catch (err: any) { setTriggerError(err.message || 'تعذر الإيقاف'); }
+                finally { setPausing(null); }
+              }}
+              className="px-3 py-1.5 rounded-xl border border-[var(--line)] text-xs font-semibold disabled:opacity-50"
+            >
+              {pausing === 'pause' ? '…' : 'إيقاف'}
+            </button>
+            <button
+              type="button"
+              disabled={pausing !== null || pauseReason.trim().length < 3}
+              onClick={async () => {
+                setPausing('resume'); setTriggerError(null);
+                try { await api.resumeErpSync(pauseReason.trim()); }
+                catch (err: any) { setTriggerError(err.message || 'تعذر الاستئناف'); }
+                finally { setPausing(null); }
+              }}
+              className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-semibold disabled:opacity-50"
+            >
+              {pausing === 'resume' ? '…' : 'استئناف'}
             </button>
           </div>
         </div>

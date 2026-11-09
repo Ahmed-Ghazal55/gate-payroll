@@ -415,18 +415,75 @@ export interface BankPayrollFileRow {
   iban: string;
   bankName: string;
   amount: number;
-  status: 'valid' | 'invalid_iban' | 'missing_data' | 'zero_balance';
+  notes?: string;
+  address?: string;
+  errors?: string[];
+  status: 'valid' | 'invalid_iban' | 'missing_data' | 'zero_balance' | string;
   validationMessage?: string;
+  /** Raw API row fields used for export fingerprint verify */
+  bank?: string;
+  name?: string;
+  iqama?: string;
 }
 
 export interface BankPayrollFilePreview {
   period: string;
+  from?: string;
+  to?: string;
   companyId?: string;
+  sponsorId?: string;
   totalAmount: number;
   validRecordsCount: number;
   excludedCount: number;
   records: BankPayrollFileRow[];
+  excludedRows?: Array<Record<string, unknown>>;
   canExport: boolean;
+  previewToken?: string;
+  comparisonOnly?: boolean;
+  doNotSend?: boolean;
+  doNotSendMark?: string;
+  basis?: string;
+}
+
+export interface ApprovalBypassGrant {
+  id: string;
+  username: string;
+  userId?: string;
+  from: string;
+  to: string;
+  reason: string;
+  grantedBy?: string;
+  grantedAt?: string;
+  revokedAt?: string;
+  revokedBy?: string;
+  permission?: string;
+}
+
+export interface ValidateGapsReport {
+  companyId: string;
+  period: string;
+  app: string;
+  counts: Record<string, number>;
+  note?: string;
+}
+
+export interface JahezReconciliationDoc {
+  id: string;
+  companyId: string;
+  period: string;
+  status: string;
+  invoiceReference?: string;
+  lastTransactionDate?: string;
+  invoiceNet?: number;
+  invoiceVat?: number;
+  notes?: string;
+  totals?: Record<string, number>;
+  proposedJournals?: Array<Record<string, unknown>>;
+  varianceDecision?: string;
+  allowedActions?: string[];
+  createdBy?: string;
+  submittedBy?: string;
+  approvedBy?: string;
 }
 
 // ==========================================

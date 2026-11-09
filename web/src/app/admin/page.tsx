@@ -30,6 +30,7 @@ import {
   SlidersHorizontal,
   Send,
   AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -42,6 +43,7 @@ import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { ConfigListsPanel } from '../../features/admin/ConfigListsPanel';
+import { ApprovalBypassPanel } from '../../features/admin/ApprovalBypassPanel';
 import { RolePermissionsEditor, UserAccessDialog, type AccessCatalog, type AccessUser } from '../../features/admin/UserAccessDialog';
 import type {
   OrgCatalog,
@@ -438,6 +440,7 @@ function AdminPageInner() {
     { id: 'users', label: 'المستخدمون والصلاحيات', icon: <Users size={16} /> },
     { id: 'org', label: 'الأقسام والرتب والتفويضات', icon: <Building2 size={16} /> },
     { id: 'lists', label: 'القوائم والإعدادات', icon: <SlidersHorizontal size={16} /> },
+    { id: 'bypass', label: 'تجاوز الاعتماد', icon: <ShieldAlert size={16} /> },
     { id: 'audit', label: 'سجل التدقيق الشامل', icon: <History size={16} />, badge: auditLogs.length },
     { id: 'settings', label: 'إعدادات المنظومة', icon: <Settings size={16} /> },
   ];
@@ -1100,6 +1103,10 @@ function AdminPageInner() {
       {/* ======================================================== */}
       {activeTab === 'lists' && (
         <ConfigListsPanel />
+      )}
+
+      {activeTab === 'bypass' && (
+        <ApprovalBypassPanel />
       )}
 
       {/* ======================================================== */}

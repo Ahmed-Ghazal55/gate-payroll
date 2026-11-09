@@ -3,12 +3,12 @@
 | Field | Value |
 |---|---|
 | Current writer | Cursor 2026-11-09 20:56 +03 |
-| Branch | release/0.20.0 (T5+T4 done) |
-| Updated | 2026-11-09 by Cursor (R11 mid) |
+| Branch | release/0.20.0 (T8 done; T9 next) |
+| Updated | 2026-11-09 by Cursor (R11 T8) |
 | Live | see `/health`; DB db77738 |
 
 ## Next step (exact)
-Continue R11: T7 ValidateRiders → T8 UI → T9 PR `release: 0.20.0`.
+Finish R11 T9: bump `0.20.0`, run listed tests, open PR (no merge), clear writer lock.
 
 ## R11 done so far
 - T1 timings + design; baseline wall ~14.4 min (identity refuse).
@@ -17,6 +17,8 @@ Continue R11: T7 ValidateRiders → T8 UI → T9 PR `release: 0.20.0`.
 - T5: Chefz FT §36; vehicle rent cap §38.4 (shared vehicle); housing by residence days; Jahez reconciliation §37.
 - T4 display kinds: vehicle status, day usage, Chefz type/orders, Ninja eval snapshots, Jahez policy/daily, rider work timeline.
 - T6 `approval.bypass_maker_checker` grants + badge + admin APIs; legacy ghazal evidence kept.
+- T7 validate-gaps counts API + §38 parallel bank `DO-NOT-SEND`.
+- T8 OpenAPI refresh + web wiring: Jahez workspace, bank comparison mode, Chefz review, validate-gaps, approval bypass admin, ERP pause/resume/fullResync, Mada/liability/legacy, accounting adjustments, debt collect/create/settlements, policy approve.
 
 ## Goal now
 First real Ninja payroll for 2026-10 in the browser. Then Keeta September. Open items audit: `~/.agents/NEXT.md`.
