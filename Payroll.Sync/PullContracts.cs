@@ -51,8 +51,15 @@ public static class PullContracts
     {
         List<JsonObject> Rows(string table)=>source.Tables.GetValueOrDefault(table)??[];
         var indexes=new Dictionary<string,Dictionary<string,JsonObject>>();
+        var children=new Dictionary<(string Table,string ParentField),Dictionary<string,List<JsonObject>>>();
         JsonObject? Find(string table,string id)
         {if(id=="")return null;if(!indexes.TryGetValue(table,out var index))indexes[table]=index=Rows(table).ToDictionary(r=>r.S("Id"));return index.GetValueOrDefault(id);}
+        List<JsonObject> Children(string table,string parentField,string parentId)
+        {
+            var key=(table,parentField);
+            if(!children.TryGetValue(key,out var map))children[key]=map=Rows(table).GroupBy(r=>r.S(parentField)).ToDictionary(g=>g.Key,g=>g.ToList());
+            return map.GetValueOrDefault(parentId)??[];
+        }
         var riderCompanies=plan.Documents.Where(d=>d.Kind=="rider").ToDictionary(d=>d.Body.S("id"),d=>d.Body.S("sponsorId"));
         string Key(string kind,string id)=>id==""?"":"erp:"+kind+":"+id;
         string Rider(JsonObject row)
@@ -96,7 +103,7 @@ public static class PullContracts
                 }
                 if(contract.Relation=="equipment")
                 {
-                    var lines=Rows("RiderInventoryIssueLines").Where(x=>x.S("RiderInventoryIssueId")==row.S("Id")).ToList();
+                    var lines=Children("RiderInventoryIssueLines","RiderInventoryIssueId",row.S("Id"));
                     if(lines.Count==0){plan.Reject(contract.Kind,"missing_issue_lines");continue;}
                     if(lines.Any(x=>x.N("Quantity")<=0||x.N("ReturnedQuantity")<0||x.N("ReturnedQuantity")>x.N("Quantity"))){plan.Reject(contract.Kind,"invalid_return_quantity");continue;}
                     doc["lines"]=new JsonArray(lines.Select(x=>(JsonNode)x.Clone()).ToArray());doc["quantity"]=lines.Sum(x=>x.N("Quantity"));doc["returnedQuantity"]=lines.Sum(x=>x.N("ReturnedQuantity"));doc["totalCost"]=lines.Sum(x=>x.N("TotalCost"));
@@ -110,8 +117,8 @@ public static class PullContracts
                     {string rider=Rider(row);if(rider==""){plan.Reject(contract.Kind,"unmatched_rider");continue;}doc["riderId"]=rider;}
                     if(contract.Relation=="accident")
                     {
-                        var cases=Rows("VehicleAccidentCases").Where(x=>x.S("VehicleAccidentId")==row.S("Id")).ToList();
-                        var installments=Rows("VehicleAccidentInstallments").Where(x=>x.S("VehicleAccidentId")==row.S("Id")).ToList();
+                        var cases=Children("VehicleAccidentCases","VehicleAccidentId",row.S("Id"));
+                        var installments=Children("VehicleAccidentInstallments","VehicleAccidentId",row.S("Id"));
                         if(installments.Any(x=>string.CompareOrdinal(x.S("PeriodFrom"),x.S("PeriodTo"))>0)){plan.Reject(contract.Kind,"invalid_installment_dates");continue;}
                         doc["cases"]=new JsonArray(cases.Select(x=>(JsonNode)x.Clone()).ToArray());doc["installments"]=new JsonArray(installments.Select(x=>(JsonNode)x.Clone()).ToArray());
                     }
@@ -171,7 +178,7 @@ public static class PullContracts
                 }
                 if(contract.Relation=="cashbox")
                 {
-                    var links=Rows("CashboxHandoverMovements").Where(x=>x.S("CashboxHandoverId")==row.S("Id")).ToList();
+                    var links=Children("CashboxHandoverMovements","CashboxHandoverId",row.S("Id"));
                     var linked=new HashSet<string>();bool missing=false;
                     foreach(var link in links)
                     {

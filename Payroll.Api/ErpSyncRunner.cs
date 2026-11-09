@@ -18,6 +18,8 @@ public sealed class ErpSyncRunner(IConfiguration config,Store store) : IErpSyncR
         using var source=Connections.Source(sourceConnection);await source.OpenAsync(token);using var sourceAbort=token.Register(()=>{try{source.Close();}catch{}});SourceReader.VerifyReadOnly(source);
         var targetOptions=new SqlConnectionStringBuilder(config.GetConnectionString("DefaultConnection")??"");
         if(targetOptions.InitialCatalog!="db77738")throw new ImportFailure("unapproved_target");
+        // Managed SNI can hang in SqlBulkCopy over a MARS session; sync never needs MARS.
+        targetOptions.MultipleActiveResultSets=false;
         using var target=new SqlConnection(targetOptions.ConnectionString);await target.OpenAsync(token);
         var timing=new SyncStopwatch();
         var existing=ImportExecutor.Target(target,null,token);

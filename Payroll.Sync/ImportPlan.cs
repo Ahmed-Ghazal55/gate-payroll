@@ -39,13 +39,15 @@ public sealed class ImportPlan
         }
         string Company(string id)=>companies.GetValueOrDefault(id)??"";
         var global=Index("GlobalCities");var operating=Index("OperatingCities");
+        var operatingByGlobal=Rows("OperatingCities").GroupBy(o=>o.S("GlobalCityId")).ToDictionary(g=>g.Key,g=>g.ToList());
         string City(string id)=>global.ContainsKey(id)?Key("city",id):operating.TryGetValue(id,out var o)?Key("city",o.S("GlobalCityId")):"";
         foreach(var row in Rows("GlobalCities"))
         {
-            var doc=Doc("city",row);foreach(string field in new[]{"Code","NameAr","NameEn","RegionAr","RegionEn","CountryCode"})doc[char.ToLowerInvariant(field[0])+field[1..]]=row[field]?.DeepClone();doc["operatingCities"]=Array(Rows("OperatingCities").Where(o=>o.S("GlobalCityId")==row.S("Id")));plan.Documents.Add(new("city",doc));
+            var doc=Doc("city",row);foreach(string field in new[]{"Code","NameAr","NameEn","RegionAr","RegionEn","CountryCode"})doc[char.ToLowerInvariant(field[0])+field[1..]]=row[field]?.DeepClone();doc["operatingCities"]=Array(operatingByGlobal.GetValueOrDefault(row.S("Id"))??[]);plan.Documents.Add(new("city",doc));
         }
         var employeeRows=Index("Employees");var profiles=Index("RiderProfiles");
         var riderEmployees=Rows("RiderProfiles").Select(r=>r.S("EmployeeId")).ToHashSet();
+        var profilesByEmployee=Rows("RiderProfiles").GroupBy(p=>p.S("EmployeeId")).ToDictionary(g=>g.Key,g=>g.ToList());
         var identities=Rows("Employees").Where(e=>riderEmployees.Contains(e.S("Id"))).GroupBy(e=>e.S("IqamaNo")).ToDictionary(g=>g.Key,g=>g.Count());
         var riders=new Dictionary<string,string>();var profileRiders=new Dictionary<string,string>();
         string Rider(string employee)=>riders.GetValueOrDefault(employee)??"";
@@ -56,16 +58,19 @@ public sealed class ImportPlan
             if(identities[identity]>1){plan.Reject("rider","duplicate_identity");continue;}
             string relationship=row.N("EngagementType") switch{1=>"SponsoredInternal",2=>"External",_=>""};
             if(relationship==""){plan.Reject("rider","unknown_relationship_code");continue;}
-            var doc=Doc("rider",row);doc["id"]=identity;doc["iqama"]=identity;doc["name"]=row.S("FullNameAr",row.S("FullNameEn"));doc["nameEn"]=row.S("FullNameEn");doc["nationality"]=row.S("Nationality");doc["phone"]=row.S("PrimaryPhone");doc["iban"]=row.S("Iban");doc["erpRiderProfileIds"]=new JsonArray(Rows("RiderProfiles").Where(p=>p.S("EmployeeId")==row.S("Id")).Select(p=>(JsonNode?)JsonValue.Create(p.S("Id"))).ToArray());doc["engagementType"]=relationship;doc["isEmployee"]=row.B("IsEmployee");doc["personRole"]=row.B("IsEmployee")?"administrative":"rider";doc["isDeliveryRider"]=!row.B("IsEmployee");doc["sponsorId"]=Company(row.S("SponsorId"));doc["sponsor"]=sponsors.GetValueOrDefault(row.S("SponsorId"))?.S("RegistryNameAr")??"";doc["cityId"]=City(row.S("OperatingCityId"));doc["city"]=operating.TryGetValue(row.S("OperatingCityId"),out var op)&&global.TryGetValue(op.S("GlobalCityId"),out var gc)?gc.S("NameAr"):"";doc["hireDate"]=Date(row,"HireDate");doc["status"]=row.B("IsDeleted")?"Archived":row.N("Status") switch{1=>"Draft",2=>"Onboarding",3=>"Active",4=>"Suspended",5=>"OnLeave",6=>"Terminated",7=>"Archived",8=>"Fleeing",9=>"Accident",10=>"Sick",_=>"NeedsReview"};
+            var doc=Doc("rider",row);doc["id"]=identity;doc["iqama"]=identity;doc["name"]=row.S("FullNameAr",row.S("FullNameEn"));doc["nameEn"]=row.S("FullNameEn");doc["nationality"]=row.S("Nationality");doc["phone"]=row.S("PrimaryPhone");doc["iban"]=row.S("Iban");doc["erpRiderProfileIds"]=new JsonArray((profilesByEmployee.GetValueOrDefault(row.S("Id"))??[]).Select(p=>(JsonNode?)JsonValue.Create(p.S("Id"))).ToArray());doc["engagementType"]=relationship;doc["isEmployee"]=row.B("IsEmployee");doc["personRole"]=row.B("IsEmployee")?"administrative":"rider";doc["isDeliveryRider"]=!row.B("IsEmployee");doc["sponsorId"]=Company(row.S("SponsorId"));doc["sponsor"]=sponsors.GetValueOrDefault(row.S("SponsorId"))?.S("RegistryNameAr")??"";doc["cityId"]=City(row.S("OperatingCityId"));doc["city"]=operating.TryGetValue(row.S("OperatingCityId"),out var op)&&global.TryGetValue(op.S("GlobalCityId"),out var gc)?gc.S("NameAr"):"";doc["hireDate"]=Date(row,"HireDate");doc["status"]=row.B("IsDeleted")?"Archived":row.N("Status") switch{1=>"Draft",2=>"Onboarding",3=>"Active",4=>"Suspended",5=>"OnLeave",6=>"Terminated",7=>"Archived",8=>"Fleeing",9=>"Accident",10=>"Sick",_=>"NeedsReview"};
             if(row.S("SponsorId")!=""&&doc.S("sponsorId")==""){plan.Reject("rider","missing_company_relation");continue;}
             if(relationship=="SponsoredInternal"&&row.S("SponsorId")=="")plan.Observe("sponsored_rider_without_current_sponsor");
             plan.Observe(row.B("IsEmployee")?"administrative_rider_profiles":relationship=="External"?"external_riders":"sponsored_riders");riders[row.S("Id")]=identity;plan.Documents.Add(new("rider",doc));
         }
         foreach(var p in profiles.Values)if(riders.TryGetValue(p.S("EmployeeId"),out var id))profileRiders[p.S("Id")]=id;
         var housing=Index("Housing");var rooms=Index("HousingRooms");
+        var floorsByHousing=Rows("HousingFloors").GroupBy(x=>x.S("HousingId")).ToDictionary(g=>g.Key,g=>g.ToList());
+        var roomsByHousing=Rows("HousingRooms").GroupBy(x=>x.S("HousingId")).ToDictionary(g=>g.Key,g=>g.ToList());
+        var occupantsByRoom=Rows("HousingExternalOccupants").GroupBy(x=>x.S("RoomId")).ToDictionary(g=>g.Key,g=>g.ToList());
         foreach(var row in Rows("Housing"))
         {
-            var doc=Doc("housing",row);doc["code"]=row.S("Code");doc["nameAr"]=row.S("NameAr");doc["nameEn"]=row.S("NameEn");doc["cityId"]=City(row.S("CityId"));doc["openedDate"]=Date(row,"OpenedDate");doc["closedDate"]=Date(row,"ClosedDate");doc["floors"]=Array(Rows("HousingFloors").Where(x=>x.S("HousingId")==row.S("Id")));var localRooms=Rows("HousingRooms").Where(x=>x.S("HousingId")==row.S("Id")).ToList();doc["rooms"]=Array(localRooms);var roomIds=localRooms.Select(r=>r.S("Id")).ToHashSet();doc["externalOccupants"]=Array(Rows("HousingExternalOccupants").Where(x=>roomIds.Contains(x.S("RoomId"))));plan.Documents.Add(new("housing",doc));
+            var doc=Doc("housing",row);doc["code"]=row.S("Code");doc["nameAr"]=row.S("NameAr");doc["nameEn"]=row.S("NameEn");doc["cityId"]=City(row.S("CityId"));doc["openedDate"]=Date(row,"OpenedDate");doc["closedDate"]=Date(row,"ClosedDate");doc["floors"]=Array(floorsByHousing.GetValueOrDefault(row.S("Id"))??[]);var localRooms=roomsByHousing.GetValueOrDefault(row.S("Id"))??[];doc["rooms"]=Array(localRooms);doc["externalOccupants"]=Array(localRooms.SelectMany(r=>occupantsByRoom.GetValueOrDefault(r.S("Id"))??[]));plan.Documents.Add(new("housing",doc));
         }
         foreach(var row in Rows("HousingResidencePeriods"))
         {
@@ -73,17 +78,20 @@ public sealed class ImportPlan
             var doc=Doc("housing_residence",row);doc["employeeSourceId"]=row.S("EmployeeId");doc["riderId"]=Rider(row.S("EmployeeId"));doc["housingId"]=Key("housing",room.S("HousingId"));doc["roomSourceId"]=row.S("RoomId");doc["effectiveFrom"]=Date(row,"EffectiveFrom");doc["effectiveTo"]=Date(row,"EffectiveTo");if(!Dates(doc,"effectiveFrom","effectiveTo")){plan.Reject("housing_residence","invalid_date_range");continue;}plan.Documents.Add(new("housing_residence",doc));
         }
         var vehicles=Index("Vehicles");
+        var registrationsByVehicle=Rows("VehicleRegistrations").GroupBy(x=>x.S("VehicleId")).ToDictionary(g=>g.Key,g=>g.ToList());
+        var insuranceByVehicle=Rows("VehicleInsurancePolicies").GroupBy(x=>x.S("VehicleId")).ToDictionary(g=>g.Key,g=>g.ToList());
         foreach(var row in Rows("Vehicles"))
         {
-            var doc=Doc("vehicle",row);foreach(string field in new[]{"AssetNumber","SerialNumber","PlateNumberAr","PlateNumberEn","Vin","ChassisNumber","ModelYear","VehicleType","FuelType","OwnershipType","RegistrationType"})doc[char.ToLowerInvariant(field[0])+field[1..]]=row[field]?.DeepClone();doc["companyId"]=Company(row.S("SponsorId"));doc["registeredOwnerCompanyId"]=Company(row.S("RegisteredOwnerSponsorId"));doc["registeredOwnerSupplierSourceId"]=row.S("RegisteredOwnerSupplierId");doc["manufacturerSourceId"]=row.S("VehicleManufacturerId");doc["modelSourceId"]=row.S("VehicleModelId");doc["registrations"]=Array(Rows("VehicleRegistrations").Where(x=>x.S("VehicleId")==row.S("Id")));doc["insurancePolicies"]=Array(Rows("VehicleInsurancePolicies").Where(x=>x.S("VehicleId")==row.S("Id")));plan.Documents.Add(new("vehicle",doc));
+            var doc=Doc("vehicle",row);foreach(string field in new[]{"AssetNumber","SerialNumber","PlateNumberAr","PlateNumberEn","Vin","ChassisNumber","ModelYear","VehicleType","FuelType","OwnershipType","RegistrationType"})doc[char.ToLowerInvariant(field[0])+field[1..]]=row[field]?.DeepClone();doc["companyId"]=Company(row.S("SponsorId"));doc["registeredOwnerCompanyId"]=Company(row.S("RegisteredOwnerSponsorId"));doc["registeredOwnerSupplierSourceId"]=row.S("RegisteredOwnerSupplierId");doc["manufacturerSourceId"]=row.S("VehicleManufacturerId");doc["modelSourceId"]=row.S("VehicleModelId");doc["registrations"]=Array(registrationsByVehicle.GetValueOrDefault(row.S("Id"))??[]);doc["insurancePolicies"]=Array(insuranceByVehicle.GetValueOrDefault(row.S("Id"))??[]);plan.Documents.Add(new("vehicle",doc));
         }
         var validAssignments=new HashSet<string>();
+        var realRidersByAssignment=Rows("RealRiders").GroupBy(r=>r.S("RiderVehicleAssignmentId")).ToDictionary(g=>g.Key,g=>g.ToList());
         foreach(var row in Rows("RiderVehicleAssignments"))
         {
             if(!vehicles.ContainsKey(row.S("VehicleId"))){plan.Reject("vehicle_assignment","missing_vehicle_relation");continue;}
             string rider=profileRiders.GetValueOrDefault(row.S("RiderProfileId"))??"";
             if(rider==""){plan.Reject("vehicle_assignment","unmapped_rider_relation");continue;}
-            var doc=Doc("vehicle_assignment",row);doc["riderId"]=rider;doc["vehicleId"]=Key("vehicle",row.S("VehicleId"));doc["startedAt"]=row.S("StartedAtUtc");doc["endedAt"]=row.S("EndedAtUtc");doc["startOdometer"]=row["StartOdometer"]?.DeepClone();doc["endOdometer"]=row["EndOdometer"]?.DeepClone();doc["isRealRider"]=row["IsRealRider"]?.DeepClone();doc["realRiders"]=Array(Rows("RealRiders").Where(r=>r.S("RiderVehicleAssignmentId")==row.S("Id")));doc["permissionStartsOn"]=Date(row,"PermissionStartsOn");doc["permissionEndsOn"]=Date(row,"PermissionEndsOn");doc["previousAssignmentSourceId"]=row.S("PreviousAssignmentId");if(!Dates(doc,"startedAt","endedAt")){plan.Reject("vehicle_assignment","invalid_date_range");continue;}validAssignments.Add(row.S("Id"));plan.Documents.Add(new("vehicle_assignment",doc));
+            var doc=Doc("vehicle_assignment",row);doc["riderId"]=rider;doc["vehicleId"]=Key("vehicle",row.S("VehicleId"));doc["startedAt"]=row.S("StartedAtUtc");doc["endedAt"]=row.S("EndedAtUtc");doc["startOdometer"]=row["StartOdometer"]?.DeepClone();doc["endOdometer"]=row["EndOdometer"]?.DeepClone();doc["isRealRider"]=row["IsRealRider"]?.DeepClone();doc["realRiders"]=Array(realRidersByAssignment.GetValueOrDefault(row.S("Id"))??[]);doc["permissionStartsOn"]=Date(row,"PermissionStartsOn");doc["permissionEndsOn"]=Date(row,"PermissionEndsOn");doc["previousAssignmentSourceId"]=row.S("PreviousAssignmentId");if(!Dates(doc,"startedAt","endedAt")){plan.Reject("vehicle_assignment","invalid_date_range");continue;}validAssignments.Add(row.S("Id"));plan.Documents.Add(new("vehicle_assignment",doc));
         }
         foreach(var row in Rows("RiderVehicleAssignmentEvents"))
         {
@@ -92,15 +100,18 @@ public sealed class ImportPlan
             var doc=Doc("custody_handover",row);doc["assignmentId"]=Key("vehicle_assignment",row.S("RiderVehicleAssignmentId"));doc["eventTypeCode"]=row["EventType"]?.DeepClone();doc["occurredAt"]=row.S("OccurredAtUtc");doc["direction"]=row.N("EventType") is 1 or 4?"handover":"return";if(doc.S("occurredAt").StartsWith("2026-10",StringComparison.Ordinal))plan.Observe("october_custody_"+doc.S("direction"));plan.Documents.Add(new("custody_handover",doc));
         }
         var platforms=Index("ClientPlatforms");
+        var assignmentsByAccount=Rows("RiderClientAssignments").GroupBy(a=>a.S("PlatformRiderAccountId")).ToDictionary(g=>g.Key,g=>g.ToList());
+        var registrationsByAccount=Rows("PlatformAccountRegistrations").GroupBy(a=>a.S("PlatformRiderAccountId")).ToDictionary(g=>g.Key,g=>g.ToList());
         foreach(var row in Rows("PlatformRiderAccounts"))
         {
             if(!platforms.TryGetValue(row.S("ClientPlatformId"),out var platform)){plan.Reject("platform_account","missing_platform_relation");continue;}
-            var doc=Doc("platform_account",row);doc["code"]=row.S("Code");doc["externalAccountId"]=row.S("ExternalAccountId");doc["platformCode"]=platform.S("Code");doc["registeredEmployeeSourceId"]=row.S("RegisteredEmployeeId");doc["registeredRiderId"]=Rider(row.S("RegisteredEmployeeId"));doc["companyId"]=Company(row.S("SponsorId"));doc["cityId"]=City(row.S("OperatingCityId"));doc["paymentModelCode"]=row["PaymentModel"]?.DeepClone();doc["startDate"]=Date(row,"StartDate");doc["endDate"]=Date(row,"EndDate");doc["assignments"]=Array(Rows("RiderClientAssignments").Where(a=>a.S("PlatformRiderAccountId")==row.S("Id")).Select(a=>{var operation=a.Clone();operation["riderId"]=profileRiders.GetValueOrDefault(a.S("RiderProfileId"))??"";return operation;}));doc["registrations"]=Array(Rows("PlatformAccountRegistrations").Where(a=>a.S("PlatformRiderAccountId")==row.S("Id")));plan.Documents.Add(new("platform_account",doc));
+            var doc=Doc("platform_account",row);doc["code"]=row.S("Code");doc["externalAccountId"]=row.S("ExternalAccountId");doc["platformCode"]=platform.S("Code");doc["registeredEmployeeSourceId"]=row.S("RegisteredEmployeeId");doc["registeredRiderId"]=Rider(row.S("RegisteredEmployeeId"));doc["companyId"]=Company(row.S("SponsorId"));doc["cityId"]=City(row.S("OperatingCityId"));doc["paymentModelCode"]=row["PaymentModel"]?.DeepClone();doc["startDate"]=Date(row,"StartDate");doc["endDate"]=Date(row,"EndDate");doc["assignments"]=Array((assignmentsByAccount.GetValueOrDefault(row.S("Id"))??[]).Select(a=>{var operation=a.Clone();operation["riderId"]=profileRiders.GetValueOrDefault(a.S("RiderProfileId"))??"";return operation;}));doc["registrations"]=Array(registrationsByAccount.GetValueOrDefault(row.S("Id"))??[]);plan.Documents.Add(new("platform_account",doc));
         }
+        var hearingsByCase=Rows("HrLegalCaseHearings").GroupBy(h=>h.S("LegalCaseId")).ToDictionary(g=>g.Key,g=>g.ToList());
         foreach(var row in Rows("HrLegalCases"))
         {
             string company=Company(row.S("SponsorId"));if(company==""){plan.Reject("legal_case","missing_company_relation");continue;}
-            var doc=Doc("legal_case",row);doc["companyId"]=company;doc["number"]=row.S("CaseNumber");doc["personName"]=row.S("PersonName");doc["personTypeCode"]=row["PersonType"]?.DeepClone();doc["employeeSourceId"]=row.S("EmployeeId");doc["riderId"]=Rider(row.S("EmployeeId")) is var legalRider&&legalRider!=""?legalRider:profileRiders.GetValueOrDefault(row.S("RiderProfileId"))??"";doc["riderProfileSourceId"]=row.S("RiderProfileId");doc["partyRoleCode"]=row["SponsorPartyRole"]?.DeepClone();doc["caseDate"]=Date(row,"CaseDate");doc["caseTime"]=row.S("CaseTime");doc["details"]=row.S("Details");doc["hearings"]=Array(Rows("HrLegalCaseHearings").Where(h=>h.S("LegalCaseId")==row.S("Id")));plan.Documents.Add(new("legal_case",doc));
+            var doc=Doc("legal_case",row);doc["companyId"]=company;doc["number"]=row.S("CaseNumber");doc["personName"]=row.S("PersonName");doc["personTypeCode"]=row["PersonType"]?.DeepClone();doc["employeeSourceId"]=row.S("EmployeeId");doc["riderId"]=Rider(row.S("EmployeeId")) is var legalRider&&legalRider!=""?legalRider:profileRiders.GetValueOrDefault(row.S("RiderProfileId"))??"";doc["riderProfileSourceId"]=row.S("RiderProfileId");doc["partyRoleCode"]=row["SponsorPartyRole"]?.DeepClone();doc["caseDate"]=Date(row,"CaseDate");doc["caseTime"]=row.S("CaseTime");doc["details"]=row.S("Details");doc["hearings"]=Array(hearingsByCase.GetValueOrDefault(row.S("Id"))??[]);plan.Documents.Add(new("legal_case",doc));
         }
         PullContracts.AddToPlan(snapshot,plan,companies,riders,profileRiders,City);
         HsFactsSource.AddToPlan(snapshot,plan,companies);
