@@ -3,17 +3,19 @@
 | Field | Value |
 |---|---|
 | Current writer | Cursor 2026-11-09 20:56 +03 |
-| Branch | release/0.20.0 (`a8654f3`+T3 pending note below) |
-| Updated | 2026-11-09 by Cursor (R11 T1–T3) |
+| Branch | release/0.20.0 (`42cb7db`) |
+| Updated | 2026-11-09 by Cursor (R11 mid) |
 | Live | see `/health`; DB db77738 |
 
 ## Next step (exact)
-Continue R11 on `release/0.20.0`: T4 data kinds → T5 calc → T6 approval bypass → T7 Ninja ValidateRiders → T8 UI → T9 PR. Prompt: `~/.agents/prompts/cursor-R11-erp-sync-scope-ui.md`.
+Continue R11: finish T5 (rent cap, housing days, Jahez §37 report) → T4 kinds → T7 ValidateRiders → T8 UI → T9 PR `release: 0.20.0`.
 
 ## R11 done so far
-- T1: phase timings + baseline wall ~14.4 min full dry-run (refused identity); design `docs/data/R11-DESIGN.md`.
-- T2: `sync.SourceWatermarks`, DatasetVersions skip, RowVersion incremental, open-period soft-delete, `--full-resync`.
-- T3: `contentHash`, 2k batch `ErpMirrorWrite`, compact `erp_sync_change`, ImportPlan/PullContracts dictionaries, MARS off on hosted target.
+- T1 timings + design; baseline wall ~14.4 min (identity refuse).
+- T2 watermarks / incremental / open-period soft-delete / full-resync.
+- T3 contentHash + batch mirror lock + plan dictionaries.
+- T5 partial: Chefz FT §36 (`ChefzCommission`).
+- T6 `approval.bypass_maker_checker` grants + badge + admin APIs; legacy ghazal evidence kept.
 
 ## Goal now
 First real Ninja payroll for 2026-10 in the browser. Then Keeta September. Open items audit: `~/.agents/NEXT.md`.
