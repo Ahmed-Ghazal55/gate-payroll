@@ -19,7 +19,7 @@ public sealed class ErpImportTests
             Directory.CreateDirectory(DirectoryPath);Source.Open();
             foreach(var table in SourceReader.Catalog)
             {
-                using var cmd=Source.CreateCommand();cmd.CommandText="CREATE TABLE ["+table.Name+"]("+string.Join(',',table.Fields.Split(' ').Select(f=>"["+f+"] "+(f is "IsDeleted" or "IsEmployee" or "IsRealRider" or "IsCurrent" or "Status" or "EngagementType" or "EventType" or "PaymentModel"?"INTEGER":"TEXT")+(f=="Id"?" PRIMARY KEY":"")))+")";cmd.ExecuteNonQuery();
+                using var cmd=Source.CreateCommand();cmd.CommandText="CREATE TABLE ["+table.Name+"]("+string.Join(',',table.Fields.Split(' ').Select(f=>"["+f+"] "+(f is "IsDeleted" or "IsEmployee" or "IsRealRider" or "IsCurrent" or "Frozen" or "Status" or "EngagementType" or "EventType" or "PaymentModel"?"INTEGER":"TEXT")+(f=="Id"?" PRIMARY KEY":"")))+")";cmd.ExecuteNonQuery();
             }
             Add("Sponsors",new(){["Id"]="sponsor",["EmployerIdentityNumber"]="synthetic-employer",["RegistryNameAr"]="شركة مصطنعة",["CommercialRegistrationNumber"]="synthetic-registration",["Status"]=1});
             Add("GlobalCities",new(){["Id"]="city",["NameAr"]="مدينة مصطنعة",["Code"]="SYN",["Status"]=1});

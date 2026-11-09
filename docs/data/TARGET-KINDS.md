@@ -76,3 +76,14 @@ Every row preserves exact `CaptainId` casing in the document. Missing CaptainId 
 - `erp_treasury_account`, `erp_treasury_posting`: jahez_v3.TreasurySubAccounts and Postings with original classification, company, signed amount, revision and reversal lineage. Sponsorless group accounts remain group accounts.
 - `erp_cashbox_handover`: jahez_v2.CashboxHandovers + CashboxHandoverMovements; explicit movement IDs and companyIds preserve multi-company custody without choosing one owner.
 - Current ERP metadata has no dedicated ADV/payment-request tables and no sponsorship-period table; report unavailable. Never fabricate ADV references from unrelated Jahez requests. Separate work-permit tables are absent; use actual EmployeeDocuments types only. Existing city/housing/residence/legal-case/account sources already cover operations.
+
+## R11 T4 display-layer kinds (BR §38 / CR-004)
+Read-only mirror facts. HungerStation wallets stay deferred.
+- `vehicle_operational_status` ← `app.VehicleOperationalStatusPeriods` (idle/hold periods).
+- `platform_day_usage` ← `app.PlatformAccountDayUsages` (orders/hours/cash/deductions/offers; open-period soft reconcile).
+- `chefz_account_type_change` ← `chefz.AccountTypeChanges`.
+- `chefz_order_row` ← `chefz.ImportedOrderRows` (hard-delete class; open-period soft reconcile).
+- `ninja_evaluation_snapshot` ← `ninja.EvaluationSnapshots` (frozen eligibility JSON; F3).
+- `jahez_commission_policy` ← `jahez_v2.CommissionPolicies`.
+- `jahez_daily_order` ← `jahez_v2.DailyOrders`.
+- `rider_work_timeline` — derived from `RiderClientAssignments` + account + `RiderAssignmentEvents` + day usages (CR-004 §3.8). `cancelledOrders` and `eligibility` stay empty until ERP fills F6/F7.

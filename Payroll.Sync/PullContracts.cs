@@ -17,10 +17,15 @@ public static class PullContracts
         new("vehicle_accident","app","VehicleAccidents","Id AccidentNumber VehicleId RiderProfileId EmployeeId RiderVehicleAssignmentId OccurredAtUtc ClosedAtUtc Severity Status IsDeleted","number:AccidentNumber occurredAt:OccurredAtUtc closedAt:ClosedAtUtc severity:Severity assignmentSourceId:RiderVehicleAssignmentId","accident"),
         new("","app","VehicleAccidentCases","Id VehicleAccidentId Stage RiderFaultPercentage EstimatedRepairCost OpeningFeeAmount SettlementAmount RefundStatus RefundRequestedAmount RefundReceivedAmount IsDeleted",""),
         new("","app","VehicleAccidentInstallments","Id VehicleAccidentId PeriodFrom PeriodTo PaidOn Amount RefundEligibleAmount IsDeleted",""),
-        new("vehicle_expense","maintenance","VehicleExpenses","Id VehicleId RiderVehicleAssignmentId RiderProfileId ExpenseType SourceEntityType SourceEntityId OccurredOn AmountBeforeTax TaxAmount TotalAmount CurrencyCode ReversalOfExpenseId","type:ExpenseType occurredOn:OccurredOn amountBeforeTax:AmountBeforeTax vat:TaxAmount amount:TotalAmount currency:CurrencyCode reversesSourceId:ReversalOfExpenseId sourceEntityType:SourceEntityType sourceEntityId:SourceEntityId assignmentSourceId:RiderVehicleAssignmentId","vehicle","amountBeforeTax vat amount")
-        ,new("chefz_account","chefz","AccountDetails","Id PlatformRiderAccountId ReportIdNumber AccountType VehicleType DashboardStatus IsDeleted","reportIdNumber:ReportIdNumber accountType:AccountType vehicleType:VehicleType dashboardStatus:DashboardStatus","platform_account"),
+        new("vehicle_expense","maintenance","VehicleExpenses","Id VehicleId RiderVehicleAssignmentId RiderProfileId ExpenseType SourceEntityType SourceEntityId OccurredOn AmountBeforeTax TaxAmount TotalAmount CurrencyCode ReversalOfExpenseId","type:ExpenseType occurredOn:OccurredOn amountBeforeTax:AmountBeforeTax vat:TaxAmount amount:TotalAmount currency:CurrencyCode reversesSourceId:ReversalOfExpenseId sourceEntityType:SourceEntityType sourceEntityId:SourceEntityId assignmentSourceId:RiderVehicleAssignmentId","vehicle","amountBeforeTax vat amount"),
+        new("vehicle_operational_status","app","VehicleOperationalStatusPeriods","Id VehicleId Status EffectiveFromUtc EffectiveToUtc Reason ReasonCode SourceType SourceEntityId IsDeleted","statusCode:Status effectiveFrom:EffectiveFromUtc effectiveTo:EffectiveToUtc reason:Reason reasonCode:ReasonCode sourceTypeCode:SourceType sourceEntitySourceId:SourceEntityId","vehicle","","EffectiveFromUtc","EffectiveToUtc"),
+        new("platform_day_usage","app","PlatformAccountDayUsages","Id PlatformRiderAccountId RiderClientAssignmentId BusinessDate Sequence OrdersCount WorkingHours CollectedAmount DeductionsAmount TotalValidOffers DeclinedOffers MissedOffers IsDeleted","date:BusinessDate sequence:Sequence orders:OrdersCount hours:WorkingHours collectedAmount:CollectedAmount deductionsAmount:DeductionsAmount totalValidOffers:TotalValidOffers declinedOffers:DeclinedOffers missedOffers:MissedOffers","platform_rider","orders hours collectedAmount deductionsAmount totalValidOffers declinedOffers missedOffers"),
+        new("","app","RiderAssignmentEvents","Id RiderClientAssignmentId FromStatus ToStatus OccurredAtUtc Reason",""),
+        new("chefz_account","chefz","AccountDetails","Id PlatformRiderAccountId ReportIdNumber AccountType VehicleType DashboardStatus IsDeleted","reportIdNumber:ReportIdNumber accountType:AccountType vehicleType:VehicleType dashboardStatus:DashboardStatus","platform_account"),
+        new("chefz_account_type_change","chefz","AccountTypeChanges","Id PlatformRiderAccountId PreviousType AccountType EffectiveFrom CreatedAtUtc","previousTypeCode:PreviousType accountType:AccountType effectiveFrom:EffectiveFrom createdAt:CreatedAtUtc","platform_account"),
         new("chefz_daily","chefz","DailyPerformance","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId SourceId ReportDate ReportIdNumber SourceRowNumber TotalValidOffers AcceptedOffers DeclinedOffers MissedOffers AcceptanceRate","date:ReportDate reportIdNumber:ReportIdNumber sourceId:SourceId sourceRow:SourceRowNumber totalValidOffers:TotalValidOffers acceptedOffers:AcceptedOffers declinedOffers:DeclinedOffers missedOffers:MissedOffers acceptanceRate:AcceptanceRate","platform_rider","totalValidOffers acceptedOffers declinedOffers missedOffers"),
-        new("chefz_settlement","chefz","WalletSettlements","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId AccountType PeriodFrom PeriodTo ChargedFrom ChargedTo AssignedDays DeliveryFees VatAmount Tips Compensation Bonuses Deductions GrossEarnings CommissionRate DailyFee CompanyAmount RiderAmount StartWalletAmount EndWalletAmount","accountType:AccountType periodFrom:PeriodFrom periodTo:PeriodTo chargedFrom:ChargedFrom chargedTo:ChargedTo assignedDays:AssignedDays deliveryFees:DeliveryFees vat:VatAmount tips:Tips compensation:Compensation bonuses:Bonuses deductions:Deductions gross:GrossEarnings commissionRate:CommissionRate dailyFee:DailyFee companyAmount:CompanyAmount riderAmount:RiderAmount startWalletAmount:StartWalletAmount endWalletAmount:EndWalletAmount","platform_rider","deliveryFees vat tips compensation bonuses deductions gross companyAmount riderAmount","PeriodFrom","PeriodTo")
+        new("chefz_settlement","chefz","WalletSettlements","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId AccountType PeriodFrom PeriodTo ChargedFrom ChargedTo AssignedDays DeliveryFees VatAmount Tips Compensation Bonuses Deductions GrossEarnings CommissionRate DailyFee CompanyAmount RiderAmount StartWalletAmount EndWalletAmount","accountType:AccountType periodFrom:PeriodFrom periodTo:PeriodTo chargedFrom:ChargedFrom chargedTo:ChargedTo assignedDays:AssignedDays deliveryFees:DeliveryFees vat:VatAmount tips:Tips compensation:Compensation bonuses:Bonuses deductions:Deductions gross:GrossEarnings commissionRate:CommissionRate dailyFee:DailyFee companyAmount:CompanyAmount riderAmount:RiderAmount startWalletAmount:StartWalletAmount endWalletAmount:EndWalletAmount","platform_rider","deliveryFees vat tips compensation bonuses deductions gross companyAmount riderAmount","PeriodFrom","PeriodTo"),
+        new("chefz_order_row","chefz","ImportedOrderRows","Id PlatformRiderAccountId RiderClientAssignmentId ImportId BusinessDate OrderId SourceRowNumber UsageSequence DeliveryFees CashCollected Tips Compensation Bonuses Deductions","date:BusinessDate orderId:OrderId sourceRow:SourceRowNumber usageSequence:UsageSequence deliveryFees:DeliveryFees cashCollected:CashCollected tips:Tips compensation:Compensation bonuses:Bonuses deductions:Deductions importSourceId:ImportId","platform_rider","deliveryFees cashCollected tips compensation bonuses deductions")
         ,new("jahez_account_session","jahez_v2","AccountSessions","Id PlatformRiderAccountId RiderProfileId RiderClientAssignmentId StartedAtUtc EndedAtUtc CommissionStartsOn CommissionPostedThrough LastSettlementPaymentAtUtc IsDeleted","startedAt:StartedAtUtc endedAt:EndedAtUtc commissionStartsOn:CommissionStartsOn commissionPostedThrough:CommissionPostedThrough lastSettlementPaymentAt:LastSettlementPaymentAtUtc","platform_rider","","StartedAtUtc","EndedAtUtc"),
         new("jahez_earnings_statement","jahez_v2","EarningsStatements","Id HandoverId FromDate ToDate TotalDeliveryPrice TotalPenalties TotalCashAmount TotalDriverDebit TotalServiceDeduction TotalDriverCredit TotalBonuses TotalTips TotalFreeOrders SupersedesId","from:FromDate to:ToDate deliveryPrice:TotalDeliveryPrice penalties:TotalPenalties cashAmount:TotalCashAmount driverDebit:TotalDriverDebit serviceDeduction:TotalServiceDeduction driverCredit:TotalDriverCredit bonuses:TotalBonuses tips:TotalTips freeOrders:TotalFreeOrders supersedesSourceId:SupersedesId","jahez","deliveryPrice penalties cashAmount driverDebit serviceDeduction driverCredit bonuses tips freeOrders","FromDate","ToDate"),
         new("jahez_transaction","jahez_v2","PlatformTransactions","Id AccountId HandoverId BatchId ImportRowId OccurredAtUtc DeliveryPrice CashAmount NetAmount DriverAdjustment SupersededByBatchId","occurredAt:OccurredAtUtc deliveryPrice:DeliveryPrice cashAmount:CashAmount net:NetAmount driverAdjustment:DriverAdjustment batchSourceId:BatchId importRowSourceId:ImportRowId supersededByBatchSourceId:SupersededByBatchId","jahez","deliveryPrice cashAmount net driverAdjustment"),
@@ -29,9 +34,12 @@ public static class PullContracts
         new("jahez_account_fee_refund","jahez_v2","AccountFeeRefunds","Id HandoverId AccountFeeId MoneyMovementId GrossFeeRefund CancelledUnpaidFee WaiveCommission CalculatedCommission DeductedCommission RefundAmount OccurredAtUtc","accountFeeSourceId:AccountFeeId moneyMovementSourceId:MoneyMovementId grossFeeRefund:GrossFeeRefund cancelledUnpaidFee:CancelledUnpaidFee waiveCommission:WaiveCommission calculatedCommission:CalculatedCommission deductedCommission:DeductedCommission refundAmount:RefundAmount occurredAt:OccurredAtUtc","jahez","grossFeeRefund cancelledUnpaidFee calculatedCommission deductedCommission refundAmount"),
         new("jahez_transferred_debt","jahez_v2","TransferredDebts","Id OperationId RiderProfileId Amount PaidAmount PaidAtUtc IsDeleted","operationSourceId:OperationId amount:Amount paidAmount:PaidAmount paidAt:PaidAtUtc","jahez_debt","amount paidAmount"),
         new("erp_jahez_operation","jahez_v2","Operations","Id HandoverId ExpectedSponsorId Status PaymentStatus Net Commission CalculatedCommission Remaining Fund Purpose TransferToRider ExecutedAtUtc IsDeleted","statusCode:Status paymentStatusCode:PaymentStatus net:Net commission:Commission calculatedCommission:CalculatedCommission remaining:Remaining fundCode:Fund purposeCode:Purpose transferToRider:TransferToRider executedAt:ExecutedAtUtc expectedSponsorSourceId:ExpectedSponsorId","jahez","net commission calculatedCommission remaining")
-        ,new("ninja_account","ninja","NinjaAccountDetails","Id PlatformRiderAccountId PhoneNumber IsDeleted","phone:PhoneNumber","platform_account"),
+        ,        new("ninja_account","ninja","NinjaAccountDetails","Id PlatformRiderAccountId PhoneNumber IsDeleted","phone:PhoneNumber","platform_account"),
         new("ninja_daily","ninja","NinjaDailyPerformance","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId SourceId ReportDate CaptainId SourceRowNumber TotalOrders TotalWorkingHours","date:ReportDate CaptainId:CaptainId sourceId:SourceId sourceRow:SourceRowNumber orders:TotalOrders hours:TotalWorkingHours","platform_rider","orders hours"),
-        new("ninja_daily_deduction","ninja","NinjaDailyDeductions","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId SourceId ReportDate CaptainId SourceRowNumber TotalCollectedAmountAtDelivery TotalDeductions","date:ReportDate CaptainId:CaptainId sourceId:SourceId sourceRow:SourceRowNumber collectedAmount:TotalCollectedAmountAtDelivery amount:TotalDeductions","platform_rider","collectedAmount amount")
+        new("ninja_daily_deduction","ninja","NinjaDailyDeductions","Id PlatformRiderAccountId RiderClientAssignmentId RiderProfileId SourceId ReportDate CaptainId SourceRowNumber TotalCollectedAmountAtDelivery TotalDeductions","date:ReportDate CaptainId:CaptainId sourceId:SourceId sourceRow:SourceRowNumber collectedAmount:TotalCollectedAmountAtDelivery amount:TotalDeductions","platform_rider","collectedAmount amount"),
+        new("ninja_evaluation_snapshot","ninja","EvaluationSnapshots","Id Frozen InputRevision PolicyVersion Reason ResultJson QueryJson AccountIdsJson SupersedesId CreatedAtUtc","frozen:Frozen inputRevision:InputRevision policyVersion:PolicyVersion reason:Reason resultJson:ResultJson queryJson:QueryJson accountIdsJson:AccountIdsJson supersedesSourceId:SupersedesId createdAt:CreatedAtUtc","snapshot"),
+        new("jahez_commission_policy","jahez_v2","CommissionPolicies","Id HandoverId ApprovalRequestId FromDate ToDate Rate","from:FromDate to:ToDate rate:Rate approvalSourceId:ApprovalRequestId","jahez","rate","FromDate","ToDate"),
+        new("jahez_daily_order","jahez_v2","DailyOrders","Id HandoverId BatchId ImportRowId DayUsageId Date Count","date:Date count:Count batchSourceId:BatchId importRowSourceId:ImportRowId dayUsageSourceId:DayUsageId","jahez","count")
         ,new("employee","app","Employees","Id IqamaNo FullNameAr FullNameEn PrimaryPhone Nationality IsEmployee EngagementType SponsorId OperatingCityId HireDate ContractStartDate ContractEndDate TerminationDate ResidencyProfession Status IsDeleted","iqama:IqamaNo name:FullNameAr nameEn:FullNameEn phone:PrimaryPhone nationality:Nationality isEmployee:IsEmployee engagementTypeCode:EngagementType hireDate:HireDate contractStartDate:ContractStartDate contractEndDate:ContractEndDate terminationDate:TerminationDate residencyProfession:ResidencyProfession","employee"),
         new("employee_document","app","EmployeeDocuments","Id EmployeeId DocumentTypeId DocumentNumber IssueDate ExpiryDate Status IsDeleted","documentTypeSourceId:DocumentTypeId number:DocumentNumber issueDate:IssueDate expiryDate:ExpiryDate","employee"),
         new("driver_license","app","EmployeeDriverLicenses","Id EmployeeId DriverLicenseCategoryId IssueDate ExpiryDate BookingStatus IssuanceStatus LicenseStatus PreviousLicenseId IsCurrent IsDeleted","categorySourceId:DriverLicenseCategoryId issueDate:IssueDate expiryDate:ExpiryDate bookingStatusCode:BookingStatus issuanceStatusCode:IssuanceStatus licenseStatusCode:LicenseStatus previousLicenseSourceId:PreviousLicenseId isCurrent:IsCurrent","employee"),
@@ -134,10 +142,10 @@ public static class PullContracts
                     if(contract.Relation=="platform_account")doc["registeredRiderId"]=employees.GetValueOrDefault(account.S("RegisteredEmployeeId"))??"";
                     else
                     {
-                        string rider=Rider(row);var assignment=contract.Kind=="rider_account_assignment"?row:Find("RiderClientAssignments",row.S("RiderClientAssignmentId"));
-                        if(rider==""){plan.Reject(contract.Kind,"unmatched_rider");continue;}
-                        if(assignment==null||assignment.S("PlatformRiderAccountId")!=account.S("Id")||assignment.S("RiderProfileId")!=row.S("RiderProfileId"))
-                        {plan.Reject(contract.Kind,"unmatched_assignment");continue;}
+                        var assignment=contract.Kind=="rider_account_assignment"?row:Find("RiderClientAssignments",row.S("RiderClientAssignmentId"));
+                        if(assignment==null||assignment.S("PlatformRiderAccountId")!=account.S("Id")){plan.Reject(contract.Kind,"unmatched_assignment");continue;}
+                        if(row.S("RiderProfileId")!=""&&assignment.S("RiderProfileId")!=row.S("RiderProfileId")){plan.Reject(contract.Kind,"unmatched_assignment");continue;}
+                        string rider=Rider(row.S("RiderProfileId")!=""?row:assignment);if(rider==""){plan.Reject(contract.Kind,"unmatched_rider");continue;}
                         doc["riderId"]=rider;doc["assignmentSourceId"]=assignment.S("Id");
                     }
                 }
@@ -190,8 +198,61 @@ public static class PullContracts
                     doc["companyIds"]=new JsonArray(linked.Order().Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray());
                     doc["moneyMovementSourceIds"]=new JsonArray(links.Select(x=>(JsonNode?)JsonValue.Create(x.S("MoneyMovementId"))).ToArray());
                 }
+                // Frozen Ninja evaluation JSON is display-only; company scope is not required (CR-004 F3).
+                if(contract.Relation=="snapshot"){doc["companyId"]="";}
                 plan.Documents.Add(new(contract.Kind,doc));
             }
+        }
+        BuildRiderWorkTimeline(source,plan,companies,employees,profiles,Find,Children);
+    }
+    /// <summary>CR-004 §3.8 / BR §38: one display row per rider × platform account × assignment period. Empty columns where ERP lacks cancelled orders / eligibility (F6/F7).</summary>
+    static void BuildRiderWorkTimeline(SourceSnapshot source,ImportPlan plan,Dictionary<string,string> companies,Dictionary<string,string> employees,Dictionary<string,string> profiles,Func<string,string,JsonObject?> find,Func<string,string,string,List<JsonObject>> children)
+    {
+        if(!source.Tables.ContainsKey("RiderClientAssignments")||!source.Tables.ContainsKey("PlatformRiderAccounts")){plan.Unavailable["rider_work_timeline"]="source_table_absent";return;}
+        string Key(string kind,string id)=>id==""?"":"erp:"+kind+":"+id;
+        string Rider(JsonObject row)
+        {
+            string a=employees.GetValueOrDefault(row.S("EmployeeId"))??"",b=profiles.GetValueOrDefault(row.S("RiderProfileId"))??"";
+            if(row.S("EmployeeId")!=""&&a==""||row.S("RiderProfileId")!=""&&b==""||a!=""&&b!=""&&a!=b)return "";
+            return a!=""?a:b;
+        }
+        var platforms=(source.Tables.GetValueOrDefault("ClientPlatforms")??[]).ToDictionary(r=>r.S("Id"));
+        var byAccount=(source.Tables.GetValueOrDefault("RiderClientAssignments")??[]).Where(a=>!a.B("IsDeleted")).GroupBy(a=>a.S("PlatformRiderAccountId")).ToDictionary(g=>g.Key,g=>g.OrderBy(a=>a.S("EffectiveFrom")).ToList());
+        foreach(var row in source.Tables["RiderClientAssignments"].Where(a=>!a.B("IsDeleted")))
+        {
+            if(row.S("EffectiveFrom")==""||row.S("EffectiveTo")!=""&&string.CompareOrdinal(row.S("EffectiveFrom"),row.S("EffectiveTo"))>0){plan.Reject("rider_work_timeline","invalid_date_range");continue;}
+            var account=find("PlatformRiderAccounts",row.S("PlatformRiderAccountId"));
+            if(account==null){plan.Reject("rider_work_timeline","missing_platform_account_relation");continue;}
+            string rider=Rider(row);if(rider==""){plan.Reject("rider_work_timeline","unmatched_rider");continue;}
+            string company=companies.GetValueOrDefault(account.S("SponsorId"))??"";if(company==""){plan.Reject("rider_work_timeline","missing_company_relation");continue;}
+            string platformCode=platforms.GetValueOrDefault(account.S("ClientPlatformId"))?.S("Code")??"";
+            var siblings=byAccount.GetValueOrDefault(row.S("PlatformRiderAccountId"))??[];
+            int index=siblings.FindIndex(a=>a.S("Id")==row.S("Id"));
+            var next=index>=0&&index+1<siblings.Count?siblings[index+1]:null;
+            var lastEvent=children("RiderAssignmentEvents","RiderClientAssignmentId",row.S("Id")).OrderByDescending(e=>e.S("OccurredAtUtc")).FirstOrDefault();
+            var days=new JsonArray();
+            foreach(var day in (source.Tables.GetValueOrDefault("PlatformAccountDayUsages")??[]).Where(d=>d.S("RiderClientAssignmentId")==row.S("Id")&&!d.B("IsDeleted")).OrderBy(d=>d.S("BusinessDate")))
+            {
+                days.Add(new JsonObject
+                {
+                    ["date"]=day.S("BusinessDate"),["orders"]=day["OrdersCount"]?.DeepClone(),["hours"]=day["WorkingHours"]?.DeepClone(),
+                    ["collectedAmount"]=day["CollectedAmount"]?.DeepClone(),["deductionsAmount"]=day["DeductionsAmount"]?.DeepClone(),
+                    ["totalValidOffers"]=day["TotalValidOffers"]?.DeepClone(),["declinedOffers"]=day["DeclinedOffers"]?.DeepClone(),["missedOffers"]=day["MissedOffers"]?.DeepClone(),
+                    // CR-004 F6/F7 gaps — keep empty until ERP stores them.
+                    ["cancelledOrders"]=null,["eligibility"]=null
+                });
+            }
+            plan.Documents.Add(new("rider_work_timeline",new JsonObject
+            {
+                ["id"]=Key("rider_work_timeline",row.S("Id")),["erpSourceId"]=row.S("Id"),["erpSource"]="rider_work_timeline",["sourceDeleted"]=false,
+                ["riderId"]=rider,["companyId"]=company,["platformCode"]=platformCode,
+                ["platformAccountId"]=Key("platform_account",account.S("Id")),["accountCode"]=account.S("Code"),["externalAccountId"]=account.S("ExternalAccountId"),
+                ["effectiveFrom"]=row.S("EffectiveFrom"),["effectiveTo"]=row.S("EffectiveTo"),
+                ["paymentModelCode"]=row["PaymentModel"]?.DeepClone(),["slot"]=row["RiderAccountSlot"]?.DeepClone(),["ninjaRiderTypeCode"]=row["NinjaRiderType"]?.DeepClone(),
+                ["endReasonCode"]=lastEvent?["ToStatus"]?.DeepClone(),["endReason"]=lastEvent?.S("Reason")??"",
+                ["nextRiderId"]=next==null?"":Rider(next),["nextAssignmentSourceId"]=next?.S("Id")??"",
+                ["days"]=days,["cancelledOrders"]=null,["eligibility"]=null
+            }));
         }
     }
 }

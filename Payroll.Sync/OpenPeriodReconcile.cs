@@ -10,8 +10,8 @@ public static class OpenPeriodReconcile
 {
     static readonly Dictionary<string,string> KindPeriodField=new(StringComparer.Ordinal)
     {
-        ["chefz_daily"]="date",["chefz_settlement"]="periodFrom",["ninja_daily"]="date",["ninja_daily_deduction"]="date",
-        ["housing_residence"]="effectiveFrom",["jahez_transaction"]="occurredAt"
+        ["chefz_daily"]="date",["chefz_settlement"]="periodFrom",["chefz_order_row"]="date",["ninja_daily"]="date",["ninja_daily_deduction"]="date",
+        ["housing_residence"]="effectiveFrom",["jahez_transaction"]="occurredAt",["platform_day_usage"]="date"
     };
     public static IEnumerable<PlannedDocument> MissingAsSoftDeleted(SourceSnapshot source,ImportPlan plan,Dictionary<string,JsonObject> existing)
     {

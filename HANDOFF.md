@@ -3,18 +3,19 @@
 | Field | Value |
 |---|---|
 | Current writer | Cursor 2026-11-09 20:56 +03 |
-| Branch | release/0.20.0 (pending T5 commit) |
+| Branch | release/0.20.0 (T5+T4 done) |
 | Updated | 2026-11-09 by Cursor (R11 mid) |
 | Live | see `/health`; DB db77738 |
 
 ## Next step (exact)
-Continue R11: T4 kinds → T7 ValidateRiders → T8 UI → T9 PR `release: 0.20.0`.
+Continue R11: T7 ValidateRiders → T8 UI → T9 PR `release: 0.20.0`.
 
 ## R11 done so far
 - T1 timings + design; baseline wall ~14.4 min (identity refuse).
 - T2 watermarks / incremental / open-period soft-delete / full-resync.
 - T3 contentHash + batch mirror lock + plan dictionaries.
 - T5: Chefz FT §36; vehicle rent cap §38.4 (shared vehicle); housing by residence days; Jahez reconciliation §37.
+- T4 display kinds: vehicle status, day usage, Chefz type/orders, Ninja eval snapshots, Jahez policy/daily, rider work timeline.
 - T6 `approval.bypass_maker_checker` grants + badge + admin APIs; legacy ghazal evidence kept.
 
 ## Goal now

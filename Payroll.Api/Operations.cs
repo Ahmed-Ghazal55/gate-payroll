@@ -5,17 +5,32 @@ namespace Payroll;
 
 public static class Operations
 {
-    public static readonly string[] Kinds=["city","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","sponsorship_period","legal_case","platform_account"];
+    public static readonly string[] Kinds=["city","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","sponsorship_period","legal_case","platform_account","vehicle_operational_status","platform_day_usage","rider_work_timeline","custody_equipment","vehicle_expense","chefz_account","chefz_account_type_change","chefz_daily","chefz_settlement","chefz_order_row","ninja_daily","ninja_daily_deduction","ninja_evaluation_snapshot","jahez_commission_policy","jahez_daily_order"];
     static readonly Dictionary<string,string[]> Fields=new(){
         ["city"]=["code","nameAr","nameEn","name","globalCityId"],
         ["housing"]=["code","nameAr","nameEn","cityId","openedDate","closedDate"],
         ["housing_residence"]=["riderId","housingId","roomSourceId","effectiveFrom","effectiveTo"],
         ["vehicle"]=["assetNumber","serialNumber","plateNumberAr","plateNumberEn","vin","chassisNumber","modelYear","vehicleType","fuelType","ownershipType","currentOdometer","currentOperationalStatus","registrationType","companyId","registeredOwnerCompanyId","cityId"],
         ["vehicle_assignment"]=["riderId","vehicleId","startedAt","endedAt","startOdometer","endOdometer","isRealRider","permissionStartsOn","permissionEndsOn"],
+        ["vehicle_operational_status"]=["vehicleId","companyId","statusCode","effectiveFrom","effectiveTo","reason","reasonCode"],
         ["custody_handover"]=["assignmentId","eventTypeCode","occurredAt","direction"],
+        ["custody_equipment"]=["riderId","companyId","issueNumber","issuedAt","quantity","returnedQuantity","totalCost"],
+        ["vehicle_expense"]=["vehicleId","riderId","companyId","type","occurredOn","amount","vat","amountBeforeTax"],
         ["sponsorship_period"]=["riderId","companyId","sponsorId","effectiveFrom","effectiveTo"],
         ["legal_case"]=["companyId","number","personName","personTypeCode","riderId","partyRoleCode","caseDate","caseTime","details"],
-        ["platform_account"]=["code","externalAccountId","platformCode","registeredRiderId","companyId","cityId","paymentModelCode","startDate","endDate"]
+        ["platform_account"]=["code","externalAccountId","platformCode","registeredRiderId","companyId","cityId","paymentModelCode","startDate","endDate"],
+        ["platform_day_usage"]=["riderId","companyId","platformAccountId","date","orders","hours","collectedAmount","deductionsAmount"],
+        ["rider_work_timeline"]=["riderId","companyId","platformCode","platformAccountId","accountCode","externalAccountId","effectiveFrom","effectiveTo","endReasonCode","endReason","nextRiderId","paymentModelCode"],
+        ["chefz_account"]=["platformAccountId","companyId","registeredRiderId","reportIdNumber","accountType","vehicleType","dashboardStatus"],
+        ["chefz_account_type_change"]=["platformAccountId","companyId","previousTypeCode","accountType","effectiveFrom"],
+        ["chefz_daily"]=["riderId","companyId","platformAccountId","date","totalValidOffers","acceptedOffers","declinedOffers","missedOffers"],
+        ["chefz_settlement"]=["riderId","companyId","platformAccountId","periodFrom","periodTo","gross","companyAmount","riderAmount"],
+        ["chefz_order_row"]=["riderId","companyId","platformAccountId","date","orderId","deliveryFees","cashCollected"],
+        ["ninja_daily"]=["riderId","companyId","platformAccountId","date","orders","hours","CaptainId"],
+        ["ninja_daily_deduction"]=["riderId","companyId","platformAccountId","date","collectedAmount","amount","CaptainId"],
+        ["ninja_evaluation_snapshot"]=["frozen","policyVersion","inputRevision","reason","createdAt"],
+        ["jahez_commission_policy"]=["companyId","platformAccountId","from","to","rate"],
+        ["jahez_daily_order"]=["companyId","platformAccountId","date","count"]
     };
     static JsonObject Pick(JsonObject row,IEnumerable<string> fields)
     {var result=new JsonObject();foreach(string key in fields.Prepend("id"))if(row.ContainsKey(key))result[key]=row[key]?.DeepClone();return result;}
@@ -26,11 +41,13 @@ public static class Operations
     {
         if(kind=="city")return FinancialCore.Sponsors.Any(s=>FinancialScopes.Sponsor(actor,s.Id));
         if(kind=="platform_account")return Company(actor,row.S("companyId"))&&FinancialScopes.Platform(actor,PayPlatforms.For(row.S("platformCode")).Platform);
-        if(kind is "vehicle" or "legal_case" or "sponsorship_period")return Company(actor,row.S("companyId",row.S("sponsorId")));
+        if(kind is "vehicle" or "legal_case" or "sponsorship_period" or "vehicle_expense" or "chefz_account" or "chefz_account_type_change" or "jahez_commission_policy" or "jahez_daily_order")return Company(actor,row.S("companyId",row.S("sponsorId")));
+        if(kind=="vehicle_operational_status")return Store.Get(c,row.S("vehicleId"),"vehicle") is {} statusVehicle&&Company(actor,statusVehicle.S("companyId",row.S("companyId")));
         if(kind=="housing")return FinancialScopes.AllCompanies(actor)||Store.List(c,"housing_residence").Any(r=>r.S("housingId")==row.S("id")&&Person(c,actor,r.S("riderId")));
-        if(kind=="housing_residence")return Person(c,actor,row.S("riderId"));
+        if(kind is "housing_residence" or "custody_equipment" or "platform_day_usage" or "rider_work_timeline" or "chefz_daily" or "chefz_settlement" or "chefz_order_row" or "ninja_daily" or "ninja_daily_deduction")return Person(c,actor,row.S("riderId"));
         if(kind=="vehicle_assignment")return Person(c,actor,row.S("riderId"))&&Store.Get(c,row.S("vehicleId"),"vehicle") is {} vehicle&&Company(actor,vehicle.S("companyId"));
         if(kind=="custody_handover")return Store.Get(c,row.S("assignmentId"),"vehicle_assignment") is {} assignment&&Visible(c,actor,"vehicle_assignment",assignment);
+        if(kind=="ninja_evaluation_snapshot")return AccessPolicy.Has(actor,"operations.view");
         return false;
     }
     static JsonObject Assignment(JsonObject source)=>Pick(source,["riderId","RawEffectiveFrom","RawEffectiveTo","EffectiveFrom","EffectiveTo","Status","IsRealRider"]);

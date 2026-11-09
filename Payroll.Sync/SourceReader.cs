@@ -150,7 +150,7 @@ public static class SourceReader
                         if(maxCreated==null||string.CompareOrdinal(iso,maxCreated)>0)maxCreated=iso;
                     }
                     if(field=="Id"&&value!=null)maxId=value is Guid g?g.ToString("D"):value.ToString();
-                    row[field]=value!=null&&field is "IsDeleted" or "IsEmployee" or "IsRealRider" or "IsCurrent"?JsonValue.Create(Convert.ToBoolean(value)):Value(value);
+                    row[field]=value!=null&&field is "IsDeleted" or "IsEmployee" or "IsRealRider" or "IsCurrent" or "Frozen"?JsonValue.Create(value is bool b?b:value is string s?s is "1" or "true" or "True":Convert.ToInt32(value)!=0):Value(value);
                 }
                 rows.Add(row);
             }

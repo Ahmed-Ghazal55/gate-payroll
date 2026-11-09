@@ -6,7 +6,7 @@ namespace ErpImport;
 public sealed record PlannedDocument(string Kind,JsonObject Body);
 public sealed class ImportPlan
 {
-    public static readonly string[] Kinds=["company","commercial_registration","city","rider","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","platform_account","sponsorship_period","legal_case","hs_wallet_event","hs_remittance","hs_remittance_allocation","hs_handover_review","hs_month_close",..PullContracts.Kinds];
+    public static readonly string[] Kinds=["company","commercial_registration","city","rider","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","platform_account","sponsorship_period","legal_case","hs_wallet_event","hs_remittance","hs_remittance_allocation","hs_handover_review","hs_month_close","rider_work_timeline",..PullContracts.Kinds];
     public List<PlannedDocument> Documents { get; }=[];
     public Dictionary<string,Dictionary<string,int>> Rejected { get; }=[];
     public Dictionary<string,int> Observations { get; }=[];
