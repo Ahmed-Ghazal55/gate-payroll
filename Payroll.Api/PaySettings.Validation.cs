@@ -84,11 +84,12 @@ public static partial class PaySettings
     }
     static void ValidateGlobal(JsonObject data)
     {
-        PayValues.Fields(data,"values");var v=PayValues.Object(data["values"]);PayValues.Fields(v,"standardDays","februaryDays","billingCutoff","timeZone","roundingDigits","roundingMode","vehicleRent","accounts");
+        PayValues.Fields(data,"values");var v=PayValues.Object(data["values"]);PayValues.Fields(v,"standardDays","februaryDays","billingCutoff","timeZone","roundingDigits","roundingMode","vehicleRent","housingMonthly","accounts");
         foreach(string key in new[]{"standardDays","februaryDays"}){decimal n=PayValues.Number(v,key,1,31);J.Need(n==decimal.Truncate(n),"عدد الأيام صحيح موجب.");}
         J.Need(TimeOnly.TryParseExact(v.S("billingCutoff"),"HH:mm",CultureInfo.InvariantCulture,DateTimeStyles.None,out _),"موعد قطع اليوم غير صالح.");J.Need(v.S("timeZone")=="Asia/Riyadh","قاعدة اليوم بتوقيت الرياض.");J.Need(PayValues.Number(v,"roundingDigits",0,6)==2&&v.S("roundingMode")=="AwayFromZero","قاعدة التقريب غير مدعومة.");
         var rent=PayValues.Object(v["vehicleRent"]);PayValues.Fields(rent,"company_car","company_bike","private");foreach(string vehicle in new[]{"company_car","company_bike","private"})PayValues.Number(rent,vehicle);J.Need(rent.N("private")==0,"المركبة الخاصة بلا إيجار للشركة.");
-        var accounts=PayValues.Object(v["accounts"]);PayValues.Fields(accounts,"salaryExpense","vehicleIncomeCar","vehicleIncomeBike","outputVat");foreach(string key in new[]{"salaryExpense","vehicleIncomeCar","vehicleIncomeBike","outputVat"}){string code=PayPlatforms.Active(accounts.Required(key));J.Need(code[0]==(key=="salaryExpense"?'5':key=="outputVat"?'2':'4'),"نوع الحساب لا يناسب القيد.");}
+        PayValues.Number(v,"housingMonthly");J.Need(v.N("housingMonthly")>=0,"قيمة السكن الشهرية غير سالبة.");
+        var accounts=PayValues.Object(v["accounts"]);PayValues.Fields(accounts,"salaryExpense","vehicleIncomeCar","vehicleIncomeBike","housingIncome","outputVat");foreach(string key in new[]{"salaryExpense","vehicleIncomeCar","vehicleIncomeBike","housingIncome","outputVat"}){string code=PayPlatforms.Active(accounts.Required(key));J.Need(code[0]==(key=="salaryExpense"?'5':key=="outputVat"?'2':'4'),"نوع الحساب لا يناسب القيد.");}
     }
     public static void Validate(string kind,string app,JsonObject data)
     {

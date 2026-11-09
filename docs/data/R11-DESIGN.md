@@ -91,7 +91,7 @@ Regenerate contract (`npm run api:generate`). Wire every endpoint with no web ca
 Version `0.20.0` in `ReleaseSafety.cs` and `docs/api/ENDPOINTS.md`. Tests listed in the prompt. One PR, no merge. HANDOFF updated; writer lock cleared.
 
 ## Open BR / planner items (do not invent)
-1. §37 VAT account still ⏳ — report shows VAT line; posting of that line waits.
+1. §37 VAT account named (`213201` / Dr `112801`) — report posts VAT with maker-checker.
 2. CR-004 change feed not yet in ERP — watermarks + open-period reconcile are the workaround; full change feed is Omar’s side.
 3. EGM formal review: Claude Code.
 

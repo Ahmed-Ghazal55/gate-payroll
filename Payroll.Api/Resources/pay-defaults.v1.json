@@ -7,6 +7,7 @@
     "roundingDigits": 2,
     "roundingMode": "AwayFromZero",
     "vehicleRent": {"company_car": 1800, "company_bike": 800, "private": 0},
-    "accounts": {"salaryExpense": "512101", "vehicleIncomeCar": "421101", "vehicleIncomeBike": "421102", "outputVat": "213201"}
+    "housingMonthly": 200,
+    "accounts": {"salaryExpense": "512101", "vehicleIncomeCar": "421101", "vehicleIncomeBike": "421102", "housingIncome": "421401", "outputVat": "213201"}
   }
 }
