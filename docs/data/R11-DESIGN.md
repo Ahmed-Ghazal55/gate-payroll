@@ -87,6 +87,9 @@ Regenerate contract (`npm run api:generate`). Wire every endpoint with no web ca
 - ERP sync: pause/resume/full-resync, run timing report
 - Imports templates
 
+### T8 shipped (2026-11-09)
+OpenAPI snapshot refreshed; `api-contract.ts` regenerated. Client methods + screens: Jahez workspace (treasury tab), bank parallel `comparisonOnly`/`DO-NOT-SEND`, Chefz review panel, validate-gaps panel, approval-bypass admin tab, ERP pause/resume/`fullResync`, Mada/liability/legacy extras, accounting adjustments, debt create/collect/settlements, policy approve on legacy policies list. Import-center catalog still owns opening vaults/debts/bulk-collect templates. Timing phases remain in sync run logs (job status counts-only).
+
 ## T9 — Release
 Version `0.20.0` in `ReleaseSafety.cs` and `docs/api/ENDPOINTS.md`. Tests listed in the prompt. One PR, no merge. HANDOFF updated; writer lock cleared.
 
