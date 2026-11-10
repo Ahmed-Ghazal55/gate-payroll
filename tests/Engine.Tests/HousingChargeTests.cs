@@ -22,6 +22,29 @@ public sealed class HousingChargeTests
         Assert.AreEqual(200m,PayEvaluator.HousingCharge(40,"2026-10",v));
         Assert.AreEqual(0m,PayEvaluator.HousingCharge(0,"2026-10",v));
     }
+    /// <summary>R11-FIX2: stage 5 BuildDeductions calls HousingCharge for every rider even with zero residence days; legacy/synthetic pay_setting may omit housingMonthly (r8-ninja-flow seed).</summary>
+    [TestMethod]
+    public void NegativeCaptainReachesStage5WhenPaySettingOmitsHousingMonthly()
+    {
+        var(f,input,_)=PayCycleTests.Setup(false);using(f)
+        {
+            var data=PayFixture.Scheme("monthly_commission");data["parameters"]!["categories"]!["sponsored_private"]!["prorate"]=false;var scheme=f.Draft("pay_scheme","hs",data,"negative");f.Approve("pay_scheme","hs",scheme);
+            f.Store.Write((c,tx)=>{
+                var choice=Store.Get(c,"synthetic-choice-hs1","pay_assignment",tx)!;choice["schemeId"]=scheme.S("id");Store.Save(c,"pay_assignment",choice,tx);
+                foreach(var setting in Store.List(c,"pay_setting",tx).Where(s=>s.S("status")=="approved"))
+                {
+                    var values=setting["data"]!["values"]!.AsObject();values.Remove("housingMonthly");
+                    if(values["accounts"] is JsonObject accounts)accounts.Remove("housingIncome");
+                    Store.Save(c,"pay_setting",setting,tx);
+                }
+                return true;
+            });
+            var cycle=PayCycleTests.Through(f,input,6);
+            Assert.AreEqual("needs_decision",cycle.S("status"));
+            Assert.IsTrue(cycle["riders"]!.AsArray().OfType<JsonObject>().Any(r=>r.N("net")<0));
+            Assert.AreEqual(0,cycle["deductions"]!.AsArray().OfType<JsonObject>().Count(d=>d.S("type")=="housing"));
+        }
+    }
     [TestMethod]
     public void CycleAppliesHousingFromResidenceAndSkipsManualHousingDebt()
     {

@@ -559,7 +559,8 @@ try {
         method: 'POST', headers: { Cookie: cookieB, 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage }),
       });
-      assert.equal(response.status, 200, `Negative captain must not block stage ${stage}`);
+      const advanceBody = await response.text();
+      assert.equal(response.status, 200, `Negative captain must not block stage ${stage}: ${advanceBody}`);
     }
     const reviewResponse = await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(cycleId)}/review`, { headers: { Cookie: cookieB } });
     assert.equal(reviewResponse.status, 200);

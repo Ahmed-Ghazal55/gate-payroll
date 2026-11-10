@@ -49,10 +49,10 @@ public static class PayEvaluator
         int first=Math.Max(from.DayNumber,start.DayNumber),lastExclusive=Math.Min(toInclusive.DayNumber+1,endExclusive.DayNumber);
         return Math.Min(DaysInPayrollMonth(period,values),Math.Max(0,lastExclusive-first));
     }
-    /// <summary>BR §38.4 / §16 housing charge from residence days; monthly amount is a dated global setting.</summary>
+    /// <summary>BR §38.4 / §16 housing charge from residence days; monthly amount is a dated global setting. Zero days need no monthly rate (legacy settings may omit housingMonthly until residence exists).</summary>
     public static decimal HousingCharge(decimal days,string period,JsonObject values)
     {
-        J.Need(days>=0&&days==decimal.Truncate(days),"أيام الإقامة عدد صحيح غير سالب.");decimal monthly=PayValues.Number(values,"housingMonthly");if(monthly==0||days==0)return 0;
+        J.Need(days>=0&&days==decimal.Truncate(days),"أيام الإقامة عدد صحيح غير سالب.");if(days==0)return 0;decimal monthly=PayValues.Number(values,"housingMonthly");if(monthly==0)return 0;
         int monthDays=DaysInPayrollMonth(period,values);return Math.Min(monthly,Round(monthly/monthDays*Math.Min(days,monthDays),values));
     }
     public static IReadOnlyList<PayAllocatedShare> SplitIncentives(IEnumerable<PayRiderShare> riders,decimal accountBase,decimal incentive,JsonObject values)
