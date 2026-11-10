@@ -2,32 +2,30 @@
 
 | Field | Value |
 |---|---|
-| Current writer | (none) |
+| Current writer | Cursor 2026-11-10 19:20 +03 (R12 Part A — clearing after push) |
 | Branch | release/0.20.0 |
-| Updated | 2026-11-10 by Cursor (R11-FIX3 done) |
-| Live | see `/health`; DB db77738 |
+| Updated | 2026-11-10 by Cursor (R12 Part A) |
+| Live | `/health` still 0.19.0 until merge/deploy |
 | PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/34 (do not merge yet) |
 
 ## Next step (exact)
-Claude Code EGM formal review of PR #34. Do not merge. «حمّل» for hosted db77738 stays Ghazal-only.
+Codex + Antigravity check Part A (`R12-codex`, `R12-antigravity`). Then Claude review / Ghazal merge decision. Part B only after «حمّل S1» etc.
 
-## R11-FIX3 (done — merge blockers from security + Claude R-1)
-- Commit: `fbe0933` — `fix(access): R11-FIX3 Jahez write gate, unique recon, §35 grants`
-- **CI green:** https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/42816744969 (`validate` pass 11m5s)
-- **F-01:** `JahezReconciliation.DemandWrite` + `AccessPolicy` POST Allowed write-only; GET stays `treasury.view`. Test: `ViewOnlyPrincipalCannotBuildJahezReconciliation`.
-- **F-08:** `RefuseDuplicateActive` in Build + Approve. Test: `SecondReportForSameCompanyPeriodIsRefusedAndApproveCannotDoublePost`.
-- **R-1:** Approve Independent of `createdBy` and `submittedBy`. Test: `ApproverMustDifferFromCreatorAndSubmitterUnlessBypassGrant`.
-- **F-04:** New approvals via §35 bypass grants only; Configure clears/refuses new dated exceptions; View/Approve/WithActions pass DB. Tests: `ApprovalExceptionTests` / `ApprovalBypassTests`.
-- **Local:** focused 11/11; Engine+SQL 501 (2 Jobs inotify flakes, retry OK); api:check; r8-contract 26; r8 stage 5/6 Active verified. Local CSP/`Vouchers__Secret` noise only (same as FIX2).
+## R12 Part A (done — local only)
+- Runbook: `docs/runbooks/RELEASE-0.20.0.md`
+- A1: hosted has records+ERP indexes; missing `sync.SourceWatermarks`, `rpt`, HangFire. Startup preservation proven on local copy.
+- Hosted blocker: 1 rider `erpSourceId` identity collision (local quarantined only).
+- A3: hosted→local copy 233540 rows; first sync commit ~122s; clean no-change 43s (0/0).
+- A4: local API 0.20.0 health OK; **0** ninja invoices for 2026-10 blocks Express path.
+- A5: focused Engine 20; SQL subset 6; api:check PASS; live still 0.19.0.
 
 ## Not done / PENDING
-- Claude Code EGM formal review of PR #34.
-- First incremental «حمّل» on hosted db77738.
-- MonsterASP Jobs flags.
-- ERP read-only connection.
-- Browser live verify with a real session.
+- Part B hosted «حمّل» slices.
+- Full browser S1 with real session + October invoice.
+- Resolve hosted rider identity collision before hosted sync.
+- MonsterASP Jobs / ERP readonly settings (Ghazal).
 
 ## Ghazal's steps
-1. Wait for Claude Code review; then merge decision.
-2. Say «حمّل» only when ready for hosted incremental write.
-3. Set MonsterASP Jobs + ERP readonly connection.
+1. Wait Codex/Antigravity/Claude checks of Part A.
+2. Merge when ready; confirm live 0.20.0.
+3. «حمّل S1» (then S2…) one slice per message.
