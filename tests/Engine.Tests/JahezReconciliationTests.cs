@@ -1,10 +1,14 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Security.Claims;
 using System.Text.Json.Nodes;
 using Payroll;
 
 [TestClass]
 public sealed class JahezReconciliationTests
 {
+    static JsonObject Input(string company,string period="2026-10",decimal net=0,decimal vat=0)=>new(){["companyId"]=company,["period"]=period,["invoiceNet"]=net,["invoiceVat"]=vat,["lastTransactionDate"]=period+"-15",["invoiceReference"]="synthetic-jahez-invoice"};
+    static ClaimsPrincipal Viewer()=>UserAccess.Principal(new JsonObject{["username"]="synthetic-jahez-viewer",["role"]="FinancialManager",["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(FinancialCore.Sponsors[0].Id)}});
+    static ClaimsPrincipal Writer(string name)=>UserAccess.Principal(new JsonObject{["username"]=name,["role"]="Accountant",["department"]="FIN",["rankLevel"]=3,["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(FinancialCore.Sponsors[0].Id)}});
     [TestMethod]
     public void BuildComparesCollectionsAndPaymentsThroughLastTransactionDateWithVatLine()
     {
@@ -35,11 +39,57 @@ public sealed class JahezReconciliationTests
     public void VarianceBlocksApprovalUntilWrittenDecision()
     {
         using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
-        var doc=f.Store.Write((c,tx)=>JahezReconciliation.Build(c,tx,PayFixture.Maker,new(){["companyId"]=company,["period"]="2026-10",["invoiceNet"]=10,["invoiceVat"]=1.5m,["lastTransactionDate"]="2026-10-15"}));
+        var doc=f.Store.Write((c,tx)=>JahezReconciliation.Build(c,tx,PayFixture.Maker,Input(company,net:10,vat:1.5m)));
         Assert.AreNotEqual(0m,doc["totals"]!.AsObject().N("variance"));
         f.Store.Write((c,tx)=>JahezReconciliation.Submit(c,tx,PayFixture.Maker,doc.S("id")));
         Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,PayFixture.Checker,doc.S("id"))));
         f.Store.Write((c,tx)=>JahezReconciliation.DecideVariance(c,tx,PayFixture.Maker,doc.S("id"),new(){["varianceDecision"]="فرق مقبول للمراجعة اليدوية"}));
         Assert.AreEqual("approved",f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,PayFixture.Checker,doc.S("id"))).S("status"));
+    }
+    [TestMethod]
+    public void ViewOnlyPrincipalCannotBuildJahezReconciliation()
+    {
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
+        Assert.IsFalse(AccessPolicy.Allowed(Viewer(),"POST","/api/finance/jahez-reconciliations"));
+        Assert.IsTrue(AccessPolicy.Allowed(Viewer(),"GET","/api/finance/jahez-reconciliations"));
+        var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>JahezReconciliation.Build(c,tx,Viewer(),Input(company))));
+        Assert.AreEqual(403,err.Status);
+    }
+    [TestMethod]
+    public void SecondReportForSameCompanyPeriodIsRefusedAndApproveCannotDoublePost()
+    {
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
+        var first=f.Store.Write((c,tx)=>JahezReconciliation.Build(c,tx,PayFixture.Maker,Input(company,net:0,vat:0)));
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>JahezReconciliation.Build(c,tx,PayFixture.Maker,Input(company,net:0,vat:0)))).Status);
+        f.Store.Write((c,tx)=>JahezReconciliation.Submit(c,tx,PayFixture.Maker,first.S("id")));
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>JahezReconciliation.Build(c,tx,PayFixture.Maker,Input(company,net:0,vat:0)))).Status);
+        f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,PayFixture.Checker,first.S("id")));
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>JahezReconciliation.Build(c,tx,PayFixture.Maker,Input(company,net:0,vat:0)))).Status);
+        int journals=f.Store.Read(c=>Store.List(c,"journal").Count(j=>j.S("transactionType")=="jahez_reconciliation"));
+        // Inject a second pending twin that slipped past Build; Approve must still refuse.
+        f.Store.Write((c,tx)=>{
+            var twin=first.Clone();twin["id"]="jahez-recon:synthetic-duplicate";twin["status"]="pending_approval";twin["submittedBy"]="synthetic-other";Store.Save(c,JahezReconciliation.Kind,twin,tx);return true;
+        });
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,PayFixture.Checker,"jahez-recon:synthetic-duplicate"))).Status);
+        Assert.AreEqual(journals,f.Store.Read(c=>Store.List(c,"journal").Count(j=>j.S("transactionType")=="jahez_reconciliation")));
+    }
+    [TestMethod]
+    public void ApproverMustDifferFromCreatorAndSubmitterUnlessBypassGrant()
+    {
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
+        var creator=Writer("synthetic-jahez-creator");var submitter=Writer("synthetic-jahez-submitter");var stranger=Writer("synthetic-jahez-stranger");
+        // CompatibilityDefaults give Accountant treasury.jahez.receive; DemandWrite accepts it.
+        var doc=f.Store.Write((c,tx)=>JahezReconciliation.Build(c,tx,creator,Input(company,net:0,vat:0)));
+        f.Store.Write((c,tx)=>JahezReconciliation.Submit(c,tx,submitter,doc.S("id")));
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,creator,doc.S("id")))).Status,"creator cannot approve");
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,submitter,doc.S("id")))).Status,"submitter cannot approve");
+        Assert.AreEqual("approved",f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,stranger,doc.S("id"))).S("status"));
+        // Second month: creator==submitter can approve only with §35 bypass grant.
+        var same=f.Store.Write((c,tx)=>JahezReconciliation.Build(c,tx,creator,Input(company,"2026-11",0,0)));
+        f.Store.Write((c,tx)=>JahezReconciliation.Submit(c,tx,creator,same.S("id")));
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,creator,same.S("id")))).Status);
+        string day=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd");
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="synthetic-jahez-creator-user",["username"]="synthetic-jahez-creator",["role"]="Accountant"},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-jahez-creator",["from"]=day,["to"]=day,["reason"]="§35 grant for Jahez self-approve test"});return true;});
+        Assert.AreEqual("approved",f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,creator,same.S("id"))).S("status"));
     }
 }

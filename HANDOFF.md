@@ -2,26 +2,22 @@
 
 | Field | Value |
 |---|---|
-| Current writer | (none) |
+| Current writer | Cursor 2026-11-10 14:14 +03 (R11-FIX3 — clearing after CI) |
 | Branch | release/0.20.0 |
-| Updated | 2026-11-10 by Cursor (R11-FIX2 done, CI green) |
+| Updated | 2026-11-10 by Cursor (R11-FIX3) |
 | Live | see `/health`; DB db77738 |
 | PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/34 (do not merge yet) |
 
 ## Next step (exact)
-Claude Code: EGM formal review of PR #34. Do not merge. «حمّل» for hosted db77738 stays Ghazal-only.
+After CI green: Claude Code EGM formal review of PR #34. Do not merge. «حمّل» for hosted db77738 stays Ghazal-only.
 
-## R11-FIX2 done
-- **Failed:** CI run 42698743152 Browser at `web/tests/r8-ninja-flow.mjs` stage 5 advance → 400.
-- **400 body (branch, before fix):** `{"error":"قيمة رقمية مطلوبة: housingMonthly","code":"invalid_request"}`
-- **Main `73f6e4b`:** stage 5/6 advance OK (`✓ Active cycle id verified`).
-- **Cause:** `PayEvaluator.HousingCharge` (`Payroll.Api/PayEvaluator.cs:55`) required `housingMonthly` before the zero-days return. Called from stage 5 `BuildDeductions` → `HousingForRider` (`PayCycles.Calculation.cs:86`) for every rider; r8 seed has no residences and omits `housingMonthly`. Ruled out: fingerprint («تغير المصدر»), `CapSharedVehicleRent`/`VehicleIdOf`, approval bypass.
-- **Fix:** `HousingCharge` returns 0 when `days==0` before reading `housingMonthly` (BR §38.4).
-- **Engine test:** `NegativeCaptainReachesStage5WhenPaySettingOmitsHousingMonthly`
-- **Assert:** r8 advance failure message now includes response body.
-- **Local:** Engine + SQL `11433` → 498/498, 0 skipped; `gen-api-types --check` PASS; `r8-contract` 26 PASS; r8 stage 5/6 PASS after fix.
-- **Push:** `52cb9c7`
-- **CI:** https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/42801562070 — **success** (Browser green, including r8-ninja-flow).
+## R11-FIX3 (this round — merge blockers from security + Claude R-1)
+- **F-01:** Jahez `Build` uses `DemandWrite`; `Allowed` POST no longer accepts `treasury.view`. GET stays view. Test: `ViewOnlyPrincipalCannotBuildJahezReconciliation`.
+- **F-08:** One active recon per company+period in `Build`/`Approve`. Tests: `SecondReportForSameCompanyPeriodIsRefusedAndApproveCannotDoublePost`.
+- **R-1:** Approver Independent of `createdBy` and `submittedBy`. Test: `ApproverMustDifferFromCreatorAndSubmitterUnlessBypassGrant`.
+- **F-04:** New approvals use §35 bypass grants only; historical `approval.self_exception` audits still read; configure refuses new dated exceptions. View/Approve/WithActions pass DB so grants apply. Tests updated in `ApprovalExceptionTests` / `ApprovalBypassTests`.
+- **Local:** focused 11/11; Engine+SQL 501 (2 Jobs flaked on local inotify, pass on retry with polling watcher); api:check PASS; r8-contract 26 PASS; r8 stage 5/6 PASS (`Active cycle verified`). Local CSP/`Vouchers__Secret` noise on some browser scripts (same as FIX2).
+- **CI:** (filled after push)
 
 ## Not done / PENDING
 - Claude Code EGM formal review of PR #34.
@@ -31,6 +27,7 @@ Claude Code: EGM formal review of PR #34. Do not merge. «حمّل» for hosted 
 - Browser live verify with a real session.
 
 ## Ghazal's steps
-1. Wait for Claude Code review; then merge decision.
-2. Say «حمّل» only when ready for hosted incremental write.
-3. Set MonsterASP Jobs + ERP readonly connection.
+1. Wait for CI green on FIX3 push.
+2. Wait for Claude Code review; then merge decision.
+3. Say «حمّل» only when ready for hosted incremental write.
+4. Set MonsterASP Jobs + ERP readonly connection.

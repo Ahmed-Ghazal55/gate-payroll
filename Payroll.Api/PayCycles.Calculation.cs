@@ -150,7 +150,8 @@ public static partial class PayCycles
         J.Need(Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation",c,tx,cycle)),"المعتمد مستقل عن تجهيز الدورة.");
         var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0).ToList();
         if(batch.Count==0){J.Need(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!=""),"راجع واعتمد صفًا جاهزًا أولًا؛ الحالات المعلقة لا توقف الآخرين.");return true;}
-        var skipped=batch.Where(r=>!IndependentReview(actor,r)).ToList();batch=batch.Where(r=>IndependentReview(actor,r)).ToList();
+        // Pass c/tx so §35 ActiveBypassGrant applies when the same actor reviewed the rows.
+        var skipped=batch.Where(r=>!IndependentReview(actor,r,c,tx,cycle)).ToList();batch=batch.Where(r=>IndependentReview(actor,r,c,tx,cycle)).ToList();
         cycle["approvalResult"]=new JsonObject{["approved"]=batch.Count,["skipped"]=skipped.Count,["skippedRows"]=new JsonArray(skipped.Select(r=>(JsonNode)new JsonObject{["rider"]=r.S("rider"),["reason"]="reviewer_or_editor_is_approver"}).ToArray())};
         if(batch.Count==0){Store.Audit(c,tx,"pay.salary_rows_skipped",cycle.S("id"),actor.Identity!.Name!);return false;}
         foreach(var (app,_) in Accounts(cycle))PlatformPosting.Demand(c,app,tx);

@@ -29,6 +29,10 @@ public sealed class ApprovalBypassTests
         f.Store.Write((c,tx)=>AccessPolicy.RevokeBypass(c,tx,PayFixture.Maker,grant.S("id")));
         Assert.IsNull(f.Store.Read(c=>AccessPolicy.ActiveBypassGrant(c,null,name)));
         var ghazal=new JsonObject{["id"]="synthetic-exception-user",["username"]="ghazal",["role"]="FinancialAccountant",["department"]="OPS",["approvalExceptionUntil"]=Day(2),["approvalExceptionReason"]="legacy dated exception"};
-        Assert.IsTrue(AccessPolicy.ApprovalException(UserAccess.Principal(ghazal)));
+        Assert.IsTrue(AccessPolicy.ApprovalException(UserAccess.Principal(ghazal)),"claim still parses for display");
+        var request=new JsonObject{["id"]="synthetic-legacy-request",["requestedBy"]="ghazal",["targetDepartment"]="FIN",["requiredRankLevel"]=1};
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>AccessPolicy.ValidateApproval(UserAccess.Principal(ghazal),request,new())).Status,"dated exception alone cannot approve");
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",ghazal,tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="ghazal",["from"]=Day(0),["to"]=Day(2),["reason"]="§35 grant for ghazal"});return true;});
+        f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(UserAccess.Principal(ghazal),request,new(),c:c,tx:tx);return true;});
     }
 }

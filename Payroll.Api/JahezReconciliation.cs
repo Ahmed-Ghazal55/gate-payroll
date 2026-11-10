@@ -9,13 +9,20 @@ public static class JahezReconciliation
 {
     public const string Kind="jahez_reconciliation";
     public const string Receivable="112801",Clearing="212601",SettlementBank="111204",OutputVat="213201";
+    static void DemandWrite(ClaimsPrincipal actor)=>J.Need(AccessPolicy.Administrator(actor)||AccessPolicy.Has(actor,"treasury.transfer")||AccessPolicy.Has(actor,"treasury.jahez.receive"),"صلاحية خزينة جاهز مطلوبة.",403);
+    static void RefuseDuplicateActive(DbConnection c,DbTransaction tx,string companyId,string period,string? exceptId=null)
+    {
+        bool clash=Store.List(c,Kind,tx).Any(d=>d.S("companyId")==companyId&&d.S("period")==period&&(d.S("status") is "draft" or "pending_approval" or "approved")&&(exceptId==null||d.S("id")!=exceptId));
+        J.Need(!clash,"تقرير مطابقة جاهز لنفس الشركة والشهر موجود؛ أغلقه أو اعتمد واحدًا فقط.",409);
+    }
     public static JsonObject Build(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)
     {
-        AccessPolicy.Demand(actor,"treasury.view");PayValues.Fields(input,"companyId","period","invoiceNet","invoiceVat","lastTransactionDate","invoiceReference","notes");
+        DemandWrite(actor);PayValues.Fields(input,"companyId","period","invoiceNet","invoiceVat","lastTransactionDate","invoiceReference","notes");
         var sponsor=FinancialCore.ResolveSponsor(input.Required("companyId"));FinancialScopes.DemandSponsor(actor,sponsor.Id);
         string period=J.Period(input.Required("period"));string lastRaw=input.Required("lastTransactionDate");
         J.Need(DateOnly.TryParseExact(lastRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var last),"تاريخ آخر معاملة غير صالح.");
         var monthStart=DateOnly.ParseExact(period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture);J.Need(last>=monthStart&&last<monthStart.AddMonths(1),"آخر معاملة داخل شهر الفاتورة.");
+        RefuseDuplicateActive(c,tx,sponsor.Id,period);
         decimal invoiceNet=J.Money(PayValues.Number(input,"invoiceNet",-1000000000)),invoiceVat=J.Money(PayValues.Number(input,"invoiceVat"));
         J.Need(invoiceVat>=0,"ضريبة الفاتورة غير سالبة.");
         var cutoff=last.AddDays(1).ToDateTime(TimeOnly.MinValue,DateTimeKind.Utc);
@@ -68,7 +75,6 @@ public static class JahezReconciliation
         };
         Store.Save(c,Kind,doc,tx);Store.Audit(c,tx,"jahez.reconciliation_built",doc.S("id"),actor.Identity!.Name!);return doc;
     }
-    static void DemandWrite(ClaimsPrincipal actor)=>J.Need(AccessPolicy.Administrator(actor)||AccessPolicy.Has(actor,"treasury.transfer")||AccessPolicy.Has(actor,"treasury.jahez.receive"),"صلاحية خزينة جاهز مطلوبة.",403);
     public static JsonObject Submit(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
         DemandWrite(actor);var doc=Store.Get(c,id,Kind,tx)??throw new ApiError("تقرير المطابقة غير موجود.",404);
@@ -88,7 +94,10 @@ public static class JahezReconciliation
     {
         DemandWrite(actor);var doc=Store.Get(c,id,Kind,tx)??throw new ApiError("تقرير المطابقة غير موجود.",404);
         FinancialScopes.DemandSponsor(actor,doc.S("companyId"));J.Need(doc.S("status")=="pending_approval","التقرير بانتظار الاعتماد.");
+        RefuseDuplicateActive(c,tx,doc.S("companyId"),doc.S("period"),doc.S("id"));
+        // BR §37: approver must be Independent of both submitter and creator (§35 bypass still applies via Independent).
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("submittedBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"treasury.jahez.receive",c,tx,"jahez.reconciliation_approved",doc);
+        J.Need(AccessPolicy.Independent(actor,doc.S("createdBy"),"jahez.reconciliation_approved.createdBy",c,tx,doc),"لا يجوز اعتماد تقرير أنشأته؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
         decimal variance=doc["totals"]!.AsObject().N("variance");
         J.Need(variance==0||doc.S("varianceDecision").Length>=3,"فرق المطابقة يحتاج قرارًا مكتوبًا قبل الاعتماد.");
         var ids=new JsonArray();string period=doc.S("period"),company=doc.S("companyId"),actorName=actor.Identity!.Name!;

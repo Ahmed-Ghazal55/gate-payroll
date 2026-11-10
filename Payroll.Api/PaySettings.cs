@@ -60,13 +60,14 @@ public static partial class PaySettings
     static object List(Store store,HttpContext ctx,string kind,string app)
     {
         bool global=kind=="pay_setting";app=global?"global":PayPlatforms.App(app);Scope(ctx.User,"pay.view",global?null:app);string period=ctx.Request.Query["period"].ToString();if(period!="")J.Period(period);
-        return store.Read(c=>ApiPagination.Apply(Store.List(c,kind).Where(d=>d.S("app")==app&&(period==""||d.S("period")==period)).OrderBy(d=>d.S("code")).ThenByDescending(d=>d.N("version")).Select(d=>WithActions(ctx.User,d)),ctx.Request.Query,true));
+        return store.Read(c=>ApiPagination.Apply(Store.List(c,kind).Where(d=>d.S("app")==app&&(period==""||d.S("period")==period)).OrderBy(d=>d.S("code")).ThenByDescending(d=>d.N("version")).Select(d=>WithActions(ctx.User,d,c)),ctx.Request.Query,true));
     }
-    public static JsonObject WithActions(ClaimsPrincipal actor,JsonObject doc)
+    public static JsonObject WithActions(ClaimsPrincipal actor,JsonObject doc,DbConnection? c=null)
     {
         var result=doc.Clone();var actions=new JsonArray();
+        // Pass c so §35 ActiveBypassGrant is visible when previewing approve without a write transaction.
         if(doc.S("status")=="draft"&&AccessPolicy.Has(actor,"pay.approve"))
-        {try{AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new(),"pay.approve");actions.Add("approve");}catch(ApiError){}}
+        {try{AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new(),"pay.approve",c,null,"pay.settings_approve",doc);actions.Add("approve");}catch(ApiError){}}
         result["allowedActions"]=actions;return result;
     }
     public static void Map(RouteGroupBuilder api,Store store)
