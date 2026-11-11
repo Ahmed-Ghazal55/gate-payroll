@@ -15,7 +15,7 @@ public static class ImportExecutor
             exists.Transaction=tx;exists.CommandText=sqlite?"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='records'":"SELECT CASE WHEN OBJECT_ID(N'dbo.records',N'U') IS NULL THEN 0 ELSE 1 END";
             if(Convert.ToInt32(exists.ExecuteScalar())==0)return [];
         }
-        using var cmd=c.CreateCommand();using var cancel=SyncCancellation.Register(cmd,cancellationToken);cmd.Transaction=tx;cmd.CommandText="SELECT id,kind,CASE WHEN kind IN ("+string.Join(',',ImportPlan.Kinds.Select(k=>"'"+k+"'"))+") THEN body ELSE '{}' END AS body FROM records";
+        using var cmd=c.CreateCommand();using var cancel=SyncCancellation.Register(cmd,cancellationToken);cmd.Transaction=tx;cmd.CommandTimeout=600;cmd.CommandText="SELECT id,kind,CASE WHEN kind IN ("+string.Join(',',ImportPlan.Kinds.Select(k=>"'"+k+"'"))+") THEN body ELSE '{}' END AS body FROM records";
         using var reader=cmd.ExecuteReader();var existing=new Dictionary<string,JsonObject>();
         while(reader.Read())
         {
@@ -26,8 +26,9 @@ public static class ImportExecutor
         }
         return existing;
     }
-    public static ImportSummary Run(SourceSnapshot source,ImportPlan plan,Dictionary<string,JsonObject> existing,Store? commitTarget=null,CancellationToken cancellationToken=default,Action<DbConnection,DbTransaction>? beforeCommit=null)
+    public static ImportSummary Run(SourceSnapshot source,ImportPlan plan,Dictionary<string,JsonObject> existing,Store? commitTarget=null,CancellationToken cancellationToken=default,Action<DbConnection,DbTransaction>? beforeCommit=null,SyncOverrides? overrides=null)
     {
+        overrides??=SyncOverrides.None;
         var sourceKeys=existing.Values.Where(e=>e.S("erpSourceId")!="").GroupBy(e=>(e.S("__targetKind"),e.S("erpSourceId"))).ToDictionary(g=>g.Key,g=>g.Select(e=>e.S("id")).ToHashSet(StringComparer.Ordinal));
         if(plan.Documents.Any(d=>sourceKeys.TryGetValue((d.Kind,d.Body.S("erpSourceId")),out var ids)&&ids.Any(id=>id!=d.Body.S("id"))))throw new ImportFailure("source_identity_changed_requires_review");
         var duplicates=plan.Documents.GroupBy(d=>d.Body.S("id"),StringComparer.Ordinal).Any(g=>g.Count()>1);
@@ -39,7 +40,7 @@ public static class ImportExecutor
             cancellationToken.ThrowIfCancellationRequested();existing.TryGetValue(doc.Body.S("id"),out var previous);
             if(previous!=null){previous=previous.Clone();previous.Remove("__targetKind");}
             if(doc.Kind.StartsWith("hs_",StringComparison.Ordinal)&&previous!=null&&!JsonNode.DeepEquals(StripHash(previous),StripHash(doc.Body)))throw new ImportFailure("hs_approved_fact_changed_requires_reversal:"+doc.Kind);
-            if(doc.Kind=="vehicle_odometer_reading"&&previous!=null&&!JsonNode.DeepEquals(StripHash(previous),StripHash(doc.Body)))throw new ImportFailure("append_only_fact_changed_requires_review:"+doc.Kind);
+            if(doc.Kind=="vehicle_odometer_reading"&&previous!=null&&!JsonNode.DeepEquals(StripHash(previous),StripHash(doc.Body))&&!overrides.AcceptAppendOnlyChanges.Contains(doc.Kind))throw new ImportFailure("append_only_fact_changed_requires_review:"+doc.Kind);
             var merged=ImportPlan.Merge(previous,doc.Body);
             var hashed=ContentHash.WithHash(merged);
             if(doc.Kind=="vehicle"&&previous!=null)

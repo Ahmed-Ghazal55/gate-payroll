@@ -17,6 +17,9 @@ public sealed class ConsistentSyncTests
         var old=new JsonObject{["id"]="reading",["erpSourceId"]="source",["reading"]=100,["__targetKind"]=kind};
         var plan=new ImportPlan();plan.Documents.Add(new(kind,new(){["id"]="reading",["erpSourceId"]="source",["reading"]=101}));
         Assert.ThrowsExactly<ImportFailure>(()=>ImportExecutor.Run(Snapshot(1),plan,new(){["reading"]=old}));
+        var accepted=SyncOverrides.Parse(["--accept-append-only-change",kind]);
+        var summary=ImportExecutor.Run(Snapshot(1),plan,new(){["reading"]=old},overrides:accepted);
+        Assert.AreEqual(1,summary.Counts.Single(c=>c.Kind==kind).Changed);
     }
     [TestMethod]
     public void VehicleMasterOmitsDailyFieldsAndCountsOnlyItsStableChanges()

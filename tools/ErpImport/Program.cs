@@ -42,7 +42,7 @@ try
 {
     if(args.Contains("--help"))
     {
-        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--full-resync REASON] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--counts-only] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON [--review-through-six] [--lookup-riders] [--lookup-erp-history] [--verify] [--preview-fingerprint SHA256] [--after-db-move]]");return 0;
+        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--full-resync REASON] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--accept-append-only-change KIND]... [--report COUNTS_JSON] [--counts-only] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON [--review-through-six] [--lookup-riders] [--lookup-erp-history] [--verify] [--preview-fingerprint SHA256] [--after-db-move]]");return 0;
     }
     overrides=SyncOverrides.Parse(args);
     if(args.Contains("--commit")&&args.Contains("--dry-run"))throw new ImportFailure("conflicting_modes");
@@ -175,14 +175,14 @@ try
     foreach(var missing in OpenPeriodReconcile.MissingAsSoftDeleted(snapshot,plan,existing))plan.Documents.Add(missing);
     timing.AddPlan();
     phase="comparing_target";
-    lastSummary=ImportExecutor.Run(snapshot,plan,existing) with{ReadMode=snapshot.ReadMode,TablesSkipped=snapshot.TablesSkipped};
+    lastSummary=ImportExecutor.Run(snapshot,plan,existing,overrides:overrides) with{ReadMode=snapshot.ReadMode,TablesSkipped=snapshot.TablesSkipped};
     if(live||args.Contains("--consistent"))ConsistentSync.Validate(lastSummary,existing,overrides);
     Store? targetStore=null;
     phase="initializing_target_store";
     // Managed SNI on Linux can hang forever in SqlBulkCopy over a MARS session; the importer never needs MARS.
     if(args.Contains("--commit"))targetStore=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(targetConnection){MultipleActiveResultSets=false}.ConnectionString);
     phase="saving_or_comparing";
-    var summary=ImportExecutor.Run(snapshot,plan,existing,targetStore);
+    var summary=ImportExecutor.Run(snapshot,plan,existing,targetStore,overrides:overrides);
     // This type contains only aggregate counts, timestamps, table names and fixed reason codes.
     if(targetStore!=null)
     {
