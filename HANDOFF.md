@@ -2,27 +2,24 @@
 
 | Field | Value |
 |---|---|
-| Current writer | (clear) |
-| Branch | release/0.20.0 |
-| Updated | 2026-11-11 by Cursor (merge readiness) |
-| Live | `/health` still 0.19.0 until merge/deploy |
-| PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/34 |
-| Tip | `811f3fd` (FIX1 `6302fc2`) — CI https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43013155795 SUCCESS / MERGEABLE CLEAN |
+| Current writer | Cursor 2026-11-11 (post-merge health pin) |
+| Branch | main |
+| Updated | 2026-11-11 by Cursor after «ادمج» |
+| Live | `/health` = **0.20.0**, `dataPreservationVerified=true`, `releaseCheckpointPresent=true` |
+| Merge | PR #34 squash → `2c8a071` |
+| Deploy run | https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43021029811 — FTPS deploy OK; HTTPS verify failed on stale expected `0.19.0` (live already 0.20.0) |
 
 ## Next step (exact)
-Ghazal: review PR checklist, then «ادمج» when ready. **Do not merge without that word.** After deploy, confirm live `/health` = 0.20.0 + preservation flags. Then identity dry-run before any «حمّل S1».
+Push health-verify pin to `0.20.0`. Keep `Jobs__ErpSync__Enabled=false`. Identity dry-run before any «حمّل S1».
 
-## Merge readiness
-- MERGEABLE / CLEAN; validate SUCCESS; version `0.20.0`.
-- Cursor FIX1 review: `~/.agents/reviews/R12-FIX1-cursor.md` — ready.
-- Runbook: `docs/runbooks/RELEASE-0.20.0.md`.
+## Done
+- Ghazal «ادمج»; PR #34 MERGED; live version 0.20.0 with preservation flags.
 
-## Not done / PENDING
-- Ghazal «ادمج» → deploy.
-- Hosted identity dry-run + «حمّل» slices (Part B).
-- HungerStation §38.3 still deferred (separate from this PR).
+## Pending
+- Health script pin fix on main (this push).
+- Hosted identity dry-run + staged «حمّل».
+- HungerStation §38.3 still deferred.
 
 ## Ghazal's steps
-1. Read PR #34 merge readiness + FIX1 review.
-2. Say «ادمج» to merge (or hold).
-3. After live 0.20.0: identity dry-run, then «حمّل S1» only.
+1. Confirm live health if desired.
+2. When ready for ERP load: identity dry-run review, then «حمّل S1» only.
