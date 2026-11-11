@@ -7,7 +7,7 @@
 | Updated | 2026-11-11 by Cursor (merge readiness) |
 | Live | `/health` still 0.19.0 until merge/deploy |
 | PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/34 |
-| Tip | `2303edf` (FIX1 `6302fc2`) — CI https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43011919705 SUCCESS |
+| Tip | `811f3fd` (FIX1 `6302fc2`) — CI https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43013155795 SUCCESS / MERGEABLE CLEAN |
 
 ## Next step (exact)
 Ghazal: review PR checklist, then «ادمج» when ready. **Do not merge without that word.** After deploy, confirm live `/health` = 0.20.0 + preservation flags. Then identity dry-run before any «حمّل S1».
