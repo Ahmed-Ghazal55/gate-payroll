@@ -2,24 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Cursor 2026-11-11 (post-merge health pin) |
+| Current writer | Cursor 2026-11-11 (full publish + hosted S1 load) |
 | Branch | main |
-| Updated | 2026-11-11 by Cursor after «ادمج» |
-| Live | `/health` = **0.20.0**, `dataPreservationVerified=true`, `releaseCheckpointPresent=true` |
-| Merge | PR #34 squash → `2c8a071` |
-| Deploy run | https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43021029811 — FTPS deploy OK; HTTPS verify failed on stale expected `0.19.0` (live already 0.20.0) |
+| Updated | 2026-11-11 by Cursor |
+| Live | `/health` = 0.20.0 (redeploy after this push) |
 
 ## Next step (exact)
-Push health-verify pin to `0.20.0`. Keep `Jobs__ErpSync__Enabled=false`. Identity dry-run before any «حمّل S1».
+Push sync accept-append-only + identity consistent-read fix; redeploy; hosted S1 dry-run then commit with reviewed accepts; wait for wall clock.
 
-## Done
-- Ghazal «ادمج»; PR #34 MERGED; live version 0.20.0 with preservation flags.
-
-## Pending
-- Health script pin fix on main (this push).
-- Hosted identity dry-run + staged «حمّل».
-- HungerStation §38.3 still deferred.
-
-## Ghazal's steps
-1. Confirm live health if desired.
-2. When ready for ERP load: identity dry-run review, then «حمّل S1» only.
+## In flight
+- Hosted identity already committed earlier this session.
+- S1 blocked on odometer append-only → `--accept-append-only-change vehicle_odometer_reading` (Ghazal full load order).

@@ -8,23 +8,25 @@ public sealed class SyncOverrides
 {
     public IReadOnlyList<string> AcceptNewKinds { get; }
     public IReadOnlyList<string> AcceptLargeChanges { get; }
+    public IReadOnlyList<string> AcceptAppendOnlyChanges { get; }
     public bool FullResync { get; }
     public string FullResyncReason { get; }
-    public static SyncOverrides None { get; }=new([],[],false,"");
-    private SyncOverrides(IEnumerable<string> newKinds,IEnumerable<string> largeChanges,bool fullResync,string fullResyncReason)
+    public static SyncOverrides None { get; }=new([],[],[],false,"");
+    private SyncOverrides(IEnumerable<string> newKinds,IEnumerable<string> largeChanges,IEnumerable<string> appendOnly,bool fullResync,string fullResyncReason)
     {
         AcceptNewKinds=Array.AsReadOnly(newKinds.Order(StringComparer.Ordinal).ToArray());
         AcceptLargeChanges=Array.AsReadOnly(largeChanges.Order(StringComparer.Ordinal).ToArray());
+        AcceptAppendOnlyChanges=Array.AsReadOnly(appendOnly.Order(StringComparer.Ordinal).ToArray());
         FullResync=fullResync;FullResyncReason=fullResyncReason;
     }
-    public static SyncOverrides Named(IEnumerable<string> newKinds,IEnumerable<string> largeChanges,bool fullResync=false,string fullResyncReason="")
+    public static SyncOverrides Named(IEnumerable<string> newKinds,IEnumerable<string> largeChanges,bool fullResync=false,string fullResyncReason="",IEnumerable<string>? appendOnly=null)
     {
         if(fullResync){var reason=fullResyncReason.Trim();if(reason.Length is <3 or >500||reason.Any(char.IsControl))throw new ImportFailure("full_resync_reason_required");}
-        return new(newKinds.Distinct(StringComparer.Ordinal),largeChanges.Distinct(StringComparer.Ordinal),fullResync,fullResync?fullResyncReason.Trim():"");
+        return new(newKinds.Distinct(StringComparer.Ordinal),largeChanges.Distinct(StringComparer.Ordinal),(appendOnly??[]).Distinct(StringComparer.Ordinal),fullResync,fullResync?fullResyncReason.Trim():"");
     }
     public static SyncOverrides Parse(string[] args)
     {
-        var newKinds=new HashSet<string>(StringComparer.Ordinal);var large=new HashSet<string>(StringComparer.Ordinal);
+        var newKinds=new HashSet<string>(StringComparer.Ordinal);var large=new HashSet<string>(StringComparer.Ordinal);var appendOnly=new HashSet<string>(StringComparer.Ordinal);
         bool full=false;string reason="";
         for(int i=0;i<args.Length;i++)
         {
@@ -34,11 +36,11 @@ public sealed class SyncOverrides
                 if(i+1>=args.Length||args[i+1].StartsWith("--",StringComparison.Ordinal))throw new ImportFailure("full_resync_reason_required");
                 reason=args[++i];continue;
             }
-            if(args[i] is not ("--accept-new-kind" or "--accept-large-change"))continue;
+            if(args[i] is not ("--accept-new-kind" or "--accept-large-change" or "--accept-append-only-change"))continue;
             string flag=args[i];if(i+1>=args.Length||!ImportPlan.Kinds.Contains(args[i+1],StringComparer.Ordinal))throw new ImportFailure("invalid_sync_override_kind");
-            (flag=="--accept-new-kind"?newKinds:large).Add(args[++i]);
+            (flag switch{"--accept-new-kind"=>newKinds,"--accept-large-change"=>large,_=>appendOnly}).Add(args[++i]);
         }
-        return Named(newKinds,large,full,reason);
+        return Named(newKinds,large,full,reason,appendOnly);
     }
 }
 

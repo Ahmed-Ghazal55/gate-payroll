@@ -158,10 +158,11 @@ dotnet /tmp/gate-sync-release/ErpImport.dll --live --consistent --dry-run --coun
   --accept-new-kind vehicle_operational_status \
   --accept-new-kind platform_day_usage \
   --accept-new-kind rider_work_timeline \
-  --accept-new-kind ninja_evaluation_snapshot
+  --accept-new-kind ninja_evaluation_snapshot \
+  --accept-append-only-change vehicle_odometer_reading
 # After Ghazal «حمّل S1» and matching dry-run:
 dotnet /tmp/gate-sync-release/ErpImport.dll --live --consistent --commit --counts-only \
-  # same accept flags reviewed in the dry-run
+  # same accept flags reviewed in the dry-run (include append-only only when dry-run required it)
 ```
 
 Expected order of magnitude (from A3 first commit S1): ~1.4k new, ~0.6k changed, hundreds rejected (assignment/rider gaps). Then no-change commit &lt; 1 min.

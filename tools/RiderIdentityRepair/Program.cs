@@ -27,7 +27,8 @@ string targetEnv=Arg("--target-env")??Path.Combine(home,"Private/gate-data/stagi
 string sourceEnv=Arg("--source-env")??Path.Combine(home,"Private/gate-data/erp-readonly.env");
 using var source=Connections.Source(Connections.Env(sourceEnv,"ERP_READONLY_DB"));source.Open();SourceReader.VerifyReadOnly(source);
 using var target=Connections.Target(targetEnv);string targetConnection=target.ConnectionString;target.Open();
-var snapshot=ConsistentSync.Read(()=>SourceReader.Read(source),out int attempts);
+// Match ErpImport --consistent: disable per-read @@DBTS refuse; ConsistentSync double-read is the stability gate.
+var snapshot=ConsistentSync.Read(()=>SourceReader.Read(source,false),out int attempts);
 var plan=ImportPlan.Build(snapshot,FinancialCore.Sponsors);
 var existing=ImportExecutor.Target(target);
 var sourceOwners=existing.Values.Where(x=>x.S("__targetKind")=="rider"&&x.S("erpSourceId")!="")
