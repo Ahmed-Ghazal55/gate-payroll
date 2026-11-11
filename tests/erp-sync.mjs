@@ -23,6 +23,7 @@ try{
  await anon('/api/system/erp-sync',undefined,401);await admin('/api/auth/setup',{username:'syn-sync-admin',password});
  await admin('/api/users',{username:'syn-sync-accountant',password,role:'Accountant'});await other('/api/auth/login',{username:'syn-sync-accountant',password});
  const health=await (await fetch(base+'/health')).json();assert.deepEqual(health.jobs,{enabled:false,lastErpSync:null,nextErpSync:null});
+ const apiHealthResponse=await fetch(base+'/api/health');assert.equal(apiHealthResponse.status,200);assert.deepEqual(await apiHealthResponse.json(),health);
  await anon('/api/system/jobs',undefined,401);await anon('/api/system/jobs/erp-sync/dry-run',{},401);
  await other('/api/system/jobs',undefined,403);await other('/api/system/jobs/erp-sync/dry-run',{},403);
  const jobs=await admin('/api/system/jobs');assert.equal(jobs.length,6);assert.ok(jobs.every(j=>j.enabled===false));

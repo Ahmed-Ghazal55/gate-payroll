@@ -8,20 +8,37 @@ public sealed class SyncOverrides
 {
     public IReadOnlyList<string> AcceptNewKinds { get; }
     public IReadOnlyList<string> AcceptLargeChanges { get; }
-    public static SyncOverrides None { get; }=new([],[]);
-    private SyncOverrides(IEnumerable<string> newKinds,IEnumerable<string> largeChanges)
-    {AcceptNewKinds=Array.AsReadOnly(newKinds.Order(StringComparer.Ordinal).ToArray());AcceptLargeChanges=Array.AsReadOnly(largeChanges.Order(StringComparer.Ordinal).ToArray());}
-    public static SyncOverrides Named(IEnumerable<string> newKinds,IEnumerable<string> largeChanges)=>new(newKinds.Distinct(StringComparer.Ordinal),largeChanges.Distinct(StringComparer.Ordinal));
+    public bool FullResync { get; }
+    public string FullResyncReason { get; }
+    public static SyncOverrides None { get; }=new([],[],false,"");
+    private SyncOverrides(IEnumerable<string> newKinds,IEnumerable<string> largeChanges,bool fullResync,string fullResyncReason)
+    {
+        AcceptNewKinds=Array.AsReadOnly(newKinds.Order(StringComparer.Ordinal).ToArray());
+        AcceptLargeChanges=Array.AsReadOnly(largeChanges.Order(StringComparer.Ordinal).ToArray());
+        FullResync=fullResync;FullResyncReason=fullResyncReason;
+    }
+    public static SyncOverrides Named(IEnumerable<string> newKinds,IEnumerable<string> largeChanges,bool fullResync=false,string fullResyncReason="")
+    {
+        if(fullResync){var reason=fullResyncReason.Trim();if(reason.Length is <3 or >500||reason.Any(char.IsControl))throw new ImportFailure("full_resync_reason_required");}
+        return new(newKinds.Distinct(StringComparer.Ordinal),largeChanges.Distinct(StringComparer.Ordinal),fullResync,fullResync?fullResyncReason.Trim():"");
+    }
     public static SyncOverrides Parse(string[] args)
     {
         var newKinds=new HashSet<string>(StringComparer.Ordinal);var large=new HashSet<string>(StringComparer.Ordinal);
+        bool full=false;string reason="";
         for(int i=0;i<args.Length;i++)
         {
+            if(args[i]=="--full-resync")
+            {
+                full=true;
+                if(i+1>=args.Length||args[i+1].StartsWith("--",StringComparison.Ordinal))throw new ImportFailure("full_resync_reason_required");
+                reason=args[++i];continue;
+            }
             if(args[i] is not ("--accept-new-kind" or "--accept-large-change"))continue;
             string flag=args[i];if(i+1>=args.Length||!ImportPlan.Kinds.Contains(args[i+1],StringComparer.Ordinal))throw new ImportFailure("invalid_sync_override_kind");
             (flag=="--accept-new-kind"?newKinds:large).Add(args[++i]);
         }
-        return new(newKinds,large);
+        return Named(newKinds,large,full,reason);
     }
 }
 
@@ -60,10 +77,19 @@ public static class ConsistentSync
                 continue;
             }
             if(overrides.AcceptLargeChanges.Contains(row.Kind))continue;
+            // Incremental empty delta / module skip leaves the kind unread: not a source wipe.
+            if(preview.ReadMode!="full"&&after==0&&row.Source==0&&row.New==0&&row.Changed==0)continue;
+            // Open-period re-reads are intentionally partial vs the full target baseline.
+            if(preview.ReadMode!="full"&&OpenPeriodReconcileKinds.Contains(row.Kind))continue;
             if(before-after>Math.Max(before*0.02m,1m))throw new ImportFailure("source_count_drop_over_threshold:"+row.Kind);
             // Immutable readings can grow freely after their explicit first acceptance.
             if(row.Kind=="vehicle_odometer_reading"&&row.Changed==0)continue;
             if(changes>Math.Max(before*0.10m,5m))throw new ImportFailure("kind_changes_over_threshold:"+row.Kind);
         }
     }
+    static readonly HashSet<string> OpenPeriodReconcileKinds=new(StringComparer.Ordinal)
+    {
+        "chefz_daily","chefz_settlement","chefz_order_row","ninja_daily","ninja_daily_deduction",
+        "housing_residence","jahez_transaction","platform_day_usage"
+    };
 }

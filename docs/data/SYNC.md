@@ -1,5 +1,49 @@
 # ERP → payroll database sync
 
+## R11 timing (T1 baseline, 2026-11-09)
+
+Every summary and private live run log now carries `phases`: `readMs`, `planMs`, `writeMs`, `rptRefreshMs`, `totalMs` (integers, counts only).
+
+Baseline dry-run against read-only ERP → staging target (`--live --consistent --dry-run --counts-only`), no commit:
+
+| metric | value |
+|---|---|
+| wall clock | 865 328 ms (~14.4 min) |
+| status | refused (`source_identity_changed_requires_review`) during compare |
+| consistent attempts | 1 (double-read matched) |
+| notes | First instrumented run exited before phases were attached to `lastSummary`; refusal path now captures phases. Target: no-change &lt; 1 min; typical daily a few minutes. |
+
+### After T2/T3 local target (R11-FIX1, 2026-11-09)
+
+Measured `--live --consistent --commit --counts-only` against read-only ERP into a **local** SQL Server catalog named `db77738` (not MonsterASP; private `--target-env` only). Watermarks seed on commit. Open-period modules (+ workforce FK parents) stay readable; other DatasetVersions modules skip.
+
+| run | wall | readMs | planMs | writeMs | rptRefreshMs | totalMs | notes |
+|---|---:|---:|---:|---:|---:|---:|---|
+| (a) first commit (empty local target, `--accept-new-kind` ×42) | 183.3 s | 41885 | 1082 | 139156 | 0 | 182123 | full read; committed |
+| (b) follow-up commit | 40.9 s | 16984 | 1483 | 18609 | 0 | 37076 | open_period_mix; 18 tables skipped; 27 `rider_work_timeline` updates |
+| (b′) clean no-change commit | 55.8 s | 31918 | 1246 | 17005 | 0 | 50169 | 0 new / 0 changed; under 1 minute (beats ~14.4 min baseline) |
+
+Code path: contentHash compare, 2 000-row `ErpMirrorWrite` batches, DatasetVersions skip, RowVersion upper bound (only when the column exists), open-period soft reconcile without false parent-empty drops.
+
+Design: [R11-DESIGN.md](R11-DESIGN.md).
+
+### R11 incremental reads (T2)
+
+After the first successful commit, the target stores watermarks in `sync.SourceWatermarks` (SQLite: `sync_source_watermarks`). Later runs:
+
+- skip modules whose `app.DatasetVersions` row is unchanged;
+- read Auditable/Temporal tables with `RowVersion > last AND RowVersion < MIN_ACTIVE_ROWVERSION()` (one upper bound per run; no double full read);
+- re-read open periods (current + previous Riyadh month) for hard-delete/edit-in-place tables and soft-mark missing target rows (`sourceDeleted`, never hard delete);
+- accept `--full-resync <reason>` (admin API: `fullResync` + `reason`) as the only full-table read path once watermarks exist.
+
+### R11 fast write (T3)
+
+- Each ERP mirror body stores `contentHash` (SHA-256 of canonical JSON without volatile fields). Compare uses the hash; DeepEquals remains only for HS approved facts and append-only odometer readings.
+- Commits run in batches of 2 000 under `GatePayroll.ErpMirrorWrite` (not one global document lock for the whole run).
+- One `erp.import.run` audit per commit plus compact `erp_sync_change` rows (record id, op, old/new hash) — not one full audit body per record.
+- Child nesting in ImportPlan/PullContracts uses parent-keyed dictionaries (no quadratic scans).
+- Hosted sync turns MARS off on the target connection (same as the CLI importer).
+
 The selected workflow is [manual ERP sync with startup catch-up and optional daily Hangfire execution](../ops/HANGFIRE.md), disabled by default. There is no three-hour recurrence or active VPS. The old systemd files remain disabled; VPS guidance is historical/optional and requires a new explicit decision. Manual CLI acceptance remains unchanged. Hosted dry-runs record counts-only payroll database telemetry; CLI dry-runs remain private-file-only.
 
 The importer accepts `--live --consistent --dry-run` and `--live --consistent --commit`. Source and target credentials are read internally from their private env files; the only accepted target remains payroll database db77738. Any other target database is rejected. A live commit without `--consistent` is refused. A new ERP load requires Ghazal's «حمّل» after its dry-run; the certificate-load approval does not enable scheduling.

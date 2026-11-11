@@ -85,4 +85,26 @@ public sealed class ChefzOperationsTests
         var view=f.Store.Read(c=>ChefzOperations.View(c,viewer,Input()));Assert.IsFalse(view.B("canUseInCycle"));Assert.AreEqual(1m,view["counts"]!.N("deletedIgnored"));Assert.IsTrue(view["notes"]!.AsArray().Any(n=>n.S("code")=="erp_expected_differs_from_final_invoice"));
         Assert.AreEqual(100m,view["review"]!["accounts"]![0]!.N("baseGross"));Assert.AreEqual(101m,f.Store.Read(c=>Store.Get(c,OperationsImportTests.InvoiceId,"platform_invoice")!.N("amountExclVat")),"read projection never replaces final invoice");
     }
+    [TestMethod]
+    [DataRow("2026-10-01","2026-10-31",31,1000,775,225,750)]
+    [DataRow("2026-10-16","2026-10-31",16,500,400,100,375)]
+    [DataRow("2026-10-31","2026-10-31",1,100,25,75,25)]
+    public void FullTimeReviewCarriesGateHalfMonthCommission(string from,string to,int days,int gross,int erpCompany,int riderAmount,int expected)
+    {
+        using var f=new PayFixture();Seed(f.Store);f.Approve("pay_terms","chefz",f.Draft("pay_terms","chefz",PayFixture.Terms()));
+        f.Store.Write((c,tx)=>{
+            var assignment=Store.Get(c,"synthetic-chefz-assignment","rider_account_assignment",tx)!;assignment["effectiveFrom"]=from;assignment["effectiveTo"]=to;Store.Save(c,"rider_account_assignment",assignment,tx);
+            var settlement=Store.Get(c,"synthetic-chefz-wallet","chefz_settlement",tx)!;settlement["periodFrom"]=from;settlement["periodTo"]=to;settlement["chargedFrom"]=from;settlement["chargedTo"]=to;settlement["assignedDays"]=days;settlement["gross"]=gross;settlement["companyAmount"]=erpCompany;settlement["riderAmount"]=riderAmount;settlement["commissionRate"]=0;settlement["dailyFee"]=25;Store.Save(c,"chefz_settlement",settlement,tx);
+            var daily=Store.Get(c,"synthetic-chefz-daily","chefz_daily",tx)!;daily["date"]=from;Store.Save(c,"chefz_daily",daily,tx);
+            var invoice=Store.Get(c,OperationsImportTests.InvoiceId,"platform_invoice",tx)!;invoice["amountExclVat"]=gross;Store.Save(c,"platform_invoice",invoice,tx);
+            var line=Store.Get(c,"synthetic-ops-line","platform_invoice_line",tx)!;line["baseGross"]=gross;Store.Save(c,"platform_invoice_line",line,tx);return true;
+        });
+        var view=f.Store.Read(c=>ChefzOperations.View(c,PayFixture.Maker,Input()));Assert.IsTrue(view.B("canUseInCycle"),view["errors"]!.ToJsonString());
+        Assert.AreEqual((decimal)expected,view["review"]!["accounts"]![0]!["riders"]![0]!.N("chefzFullTimeCommission"));
+        f.Approve("pay_setting","global",f.Global());var schemeData=PayFixture.Scheme("daily_commission");schemeData["accountingRole"]="principal";schemeData["parameters"]!["categories"]!["sponsored_private"]!["dailyCommission"]=25;var scheme=f.Approve("pay_scheme","chefz",f.Draft("pay_scheme","chefz",schemeData));
+        f.Store.Write((c,tx)=>{Store.Save(c,"pay_assignment",new(){["id"]="synthetic-chefz-choice",["rider"]=Rider,["app"]="chefz",["period"]="2026-10",["status"]="approved",["schemeId"]=scheme.S("id"),["choiceApprovedAt"]="2026-09-29T00:00:00Z"},tx);return true;});
+        var cycle=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,new(){["companyId"]=Company,["period"]="2026-10",["invoices"]=new JsonArray(view["review"]!.DeepClone())}));
+        for(int stage=1;stage<=4;stage++)cycle=f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["stage"]=stage}));
+        var payLine=f.Store.Read(c=>PayCycles.Lines(c,null,cycle.S("id")).Single());Assert.AreEqual((decimal)expected,payLine.N("companyCommission"));Assert.AreEqual(gross-expected,payLine.N("gross"));
+    }
 }

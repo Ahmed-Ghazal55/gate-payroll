@@ -2,35 +2,27 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none |
-| Branch | main (0.19.0 merged from feat/r9-payroll-money) |
-| Updated | 2026-11-08 by Claude Code |
-| Live | see `/health`; DB db77738 |
+| Current writer | (clear) |
+| Branch | release/0.20.0 |
+| Updated | 2026-11-11 by Cursor (merge readiness) |
+| Live | `/health` still 0.19.0 until merge/deploy |
+| PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/34 |
+| Tip | `811f3fd` (FIX1 `6302fc2`) — CI https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43013155795 SUCCESS / MERGEABLE CLEAN |
 
-## Goal now
-First real Ninja payroll for 2026-10 in the browser. Then Keeta September. Open items audit: `~/.agents/NEXT.md`.
+## Next step (exact)
+Ghazal: review PR checklist, then «ادمج» when ready. **Do not merge without that word.** After deploy, confirm live `/health` = 0.20.0 + preservation flags. Then identity dry-run before any «حمّل S1».
 
-## 0.19.0 (R10 + P2 + R9 web)
-- **ERP load done on db77738** (2026-11-08): 106,752 new, 382 changed, verified on the same snapshot. Audit grew to about 117k rows, one per loaded record.
-- **The importer hung on Linux** in `SqlBulkCopy` over a MARS session (seen in a stack trace); it now turns MARS off for its own connection only.
-- **Assignment bug found by the real-data rehearsal:** ERP sends `EffectiveFrom/To`, the code read `RawEffectiveFrom/To`, and every test seeded the wrong name. `AssignmentSpan` reads both.
-- **Rehearsal on a read-only copy of live data, October:** 191 of 207 accounts resolve operator and category automatically. Left: settings, scheme assignment for everyone, 13 accounts with no daily and not exactly one assignment, 2 multi-operator accounts with a proposal, 1 category. ERP data ends 24 Oct (TR) and 29 Oct (BW, EX); the invoice stays final.
-- **Payroll API:** partial approval, negative carry on `112507`, §22.9.2 floor, debt stage 8 (any debt, up to balance and net), discard unapproved invoices, fingerprint limited to the cycle's own facts.
-- **Access:** user edit dialog, role permission editor, temporary passwords, delegated `users.manage` with an escalation guard, dated self-approval exception on `ghazal` only, Supervisor role.
-- **Sync button:** administrators can accept named kinds per run with a reason; the report lists changed fields.
-- **Web:** Keeta screen, searchable selects, next-step cards, pay settings screens, stage 8, negative row decision, adjustment list, posting gate, invoice discard.
+## Merge readiness
+- MERGEABLE / CLEAN; validate SUCCESS; version `0.20.0`.
+- Cursor FIX1 review: `~/.agents/reviews/R12-FIX1-cursor.md` — ready.
+- Runbook: `docs/runbooks/RELEASE-0.20.0.md`.
 
-## Not done
-- D3 scheme assignment proposal from ERP `PaymentModel` (1 PayPerOrder, 2 Salary): use the assignments screen.
-- Custom new roles (editing existing roles works). Inline category choice and accepting a multi-operator proposal on screen: use the operations import.
-- R9 P3 ERP deductions into payroll, P6 settings gaps, P0 Keeta real parsing, P1 shared riders, P7 deduction requests, P4 Chefz, P5 Jahez. Codex resumes at P3.
-- Enabling the hosted sync on MonsterASP (`Jobs__Enabled`, `Jobs__ErpSync__Enabled`, `ConnectionStrings__ErpReadonly`): Ghazal sets them.
+## Not done / PENDING
+- Ghazal «ادمج» → deploy.
+- Hosted identity dry-run + «حمّل» slices (Part B).
+- HungerStation §38.3 still deferred (separate from this PR).
 
-## Ghazal's decision pending
-2 negative Ninja captains are on Salary, 2 are not in ERP daily. They stay blocked (`negative_ninja_salary_requires_policy`) without stopping the others.
-
-## Proposed BR text for Ghazal to send Omar (BR file untouched)
-- §24.7: «تصل الحالات المحتاجة قرارًا إلى جدول المراجعة ولا توقف اعتماد الصفوف الجاهزة. تسبق الحوافز والتعويضات والتعديلات الاعتماد النهائي. عند الاعتماد النهائي فقط يُرحّل عجز العمولة أو الفاتورة المستحق على المندوب إلى NegativeSalaryCarryover على 112507 بقيد متوازن، مع بقاء استثناء §22.9.2؛ والموجب مستحق للمندوب. يلي اعتماد الرواتب تأكيد مستقل لاستقطاع الديون ثم ملف البنك.»
-- §29: «عجز D والوقود لمندوب راتب كيتا غير المؤهل تكلفة شركة على 512121، ولا ينشئ مديونية. تسترد الخصومات الشخصية بحد الصافي الموجب؛ الباقي يظل ذمة مفتوحة دون صافي سالب أو مصروف شركة. لا يرحّل العجز الآخر قبل انتهاء المراجعة. تؤكد الأقساط بعد الرواتب لكل مندوب أو جماعيًا، من صفر إلى المستحق وبحد الصافي الموجب؛ الصفر تأجيل بلا حركة، وتحدث الذمة والقيد معًا دون تكرار.»
-- §32: «تأتي بنود الحوافز والتعويضات والتعديلات من قائمة مالية معتمدة تحدد الحساب والاتجاه. كل تعديل بسبب مكتوب وله قيد متوازن. اعتماد الصفوف الجاهزة لا يعتمد الحالات المعلقة؛ يبقى المعتمد مستقلًا عن التجهيز والمراجعة. بعد اعتماد الراتب يؤكد مراجع مستقل اختيار استقطاع الدين أو تأجيله، ولا يدخل المندوب ملف البنك قبله. التصحيح بعد الاعتماد بالعكس فقط.»
-
+## Ghazal's steps
+1. Read PR #34 merge readiness + FIX1 review.
+2. Say «ادمج» to merge (or hold).
+3. After live 0.20.0: identity dry-run, then «حمّل S1» only.

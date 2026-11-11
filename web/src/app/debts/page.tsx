@@ -49,6 +49,7 @@ import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { DebtActionsPanel } from '../../features/debts/DebtActionsPanel';
 import type {
   DebtRecord,
   ApprovalRequest,
@@ -59,7 +60,7 @@ import type {
   OrgSupervision,
 } from '../../lib/types';
 
-type TabId = 'debts' | 'advance_requests' | 'statements' | 'approvals' | 'promissory';
+type TabId = 'debts' | 'actions' | 'advance_requests' | 'statements' | 'approvals' | 'promissory';
 
 
 const LEGACY_CATEGORY_AR: Record<string, string> = {
@@ -99,6 +100,7 @@ function DebtsPageContent() {
     if (tabFromUrl === 'advance_requests') return 'advance_requests';
     if (tabFromUrl === 'statement' || tabFromUrl === 'statements') return 'statements';
     if (tabFromUrl === 'approvals') return 'approvals';
+    if (tabFromUrl === 'actions') return 'actions';
     if (tabFromUrl === 'promissory') return 'promissory';
     return 'debts';
   }, [tabFromUrl]);
@@ -947,6 +949,7 @@ function DebtsPageContent() {
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           {[
             { id: 'debts' as TabId, label: 'المديونيات والتكاليف', count: filteredDebts.length },
+            { id: 'actions' as TabId, label: 'تحصيل وإنشاء' },
             {
               id: 'advance_requests' as TabId,
               label: 'طلبات السلف (نظام الرتب)',
@@ -1081,6 +1084,10 @@ function DebtsPageContent() {
       {/* ======================================================== */}
       {/* Sub-tab 2: طلبات السلف (نظام الرتب والتوجيه BR §25)        */}
       {/* ======================================================== */}
+      {activeTab === 'actions' && (
+        <DebtActionsPanel />
+      )}
+
       {activeTab === 'advance_requests' && (
         <div className="space-y-4">
           {/* Toolbar and View Switcher */}

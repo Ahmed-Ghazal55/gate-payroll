@@ -33,6 +33,7 @@ import { ErrorState, EmptyState, Skeleton } from '../../components/ui/EmptyState
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
+import { AccountingAdjustmentsPanel } from '../../features/accounting/AccountingAdjustmentsPanel';
 import type {
   TargetCoaAccount,
   TargetCoaResponse,
@@ -57,7 +58,7 @@ const COMPANY_NAME_MAP: Record<string, string> = {
 function AccountingPageContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'coa' | 'manual_journals' | 'journals' | 'trial' | 'income'>('coa');
+  const [activeTab, setActiveTab] = useState<'coa' | 'manual_journals' | 'adjustments' | 'journals' | 'trial' | 'income'>('coa');
   const [openNewManualJournal, setOpenNewManualJournal] = useState<boolean>(false);
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
 
@@ -601,6 +602,20 @@ function AccountingPageContent() {
         <button
           type="button"
           role="tab"
+          aria-selected={activeTab === 'adjustments'}
+          onClick={() => setActiveTab('adjustments')}
+          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
+            activeTab === 'adjustments'
+              ? 'border-[var(--accent)] text-[var(--accent)]'
+              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+          }`}
+        >
+          تسويات مدا والراتب
+        </button>
+
+        <button
+          type="button"
+          role="tab"
           aria-selected={activeTab === 'journals'}
           onClick={() => setActiveTab('journals')}
           className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
@@ -738,6 +753,10 @@ function AccountingPageContent() {
       {/* ======================================================== */}
       {/* TAB: Manual Journals (BR §28)                            */}
       {/* ======================================================== */}
+      {activeTab === 'adjustments' && (
+        <AccountingAdjustmentsPanel companies={companies} />
+      )}
+
       {activeTab === 'manual_journals' && (
         <ManualJournalsPanel
           companies={companies}

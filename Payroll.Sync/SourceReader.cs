@@ -1,11 +1,12 @@
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Text.Json.Nodes;
 using Microsoft.Data.SqlClient;
 namespace ErpImport;
 
 public sealed record SourceTable(string Schema,string Name,string Fields,bool Optional=false);
-public sealed record SourceSnapshot(Dictionary<string,List<JsonObject>> Tables,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Consistency);
+public sealed record SourceSnapshot(Dictionary<string,List<JsonObject>> Tables,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Consistency,string ReadMode="full",int TablesSkipped=0,IReadOnlyDictionary<string,string>? NextWatermarks=null,IReadOnlyCollection<string>? SkippedTables=null);
 public static class SourceReader
 {
     // Explicit allowlist: final operational/financial facts; no credential versions, passwords or binary files.
@@ -42,43 +43,175 @@ public static class SourceReader
         return Convert.ToInt32(cmd.ExecuteScalar())==1;
     }
     public static SourceSnapshot Read(DbConnection connection,bool requireStableRowversion=true,CancellationToken cancellationToken=default)
+        =>Read(connection,requireStableRowversion,null,false,cancellationToken);
+    public static SourceSnapshot Read(DbConnection connection,bool requireStableRowversion,IReadOnlyDictionary<string,SourceWatermark>? watermarks,bool fullResync,CancellationToken cancellationToken=default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         DateTimeOffset started=DateTimeOffset.UtcNow;
         bool sql=connection is SqlConnection;
+        bool incremental=sql&&!fullResync&&watermarks is {Count:>0};
         byte[]? Stamp(){if(!sql)return null;using var cmd=connection.CreateCommand();cmd.CommandText="SELECT @@DBTS";return (byte[]?)cmd.ExecuteScalar();}
-        var before=requireStableRowversion?Stamp():null;
-        var tables=ReadTables(connection,Catalog,cancellationToken);
+        byte[]? UpperBound(){if(!sql)return null;using var cmd=connection.CreateCommand();cmd.CommandText="SELECT MIN_ACTIVE_ROWVERSION()";return (byte[]?)cmd.ExecuteScalar();}
+        var before=requireStableRowversion&&!incremental?Stamp():null;
+        // Always capture an upper bound on SQL so full loads can seed RowVersion watermarks; filters still apply only when incremental marks exist.
+        byte[]? upper=sql?UpperBound():null;
+        var skippedModules=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if(incremental)skippedModules=UnchangedModules(connection,watermarks!,cancellationToken);
+        var next=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+        var skippedTables=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var tables=ReadTables(connection,Catalog,cancellationToken,incremental?watermarks:null,upper,skippedModules,next,skippedTables);
         HsFactsSource.Read(connection,tables,cancellationToken);
-        var after=requireStableRowversion?Stamp():null;
+        var after=requireStableRowversion&&!incremental?Stamp():null;
         if(before!=null&&after!=null&&!before.SequenceEqual(after))throw new ImportFailure("source_changed_during_read");
-        return new(tables,started,DateTimeOffset.UtcNow,sql?(connection.Database=="erp_copy"?"local_read_only_copy":"read_committed_database_rowversion_stable"):"synthetic_sqlite");
+        if(upper!=null)next["__rowversion_upper"]=Convert.ToHexString(upper);
+        string consistency=incremental?"incremental_rowversion_upper_bound":sql?(connection.Database=="erp_copy"?"local_read_only_copy":"read_committed_database_rowversion_stable"):"synthetic_sqlite";
+        string mode=!incremental?"full":tables.Count==0?"incremental":"open_period_mix";
+        if(incremental&&skippedModules.Count==0&&!Catalog.Any(t=>SourceReadProfiles.For(t.Schema,t.Name)?.HardDeleteReconcile==true))mode="incremental";
+        return new(tables,started,DateTimeOffset.UtcNow,consistency,mode,skippedTables.Count,next,skippedTables);
     }
-    internal static Dictionary<string,List<JsonObject>> ReadTables(DbConnection connection,IReadOnlyList<SourceTable> catalog,CancellationToken cancellationToken=default)
+    static HashSet<string> UnchangedModules(DbConnection connection,IReadOnlyDictionary<string,SourceWatermark> watermarks,CancellationToken cancellationToken)
+    {
+        var skipped=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if(!OptionalAvailable(connection,new("app","DatasetVersions","Id ModuleKey Version LastChangedAtUtc IsDeleted",true),cancellationToken))return skipped;
+        // Modules that own open-period / hard-delete reconcile tables must keep their parents readable.
+        var mustRead=OpenPeriodModules();
+        using var cmd=connection.CreateCommand();using var cancel=SyncCancellation.Register(cmd,cancellationToken);
+        cmd.CommandText="SELECT [ModuleKey],[Version] FROM [app].[DatasetVersions] WHERE [IsDeleted]=0";
+        using var reader=cmd.ExecuteReader();
+        while(reader.Read())
+        {
+            string module=reader.GetString(0);long version=Convert.ToInt64(reader.GetValue(1),CultureInfo.InvariantCulture);
+            string key="dataset:"+module;
+            if(mustRead.Contains(module))continue;
+            if(watermarks.TryGetValue(key,out var mark)&&mark.ColumnKind=="dataset_version"&&mark.LastValue==version.ToString(CultureInfo.InvariantCulture))
+                skipped.Add(module);
+        }
+        return skipped;
+    }
+    static HashSet<string> OpenPeriodModules()
+    {
+        var modules=SourceReadProfiles.All
+            .Where(p=>p.Module!=null&&(p.ColumnKind==SourceColumnKind.OpenPeriod||p.HardDeleteReconcile))
+            .Select(p=>p.Module!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Open-period plans resolve company/rider/city FKs from workforce parents.
+        if(modules.Count>0)modules.Add("workforce");
+        return modules;
+    }
+    internal static Dictionary<string,List<JsonObject>> ReadTables(DbConnection connection,IReadOnlyList<SourceTable> catalog,CancellationToken cancellationToken=default,IReadOnlyDictionary<string,SourceWatermark>? watermarks=null,byte[]? rowversionUpper=null,HashSet<string>? skippedModules=null,Dictionary<string,string>? nextWatermarks=null,HashSet<string>? skippedTables=null)
     {
         bool sql=connection is SqlConnection;
         var tables=new Dictionary<string,List<JsonObject>>(StringComparer.Ordinal);
+        var columns=new Dictionary<string,HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var openPeriodModules=OpenPeriodModules();
+        var (periodFrom,periodTo)=SourceReadProfiles.OpenPeriodWindow(DateTimeOffset.UtcNow);
         foreach(var table in catalog)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if(table.Optional&&!OptionalAvailable(connection,table,cancellationToken))continue;
+            var profile=SourceReadProfiles.For(table.Schema,table.Name);
+            if(skippedModules!=null&&profile?.Module!=null&&skippedModules.Contains(profile.Module)&&profile.ColumnKind!=SourceColumnKind.OpenPeriod&&!profile.HardDeleteReconcile)
+            {skippedTables?.Add(table.Name);continue;}
             using var cmd=connection.CreateCommand();using var cancel=SyncCancellation.Register(cmd,cancellationToken);cmd.CommandTimeout=120;
-            cmd.CommandText=$"SELECT {string.Join(',',table.Fields.Split(' ').Select(f=>"["+f+"]"))} FROM {(sql?"["+table.Schema+"].":"")}[{table.Name}] ORDER BY [Id]";
+            string from=sql?"["+table.Schema+"].["+table.Name+"]":"["+table.Name+"]";
+            string select=string.Join(',',table.Fields.Split(' ').Select(f=>"["+f+"]"));
+            string where="";
+            bool hasRowVersion=sql&&profile?.ColumnKind==SourceColumnKind.RowVersion&&HasColumn(connection,table,"RowVersion",columns,cancellationToken);
+            // Seed RowVersion watermarks on full and incremental SQL reads when the column exists (never invent a filter without it).
+            if(hasRowVersion)select+=",[RowVersion]";
+            // Parents inside open-period modules must be full-read; a RowVersion delta leaves ImportPlan without relations.
+            bool forceFullModule=profile?.Module!=null&&openPeriodModules.Contains(profile.Module);
+            if(sql&&watermarks!=null&&profile!=null)
+            {
+                watermarks.TryGetValue(profile.Key,out var mark);
+                if(profile.ColumnKind==SourceColumnKind.OpenPeriod||profile.HardDeleteReconcile)
+                {
+                    string col=profile.PeriodColumn??"ReportDate";
+                    if(HasColumn(connection,table,col,columns,cancellationToken))
+                    {
+                        where=$" WHERE [{col}] >= @periodFrom AND [{col}] < @periodTo";
+                        Add(cmd,"@periodFrom",periodFrom);Add(cmd,"@periodTo",periodTo);
+                    }
+                }
+                else if(!forceFullModule&&profile.ColumnKind==SourceColumnKind.RowVersion)
+                {
+                    if(hasRowVersion&&mark!=null&&rowversionUpper!=null)
+                    {
+                        where=" WHERE [RowVersion] > @lastRv AND [RowVersion] < @upperRv";
+                        Add(cmd,"@lastRv",Convert.FromHexString(mark.LastValue));Add(cmd,"@upperRv",rowversionUpper);
+                    }
+                }
+                else if(!forceFullModule&&profile.ColumnKind==SourceColumnKind.CreatedAt&&mark!=null&&HasColumn(connection,table,"CreatedAtUtc",columns,cancellationToken))
+                {
+                    where=" WHERE [CreatedAtUtc] > @lastAt";
+                    Add(cmd,"@lastAt",DateTime.Parse(mark.LastValue,CultureInfo.InvariantCulture,DateTimeStyles.RoundtripKind));
+                }
+                else if(!forceFullModule&&profile.ColumnKind==SourceColumnKind.Id&&mark!=null)
+                {
+                    where=" WHERE [Id] > @lastId";
+                    Add(cmd,"@lastId",Guid.Parse(mark.LastValue));
+                }
+                // No watermark yet for this table: full read once, then seed.
+            }
+            cmd.CommandText=$"SELECT {select} FROM {from}{where} ORDER BY [Id]";
             using var reader=cmd.ExecuteReader(CommandBehavior.SequentialAccess);var rows=new List<JsonObject>();
+            string? maxRv=null;string? maxCreated=null;string? maxId=null;
             while(reader.Read())
             {
                 cancellationToken.ThrowIfCancellationRequested();var row=new JsonObject();
                 for(int i=0;i<reader.FieldCount;i++)
                 {
                     string field=reader.GetName(i);object? value=reader.IsDBNull(i)?null:reader.GetValue(i);
-                    row[field]=value!=null&&field is "IsDeleted" or "IsEmployee" or "IsRealRider" or "IsCurrent"?JsonValue.Create(Convert.ToBoolean(value)):Value(value);
+                    if(field=="RowVersion"&&value is byte[] rv)
+                    {
+                        string hex=Convert.ToHexString(rv);
+                        if(maxRv==null||string.CompareOrdinal(hex,maxRv)>0)maxRv=hex;
+                        continue;
+                    }
+                    if(field=="CreatedAtUtc"&&value!=null)
+                    {
+                        string iso=value is DateTimeOffset dto?dto.ToString("O"):value is DateTime dt?dt.ToString("O",CultureInfo.InvariantCulture):value.ToString()!;
+                        if(maxCreated==null||string.CompareOrdinal(iso,maxCreated)>0)maxCreated=iso;
+                    }
+                    if(field=="Id"&&value!=null)maxId=value is Guid g?g.ToString("D"):value.ToString();
+                    row[field]=value!=null&&field is "IsDeleted" or "IsEmployee" or "IsRealRider" or "IsCurrent" or "Frozen"?JsonValue.Create(value is bool b?b:value is string s?s is "1" or "true" or "True":Convert.ToInt32(value)!=0):Value(value);
                 }
                 rows.Add(row);
             }
             tables.Add(table.Name,rows);
+            if(nextWatermarks!=null&&profile!=null)
+            {
+                if(profile.ColumnKind==SourceColumnKind.RowVersion)
+                {
+                    string? value=maxRv??(hasRowVersion&&rowversionUpper!=null?Convert.ToHexString(rowversionUpper):null)??watermarks?.GetValueOrDefault(profile.Key)?.LastValue;
+                    if(value!=null)nextWatermarks[profile.Key]=value;
+                }
+                else if(profile.ColumnKind==SourceColumnKind.CreatedAt&&maxCreated!=null)nextWatermarks[profile.Key]=maxCreated;
+                else if((profile.ColumnKind==SourceColumnKind.Id||profile.ColumnKind==SourceColumnKind.OpenPeriod)&&maxId!=null)nextWatermarks[profile.Key]=maxId;
+            }
         }
         return tables;
     }
+    static void Add(DbCommand cmd,string name,object value){var p=cmd.CreateParameter();p.ParameterName=name;p.Value=value;cmd.Parameters.Add(p);}
+    static bool HasColumn(DbConnection connection,SourceTable table,string column,Dictionary<string,HashSet<string>> cache,CancellationToken cancellationToken)
+    {
+        string key=table.Schema+"."+table.Name;
+        if(!cache.TryGetValue(key,out var fields))
+        {
+            fields=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using var cmd=connection.CreateCommand();using var cancel=SyncCancellation.Register(cmd,cancellationToken);
+            if(connection is SqlConnection)
+            {
+                cmd.CommandText="SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@schema AND TABLE_NAME=@table";
+                var schema=cmd.CreateParameter();schema.ParameterName="@schema";schema.Value=table.Schema;cmd.Parameters.Add(schema);
+                var name=cmd.CreateParameter();name.ParameterName="@table";name.Value=table.Name;cmd.Parameters.Add(name);
+            }
+            else cmd.CommandText="PRAGMA table_info(["+table.Name+"])";
+            using var reader=cmd.ExecuteReader();while(reader.Read())fields.Add(reader.GetString(connection is SqlConnection?0:1));
+            cache[key]=fields;
+        }
+        return fields.Contains(column);
+    }
+    internal static bool OptionalAvailablePublic(DbConnection connection,SourceTable table,CancellationToken cancellationToken)=>OptionalAvailable(connection,table,cancellationToken);
     static bool OptionalAvailable(DbConnection connection,SourceTable table,CancellationToken cancellationToken)
     {
         var fields=new HashSet<string>(StringComparer.OrdinalIgnoreCase);

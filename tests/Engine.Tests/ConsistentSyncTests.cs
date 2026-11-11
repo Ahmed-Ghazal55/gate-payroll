@@ -36,7 +36,13 @@ public sealed class ConsistentSyncTests
         calls=0;Assert.ThrowsExactly<ImportFailure>(()=>ConsistentSync.Read(()=>Snapshot(++calls),out _));Assert.AreEqual(6,calls);
     }
     static Dictionary<string,JsonObject> Existing(int n,string kind="rider")=>Enumerable.Range(0,n).ToDictionary(i=>"synthetic-"+i,i=>new JsonObject{["id"]="synthetic-"+i,["__targetKind"]=kind,["erpSource"]=kind,["erpSourceId"]="source-"+i});
-    static ImportSummary Summary(int added,int changed,int unchanged,string kind="rider")=>new(DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,"synthetic",false,[new(kind,added+changed+unchanged,added,changed,unchanged,0,100)],[],[],[],[]);
+    static ImportSummary Summary(int added,int changed,int unchanged,string kind="rider")=>new(DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,"synthetic",false,[new(kind,added+changed+unchanged,added,changed,unchanged,0,100)],[],[],[],[]){Phases=new SyncPhaseTiming(11,22,33,0)};
+    [TestMethod]
+    public void SyncStopwatchAccumulatesNamedPhases()
+    {
+        var timing=new SyncStopwatch();System.Threading.Thread.Sleep(5);timing.AddRead();System.Threading.Thread.Sleep(5);timing.AddPlan();timing.AddWrite();timing.AddRptRefresh();
+        var snap=timing.Snapshot();Assert.IsTrue(snap.ReadMs>=0&&snap.PlanMs>=0);Assert.AreEqual(snap.TotalMs,snap.ReadMs+snap.PlanMs+snap.WriteMs+snap.RptRefreshMs);
+    }
     [TestMethod]
     public void CountAndChangeThresholdsAreInclusiveAndManualRecordsAreExcluded()
     {
@@ -107,7 +113,7 @@ public sealed class ConsistentSyncTests
             var options=SyncOverrides.Parse(["--accept-new-kind","city","--accept-large-change","rider"]);
             SyncRunLog.Write(directory,"completed",Summary(0,0,100),1,overrides:options);SyncRunLog.Write(directory,"refused",null,3,"source_inconsistent_after_three_attempts",options);
             Assert.AreEqual(2,Directory.GetFiles(directory).Length);
-            foreach(string path in Directory.GetFiles(directory)){var json=JsonNode.Parse(File.ReadAllText(path))!.AsObject();Assert.IsFalse(json.ContainsKey("rows"));Assert.IsFalse(json.ContainsKey("fingerprints"));Assert.AreEqual("city",json["acceptNewKinds"]![0]!.ToString());Assert.AreEqual("rider",json["acceptLargeChanges"]![0]!.ToString());if(!OperatingSystem.IsWindows())Assert.AreEqual(UnixFileMode.UserRead|UnixFileMode.UserWrite,File.GetUnixFileMode(path));}
+            foreach(string path in Directory.GetFiles(directory)){var json=JsonNode.Parse(File.ReadAllText(path))!.AsObject();Assert.IsFalse(json.ContainsKey("rows"));Assert.IsFalse(json.ContainsKey("fingerprints"));Assert.AreEqual("city",json["acceptNewKinds"]![0]!.ToString());Assert.AreEqual("rider",json["acceptLargeChanges"]![0]!.ToString());Assert.IsTrue(json["phases"] is JsonObject phases&&phases["readMs"]!=null&&phases["planMs"]!=null&&phases["writeMs"]!=null&&phases["rptRefreshMs"]!=null&&phases["totalMs"]!=null);if(!OperatingSystem.IsWindows())Assert.AreEqual(UnixFileMode.UserRead|UnixFileMode.UserWrite,File.GetUnixFileMode(path));}
             if(!OperatingSystem.IsWindows())Assert.AreEqual(UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute,File.GetUnixFileMode(directory));
         }
         finally{Directory.Delete(directory,true);}

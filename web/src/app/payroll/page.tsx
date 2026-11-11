@@ -69,6 +69,8 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { DebtDeductionStage } from '../../features/payroll/DebtDeductionStage';
 import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
+import { ChefzReviewPanel } from '../../features/payroll/ChefzReviewPanel';
+import { ValidateGapsPanel } from '../../features/payroll/ValidateGapsPanel';
 import { PaySettingsEditorModal } from '../../features/payroll/PaySettingsEditorModal';
 import { PaySettingsCycleReview } from '../../features/payroll/PaySettingsCycleReview';
 import { RiderAssignmentsWorkspace } from '../../features/payroll/RiderAssignmentsWorkspace';
@@ -2326,6 +2328,7 @@ function PayrollPageInner() {
           {/* Case B: Ninja Settlements Tab (BR §26, §31) */}
           {selectedPlatform === 'ninja' && appSubTab === 'settlements' && (
             <div className="space-y-6">
+              <ValidateGapsPanel defaultPeriod={selectedPeriod} />
               <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} platform="ninja" />
             </div>
           )}
@@ -2337,8 +2340,22 @@ function PayrollPageInner() {
             </div>
           )}
 
+          {/* Chefz review */}
+          {(selectedPlatform === 'thechefz' || selectedPlatform === 'chefz') && appSubTab === 'settlements' && (
+            <ChefzReviewPanel />
+          )}
+
+          {/* Jahez treasury link + stub */}
+          {selectedPlatform === 'jahez' && appSubTab === 'settlements' && (
+            <div className="p-6 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-3 text-xs">
+              <p className="font-bold text-sm">جاهز: المطابقة وعمليات الخزينة في صفحة الخزينة</p>
+              <p className="text-[var(--muted)]">تقارير §37 والتحويلات والتسويات والعهدة متاحة من تبويب جاهز في الخزينة.</p>
+              <a href="/treasury/?tab=jahez" className="inline-flex px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold">فتح خزينة جاهز</a>
+            </div>
+          )}
+
           {/* Fallback for other platforms settlements */}
-          {selectedPlatform !== 'hungerstation' && selectedPlatform !== 'ninja' && selectedPlatform !== 'keeta' && appSubTab === 'settlements' && (
+          {selectedPlatform !== 'hungerstation' && selectedPlatform !== 'ninja' && selectedPlatform !== 'keeta' && selectedPlatform !== 'jahez' && selectedPlatform !== 'thechefz' && selectedPlatform !== 'chefz' && appSubTab === 'settlements' && (
             <div className="p-8 text-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--muted)]">
               تسويات وفواتير منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr} قيد التطوير والتفعيل.
             </div>
@@ -4380,19 +4397,40 @@ function PayrollPageInner() {
                       <th className="p-3 text-start">المنصة</th>
                       <th className="p-3 text-start">تاريخ السريان</th>
                       <th className="p-3 text-start">الحالة</th>
+                      <th className="p-3 text-start">إجراء</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
                     {policies.map((p) => (
                       <tr key={p.id} className="hover:bg-[var(--row-hover)] transition">
-                        <td className="p-3 font-bold text-[var(--ink)]">{p.name}</td>
+                        <td className="p-3 font-bold text-[var(--ink)]">{p.name || p.id}</td>
                         <td className="p-3 text-xs text-[var(--muted)]">{p.kind}</td>
                         <td className="p-3">{p.platform}</td>
                         <td className="p-3 font-mono text-xs">{p.effectiveFrom}</td>
                         <td className="p-3">
-                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[var(--money-pos)]/15 text-[var(--money-pos)]">
-                            معتمدة
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${p.status === 'draft' ? 'bg-[var(--warning)]/15 text-[var(--warning)]' : 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'}`}>
+                            {p.status === 'draft' ? 'مسودة' : 'معتمدة'}
                           </span>
+                        </td>
+                        <td className="p-3">
+                          {p.status === 'draft' && (isAdmin || can('pay.manage') || can('policies.approve')) && (
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-[var(--accent)]"
+                              onClick={async () => {
+                                try {
+                                  await api.approvePolicy(p.id);
+                                  toast('اعتُمدت السياسة', 'success');
+                                  const res = await api.getPolicies();
+                                  setPolicies(res || []);
+                                } catch (err: any) {
+                                  toast(err.message || 'تعذر اعتماد السياسة', 'danger');
+                                }
+                              }}
+                            >
+                              اعتماد
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

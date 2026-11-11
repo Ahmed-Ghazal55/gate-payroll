@@ -250,7 +250,7 @@ async function run() {
   const { server, baseUrl } = await startStaticServer();
   console.log(`Serving app from ${baseUrl}`);
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH });
   const context = await browser.newContext();
   const page = await context.newPage();
 
@@ -633,6 +633,19 @@ async function run() {
       await page.waitForTimeout(150);
       console.log('    ✓ Sidebar toggles operate with single active group');
     }
+
+    // Empty rider routes must wait for an explicit selection and issue no rider-specific request.
+    const emptyRiderRequests = [];
+    const trackEmptyRiderRequest = request => {
+      if (/\/api\/(?:finance\/statement\/rider\/|riders\/[^/]+\/profile-360)/.test(request.url())) emptyRiderRequests.push(request.url());
+    };
+    page.on('request', trackEmptyRiderRequest);
+    await page.goto(`${baseUrl}/riders/statement/`);await page.waitForLoadState('networkidle');
+    await page.getByText('أدخل رقم الإقامة واستعرض كشف الحساب').waitFor();
+    await page.goto(`${baseUrl}/riders/?tab=360`);await page.waitForLoadState('networkidle');
+    await page.getByText('ابحث برقم الإقامة لاستعراض الملف 360°').waitFor();
+    page.off('request', trackEmptyRiderRequest);
+    assert.deepEqual(emptyRiderRequests, [], 'Empty rider routes must not request a placeholder rider');
 
     // =========================================================================
     // Test (c): Last row's menu is visible inside viewport (opens upward near bottom)

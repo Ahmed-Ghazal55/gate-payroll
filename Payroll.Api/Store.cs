@@ -60,7 +60,8 @@ public sealed partial class Store
     }
     // WAL allows independent reads while a write transaction is open.
     public T Read<T>(Func<DbConnection, T> action) { using var c = Open(); return action(c); }
-    public T Write<T>(Func<DbConnection, DbTransaction, T> action, bool invalidateSummaries = true,CancellationToken cancellationToken=default)
+    public const string DocumentLock="GatePayroll.DocumentWrite",ErpMirrorLock="GatePayroll.ErpMirrorWrite";
+    public T Write<T>(Func<DbConnection, DbTransaction, T> action, bool invalidateSummaries = true,CancellationToken cancellationToken=default,string? lockResource=null)
     {
         while(!Monitor.TryEnter(writeGate,100))cancellationToken.ThrowIfCancellationRequested();
         try
@@ -70,8 +71,10 @@ public sealed partial class Store
             cancellationToken.ThrowIfCancellationRequested();using var tx = c.BeginTransaction(IsolationLevel.Serializable);
             if (Provider == "mssql")
             {
+                string resource=string.IsNullOrWhiteSpace(lockResource)?DocumentLock:lockResource;
                 using var guard = c.CreateCommand(); guard.Transaction = tx;
-                guard.CommandText = "DECLARE @result int; EXEC @result=sp_getapplock @Resource='GatePayroll.DocumentWrite',@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000; IF @result < 0 THROW 51000,'Payroll transaction busy',1;";
+                guard.CommandText = "DECLARE @result int; EXEC @result=sp_getapplock @Resource=@resource,@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000; IF @result < 0 THROW 51000,'Payroll transaction busy',1;";
+                var p=guard.CreateParameter();p.ParameterName="@resource";p.Value=resource;guard.Parameters.Add(p);
                 guard.ExecuteNonQuery();
             }
             var result = action(c, tx); cancellationToken.ThrowIfCancellationRequested();tx.Commit(); if (invalidateSummaries) Interlocked.Increment(ref revision); return result;

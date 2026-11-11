@@ -16,7 +16,8 @@ public static partial class PayCycles
             if(state=="partially_approved"&&manage)actions.Add("review");
             if(batch.Count==0)blockers.Add("لا توجد صفوف مراجعة جاهزة للاعتماد.");
             if(!approve)blockers.Add("صلاحية pay.approve مطلوبة.");
-            bool independent=AccessPolicy.Independent(actor,cycle.S("createdBy"),"pay.salary_approved")&&Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation"))&&batch.Any(r=>IndependentReview(actor,r));
+            // Pass c so §35 ActiveBypassGrant is visible in allowedActions (claims alone no longer carry dated exceptions).
+            bool independent=AccessPolicy.Independent(actor,cycle.S("createdBy"),"pay.salary_approved",c,tx,cycle)&&Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation",c,tx,cycle))&&batch.Any(r=>IndependentReview(actor,r,c,tx,cycle));
             if(!independent)blockers.Add("اعتماد الراتب يحتاج مستخدمًا مستقلًا عن التجهيز والمراجعة.");
             foreach(string app in Accounts(cycle).Select(a=>a.App).Distinct())try{PlatformPosting.Demand(c,app,tx);}catch(ApiError){blockers.Add("بوابة الترحيل مغلقة: "+app);}
             if(approve&&independent&&batch.Count>0&&blockers.Count==0)actions.Add("approve_salaries");
@@ -24,7 +25,7 @@ public static partial class PayCycles
         if(state is "approved" or "partially_approved")
         {
             if(manage)actions.Add("review_debt_deductions");
-            if(approve&&Rows(cycle["riders"]).OfType<JsonObject>().Any(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed"&&AccessPolicy.Independent(actor,r.S("debtSelectedBy",cycle.S("createdBy")),"pay.debt_confirm")))actions.Add("confirm_debt_deductions");
+            if(approve&&Rows(cycle["riders"]).OfType<JsonObject>().Any(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed"&&AccessPolicy.Independent(actor,r.S("debtSelectedBy",cycle.S("createdBy")),"pay.debt_confirm",c,tx,cycle)))actions.Add("confirm_debt_deductions");
             if(manage)actions.Add("reversal_request");
         }
         result["allowedActions"]=actions;result["approvalBlockers"]=blockers;return result;

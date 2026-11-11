@@ -60,6 +60,7 @@ docs/data/*
 !docs/data/RECONCILE-2026-11-03.md
 
 !docs/data/SYNC.md
+!docs/data/R11-DESIGN.md
 
 !docs/data/debt-sheet-mapping.v1.json
 !docs/data/DEBT-SHEET.md

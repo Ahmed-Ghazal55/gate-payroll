@@ -25,6 +25,9 @@ import type {
   FinanceAccount,
   FinanceJournal,
   BankPayrollFilePreview,
+  ApprovalBypassGrant,
+  ValidateGapsReport,
+  JahezReconciliationDoc,
   DebtRecord,
   ApprovalRequest,
   PromissoryNote,
@@ -670,6 +673,50 @@ export function normalizeDebt(r: Record<string, unknown>): DebtRecord {
   };
 }
 
+
+function normalizeBankPayrollPreview(raw: Record<string, unknown>, periodFallback: string): BankPayrollFilePreview {
+  const rows = Array.isArray(raw.rows) ? (raw.rows as Array<Record<string, unknown>>) : Array.isArray(raw.records) ? (raw.records as Array<Record<string, unknown>>) : [];
+  const excluded = Array.isArray(raw.excludedRows) ? (raw.excludedRows as Array<Record<string, unknown>>) : [];
+  const records = rows.map((r) => {
+    const errors = Array.isArray(r.errors) ? (r.errors as string[]) : [];
+    const amount = num(r.amount);
+    return {
+      riderIqama: String(r.iqama ?? r.riderIqama ?? ''),
+      riderName: String(r.name ?? r.riderName ?? ''),
+      iban: String(r.iban ?? ''),
+      bankName: String(r.bank ?? r.bankName ?? ''),
+      amount,
+      notes: String(r.notes ?? ''),
+      address: String(r.address ?? ''),
+      errors,
+      status: errors.length === 0 ? 'valid' : 'invalid_iban',
+      validationMessage: errors.join(', ') || undefined,
+      bank: String(r.bank ?? ''),
+      name: String(r.name ?? ''),
+      iqama: String(r.iqama ?? ''),
+    };
+  });
+  const totalAmount = records.reduce((s, r) => s + (Number.isFinite(r.amount) ? r.amount : 0), 0);
+  return {
+    period: String(raw.period ?? periodFallback ?? ''),
+    from: raw.from != null ? String(raw.from) : undefined,
+    to: raw.to != null ? String(raw.to) : undefined,
+    companyId: raw.companyId != null ? String(raw.companyId) : undefined,
+    sponsorId: raw.sponsorId != null ? String(raw.sponsorId) : undefined,
+    totalAmount,
+    validRecordsCount: records.filter((r) => r.status === 'valid').length,
+    excludedCount: excluded.length,
+    records,
+    excludedRows: excluded,
+    canExport: Boolean(raw.canExport),
+    previewToken: raw.previewToken != null ? String(raw.previewToken) : undefined,
+    comparisonOnly: Boolean(raw.comparisonOnly ?? raw.doNotSend),
+    doNotSend: Boolean(raw.doNotSend ?? raw.comparisonOnly),
+    doNotSendMark: raw.doNotSendMark != null ? String(raw.doNotSendMark) : undefined,
+    basis: raw.basis != null ? String(raw.basis) : undefined,
+  };
+}
+
 export const api = {
   // Auth
   getAuthStatus: () => handleRequest<{ needsSetup: boolean; environment: string }>('/auth/status'),
@@ -962,13 +1009,34 @@ export const api = {
     return handleRequest<FinanceJournal[]>(`/finance/journals${qs}`);
   },
 
-  previewBankFile: (input: { period: string; sponsorId?: string }) =>
-    handleRequest<BankPayrollFilePreview>('/finance/bank-file/preview', {
+  previewBankFile: async (input: {
+    period?: string;
+    from?: string;
+    to?: string;
+    sponsorId?: string;
+    comparisonOnly?: boolean;
+    doNotSend?: boolean;
+    mode?: string;
+  }) => {
+    const raw = await handleRequest<Record<string, unknown>>('/finance/bank-file/preview', {
       method: 'POST',
       body: JSON.stringify(input),
-    }),
+    });
+    return normalizeBankPayrollPreview(raw, input.period || String(raw.from || ''));
+  },
 
-  exportBankFile: async (input: { period: string; sponsorId?: string }) => {
+  exportBankFile: async (input: {
+    period?: string;
+    from?: string;
+    to?: string;
+    sponsorId?: string;
+    comparisonOnly?: boolean;
+    doNotSend?: boolean;
+    mode?: string;
+    previewToken?: string;
+    rows?: Array<Record<string, unknown>>;
+    confirmBankCode40?: boolean;
+  }) => {
     if (isMock) {
       return new Blob(['Mock Bank CSV File'], { type: 'text/csv' });
     }
@@ -1433,10 +1501,20 @@ export const api = {
     return handleRequest<OrgResponsibleUser[]>(`/org/responsible?${q.toString()}`);
   },
   getHealth: () => handleRequest<{ ok: boolean; jobs?: { enabled: boolean; lastRun?: string; nextRun?: string } }>('/health'),
-  runErpSync: (dryRun: boolean, overrides?: { acceptNewKinds: string[]; acceptLargeChanges: string[]; reason: string }) =>
+  runErpSync: (dryRun: boolean, overrides?: { acceptNewKinds?: string[]; acceptLargeChanges?: string[]; reason?: string; fullResync?: boolean }) =>
     handleRequest<{ jobId: string }>(dryRun ? '/system/jobs/erp-sync/dry-run' : '/system/jobs/erp-sync/run', {
       method: 'POST',
       body: JSON.stringify(overrides ?? {}),
+    }),
+  pauseErpSync: (reason: string) =>
+    handleRequest<{ paused: boolean }>('/system/jobs/erp-sync/pause', {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+  resumeErpSync: (reason: string) =>
+    handleRequest<{ paused: boolean }>('/system/jobs/erp-sync/resume', {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
     }),
   getErpSyncJobStatus: (jobId: string) =>
     handleRequest<ErpSyncJobStatus>(`/system/jobs/erp-sync/${encodeURIComponent(jobId)}`),
@@ -1828,4 +1906,89 @@ export const api = {
       body: JSON.stringify(payload),
     });
   },
+
+  // ==========================================
+  // R11 T8 — previously unwired endpoints
+  // ==========================================
+  getValidateGaps: (params: { companyId: string; period: string; app?: string }) => {
+    const q = new URLSearchParams({ companyId: params.companyId, period: params.period, app: params.app || 'ninja' });
+    return handleRequest<ValidateGapsReport>(`/pay/validate-gaps?${q.toString()}`);
+  },
+
+  listApprovalBypassGrants: () => handleRequest<ApprovalBypassGrant[]>('/admin/approval-bypass'),
+  grantApprovalBypass: (input: { username: string; from: string; to: string; reason: string }) =>
+    handleRequest<ApprovalBypassGrant>('/admin/approval-bypass', { method: 'POST', body: JSON.stringify(input) }),
+  revokeApprovalBypass: (id: string) =>
+    handleRequest<ApprovalBypassGrant>(`/admin/approval-bypass/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: '{}' }),
+
+  approvePolicy: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/policies/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+
+  reviewChefzOperations: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/pay/apps/chefz/operations/review', { method: 'POST', body: JSON.stringify(input) }),
+
+  listJahezReconciliations: () => handleRequest<JahezReconciliationDoc[]>('/finance/jahez-reconciliations'),
+  getJahezReconciliation: (id: string) =>
+    handleRequest<JahezReconciliationDoc>(`/finance/jahez-reconciliations/${encodeURIComponent(id)}`),
+  buildJahezReconciliation: (input: {
+    companyId: string; period: string; invoiceNet: number; invoiceVat: number;
+    lastTransactionDate: string; invoiceReference?: string; notes?: string;
+  }) => handleRequest<JahezReconciliationDoc>('/finance/jahez-reconciliations', { method: 'POST', body: JSON.stringify(input) }),
+  submitJahezReconciliation: (id: string) =>
+    handleRequest<JahezReconciliationDoc>(`/finance/jahez-reconciliations/${encodeURIComponent(id)}/submit`, { method: 'POST', body: '{}' }),
+  decideJahezVariance: (id: string, varianceDecision: string) =>
+    handleRequest<JahezReconciliationDoc>(`/finance/jahez-reconciliations/${encodeURIComponent(id)}/variance`, {
+      method: 'POST', body: JSON.stringify({ varianceDecision }),
+    }),
+  approveJahezReconciliation: (id: string) =>
+    handleRequest<JahezReconciliationDoc>(`/finance/jahez-reconciliations/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
+
+  jahezTransfer: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/finance/jahez-transfer', { method: 'POST', body: JSON.stringify(input) }),
+  jahezPlatformSettlement: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/finance/jahez-platform-settlement', { method: 'POST', body: JSON.stringify(input) }),
+  jahezFeeDeposit: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/finance/jahez-fee-deposit', { method: 'POST', body: JSON.stringify(input) }),
+  jahezFee: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/finance/jahez-fee', { method: 'POST', body: JSON.stringify(input) }),
+  listJahezHandovers: () => handleRequest<Array<Record<string, unknown>>>('/finance/jahez-handovers'),
+  submitJahezHandover: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/finance/jahez-handover', { method: 'POST', body: JSON.stringify(input) }),
+  confirmJahezHandover: (id: string, input: Record<string, unknown> = {}) =>
+    handleRequest<Record<string, unknown>>(`/finance/jahez-handovers/${encodeURIComponent(id)}/confirm`, { method: 'POST', body: JSON.stringify(input) }),
+  rejectJahezHandover: (id: string, input: Record<string, unknown> = {}) =>
+    handleRequest<Record<string, unknown>>(`/finance/jahez-handovers/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify(input) }),
+
+  getMadaBalance: (companyId: string) =>
+    handleRequest<{ balance: number }>(`/finance/mada/balance?companyId=${encodeURIComponent(companyId)}`),
+  postLiabilityPayment: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/finance/liability-payment', { method: 'POST', body: JSON.stringify(input) }),
+  previewLegacyCashAllocation: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/finance/legacy-cash-allocation/preview', { method: 'POST', body: JSON.stringify(input) }),
+  commitLegacyCashAllocation: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/finance/legacy-cash-allocation/commit', { method: 'POST', body: JSON.stringify(input) }),
+
+  listAccountingAdjustments: (params?: { page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<any>(`/finance/accounting-adjustments${qs}`);
+  },
+  draftAccountingAdjustment: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/finance/accounting-adjustments', { method: 'POST', body: JSON.stringify(input) }),
+  approveAccountingAdjustment: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/finance/accounting-adjustments/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
+
+  getDebtSettlements: (params?: { debtId?: string; iqama?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.debtId) q.set('debtId', params.debtId);
+    if (params?.iqama) q.set('iqama', params.iqama);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<Array<Record<string, unknown>>>(`/debts/settlements${qs}`);
+  },
+  createDebt: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/debts', { method: 'POST', body: JSON.stringify(input) }),
+  collectDebt: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/debts/${encodeURIComponent(id)}/collect`, { method: 'POST', body: JSON.stringify(input) }),
 };

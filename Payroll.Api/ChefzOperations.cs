@@ -86,7 +86,13 @@ public static class ChefzOperations
                     actualOrders=PayValues.Number(op,"orders",0,int.MaxValue);J.Need(actualOrders==decimal.Truncate(actualOrders),"عدد طلبات فعلي صحيح مطلوب.");
                 }
                 decimal baseGross=riderGroup.Sum(r=>r.N("gross")+r.N("deductions")),deduction=riderGroup.Sum(r=>r.N("deductions"));gross+=baseGross;orders=checked(orders+(int)actualOrders);
-                riders.Add(new JsonObject{["rider"]=riderGroup.Key,["orders"]=actualOrders,["baseGross"]=baseGross,["deduction"]=deduction,["category"]=category,["days"]=Math.Min(monthDays,dates[riderGroup.Key].Count),["metrics"]=(metrics.GetValueOrDefault(riderGroup.Key)??new JsonObject()).DeepClone()});
+                var active=dates.GetValueOrDefault(riderGroup.Key)??[];
+                decimal gateFt=ChefzCommission.FullTimeFeeForMonth(active,first.Year,first.Month);
+                decimal erpFt=riderGroup.Where(r=>r.N("commissionRate")==0&&r.N("dailyFee")==ChefzCommission.DailyFee).Sum(r=>r.N("companyAmount"));
+                if(erpFt>0&&erpFt!=gateFt)notes.Add(new JsonObject{["code"]="chefz_ft_fee_uses_gate_rule",["rider"]=riderGroup.Key,["erp"]=erpFt,["gate"]=gateFt});
+                var rider=new JsonObject{["rider"]=riderGroup.Key,["orders"]=actualOrders,["baseGross"]=baseGross,["deduction"]=deduction,["category"]=category,["days"]=Math.Min(monthDays,active.Count),["metrics"]=(metrics.GetValueOrDefault(riderGroup.Key)??new JsonObject()).DeepClone()};
+                if(riderGroup.Any(r=>r.N("commissionRate")==0&&r.N("dailyFee")==ChefzCommission.DailyFee))rider["chefzFullTimeCommission"]=gateFt;
+                riders.Add(rider);
             }
             // ERP GrossEarnings is after source deductions. Add those once to reconstruct pre-deduction gross;
             // bonuses already live inside GrossEarnings, never add them again as incentives.

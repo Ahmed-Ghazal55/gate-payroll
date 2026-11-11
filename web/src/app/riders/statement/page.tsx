@@ -37,7 +37,7 @@ function RiderStatementPageInner() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
 
-  const [iqama, setIqama] = useState<string>(searchParams?.get('iqama') || '2000000789');
+  const [iqama, setIqama] = useState<string>(searchParams?.get('iqama') || '');
   const [fromDate, setFromDate] = useState<string>('2026-01-01');
   const [toDate, setToDate] = useState<string>('2026-10-31');
   const [loading, setLoading] = useState<boolean>(false);
@@ -114,8 +114,6 @@ function RiderStatementPageInner() {
     if (queryIqama) {
       setIqama(queryIqama);
       fetchStatement(queryIqama);
-    } else {
-      fetchStatement('2000000789');
     }
   }, []);
 

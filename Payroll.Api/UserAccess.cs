@@ -16,6 +16,7 @@ public static class UserAccess
     public static readonly PermissionDef[] PermissionsCatalog =
     [
         new("erp.sync.run","Admin","إدارة النظام","تشغيل مزامنة ERP","تشغيل ومتابعة مزامنة ERP آمنة بالأعداد فقط دون تجاوز الحدود."),
+        new("approval.bypass_maker_checker","Admin","إدارة النظام","تجاوز شرط الشخصين","منح مؤرخ بسحب؛ يرفع شرط المجهّز ≠ المعتمد فقط مع سجل وشارة."),
         new("operations.view","Operations","العمليات","عرض العمليات","عرض العمليات وحسابات المناديب ضمن الشركة والمنصة."),
         new("pay.view","Payroll","الرواتب","عرض إطار الرواتب","عرض إعدادات التطبيقات والدورات والكشوف ضمن النطاق."),
         new("pay.manage","Payroll","الرواتب","تحضير الرواتب","إنشاء مسودات الإعدادات وتحضير الدورات دون اعتماد ذاتي."),
@@ -301,8 +302,19 @@ public static class UserAccess
             ["createdAt"] = u.S("createdAt"),
             ["lastLoginAt"] = u.S("lastLoginAt"),
             ["approvalExceptionUntil"]=u.S("approvalExceptionUntil"),["approvalExceptionReason"]=u.S("approvalExceptionReason"),
-            ["allowedActions"]=AccessPolicy.ApprovalException(Principal(u))?new JsonArray("self_approve_exception"):new JsonArray()
+            ["allowedActions"]=AccessPolicy.ApprovalException(Principal(u))?new JsonArray("self_approve_exception"):new JsonArray(),
+            ["approvalBypassBadge"]=false
         };
+    }
+    public static JsonObject PublicWithBypass(DbConnection c,DbTransaction? tx,JsonObject u)
+    {
+        var view=Public(u);var grant=AccessPolicy.ActiveBypassGrant(c,tx,u.S("username"));
+        if(grant!=null)
+        {
+            view["approvalBypassUntil"]=grant.S("to");view["approvalBypassReason"]=grant.S("reason");view["approvalBypassBadge"]=true;
+            var actions=view["allowedActions"] as JsonArray??[];if(!actions.Any(a=>a?.ToString()=="approval_bypass"))actions.Add("approval_bypass");view["allowedActions"]=actions;
+        }
+        return view;
     }
 
     public static JsonObject RiderView(JsonObject rider)

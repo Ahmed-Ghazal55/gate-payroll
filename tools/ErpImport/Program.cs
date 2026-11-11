@@ -4,8 +4,17 @@ using ErpImport;
 using Payroll;
 
 string phase="arguments";
-bool live=args.Contains("--live");int attempts=0;ImportSummary? lastSummary=null;SyncOverrides overrides=SyncOverrides.None;
+bool live=args.Contains("--live");int attempts=0;ImportSummary? lastSummary=null;SyncOverrides overrides=SyncOverrides.None;SyncStopwatch? timing=null;
 DateTimeOffset runStartedAt=DateTimeOffset.UtcNow;string runId="erp-sync:"+Guid.NewGuid().ToString("N");bool recorded=false;
+void CapturePhases()
+{
+    if(timing==null)return;
+    timing.AddWrite();timing.AddRptRefresh();
+    var phases=timing.Snapshot();
+    lastSummary=lastSummary==null
+        ?new ImportSummary(runStartedAt,DateTimeOffset.UtcNow,"partial",false,[],[],[],[],[]){Phases=phases}
+        :lastSummary with{Phases=phases};
+}
 string? Arg(string name)=>args.SkipWhile(a=>a!=name).Skip(1).FirstOrDefault();
 bool Log(string status,string? code=null)
 {
@@ -33,7 +42,7 @@ try
 {
     if(args.Contains("--help"))
     {
-        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--counts-only] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON [--review-through-six] [--lookup-riders] [--lookup-erp-history] [--verify] [--preview-fingerprint SHA256] [--after-db-move]]");return 0;
+        Console.WriteLine("ErpImport [--source-env FILE | --source LOCAL_CONNECTION | --local-copy | --companies-input FILE] [--target-env FILE] [--dry-run | --commit] [--live --consistent] [--full-resync REASON] [--accept-new-kind KIND]... [--accept-large-change KIND]... [--report COUNTS_JSON] [--counts-only] [--schema METADATA_JSON | --target-schema METADATA_JSON | --source-capabilities] [--debt-sheet XLSX --deductions XLSX --mapping JSON [--review-through-six] [--lookup-riders] [--lookup-erp-history] [--verify] [--preview-fingerprint SHA256] [--after-db-move]]");return 0;
     }
     overrides=SyncOverrides.Parse(args);
     if(args.Contains("--commit")&&args.Contains("--dry-run"))throw new ImportFailure("conflicting_modes");
@@ -152,34 +161,63 @@ try
     // Dry-run opens only read connections: never construct Store until --commit.
     phase="reading_target";
     using var targetRead=Connections.Target(targetEnv);string targetConnection=targetRead.ConnectionString;targetRead.Open();var existing=ImportExecutor.Target(targetRead);
+    SourceWatermarks.Ensure(targetRead);var watermarks=SourceWatermarks.Load(targetRead);
     phase="reading_source";
+    timing=new SyncStopwatch();
     if(source.Database!="erp_copy"&&args.Contains("--commit")&&!args.Contains("--consistent"))throw new ImportFailure("live_commit_requires_consistent");
-    var snapshot=args.Contains("--consistent")?ConsistentSync.Read(()=>SourceReader.Read(source,false),out attempts):SourceReader.Read(source);
+    bool useIncremental=!overrides.FullResync&&watermarks.Count>0&&source is Microsoft.Data.SqlClient.SqlConnection;
+    SourceSnapshot snapshot;
+    if(useIncremental){attempts=1;snapshot=SourceReader.Read(source,false,watermarks,false);}
+    else snapshot=args.Contains("--consistent")?ConsistentSync.Read(()=>SourceReader.Read(source,false,null,overrides.FullResync),out attempts):SourceReader.Read(source,true,null,overrides.FullResync);
+    timing.AddRead();
+    phase="building_plan";
     var plan=ImportPlan.Build(snapshot,FinancialCore.Sponsors);
-    lastSummary=ImportExecutor.Run(snapshot,plan,existing);
+    foreach(var missing in OpenPeriodReconcile.MissingAsSoftDeleted(snapshot,plan,existing))plan.Documents.Add(missing);
+    timing.AddPlan();
+    phase="comparing_target";
+    lastSummary=ImportExecutor.Run(snapshot,plan,existing) with{ReadMode=snapshot.ReadMode,TablesSkipped=snapshot.TablesSkipped};
     if(live||args.Contains("--consistent"))ConsistentSync.Validate(lastSummary,existing,overrides);
     Store? targetStore=null;
     phase="initializing_target_store";
     // Managed SNI on Linux can hang forever in SqlBulkCopy over a MARS session; the importer never needs MARS.
     if(args.Contains("--commit"))targetStore=new Store(Path.Combine(home,"Private/gate-data/erp/staging-import-runtime"),new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(targetConnection){MultipleActiveResultSets=false}.ConnectionString);
     phase="saving_or_comparing";
-    var summary=ImportExecutor.Run(snapshot,plan,existing,targetStore);lastSummary=summary;
-    string json=JsonSerializer.Serialize(args.Contains("--counts-only")?summary with{Totals=[]}:summary,new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});
+    var summary=ImportExecutor.Run(snapshot,plan,existing,targetStore);
     // This type contains only aggregate counts, timestamps, table names and fixed reason codes.
     if(targetStore!=null)
     {
         phase="verifying_saved_snapshot";
         var verification=ImportExecutor.Run(snapshot,plan,targetStore.Read(ImportExecutor.Target));
-        var payload=System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        if(verification.Counts.Any(c=>c.New+c.Changed!=0)){timing.AddWrite();timing.AddRptRefresh();lastSummary=summary with{Phases=timing.Snapshot()};throw new ImportFailure("post_load_idempotency_failed");}
+        timing.AddWrite();
+        // rpt refresh is wired in T3; keep the phase slot so baselines stay comparable.
+        timing.AddRptRefresh();
+        summary=summary with{Phases=timing.Snapshot(),ReadMode=snapshot.ReadMode,TablesSkipped=snapshot.TablesSkipped};lastSummary=summary;
+        phase="saving_watermarks";
+        targetStore.Write((c,tx)=>
+        {
+            var next=new Dictionary<string,string>(snapshot.NextWatermarks??new Dictionary<string,string>(),StringComparer.OrdinalIgnoreCase);
+            foreach(var ds in SourceWatermarks.ReadDatasetVersions(source,runId,DateTimeOffset.UtcNow))next[ds.TableName]=ds.LastValue;
+            SourceWatermarks.Save(c,tx,SourceWatermarks.FromNext(next,runId,DateTimeOffset.UtcNow,watermarks));
+            return true;
+        });
+        string verifiedJson=JsonSerializer.Serialize(args.Contains("--counts-only")?summary with{Totals=[]}:summary,new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});
+        var payload=System.Text.Json.Nodes.JsonNode.Parse(verifiedJson)!.AsObject();
         payload["sameSnapshotVerification"]=JsonSerializer.SerializeToNode(args.Contains("--counts-only")?verification with{Totals=[]}:verification,new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        json=payload.ToJsonString(new JsonSerializerOptions{WriteIndented=true});
-        if(Arg("--report") is {} verifiedReport)File.WriteAllText(verifiedReport,json);
-        Console.WriteLine(json);
-        if(verification.Counts.Any(c=>c.New+c.Changed!=0))throw new ImportFailure("post_load_idempotency_failed");
+        verifiedJson=payload.ToJsonString(new JsonSerializerOptions{WriteIndented=true});
+        if(Arg("--report") is {} verifiedReport)File.WriteAllText(verifiedReport,verifiedJson);
+        Console.WriteLine(verifiedJson);
     }
-    else {if(Arg("--report") is {} report)File.WriteAllText(report,json);Console.WriteLine(json);}
+    else
+    {
+        timing.AddWrite();
+        timing.AddRptRefresh();
+        summary=summary with{Phases=timing.Snapshot(),ReadMode=snapshot.ReadMode,TablesSkipped=snapshot.TablesSkipped};lastSummary=summary;
+        string json=JsonSerializer.Serialize(args.Contains("--counts-only")?summary with{Totals=[]}:summary,new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true});
+        if(Arg("--report") is {} report)File.WriteAllText(report,json);Console.WriteLine(json);
+    }
     return Log("completed")?0:2;
 }
-catch(ImportFailure failure){Log("refused",failure.Code);Console.Error.WriteLine("ERROR "+failure.Code);return 2;}
-catch(Microsoft.Data.SqlClient.SqlException failure){Log("failed","sql_"+failure.Number);Console.Error.WriteLine("ERROR sql_operation_failed phase="+phase+" number="+failure.Number);return 2;}
-catch(Exception failure) {Log("failed","operation_failed");Console.Error.WriteLine("ERROR operation_failed_no_sensitive_diagnostics phase="+phase+" type="+failure.GetType().Name);return 2;}
+catch(ImportFailure failure){CapturePhases();Log("refused",failure.Code);Console.Error.WriteLine("ERROR "+failure.Code);return 2;}
+catch(Microsoft.Data.SqlClient.SqlException failure){CapturePhases();Log("failed","sql_"+failure.Number);Console.Error.WriteLine("ERROR sql_operation_failed phase="+phase+" number="+failure.Number);return 2;}
+catch(Exception failure){CapturePhases();Log("failed","operation_failed");Console.Error.WriteLine("ERROR operation_failed_no_sensitive_diagnostics phase="+phase+" type="+failure.GetType().Name);return 2;}

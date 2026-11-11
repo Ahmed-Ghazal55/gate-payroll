@@ -126,7 +126,8 @@ public static partial class PayCycles
             var source=Store.Get(c,a.S("accountId"),"platform_account",tx)!;var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();J.Need(shares.Count>0&&shares.Select(r=>r.S("rider")).Distinct().Count()==shares.Count,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
             foreach(var r in shares)
             {
-                PayValues.Fields(r,"rider","orders","baseGross","deduction","category","days","metrics","sourceLineId","operationSourceIds");
+                PayValues.Fields(r,"rider","orders","baseGross","deduction","category","days","metrics","sourceLineId","operationSourceIds","chefzFullTimeCommission");
+                if(r.ContainsKey("chefzFullTimeCommission")){J.Need(app=="chefz","عمولة دوام شيفز تخص شيفز فقط.");Money(r,"chefzFullTimeCommission");}
                 if(r.ContainsKey("sourceLineId"))J.Need(r.S("sourceLineId")==a.S("sourceLineId"),"مصدر استحقاق المندوب لا يطابق سطر الفاتورة.");
                 if(r.ContainsKey("operationSourceIds"))
                 {
@@ -152,6 +153,12 @@ public static partial class PayCycles
     public static void Map(RouteGroupBuilder api,Store store)
     {
         MapReview(api,store);
+        api.MapGet("/pay/validate-gaps",(HttpContext ctx)=>
+        {
+            string company=ctx.Request.Query["companyId"].ToString(),period=ctx.Request.Query["period"].ToString(),app=ctx.Request.Query["app"].ToString();
+            J.Need(company!=""&&period!="","الشركة والشهر مطلوبان.");if(app=="")app="ninja";
+            return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app));
+        }).WithTags("Payroll").WithSummary("Counts-only ValidateRiders gap report (no identities)");
         api.MapGet("/pay/cycles/{id}/unrecovered-costs",(string id,HttpContext ctx)=>store.Read(c=>UnrecoveredCosts(c,ctx.User,id))).WithTags("Payroll").WithSummary("Read Keeta ineligibility operating and fuel costs borne by the company");
         api.MapGet("/pay/cycles/{id}/debt-deductions",(string id,HttpContext ctx)=>store.Read(c=>DebtDeductionsView(c,null,ctx.User,id))).WithTags("Payroll").WithSummary("Review due debts after salary approval, capped by positive net");
         api.MapPost("/pay/cycles/{id}/debt-deductions",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>DebtDeductionsAct(c,tx,ctx.User,id,input))).WithTags("Payroll").WithSummary("Choose zero or a due installment and independently confirm deductions");
