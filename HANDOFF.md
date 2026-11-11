@@ -4,21 +4,25 @@
 |---|---|
 | Current writer | (clear) |
 | Branch | release/0.20.0 |
-| Updated | 2026-11-11 by Cursor (R12-FIX1 CI green) |
+| Updated | 2026-11-11 by Cursor (merge readiness) |
 | Live | `/health` still 0.19.0 until merge/deploy |
-| PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/34 (do not merge yet) |
-| Tip | `6302fc2` — CI run https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43008382062 |
+| PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/34 |
+| Tip | `b551179` (FIX1 `6302fc2`) — CI https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43009683186 |
 
 ## Next step (exact)
-Cursor one review of R12-FIX1 (`prompts` for review after green). Then Ghazal decides merge. No Part B «حمّل» until after merge + identity dry-run review.
+Ghazal: review PR checklist, then «ادمج» when ready. **Do not merge without that word.** After deploy, confirm live `/health` = 0.20.0 + preservation flags. Then identity dry-run before any «حمّل S1».
 
-## R12-FIX1 (done)
-Housing residence-day union; housing rate Arabic blocker; Chefz FT half-month amount on cycle; Jahez month-start bound; `/api/health`; statement/360 empty state; RiderIdentityRepair dry-run + runbook S1. Local matrix 508/0 + browser list + ui-qa; CI green.
+## Merge readiness
+- MERGEABLE / CLEAN; validate SUCCESS; version `0.20.0`.
+- Cursor FIX1 review: `~/.agents/reviews/R12-FIX1-cursor.md` — ready.
+- Runbook: `docs/runbooks/RELEASE-0.20.0.md`.
 
 ## Not done / PENDING
-- Cursor review of FIX1 (one round).
-- Part B hosted slices (Ghazal «حمّل»; identity tool not run on hosted).
+- Ghazal «ادمج» → deploy.
+- Hosted identity dry-run + «حمّل» slices (Part B).
+- HungerStation §38.3 still deferred (separate from this PR).
 
 ## Ghazal's steps
-1. Wait Cursor review.
-2. Merge when ready; then «حمّل S1» only after identity dry-run reviewed.
+1. Read PR #34 merge readiness + FIX1 review.
+2. Say «ادمج» to merge (or hold).
+3. After live 0.20.0: identity dry-run, then «حمّل S1» only.
