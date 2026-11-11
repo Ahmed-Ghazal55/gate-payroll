@@ -152,7 +152,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read  health */
+        /** Read health */
         get: {
             parameters: {
                 query?: never;
@@ -168,7 +168,43 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfJobsHealthAndbooleanAndstringAndstringAndbooleanAndboolean"];
+                        "application/json": unknown;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read health through the API prefix */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
                     };
                 };
             };
@@ -14264,14 +14300,6 @@ export interface components {
             count: number | string;
             batchId: null | string;
         };
-        AnonymousTypeOfJobsHealthAndbooleanAndstringAndstringAndbooleanAndboolean: {
-            jobs: components["schemas"]["JobsHealth"];
-            ok: boolean;
-            application: null | string;
-            version: null | string;
-            dataPreservationVerified: boolean;
-            releaseCheckpointPresent: boolean;
-        };
         "AnonymousTypeOfJsonArrayAndIEnumerableOfAnonymousTypeOfstringAndintAndString[]": {
             departments: components["schemas"]["JsonArray"];
             ranks: null | components["schemas"]["AnonymousTypeOfstringAndint"][];
@@ -14647,13 +14675,6 @@ export interface components {
             /** Format: int32 */
             row: number | string;
             data: components["schemas"]["JsonObject"];
-        };
-        JobsHealth: {
-            enabled: boolean;
-            /** Format: date-time */
-            lastErpSync: null | string;
-            /** Format: date-time */
-            nextErpSync: null | string;
         };
         JobView: {
             id: string;

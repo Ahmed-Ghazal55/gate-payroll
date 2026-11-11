@@ -2,29 +2,25 @@
 
 | Field | Value |
 |---|---|
-| Current writer | (none) |
+| Current writer | Cursor 2026-11-11 14:00 +03 (R12-FIX1 — push / wait CI) |
 | Branch | release/0.20.0 |
-| Updated | 2026-11-10 by Cursor (R12 Part A done) |
+| Updated | 2026-11-11 by Cursor (R12-FIX1) |
 | Live | `/health` still 0.19.0 until merge/deploy |
 | PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/34 (do not merge yet) |
 
 ## Next step (exact)
-Codex + Antigravity check Part A (`R12-codex`, `R12-antigravity`). Then Claude review / Ghazal merge decision. Part B only after «حمّل S1» etc.
+Wait CI green on the R12-FIX1 push tip. Then clear Current writer. Cursor reviews FIX1 once after green CI (separate prompt).
 
-## R12 Part A (done — local only)
-- Commit `9672d1e` — `docs/runbooks/RELEASE-0.20.0.md`
-- **CI green (workflow_dispatch):** https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/42856250080
-- A1–A6 evidence in the runbook (DB readiness, ERP map, local sync timings, S1 blockers, «حمّل» blocks).
-- Hosted blocker before sync: 1 rider identity collision (local quarantined only).
-- Clean no-change sync on local: 43s, 0 new / 0 changed.
+## R12-FIX1 (pushed locally verified)
+Items 1–7: housing union days, housing rate blocker, Chefz FT half-month amount, Jahez month start bound, `/api/health`, statement/360 empty state, RiderIdentityRepair dry-run tool + runbook S1 block.
+
+Local matrix: Engine 508/508 (SQLite+SQL 11433, 0 skipped, serial), `npm --prefix web run api:check`, `tests/r8-contract.mjs`, workflow browser list + `web/tests/ui-qa.mjs`.
 
 ## Not done / PENDING
-- Part B hosted «حمّل» slices.
-- Full browser S1 with real session + October Ninja invoice (0 on copy).
-- Resolve hosted rider identity collision before hosted sync.
-- MonsterASP Jobs / ERP readonly settings (Ghazal).
+- CI green confirmation for this tip.
+- Cursor review of FIX1 after green CI.
+- Part B hosted «حمّل» slices (needs Ghazal; identity dry-run tool not run on hosted).
 
 ## Ghazal's steps
-1. Wait Codex/Antigravity/Claude checks of Part A.
-2. Merge when ready; confirm live 0.20.0.
-3. «حمّل S1» (then S2…) one slice per message.
+1. Wait FIX1 CI green + Cursor review.
+2. Merge when ready; then «حمّل S1» only after identity dry-run reviewed.

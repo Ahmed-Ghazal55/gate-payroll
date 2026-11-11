@@ -25,21 +25,20 @@ public static class JahezReconciliation
         RefuseDuplicateActive(c,tx,sponsor.Id,period);
         decimal invoiceNet=J.Money(PayValues.Number(input,"invoiceNet",-1000000000)),invoiceVat=J.Money(PayValues.Number(input,"invoiceVat"));
         J.Need(invoiceVat>=0,"ضريبة الفاتورة غير سالبة.");
-        var cutoff=last.AddDays(1).ToDateTime(TimeOnly.MinValue,DateTimeKind.Utc);
         decimal deliveryFees=0,cashCollections=0,driverAdjustments=0,bonusesTips=0,paidOnBehalf=0,commission=0;
         var details=new JsonArray();
-        foreach(var row in Store.List(c,"jahez_transaction",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&OnOrBefore(r.S("occurredAt"),cutoff)))
+        foreach(var row in Store.List(c,"jahez_transaction",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&InRange(r.S("occurredAt"),monthStart,last)))
         {
             decimal delivery=row.N("deliveryPrice"),cash=row.N("cashAmount"),adj=row.N("driverAdjustment");
             deliveryFees=J.Money(deliveryFees+delivery);cashCollections=J.Money(cashCollections+cash);driverAdjustments=J.Money(driverAdjustments+adj);
             details.Add(Line("transaction",row.S("id"),row.S("riderId"),row.S("occurredAt"),delivery,cash,adj,0,0));
         }
-        foreach(var row in Store.List(c,"jahez_earnings_statement",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&StatementThrough(r,last)))
+        foreach(var row in Store.List(c,"jahez_earnings_statement",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&StatementInRange(r,monthStart,last)))
         {
             decimal tips=row.N("tips")+row.N("bonuses");bonusesTips=J.Money(bonusesTips+tips);
             details.Add(Line("earnings",row.S("id"),row.S("riderId"),row.S("to",row.S("from")),0,0,0,tips,0));
         }
-        foreach(var row in Store.List(c,"erp_money_movement",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&OnOrBefore(r.S("occurredAt"),cutoff)))
+        foreach(var row in Store.List(c,"erp_money_movement",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&InRange(r.S("occurredAt"),monthStart,last)))
         {
             // Payments the company made on behalf of Jahez (direction/purpose tagged in ERP).
             if(row.S("directionCode") is "2" or "Out" or "out"||row.S("purposeCode").Contains("Behalf",StringComparison.OrdinalIgnoreCase)||row.S("purposeCode").Contains("OnBehalf",StringComparison.OrdinalIgnoreCase)||row.N("dashboardDebtPaid")>0)
@@ -48,7 +47,7 @@ public static class JahezReconciliation
                 details.Add(Line("money_movement",row.S("id"),row.S("riderId"),row.S("occurredAt"),0,0,0,0,amount));
             }
         }
-        foreach(var row in Store.List(c,"erp_jahez_operation",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&OnOrBefore(r.S("executedAt"),cutoff)))
+        foreach(var row in Store.List(c,"erp_jahez_operation",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&InRange(r.S("executedAt"),monthStart,last)))
         {
             decimal fee=row.N("commission");if(fee==0)fee=row.N("calculatedCommission");commission=J.Money(commission+fee);
             details.Add(Line("operation_commission",row.S("id"),row.S("riderId"),row.S("executedAt"),0,0,0,0,0,fee));
@@ -137,16 +136,16 @@ public static class JahezReconciliation
         string account=row.S("accountId",row.S("platformAccountId"));if(account=="")return false;
         var acc=Store.Get(c,account,"platform_account",tx);return acc!=null&&acc.S("companyId")==companyId;
     }
-    static bool OnOrBefore(string occurredAt,DateTime cutoff)
+    static bool InRange(string occurredAt,DateOnly first,DateOnly last)
     {
         if(occurredAt=="")return false;
-        if(DateTimeOffset.TryParse(occurredAt,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var at))return at.UtcDateTime<cutoff;
-        if(DateOnly.TryParse(occurredAt,CultureInfo.InvariantCulture,DateTimeStyles.None,out var day))return day.ToDateTime(TimeOnly.MinValue,DateTimeKind.Utc)<cutoff;
+        if(DateTimeOffset.TryParse(occurredAt,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var at)){var timestampDay=DateOnly.FromDateTime(at.DateTime);return timestampDay>=first&&timestampDay<=last;}
+        if(DateOnly.TryParse(occurredAt,CultureInfo.InvariantCulture,DateTimeStyles.None,out var dateOnly))return dateOnly>=first&&dateOnly<=last;
         return false;
     }
-    static bool StatementThrough(JsonObject row,DateOnly last)
+    static bool StatementInRange(JsonObject row,DateOnly first,DateOnly last)
     {
-        string to=row.S("to",row.S("from"));return DateOnly.TryParse(to,CultureInfo.InvariantCulture,DateTimeStyles.None,out var end)&&end<=last;
+        string from=row.S("from"),to=row.S("to",from);return DateOnly.TryParse(from,CultureInfo.InvariantCulture,DateTimeStyles.None,out var start)&&DateOnly.TryParse(to,CultureInfo.InvariantCulture,DateTimeStyles.None,out var end)&&start>=first&&end<=last;
     }
     static JsonObject Line(string kind,string sourceId,string riderId,string at,decimal delivery,decimal cash,decimal adj,decimal tips,decimal paid,decimal commission=0)=>
         new(){["kind"]=kind,["sourceId"]=sourceId,["riderId"]=riderId,["at"]=at,["deliveryFees"]=J.Money(delivery),["cashCollections"]=J.Money(cash),["driverAdjustments"]=J.Money(adj),["bonusesTips"]=J.Money(tips),["paidOnBehalf"]=J.Money(paid),["commission"]=J.Money(commission)};

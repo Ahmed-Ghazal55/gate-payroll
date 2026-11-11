@@ -92,4 +92,23 @@ public sealed class JahezReconciliationTests
         f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="synthetic-jahez-creator-user",["username"]="synthetic-jahez-creator",["role"]="Accountant"},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-jahez-creator",["from"]=day,["to"]=day,["reason"]="§35 grant for Jahez self-approve test"});return true;});
         Assert.AreEqual("approved",f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,creator,same.S("id"))).S("status"));
     }
+    [TestMethod]
+    public void BuildExcludesRowsBeforeInvoiceMonthAcrossEverySource()
+    {
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id,account="synthetic-jahez-month-account";
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,"platform_account",new(){["id"]=account,["companyId"]=company,["platformCode"]="jahez"},tx);
+            Store.Save(c,"jahez_transaction",new(){["id"]="synthetic-september-tx",["accountId"]=account,["companyId"]=company,["occurredAt"]="2026-09-20T12:00:00Z",["deliveryPrice"]=100},tx);
+            Store.Save(c,"jahez_transaction",new(){["id"]="synthetic-october-tx",["accountId"]=account,["companyId"]=company,["occurredAt"]="2026-10-10T12:00:00Z",["deliveryPrice"]=500},tx);
+            Store.Save(c,"erp_money_movement",new(){["id"]="synthetic-september-money",["accountId"]=account,["companyId"]=company,["occurredAt"]="2026-09-20T12:00:00Z",["directionCode"]="Out",["amount"]=20},tx);
+            Store.Save(c,"erp_money_movement",new(){["id"]="synthetic-october-money",["accountId"]=account,["companyId"]=company,["occurredAt"]="2026-10-12T12:00:00Z",["directionCode"]="Out",["amount"]=50},tx);
+            Store.Save(c,"erp_jahez_operation",new(){["id"]="synthetic-september-op",["accountId"]=account,["companyId"]=company,["executedAt"]="2026-09-20T12:00:00Z",["commission"]=5},tx);
+            Store.Save(c,"erp_jahez_operation",new(){["id"]="synthetic-october-op",["accountId"]=account,["companyId"]=company,["executedAt"]="2026-10-11T12:00:00Z",["commission"]=15},tx);
+            Store.Save(c,"jahez_earnings_statement",new(){["id"]="synthetic-september-earnings",["accountId"]=account,["companyId"]=company,["from"]="2026-09-01",["to"]="2026-09-30",["tips"]=7},tx);
+            Store.Save(c,"jahez_earnings_statement",new(){["id"]="synthetic-october-earnings",["accountId"]=account,["companyId"]=company,["from"]="2026-10-01",["to"]="2026-10-15",["tips"]=10},tx);return true;
+        });
+        var doc=f.Store.Write((c,tx)=>JahezReconciliation.Build(c,tx,PayFixture.Maker,new(){["companyId"]=company,["period"]="2026-10",["invoiceNet"]=575,["invoiceVat"]=0,["lastTransactionDate"]="2026-10-20",["invoiceReference"]="synthetic-month-bounds"}));
+        var totals=doc["totals"]!.AsObject();Assert.AreEqual(500m,totals.N("deliveryFees"));Assert.AreEqual(50m,totals.N("paidOnBehalf"));Assert.AreEqual(15m,totals.N("commission"));Assert.AreEqual(10m,totals.N("bonusesTips"));Assert.AreEqual(575m,totals.N("expectedNet"));
+        Assert.IsFalse(doc["details"]!.AsArray().OfType<JsonObject>().Any(d=>d.S("sourceId").Contains("september")));
+    }
 }

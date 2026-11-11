@@ -65,4 +65,46 @@ public sealed class HousingChargeTests
                 cycle["riders"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("rider")==rider).N("afterCommission")+cycle["riders"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("rider")==rider).N("phase1")+cycle["riders"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("rider")==rider).N("phase2")+cycle["riders"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("rider")==rider).N("phase3"));
         }
     }
+    [TestMethod]
+    public void OverlappingResidencePeriodsCountEachCalendarDayOnce()
+    {
+        var (f,input,_)=PayCycleTests.Setup(false);using(f)
+        {
+            string rider="2000000001",company=input.S("companyId");
+            f.Store.Write((c,tx)=>{
+                Store.Save(c,"housing",new(){["id"]="synthetic-overlap-housing",["companyId"]=company},tx);
+                foreach(string id in new[]{"a","b"})Store.Save(c,"housing_residence",new(){["id"]="synthetic-overlap-"+id,["housingId"]="synthetic-overlap-housing",["riderId"]=rider,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-15"},tx);
+                return true;
+            });
+            var cycle=PayCycleTests.Through(f,input);
+            var housing=cycle["deductions"]!.AsArray().OfType<JsonObject>().Single(d=>d.S("type")=="housing"&&d.S("rider")==rider);
+            Assert.AreEqual(15m,housing.N("housingDays"));
+            Assert.AreEqual(-100m,housing.N("amount"));
+        }
+    }
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void ResidenceDaysWithZeroOrMissingMonthlyValueBlockOnlyThatRider(bool missing)
+    {
+        var (f,input,_)=PayCycleTests.Setup(false);using(f)
+        {
+            string rider="2000000001",other="2000000002",company=input.S("companyId");
+            f.Store.Write((c,tx)=>{
+                Store.Save(c,"housing",new(){["id"]="synthetic-rate-housing",["companyId"]=company},tx);
+                Store.Save(c,"housing_residence",new(){["id"]="synthetic-rate-residence",["housingId"]="synthetic-rate-housing",["riderId"]=rider,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-15"},tx);
+                foreach(var setting in Store.List(c,"pay_setting",tx).Where(s=>s.S("status")=="approved"))
+                {
+                    var values=setting["data"]!["values"]!.AsObject();if(missing)values.Remove("housingMonthly");else values["housingMonthly"]=0;Store.Save(c,"pay_setting",setting,tx);
+                }
+                return true;
+            });
+            var cycle=PayCycleTests.Through(f,input);
+            var blocked=cycle["riders"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("rider")==rider);
+            var unblocked=cycle["riders"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("rider")==other);
+            Assert.IsTrue(blocked["blockers"]!.AsArray().Any(b=>b!.ToString().Contains("قيمة السكن الشهرية")));
+            Assert.IsFalse(unblocked["blockers"]!.AsArray().Any(b=>b!.ToString().Contains("قيمة السكن الشهرية")));
+            Assert.IsFalse(cycle["deductions"]!.AsArray().OfType<JsonObject>().Any(d=>d.S("type")=="housing"&&d.S("rider")==rider));
+        }
+    }
 }

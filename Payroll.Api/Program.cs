@@ -94,7 +94,9 @@ app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensio
 app.UseRouting(); app.UseAuthorization(); app.UseRateLimiter();
 NextApp.Map(app);
 Vouchers.Map(app,store);
-app.MapGet("/health", (IJobsSchedule jobs) => new { jobs=jobs.Health(), ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent }).WithTags("Administration").WithSummary("Read  health");
+Func<IJobsSchedule,object> health=jobs=>new { jobs=jobs.Health(), ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent };
+app.MapGet("/health",health).WithTags("Administration").WithSummary("Read health");
+app.MapGet("/api/health",health).WithTags("Administration").WithSummary("Read health through the API prefix");
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName }).WithTags("Administration").WithSummary("Read auth status");
 app.MapPost("/api/auth/setup", async (JsonObject input, HttpContext ctx) =>
 {

@@ -51,7 +51,16 @@ MonsterASP setting **names only** (Ghazal sets values): `Jobs__Enabled`, `Jobs__
 | `HangFire.*` | missing | when `Jobs__Enabled=true` | keep off until ready |
 | Startup preservation | proven on local copy | `ReleaseSafety` / `dataPreservationVerified` | local open: unchanged capture |
 
-**Hosted blocker before incremental sync:** one `rider` row where `erpSourceId` maps to a different document `id` than ImportPlan (`source_identity_changed_requires_review`). Local rehearsal quarantined that one row to kind `rider_quarantine_r12` (local only). Hosted needs an explicit data decision before «حمّل».
+**Hosted blocker before incremental sync:** read-only R12-fix1 inspection found one `rider` source collision. The stored rider document exists, while the ERP-planned identity document does not. The stored profile differs from ERP in 2 fields (`iqama`, `nationality`); the old identity belongs to 0 ERP employees and the current identity belongs to 1. There are 173 top-level references: 171 active references must follow the corrected identity, while 2 audit references remain immutable. ERP is authoritative, so quarantining only the stored rider is insufficient because it detaches historical Jahez and assignment records.
+
+The guarded one-time tool derives both identities in memory from the approved read-only ERP and payroll connections; it never prints either identity. It re-keys the rider and active identity references atomically, preserves audit history, refuses any count/state drift, and requires the exact dry-run fingerprint. **It has not been run against hosted in either mode.** Run the first command only after reviewing this block. Run the second command only after Ghazal writes «حمّل S1» and the dry-run reports exactly one collision:
+
+```bash
+dotnet run --project tools/RiderIdentityRepair/RiderIdentityRepair.csproj -- --dry-run
+dotnet run --project tools/RiderIdentityRepair/RiderIdentityRepair.csproj -- --commit --preview-fingerprint <SHA256_FROM_SAME_DRY_RUN>
+```
+
+After the repair, repeat the normal S1 ERP dry-run. It must show no `source_identity_changed_requires_review` before any S1 commit.
 
 ---
 

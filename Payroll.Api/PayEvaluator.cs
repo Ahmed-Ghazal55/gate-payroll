@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 namespace Payroll;
 
-public sealed record PayFacts(string Rider,string App,string Period,string Category,int Orders,decimal PlatformGross,decimal Incentives,decimal Days,string VehicleType="private",decimal? VehicleDays=null,IReadOnlyDictionary<string,decimal?>? Metrics=null);
+public sealed record PayFacts(string Rider,string App,string Period,string Category,int Orders,decimal PlatformGross,decimal Incentives,decimal Days,string VehicleType="private",decimal? VehicleDays=null,IReadOnlyDictionary<string,decimal?>? Metrics=null,decimal? ChefzFullTimeCommission=null);
 public sealed record PayExplain(string Label,string Formula,JsonObject Inputs,decimal Amount,string Category,bool AffectsNet=true,string? AccountCode=null);
 public sealed record PayRiderShare(string Rider,int Orders,decimal BaseGross);
 public sealed record PayAllocatedShare(string Rider,int Orders,decimal BaseGross,decimal Incentive);
@@ -39,16 +39,19 @@ public static class PayEvaluator
     }
     /// <summary>BR §38.4: total rent/deduction for one vehicle never exceeds its type monthly value, even across riders.</summary>
     public static decimal CapVehicleRentTotal(decimal charged,string type,JsonObject values)=>Math.Min(Math.Max(0,charged),MonthlyVehicleRent(type,values));
-    /// <summary>Inclusive calendar overlap of a residence period with the payroll month, capped at configured month days. effectiveTo empty = open-ended.</summary>
-    public static int ResidenceDays(string effectiveFrom,string effectiveTo,string period,JsonObject values)
+    /// <summary>Inclusive calendar overlap of a residence period with the calendar month. effectiveTo empty = open-ended.</summary>
+    public static IReadOnlyList<DateOnly> ResidenceDates(string effectiveFrom,string effectiveTo,string period)
     {
         J.Period(period);var start=DateOnly.ParseExact(period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture);var endExclusive=start.AddMonths(1);
         J.Need(DateOnly.TryParse(effectiveFrom,CultureInfo.InvariantCulture,DateTimeStyles.None,out var from),"بداية الإقامة غير صالحة.");
         DateOnly toInclusive=effectiveTo==""?endExclusive.AddDays(-1):DateOnly.TryParse(effectiveTo,CultureInfo.InvariantCulture,DateTimeStyles.None,out var to)?to:throw new ApiError("نهاية الإقامة غير صالحة.");
         J.Need(toInclusive>=from,"نهاية الإقامة تسبق بدايتها.");
         int first=Math.Max(from.DayNumber,start.DayNumber),lastExclusive=Math.Min(toInclusive.DayNumber+1,endExclusive.DayNumber);
-        return Math.Min(DaysInPayrollMonth(period,values),Math.Max(0,lastExclusive-first));
+        var dates=new List<DateOnly>();for(int day=first;day<lastExclusive;day++)dates.Add(DateOnly.FromDayNumber(day));return dates;
     }
+    /// <summary>Inclusive residence days capped at configured payroll month days.</summary>
+    public static int ResidenceDays(string effectiveFrom,string effectiveTo,string period,JsonObject values)
+        =>Math.Min(DaysInPayrollMonth(period,values),ResidenceDates(effectiveFrom,effectiveTo,period).Count);
     /// <summary>BR §38.4 / §16 housing charge from residence days; monthly amount is a dated global setting. Zero days need no monthly rate (legacy settings may omit housingMonthly until residence exists).</summary>
     public static decimal HousingCharge(decimal days,string period,JsonObject values)
     {
@@ -110,8 +113,8 @@ public static class PayEvaluator
             }
             else if(!fallback&&!zero)
             {
-                fee=type switch{"daily_commission"=>p.N("dailyCommission")*days,"monthly_commission"=>p.N("monthlyCommission")*(p.B("prorate")?days/monthDays:1),"percent_of_gross" or "percent_monthly_with_vehicle"=>total*p.N("companyPercent")/100,_=>throw new ApiError("نوع نظام غير مدعوم.")};fee=Round(fee,values);earned=total-fee;
-                Line("الإجمالي قبل العمولة","platformGross + incentives",new(){["gross"]=facts.PlatformGross,["incentives"]=facts.Incentives},total,"earnings");Line("عمولة الشركة",type switch{"daily_commission"=>"dailyCommission × days","monthly_commission"=>"monthlyCommission × (prorate ? days/monthDays : 1)",_=>"gross × companyPercent /100 before deductions"},new(){["parameters"]=p.Clone(),["days"]=days,["monthDays"]=monthDays,["gross"]=total},-fee,"company_commission");
+                fee=type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>facts.ChefzFullTimeCommission.Value,"daily_commission"=>p.N("dailyCommission")*days,"monthly_commission"=>p.N("monthlyCommission")*(p.B("prorate")?days/monthDays:1),"percent_of_gross" or "percent_monthly_with_vehicle"=>total*p.N("companyPercent")/100,_=>throw new ApiError("نوع نظام غير مدعوم.")};fee=Round(fee,values);earned=total-fee;
+                Line("الإجمالي قبل العمولة","platformGross + incentives",new(){["gross"]=facts.PlatformGross,["incentives"]=facts.Incentives},total,"earnings");Line("عمولة الشركة",type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>"chefz half-month commission from reviewed operation days","daily_commission"=>"dailyCommission × days","monthly_commission"=>"monthlyCommission × (prorate ? days/monthDays : 1)",_=>"gross × companyPercent /100 before deductions"},new(){["parameters"]=p.Clone(),["days"]=days,["monthDays"]=monthDays,["gross"]=total,["chefzFullTimeCommission"]=facts.ChefzFullTimeCommission},-fee,"company_commission");
             }
             if(fallback&&!zero)
             {

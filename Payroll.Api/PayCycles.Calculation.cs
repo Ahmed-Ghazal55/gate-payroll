@@ -32,7 +32,8 @@ public static partial class PayCycles
             J.Need(!Store.List(c,"run",tx).Any(r=>r.S("iqama")==rider&&r.S("period")==period),"المندوب لديه مسير قديم لنفس الشهر؛ يلزم تسوية معتمدة قبل المسار الجديد.");
             var assignment=PayAssignments.Resolve(c,tx,rider,app,period);var scheme=Store.Get(c,assignment.S("schemeId"),"pay_scheme",tx)!;string rulesId=scheme["data"].S("eligibilitySetId");var rules=rulesId==""?null:Store.Get(c,rulesId,"pay_eligibility",tx);
             var vehicle=Vehicle(c,tx,rider,period,category,values);var metrics=(rows[0]["metrics"] as JsonObject??new()).ToDictionary(p=>p.Key,p=>(decimal?)PayValues.Number(rows[0]["metrics"]!.AsObject(),p.Key,-1000000000));
-            var result=PayEvaluator.Evaluate(new(rider,app,period,category,rows.Sum(r=>(int)r.N("orders")),rows.Sum(r=>r.N("baseGross")),rows.Sum(r=>r.N("incentive")),rows[0].N("days"),vehicle.Type,vehicle.Days,metrics),scheme,rules,global);
+            var chefzFees=rows.Where(r=>r.ContainsKey("chefzFullTimeCommission")).Select(r=>r.N("chefzFullTimeCommission")).Distinct().ToList();J.Need(chefzFees.Count<=1,"عمولة دوام شيفز متضاربة بين حسابات المندوب.");decimal? chefzFee=chefzFees.Count==1?chefzFees[0]:null;
+            var result=PayEvaluator.Evaluate(new(rider,app,period,category,rows.Sum(r=>(int)r.N("orders")),rows.Sum(r=>r.N("baseGross")),rows.Sum(r=>r.N("incentive")),rows[0].N("days"),vehicle.Type,vehicle.Days,metrics,chefzFee),scheme,rules,global);
             var doc=Json(result);doc["id"]="pay-line:"+Guid.NewGuid().ToString("N");doc["cycleId"]=cycle.S("id");doc["companyId"]=cycle.S("companyId");doc["schemeId"]=scheme.S("id");doc["schemeName"]=scheme["data"].S("name");doc["globalSettingId"]=global.S("id");doc["assignmentId"]=assignment.S("id");doc["termsId"]=PaySettings.Resolve(c,tx,"pay_terms",app,period).S("id");doc["sources"]=new JsonArray(rows.Select(r=>(JsonNode?)r.Clone()).ToArray());doc["vehicleSources"]=vehicle.Sources;doc["accountDeduction"]=rows.Sum(r=>r.N("deduction"));
             doc["vehicleType"]=vehicle.Type;Store.Save(c,LineKind,doc,tx);
         }
@@ -63,12 +64,12 @@ public static partial class PayCycles
             }
         }
     }
-    static decimal HousingForRider(DbConnection c,DbTransaction tx,string rider,string period,JsonObject values)
+    static int HousingDaysForRider(DbConnection c,DbTransaction tx,string rider,string period,JsonObject values)
     {
-        int days=0;
+        var dates=new HashSet<DateOnly>();
         foreach(var r in Store.List(c,"housing_residence",tx).Where(r=>r.S("riderId")==rider&&Overlaps(r,period,"effectiveFrom","effectiveTo")))
-            days+=PayEvaluator.ResidenceDays(r.S("effectiveFrom"),r.S("effectiveTo"),period,values);
-        return PayEvaluator.HousingCharge(Math.Min(days,PayEvaluator.DaysInPayrollMonth(period,values)),period,values);
+            dates.UnionWith(PayEvaluator.ResidenceDates(r.S("effectiveFrom"),r.S("effectiveTo"),period));
+        return Math.Min(dates.Count,PayEvaluator.DaysInPayrollMonth(period,values));
     }
     static void BuildDeductions(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)
     {
@@ -83,10 +84,18 @@ public static partial class PayCycles
         foreach(var group in lines.GroupBy(l=>l.S("rider")))
         {
             decimal rent=group.Sum(l=>l.N("allocatedVehicleCharge"));decimal available=group.Sum(l=>l.N("entitlement")-l.N("accountDeduction"))-rent;string rider=group.Key;var tags=PlatformDeductions.Categories(Store.List(c,PlatformDeductions.Kind,tx),rider,period);
-            decimal housing=HousingForRider(c,tx,rider,period,values);
+            int residenceDays=HousingDaysForRider(c,tx,rider,period,values);decimal housing=0;bool housingRateReady=residenceDays==0;
+            if(residenceDays>0)
+            {
+                try{housingRateReady=PayValues.Number(values,"housingMonthly")>0;}catch(ApiError){housingRateReady=false;}
+                if(housingRateReady)housing=PayEvaluator.HousingCharge(residenceDays,period,values);
+                else
+                {
+                    var line=group.First();Blockers(line).Add("قيمة السكن الشهرية المعتمدة مفقودة أو صفر رغم وجود أيام إقامة.");line["status"]="needs_decision";Store.Save(c,LineKind,line,tx);cycle["status"]="needs_decision";
+                }
+            }
             if(housing>0)
             {
-                int residenceDays=Math.Min(Store.List(c,"housing_residence",tx).Where(r=>r.S("riderId")==rider&&Overlaps(r,period,"effectiveFrom","effectiveTo")).Sum(r=>PayEvaluator.ResidenceDays(r.S("effectiveFrom"),r.S("effectiveTo"),period,values)),PayEvaluator.DaysInPayrollMonth(period,values));
                 deductions.Add(new JsonObject{["rider"]=rider,["category"]="HousingDeduction",["amount"]=-housing,["source"]="housing:"+rider+":"+period,["accountCode"]="112505",["type"]="housing",["phase"]=1,["order"]=50,["labelAr"]="استقطاع سكن",["housingDays"]=residenceDays});
                 available-=housing;
             }
@@ -94,7 +103,7 @@ public static partial class PayCycles
             {
                 string account=cycle["adjustmentAccounts"].S(a.S("id"));J.Need(account!="","كل تعديل يحتاج حسابًا محددًا على الشجرة الجديدة.");PayPlatforms.Active(account);J.Need(account.StartsWith(a.N("amount")>0?'5':'4'),"نوع حساب التعديل لا يطابق الإضافة أو الخصم.");var ph=a.N("amount")>0?(3,90,"تعديل راتب / حافز"):ConfigLists.Phase(c,tx,a.S("category"));deductions.Add(new JsonObject{["rider"]=rider,["category"]=a.S("category"),["amount"]=a.N("amount"),["source"]=a.S("id"),["accountCode"]=account,["type"]="adjustment",["phase"]=ph.Item1,["order"]=ph.Item2,["labelAr"]=ph.Item3});available+=a.N("amount");
             }
-            foreach(var debt in Store.List(c,"debt",tx).Where(d=>d.S("iqama")==rider&&d.S("status")=="active"&&d.N("remainingBalance")>0&&!PlatformDeductions.Skip(tags,d)&&string.CompareOrdinal(d.S("effectiveFrom","0000-00"),period)<=0&&string.CompareOrdinal(d.S("lastDeductionPeriod"),period)<0&&!(housing>0&&d.S("category")=="HousingDeduction")).OrderBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Phase).ThenBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Order).ThenBy(d=>d.S("createdAt")).ThenBy(d=>d.S("id")))
+            foreach(var debt in Store.List(c,"debt",tx).Where(d=>d.S("iqama")==rider&&d.S("status")=="active"&&d.N("remainingBalance")>0&&!PlatformDeductions.Skip(tags,d)&&string.CompareOrdinal(d.S("effectiveFrom","0000-00"),period)<=0&&string.CompareOrdinal(d.S("lastDeductionPeriod"),period)<0&&!(residenceDays>0&&d.S("category")=="HousingDeduction")).OrderBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Phase).ThenBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Order).ThenBy(d=>d.S("createdAt")).ThenBy(d=>d.S("id")))
             {
                 decimal amount=J.Money(debt.S("category")=="FuelOverage"&&debt.S("effectiveFrom")==period&&group.Any(l=>l.B("ineligibleKeetaSalary"))?debt.N("remainingBalance"):Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment")));FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);var dp=ConfigLists.Phase(c,tx,debt.S("category"));deductions.Add(new JsonObject{["rider"]=rider,["category"]="debt_installment",["debtCategory"]=debt.S("category"),["amount"]=0,["requestedAmount"]=amount,["computed"]=-amount,["source"]=debt.S("id"),["accountCode"]=account,["type"]="debt",["phase"]=dp.Phase,["order"]=dp.Order,["labelAr"]=dp.LabelAr});debtBefore.Add(debt.Clone());
             }

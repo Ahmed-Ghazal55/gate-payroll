@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:39255/"
+      "url": "http://127.0.0.1:33017/"
     }
   ],
   "paths": {
@@ -113,15 +113,31 @@
         "tags": [
           "Administration"
         ],
-        "summary": "Read  health",
+        "summary": "Read health",
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfJobsHealthAndbooleanAndstringAndstringAndbooleanAndboolean"
-                }
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Read health through the API prefix",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           }
@@ -19099,43 +19115,6 @@
           }
         }
       },
-      "AnonymousTypeOfJobsHealthAndbooleanAndstringAndstringAndbooleanAndboolean": {
-        "required": [
-          "jobs",
-          "ok",
-          "application",
-          "version",
-          "dataPreservationVerified",
-          "releaseCheckpointPresent"
-        ],
-        "type": "object",
-        "properties": {
-          "jobs": {
-            "$ref": "#/components/schemas/JobsHealth"
-          },
-          "ok": {
-            "type": "boolean"
-          },
-          "application": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "version": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "dataPreservationVerified": {
-            "type": "boolean"
-          },
-          "releaseCheckpointPresent": {
-            "type": "boolean"
-          }
-        }
-      },
       "AnonymousTypeOfJsonArrayAndIEnumerableOfAnonymousTypeOfstringAndintAndString[]": {
         "required": [
           "departments",
@@ -21108,33 +21087,6 @@
           },
           "data": {
             "$ref": "#/components/schemas/JsonObject"
-          }
-        }
-      },
-      "JobsHealth": {
-        "required": [
-          "enabled",
-          "lastErpSync",
-          "nextErpSync"
-        ],
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          },
-          "lastErpSync": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "nextErpSync": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
           }
         }
       },

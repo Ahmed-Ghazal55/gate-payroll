@@ -126,7 +126,8 @@ public static partial class PayCycles
             var source=Store.Get(c,a.S("accountId"),"platform_account",tx)!;var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();J.Need(shares.Count>0&&shares.Select(r=>r.S("rider")).Distinct().Count()==shares.Count,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
             foreach(var r in shares)
             {
-                PayValues.Fields(r,"rider","orders","baseGross","deduction","category","days","metrics","sourceLineId","operationSourceIds");
+                PayValues.Fields(r,"rider","orders","baseGross","deduction","category","days","metrics","sourceLineId","operationSourceIds","chefzFullTimeCommission");
+                if(r.ContainsKey("chefzFullTimeCommission")){J.Need(app=="chefz","عمولة دوام شيفز تخص شيفز فقط.");Money(r,"chefzFullTimeCommission");}
                 if(r.ContainsKey("sourceLineId"))J.Need(r.S("sourceLineId")==a.S("sourceLineId"),"مصدر استحقاق المندوب لا يطابق سطر الفاتورة.");
                 if(r.ContainsKey("operationSourceIds"))
                 {
