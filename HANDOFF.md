@@ -46,10 +46,12 @@
 
 Target &lt;2s mostly met; `vehicle_expense` ~2.2s on cold path (loads sponsors + vehicles for the page).
 
+## CI
+- L1 push `fb595e0`: run [43274331025](https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43274331025) **green** (validate 9m28s). Deploy steps skipped (draft PR).
+
 ## Next step (exact)
-1. Wait CI green on this push.
-2. **U1 — Antigravity:** `~/.agents/prompts/antigravity-U1-ops-live-ui.md`
-3. **S1 — Claude:** security pass on PR #36
+1. **U1 — Antigravity:** `~/.agents/prompts/antigravity-U1-ops-live-ui.md`
+2. **S1 — Claude:** security pass on PR #36 (stop here for S1)
 
 ## Do not
 - Do not write to ERP. Do not put secrets in git.
