@@ -162,9 +162,8 @@ public static class Operations
         {
             var dict=query.Keys.ToDictionary(k=>k,k=>query[k].ToString(),StringComparer.OrdinalIgnoreCase);
             var req=LiveOperationsQuery.ParseRequest(dict);
-            // Arabic/digit folding on the input only; ERP columns stay as stored (CI collation).
-            string q=req.Query.Length==0?"":TextSearch.Normalize(req.Query);
-            return req with{Query=q};
+            // Search both the typed text and its Arabic/digit-folded form; ERP columns keep the original letters.
+            return req with{QueryAlt=req.Query.Length==0?"":TextSearch.Normalize(req.Query)};
         }
         catch(ImportFailure ex) when(ex.Code=="invalid_page"){throw new ApiError("رقم الصفحة وحجمها يجب أن يكونا عددين صحيحين موجبين.");}
         catch(ImportFailure ex) when(ex.Code=="invalid_live_sort"){throw new ApiError("حقل الترتيب غير صالح.");}
@@ -174,13 +173,14 @@ public static class Operations
         bool all=FinancialScopes.AllCompanies(actor);
         var sponsors=FinancialCore.Sponsors.Where(s=>FinancialScopes.Sponsor(actor,s.Id)).ToList();
         var regs=sponsors.Select(s=>s.CommercialReg).Where(r=>r!="").Distinct(StringComparer.Ordinal).ToList();
-        var riders=Store.List(payroll,"rider").Where(r=>all||FinancialScopes.Rider(actor,r)).ToList();
+        // All-company users need no rider keys (no rider filter in SQL), so skip reading every payroll rider.
+        var riders=all?[]:Store.List(payroll,"rider").Where(r=>FinancialScopes.Rider(actor,r)).ToList();
         var employees=riders.Select(r=>r.S("erpSourceId")).Where(id=>id!="").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var profiles=riders.SelectMany(r=>(r["erpRiderProfileIds"] as JsonArray??[]).Select(n=>n?.ToString()??"")).Where(id=>id!="").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var platforms=actor.FindAll("finance.platforms").Select(c=>c.Value)
             .Select(p=>PayPlatforms.Table.FirstOrDefault(a=>a.Platform==p)?.App??p.Trim().ToLowerInvariant())
             .Where(p=>p!="").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        return new(all,regs,employees,profiles,platforms,riderAccountEmployeeId,riderAccountProfileIds);
+        return new(all,regs,employees,profiles,platforms,riderAccountEmployeeId,riderAccountProfileIds,PlatformRestricted:!AccessPolicy.Administrator(actor));
     }
     static JsonObject LiveEnvelope(LiveOperationsQuery.PageResult page,string kind,ClaimsPrincipal actor)
     {

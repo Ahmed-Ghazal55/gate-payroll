@@ -47,6 +47,52 @@ public sealed class LiveOperationsQueryTests
         Assert.AreEqual("invalid_page",Assert.ThrowsExactly<ImportFailure>(()=>LiveOperationsQuery.ParseRequest(new Dictionary<string,string>{{"page","0"}})).Code);
         Assert.AreEqual("invalid_live_sort",Assert.ThrowsExactly<ImportFailure>(()=>LiveOperationsQuery.ParseRequest(new Dictionary<string,string>{{"sort","plateNumberAr"}})).Code);
     }
+    static LiveOperationsQuery.PageRequest Page1=>new(1,25,"id","",0,25);
+    [TestMethod]
+    public void CustodyHandoverIsScopedThroughAssignmentVehicleCompanyAndRider()
+    {
+        var sql=LiveOperationsQuery.PreviewSql("custody_handover",OneCompany,Page1);
+        StringAssert.Contains(sql.CountSql,"[RiderVehicleAssignments] a");
+        StringAssert.Contains(sql.CountSql,"av.[SponsorId] IN");
+        StringAssert.Contains(sql.CountSql,"a.[RiderProfileId] IN (@rp0)");
+        StringAssert.Contains(sql.PageSql,"ORDER BY t.[Id]");
+        Assert.IsFalse(LiveOperationsQuery.PreviewSql("custody_handover",All,Page1).CountSql.Contains("EXISTS",StringComparison.Ordinal));
+    }
+    [TestMethod]
+    public void VehicleAssignmentNeedsRiderAndVehicleCompany()
+    {
+        var sql=LiveOperationsQuery.PreviewSql("vehicle_assignment",OneCompany,Page1).CountSql;
+        StringAssert.Contains(sql,"t.[RiderProfileId] IN (@rp0)");
+        StringAssert.Contains(sql,"av.[SponsorId] IN");
+        var noRiders=new LiveOperationsQuery.Scope(false,["1010123456"],[],[],[]);
+        StringAssert.Contains(LiveOperationsQuery.PreviewSql("vehicle_assignment",noRiders,Page1).CountSql,"1=0");
+    }
+    [TestMethod]
+    public void PlatformLimitAppliesInSqlToEveryNonAdministrator()
+    {
+        var allButLimited=new LiveOperationsQuery.Scope(true,[],[],[],["ninja"],PlatformRestricted:true);
+        StringAssert.Contains(LiveOperationsQuery.PreviewSql("platform_account",allButLimited,Page1).CountSql,"cp.[Code] IN (@pc0)");
+        var noPlatforms=new LiveOperationsQuery.Scope(true,[],[],[],[],PlatformRestricted:true);
+        StringAssert.Contains(LiveOperationsQuery.PreviewSql("platform_account",noPlatforms,Page1).CountSql,"1=0");
+        Assert.IsFalse(LiveOperationsQuery.PreviewSql("platform_account",All,Page1).CountSql.Contains("cp.[Code] IN",StringComparison.Ordinal));
+    }
+    [TestMethod]
+    public void LargeScopeUsesOneJsonParameterUnderSqlServerLimit()
+    {
+        var many=Enumerable.Range(0,3000).Select(i=>"emp-"+i).ToList();
+        var scope=new LiveOperationsQuery.Scope(false,["1010123456"],many,many,[]);
+        var (countSql,_,names)=LiveOperationsQuery.PreviewSql("housing_residence",scope,Page1);
+        StringAssert.Contains(countSql,"OPENJSON(@ejson)");
+        Assert.IsTrue(names.Count<2100,"parameters: "+names.Count);
+    }
+    [TestMethod]
+    public void SearchUsesTypedAndNormalisedText()
+    {
+        var both=LiveOperationsQuery.PreviewSql("vehicle",All,new(1,25,"id","أحمد",0,25,"احمد"));
+        StringAssert.Contains(both.CountSql,"LIKE @q ");StringAssert.Contains(both.CountSql,"LIKE @qa ");
+        var same=LiveOperationsQuery.PreviewSql("vehicle",All,new(1,25,"id","abc",0,25,"abc"));
+        Assert.IsFalse(same.CountSql.Contains("@qa",StringComparison.Ordinal));
+    }
     [TestMethod]
     public void EmptyScopeProducesNoRowsClause()
     {

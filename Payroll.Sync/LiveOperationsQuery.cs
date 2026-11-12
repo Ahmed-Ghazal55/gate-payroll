@@ -14,8 +14,12 @@ namespace ErpImport;
 public static class LiveOperationsQuery
 {
     public const int MaxPageSize=200,CommandTimeoutSeconds=15,ParentBatchSize=500;
-    public sealed record PageRequest(int Page,int PageSize,string Sort,string Query,int Skip,int Take);
-    public sealed record Scope(bool AllCompanies,IReadOnlyList<string> SponsorCommercialRegs,IReadOnlyList<string> EmployeeIds,IReadOnlyList<string> RiderProfileIds,IReadOnlyList<string> PlatformCodes,string? RiderAccountEmployeeId=null,IReadOnlyList<string>? RiderAccountProfileIds=null);
+    /// <summary>InList switches to one JSON parameter above this count (SQL Server allows 2100 parameters per command).</summary>
+    public const int MaxInlineParameters=500;
+    /// <param name="QueryAlt">Arabic/digit-normalised form of <paramref name="Query"/>; both are searched because ERP columns keep the original letters.</param>
+    public sealed record PageRequest(int Page,int PageSize,string Sort,string Query,int Skip,int Take,string QueryAlt="");
+    /// <param name="PlatformRestricted">True for non-administrators: platform_account rows are limited to <paramref name="PlatformCodes"/> (empty = none).</param>
+    public sealed record Scope(bool AllCompanies,IReadOnlyList<string> SponsorCommercialRegs,IReadOnlyList<string> EmployeeIds,IReadOnlyList<string> RiderProfileIds,IReadOnlyList<string> PlatformCodes,string? RiderAccountEmployeeId=null,IReadOnlyList<string>? RiderAccountProfileIds=null,bool PlatformRestricted=false);
     public sealed record PageResult(SourceSnapshot Snapshot,long Total,PageRequest Request,DateTimeOffset AsOf);
     public sealed record ParentNeed(string Schema,string Table,string KeyColumn,Func<JsonObject,string> IdFromRow);
     sealed record KindSpec(string Kind,string Schema,string Table,string[] Columns,string[] SearchColumns,string? CompanyColumn,string? RiderEmployeeColumn,string? RiderProfileColumn,bool ViaVehicleSponsor,bool ViaPlatformAccountSponsor,bool HousingByResidence,bool PlatformCodeJoin,ParentNeed[] Parents);
@@ -91,9 +95,10 @@ public static class LiveOperationsQuery
     {
         if(kind=="sponsorship_period")return ("SELECT CAST(0 AS bigint)","SELECT CAST(NULL AS uniqueidentifier) AS [Id] WHERE 1=0",[]);
         var spec=SpecFor(kind);var cmd=new SqlCommand();
-        var where=BuildWhere(spec,scope,page.Query,cmd,out _);
+        var where=BuildWhere(spec,scope,page.Query,page.QueryAlt,cmd,out _);
         string from=FromSql(spec);string select=SelectSql(spec);
-        string order=page.Sort=="-id"?"ORDER BY [Id] DESC":"ORDER BY [Id] ASC";
+        string orderCol=UsesAlias(spec)?"t.[Id]":"[Id]";
+        string order=page.Sort=="-id"?$"ORDER BY {orderCol} DESC":$"ORDER BY {orderCol} ASC";
         string count=$"SELECT COUNT_BIG(*) FROM {from}{where}";
         string pageSql=$"SELECT {select} FROM {from}{where} {order} OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
         var names=cmd.Parameters.Cast<SqlParameter>().Select(p=>p.ParameterName).Append("@skip").Append("@take").ToList();
@@ -129,13 +134,13 @@ public static class LiveOperationsQuery
         var spec=SpecFor(kind);
         using var countCmd=source.CreateCommand();countCmd.CommandTimeout=CommandTimeoutSeconds;
         using var countCancel=SyncCancellation.Register(countCmd,cancellationToken);
-        var where=BuildWhere(spec,scope,request.Query,countCmd,out var needsSponsors);
+        var where=BuildWhere(spec,scope,request.Query,request.QueryAlt,countCmd,out var needsSponsors);
         countCmd.CommandText=$"SELECT COUNT_BIG(*) FROM {FromSql(spec)}{where}";
         long total=Convert.ToInt64(countCmd.ExecuteScalar()??0,CultureInfo.InvariantCulture);
 
         using var pageCmd=source.CreateCommand();pageCmd.CommandTimeout=CommandTimeoutSeconds;
         using var pageCancel=SyncCancellation.Register(pageCmd,cancellationToken);
-        where=BuildWhere(spec,scope,request.Query,pageCmd,out _);
+        where=BuildWhere(spec,scope,request.Query,request.QueryAlt,pageCmd,out _);
         Add(pageCmd,"@skip",request.Skip);Add(pageCmd,"@take",request.Take);
         bool aliased=UsesAlias(spec);
         string orderCol=aliased?"t.[Id]":"[Id]";
@@ -160,7 +165,7 @@ public static class LiveOperationsQuery
         return new(snapshot,total,request,snapshot.FinishedAt);
     }
 
-    static bool UsesAlias(KindSpec spec)=>spec.ViaVehicleSponsor||spec.ViaPlatformAccountSponsor||spec.HousingByResidence||(spec.PlatformCodeJoin&&spec.Kind=="platform_account")||spec.Kind is "jahez_commission_policy" or "jahez_daily_order";
+    static bool UsesAlias(KindSpec spec)=>spec.ViaVehicleSponsor||spec.ViaPlatformAccountSponsor||spec.HousingByResidence||(spec.PlatformCodeJoin&&spec.Kind=="platform_account")||spec.Kind is "jahez_commission_policy" or "jahez_daily_order" or "custody_handover" or "vehicle_assignment";
     static string FromSql(KindSpec spec)
     {
         string main=$"[{spec.Schema}].[{spec.Table}] t";
@@ -170,12 +175,13 @@ public static class LiveOperationsQuery
         if(spec.PlatformCodeJoin&&spec.Kind=="platform_account")return main+" INNER JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=t.[ClientPlatformId]";
         if(spec.Kind is "jahez_commission_policy" or "jahez_daily_order")
             return main+" LEFT JOIN [jahez_v2].[AccountSessions] sess ON sess.[Id]=t.[HandoverId] LEFT JOIN [app].[PlatformRiderAccounts] pa ON pa.[Id]=sess.[PlatformRiderAccountId]";
+        if(spec.Kind is "custody_handover" or "vehicle_assignment")return main;
         return $"[{spec.Schema}].[{spec.Table}]";
     }
     static string SelectSql(KindSpec spec)=>UsesAlias(spec)
         ?string.Join(',',spec.Columns.Select(c=>$"t.[{c}]"))
         :string.Join(',',spec.Columns.Select(c=>$"[{c}]"));
-    static string BuildWhere(KindSpec spec,Scope scope,string query,DbCommand cmd,out bool needsSponsors)
+    static string BuildWhere(KindSpec spec,Scope scope,string query,string queryAlt,DbCommand cmd,out bool needsSponsors)
     {
         needsSponsors=false;var parts=new List<string>();string prefix=UsesAlias(spec)?"t.":"";
         if(spec.Columns.Contains("IsDeleted",StringComparer.Ordinal))parts.Add($"{prefix}[IsDeleted]=0");
@@ -184,6 +190,22 @@ public static class LiveOperationsQuery
         {
             if(scope.SponsorCommercialRegs.Count==0&&spec.Kind is not ("city" or "ninja_evaluation_snapshot"))
                 parts.Add("1=0");
+            else if(spec.Kind=="custody_handover")
+            {
+                // S1: a handover is visible only through its assignment: vehicle in the user's companies AND rider in scope (as Operations.Visible did).
+                needsSponsors=true;
+                var regs=InList(cmd,"@cr",scope.SponsorCommercialRegs);
+                string riderFilter=scope.RiderProfileIds.Count==0?"1=0":$"a.[RiderProfileId] IN ({InList(cmd,"@rp",scope.RiderProfileIds)})";
+                parts.Add($"EXISTS (SELECT 1 FROM [app].[RiderVehicleAssignments] a INNER JOIN [app].[Vehicles] av ON av.[Id]=a.[VehicleId] WHERE a.[Id]=t.[RiderVehicleAssignmentId] AND av.[SponsorId] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[CommercialRegistrationNumber] IN ({regs})) AND {riderFilter})");
+            }
+            else if(spec.Kind=="vehicle_assignment")
+            {
+                // S1: rider in scope AND the vehicle belongs to one of the user's companies.
+                needsSponsors=true;
+                var regs=InList(cmd,"@cr",scope.SponsorCommercialRegs);
+                string riderFilter=scope.RiderProfileIds.Count==0?"1=0":$"t.[RiderProfileId] IN ({InList(cmd,"@rp",scope.RiderProfileIds)})";
+                parts.Add($"({riderFilter} AND EXISTS (SELECT 1 FROM [app].[Vehicles] av WHERE av.[Id]=t.[VehicleId] AND av.[SponsorId] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[CommercialRegistrationNumber] IN ({regs}))))");
+            }
             else if(spec.HousingByResidence)
             {
                 if(scope.EmployeeIds.Count==0)parts.Add("1=0");
@@ -228,18 +250,23 @@ public static class LiveOperationsQuery
             }
         }
 
-        if(spec.PlatformCodeJoin&&spec.Kind=="platform_account"&&scope.PlatformCodes.Count>0&&!scope.AllCompanies)
+        // S1: platform limits apply to every non-administrator (also all-company users), in SQL so `total` matches the rows.
+        if(spec.PlatformCodeJoin&&spec.Kind=="platform_account"&&scope.PlatformRestricted)
         {
-            var plats=InList(cmd,"@pc",scope.PlatformCodes);
-            parts.Add($"cp.[Code] IN ({plats})");
+            if(scope.PlatformCodes.Count==0)parts.Add("1=0");
+            else parts.Add($"cp.[Code] IN ({InList(cmd,"@pc",scope.PlatformCodes)})");
         }
 
         if(query.Length>0&&spec.SearchColumns.Length>0)
         {
-            // Caller passes TextSearch.Normalize(input). Columns use ERP CI collation; Arabic letter folding is input-only.
-            string like=EscapeLike(query);
-            Add(cmd,"@q","%"+like+"%");
-            parts.Add("("+string.Join(" OR ",spec.SearchColumns.Select(c=>$"{prefix}[{c}] LIKE @q ESCAPE '\\'"))+")");
+            // S1: search the typed text AND its Arabic/digit-normalised form. ERP columns keep the original letters (أ, ة, ...),
+            // so searching only the normalised form missed exact matches.
+            Add(cmd,"@q","%"+EscapeLike(query)+"%");
+            bool alt=queryAlt.Length>0&&!string.Equals(queryAlt,query,StringComparison.OrdinalIgnoreCase);
+            if(alt)Add(cmd,"@qa","%"+EscapeLike(queryAlt)+"%");
+            parts.Add("("+string.Join(" OR ",spec.SearchColumns.SelectMany(c=>alt
+                ?new[]{$"{prefix}[{c}] LIKE @q ESCAPE '\\'",$"{prefix}[{c}] LIKE @qa ESCAPE '\\'"}
+                :new[]{$"{prefix}[{c}] LIKE @q ESCAPE '\\'"}))+")");
         }
 
         if(spec.Kind=="custody_handover")parts.Add($"{prefix}[EventType] IN (1,2,3,4)");
@@ -262,6 +289,12 @@ public static class LiveOperationsQuery
     static string InList(DbCommand cmd,string prefix,IReadOnlyList<string> values)
     {
         if(values.Count==0){Add(cmd,prefix+"0",Guid.Empty.ToString("D"));return prefix+"0";}
+        // S1: a company user can have thousands of riders. One JSON parameter keeps us under SQL Server's 2100-parameter limit.
+        if(values.Count>MaxInlineParameters)
+        {
+            Add(cmd,prefix+"json",System.Text.Json.JsonSerializer.Serialize(values));
+            return $"SELECT [value] FROM OPENJSON({prefix}json)";
+        }
         var names=new List<string>();
         for(int i=0;i<values.Count;i++)
         {

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Current writer | (none) |
+| Current writer | (none) — next: Antigravity U1 |
 | Branch | feat/live-ops-erp-reads (draft PR #36) |
 | Updated | 2026-11-12 by Cursor (L1 paging) |
 | Live | `/health` = **0.20.0** (this branch not deployed) |
@@ -55,3 +55,8 @@ Target &lt;2s mostly met; `vehicle_expense` ~2.2s on cold path (loads sponsors +
 
 ## Do not
 - Do not write to ERP. Do not put secrets in git.
+
+## S1 security pass (Claude 2026-11-12) — done, one fix round
+Report: `~/.agents/reviews/S1-pr36-security-claude.md`. Fixed: custody_handover company/rider scope (IDOR), vehicle_assignment vehicle-company check,
+platform limit in SQL for every non-admin (correct totals), > 500 ids via one OPENJSON parameter, search typed + normalised Arabic. +5 tests.
+Open: verify ERP compatibility level ≥ 130 for OPENJSON (read-only metadata); rider-accounts total vs items (low).
