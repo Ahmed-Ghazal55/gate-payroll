@@ -97,7 +97,7 @@ public static class SourceReader
         if(modules.Count>0)modules.Add("workforce");
         return modules;
     }
-    internal static Dictionary<string,List<JsonObject>> ReadTables(DbConnection connection,IReadOnlyList<SourceTable> catalog,CancellationToken cancellationToken=default,IReadOnlyDictionary<string,SourceWatermark>? watermarks=null,byte[]? rowversionUpper=null,HashSet<string>? skippedModules=null,Dictionary<string,string>? nextWatermarks=null,HashSet<string>? skippedTables=null)
+    public static Dictionary<string,List<JsonObject>> ReadTables(DbConnection connection,IReadOnlyList<SourceTable> catalog,CancellationToken cancellationToken=default,IReadOnlyDictionary<string,SourceWatermark>? watermarks=null,byte[]? rowversionUpper=null,HashSet<string>? skippedModules=null,Dictionary<string,string>? nextWatermarks=null,HashSet<string>? skippedTables=null)
     {
         bool sql=connection is SqlConnection;
         var tables=new Dictionary<string,List<JsonObject>>(StringComparer.Ordinal);
