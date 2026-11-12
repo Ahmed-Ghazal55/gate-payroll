@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Current writer | (none) |
+| Current writer | Claude 2026-11-12 (C0: live-ops source switch + safety) |
 | Branch | feat/live-ops-erp-reads (draft PR #36) |
 | Updated | 2026-11-12 by Claude (5-day review) |
 | Live | `/health` = **0.20.0**, jobs off, `dataPreservationVerified=true` |

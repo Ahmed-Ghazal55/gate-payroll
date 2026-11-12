@@ -110,24 +110,77 @@ public static class Operations
             var assignments=account["assignments"]!.AsArray().OfType<JsonObject>().Where(a=>a.S("riderId")==rider).ToList();if(assignments.Count==0)continue;account["assignments"]=new JsonArray(assignments.Select(a=>(JsonNode?)a.Clone()).ToArray());account["relationship"]="actual_operator";yield return account;
         }
     }
+    public const string SourceLive="erp_live",SourceStore="store";
+    static readonly TimeSpan LiveReadTimeout=TimeSpan.FromSeconds(20),ReadOnlyCheckTtl=TimeSpan.FromMinutes(10);
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string,DateTimeOffset> ReadOnlyVerified=new();
+    static string ErpConnection(IConfiguration config)=>config.GetConnectionString("ErpReadonly")??config["ERP_READONLY_DB"]??"";
+    public static bool ErpConfigured(IConfiguration config)=>!string.IsNullOrWhiteSpace(ErpConnection(config));
+    /// <summary>
+    /// Where operations screens read from. Production always reads ERP live (missing secret = 503, never a silent copy).
+    /// Development/CI may use the payroll store (seeded fixtures) when no ERP login is set, or when Operations:Source=store.
+    /// </summary>
+    public static string SourceMode(IConfiguration config,IHostEnvironment env)
+    {
+        string wanted=(config["Operations:Source"]??"").Trim().ToLowerInvariant();
+        if(env.IsProduction())return SourceLive;
+        if(wanted==SourceStore)return SourceStore;
+        if(wanted==SourceLive)return SourceLive;
+        return ErpConfigured(config)?SourceLive:SourceStore;
+    }
     static SqlConnection OpenErp(IConfiguration config)
     {
-        string sourceConnection=config.GetConnectionString("ErpReadonly")??config["ERP_READONLY_DB"]??"";
+        string sourceConnection=ErpConnection(config);
         if(string.IsNullOrWhiteSpace(sourceConnection))throw new ApiError("اتصال مصدر التشغيل غير مضبوط.",503);
-        try{var source=Connections.Source(sourceConnection);source.Open();SourceReader.VerifyReadOnly(source);return source;}
+        try
+        {
+            var source=Connections.Source(sourceConnection);source.Open();
+            // The read-only check queries permissions; cache it per connection for a short time instead of every request.
+            string key=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(sourceConnection)));
+            if(!ReadOnlyVerified.TryGetValue(key,out var at)||DateTimeOffset.UtcNow-at>ReadOnlyCheckTtl){SourceReader.VerifyReadOnly(source);ReadOnlyVerified[key]=DateTimeOffset.UtcNow;}
+            return source;
+        }
         catch(ImportFailure ex) when(ex.Code is "unapproved_source" or "source_connection_missing" or "source_has_write_permissions"){throw new ApiError("مصدر التشغيل غير معتمد للقراءة فقط.",503);}
+        catch(SqlException){throw new ApiError("تعذر الاتصال بمصدر التشغيل. حاول مرة أخرى.",503);}
     }
-    public static void Map(RouteGroupBuilder api,Store store,IConfiguration config)
+    /// <summary>Paged list plus where it came from. Live ERP rows are read-only, so no row actions are allowed.</summary>
+    static JsonObject Envelope(object paged,string source,DateTimeOffset asOf)
+    {
+        var result=System.Text.Json.JsonSerializer.SerializeToNode(paged,System.Text.Json.JsonSerializerOptions.Web)!.AsObject();
+        result["source"]=source;result["asOf"]=asOf.ToString("O");result["allowedActions"]=new JsonArray();
+        return result;
+    }
+    static T LiveRead<T>(HttpContext ctx,Func<CancellationToken,T> read)
+    {
+        using var cancel=CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);cancel.CancelAfter(LiveReadTimeout);
+        try{return read(cancel.Token);}
+        catch(Exception ex) when(cancel.IsCancellationRequested&&!ctx.RequestAborted.IsCancellationRequested&&ex is OperationCanceledException or SqlException or ImportFailure)
+        {throw new ApiError("قراءة مصدر التشغيل استغرقت وقتًا طويلًا. حاول مرة أخرى.",503);}
+    }
+    public static void Map(RouteGroupBuilder api,Store store,IConfiguration config,IHostEnvironment env)
     {
         api.MapGet("/operations/{kind}",(string kind,HttpContext ctx)=>{
-            using var erp=OpenErp(config);
-            var snapshot=LiveOperationsSource.Read(erp,kind,ctx.RequestAborted);
-            return store.Read(c=>ApiPagination.Apply(ListLive(c,ctx.User,kind,snapshot),ctx.Request.Query,true));
-        }).WithTags("Operations").WithSummary("Read allowlisted ERP operations live from logistics ERP with company scope and pagination");
+            // Permission and kind first: never touch ERP for a caller who may not see operations.
+            AccessPolicy.Demand(ctx.User,"operations.view");if(!Kinds.Contains(kind))throw new ApiError("نوع عمليات غير مسموح.",404);
+            if(SourceMode(config,env)==SourceStore)
+                return store.Read(c=>Envelope(ApiPagination.Apply(List(c,ctx.User,kind),ctx.Request.Query,true),SourceStore,DateTimeOffset.UtcNow));
+            return LiveRead(ctx,token=>{
+                using var erp=OpenErp(config);
+                var snapshot=LiveOperationsSource.Read(erp,kind,token);
+                return store.Read(c=>Envelope(ApiPagination.Apply(ListLive(c,ctx.User,kind,snapshot),ctx.Request.Query,true),SourceLive,snapshot.FinishedAt));
+            });
+        }).WithTags("Operations").WithSummary("Read allowlisted ERP operations (live from logistics ERP on hosted) with company scope and pagination");
         api.MapGet("/riders/{iqama}/accounts",(string iqama,HttpContext ctx)=>{
-            using var erp=OpenErp(config);
-            var snapshot=LiveOperationsSource.Read(erp,"platform_account",ctx.RequestAborted);
-            return store.Read(c=>ApiPagination.Apply(RiderAccountsLive(c,ctx.User,iqama,snapshot),ctx.Request.Query,true));
-        }).WithTags("Operations").WithSummary("Read actual rider platform assignments live from logistics ERP");
+            AccessPolicy.Demand(ctx.User,"operations.view");string rider=J.Iqama(iqama);
+            store.Read(c=>{var person=Store.Get(c,rider,"rider")??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(ctx.User,person);return true;});
+            // Who opened which rider's accounts is kept, as for other personal-data reads.
+            store.Write((c,tx)=>{Store.Audit(c,tx,"operations.rider_accounts_read",rider,ctx.User.Identity?.Name??"");return true;},invalidateSummaries:false);
+            if(SourceMode(config,env)==SourceStore)
+                return store.Read(c=>Envelope(ApiPagination.Apply(RiderAccounts(c,ctx.User,rider),ctx.Request.Query,true),SourceStore,DateTimeOffset.UtcNow));
+            return LiveRead(ctx,token=>{
+                using var erp=OpenErp(config);
+                var snapshot=LiveOperationsSource.Read(erp,"platform_account",token);
+                return store.Read(c=>Envelope(ApiPagination.Apply(RiderAccountsLive(c,ctx.User,rider,snapshot),ctx.Request.Query,true),SourceLive,snapshot.FinishedAt));
+            });
+        }).WithTags("Operations").WithSummary("Read actual rider platform assignments (live from logistics ERP on hosted)");
     }
 }

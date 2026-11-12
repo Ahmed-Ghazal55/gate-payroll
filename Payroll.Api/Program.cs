@@ -94,7 +94,7 @@ app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensio
 app.UseRouting(); app.UseAuthorization(); app.UseRateLimiter();
 NextApp.Map(app);
 Vouchers.Map(app,store);
-Func<IJobsSchedule,object> health=jobs=>new { jobs=jobs.Health(), ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent };
+Func<IJobsSchedule,object> health=jobs=>new { jobs=jobs.Health(), ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent, operationsSource=Operations.SourceMode(app.Configuration,app.Environment), erpReadonlyConfigured=Operations.ErpConfigured(app.Configuration) };
 app.MapGet("/health",health).WithTags("Administration").WithSummary("Read health");
 app.MapGet("/api/health",health).WithTags("Administration").WithSummary("Read health through the API prefix");
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName }).WithTags("Administration").WithSummary("Read auth status");
@@ -157,7 +157,7 @@ PaySettings.Map(api,store);
 PayAssignments.Map(api,store);
 PayCycles.Map(api,store);
 PayReviewDraft.Map(api,store);
-Operations.Map(api,store,app.Configuration);
+Operations.Map(api,store,app.Configuration,app.Environment);
 PayStatements.Map(app,api,store);
 HungerStationInvoices.MapImports(api,store);
 HungerStationInvoices.MapReview(api,store);
