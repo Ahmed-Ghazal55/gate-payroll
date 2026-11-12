@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:33017/"
+      "url": "http://127.0.0.1:37623/"
     }
   ],
   "paths": {
@@ -11801,7 +11801,7 @@
         "tags": [
           "Operations"
         ],
-        "summary": "Read allowlisted ERP operations with company scope and pagination",
+        "summary": "Read allowlisted ERP operations (live from logistics ERP on hosted) with company scope and pagination",
         "parameters": [
           {
             "name": "kind",
@@ -11814,10 +11814,50 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -11829,7 +11869,7 @@
         "tags": [
           "Operations"
         ],
-        "summary": "Read actual rider platform assignments and receive/deliver dates",
+        "summary": "Read actual rider platform assignments (live from logistics ERP on hosted)",
         "parameters": [
           {
             "name": "iqama",
@@ -11842,10 +11882,50 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
               }
             }
           }

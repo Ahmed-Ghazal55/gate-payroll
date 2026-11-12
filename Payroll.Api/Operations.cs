@@ -156,6 +156,39 @@ public static class Operations
         catch(Exception ex) when(cancel.IsCancellationRequested&&!ctx.RequestAborted.IsCancellationRequested&&ex is OperationCanceledException or SqlException or ImportFailure)
         {throw new ApiError("قراءة مصدر التشغيل استغرقت وقتًا طويلًا. حاول مرة أخرى.",503);}
     }
+    static LiveOperationsQuery.PageRequest LivePageRequest(IQueryCollection query)
+    {
+        try
+        {
+            var dict=query.Keys.ToDictionary(k=>k,k=>query[k].ToString(),StringComparer.OrdinalIgnoreCase);
+            var req=LiveOperationsQuery.ParseRequest(dict);
+            // Arabic/digit folding on the input only; ERP columns stay as stored (CI collation).
+            string q=req.Query.Length==0?"":TextSearch.Normalize(req.Query);
+            return req with{Query=q};
+        }
+        catch(ImportFailure ex) when(ex.Code=="invalid_page"){throw new ApiError("رقم الصفحة وحجمها يجب أن يكونا عددين صحيحين موجبين.");}
+        catch(ImportFailure ex) when(ex.Code=="invalid_live_sort"){throw new ApiError("حقل الترتيب غير صالح.");}
+    }
+    static LiveOperationsQuery.Scope LiveScope(DbConnection payroll,ClaimsPrincipal actor,string? riderAccountEmployeeId=null,IReadOnlyList<string>? riderAccountProfileIds=null)
+    {
+        bool all=FinancialScopes.AllCompanies(actor);
+        var sponsors=FinancialCore.Sponsors.Where(s=>FinancialScopes.Sponsor(actor,s.Id)).ToList();
+        var regs=sponsors.Select(s=>s.CommercialReg).Where(r=>r!="").Distinct(StringComparer.Ordinal).ToList();
+        var riders=Store.List(payroll,"rider").Where(r=>all||FinancialScopes.Rider(actor,r)).ToList();
+        var employees=riders.Select(r=>r.S("erpSourceId")).Where(id=>id!="").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var profiles=riders.SelectMany(r=>(r["erpRiderProfileIds"] as JsonArray??[]).Select(n=>n?.ToString()??"")).Where(id=>id!="").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var platforms=actor.FindAll("finance.platforms").Select(c=>c.Value)
+            .Select(p=>PayPlatforms.Table.FirstOrDefault(a=>a.Platform==p)?.App??p.Trim().ToLowerInvariant())
+            .Where(p=>p!="").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return new(all,regs,employees,profiles,platforms,riderAccountEmployeeId,riderAccountProfileIds);
+    }
+    static JsonObject LiveEnvelope(LiveOperationsQuery.PageResult page,string kind,ClaimsPrincipal actor)
+    {
+        var items=LiveOperationsSource.Documents(page.Snapshot,FinancialCore.Sponsors,kind).Select(d=>Project(d,kind)).ToList();
+        // Company/rider scope is in SQL; keep platform claim filter on projected platform_account rows.
+        if(kind=="platform_account")items=items.Where(r=>FinancialScopes.Platform(actor,PayPlatforms.For(r.S("platformCode")).Platform)).ToList();
+        return Envelope(new{items,total=page.Total,page=page.Request.Page,pageSize=page.Request.PageSize},SourceLive,page.AsOf);
+    }
     public static void Map(RouteGroupBuilder api,Store store,IConfiguration config,IHostEnvironment env)
     {
         api.MapGet("/operations/{kind}",(string kind,HttpContext ctx)=>{
@@ -163,23 +196,41 @@ public static class Operations
             AccessPolicy.Demand(ctx.User,"operations.view");if(!Kinds.Contains(kind))throw new ApiError("نوع عمليات غير مسموح.",404);
             if(SourceMode(config,env)==SourceStore)
                 return store.Read(c=>Envelope(ApiPagination.Apply(List(c,ctx.User,kind),ctx.Request.Query,true),SourceStore,DateTimeOffset.UtcNow));
+            var request=LivePageRequest(ctx.Request.Query);
             return LiveRead(ctx,token=>{
                 using var erp=OpenErp(config);
-                var snapshot=LiveOperationsSource.Read(erp,kind,token);
-                return store.Read(c=>Envelope(ApiPagination.Apply(ListLive(c,ctx.User,kind,snapshot),ctx.Request.Query,true),SourceLive,snapshot.FinishedAt));
+                return store.Read(c=>{
+                    var scope=LiveScope(c,ctx.User);
+                    var page=LiveOperationsQuery.Page(erp,kind,request,scope,FinancialCore.Sponsors,token);
+                    return LiveEnvelope(page,kind,ctx.User);
+                });
             });
         }).WithTags("Operations").WithSummary("Read allowlisted ERP operations (live from logistics ERP on hosted) with company scope and pagination");
         api.MapGet("/riders/{iqama}/accounts",(string iqama,HttpContext ctx)=>{
             AccessPolicy.Demand(ctx.User,"operations.view");string rider=J.Iqama(iqama);
-            store.Read(c=>{var person=Store.Get(c,rider,"rider")??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(ctx.User,person);return true;});
-            // Who opened which rider's accounts is kept, as for other personal-data reads.
+            JsonObject person=store.Read(c=>{var row=Store.Get(c,rider,"rider")??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(ctx.User,row);return row;});
             store.Write((c,tx)=>{Store.Audit(c,tx,"operations.rider_accounts_read",rider,ctx.User.Identity?.Name??"");return true;},invalidateSummaries:false);
             if(SourceMode(config,env)==SourceStore)
                 return store.Read(c=>Envelope(ApiPagination.Apply(RiderAccounts(c,ctx.User,rider),ctx.Request.Query,true),SourceStore,DateTimeOffset.UtcNow));
+            var request=LivePageRequest(ctx.Request.Query);
+            string emp=person.S("erpSourceId");
+            var profiles=(person["erpRiderProfileIds"] as JsonArray??[]).Select(n=>n?.ToString()??"").Where(id=>id!="").ToList();
             return LiveRead(ctx,token=>{
                 using var erp=OpenErp(config);
-                var snapshot=LiveOperationsSource.Read(erp,"platform_account",token);
-                return store.Read(c=>Envelope(ApiPagination.Apply(RiderAccountsLive(c,ctx.User,rider,snapshot),ctx.Request.Query,true),SourceLive,snapshot.FinishedAt));
+                return store.Read(c=>{
+                    if(emp==""&&profiles.Count==0)return Envelope(new{items=new List<JsonObject>(),total=0L,page=request.Page,pageSize=request.PageSize},SourceLive,DateTimeOffset.UtcNow);
+                    var scope=LiveScope(c,ctx.User,emp==""?null:emp,profiles);
+                    var page=LiveOperationsQuery.Page(erp,"platform_account",request,scope,FinancialCore.Sponsors,token);
+                    var items=LiveOperationsSource.Documents(page.Snapshot,FinancialCore.Sponsors,"platform_account")
+                        .Select(d=>Project(d,"platform_account"))
+                        .Select(account=>{
+                            var assignments=account["assignments"]!.AsArray().OfType<JsonObject>().Where(a=>a.S("riderId")==rider).ToList();
+                            if(assignments.Count==0&&account.S("registeredRiderId")!=rider)return null;
+                            account["assignments"]=new JsonArray(assignments.Select(a=>(JsonNode?)a.Clone()).ToArray());
+                            account["relationship"]="actual_operator";return account;
+                        }).Where(a=>a!=null).Cast<JsonObject>().ToList();
+                    return Envelope(new{items,total=page.Total,page=page.Request.Page,pageSize=page.Request.PageSize},SourceLive,page.AsOf);
+                });
             });
         }).WithTags("Operations").WithSummary("Read actual rider platform assignments (live from logistics ERP on hosted)");
     }

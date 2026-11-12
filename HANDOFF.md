@@ -2,36 +2,54 @@
 
 | Field | Value |
 |---|---|
-| Current writer | (none) — next: Cursor L1 |
+| Current writer | (none) |
 | Branch | feat/live-ops-erp-reads (draft PR #36) |
-| Updated | 2026-11-12 by Claude (C0 + new plan) |
-| Live | `/health` = **0.20.0**, jobs off, `dataPreservationVerified=true` |
-| Main tip | `ea529c2` (PR #35 merged) — **its deploy failed**, live does not have it |
+| Updated | 2026-11-12 by Cursor (L1 paging) |
+| Live | `/health` = **0.20.0** (this branch not deployed) |
 
-Note: `main:HANDOFF.md` still shows "Current writer: Cursor 2026-11-11". That lock is stale; this file replaces it.
+## L1 done (Cursor)
+- `Payroll.Sync/LiveOperationsQuery.cs`: per-kind allowlist, `COUNT_BIG(*)` + `ORDER BY Id OFFSET/FETCH`, parents by page keys (batches ≤500), `CommandTimeout` 15s.
+- Scope in SQL: company via `Sponsors.CommercialRegistrationNumber`, rider via employee/profile ids, housing via EXISTS residences, platform_account via `ClientPlatforms.Code`.
+- `q`/`search`: `TextSearch.Normalize` on input only; ERP columns use CI collation (Arabic folding is input-only — note).
+- Live sort: `id` / `-id` only. `pageSize` max 200.
+- Rider accounts: filter by that rider’s ERP employee/profile keys (`RiderAccountEmployeeId` / profiles).
+- API no longer calls `LiveOperationsSource.Read` (full tables). OpenAPI + `web/src/lib/api-contract.ts` regenerated (`source`,`asOf`,`allowedActions`).
+- Tests: `LiveOperationsQueryTests` + prior live/ops tests. Local SQL 11433 fixtures still need the CI SQL host (same as C0).
 
-## Decision 2026-11-12 (Ghazal): no ERP mirror; live reads + frozen run inputs, BEFORE the first payroll
-Plans: `.cursor/plans/live_ops_erp_reads_891ef52a.plan.md` (todos) and `~/.claude/plans/sharded-yawning-kettle.md`. BR draft: `gate-finance-spec/docs/proposals/BR-39-live-reads-run-inputs.md` (waits for Ghazal).
-Cancelled: hosted S1 load and `cursor-S1-faster-load.md`. The PR #35 redeploy is off the critical path.
+### Live ERP page-1 timings (readonly, counts only, 2026-11-12)
+| kind | ms | total | page_rows |
+|---|---:|---:|---:|
+| city | 1148 | 5 | 5 |
+| housing | 1980 | 7 | 7 |
+| housing_residence | 1395 | 212 | 50 |
+| vehicle | 1494 | 558 | 50 |
+| vehicle_assignment | 1602 | 881 | 50 |
+| custody_handover | 1858 | 1019 | 50 |
+| sponsorship_period | 0 | 0 | 0 |
+| legal_case | 1699 | 13 | 13 |
+| platform_account | 1929 | 1948 | 50 |
+| vehicle_operational_status | 1250 | 3023 | 50 |
+| platform_day_usage | 1815 | 1871 | 50 |
+| rider_work_timeline | 1837 | 1372 | 50 |
+| custody_equipment | 1247 | 0 | 0 |
+| vehicle_expense | 2209 | 1737 | 50 |
+| chefz_account | 1511 | 464 | 50 |
+| chefz_account_type_change | 1512 | 48 | 48 |
+| chefz_daily | 1970 | 6224 | 50 |
+| chefz_settlement | 1994 | 496 | 50 |
+| chefz_order_row | 1562 | 9574 | 50 |
+| ninja_daily | 1675 | 3629 | 50 |
+| ninja_daily_deduction | 1461 | 10 | 10 |
+| ninja_evaluation_snapshot | 915 | 0 | 0 |
+| jahez_commission_policy | 1374 | 0 | 0 |
+| jahez_daily_order | 1668 | 6172 | 50 |
+
+Target &lt;2s mostly met; `vehicle_expense` ~2.2s on cold path (loads sponsors + vehicles for the page).
 
 ## Next step (exact)
-1. **L1 — Cursor:** `~/.agents/prompts/cursor-L1-live-reads-paging.md` on this branch (paged SQL per kind, scope in SQL, search, rider accounts, contract).
-2. **U1 — Antigravity Flash 3.8:** `~/.agents/prompts/antigravity-U1-ops-live-ui.md`, after L1 is green.
-3. **S1 — Claude:** security pass on PR #36 + one fix round.
-4. **L2 — Cursor:** `~/.agents/prompts/cursor-L2-run-input-snapshots.md` (new branch `feat/run-input-snapshots`). Then U2 (Antigravity), then Claude's review, BR, release.
-
-## Draft PR #36 state
-- **C0 done (Claude, `0991530`):** `Operations.SourceMode` (`Payroll.Api/Operations.cs`): Production is always `erp_live` (no secret → 503). Development/CI use `store` without an ERP login (fixes `web/tests/r8-ninja-flow.mjs:397`).
-  Permission and kind are checked before any ERP connection. 20 s live-read timeout → 503. `SqlException` → 503 without details. Read-only check cached 10 min.
-  The response adds `source`, `asOf`, `allowedActions: []`. Audit `operations.rider_accounts_read`. `/health` + `/api/health`: `operationsSource`, `erpReadonlyConfigured`. Tests: `OperationsSourceModeTests` (3).
-- CI run 43263608876: **green**. Local: 500 passed. 2 need local SQL (`NinjaPayrollSqlTests`, `R9PayrollHttpTests` SQL case): they run in CI.
-- Still open (L1): no SQL paging (`Payroll.Sync/LiveOperationsSource.cs` reads whole tables); scope after read (N+1 `Store.Get`); `q` in memory.
-- Before merge: hosted secret `ConnectionStrings__ErpReadonly` (readonly login, set by Ghazal in MonsterASP), and Claude's security pass (replaces Codex).
-
-## Kept for Ghazal's decision
-- `stash@{0}` "On release/0.20.0: handoff mid-merge"; `stash@{1}` "On main: stale 2026-11-04 edits". Planner recommends drop both.
-- Old local and remote branches (list in `~/.agents/NEXT.md`).
+1. Wait CI green on this push.
+2. **U1 — Antigravity:** `~/.agents/prompts/antigravity-U1-ops-live-ui.md`
+3. **S1 — Claude:** security pass on PR #36
 
 ## Do not
-- Do not write to ERP. Do not put secrets in git (repo is public).
-- Do not lift BR §38.3 (HungerStation deferred).
+- Do not write to ERP. Do not put secrets in git.

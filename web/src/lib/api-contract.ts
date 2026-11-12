@@ -7595,7 +7595,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read allowlisted ERP operations with company scope and pagination */
+        /** Read allowlisted ERP operations (live from logistics ERP on hosted) with company scope and pagination */
         get: {
             parameters: {
                 query?: never;
@@ -7607,13 +7607,21 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
                     };
                 };
             };
@@ -7633,7 +7641,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read actual rider platform assignments and receive/deliver dates */
+        /** Read actual rider platform assignments (live from logistics ERP on hosted) */
         get: {
             parameters: {
                 query?: never;
@@ -7645,13 +7653,21 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
                     };
                 };
             };

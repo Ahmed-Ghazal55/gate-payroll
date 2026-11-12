@@ -228,7 +228,7 @@ public static class SourceReader
         if(!table.Fields.Split(' ').All(fields.Contains))throw new ImportFailure("source_contract_missing_fields:"+table.Name);
         return true;
     }
-    internal static JsonNode? Value(object? value)=>value switch
+    public static JsonNode? Value(object? value)=>value switch
     {
         null=>null,Guid g=>JsonValue.Create(g.ToString("D")), DateTimeOffset d=>JsonValue.Create(d.ToString("O")),DateTime d=>JsonValue.Create(d.ToString("yyyy-MM-ddTHH:mm:ss.fffffff")),TimeSpan t=>JsonValue.Create(t.ToString("c")),byte[]=>throw new ImportFailure("binary_source_field_not_allowed"),_=>System.Text.Json.JsonSerializer.SerializeToNode(value)
     };
