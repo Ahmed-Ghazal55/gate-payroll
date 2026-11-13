@@ -9,6 +9,7 @@ public static partial class PayCycles
     {
         Scope(actor,cycle,"pay.view");var result=cycle.Clone();var actions=new JsonArray();var blockers=new JsonArray();string state=cycle.S("status"),name=actor.Identity!.Name!;int stage=(int)cycle.N("stage");
         bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve"),mutable=state is "draft" or "review" or "needs_decision";
+        if(mutable&&manage&&!PayRunInputs.Sealed(cycle))actions.Add("capture_inputs");
         if(mutable&&manage){actions.Add("cancel");if(stage<6)actions.Add("advance");if(stage==6)actions.Add("review");}
         var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0).ToList();
         if(stage>=6&&(mutable||state=="partially_approved"))

@@ -11,7 +11,26 @@ public static class ApiContracts
     static OpenApiSchema O(Dictionary<string,IOpenApiSchema> properties,params string[] required)=>new(){Type=JsonSchemaType.Object,Properties=properties,Required=new HashSet<string>(required),AdditionalPropertiesAllowed=true};
     static OpenApiSchema Free()=>O([]);
     static OpenApiSchema Page(IOpenApiSchema item)=>O(new(){["items"]=A(item),["total"]=N(),["page"]=N(),["pageSize"]=N()},"items","total","page","pageSize");
-    static OpenApiSchema OperationsPage()=>O(new(){["items"]=A(Free()),["total"]=N(),["page"]=N(),["pageSize"]=N(),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","source","asOf","allowedActions");
+    static OpenApiSchema OpsRow(params (string Key,OpenApiSchema Schema)[] fields)
+    {
+        var props=new Dictionary<string,IOpenApiSchema>{["id"]=S()};
+        foreach(var (key,schema) in fields)props[key]=schema;
+        return O(props,"id");
+    }
+    static OpenApiSchema OperationsItem()=>new()
+    {
+        OneOf=[
+            OpsRow(("code",S()),("nameAr",S()),("nameEn",S()),("name",S()),("globalCityId",S())),
+            OpsRow(("riderId",S()),("housingId",S()),("roomSourceId",S()),("effectiveFrom",S()),("effectiveTo",S())),
+            OpsRow(("assetNumber",S()),("serialNumber",S()),("plateNumberAr",S()),("plateNumberEn",S()),("vin",S()),("chassisNumber",S()),("modelYear",N()),("vehicleType",S()),("fuelType",S()),("ownershipType",S()),("currentOdometer",N()),("currentOperationalStatus",S()),("registrationType",S()),("companyId",S()),("registeredOwnerCompanyId",S()),("cityId",S())),
+            OpsRow(("riderId",S()),("vehicleId",S()),("startedAt",S()),("endedAt",S()),("startOdometer",N()),("endOdometer",N()),("isRealRider",B()),("permissionStartsOn",S()),("permissionEndsOn",S())),
+            OpsRow(("code",S()),("externalAccountId",S()),("platformCode",S()),("registeredRiderId",S()),("companyId",S()),("cityId",S()),("paymentModelCode",S()),("startDate",S()),("endDate",S()),("assignments",A(Free()))),
+            OpsRow(("riderId",S()),("companyId",S()),("platformAccountId",S()),("date",S()),("orders",N()),("hours",N()),("CaptainId",S())),
+            OpsRow(("riderId",S()),("companyId",S()),("platformAccountId",S()),("date",S()),("collectedAmount",N()),("amount",N()),("CaptainId",S())),
+            Free()
+        ]
+    };
+    static OpenApiSchema OperationsPage()=>O(new(){["items"]=A(OperationsItem()),["total"]=N(),["page"]=N(),["pageSize"]=N(),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","source","asOf","allowedActions");
 
     public static OpenApiSchema User()=>O(new(){["id"]=S(),["username"]=S(),["role"]=S(),["roleNameAr"]=S(),["roleSummaryAr"]=S(),["department"]=S(),["departmentNameAr"]=S(),["rankLevel"]=N(),["status"]=S(),["permissions"]=A(S()),["mustChangePassword"]=B(),["customPermissions"]=A(S()),["deniedPermissions"]=A(S()),["financialScope"]=Free(),["createdAt"]=S(),["lastLoginAt"]=S(),["approvalExceptionUntil"]=S(),["approvalExceptionReason"]=S(),["allowedActions"]=A(S())},"id","username","role","status","permissions","approvalExceptionUntil","approvalExceptionReason","allowedActions");
     public static OpenApiSchema Debt()=>O(new(){["id"]=S(),["iqama"]=S(),["category"]=S(),["categoryAr"]=S(),["status"]=S(),["totalAmount"]=N(),["remainingBalance"]=N(),["monthlyInstallment"]=N(),["paidAmount"]=N(),["creditorSponsorId"]=S()},"id","totalAmount","remainingBalance","status");

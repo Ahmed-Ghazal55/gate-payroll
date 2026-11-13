@@ -10,7 +10,12 @@ public static partial class PayCycles
     {
         AccessPolicy.Demand(actor,"pay.view");period=J.Period(period);app=PayPlatforms.App(app);string company=FinancialCore.ResolveSponsor(companyId).Id;FinancialScopes.DemandSponsor(actor,company);
         var counts=new Dictionary<string,int>(StringComparer.Ordinal);
-        var accounts=Store.List(c,"platform_account").Where(a=>a.S("companyId")==company&&PayPlatforms.For(a.S("platformCode")).App==app).ToList();
+        // Prefer frozen inputs when an open cycle for this company/period/app already captured; else store (pre-cycle diagnose).
+        var cycle=Store.List(c,Kind).FirstOrDefault(p=>p.S("companyId")==company&&p.S("period")==period&&p.S("status") is not ("cancelled" or "reversed")&&(p.S("app")==app||(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("app")==app))&&PayRunInputs.Captured(p));
+        List<JsonObject> Accounts()=>cycle!=null?PayRunInputs.List(c,null,cycle.S("id"),"platform_account").Where(a=>a.S("companyId")==company&&PayPlatforms.For(a.S("platformCode")).App==app).ToList():Store.List(c,"platform_account").Where(a=>a.S("companyId")==company&&PayPlatforms.For(a.S("platformCode")).App==app).ToList();
+        List<JsonObject> Daily()=>cycle!=null?PayRunInputs.List(c,null,cycle.S("id"),"ninja_daily").Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList():Store.List(c,"ninja_daily").Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList();
+        JsonObject? AccountGet(string id)=>cycle!=null?PayRunInputs.Get(c,null,cycle.S("id"),"platform_account",id):Store.Get(c,id,"platform_account");
+        var accounts=Accounts();
         int withAssignment=0,withoutAssignment=0,multiOperator=0;
         var missingCategory=new HashSet<string>(StringComparer.Ordinal);var invalidCategory=new HashSet<string>(StringComparer.Ordinal);var missingRecord=new HashSet<string>(StringComparer.Ordinal);
         foreach(var account in accounts)
@@ -28,12 +33,12 @@ public static partial class PayCycles
                 else if(!PaySettings.Categories.Contains(category))invalidCategory.Add(rider);
             }
         }
-        var daily=Store.List(c,"ninja_daily").Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList();
-        int dailyUnmatchedAccount=daily.Count(d=>Store.Get(c,d.S("platformAccountId"),"platform_account")==null);
+        var daily=Daily();
+        int dailyUnmatchedAccount=daily.Count(d=>AccountGet(d.S("platformAccountId"))==null);
         int dailyNoAssignment=0;
         foreach(var day in daily)
         {
-            var account=Store.Get(c,day.S("platformAccountId"),"platform_account");
+            var account=AccountGet(day.S("platformAccountId"));
             if(account==null)continue;
             bool ok=(account["assignments"] as JsonArray??[]).OfType<JsonObject>().Any(a=>a.S("riderId")==day.S("riderId")&&AssignmentSpan.Covers(a,day.S("date")));
             if(!ok)dailyNoAssignment++;
@@ -48,6 +53,7 @@ public static partial class PayCycles
         counts["ninja_daily_rows"]=daily.Count;
         counts["ninja_daily_unmatched_account"]=dailyUnmatchedAccount;
         counts["ninja_daily_no_assignment_on_date"]=dailyNoAssignment;
+        counts["inputs_captured"]=cycle!=null?1:0;
         return new JsonObject
         {
             ["companyId"]=company,["period"]=period,["app"]=app,

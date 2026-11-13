@@ -183,6 +183,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/pay/apps/{app}/terms/{id}/reject` | Payroll.Api/PaySettings.Lifecycle.cs:27 | pay.manage; app scope; shared writes need all companies | none | keep |
 | POST | `/api/pay/cycles` | Payroll.Api/PayCycles.cs:166 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
 | POST | `/api/pay/cycles/{id}/advance` | Payroll.Api/PayCycles.cs:167 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
+| POST | `/api/pay/cycles/{id}/capture-inputs` | Payroll.Api/PayCycles.cs | pay.manage; company scope; refused after salary approval | none | keep |
 | POST | `/api/pay/cycles/{id}/debt-deductions` | Payroll.Api/PayCycles.cs:164 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
 | POST | `/api/pay/cycles/{id}/review/approve-all` | Payroll.Api/PayCycles.Review.cs:146 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
 | POST | `/api/pay/cycles/{id}/review/{iqama}` | Payroll.Api/PayCycles.Review.cs:147 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |

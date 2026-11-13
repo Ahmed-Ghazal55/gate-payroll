@@ -16,6 +16,8 @@ public static partial class PayCycles
         var riders=Accounts(cycle).SelectMany(a=>Rows(a.Account["riders"]).OfType<JsonObject>()).Select(r=>r.S("rider")).ToHashSet();
         var cache=new Dictionary<string,List<JsonObject>>();var selected=new SortedDictionary<string,JsonObject>(StringComparer.Ordinal);
         List<JsonObject> All(string kind){if(!cache.TryGetValue(kind,out var docs))cache[kind]=docs=Store.List(c,kind,tx);return docs;}
+        // Mirrored ops kinds: after capture, fingerprint only frozen pay_run_input rows (never live Store).
+        List<JsonObject> Ops(string kind)=>PayRunInputs.Captured(cycle)?PayRunInputs.List(c,tx,cycle.S("id"),kind):[];
         void Add(string kind,IEnumerable<JsonObject> docs){foreach(var doc in docs)selected[kind+":"+doc.S("id")]=doc;}
         void Pick(string kind,Func<JsonObject,bool> predicate)=>Add(kind,All(kind).Where(predicate));
         bool Rider(JsonObject doc)=>riders.Contains(doc.S("rider",doc.S("riderId",doc.S("iqama"))));
@@ -25,17 +27,18 @@ public static partial class PayCycles
         var rulesIds=schemes.Select(d=>d["data"].S("eligibilitySetId")).Where(id=>id!="").ToHashSet();
         var debts=All("debt").Where(d=>Rider(d)&&string.CompareOrdinal(d.S("effectiveFrom","0000-00"),period)<=0).ToList();
         var debtIds=debts.Select(d=>d.S("id")).ToHashSet();
-        var vehicleAssignments=All("vehicle_assignment").Where(d=>Rider(d)&&Overlaps(d,period,"startedAt","endedAt")).ToList();
+        var vehicleAssignments=Ops("vehicle_assignment").Where(d=>Rider(d)&&Overlaps(d,period,"startedAt","endedAt")).ToList();
         var vehicleIds=vehicleAssignments.Select(d=>d.S("vehicleId")).ToHashSet();
         Add("pay_assignment",assignments);Add("pay_scheme",schemes);Add("debt",debts);Add("vehicle_assignment",vehicleAssignments);
-        Pick("pay_eligibility",d=>rulesIds.Contains(d.S("id")));Pick("vehicle",d=>vehicleIds.Contains(d.S("id")));
+        Pick("pay_eligibility",d=>rulesIds.Contains(d.S("id")));
+        Add("vehicle",Ops("vehicle").Where(d=>vehicleIds.Contains(d.S("id"))));
         // Only what the calculation reads: a routine ERP sync of a status or a registration must not strand an open cycle.
         Add("rider",All("rider").Where(d=>riders.Contains(d.S("id"))).Select(d=>new JsonObject{["id"]=d.S("id"),["sponsorId"]=d.S("sponsorId"),["engagementType"]=d.S("engagementType"),["personRole"]=d.S("personRole"),["debtOnly"]=d.B("debtOnly")}));
-        Add("platform_account",All("platform_account").Where(d=>accountIds.Contains(d.S("id"))).Select(d=>new JsonObject{["id"]=d.S("id"),["companyId"]=d.S("companyId"),["platformCode"]=d.S("platformCode"),
+        Add("platform_account",Ops("platform_account").Where(d=>accountIds.Contains(d.S("id"))).Select(d=>new JsonObject{["id"]=d.S("id"),["companyId"]=d.S("companyId"),["platformCode"]=d.S("platformCode"),
             ["assignments"]=new JsonArray((d["assignments"] as JsonArray??[]).OfType<JsonObject>().Where(a=>riders.Contains(a.S("riderId"))&&Overlaps(a,period)).Select(a=>(JsonNode?)new JsonObject{["riderId"]=a.S("riderId"),["from"]=a.S("RawEffectiveFrom",a.S("EffectiveFrom")),["to"]=a.S("RawEffectiveTo",a.S("EffectiveTo"))}).OrderBy(a=>a.S("riderId"),StringComparer.Ordinal).ThenBy(a=>a.S("from"),StringComparer.Ordinal).ToArray())}));
         Pick("platform_invoice",d=>invoiceIds.Contains(d.S("id")));Pick("platform_invoice_line",d=>invoiceIds.Contains(d.S("invoiceId")));
         foreach(string kind in new[]{"platform_invoice_action","platform_dispute","platform_allocation","operations_import"})Pick(kind,d=>invoiceIds.Contains(d.S("invoiceId")));
-        Pick("ninja_daily",d=>accountIds.Contains(d.S("platformAccountId"))&&d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal));
+        Add("ninja_daily",Ops("ninja_daily").Where(d=>accountIds.Contains(d.S("platformAccountId"))&&d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)));
         Pick("adjustment",d=>Rider(d)&&d.S("period")==period);Pick("run",d=>Rider(d)&&d.S("period")==period);
         var ledger=All("ledger").Where(d=>Rider(d)&&d.S("period")==period).ToList();var ledgerIds=ledger.Select(d=>d.S("id")).ToHashSet();
         Add("ledger",ledger);Pick("ledger_reversal",d=>ledgerIds.Contains(d.S("reversesLedgerId")));

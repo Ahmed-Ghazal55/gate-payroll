@@ -29,7 +29,9 @@ public sealed class ChefzOperationsTests
         Assert.AreEqual(5m,review["accounts"]![0]!["riders"]![0]!.N("orders"),"actual delivered orders are explicit, never accepted offers");Assert.AreEqual(8m,review["accounts"]![0]!["riders"]![0]!["metrics"]!.N("acceptedOffers"));
         Assert.AreEqual(2m,review["accounts"]![0]!["riders"]![0]!.N("days"));Assert.AreEqual(10m,view["lineage"]![0]!.N("companyAmount"));
         Assert.AreEqual(before,f.Store.Read(c=>Store.List(c,"chefz_settlement").Single().ToJsonString()));Assert.AreEqual(audits,f.Store.Read(c=>Store.List(c,"audit").Count));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,OperationsImports.Kind).Count));
-        var cycle=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,new(){["companyId"]=Company,["period"]="2026-10",["invoices"]=new JsonArray(review.Clone())}));for(int i=1;i<=3;i++)f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["stage"]=i}));
+        var cycle=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,new(){["companyId"]=Company,["period"]="2026-10",["invoices"]=new JsonArray(review.Clone())}));
+        f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,cycle.S("id")));
+        for(int i=1;i<=3;i++)f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["stage"]=i}));
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"journal").Count));
     }
     [TestMethod]
@@ -104,6 +106,7 @@ public sealed class ChefzOperationsTests
         f.Approve("pay_setting","global",f.Global());var schemeData=PayFixture.Scheme("daily_commission");schemeData["accountingRole"]="principal";schemeData["parameters"]!["categories"]!["sponsored_private"]!["dailyCommission"]=25;var scheme=f.Approve("pay_scheme","chefz",f.Draft("pay_scheme","chefz",schemeData));
         f.Store.Write((c,tx)=>{Store.Save(c,"pay_assignment",new(){["id"]="synthetic-chefz-choice",["rider"]=Rider,["app"]="chefz",["period"]="2026-10",["status"]="approved",["schemeId"]=scheme.S("id"),["choiceApprovedAt"]="2026-09-29T00:00:00Z"},tx);return true;});
         var cycle=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,new(){["companyId"]=Company,["period"]="2026-10",["invoices"]=new JsonArray(view["review"]!.DeepClone())}));
+        f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,cycle.S("id")));
         for(int stage=1;stage<=4;stage++)cycle=f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["stage"]=stage}));
         var payLine=f.Store.Read(c=>PayCycles.Lines(c,null,cycle.S("id")).Single());Assert.AreEqual((decimal)expected,payLine.N("companyCommission"));Assert.AreEqual(gross-expected,payLine.N("gross"));
     }

@@ -20,7 +20,11 @@ public static class PayReviewDraft
         if(invoices.Count==0)Block("invoice_missing","ارفع واعتمد فاتورة نينجا للشركة والشهر.","upload_invoice");
         foreach(string kind in new[]{"pay_terms","pay_eligibility"})try{PaySettings.Resolve(c,tx,kind,"ninja",period);}catch(ApiError){Block(kind+"_missing","إعداد نينجا للشهر غير معتمد: "+kind,"approve_settings");}
         try{PaySettings.Global(c,tx,period+"-01");}catch(ApiError){Block("global_settings_missing","اعتمد إعدادات الأيام والإيجار بتاريخ الشهر.","approve_settings");}
-        var daily=Store.List(c,"ninja_daily",tx).Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList();
+        // Pre-cycle draft still reads store; once a cycle captured inputs, draft uses the freeze (never silent empty).
+        var openCycle=Store.List(c,PayCycles.Kind,tx).FirstOrDefault(p=>p.S("companyId")==company&&p.S("period")==period&&p.S("status") is not ("cancelled" or "reversed")&&(p.S("app")=="ninja"||(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("app")=="ninja"))&&PayRunInputs.Captured(p));
+        var daily=openCycle!=null
+            ?PayRunInputs.List(c,tx,openCycle.S("id"),"ninja_daily").Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList()
+            :Store.List(c,"ninja_daily",tx).Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList();
         var people=Store.List(c,"rider",tx).ToDictionary(r=>r.S("id"),StringComparer.Ordinal);
         var invoicedAccounts=invoices.SelectMany(i=>NinjaInvoices.Lines(c,tx,i.S("id"))).Select(l=>l.S("platformAccountId")).Where(id=>id!="").ToHashSet(StringComparer.Ordinal);
         foreach(var row in daily.Where(d=>!invoicedAccounts.Contains(d.S("platformAccountId"))))
@@ -48,7 +52,7 @@ public static class PayReviewDraft
                 foreach(var line in lines.Where(l=>l.S("lineType")!="company"))
                 {
                     var account=OperationsImports.Account(line);string accountId=account.S("accountId"),source=line.S("id");accounts.Add(account);
-                    var local=Store.Get(c,accountId,"platform_account",tx);
+                    var local=openCycle!=null?PayRunInputs.Get(c,tx,openCycle.S("id"),"platform_account",accountId):Store.Get(c,accountId,"platform_account",tx);
                     if(local==null||local.S("companyId")!=company||PayPlatforms.For(local.S("platformCode")).App!="ninja"){Block("account_missing","اربط سطر الفاتورة بحساب نينجا للشركة.","link_account",source);continue;}
                     var rows=daily.Where(d=>d.S("platformAccountId")==accountId).ToList();
                     string? onlyAssigned=null;

@@ -523,6 +523,14 @@ try {
     await createCycleBtn.waitFor({ state: 'visible', timeout: 8000 });
     await createCycleBtn.click();
     console.log('✓ Clicked «إنشاء دورة الرواتب»');
+    // L2: freeze ops inputs before stage advance (U2 will wire the capture button).
+    const createdCycles = await (await fetch(`${baseUrl}/api/pay/cycles?period=2026-10`, { headers: { Cookie: cookieB } })).json();
+    const createdId = (createdCycles.items || createdCycles)[0]?.id;
+    assert.ok(createdId, 'Cycle id required before capture-inputs');
+    const captureRes = await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(createdId)}/capture-inputs`, {
+      method: 'POST', headers: { Cookie: cookieB, 'Content-Type': 'application/json' }, body: '{}',
+    });
+    assert.equal(captureRes.status, 200, `capture-inputs must succeed: ${await captureRes.text()}`);
 
     // Wait for cycle view to appear
     await page.waitForTimeout(1000);

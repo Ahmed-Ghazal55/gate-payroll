@@ -36,6 +36,7 @@ public sealed class OperationsImportTests
         var saved=f.Store.Write((c,tx)=>OperationsImports.Commit(c,tx,PayFixture.Maker,app,Confirm(preview),bytes));
         Assert.IsTrue(JsonNode.DeepEquals(review,saved["review"]));
         var cycle=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,new(){["companyId"]=Company,["period"]="2026-10",["invoices"]=new JsonArray(saved["review"]!.DeepClone())}));
+        f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,cycle.S("id")));
         for(int stage=1;stage<=3;stage++)f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["stage"]=stage}));
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"journal").Count));
         Assert.AreEqual("ready",ImportCatalog.Steps().Single(s=>s.Key==(app=="hs"?"hungerstation":app)+"_operations").Status);

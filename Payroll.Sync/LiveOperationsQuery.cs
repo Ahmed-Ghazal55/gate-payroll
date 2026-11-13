@@ -17,7 +17,10 @@ public static class LiveOperationsQuery
     /// <summary>InList switches to one JSON parameter above this count (SQL Server allows 2100 parameters per command).</summary>
     public const int MaxInlineParameters=500;
     /// <param name="QueryAlt">Arabic/digit-normalised form of <paramref name="Query"/>; both are searched because ERP columns keep the original letters.</param>
-    public sealed record PageRequest(int Page,int PageSize,string Sort,string Query,int Skip,int Take,string QueryAlt="");
+    /// <param name="PeriodFrom">Optional inclusive yyyy-MM-dd for capture filters (empty = no period filter).</param>
+    /// <param name="PeriodTo">Optional inclusive yyyy-MM-dd for capture filters.</param>
+    /// <param name="PlatformApp">Optional payroll app code (ninja/keeta/…) to limit platform-scoped kinds during capture.</param>
+    public sealed record PageRequest(int Page,int PageSize,string Sort,string Query,int Skip,int Take,string QueryAlt="",string PeriodFrom="",string PeriodTo="",string PlatformApp="");
     /// <param name="PlatformRestricted">True for non-administrators: platform_account rows are limited to <paramref name="PlatformCodes"/> (empty = none).</param>
     public sealed record Scope(bool AllCompanies,IReadOnlyList<string> SponsorCommercialRegs,IReadOnlyList<string> EmployeeIds,IReadOnlyList<string> RiderProfileIds,IReadOnlyList<string> PlatformCodes,string? RiderAccountEmployeeId=null,IReadOnlyList<string>? RiderAccountProfileIds=null,bool PlatformRestricted=false);
     public sealed record PageResult(SourceSnapshot Snapshot,long Total,PageRequest Request,DateTimeOffset AsOf);
@@ -95,7 +98,7 @@ public static class LiveOperationsQuery
     {
         if(kind=="sponsorship_period")return ("SELECT CAST(0 AS bigint)","SELECT CAST(NULL AS uniqueidentifier) AS [Id] WHERE 1=0",[]);
         var spec=SpecFor(kind);var cmd=new SqlCommand();
-        var where=BuildWhere(spec,scope,page.Query,page.QueryAlt,cmd,out _);
+        var where=BuildWhere(spec,scope,page,cmd,out _);
         string from=FromSql(spec);string select=SelectSql(spec);
         string orderCol=UsesAlias(spec)?"t.[Id]":"[Id]";
         string order=page.Sort=="-id"?$"ORDER BY {orderCol} DESC":$"ORDER BY {orderCol} ASC";
@@ -134,13 +137,13 @@ public static class LiveOperationsQuery
         var spec=SpecFor(kind);
         using var countCmd=source.CreateCommand();countCmd.CommandTimeout=CommandTimeoutSeconds;
         using var countCancel=SyncCancellation.Register(countCmd,cancellationToken);
-        var where=BuildWhere(spec,scope,request.Query,request.QueryAlt,countCmd,out var needsSponsors);
+        var where=BuildWhere(spec,scope,request,countCmd,out var needsSponsors);
         countCmd.CommandText=$"SELECT COUNT_BIG(*) FROM {FromSql(spec)}{where}";
         long total=Convert.ToInt64(countCmd.ExecuteScalar()??0,CultureInfo.InvariantCulture);
 
         using var pageCmd=source.CreateCommand();pageCmd.CommandTimeout=CommandTimeoutSeconds;
         using var pageCancel=SyncCancellation.Register(pageCmd,cancellationToken);
-        where=BuildWhere(spec,scope,request.Query,request.QueryAlt,pageCmd,out _);
+        where=BuildWhere(spec,scope,request,pageCmd,out _);
         Add(pageCmd,"@skip",request.Skip);Add(pageCmd,"@take",request.Take);
         bool aliased=UsesAlias(spec);
         string orderCol=aliased?"t.[Id]":"[Id]";
@@ -181,8 +184,9 @@ public static class LiveOperationsQuery
     static string SelectSql(KindSpec spec)=>UsesAlias(spec)
         ?string.Join(',',spec.Columns.Select(c=>$"t.[{c}]"))
         :string.Join(',',spec.Columns.Select(c=>$"[{c}]"));
-    static string BuildWhere(KindSpec spec,Scope scope,string query,string queryAlt,DbCommand cmd,out bool needsSponsors)
+    static string BuildWhere(KindSpec spec,Scope scope,PageRequest page,DbCommand cmd,out bool needsSponsors)
     {
+        string query=page.Query,queryAlt=page.QueryAlt;
         needsSponsors=false;var parts=new List<string>();string prefix=UsesAlias(spec)?"t.":"";
         if(spec.Columns.Contains("IsDeleted",StringComparer.Ordinal))parts.Add($"{prefix}[IsDeleted]=0");
 
@@ -281,6 +285,34 @@ public static class LiveOperationsQuery
                 var rp=InList(cmd,"@rap",profileIds);
                 parts.Add($"({prefix}[RegisteredEmployeeId]=@rae OR EXISTS (SELECT 1 FROM [app].[RiderClientAssignments] rca WHERE rca.[PlatformRiderAccountId]={prefix}[Id] AND rca.[IsDeleted]=0 AND rca.[RiderProfileId] IN ({rp})))");
             }
+        }
+
+        // Capture period filters (L2): date kinds use [Date]; assignment/residence use overlap with [periodFrom, periodTo+1day).
+        if(page.PeriodFrom.Length>0&&page.PeriodTo.Length>0)
+        {
+            Add(cmd,"@pf",page.PeriodFrom);Add(cmd,"@pt",page.PeriodTo);
+            if(spec.Kind is "ninja_daily" or "ninja_daily_deduction" or "chefz_daily" or "chefz_order_row" or "platform_day_usage" or "jahez_daily_order")
+                parts.Add($"{prefix}[Date] >= @pf AND {prefix}[Date] < DATEADD(day,1,CONVERT(date,@pt))");
+            else if(spec.Kind=="vehicle_assignment")
+                parts.Add($"{prefix}[StartedAt] < DATEADD(day,1,CONVERT(date,@pt)) AND ({prefix}[EndedAt] IS NULL OR {prefix}[EndedAt] > CONVERT(date,@pf))");
+            else if(spec.Kind=="housing_residence")
+                parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,1,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > CONVERT(date,@pf))");
+            else if(spec.Kind=="rider_work_timeline")
+                parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,1,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > CONVERT(date,@pf))");
+        }
+        if(page.PlatformApp.Length>0&&spec.Kind is "platform_account" or "ninja_daily" or "ninja_daily_deduction" or "chefz_daily" or "rider_work_timeline" or "platform_day_usage")
+        {
+            // Map payroll app → ERP ClientPlatforms.Code (Ninja, Keeta, …).
+            string code=page.PlatformApp switch
+            {
+                "ninja"=>"Ninja","keeta"=>"Keeta","hs"=>"HungerStation","chefz"=>"Chefz","jahez"=>"Jahez","amazon"=>"Amazon",
+                _=>page.PlatformApp
+            };
+            Add(cmd,"@pcap",code);
+            if(spec.Kind=="platform_account")
+                parts.Add("cp.[Code]=@pcap");
+            else
+                parts.Add("EXISTS (SELECT 1 FROM [app].[PlatformRiderAccounts] paf INNER JOIN [platform].[ClientPlatforms] cpf ON cpf.[Id]=paf.[ClientPlatformId] WHERE paf.[Id]=t.[PlatformRiderAccountId] AND cpf.[Code]=@pcap)");
         }
 
         return parts.Count==0?"":" WHERE "+string.Join(" AND ",parts);

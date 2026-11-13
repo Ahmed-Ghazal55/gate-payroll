@@ -23,7 +23,9 @@ public static class PayReviewCategory
     {
         string saved=rider.S("payCategory");if(PaySettings.Categories.Contains(saved))return saved;
         string prefix=rider.S("engagementType") switch{"SponsoredInternal"=>"sponsored","External"=>"external",_=>""};if(prefix=="")return "";
-        var held=Store.List(c,"vehicle_assignment",tx).Where(a=>a.S("riderId")==rider.S("id")&&Overlaps(a.S("startedAt"),a.S("endedAt"),period)).Select(a=>Store.Get(c,a.S("vehicleId"),"vehicle",tx)).ToList();
+        var openCycle=Store.List(c,PayCycles.Kind,tx).FirstOrDefault(p=>p.S("period")==period&&p.S("status") is not ("cancelled" or "reversed")&&PayRunInputs.Captured(p)&&(p.S("companyId")==rider.S("sponsorId")||p.S("companyId")==rider.S("companyId")));
+        var assignments=openCycle!=null?PayRunInputs.List(c,tx,openCycle.S("id"),"vehicle_assignment"):Store.List(c,"vehicle_assignment",tx);
+        var held=assignments.Where(a=>a.S("riderId")==rider.S("id")&&Overlaps(a.S("startedAt"),a.S("endedAt"),period)).Select(a=>openCycle!=null?PayRunInputs.Get(c,tx,openCycle.S("id"),"vehicle",a.S("vehicleId")):Store.Get(c,a.S("vehicleId"),"vehicle",tx)).ToList();
         if(held.Count==0)return prefix+"_private";
         var kinds=held.Select(v=>v==null?"":Vehicle(v)).Distinct().ToList();
         return kinds.Count==1&&kinds[0]!=""?prefix+"_"+kinds[0]:"";

@@ -48,6 +48,7 @@ public sealed partial class Store
             """;
         cmd.ExecuteNonQuery();
         ErpDataIndexes.Ensure(c);
+        PayRunInputs.Ensure(c);
         if(beforeUpgrade!=null&&beforeUpgrade!=System.Text.Json.JsonSerializer.Serialize(ReleaseSafety.Capture(c)))throw new InvalidOperationException("Startup document preservation verification failed.");
         DataPreservationVerified=true;
     }
