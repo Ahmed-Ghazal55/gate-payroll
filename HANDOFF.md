@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Current writer | (none) — next: Cursor L2 |
-| Branch | feat/ops-live-ui |
+| Branch | feat/live-ops-erp-reads (draft PR #36) |
 | Updated | 2026-11-13 by Antigravity (U1 live ops UI) |
 | Live | `/health` = **0.20.0** (this branch not deployed) |
 
