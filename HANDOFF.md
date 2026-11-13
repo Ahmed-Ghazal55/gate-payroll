@@ -2,10 +2,22 @@
 
 | Field | Value |
 |---|---|
-| Current writer | (none) — next: Antigravity U1 |
-| Branch | feat/live-ops-erp-reads (draft PR #36) |
-| Updated | 2026-11-12 by Cursor (L1 paging) |
+| Current writer | (none) — next: Cursor L2 |
+| Branch | feat/ops-live-ui |
+| Updated | 2026-11-13 by Antigravity (U1 live ops UI) |
 | Live | `/health` = **0.20.0** (this branch not deployed) |
+
+## U1 done (Antigravity)
+- Operations screens (`web/src/app/operations/page.tsx`):
+  - Server paging and search: sends `page`, `pageSize` (25/50/100/200) and `q` to `/api/operations/{kind}`. 300ms debounce on search input. Total from response. Server-side pagination via `DataTable` (`serverSide={true}`). Never pages or filters on client.
+  - Source badge (`web/src/components/ui/SourceBadge.tsx`): shows «مباشر من نظام الموارد — آخر قراءة <asOf بتوقيت الرياض>» when `source === "erp_live"`, and «بيانات تجريبية محلية» when `source === "store"`.
+  - Read-only rows: `allowedActions` empty hides edit/import/delete buttons. Link to Import Center (`/imports/`) preserved.
+  - 503 handling: clear Arabic card «مصدر التشغيل غير متاح الآن» with retry button; keeps last page shown when data was already loaded. 400 shows API message. Skeleton rows while loading.
+  - Stat cards: uses factual `total` and active-tab metrics only; removed fake counts for inactive tabs.
+- Rider accounts panel (`web/src/components/riders/RiderAccountsPanel.tsx`):
+  - Integrated into `/app/riders/` (Profile 360 "accounts" tab) and `/app/riders/statement/`.
+  - Paged reads against `/api/riders/{iqama}/accounts` (25/50/100/200), source badge, 503 card with retry, and read-only rows.
+- Tests: verified via `web/tests/ops-live-ui.mjs` (all tabs, search, pagination, 360px mobile viewport, 503 error & retry), `web/tests/e2e.mjs`, `web/tests/ui-qa.mjs`, `web/tests/r8-ninja-flow.mjs`, `web/tests/import-center.mjs`, `web/tests/r8-keeta-flow.mjs`, `web/tests/r9-pay-settings-flow.mjs`, `tests/browser.mjs`.
 
 ## L1 done (Cursor)
 - `Payroll.Sync/LiveOperationsQuery.cs`: per-kind allowlist, `COUNT_BIG(*)` + `ORDER BY Id OFFSET/FETCH`, parents by page keys (batches ≤500), `CommandTimeout` 15s.
@@ -50,8 +62,8 @@ Target &lt;2s mostly met; `vehicle_expense` ~2.2s on cold path (loads sponsors +
 - L1 push `fb595e0`: run [43274331025](https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43274331025) **green** (validate 9m28s). Deploy steps skipped (draft PR).
 
 ## Next step (exact)
-1. **U1 — Antigravity:** `~/.agents/prompts/antigravity-U1-ops-live-ui.md`
-2. **S1 — Claude:** security pass on PR #36 (stop here for S1)
+1. **L2 — Cursor:** pay_run_input table + capture_inputs action + RunInputs.List readers swap; design-review (EGM) first.
+2. **U2 — Antigravity:** cycle screen capture inputs button, captured-at, rows per kind (after L2 is pushed and green).
 
 ## Do not
 - Do not write to ERP. Do not put secrets in git.

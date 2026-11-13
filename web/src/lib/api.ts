@@ -104,6 +104,13 @@ export type PayEligibilityItem = PayEligibilityResponse['items'][number];
 export type ManualJournalItem = ApiResp<'/api/finance/journals/manual'>['items'][number];
 export type ManualJournalLineItem = NonNullable<ManualJournalItem['lines']>[number];
 
+export type OperationsResponse = Omit<ApiResp<'/api/operations/{kind}'>, 'items'> & {
+  items: Record<string, any>[];
+};
+export type RiderAccountsResponse = Omit<ApiResp<'/api/riders/{iqama}/accounts'>, 'items'> & {
+  items: Record<string, any>[];
+};
+
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
 
 export class ApiError extends Error {
@@ -1194,7 +1201,7 @@ export const api = {
     if (params?.pageSize) p.set('pageSize', String(params.pageSize));
     if (params?.q) p.set('q', params.q);
     const qs = p.toString() ? `?${p.toString()}` : '';
-    return handleRequest<any>(`/operations/${encodeURIComponent(kind)}${qs}`);
+    return handleRequest<OperationsResponse>(`/operations/${encodeURIComponent(kind)}${qs}`);
   },
 
   getRiderAccounts: (iqama: string, params?: { page?: number; pageSize?: number }) => {
@@ -1202,7 +1209,7 @@ export const api = {
     if (params?.page) p.set('page', String(params.page));
     if (params?.pageSize) p.set('pageSize', String(params.pageSize));
     const qs = p.toString() ? `?${p.toString()}` : '';
-    return handleRequest<any>(`/riders/${encodeURIComponent(iqama)}/accounts${qs}`);
+    return handleRequest<RiderAccountsResponse>(`/riders/${encodeURIComponent(iqama)}/accounts${qs}`);
   },
 
   getRiderMonthlyStatement: (iqama: string, period: string) =>

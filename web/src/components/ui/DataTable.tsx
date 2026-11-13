@@ -101,6 +101,8 @@ export interface DataTableProps<T> {
   showTotals?: boolean;
   columnFilters?: Record<string, string>;
   onColumnFiltersChange?: (filters: Record<string, string>) => void;
+  serverSide?: boolean;
+  pageSizes?: number[];
 }
 
 export const PAGE_SIZES = [50, 100, 150, 200, 250, 300];
@@ -135,10 +137,14 @@ export function DataTable<T extends Record<string, any>>({
   showTotals = true,
   columnFilters: controlledColumnFilters,
   onColumnFiltersChange,
+  serverSide = false,
+  pageSizes: propPageSizes,
 }: DataTableProps<T>) {
+  const availablePageSizes = propPageSizes || PAGE_SIZES;
+
   // Paging state
   const [innerPage, setInnerPage] = useState(1);
-  const [innerPageSize, setInnerPageSize] = useState(PAGE_SIZES[0]);
+  const [innerPageSize, setInnerPageSize] = useState(propPageSizes?.[0] ?? PAGE_SIZES[0]);
   const page = controlledPage ?? innerPage;
   const pageSize = controlledPageSize ?? innerPageSize;
 
@@ -216,7 +222,7 @@ export function DataTable<T extends Record<string, any>>({
         if (urlDir === 'asc' || urlDir === 'desc') setSortDir(urlDir);
       }
       if (!isNaN(urlPage) && urlPage > 0) onPageChange(urlPage);
-      if (!isNaN(urlSize) && PAGE_SIZES.includes(urlSize)) onPageSizeChange(urlSize);
+      if (!isNaN(urlSize) && availablePageSizes.includes(urlSize)) onPageSizeChange(urlSize);
 
       const colFilters: Record<string, string> = {};
       sp.forEach((val, key) => {
@@ -363,6 +369,7 @@ export function DataTable<T extends Record<string, any>>({
 
   // Filtered dataset
   const filteredData = useMemo(() => {
+    if (serverSide) return data;
     const normGlobal = normalizeArabicSearch(globalSearch);
 
     return data.filter((row) => {
@@ -413,6 +420,7 @@ export function DataTable<T extends Record<string, any>>({
 
   // Sorted dataset
   const sortedData = useMemo(() => {
+    if (serverSide) return data;
     if (!sortKey) return filteredData;
     const col = columns.find((c) => c.key === sortKey);
     if (!col) return filteredData;
@@ -430,27 +438,28 @@ export function DataTable<T extends Record<string, any>>({
       const cmp = new Intl.Collator('ar', { numeric: true }).compare(aVal, bVal);
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [filteredData, sortKey, sortDir, columns, getCellString]);
+  }, [serverSide, data, filteredData, sortKey, sortDir, columns, getCellString]);
 
   // Paginated slice
   const paginatedData = useMemo(() => {
+    if (serverSide) return data;
     if (totalCount !== undefined && totalCount > data.length) {
       return sortedData;
     }
     const start = (page - 1) * pageSize;
     return sortedData.slice(start, start + pageSize);
-  }, [sortedData, page, pageSize, totalCount, data.length]);
+  }, [serverSide, data, sortedData, page, pageSize, totalCount]);
 
-  const effectiveTotal = totalCount !== undefined ? totalCount : filteredData.length;
+  const effectiveTotal = totalCount !== undefined ? totalCount : (serverSide ? data.length : filteredData.length);
   const totalPages = Math.max(1, Math.ceil(effectiveTotal / pageSize));
 
   // If a narrower filter leaves the current page past the end, go back to the last page
   useEffect(() => {
-    if (page > totalPages) {
+    if (!serverSide && page > totalPages) {
       onPageChange(totalPages);
       updateUrlParams({ page: totalPages });
     }
-  }, [page, totalPages, onPageChange, updateUrlParams]);
+  }, [serverSide, page, totalPages, onPageChange, updateUrlParams]);
 
   // Global search change handler
   const handleGlobalSearch = (val: string) => {
@@ -962,25 +971,37 @@ export function DataTable<T extends Record<string, any>>({
             <span>
               عرض{' '}
               <strong className="num text-[var(--ink)] font-semibold">
-                {filteredData.length === 0 ? 0 : (page - 1) * pageSize + 1}
+                {effectiveTotal === 0 ? 0 : (page - 1) * pageSize + 1}
               </strong>{' '}
               إلى{' '}
               <strong className="num text-[var(--ink)] font-semibold">
                 {Math.min(page * pageSize, effectiveTotal)}
               </strong>{' '}
-              من إجمالي المعروض:{' '}
-              <strong className="num text-[var(--ink)] font-semibold">
-                {filteredData.length}
-              </strong>{' '}
-              سجل
-              {filteredData.length !== (totalCount ?? data.length) && (
-                <span className="ms-1 text-[var(--muted)]">
-                  (إجمالي الكل:{' '}
+              {serverSide ? (
+                <>
+                  من إجمالي:{' '}
                   <strong className="num text-[var(--ink)] font-semibold">
-                    {totalCount ?? data.length}
+                    {effectiveTotal}
                   </strong>{' '}
-                  سجل)
-                </span>
+                  سجل
+                </>
+              ) : (
+                <>
+                  من إجمالي المعروض:{' '}
+                  <strong className="num text-[var(--ink)] font-semibold">
+                    {filteredData.length}
+                  </strong>{' '}
+                  سجل
+                  {filteredData.length !== (totalCount ?? data.length) && (
+                    <span className="ms-1 text-[var(--muted)]">
+                      (إجمالي الكل:{' '}
+                      <strong className="num text-[var(--ink)] font-semibold">
+                        {totalCount ?? data.length}
+                      </strong>{' '}
+                      سجل)
+                    </span>
+                  )}
+                </>
               )}
             </span>
           )}
@@ -993,7 +1014,7 @@ export function DataTable<T extends Record<string, any>>({
               aria-label="عدد السجلات لكل صفحة"
               className="py-1 px-2 rounded-md border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
             >
-              {PAGE_SIZES.map((size) => (
+              {availablePageSizes.map((size) => (
                 <option key={size} value={size}>
                   {size}
                 </option>

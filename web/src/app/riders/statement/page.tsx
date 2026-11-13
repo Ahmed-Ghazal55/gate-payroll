@@ -31,6 +31,7 @@ import { PageHeader } from '../../../components/ui/PageHeader';
 import { Skeleton, EmptyState, ErrorState } from '../../../components/ui/EmptyState';
 import { RiderPicker } from '../../../components/ui/RiderPicker';
 import type { RiderStatement, RiderProfile360, MonthlyRiderStatement } from '../../../lib/types';
+import { RiderAccountsPanel } from '../../../components/riders/RiderAccountsPanel';
 
 function RiderStatementPageInner() {
   const { user } = useAuth();
@@ -618,6 +619,11 @@ function RiderStatementPageInner() {
                 <div className="mt-4 pt-1 border-t border-[var(--line)] w-28">الختم والاعتماد</div>
               </div>
             </div>
+          </div>
+
+          {/* Rider Platform Accounts Panel (0.20.0 Live ERP Reads) */}
+          <div className="print:hidden">
+            <RiderAccountsPanel iqama={statement.iqama} />
           </div>
         </div>
       )}
