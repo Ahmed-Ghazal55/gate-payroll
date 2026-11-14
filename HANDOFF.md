@@ -6,7 +6,7 @@
 | Branch | feat/pay-pipeline-six-stages |
 | Updated | 2026-11-14 by Cursor (W1-M3) |
 | Live | `/health` = **0.21.0** (this branch not deployed) |
-| Tip | after W1-M3 push — see Done |
+| Tip | `3532327` — W1-M3; CI green `43616445623` |
 
 ## Done (W1-M3)
 - Data check `~/.agents/reviews/W1-M3-data-check.md` — gate 1–4 PASS (STOP=no); Ninja-only **183**.
