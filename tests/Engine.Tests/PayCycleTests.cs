@@ -73,9 +73,17 @@ public sealed class PayCycleTests
      var(g,other,_d)=Setup(false);using(g){other["invoices"]![0]!["accounts"]![0]!["riders"]![0]!["rider"]=Rider(3);var d=Create(g,other);Capture(g,d.S("id"));Advance(g,d.S("id"),1);Advance(g,d.S("id"),2);Assert.ThrowsExactly<ApiError>(()=>Advance(g,d.S("id"),3));}}
     [TestMethod]
     public void NegativeNetReachesReviewAndOnlyFinalApprovalCreatesCarry()
-    {var(f,input,_)=Setup(false);using(f){var data=PayFixture.Scheme("monthly_commission");data["parameters"]!["categories"]!["sponsored_private"]!["prorate"]=false;var scheme=f.Draft("pay_scheme","hs",data,"negative");f.Approve("pay_scheme","hs",scheme);f.Store.Write((c,tx)=>{var choice=Store.Get(c,"synthetic-choice-hs1","pay_assignment",tx)!;choice["schemeId"]=scheme.S("id");Store.Save(c,"pay_assignment",choice,tx);return true;});var cycle=Through(f,input,6);Assert.AreEqual("needs_decision",cycle.S("status"));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
-        f.Store.Write((c,tx)=>PayCycles.ReviewRider(c,tx,PayFixture.Maker,cycle.S("id"),Rider(1),new(){["action"]="approve",["reason"]="Carry remaining final shortfall"}));
-        Advance(f,cycle.S("id"),7,true);Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"debt").Count));Assert.AreEqual("112507",f.Store.Read(c=>Store.List(c,"debt").Single().S("receivableAccountCode")));}}
+    {
+        // §40.6: negative net stays on the review path as ready; carry debt appears only at stage-7 approval.
+        var(f,input,_)=Setup(false);using(f)
+        {
+            var data=PayFixture.Scheme("monthly_commission");data["parameters"]!["categories"]!["sponsored_private"]!["prorate"]=false;var scheme=f.Draft("pay_scheme","hs",data,"negative");f.Approve("pay_scheme","hs",scheme);
+            f.Store.Write((c,tx)=>{var choice=Store.Get(c,"synthetic-choice-hs1","pay_assignment",tx)!;choice["schemeId"]=scheme.S("id");Store.Save(c,"pay_assignment",choice,tx);return true;});
+            var cycle=Through(f,input,6);Assert.AreEqual("review",cycle.S("status"));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
+            Assert.IsTrue(cycle["riders"]!.AsArray().OfType<JsonObject>().Any(r=>r.N("net")<0&&r.S("status")=="ready"));
+            Advance(f,cycle.S("id"),7,true);Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"debt").Count));Assert.AreEqual("112507",f.Store.Read(c=>Store.List(c,"debt").Single().S("receivableAccountCode")));
+        }
+    }
     [TestMethod]
     public void IndependentReversalAppendsJournalsRestoresDebtAndKeepsOriginalBodies()
     {var(f,input,debt)=Setup();using(f){var before=f.Store.Read(c=>Store.Get(c,debt,"debt")!.Clone());var cycle=Through(f,input);Advance(f,cycle.S("id"),7,true);Advance(f,cycle.S("id"),8,true);var journals=f.Store.Read(c=>Store.List(c,"journal").ToDictionary(j=>j.S("id"),j=>j.ToJsonString()));f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["action"]="reversal_request",["period"]="2026-11",["note"]="Synthetic corrected source"}));Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["action"]="reversal_approve"})));var reverse=f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Checker,cycle.S("id"),new(){["action"]="reversal_approve"}));Assert.AreEqual("reversed",reverse.S("status"));Assert.IsTrue(JsonNode.DeepEquals(before,f.Store.Read(c=>Store.Get(c,debt,"debt"))));foreach(var old in journals)Assert.AreEqual(old.Value,f.Store.Read(c=>Store.Get(c,old.Key,"journal")!.ToJsonString()));Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"ledger_reversal").Count));}}
