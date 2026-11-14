@@ -6,7 +6,7 @@
 | Branch | feat/pay-pipeline-six-stages |
 | Updated | 2026-11-14 by Cursor (W1-M3b) |
 | Live | `/health` = **0.21.0** (this branch not deployed) |
-| Tip | W1-M3b loader fix (hash after commit) |
+| Tip | `138256f` — W1-M3b; CI green `43620810112` |
 
 ## Done (W1-M3b)
 - Gate restored: orders column «تسليم عدد طلبات» ties 190/191 (0 mismatches). Check 4 fails 3/191 (1.57%). STOP = no.
