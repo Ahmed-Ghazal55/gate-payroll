@@ -189,7 +189,22 @@ public static partial class PayCycles
             if(deficit)hard.Add("legacy_deficit_requires_resolution");
             // A negative Ninja salary is not covered by the Keeta-only exception.
             if(net<0&&group.Any(l=>l.S("app")=="ninja"&&l.S("schemeType")=="target_salary"))hard.Add("negative_ninja_salary_requires_policy");
-            bool blocked=net<0||hard.Count>0;var summary=new JsonObject{["rider"]=rider,["net"]=J.Money(net),["carried"]=J.Money(carried),["closing"]=J.Money(carried+net),["status"]=blocked?"needs_decision":"ready",["blockers"]=new JsonArray(hard.Select(b=>(JsonNode?)JsonValue.Create(b)).ToArray())};
+            // §40.5: hold when the rider also worked another app/company account this month outside this cycle.
+            var cycleApps=group.Select(l=>l.S("app")).Where(a=>a!="").Distinct(StringComparer.Ordinal).OrderBy(a=>a,StringComparer.Ordinal).ToList();
+            var outside=SharedRiderConsolidation.AppsInMonth(c,tx,cycle,rider,period);
+            var missing=outside.Where(a=>!cycleApps.Contains(a,StringComparer.Ordinal)).ToList();
+            bool shared=missing.Count>0,consolReady=false;
+            if(shared)
+            {
+                var monthApps=cycleApps.Concat(missing).Distinct(StringComparer.Ordinal).OrderBy(a=>a,StringComparer.Ordinal).ToList();
+                SharedRiderConsolidation.RecordAppNet(c,tx,cycle,rider,net,cycleApps,monthApps);
+                var consol=Store.Get(c,SharedRiderConsolidation.Id(rider,period),SharedRiderConsolidation.Kind,tx);
+                consolReady=consol!=null&&(consol.B("released")||(consol.S("status")=="ready"&&(consol["missingApps"] as JsonArray??[]).Count==0));
+                if(!consolReady)hard.Add("shared_rider_hold");
+            }
+            bool blocked=net<0||hard.Count>0;
+            var summary=new JsonObject{["rider"]=rider,["net"]=J.Money(net),["carried"]=J.Money(carried),["closing"]=J.Money(carried+net),["status"]=blocked?"needs_decision":"ready",["blockers"]=new JsonArray(hard.Select(b=>(JsonNode?)JsonValue.Create(b)).ToArray())};
+            if(shared){summary["tag"]=SharedRiderConsolidation.Tag;summary["sharedRider"]=true;summary["sharedLabelAr"]=SharedRiderConsolidation.QueueLabelAr;summary["missingApps"]=new JsonArray(missing.Select(a=>(JsonNode?)JsonValue.Create(a)).ToArray());summary["consolidationReady"]=consolReady;}
             Phases(summary,group,Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==rider));summaries.Add(summary);
         }
         cycle["riders"]=summaries;if(summaries.Count==0||summaries.OfType<JsonObject>().Any(r=>r.S("status")!="ready"))cycle["status"]="needs_decision";
@@ -200,11 +215,17 @@ public static partial class PayCycles
     {
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=cycle.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve",c,tx,"pay.salary_approved",cycle);
         J.Need(Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation",c,tx,cycle)),"المعتمد مستقل عن تجهيز الدورة.");
-        var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0).ToList();
-        if(batch.Count==0){J.Need(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!=""),"راجع واعتمد صفًا جاهزًا أولًا؛ الحالات المعلقة لا توقف الآخرين.");return true;}
+        // Shared riders stay out of the approval batch until consolidation is ready or released (§40.5).
+        var heldShared=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&SharedRiderConsolidation.Held(r)&&!r.B("consolidationReady")).ToList();
+        var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0&&!(SharedRiderConsolidation.Held(r)&&!r.B("consolidationReady"))).ToList();
+        if(batch.Count==0)
+        {
+            if(heldShared.Count>0){cycle["approvalResult"]=new JsonObject{["approved"]=0,["skipped"]=heldShared.Count,["skippedRows"]=new JsonArray(heldShared.Select(r=>(JsonNode)new JsonObject{["rider"]=r.S("rider"),["reason"]="shared_rider_hold"}).ToArray())};Store.Audit(c,tx,"pay.salary_rows_skipped",cycle.S("id"),actor.Identity!.Name!);return false;}
+            J.Need(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!=""),"راجع واعتمد صفًا جاهزًا أولًا؛ الحالات المعلقة لا توقف الآخرين.");return true;
+        }
         // Pass c/tx so §35 ActiveBypassGrant applies when the same actor reviewed the rows.
         var skipped=batch.Where(r=>!IndependentReview(actor,r,c,tx,cycle)).ToList();batch=batch.Where(r=>IndependentReview(actor,r,c,tx,cycle)).ToList();
-        cycle["approvalResult"]=new JsonObject{["approved"]=batch.Count,["skipped"]=skipped.Count,["skippedRows"]=new JsonArray(skipped.Select(r=>(JsonNode)new JsonObject{["rider"]=r.S("rider"),["reason"]="reviewer_or_editor_is_approver"}).ToArray())};
+        cycle["approvalResult"]=new JsonObject{["approved"]=batch.Count,["skipped"]=skipped.Count+heldShared.Count,["skippedRows"]=new JsonArray(skipped.Select(r=>(JsonNode)new JsonObject{["rider"]=r.S("rider"),["reason"]="reviewer_or_editor_is_approver"}).Concat(heldShared.Select(r=>(JsonNode)new JsonObject{["rider"]=r.S("rider"),["reason"]="shared_rider_hold"})).ToArray())};
         if(batch.Count==0){Store.Audit(c,tx,"pay.salary_rows_skipped",cycle.S("id"),actor.Identity!.Name!);return false;}
         foreach(var (app,_) in Accounts(cycle))PlatformPosting.Demand(c,app,tx);
         bool first=cycle.S("journalEntryId")=="";string now=DateTimeOffset.UtcNow.ToString("O");cycle["approvedBy"]=actor.Identity!.Name;cycle["approvedAt"]=now;
