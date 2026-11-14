@@ -10,10 +10,10 @@
 
 ## Done (W1-M3)
 - Data check `~/.agents/reviews/W1-M3-data-check.md` — gate 1–4 PASS (STOP=no); Ninja-only **183**.
-- `SheetReconcile --load-ninja` → Private store `~/Private/gate-data/golden-2026-09/` (700); never committed.
+- `dotnet run --project tools/GoldenNinja` → Private store `~/Private/gate-data/golden-2026-09/` (700); never committed. (Loader kept out of `SheetReconcile` so CI does not race `Payroll.Sync.deps.json`.)
 - Report `~/.agents/reviews/W1-golden-september.md`: BF **183/183**, BN≈**180/183**, BP **182/183**; due/BQ ~5% ±1 SAR.
 - Classes: **(a)=0**, (b)=483, (c)=33, (d)=12 (3 missing-ours hashes). Gap = §40.3 base vs sheet Final×(1−BV) / multi-rider split / راتب bands unmapped; AQ–BE+BN from transfers only.
-- Engine **577/577 / 0 skipped** with local `gate-sql-test`. Code: `LoadNinja.cs`, `InvoiceNormalize.cs`, `Reconcile.cs`, `Program.cs`.
+- Engine **577/577 / 0 skipped** with local `gate-sql-test`. Code: `tools/GoldenNinja/*`, `SheetReconcile/Reconcile.cs`.
 
 ## Next step (exact)
 Claude reads W1-golden-september.md + data-check; decide if due/BQ (b) gaps need sheet-rate mapping before Antigravity W3. No merge/deploy.

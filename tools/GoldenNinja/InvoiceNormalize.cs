@@ -2,7 +2,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 using System.Xml.Linq;
-namespace SheetReconcile;
+namespace GoldenNinja;
 
 /// <summary>Rewrite September Ninja supplier workbooks to the 43-column header set NinjaBilling expects.</summary>
 public static class InvoiceNormalize
