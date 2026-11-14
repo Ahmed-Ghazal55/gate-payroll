@@ -92,6 +92,27 @@ public sealed class EnterpriseTests
         try { var source=new Store(one);source.Write((c,tx)=>{Store.Save(c,"rider",new(){["id"]="2000000001",["name"]="Synthetic Rider"},tx);return true;});var snapshot=StorageTransfer.Export(source);var target=new Store(two);Assert.AreEqual(1,StorageTransfer.Import(target,snapshot,StorageTransfer.Fingerprint(snapshot)));Assert.AreEqual("Synthetic Rider",target.Read(c=>Store.Get(c,"2000000001","rider"))!.S("name"));Assert.ThrowsExactly<ApiError>(()=>StorageTransfer.Import(target,snapshot,StorageTransfer.Fingerprint(snapshot)));}
         finally {Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();if(Directory.Exists(one))Directory.Delete(one,true);if(Directory.Exists(two))Directory.Delete(two,true);}
     }
+    /// <summary>0.21.0 hotfix: first boot of a pre-L2 database (records but no pay_run_input) must start, not fail preservation.</summary>
+    [TestMethod] public void FirstBootOfPreL2DatabaseCreatesRunInputTableAndStarts()
+    {
+        string dir=Path.Combine(Path.GetTempPath(),"gate-prel2-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(dir);
+        try
+        {
+            using(var old=new Microsoft.Data.Sqlite.SqliteConnection("Data Source="+Path.Combine(dir,"payroll.db")))
+            {
+                old.Open();using var cmd=old.CreateCommand();
+                cmd.CommandText="CREATE TABLE records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL); INSERT INTO records VALUES('2000000001','rider','{\"id\":\"2000000001\",\"name\":\"Synthetic Rider\"}');";
+                cmd.ExecuteNonQuery();
+            }
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            var store=new Store(dir);
+            Assert.IsTrue(store.DataPreservationVerified);
+            Assert.AreEqual("Synthetic Rider",store.Read(c=>Store.Get(c,"2000000001","rider"))!.S("name"));
+            Assert.AreEqual(0L,store.Read(c=>{using var q=c.CreateCommand();q.CommandText="SELECT COUNT(*) FROM pay_run_input";return Convert.ToInt64(q.ExecuteScalar());}));
+            Assert.IsTrue(new Store(dir).DataPreservationVerified);
+        }
+        finally {Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();if(Directory.Exists(dir))Directory.Delete(dir,true);}
+    }
     [TestMethod] public void SqlServerRoundTripAndTransactionRollback()
     {
         string? configured=Environment.GetEnvironmentVariable("PAYROLL_TEST_SQL_CONNECTION");if(string.IsNullOrWhiteSpace(configured)){Assert.Inconclusive("SQL integration requires the explicit isolated CI test connection.");return;}
