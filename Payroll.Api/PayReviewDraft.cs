@@ -89,7 +89,7 @@ public static class PayReviewDraft
                     string riderId=onlyAssigned??groups.Single().Key;
                     if(!people.TryGetValue(riderId,out var personRow)){missing.Add(new JsonObject{["sourceLineId"]=source});Block("rider_not_found","أضف المندوب المرتبط بمصدر التشغيل.","sync_riders",source);continue;}
                     FinancialScopes.DemandRider(actor,personRow);if(!ErpRiderClassification.ListedAsRider(personRow)||personRow.B("debtOnly")){Block("rider_ineligible","المصدر لا يخص مندوب تشغيل فعال.","review_rider",source);continue;}
-                    string category=PayReviewCategory.Derive(c,tx,personRow,period);
+                    string category=PayReviewCategory.Derive(c,tx,personRow,period,liveOps);
                     if(!PaySettings.Categories.Contains(category)){Block("category_missing","تعذر تحديد فئة الكفالة والمركبة؛ حددها في ملف التشغيل المراجع.","import_operations",source);continue;}
                     var riderDays=daily.Where(d=>d.S("riderId")==riderId).Select(d=>d.S("date")[..10]).Distinct().Count();
                     var riderShare=new JsonObject{["rider"]=riderId,["orders"]=line.N("orders"),["baseGross"]=line.N("baseGross"),["deduction"]=accountDeduction,["category"]=category,["days"]=riderDays,["metrics"]=new JsonObject()};
@@ -125,12 +125,28 @@ public static class PayReviewDraft
         return new(){["app"]="ninja",["period"]=period,["companyId"]=company,["invoices"]=reviews,["blockers"]=blockers,["warnings"]=warnings,["allocationProposals"]=proposals,["dataThrough"]=dataThrough,["unassignedOrders"]=unassigned,["ridersNotFound"]=missing,["evidence"]=evidence,["canCreate"]=blockers.Count==0&&reviews.Count>0,["totals"]=new JsonObject{["gross"]=invoices.Sum(i=>i.N("amountExclVat")),["deductions"]=invoices.Sum(i=>i.N("deductionsTotal")),["vat"]=invoices.Sum(i=>i.N("vat"))}};
     }
     static bool Covers(JsonObject assignment,string date)=>AssignmentSpan.Covers(assignment,date);
+
+    /// <summary>Pre-cycle live reader: known kinds only. Unknown kind = error (never silent empty).</summary>
+    public static Func<string,IEnumerable<JsonObject>> KindAwareLiveOps(IReadOnlyList<JsonObject> daily,IReadOnlyList<JsonObject> assignments,IReadOnlyList<JsonObject> vehicles)
+        =>kind=>kind switch
+        {
+            "ninja_daily"=>daily,
+            "vehicle_assignment"=>assignments,
+            "vehicle"=>vehicles,
+            _=>throw new ApiError("مصدر تشغيل غير متوقع: "+kind,503)
+        };
+
     public static void Map(RouteGroupBuilder api,Store store,IConfiguration? config=null,IHostEnvironment? env=null)=>api.MapGet("/pay/review-draft",(string app,string period,string companyId,HttpContext ctx)=>
     {
         if(config!=null&&env!=null&&Operations.SourceMode(config,env)==Operations.SourceLive)
         {
-            var staged=PayCycles.StagePreCycleKind(ctx,store,config,"ninja_daily",companyId,period,app);
-            return store.Read(c=>Build(c,null,ctx.User,app,period,companyId,_=>staged));
+            var daily=PayCycles.StagePreCycleKind(ctx,store,config,"ninja_daily",companyId,period,app);
+            var assignments=PayCycles.StagePreCycleKind(ctx,store,config,"vehicle_assignment",companyId,period,app);
+            var vehicleIds=assignments.Select(a=>a.S("vehicleId")).Where(id=>id!="").ToHashSet(StringComparer.Ordinal);
+            var allVehicles=vehicleIds.Count==0?[]:PayCycles.StagePreCycleKind(ctx,store,config,"vehicle",companyId,period,app);
+            var vehicles=allVehicles.Where(v=>vehicleIds.Contains(v.S("id"))).ToList();
+            var live=KindAwareLiveOps(daily,assignments,vehicles);
+            return store.Read(c=>Build(c,null,ctx.User,app,period,companyId,live));
         }
         return store.Read(c=>Build(c,null,ctx.User,app,period,companyId));
     }).WithTags("Payroll").WithSummary("Read source-bound Ninja cycle input and actionable blockers without writes");

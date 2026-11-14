@@ -167,7 +167,7 @@ public static partial class PayCycles
             {
                 var accounts=StagePreCycleKind(ctx,store,config,"platform_account",company,period,app);
                 var daily=app=="ninja"?StagePreCycleKind(ctx,store,config,"ninja_daily",company,period,app):[];
-                return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app,kind=>kind=="platform_account"?accounts:kind=="ninja_daily"?daily:Array.Empty<JsonObject>()));
+                return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app,ValidateGapsLiveOps(accounts,daily)));
             }
             return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app));
         }).WithTags("Payroll").WithSummary("Counts-only ValidateRiders gap report (no identities)");

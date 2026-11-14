@@ -62,4 +62,13 @@ public static partial class PayCycles
             ["note"]="counts only; no identities or amounts"
         };
     }
+
+    /// <summary>Pre-cycle validate-gaps live reader. Unknown kind = error (never silent empty).</summary>
+    public static Func<string,IEnumerable<JsonObject>> ValidateGapsLiveOps(IReadOnlyList<JsonObject> accounts,IReadOnlyList<JsonObject> daily)
+        =>kind=>kind switch
+        {
+            "platform_account"=>accounts,
+            "ninja_daily"=>daily,
+            _=>throw new ApiError("مصدر تشغيل غير متوقع: "+kind,503)
+        };
 }

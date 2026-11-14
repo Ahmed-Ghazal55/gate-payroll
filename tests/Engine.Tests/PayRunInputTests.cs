@@ -180,10 +180,35 @@ public sealed class PayRunInputTests
             string company=FinancialCore.Sponsors[0].Id,period="2026-10";
             f.Approve("pay_terms","ninja",f.Draft("pay_terms","ninja",PayFixture.Terms()));
             f.Approve("pay_eligibility","ninja",f.Draft("pay_eligibility","ninja",PayFixture.Eligibility()));
-            var staged=new List<JsonObject>{new(){["id"]="nd1",["companyId"]=company,["platformAccountId"]="missing",["riderId"]=Rider(1),["date"]="2026-10-05",["orders"]=2}};
-            var draft=f.Store.Read(c=>PayReviewDraft.Build(c,null,PayFixture.Maker,"ninja",period,company,_=>staged));
+            var daily=new List<JsonObject>{new(){["id"]="nd1",["companyId"]=company,["platformAccountId"]="missing",["riderId"]=Rider(1),["date"]="2026-10-05",["orders"]=2}};
+            var live=PayReviewDraft.KindAwareLiveOps(daily,[],[]);
+            var draft=f.Store.Read(c=>PayReviewDraft.Build(c,null,PayFixture.Maker,"ninja",period,company,live));
             Assert.IsTrue(draft["unassignedOrders"]!.AsArray().Count>=1);
         }
+    }
+
+    [TestMethod]
+    public void DeriveUsesStagedVehicleNotEmptyStoreMirror()
+    {
+        using var f=new PayFixture();
+        var rider=new JsonObject{["id"]="2000000077",["engagementType"]="SponsoredInternal"};
+        var assignments=new List<JsonObject>{new(){["id"]="va1",["riderId"]="2000000077",["vehicleId"]="v1",["startedAt"]="2026-10-05T00:00:00Z",["endedAt"]=""}};
+        var vehicles=new List<JsonObject>{new(){["id"]="v1",["vehicleType"]=1,["ownershipType"]=1}};
+        var live=PayReviewDraft.KindAwareLiveOps([],assignments,vehicles);
+        // Store mirror stays empty — liveOps must supply the hold.
+        string got=f.Store.Read(c=>PayReviewCategory.Derive(c,null,rider,"2026-10",live));
+        Assert.AreEqual("sponsored_company_bike",got);
+        Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"vehicle_assignment").Count));
+    }
+
+    [TestMethod]
+    public void KindAwareLiveOpsThrowsOnUnknownKind()
+    {
+        var live=PayReviewDraft.KindAwareLiveOps([],[],[]);
+        var err=Assert.ThrowsExactly<ApiError>(()=>live("platform_account").ToList());
+        Assert.AreEqual(503,err.Status);
+        var gaps=PayCycles.ValidateGapsLiveOps([],[]);
+        Assert.ThrowsExactly<ApiError>(()=>gaps("vehicle").ToList());
     }
 
     [TestMethod]
