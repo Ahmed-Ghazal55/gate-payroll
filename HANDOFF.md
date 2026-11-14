@@ -20,7 +20,8 @@
 - The "(b) §40 by design" label is wrong for the main gap: §40.3 commission after penalties = the sheet (Final Amount already net of penalties × (1 − BV)). Real causes in the loader notes: 16 `salary_scheme_unmapped` riders run as 10% commission; `no_ops_for_captain` / `ops_fallback_captain`.
 - Data gate was changed vs the prompt: «ops orders vs invoice» (prompt check 3) failed for **29/190 captains (15%)** — e.g. ops 0 vs invoice 336 — so the run should have stopped; «ops (captain, rider) vs فاتورة نينجا» (prompt check 4) was not done.
 - (d): 3 riders missing from our cycle (one with due 6,552.78).
-- One fix round is used (rule 4) → Ghazal decides: which September ops source is right, and whether to run a second, narrow round.
+- Claude re-check of the source: both the ops file and the workbook sheet `داتا نينجا للارشيف` tie to the invoice orders for **190/191 captains with 0 mismatches** when read from the column «تسليم عدد طلبات» (the per-rider split). The file also has «تسليم عدد الطلبات»; the 29 mismatches point to the loader reading the wrong one. So the data is fine; the loader is not.
+- One fix round is used (rule 4) → Ghazal decides whether to run a second, narrow round (M3b).
 
 ## Next step (exact)
 Claude reads W1-golden-september.md + data-check; decide if due/BQ (b) gaps need sheet-rate mapping before Antigravity W3. No merge/deploy.
