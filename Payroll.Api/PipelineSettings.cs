@@ -11,6 +11,8 @@ public static class PipelineSettings
         ["housingScope"]="all_commission_apps", // decision 3 ✅
         ["billingCutoff"]="14:00", // decision 4 ✅
         ["salaryFuelOverageOnRider"]=true, // decision 5 ✅
+        ["salaryFuelCompanyPaysWhenNoCap"]=false, // m1: never silent "company pays all" when fuelCap is 0
+        ["fuelSupplierAccount"]="114106", // §22.9 PetroApp clearing (target CoA)
         ["hsWalletAccount"]="112506", // decision 6 ✅
         ["keeta95CompanyOnly"]=true, // decision 7 ✅
         ["freezeInvoiceWithInputs"]=true // decision 10 ✅
@@ -24,6 +26,9 @@ public static class PipelineSettings
     }
 
     public static string HsWalletAccount(JsonObject? bag=null)=>Current(bag).S("hsWalletAccount","112506");
+    public static string FuelSupplierAccount(JsonObject? bag=null)=>Current(bag).S("fuelSupplierAccount","114106");
     public static bool SalaryFuelOverageOnRider(JsonObject? bag=null)
     {var cur=Current(bag);return !cur.ContainsKey("salaryFuelOverageOnRider")||cur.B("salaryFuelOverageOnRider");}
+    /// <summary>m1: when salary fuelCap is 0, company pays the whole fuel row only if this setting is true (default false).</summary>
+    public static bool SalaryFuelCompanyPaysWhenNoCap(JsonObject? bag=null)=>Current(bag).B("salaryFuelCompanyPaysWhenNoCap");
 }

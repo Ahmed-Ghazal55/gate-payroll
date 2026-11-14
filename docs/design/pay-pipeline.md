@@ -10,7 +10,7 @@ Invoice classification used `company_level` / `account_level` / `rider_level`. A
 
 1. Per-row **bearer allocations** (company | rider+) summing to the row (halala).
 2. Weighted rider share of account gross (orders default).
-3. Commission after platform penalties; salary riders show operational costs as **expense lines**, not deductions (personal still deducted; fuel overage default ✅ on rider).
+3. Commission after platform penalties; salary riders show operational costs as **expense lines**, not deductions (personal still deducted; fuel overage default ✅ on rider). Salary vehicle and housing `company_expense` rows are **report-only by design** (company assets; no extra journal).
 4. Stage-4 sources frozen at capture; stage 8 = **old debts only**.
 5. Shared riders held then consolidated once per month.
 6. Negative net → debt `112507` for every app; bank from stage-6 remainder + payout journal.

@@ -149,9 +149,10 @@ public static partial class PayCycles
             {
                 decimal fuelAmt=J.Money(fuel.N("amount",fuel.N("totalAmount",fuel.N("TotalAmount"))));if(fuelAmt<=0)continue;
                 decimal cap=group.Max(l=>l.N("fuelCap"));bool salary=group.All(l=>l.B("salaryOperationalExpense")||(l.S("schemeType")=="target_salary"&&!l.B("ineligibleKeetaSalary")));
-                decimal companyPart=salary?Math.Min(fuelAmt,cap>0?cap:fuelAmt):0,riderPart=fuelAmt-companyPart;
+                // m1: cap==0 must not silently make the company pay all — only when the setting says so.
+                decimal companyPart=salary?(cap>0?Math.Min(fuelAmt,cap):(PipelineSettings.SalaryFuelCompanyPaysWhenNoCap()?fuelAmt:0m)):0m,riderPart=fuelAmt-companyPart;
                 if(companyPart>0)deductions.Add(new JsonObject{["rider"]=rider,["category"]="FuelExpense",["amount"]=0,["companyCost"]=companyPart,["source"]=fuel.S("id"),["accountCode"]=PayExpenseAccounts.SalaryFuel,["type"]="company_expense",["phase"]=1,["order"]=15,["labelAr"]="مصروف وقود لمندوب الراتب",["month"]=period,["affectsNet"]=false});
-                if(riderPart>0){decimal take=J.Money(Math.Min(riderPart,Math.Max(0,available)));deductions.Add(new JsonObject{["rider"]=rider,["category"]="FuelOverage",["amount"]=-take,["source"]=fuel.S("id"),["accountCode"]="112511",["type"]="stage4",["phase"]=1,["order"]=10,["labelAr"]="وقود على المندوب",["month"]=period,["app"]="",["accountId"]=""});available-=take;}
+                if(riderPart>0){decimal take=J.Money(Math.Min(riderPart,Math.Max(0,available)));deductions.Add(new JsonObject{["rider"]=rider,["category"]="FuelOverage",["amount"]=-take,["requestedAmount"]=riderPart,["computed"]=-riderPart,["source"]=fuel.S("id"),["accountCode"]="112511",["type"]="stage4",["phase"]=1,["order"]=10,["labelAr"]="وقود على المندوب",["month"]=period,["app"]="",["accountId"]=""});available-=take;}
             }
         }
         foreach(var invoice in Rows(cycle["invoices"]).OfType<JsonObject>())
@@ -314,6 +315,24 @@ public static partial class PayCycles
         {
             string rider=d.S("rider"),source=d.S("source");decimal recovered=-d.N("amount"),companyCost=d.N("companyCost");
             Add("212103",recovered,0,d.S("app"),rider,source,debt:d.S("type")=="fuel_recovery"?source:"");Add("512121",companyCost,0,d.S("app"),rider,source,debt:d.S("type")=="fuel_recovery"?source:"");Add(d.S("accountCode"),0,recovered+companyCost,d.S("app"),rider,source,debt:d.S("type")=="fuel_recovery"?source:"");
+        }
+        // M2 §22.9: once per fuel_usage row — Dr expense (company) + Dr 112511 (rider) / Cr fuel supplier.
+        string fuelSupplier=PipelineSettings.FuelSupplierAccount();
+        var fuelPosted=new HashSet<string>(StringComparer.Ordinal);
+        foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>selected.Contains(d.S("rider"))&&(d.S("type")=="stage4"&&d.S("category")=="FuelOverage"||d.S("type")=="company_expense"&&d.S("category")=="FuelExpense")))
+        {
+            string source=d.S("source");if(source==""||!fuelPosted.Add(source))continue;
+            string ledgerId="fuel_usage:"+source+":"+period+":"+cycle.S("id");
+            if(Store.Get(c,ledgerId,"ledger",tx)!=null)continue;
+            var siblings=Rows(cycle["deductions"]).OfType<JsonObject>().Where(x=>x.S("source")==source).ToList();
+            decimal companyCost=siblings.Where(x=>x.S("type")=="company_expense").Sum(x=>x.N("companyCost"));
+            decimal riderPart=siblings.Where(x=>x.S("type")=="stage4"&&x.S("category")=="FuelOverage").Sum(x=>-x.N("computed",x.N("amount")));
+            if(riderPart<=0)riderPart=siblings.Where(x=>x.S("type")=="stage4"&&x.S("category")=="FuelOverage").Sum(x=>-x.N("amount"));
+            // When stage4 was capped by available, still recognize the full rider share from companyCost+take when computed is set.
+            if(riderPart<=0&&companyCost<=0)continue;
+            string rider=d.S("rider"),app=d.S("app");
+            Add(PayExpenseAccounts.SalaryFuel,companyCost,0,app,rider,source);Add("112511",riderPart,0,app,rider,source);Add(fuelSupplier,0,companyCost+riderPart,app,rider,source);
+            Store.Save(c,"ledger",new(){["id"]=ledgerId,["iqama"]=rider,["period"]=period,["amount"]=-(companyCost+riderPart),["kind"]="fuel_usage",["sourceRef"]=cycle.S("id"),["fuelSource"]=source,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")},tx);
         }
         // B1: stage-4 this-month debt / fuel rider part — Dr 212103 / Cr receivable (debt link when source is a debt).
         foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>selected.Contains(d.S("rider"))&&d.S("type")=="stage4"))

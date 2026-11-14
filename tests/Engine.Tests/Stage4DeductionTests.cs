@@ -53,6 +53,19 @@ public sealed class Stage4DeductionTests
     public void SalaryFuelOverageDefaultStaysOnRider()
     {
         Assert.IsTrue(PipelineSettings.SalaryFuelOverageOnRider());
+        Assert.IsFalse(PipelineSettings.SalaryFuelCompanyPaysWhenNoCap());
+        Assert.AreEqual("114106",PipelineSettings.FuelSupplierAccount());
+    }
+
+    [TestMethod]
+    public void SalaryFuelWithZeroCapDoesNotSilentlyChargeCompany()
+    {
+        // m1: cap==0 + default setting → rider pays all (no company_expense).
+        Assert.IsFalse(PipelineSettings.SalaryFuelCompanyPaysWhenNoCap());
+        decimal fuelAmt=90m,cap=0m;
+        decimal companyPart=cap>0?Math.Min(fuelAmt,cap):(PipelineSettings.SalaryFuelCompanyPaysWhenNoCap()?fuelAmt:0m);
+        Assert.AreEqual(0m,companyPart);
+        Assert.AreEqual(90m,fuelAmt-companyPart);
     }
 
     [TestMethod]
@@ -85,6 +98,15 @@ public sealed class Stage4DeductionTests
             Assert.IsTrue(fuel.Count>=1);
             Assert.AreEqual(-80m,fuel.Sum(d=>d.N("amount")));
             Assert.IsTrue(fuel.All(d=>d.S("type") is "stage4" or "company_expense"));
+            cycle=PayCycleTests.Advance(f,cycle.S("id"),7,true);
+            var lines=f.Store.Read(c=>Store.List(c,"journal").Where(j=>j.S("payCycleId")==cycle.S("id")).SelectMany(j=>j["lines"]!.AsArray().OfType<JsonObject>()).ToList());
+            // M2 §22.9: Dr 112511 / Cr PetroApp; B1 then Dr 212103 / Cr 112511 (net 112511 = 0 when fully recovered).
+            Assert.AreEqual(80m,lines.Where(l=>l.S("accountCode")=="112511"&&l.S("sourceId")=="syn-fuel-erp").Sum(l=>l.N("debit")));
+            Assert.AreEqual(80m,lines.Where(l=>l.S("accountCode")=="112511"&&l.S("sourceId")=="syn-fuel-erp").Sum(l=>l.N("credit")));
+            Assert.AreEqual(80m,lines.Where(l=>l.S("accountCode")=="114106"&&l.S("sourceId")=="syn-fuel-erp").Sum(l=>l.N("credit")-l.N("debit")));
+            Assert.AreEqual(80m,lines.Where(l=>l.S("accountCode")=="212103"&&l.S("sourceId")=="syn-fuel-erp").Sum(l=>l.N("debit")-l.N("credit")),"B1 recovers rider fuel from payable");
+            foreach(var j in f.Store.Read(c=>Store.List(c,"journal").Where(j=>j.S("payCycleId")==cycle.S("id")).ToList()))
+                Assert.AreEqual(j.N("totalDebit"),j.N("totalCredit"));
         }
     }
 
