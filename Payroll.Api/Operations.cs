@@ -191,10 +191,23 @@ public static class Operations
     }
     static JsonObject LiveEnvelope(LiveOperationsQuery.PageResult page,string kind,ClaimsPrincipal actor)
     {
-        var items=LiveOperationsSource.Documents(page.Snapshot,FinancialCore.Sponsors,kind).Select(d=>Project(d,kind)).ToList();
+        var projected=LiveOperationsSource.Project(page.Snapshot,FinancialCore.Sponsors,kind);
+        var items=projected.Documents.Select(d=>Project(d,kind)).ToList();
+        int droppedPlatform=0;
         // Company/rider scope is in SQL; keep platform claim filter on projected platform_account rows.
-        if(kind=="platform_account")items=items.Where(r=>FinancialScopes.Platform(actor,PayPlatforms.For(r.S("platformCode")).Platform)).ToList();
-        return Envelope(new{items,total=page.Total,page=page.Request.Page,pageSize=page.Request.PageSize},SourceLive,page.AsOf);
+        if(kind=="platform_account")
+        {
+            int before=items.Count;
+            items=items.Where(r=>FinancialScopes.Platform(actor,PayPlatforms.For(r.S("platformCode")).Platform)).ToList();
+            droppedPlatform=before-items.Count;
+        }
+        // A7: total = rows the caller can page through (SQL total minus silent drops on this projection path).
+        int rejectedCount=projected.Rejected.Sum(r=>r.Count)+droppedPlatform;
+        long total=Math.Max(0,page.Total-rejectedCount);
+        if(page.Request.Page==1&&page.Request.AfterId==""&&page.Total<=page.Request.PageSize)total=items.Count;
+        var rejected=projected.Rejected.Select(r=>new{reason=r.Reason,count=r.Count}).ToList();
+        if(droppedPlatform>0)rejected.Add(new{reason="platform_out_of_scope",count=droppedPlatform});
+        return Envelope(new{items,total,page=page.Request.Page,pageSize=page.Request.PageSize,rejected},SourceLive,page.AsOf);
     }
     public static void Map(RouteGroupBuilder api,Store store,IConfiguration config,IHostEnvironment env)
     {

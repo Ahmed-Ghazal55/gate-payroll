@@ -156,6 +156,14 @@ public static partial class PayCycles
         cycle["inputsCapturedBy"]=actor.Identity!.Name;
         cycle["inputsCaptureCounts"]=new JsonObject(result.Counts.OrderBy(kv=>kv.Key).Select(kv=>KeyValuePair.Create(kv.Key,(JsonNode?)JsonValue.Create(kv.Value))));
         if(gaps.Count>0)cycle["inputsCaptureGaps"]=gaps;else cycle.Remove("inputsCaptureGaps");
+        var rejectedNode=input?["rejected"] as JsonArray;
+        if(rejectedNode!=null&&rejectedNode.Count>0)
+        {
+            cycle["inputsCaptureRejected"]=rejectedNode.DeepClone();
+            int invalidIqama=rejectedNode.OfType<JsonObject>().Where(r=>r.S("reason") is "invalid_identity" or "unmatched_rider").Sum(r=>(int)r.N("count"));
+            if(invalidIqama>0)cycle["inputsCaptureInvalidIqama"]=invalidIqama;else cycle.Remove("inputsCaptureInvalidIqama");
+        }
+        else{cycle.Remove("inputsCaptureRejected");cycle.Remove("inputsCaptureInvalidIqama");}
         if(apps.Count==1)cycle["app"]=apps[0];
         cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);
         Store.Save(c,Kind,cycle,tx);
@@ -169,12 +177,14 @@ public static partial class PayCycles
             ["counts"]=cycle["inputsCaptureCounts"]!.DeepClone()
         };
         Store.Save(c,"audit",audit,tx);
-        return new JsonObject
+        var capture=new JsonObject
         {
             ["cycleId"]=id,
             ["capturedAt"]=cycle.S("inputsCapturedAt"),
             ["counts"]=cycle["inputsCaptureCounts"]!.DeepClone()
         };
+        if(cycle["inputsCaptureRejected"]!=null)capture["rejected"]=cycle["inputsCaptureRejected"]!.DeepClone();
+        return capture;
     }
 
     /// <summary>Cycle-scoped ops docs: pay_run_input only after capture (never silent Store fallback).</summary>
@@ -190,8 +200,10 @@ public static partial class PayCycles
         return PayRunInputs.Get(c,tx,cycle.S("id"),kind,docId);
     }
 
+    internal sealed record LiveCaptureStage(Dictionary<string,List<JsonObject>> Rows,IReadOnlyList<(string Reason,int Count)> Rejected);
+
     /// <summary>Stream live pages with keyset + end recount. Scope from cycle, not actor.</summary>
-    internal static Dictionary<string,List<JsonObject>> StageLiveCapture(HttpContext ctx,Store store,IConfiguration config,JsonObject cycle)
+    internal static LiveCaptureStage StageLiveCapture(HttpContext ctx,Store store,IConfiguration config,JsonObject cycle)
     {
         var apps=DemandApps(cycle);
         var (from,to)=PeriodBounds(cycle.S("period"));
@@ -202,6 +214,8 @@ public static partial class PayCycles
         using var erp=Connections.Source(sourceConnection);erp.Open();SourceReader.VerifyReadOnly(erp);
         var scope=store.Read(c=>CaptureScope(c,cycle));
         DemandErpSponsorMatch(erp,scope);
+        scope=ExpandCaptureScope(erp,scope,from,to,apps,cancel.Token);
+        var rejectedTotals=new Dictionary<string,int>(StringComparer.Ordinal);
         var kinds=apps.SelectMany(PayRunInputs.KindsForApp).Distinct(StringComparer.Ordinal).Where(k=>k!="vehicle"&&Operations.Kinds.Contains(k)).ToList();
         foreach(string kind in kinds)
         {
@@ -209,7 +223,10 @@ public static partial class PayCycles
             var ids=new HashSet<string>(StringComparer.Ordinal);
             foreach(string app in apps)
             {
-                foreach(var row in StageKindKeyset(erp,kind,scope,from,to,app,cancel.Token))
+                var staged=StageKindKeyset(erp,kind,scope,from,to,app,cancel.Token);
+                foreach(var (reason,count) in staged.Rejected)
+                    rejectedTotals[reason]=rejectedTotals.GetValueOrDefault(reason)+count;
+                foreach(var row in staged.Rows)
                 {
                     string id=row.S("id");if(id==""||!ids.Add(id))continue;
                     merged.Add(row);
@@ -224,7 +241,10 @@ public static partial class PayCycles
             var ids=new HashSet<string>(StringComparer.Ordinal);
             foreach(string app in apps)
             {
-                foreach(var v in StageKindKeyset(erp,"vehicle",scope,from,to,app,cancel.Token,pageCap:10000))
+                var staged=StageKindKeyset(erp,"vehicle",scope,from,to,app,cancel.Token,pageCap:10000);
+                foreach(var (reason,count) in staged.Rejected)
+                    rejectedTotals[reason]=rejectedTotals.GetValueOrDefault(reason)+count;
+                foreach(var v in staged.Rows)
                 {
                     string id=v.S("id");if(id==""||!vehicleIds.Contains(id)||!ids.Add(id))continue;
                     vehicles.Add(v);
@@ -232,7 +252,64 @@ public static partial class PayCycles
             }
             bag["vehicle"]=vehicles;
         }
-        return bag;
+        return new(bag,rejectedTotals.OrderBy(kv=>kv.Key).Select(kv=>(kv.Key,kv.Value)).ToList());
+    }
+
+    /// <summary>A6: riders who held a cycle-company platform account in the period, plus the company's sponsored riders (external holders included).</summary>
+    static LiveOperationsQuery.Scope ExpandCaptureScope(DbConnection erp,LiveOperationsQuery.Scope scope,string from,string to,IReadOnlyList<string> apps,CancellationToken ct)
+    {
+        if(scope.SponsorUnifiedNumbers.Count==0)return scope;
+        var employees=new HashSet<string>(scope.EmployeeIds,StringComparer.OrdinalIgnoreCase);
+        var profiles=new HashSet<string>(scope.RiderProfileIds,StringComparer.OrdinalIgnoreCase);
+        using var cmd=erp.CreateCommand();cmd.CommandTimeout=LiveOperationsQuery.CommandTimeoutSeconds;
+        using var cancel=SyncCancellation.Register(cmd,ct);
+        var regs=new List<string>();
+        for(int i=0;i<scope.SponsorUnifiedNumbers.Count;i++)
+        {
+            string n="@u"+i;var p=cmd.CreateParameter();p.ParameterName=n;p.Value=scope.SponsorUnifiedNumbers[i];cmd.Parameters.Add(p);regs.Add(n);
+        }
+        var pf=cmd.CreateParameter();pf.ParameterName="@pf";pf.Value=from;cmd.Parameters.Add(pf);
+        var pt=cmd.CreateParameter();pt.ParameterName="@pt";pt.Value=to;cmd.Parameters.Add(pt);
+        string platformFilter="";
+        if(apps.Count>0)
+        {
+            var codes=apps.SelectMany(ErpPlatformCode.Accept).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var names=new List<string>();
+            for(int i=0;i<codes.Count;i++)
+            {
+                string n="@pc"+i;var p=cmd.CreateParameter();p.ParameterName=n;p.Value=codes[i];cmd.Parameters.Add(p);names.Add(n);
+            }
+            platformFilter=$" AND cp.[Code] IN ({string.Join(',',names)})";
+        }
+        cmd.CommandText=$"""
+            SELECT DISTINCT rca.[RiderProfileId], rp.[EmployeeId]
+            FROM [app].[RiderClientAssignments] rca
+            INNER JOIN [app].[PlatformRiderAccounts] pa ON pa.[Id]=rca.[PlatformRiderAccountId]
+            INNER JOIN [app].[Sponsors] s ON s.[Id]=pa.[SponsorId]
+            INNER JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=pa.[ClientPlatformId]
+            LEFT JOIN [app].[RiderProfiles] rp ON rp.[Id]=rca.[RiderProfileId]
+            WHERE s.[UnifiedNationalNumber] IN ({string.Join(',',regs)})
+              AND rca.[IsDeleted]=0 AND pa.[IsDeleted]=0
+              AND rca.[EffectiveFrom] < DATEADD(day,1,CONVERT(date,@pt))
+              AND (rca.[EffectiveTo] IS NULL OR rca.[EffectiveTo] >= CONVERT(date,@pf))
+              {platformFilter}
+            """;
+        using var reader=cmd.ExecuteReader();
+        while(reader.Read())
+        {
+            ct.ThrowIfCancellationRequested();
+            if(!reader.IsDBNull(0))
+            {
+                string profile=reader.GetValue(0)?.ToString()??"";
+                if(profile!="")profiles.Add(profile);
+            }
+            if(!reader.IsDBNull(1))
+            {
+                string emp=reader.GetValue(1)?.ToString()??"";
+                if(emp!="")employees.Add(emp);
+            }
+        }
+        return scope with{EmployeeIds=employees.ToList(),RiderProfileIds=profiles.ToList()};
     }
 
     /// <summary>A3: refuse capture when the cycle company's unified number is not present on any ERP sponsor.</summary>
@@ -251,13 +328,16 @@ public static partial class PayCycles
             throw new ApiError("الشركة غير مربوطة بكفيل في نظام الموارد",503);
     }
 
-    static List<JsonObject> StageKindKeyset(DbConnection erp,string kind,LiveOperationsQuery.Scope scope,string from,string to,string app,CancellationToken ct,int pageCap=10000)
+    sealed record StagedKind(List<JsonObject> Rows,IReadOnlyList<(string Reason,int Count)> Rejected,long SourceTotal);
+
+    static StagedKind StageKindKeyset(DbConnection erp,string kind,LiveOperationsQuery.Scope scope,string from,string to,string app,CancellationToken ct,int pageCap=10000)
     {
         var rows=new List<JsonObject>();
         var ids=new HashSet<string>(StringComparer.Ordinal);
+        var rejected=new Dictionary<string,int>(StringComparer.Ordinal);
         string after="";
         long? firstTotal=null;
-        int pages=0;
+        int pages=0,sourceWalked=0;
         while(true)
         {
             pages++;
@@ -265,26 +345,26 @@ public static partial class PayCycles
             var request=new LiveOperationsQuery.PageRequest(1,PayRunInputs.CapturePageSize,"id","",0,PayRunInputs.CapturePageSize,"",from,to,app,after);
             var result=LiveOperationsQuery.Page(erp,kind,request,scope,FinancialCore.Sponsors,ct,firstTotal);
             firstTotal??=result.Total;
-            string lastId="";
-            foreach(var doc in LiveOperationsSource.Documents(result.Snapshot,FinancialCore.Sponsors,kind))
+            var projected=LiveOperationsSource.Project(result.Snapshot,FinancialCore.Sponsors,kind);
+            sourceWalked+=projected.SourceRowCount;
+            foreach(var (reason,count) in projected.Rejected)
+                rejected[reason]=rejected.GetValueOrDefault(reason)+count;
+            foreach(var doc in projected.Documents)
             {
-                var projected=Operations.Project(doc,kind);
-                string id=projected.S("id");if(id==""||!ids.Add(id))continue;
-                rows.Add(projected);
-                lastId=id;
+                var body=Operations.Project(doc,kind);
+                string id=body.S("id");if(id==""||!ids.Add(id))continue;
+                rows.Add(body);
             }
-            if(lastId==""||rows.Count>=firstTotal.Value)break;
-            after=lastId;
+            // A5: cursor = source row Id of the last row READ (not the last kept). An all-rejected page continues.
+            if(projected.LastSourceId==""||projected.SourceRowCount==0)break;
+            if(sourceWalked>=firstTotal.Value)break;
+            after=projected.LastSourceId;
         }
         // Re-count at end; mismatch → refuse (nothing written yet — staging only).
         var recount=LiveOperationsQuery.Page(erp,kind,new LiveOperationsQuery.PageRequest(1,1,"id","",0,1,"",from,to,app,""),scope,FinancialCore.Sponsors,ct);
         if(recount.Total!=firstTotal)throw new ApiError("تغير عدد صفوف المصدر أثناء التقاط المدخلات؛ أعد المحاولة.",503);
-        if(rows.Count!=firstTotal&&kind!="vehicle")
-        {
-            // Keyset walk may under-count if projection drops ids; still fail closed when totals disagree with unique rows for non-vehicle.
-            if(rows.Count>firstTotal)throw new ApiError("صفوف مكررة في مصدر التشغيل أثناء التقاط المدخلات.",503);
-        }
-        return rows;
+        if(rows.Count>firstTotal)throw new ApiError("صفوف مكررة في مصدر التشغيل أثناء التقاط المدخلات.",503);
+        return new(rows,rejected.OrderBy(kv=>kv.Key).Select(kv=>(kv.Key,kv.Value)).ToList(),firstTotal??0);
     }
 
     /// <summary>Pre-cycle live page helper (B3): one kind, period+platform in SQL, cycle company scope.</summary>
@@ -297,6 +377,8 @@ public static partial class PayCycles
         using var erp=Connections.Source(sourceConnection);erp.Open();SourceReader.VerifyReadOnly(erp);
         var fake=new JsonObject{["companyId"]=companyId,["period"]=period,["app"]=app};
         var scope=store.Read(c=>CaptureScope(c,fake));
-        return StageKindKeyset(erp,kind,scope,from,to,PayPlatforms.App(app),cancel.Token);
+        DemandErpSponsorMatch(erp,scope);
+        scope=ExpandCaptureScope(erp,scope,from,to,[PayPlatforms.App(app)],cancel.Token);
+        return StageKindKeyset(erp,kind,scope,from,to,PayPlatforms.App(app),cancel.Token).Rows;
     }
 }

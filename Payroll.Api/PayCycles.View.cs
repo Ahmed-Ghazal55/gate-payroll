@@ -11,6 +11,11 @@ public static partial class PayCycles
         bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve"),mutable=state is "draft" or "review" or "needs_decision";
         if(mutable&&manage&&PayRunInputs.CaptureAllowed(cycle))actions.Add("capture_inputs");
         if(mutable&&manage&&!PayRunInputs.Captured(cycle))blockers.Add(CaptureInputsMissing);
+        // A7: surface malformed Iqama drops that belonged to this cycle's capture.
+        int invalidIqama=(int)cycle.N("inputsCaptureInvalidIqama");
+        if(invalidIqama<=0&&cycle["inputsCaptureRejected"] is JsonArray rej)
+            invalidIqama=rej.OfType<JsonObject>().Where(r=>r.S("reason") is "invalid_identity" or "unmatched_rider").Sum(r=>(int)r.N("count"));
+        if(invalidIqama>0)blockers.Add($"مناديب برقم إقامة غير صالح في نظام الموارد: {invalidIqama}");
         if(mutable&&manage){actions.Add("cancel");if(stage<6)actions.Add("advance");if(stage==6)actions.Add("review");}
         var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0).ToList();
         if(stage>=6&&(mutable||state=="partially_approved"))

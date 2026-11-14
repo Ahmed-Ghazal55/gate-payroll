@@ -190,7 +190,7 @@ public static partial class PayCycles
         api.MapPost("/pay/cycles/{id}/capture-inputs",(string id,JsonObject? input,HttpContext ctx)=>
         {
             // Stage live pages outside the document write TX when ERP is live; store mode freezes fixtures inside CaptureInputs.
-            Dictionary<string,List<JsonObject>>? staged=null;
+            LiveCaptureStage? staged=null;
             if(config!=null&&env!=null&&Operations.SourceMode(config,env)==Operations.SourceLive)
             {
                 var meta=store.Read(c=>Store.Get(c,id,Kind)??throw new ApiError("الدورة غير موجودة.",404));
@@ -201,15 +201,19 @@ public static partial class PayCycles
             return store.Write((c,tx)=>
             {
                 Func<string,IEnumerable<JsonObject>>? live=null;
+                JsonObject? captureInput=input;
                 if(staged!=null)
                 {
                     live=kind=>
                     {
-                        if(kind!="vehicle"&&!staged.ContainsKey(kind))throw new ApiError("مصدر التقاط ناقص لنوع: "+kind,503);
-                        return staged.TryGetValue(kind,out var rows)?rows:Array.Empty<JsonObject>();
+                        if(kind!="vehicle"&&!staged.Rows.ContainsKey(kind))throw new ApiError("مصدر التقاط ناقص لنوع: "+kind,503);
+                        return staged.Rows.TryGetValue(kind,out var rows)?rows:Array.Empty<JsonObject>();
                     };
+                    captureInput??=new JsonObject();
+                    if(staged.Rejected.Count>0)
+                        captureInput["rejected"]=new JsonArray(staged.Rejected.Select(r=>(JsonNode?)new JsonObject{["reason"]=r.Reason,["count"]=r.Count}).ToArray());
                 }
-                var captured=CaptureInputs(c,tx,ctx.User,id,config,env,live,input);
+                var captured=CaptureInputs(c,tx,ctx.User,id,config,env,live,captureInput);
                 var cycle=Store.Get(c,id,Kind,tx)!;
                 var view=View(c,tx,ctx.User,cycle);
                 view["capture"]=captured;
