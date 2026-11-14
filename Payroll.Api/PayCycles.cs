@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using ErpImport;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 namespace Payroll;
@@ -178,9 +179,14 @@ public static partial class PayCycles
             J.Need(company!=""&&period!="","الشركة والشهر مطلوبان.");if(app=="")app="ninja";
             if(config!=null&&env!=null&&Operations.SourceMode(config,env)==Operations.SourceLive)
             {
-                var accounts=StagePreCycleKind(ctx,store,config,"platform_account",company,period,app);
-                var daily=app=="ninja"?StagePreCycleKind(ctx,store,config,"ninja_daily",company,period,app):[];
-                return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app,ValidateGapsLiveOps(accounts,daily)));
+                try
+                {
+                    var accounts=StagePreCycleKind(ctx,store,config,"platform_account",company,period,app);
+                    var daily=app=="ninja"?StagePreCycleKind(ctx,store,config,"ninja_daily",company,period,app):[];
+                    return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app,ValidateGapsLiveOps(accounts,daily)));
+                }
+                catch(Exception ex) when(ex is Microsoft.Data.SqlClient.SqlException or ImportFailure or System.Data.Common.DbException)
+                {throw ErpLiveErrors.Fail(app=="ninja"?"ninja_daily|platform_account":"platform_account",ex);}
             }
             return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app));
         }).WithTags("Payroll").WithSummary("Counts-only ValidateRiders gap report (no identities)");
@@ -196,7 +202,9 @@ public static partial class PayCycles
                 var meta=store.Read(c=>Store.Get(c,id,Kind)??throw new ApiError("الدورة غير موجودة.",404));
                 Scope(ctx.User,meta,"pay.manage");
                 if(!PayRunInputs.CaptureAllowed(meta))throw new ApiError(PayRunInputs.Sealed(meta)?"لا يمكن التقاط المدخلات بعد الاعتماد.":"لا يمكن إعادة التقاط المدخلات بعد بدء الحساب؛ ألغِ الدورة وأنشئ أخرى.",409);
-                staged=StageLiveCapture(ctx,store,config,meta);
+                try{staged=StageLiveCapture(ctx,store,config,meta);}
+                catch(Exception ex) when(ex is Microsoft.Data.SqlClient.SqlException or ImportFailure or System.Data.Common.DbException)
+                {throw ErpLiveErrors.Fail("capture",ex);}
             }
             return store.Write((c,tx)=>
             {

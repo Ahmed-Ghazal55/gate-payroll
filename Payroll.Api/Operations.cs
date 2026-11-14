@@ -152,12 +152,14 @@ public static class Operations
         result["source"]=source;result["asOf"]=asOf.ToString("O");result["allowedActions"]=new JsonArray();
         return result;
     }
-    static T LiveRead<T>(HttpContext ctx,Func<CancellationToken,T> read)
+    static T LiveRead<T>(HttpContext ctx,Func<CancellationToken,T> read,string kind="operations")
     {
         using var cancel=CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);cancel.CancelAfter(LiveReadTimeout);
         try{return read(cancel.Token);}
         catch(Exception ex) when(cancel.IsCancellationRequested&&!ctx.RequestAborted.IsCancellationRequested&&ex is OperationCanceledException or SqlException or ImportFailure)
         {throw new ApiError("قراءة مصدر التشغيل استغرقت وقتًا طويلًا. حاول مرة أخرى.",503);}
+        catch(Exception ex) when(ex is SqlException or ImportFailure or System.Data.Common.DbException)
+        {throw ErpLiveErrors.Fail(kind,ex);}
     }
     static LiveOperationsQuery.PageRequest LivePageRequest(IQueryCollection query)
     {
@@ -224,7 +226,7 @@ public static class Operations
                     var page=LiveOperationsQuery.Page(erp,kind,request,scope,FinancialCore.Sponsors,token);
                     return LiveEnvelope(page,kind,ctx.User);
                 });
-            });
+            },kind);
         }).WithTags("Operations").WithSummary("Read allowlisted ERP operations (live from logistics ERP on hosted) with company scope and pagination");
         api.MapGet("/riders/{iqama}/accounts",(string iqama,HttpContext ctx)=>{
             AccessPolicy.Demand(ctx.User,"operations.view");string rider=J.Iqama(iqama);

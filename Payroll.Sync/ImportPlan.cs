@@ -96,8 +96,11 @@ public sealed class ImportPlan
         foreach(var row in Rows("RiderVehicleAssignmentEvents"))
         {
             if(!validAssignments.Contains(row.S("RiderVehicleAssignmentId"))){plan.Reject("custody_handover","unmapped_assignment_relation");continue;}
-            if(row.N("EventType") is not (1 or 2 or 3 or 4)){plan.Reject("custody_handover","non_handover_event");continue;}
-            var doc=Doc("custody_handover",row);doc["assignmentId"]=Key("vehicle_assignment",row.S("RiderVehicleAssignmentId"));doc["eventTypeCode"]=row["EventType"]?.DeepClone();doc["occurredAt"]=row.S("OccurredAtUtc");doc["direction"]=row.N("EventType") is 1 or 4?"handover":"return";if(doc.S("occurredAt").StartsWith("2026-10",StringComparison.Ordinal))plan.Observe("october_custody_"+doc.S("direction"));plan.Documents.Add(new("custody_handover",doc));
+            // ERP enum RiderVehicleAssignmentEventType (origin/master FleetEnums): 5 = PermissionRenewed, not a custody move.
+            int eventType=(int)row.N("EventType");
+            if(eventType is not (1 or 2 or 3 or 4 or 5)){plan.Reject("custody_handover","non_handover_event");continue;}
+            string direction=eventType switch{1 or 4=>"handover",2 or 3=>"return",5=>"permission_renewed",_=>"other"};
+            var doc=Doc("custody_handover",row);doc["assignmentId"]=Key("vehicle_assignment",row.S("RiderVehicleAssignmentId"));doc["eventTypeCode"]=row["EventType"]?.DeepClone();doc["occurredAt"]=row.S("OccurredAtUtc");doc["direction"]=direction;if(doc.S("occurredAt").StartsWith("2026-10",StringComparison.Ordinal))plan.Observe("october_custody_"+direction);plan.Documents.Add(new("custody_handover",doc));
         }
         var platforms=Index("ClientPlatforms");
         var assignmentsByAccount=Rows("RiderClientAssignments").GroupBy(a=>a.S("PlatformRiderAccountId")).ToDictionary(g=>g.Key,g=>g.ToList());

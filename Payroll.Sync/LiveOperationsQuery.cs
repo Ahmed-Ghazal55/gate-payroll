@@ -300,7 +300,8 @@ public static class LiveOperationsQuery
                 :new[]{$"{prefix}[{c}] LIKE @q ESCAPE '\\'"}))+")");
         }
 
-        if(spec.Kind=="custody_handover")parts.Add($"{prefix}[EventType] IN (1,2,3,4)");
+        // ERP RiderVehicleAssignmentEventType: Taken=1 Returned=2 SwitchedOut=3 SwitchedIn=4 PermissionRenewed=5 (A9b).
+        if(spec.Kind=="custody_handover")parts.Add($"{prefix}[EventType] IN (1,2,3,4,5)");
 
         if(spec.Kind=="platform_account"&&scope.RiderAccountEmployeeId is {Length:>0} empKey)
         {
