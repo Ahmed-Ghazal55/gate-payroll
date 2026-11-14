@@ -97,9 +97,10 @@ public sealed class PayEvaluatorTests
         var scheme=Scheme("target_salary");scheme["data"]!["eligibilitySetId"]="synthetic-rules";var missing=PayEvaluator.Evaluate(Facts(),scheme,Rules("zero"),Global());Assert.AreEqual("needs_decision",missing.Status);CollectionAssert.Contains(missing.Blockers.ToArray(),"metric_missing:validity");var foreign=Rules("zero");foreign["app"]="hs";Assert.ThrowsExactly<ApiError>(()=>PayEvaluator.Evaluate(Facts(),scheme,foreign,Global()));
     }
     [TestMethod]
-    public void NegativeNetRemainsAnExplainableDecisionWithoutAnyAutomaticDebtOrMutation()
+    public void NegativeNetIsReadyWithoutAutomaticDebtMutation()
     {
-        var scheme=Scheme();var facts=Facts(gross:100,incentive:0);var global=Global();string before=scheme.ToJsonString()+global.ToJsonString();var result=PayEvaluator.Evaluate(facts,scheme,null,global);Assert.AreEqual(-200m,result.NetBeforePersonal);Assert.AreEqual("needs_decision",result.Status);CollectionAssert.Contains(result.Blockers.ToArray(),"negative_net_requires_decision");Assert.AreEqual(before,scheme.ToJsonString()+global.ToJsonString());Assert.IsTrue(result.Lines.All(l=>l.Formula!=""&&l.Label!=""));
+        // §40.6: negative net stays ready; carry debt is created only at final approval.
+        var scheme=Scheme();var facts=Facts(gross:100,incentive:0);var global=Global();string before=scheme.ToJsonString()+global.ToJsonString();var result=PayEvaluator.Evaluate(facts,scheme,null,global);Assert.AreEqual(-200m,result.NetBeforePersonal);Assert.AreEqual("ready",result.Status);CollectionAssert.DoesNotContain(result.Blockers.ToArray(),"negative_net_requires_decision");Assert.AreEqual(before,scheme.ToJsonString()+global.ToJsonString());Assert.IsTrue(result.Lines.All(l=>l.Formula!=""&&l.Label!=""));
     }
     [TestMethod]
     public void MissingVehicleEvidenceDoesNotInferAFullMonthAndDraftSettingsAreRejected()

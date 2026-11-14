@@ -155,7 +155,8 @@ public static class PayEvaluator
         // Agent company share is on the post-penalty base when §40.3 applies (not total−earned, which would swallow penalties).
         decimal agentBase=penaltiesInBase?Math.Max(0,total-penalties):total;
         decimal commission=role=="agent"?Round(agentBase-earned,values):fee;
-        if(net<0)blockers.Add("negative_net_requires_decision");if(role=="agent"&&commission<0&&agentBase>=0)blockers.Add("negative_company_share_requires_decision");
+        // §40.6: negative net is allowed; carry to 112507 posts at final approval (do not block evaluate/merge).
+        if(role=="agent"&&commission<0&&agentBase>=0)blockers.Add("negative_company_share_requires_decision");
         return new(){Rider=facts.Rider,App=app,Period=facts.Period,Category=facts.Category,SchemeType=type,AccountingRole=role,Orders=facts.Orders,Days=days,PlatformGross=facts.PlatformGross,Incentives=facts.Incentives,Gross=Round(earned,values),CompanyCommission=commission,OperatingCost=cost,OperatingCostAccount=costAccount,RecoveredOperatingCost=recovered,UnrecoveredOperatingCost=unrecovered,UnrecoveredVehicleCharge=unrecoveredRent,IneligibleKeetaSalary=protectedSalary,VehicleCharge=rent,FuelCap=fuelCap,Entitlement=entitlement,NetBeforePersonal=net,PlatformPenalties=penalties,PenaltiesInCommissionBase=penaltiesInBase,SalaryOperationalExpense=salaryExpense,Status=blockers.Count==0?"ready":"needs_decision",Band=chosen,Lines=lines,Blockers=blockers.Distinct().ToArray()};
     }
 }
