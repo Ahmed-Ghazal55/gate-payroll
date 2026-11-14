@@ -152,12 +152,18 @@ public sealed class PayRunInputTests
                 ["vehicle_assignment"]=[new(){["id"]="va-s",["riderId"]=Rider(1),["vehicleId"]="v1",["startedAt"]="2026-10-01T00:00:00+03:00",["endedAt"]=""}],
                 ["housing_residence"]=[],
                 ["vehicle"]=[new(){["id"]="v1",["vehicleType"]=1,["ownershipType"]=1}],
-                ["fuel_usage"]=[]
+                ["fuel_usage"]=[],
+                ["rider_work_timeline"]=[],
+                ["platform_day_usage"]=[],
+                ["vehicle_expense"]=[],
+                ["ninja_daily"]=[],
+                ["ninja_daily_deduction"]=[]
             };
-            Func<string,IEnumerable<JsonObject>> live=kind=>staged[kind];
-            var a=f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,liveRows:live));
+            Func<string,IEnumerable<JsonObject>> live=kind=>staged.TryGetValue(kind,out var rows)?rows:Array.Empty<JsonObject>();
+            JsonObject Reasons()=>new(){["vehicle_assignment"]="fixture",["rider_work_timeline"]="fixture",["platform_day_usage"]="fixture",["vehicle_expense"]="fixture",["ninja_daily"]="fixture",["ninja_daily_deduction"]="fixture",["fuel_usage"]="fixture"};
+            var a=f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,liveRows:live,input:new(){["zeroKindReasons"]=Reasons()}));
             f.Store.Write((c,tx)=>{var cy=Store.Get(c,id,PayCycles.Kind,tx)!;cy.Remove("inputsCapturedAt");cy["stage"]=1;Store.Save(c,PayCycles.Kind,cy,tx);return true;});
-            var b=f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Checker,id,liveRows:live));
+            var b=f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Checker,id,liveRows:live,input:new(){["zeroKindReasons"]=Reasons()}));
             Assert.AreEqual(a["counts"]!.ToJsonString(),b["counts"]!.ToJsonString());
         }
     }

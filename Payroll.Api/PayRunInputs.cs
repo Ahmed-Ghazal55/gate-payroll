@@ -17,16 +17,19 @@ public static class PayRunInputs
     /// <summary>Required kinds that must have rows (or an explicit zero-kind reason) before capture succeeds.</summary>
     public static IReadOnlyList<string> RequiredKinds(string app)=>app switch
     {
-        "ninja"=>["ninja_daily","platform_account","vehicle_assignment"],
-        "chefz"=>["platform_account","vehicle_assignment"],
+        // A10: required kinds with 0 rows stay blockers unless an explicit zero-kind reason is recorded.
+        "ninja"=>["ninja_daily","ninja_daily_deduction","platform_account","vehicle_assignment","rider_work_timeline","platform_day_usage"],
+        "chefz"=>["platform_account","vehicle_assignment","rider_work_timeline"],
+        "keeta"=>["platform_account"], // no ERP performance source for Keeta — do not require daily rows
         _=>["platform_account","vehicle_assignment"]
     };
 
     public static IReadOnlyList<string> KindsForApp(string app)=>app switch
     {
-        "ninja"=>["ninja_daily","platform_account","vehicle_assignment","housing_residence","vehicle","fuel_usage"],
-        "chefz"=>["platform_account","vehicle_assignment","housing_residence","vehicle","fuel_usage"],
-        "keeta" or "hs" or "jahez"=>["platform_account","vehicle_assignment","housing_residence","vehicle","fuel_usage"],
+        "ninja"=>["ninja_daily","ninja_daily_deduction","platform_account","vehicle_assignment","rider_work_timeline","platform_day_usage","vehicle_expense","housing_residence","vehicle","fuel_usage"],
+        "chefz"=>["platform_account","vehicle_assignment","rider_work_timeline","platform_day_usage","vehicle_expense","housing_residence","vehicle","fuel_usage"],
+        "keeta"=>["platform_account","vehicle_assignment","housing_residence","vehicle","fuel_usage"],
+        "hs" or "jahez"=>["platform_account","vehicle_assignment","rider_work_timeline","housing_residence","vehicle","fuel_usage"],
         _=>["platform_account","vehicle_assignment","housing_residence","vehicle","fuel_usage"]
     };
 

@@ -10,7 +10,12 @@ Operations screens read logistics ERP live. Payroll calculation and approval mus
 2. After capture, cycle readers and fingerprint use `pay_run_input` only for swapped kinds (never silent Store/ERP fallback).
 3. Live capture scopes by **cycle company** (commercial reg + that company's riders), not the actor.
 4. Keyset paging (`Id > @after`) for capture walks; recount at end; mismatch → 503, nothing written.
-5. Required kinds (Ninja: `ninja_daily`, `platform_account`, `vehicle_assignment`) with 0 rows need an explicit reason; `housing_residence` may be 0 without a reason.
+5. Required kinds with 0 rows need an explicit reason (or stay blockers). Per app (A10):
+   - **ninja (required):** `ninja_daily`, `ninja_daily_deduction`, `platform_account`, `vehicle_assignment`, `rider_work_timeline`, `platform_day_usage` — daily performance + deductions feed pay; accounts and assignment timeline prove who worked which account (§40.2); day usage backs hours/orders.
+   - **ninja (captured, not always required):** `vehicle_expense`, `housing_residence`, `vehicle`, `fuel_usage` — follow riders who held accounts; housing may be 0 without a reason.
+   - **chefz (required):** `platform_account`, `vehicle_assignment`, `rider_work_timeline`.
+   - **keeta:** `platform_account` only required; ERP has no performance source — capture records `no_erp_performance_source` and does not invent rows.
+   - **hs / jahez:** accounts + vehicle/housing/fuel; HungerStation financial views are read-path only (posting stays off).
 
 ## Non-Goals
 

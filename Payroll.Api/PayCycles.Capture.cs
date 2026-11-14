@@ -96,8 +96,10 @@ public static partial class PayCycles
             rows=kind switch
             {
                 "platform_account"=>rows.Where(a=>a.S("companyId")==company&&appSet.Contains(PayPlatforms.For(a.S("platformCode")).App)),
-                "ninja_daily" or "ninja_daily_deduction" or "chefz_daily"=>rows.Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)),
+                "ninja_daily" or "ninja_daily_deduction" or "chefz_daily" or "platform_day_usage"=>rows.Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)),
+                "rider_work_timeline"=>rows.Where(r=>r.S("companyId")==company&&PeriodOverlap(r,period,"effectiveFrom","effectiveTo")),
                 "vehicle_assignment"=>rows.Where(a=>PeriodOverlap(a,period,"startedAt","endedAt")&&(riderIds.Count==0||riderIds.Contains(a.S("riderId")))),
+                "vehicle_expense"=>rows.Where(e=>e.S("companyId")==company&&(riderIds.Count==0||riderIds.Contains(e.S("riderId")))),
                 "housing_residence"=>rows.Where(r=>PeriodOverlap(r,period,"effectiveFrom","effectiveTo")&&(riderIds.Count==0||riderIds.Contains(r.S("riderId")))),
                 "fuel_usage"=>rows.Where(f=>
                 {
@@ -164,6 +166,10 @@ public static partial class PayCycles
             if(invalidIqama>0)cycle["inputsCaptureInvalidIqama"]=invalidIqama;else cycle.Remove("inputsCaptureInvalidIqama");
         }
         else{cycle.Remove("inputsCaptureRejected");cycle.Remove("inputsCaptureInvalidIqama");}
+        // A10: Keeta has accounts but no ERP performance source — record, do not invent rows.
+        if(apps.Contains("keeta"))
+            cycle["inputsCaptureNotes"]=new JsonArray(new JsonObject{["app"]="keeta",["code"]="no_erp_performance_source",["message"]="لا مصدر أداء في نظام الموارد لكيطا"});
+        else cycle.Remove("inputsCaptureNotes");
         if(apps.Count==1)cycle["app"]=apps[0];
         cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);
         Store.Save(c,Kind,cycle,tx);
@@ -184,6 +190,7 @@ public static partial class PayCycles
             ["counts"]=cycle["inputsCaptureCounts"]!.DeepClone()
         };
         if(cycle["inputsCaptureRejected"]!=null)capture["rejected"]=cycle["inputsCaptureRejected"]!.DeepClone();
+        if(cycle["inputsCaptureNotes"]!=null)capture["notes"]=cycle["inputsCaptureNotes"]!.DeepClone();
         return capture;
     }
 
