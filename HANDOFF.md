@@ -6,7 +6,7 @@
 | Branch | feat/run-input-snapshots |
 | Updated | 2026-11-14 by Cursor (L2-fix2 B3 category) |
 | Live | `/health` = **0.20.0** (this branch not deployed) |
-| Tip | L2-fix2 commit (push + CI dispatch next) |
+| Tip | `3c4eaeb` pushed; CI run 43539261832 green |
 
 ## L2-fix2 B3 category (2026-11-14)
 - `PayReviewDraft.Map` stages `ninja_daily`, `vehicle_assignment`, and referenced `vehicle` (`PayReviewDraft.cs` Map + `KindAwareLiveOps`).
