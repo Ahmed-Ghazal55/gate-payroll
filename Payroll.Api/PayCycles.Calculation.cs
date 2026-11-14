@@ -33,8 +33,11 @@ public static partial class PayCycles
             var assignment=PayAssignments.Resolve(c,tx,rider,app,period);var scheme=Store.Get(c,assignment.S("schemeId"),"pay_scheme",tx)!;string rulesId=scheme["data"].S("eligibilitySetId");var rules=rulesId==""?null:Store.Get(c,rulesId,"pay_eligibility",tx);
             var vehicle=Vehicle(c,tx,cycle,rider,period,category,values);var metrics=(rows[0]["metrics"] as JsonObject??new()).ToDictionary(p=>p.Key,p=>(decimal?)PayValues.Number(rows[0]["metrics"]!.AsObject(),p.Key,-1000000000));
             var chefzFees=rows.Where(r=>r.ContainsKey("chefzFullTimeCommission")).Select(r=>r.N("chefzFullTimeCommission")).Distinct().ToList();J.Need(chefzFees.Count<=1,"عمولة دوام شيفز متضاربة بين حسابات المندوب.");decimal? chefzFee=chefzFees.Count==1?chefzFees[0]:null;
-            var result=PayEvaluator.Evaluate(new(rider,app,period,category,rows.Sum(r=>(int)r.N("orders")),rows.Sum(r=>r.N("baseGross")),rows.Sum(r=>r.N("incentive")),rows[0].N("days"),vehicle.Type,vehicle.Days,metrics,chefzFee),scheme,rules,global);
-            var doc=Json(result);doc["id"]="pay-line:"+Guid.NewGuid().ToString("N");doc["cycleId"]=cycle.S("id");doc["companyId"]=cycle.S("companyId");doc["schemeId"]=scheme.S("id");doc["schemeName"]=scheme["data"].S("name");doc["globalSettingId"]=global.S("id");doc["assignmentId"]=assignment.S("id");doc["termsId"]=PaySettings.Resolve(c,tx,"pay_terms",app,period).S("id");doc["sources"]=new JsonArray(rows.Select(r=>(JsonNode?)r.Clone()).ToArray());doc["vehicleSources"]=vehicle.Sources;doc["accountDeduction"]=rows.Sum(r=>r.N("deduction"));
+            decimal penalties=rows.Sum(r=>r.N("deduction"));
+            var result=PayEvaluator.Evaluate(new(rider,app,period,category,rows.Sum(r=>(int)r.N("orders")),rows.Sum(r=>r.N("baseGross")),rows.Sum(r=>r.N("incentive")),rows[0].N("days"),vehicle.Type,vehicle.Days,metrics,chefzFee,penalties),scheme,rules,global);
+            var doc=Json(result);doc["id"]="pay-line:"+Guid.NewGuid().ToString("N");doc["cycleId"]=cycle.S("id");doc["companyId"]=cycle.S("companyId");doc["schemeId"]=scheme.S("id");doc["schemeName"]=scheme["data"].S("name");doc["globalSettingId"]=global.S("id");doc["assignmentId"]=assignment.S("id");doc["termsId"]=PaySettings.Resolve(c,tx,"pay_terms",app,period).S("id");doc["sources"]=new JsonArray(rows.Select(r=>(JsonNode?)r.Clone()).ToArray());doc["vehicleSources"]=vehicle.Sources;
+            // §40.3 percent: penalties already in commission base — do not subtract again at Merge.
+            doc["accountDeduction"]=result.PenaltiesInCommissionBase?0:penalties;doc["platformPenalties"]=penalties;
             doc["vehicleType"]=vehicle.Type;Store.Save(c,LineKind,doc,tx);
         }
         if(Lines(c,tx,cycle.S("id")).Any(l=>l.S("status")!="ready"))cycle["status"]="needs_decision";
@@ -83,7 +86,16 @@ public static partial class PayCycles
         CapSharedVehicleRent(c,tx,cycle,lines,values);lines=Lines(c,tx,cycle.S("id"));
         foreach(var group in lines.GroupBy(l=>l.S("rider")))
         {
-            decimal rent=group.Sum(l=>l.N("allocatedVehicleCharge"));decimal available=group.Sum(l=>l.N("entitlement")-l.N("accountDeduction"))-rent;string rider=group.Key;var tags=PlatformDeductions.Categories(Store.List(c,PlatformDeductions.Kind,tx),rider,period);
+            // §40.3 salary (non-§22.9.2): operational items are company expenses, not rider deductions.
+            bool salaryExpense=group.All(l=>l.B("salaryOperationalExpense")||(l.S("schemeType")=="target_salary"&&!l.B("ineligibleKeetaSalary")));
+            decimal rent=group.Sum(l=>l.N("allocatedVehicleCharge"));
+            if(salaryExpense&&rent>0)
+            {
+                deductions.Add(new JsonObject{["rider"]=group.Key,["category"]="VehicleExpense",["amount"]=0,["companyCost"]=rent,["source"]="vehicle-expense:"+group.Key+":"+period,["accountCode"]=PayExpenseAccounts.SalaryVehicle,["type"]="company_expense",["phase"]=1,["order"]=40,["labelAr"]="مصروف مركبة لمندوب الراتب",["affectsNet"]=false});
+                foreach(var l in group){l["allocatedVehicleCharge"]=0;Store.Save(c,LineKind,l,tx);}
+                rent=0;
+            }
+            decimal available=group.Sum(l=>l.N("entitlement")-l.N("accountDeduction"))-rent;string rider=group.Key;var tags=PlatformDeductions.Categories(Store.List(c,PlatformDeductions.Kind,tx),rider,period);
             int residenceDays=HousingDaysForRider(c,tx,cycle,rider,period,values);decimal housing=0;bool housingRateReady=residenceDays==0;
             if(residenceDays>0)
             {
@@ -96,8 +108,13 @@ public static partial class PayCycles
             }
             if(housing>0)
             {
-                deductions.Add(new JsonObject{["rider"]=rider,["category"]="HousingDeduction",["amount"]=-housing,["source"]="housing:"+rider+":"+period,["accountCode"]="112505",["type"]="housing",["phase"]=1,["order"]=50,["labelAr"]="استقطاع سكن",["housingDays"]=residenceDays});
-                available-=housing;
+                if(salaryExpense)
+                    deductions.Add(new JsonObject{["rider"]=rider,["category"]="HousingExpense",["amount"]=0,["companyCost"]=housing,["source"]="housing:"+rider+":"+period,["accountCode"]=PayExpenseAccounts.SalaryHousing,["type"]="company_expense",["phase"]=1,["order"]=50,["labelAr"]="مصروف سكن لمندوب الراتب",["housingDays"]=residenceDays,["affectsNet"]=false});
+                else
+                {
+                    deductions.Add(new JsonObject{["rider"]=rider,["category"]="HousingDeduction",["amount"]=-housing,["source"]="housing:"+rider+":"+period,["accountCode"]="112505",["type"]="housing",["phase"]=1,["order"]=50,["labelAr"]="استقطاع سكن",["housingDays"]=residenceDays});
+                    available-=housing;
+                }
             }
             foreach(var a in Store.List(c,"adjustment",tx).Where(a=>a.S("iqama")==rider&&a.S("period")==period&&(a.N("amount")>=0||!PlatformDeductions.Skip(tags,a))))
             {
