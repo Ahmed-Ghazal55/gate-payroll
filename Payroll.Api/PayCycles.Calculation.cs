@@ -186,7 +186,9 @@ public static partial class PayCycles
             foreach(var d in fuel){decimal recovered=Math.Min(Math.Max(0,net),d.N("fuelTotal"));d["amount"]=-recovered;d["companyCost"]=d.N("fuelTotal")-recovered;net-=recovered;}
             decimal carried=Store.List(c,"journal",tx).Where(FinanceViews.Posted).Where(j=>string.CompareOrdinal(j.S("period"),cycle.S("postingPeriod",period))<=0).SelectMany(j=>(j["lines"] as JsonArray??[]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("iqama")==rider&&l.S("accountCode") is "2110" or "212103").Sum(l=>l.N("credit")-l.N("debit"));
             bool deficit=Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>(j["lines"] as JsonArray??[]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("iqama")==rider&&l.S("accountCode")=="1211").Sum(l=>l.N("debit")-l.N("credit"))>0;
-            var hard=group.SelectMany(l=>Blockers(l).Select(b=>b!.ToString())).Where(b=>b!="negative_net_requires_decision").Distinct().ToList();
+            // JsonNode.ToString() quotes strings — read the raw value so §40.6 can drop negative_net_requires_decision.
+            static string BlockerText(JsonNode? b)=>b is JsonValue v&&v.TryGetValue<string>(out var s)?s:"";
+            var hard=group.SelectMany(l=>Blockers(l).Select(BlockerText)).Where(b=>b!=""&&b!="negative_net_requires_decision").Distinct().ToList();
             if(deficit)hard.Add("legacy_deficit_requires_resolution");
             // §40.6: negative net is allowed for every app (including Ninja salary); carry to 112507 at final approval.
             // §40.5: hold when the rider also worked another app/company account this month outside this cycle.
