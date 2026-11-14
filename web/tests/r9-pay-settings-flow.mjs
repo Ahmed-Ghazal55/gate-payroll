@@ -595,6 +595,11 @@ try {
     });
     assert.equal(captureRes.status, 200, `capture-inputs must succeed: ${await captureRes.text()}`);
     await pageA.reload({ waitUntil: 'networkidle' });
+    // After a reload the page opens on the draft tab; switch to the cycle tab.
+    const cycleTabBtn = pageA.locator('button', { hasText: 'دورة الرواتب ومراحل المسير' });
+    await cycleTabBtn.first().waitFor({ state: 'visible', timeout: 10000 });
+    await cycleTabBtn.first().click();
+    await pageA.waitForLoadState('networkidle');
 
     // Advance stages with the stepper button until Stage 4 (lines generated)
     for (let stage = 1; stage <= 4; stage++) {
