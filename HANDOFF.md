@@ -2,12 +2,17 @@
 
 | Field | Value |
 |---|---|
-| Current writer | |
+| Current writer | — (next: Cursor `~/.agents/prompts/cursor-W1-fix-after-R1.md`) |
 | Branch | feat/pay-pipeline-six-stages |
 | Updated | 2026-11-14 by Cursor |
 | Live | `/health` = **0.21.0** (this branch not deployed) |
 | Tip | W1 complete — Claude reviews money + migration next |
 
+
+## Claude review R1 of W1 (2026-11-14)
+- Fixed the stale `HousingChargeTests` expectation (`dbf405a`): engine tests green; CI still red in browser test `r8-ninja-flow` (negative captain not "ready" on the review grid).
+- Review `~/.agents/reviews/R1-W1-pay-pipeline.md`: **B1** stage-4 rows never posted nor settled (double deduction next month, payable ≠ net); **B2** fuel_usage field mapping / month filter (silent zero risk); **M1** bank file from remainder + payout journal not built; **M2** fuel journal per §22.9 missing; **M3** golden run not executed; **M4** month items use instalment instead of full balance.
+- Next: Cursor one fix round `~/.agents/prompts/cursor-W1-fix-after-R1.md`.
 ## In flight
 W1 six-stage pay pipeline per `prompts/cursor-W1-pay-pipeline-six-stages.md` and BR §40. Open decisions as settings with ✅ defaults. No ERP/prod writes. Push branch only.
 
