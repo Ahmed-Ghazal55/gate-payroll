@@ -3,10 +3,10 @@
 | Field | Value |
 |---|---|
 | Current writer | Cursor 2026-11-14 W1 pay-pipeline-six-stages |
-| Branch | feat/pay-pipeline-six-stages (creating from origin/main) |
+| Branch | feat/pay-pipeline-six-stages |
 | Updated | 2026-11-14 by Cursor |
 | Live | `/health` = **0.21.0** (this branch not deployed) |
-| Tip | W1 in progress — step 6 + CI inventory fix; step 7 next |
+| Tip | W1 in progress — step 7 SheetReconcile; step 8 next |
 
 ## In flight
 W1 six-stage pay pipeline per `prompts/cursor-W1-pay-pipeline-six-stages.md` and BR §40. Open decisions as settings with ✅ defaults. No ERP/prod writes. Push branch only.
@@ -19,6 +19,7 @@ W1 six-stage pay pipeline per `prompts/cursor-W1-pay-pipeline-six-stages.md` and
 - **Step 4** — stage-4 before net (this-month debts); fuel_usage capture; FuelOverage `112511`; HS wallet `112506`; `PipelineSettings` open-decision defaults; `Stage4DeductionTests` (`77dc7a0`).
 - **Step 5** — `SharedRiderConsolidation` hold/queue/release; Approve skips held; `SharedRiderConsolidationTests` (`74435a6`).
 - **Step 6** — remove Ninja negative-net Merge blocker; debt limit = positive net; `AfterNetTests`. ENDPOINTS inventory for multi-rider + shared-riders.
+- **Step 7** — `tools/SheetReconcile` zip/XML reader (Mac xlsx); `SheetReconcileTests`; report `~/.agents/reviews/W1-golden-september.md` (1064 usable sheet riders; local cycle DB missing).
 
 ## Do not
 - Do not write to ERP or db77738. No secrets in git. No merge/deploy/version bump without Ghazal's yes.
