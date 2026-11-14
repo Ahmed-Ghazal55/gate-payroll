@@ -52,8 +52,9 @@ public static class InvoiceDeductionClassification
             alloc.Add(new JsonObject{["bearer"]="rider",["riderId"]=deduction.S("riderId"),["amount"]=amount});
         else if(level=="account_level")
         {
+            if(multiRiderAccount){deduction["migrationStatus"]=NeedsReview;deduction["allocations"]=new JsonArray();return deduction;}
             string rider=singleRiderId??deduction.S("riderId");
-            if(multiRiderAccount||rider==""){deduction["migrationStatus"]=NeedsReview;deduction["allocations"]=new JsonArray();return deduction;}
+            J.Need(rider!="","يوزر متعدد المناديب يحتاج مراجعة؛ أو مندوب واحد صريح.");
             alloc.Add(new JsonObject{["bearer"]="rider",["riderId"]=rider,["amount"]=amount});
         }
         else throw new ApiError("صنف الخصم أولًا.");
@@ -99,24 +100,28 @@ public static class InvoiceDeductionClassification
         }
         else
         {
-            // Legacy classify body → migrate to allocations.
+            // Legacy classify body → migrate to allocations (account_level kept for transition / ops share).
             string level=input.Required("level");
-            J.Need(level is "company_level" or "rider_level","حدد الشركة أو المندوب؛ مستوى اليوزر أُلغي — استخدم التوزيع.");
+            J.Need(level is "company_level" or "rider_level" or "account_level","حدد الشركة أو المندوب أو توزيع اليوزر.");
             if(level=="company_level")
             {
                 string expense=PayPlatforms.Active(input.Required("expenseAccount"));
                 J.Need(expense.StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");
                 deduction["allocations"]=new JsonArray(new JsonObject{["bearer"]="company",["amount"]=J.Money(deduction.N("amount")),["expenseAccount"]=expense});
+                DemandSum(deduction);deduction["level"]=level;SyncLegacyFields(deduction);
             }
-            else
+            else if(level=="rider_level"||(level=="account_level"&&input.S("riderId")!=""))
             {
                 string rider=J.Iqama(input.Required("riderId"));
                 DemandWorkedAccount(c,tx,actor,invoice,line,rider);
                 deduction["allocations"]=new JsonArray(new JsonObject{["bearer"]="rider",["riderId"]=rider,["amount"]=J.Money(deduction.N("amount"))});
+                DemandSum(deduction);deduction["level"]="rider_level";SyncLegacyFields(deduction);
             }
-            DemandSum(deduction);
-            deduction["level"]=level;
-            SyncLegacyFields(deduction);
+            else
+            {
+                // account_level without riderId: provenance only; ops review proposes the split (§40.1/§40.2).
+                deduction.Remove("allocations");deduction.Remove("migrationStatus");deduction["level"]="account_level";deduction.Remove("expenseAccount");deduction.Remove("riderId");
+            }
         }
         foreach(var a in AllocationsOf(deduction).OfType<JsonObject>().Where(x=>x.S("bearer")=="rider"))
             DemandWorkedAccount(c,tx,actor,invoice,line,a.S("riderId"));
@@ -170,7 +175,9 @@ public static class InvoiceDeductionClassification
     public static void EnsureMigrated(JsonObject deduction)
     {
         if(AllocationsOf(deduction).Count>0){if(deduction.S("migrationStatus")!=NeedsReview)DemandSum(deduction);return;}
-        if(deduction.S("level")!="")MigrateLevel(deduction);
+        // Leave bare account_level for ops share; only migrate when rider/company is known.
+        if(deduction.S("level") is "company_level" or "rider_level")MigrateLevel(deduction);
+        else if(deduction.S("level")=="account_level"&&deduction.S("riderId")!="")MigrateLevel(deduction);
     }
 
     public static bool Classified(JsonObject deduction)

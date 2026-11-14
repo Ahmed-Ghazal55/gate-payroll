@@ -60,6 +60,7 @@ public static partial class PayCycles
                 InvoiceDeductionClassification.EnsureMigrated(d);
                 J.Need(d.S("migrationStatus")!=InvoiceDeductionClassification.NeedsReview,"خصم يوزر متعدد المناديب يحتاج توزيعًا قبل الدورة.");
                 J.Need(InvoiceDeductionClassification.AllocationsOf(d).Count>0||d.S("level") is "company_level" or "account_level" or "rider_level","صنف كل خصم.");
+                // Bare account_level is allowed when rider shares on the account will carry the deduction (§24.5 / ops import).
                 if(d.S("level")=="company_level"||InvoiceDeductionClassification.CompanyAllocations(d).Any())
                     foreach(var a in InvoiceDeductionClassification.CompanyAllocations(d))J.Need(PayPlatforms.Active(a.Required("expenseAccount")).StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");
                 if(d.S("level")=="account_level"&&InvoiceDeductionClassification.AllocationsOf(d).Count==0)J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");

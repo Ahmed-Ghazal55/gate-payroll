@@ -187,8 +187,7 @@ public static partial class PayCycles
             bool deficit=Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>(j["lines"] as JsonArray??[]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("iqama")==rider&&l.S("accountCode")=="1211").Sum(l=>l.N("debit")-l.N("credit"))>0;
             var hard=group.SelectMany(l=>Blockers(l).Select(b=>b!.ToString())).Where(b=>b!="negative_net_requires_decision").Distinct().ToList();
             if(deficit)hard.Add("legacy_deficit_requires_resolution");
-            // A negative Ninja salary is not covered by the Keeta-only exception.
-            if(net<0&&group.Any(l=>l.S("app")=="ninja"&&l.S("schemeType")=="target_salary"))hard.Add("negative_ninja_salary_requires_policy");
+            // §40.6: negative net is allowed for every app (including Ninja salary); carry to 112507 at final approval.
             // §40.5: hold when the rider also worked another app/company account this month outside this cycle.
             var cycleApps=group.Select(l=>l.S("app")).Where(a=>a!="").Distinct(StringComparer.Ordinal).OrderBy(a=>a,StringComparer.Ordinal).ToList();
             var outside=SharedRiderConsolidation.AppsInMonth(c,tx,cycle,rider,period);
@@ -202,7 +201,7 @@ public static partial class PayCycles
                 consolReady=consol!=null&&(consol.B("released")||(consol.S("status")=="ready"&&(consol["missingApps"] as JsonArray??[]).Count==0));
                 if(!consolReady)hard.Add("shared_rider_hold");
             }
-            bool blocked=net<0||hard.Count>0;
+            bool blocked=hard.Count>0;
             var summary=new JsonObject{["rider"]=rider,["net"]=J.Money(net),["carried"]=J.Money(carried),["closing"]=J.Money(carried+net),["status"]=blocked?"needs_decision":"ready",["blockers"]=new JsonArray(hard.Select(b=>(JsonNode?)JsonValue.Create(b)).ToArray())};
             if(shared){summary["tag"]=SharedRiderConsolidation.Tag;summary["sharedRider"]=true;summary["sharedLabelAr"]=SharedRiderConsolidation.QueueLabelAr;summary["missingApps"]=new JsonArray(missing.Select(a=>(JsonNode?)JsonValue.Create(a)).ToArray());summary["consolidationReady"]=consolReady;}
             Phases(summary,group,Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==rider));summaries.Add(summary);
