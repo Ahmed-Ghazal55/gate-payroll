@@ -145,8 +145,8 @@ public static class BankPayrollFiles
             if(row.N("amount")!=original.N("amount")||row.S("notes")!=original.S("notes")||row.S("bank")!=original.S("bank"))edited++;
             total+=row.N("amount");checkedRows.Add(row);
         }
-        // M1: payout journal only when the file is marked sent — never for parallel «لا يُرسل».
-        if(!comparison)
+        // M1: payout journal only when explicitly marked sent — never on plain export or parallel «لا يُرسل».
+        if(!comparison&&(input.B("markSent")||input.B("sent")||input.S("action")=="mark_sent"))
         {
             string bank=input.S("bankAccountCode",PipelineSettings.Current().S("payrollBankAccount","111101"));
             PostPayout(c,tx,user,request,checkedRows,actor,bank);
