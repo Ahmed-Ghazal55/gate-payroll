@@ -47,10 +47,11 @@ public static class PlatformDeductions
         J.Need(FinancialScopes.Platform(actor,PayPlatforms.For(app).Platform),"المنصة خارج النطاق.");
         foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>())
         {
-            J.Need(d.S("level") is "company_level" or "account_level" or "rider_level","تصنيف الخصم مطلوب.");
+            InvoiceDeductionClassification.EnsureMigrated(d);
+            J.Need(InvoiceDeductionClassification.AllocationsOf(d).Count>0||d.S("level") is "company_level" or "account_level" or "rider_level","تصنيف الخصم مطلوب.");
             string id="platform-deducted:"+StorageTransfer.CutoverHash(JsonValue.Create(line.S("id")+":"+d.S("category")));
             if(Store.Get(c,id,Kind,tx)!=null)continue;
-            var tag=new JsonObject{["id"]=id,["platform"]=PayPlatforms.For(app).Platform,["companyId"]=invoice.S("companyId"),["invoiceId"]=invoice.S("id"),["sourceId"]=line.S("id"),["platformAccountId"]=line.S("platformAccountId"),["category"]=d.S("category"),["level"]=d.S("level"),["riderId"]=d.S("riderId"),["amount"]=d.N("amount"),["expenseAccount"]=d.S("expenseAccount"),["status"]="confirmed",["createdBy"]=actor.Identity!.Name};
+            var tag=new JsonObject{["id"]=id,["platform"]=PayPlatforms.For(app).Platform,["companyId"]=invoice.S("companyId"),["invoiceId"]=invoice.S("id"),["sourceId"]=line.S("id"),["platformAccountId"]=line.S("platformAccountId"),["category"]=d.S("category"),["level"]=d.S("level"),["riderId"]=d.S("riderId"),["amount"]=d.N("amount"),["expenseAccount"]=d.S("expenseAccount"),["allocations"]=d["allocations"]?.DeepClone(),["status"]="confirmed",["createdBy"]=actor.Identity!.Name};
             Store.Save(c,Kind,tag,tx);Store.Audit(c,tx,"platform."+app+".deduction_classified_confirmed",id,actor.Identity!.Name!);
         }
     }

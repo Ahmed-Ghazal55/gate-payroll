@@ -54,7 +54,16 @@ public static partial class PayCycles
             if(app=="keeta")KeetaInvoices.Workflow.DemandResolvedDisputes(c,tx,source.S("id"));
             var accounts=Rows(review["accounts"]).OfType<JsonObject>().ToList();var deductions=Rows(review["deductions"]).OfType<JsonObject>().ToList();J.Need(accounts.Count>0&&accounts.Select(a=>a.S("accountId")).Distinct().Count()==accounts.Count,"استحقاقات اليوزرات مطلوبة بلا تكرار.");
             foreach(var a in accounts){PayValues.Fields(a,"accountId","sourceLineId","baseGross","incentives","orders","riders");SignedMoney(a,"baseGross");Money(a,"incentives");decimal orders=PayValues.Number(a,"orders",0,int.MaxValue);J.Need(orders==decimal.Truncate(orders),"طلبات فعلية صحيحة مطلوبة.");}
-            foreach(var d in deductions){PayValues.Fields(d,"sourceLineId","sourceCategory","level","accountId","amount","expenseAccount","riderId");Money(d,"amount");J.Need(d.S("level") is "company_level" or "account_level" or "rider_level","صنف كل خصم: شركة أو يوزر.");if(d.S("level")=="company_level")J.Need(PayPlatforms.Active(d.Required("expenseAccount")).StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");else if(d.S("level")=="account_level")J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");}
+            foreach(var d in deductions)
+            {
+                PayValues.Fields(d,"sourceLineId","sourceCategory","level","accountId","amount","expenseAccount","riderId","allocations");Money(d,"amount");
+                InvoiceDeductionClassification.EnsureMigrated(d);
+                J.Need(d.S("migrationStatus")!=InvoiceDeductionClassification.NeedsReview,"خصم يوزر متعدد المناديب يحتاج توزيعًا قبل الدورة.");
+                J.Need(InvoiceDeductionClassification.AllocationsOf(d).Count>0||d.S("level") is "company_level" or "account_level" or "rider_level","صنف كل خصم.");
+                if(d.S("level")=="company_level"||InvoiceDeductionClassification.CompanyAllocations(d).Any())
+                    foreach(var a in InvoiceDeductionClassification.CompanyAllocations(d))J.Need(PayPlatforms.Active(a.Required("expenseAccount")).StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");
+                if(d.S("level")=="account_level"&&InvoiceDeductionClassification.AllocationsOf(d).Count==0)J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");
+            }
             J.Need(source.ContainsKey("deductionsTotal"),"إجمالي خصومات المصدر غير مثبت؛ ارفع نسخة معيارية مراجعة قبل الاحتساب.");
             decimal gross=accounts.Sum(a=>a.N("baseGross")+a.N("incentives"));
             J.Need(gross==source.N("amountExclVat")&&source.N("vat")>=0,"مجموع استحقاقات اليوزرات لا يطابق الفاتورة قبل الضريبة والخصومات.");
@@ -73,9 +82,12 @@ public static partial class PayCycles
                 {
                     var components=(sourceLine!["deductions"] as JsonArray??[]).OfType<JsonObject>().ToList();
                     var selected=components.Where(x=>d.S("sourceCategory")==""||x.S("category")==d.S("sourceCategory")).ToList();
-                    J.Need(selected.Count>0&&selected.Sum(x=>x.N("amount"))==d.N("amount")&&selected.All(x=>x.S("level")==d.S("level")&&(x.S("level")!="company_level"||x.S("expenseAccount")==d.S("expenseAccount"))),"الخصم لا يطابق تصنيف الفاتورة المعتمد.");
-                    if(d.S("level")=="account_level")J.Need(d.S("accountId")==sourceLine.S("platformAccountId"),"يوزر الخصم لا يطابق مصدره.");
-                    if(d.S("level")=="rider_level")J.Need(selected.All(x=>x.S("riderId")==d.Required("riderId"))&&accounts.SelectMany(a=>Rows(a["riders"]).OfType<JsonObject>()).Any(r=>r.S("rider")==d.S("riderId")),"مندوب الخصم لا يطابق التصنيف أو توزيع التشغيل.");
+                    J.Need(selected.Count>0&&selected.Sum(x=>x.N("amount"))==d.N("amount"),"الخصم لا يطابق تصنيف الفاتورة المعتمد.");
+                    foreach(var x in selected)InvoiceDeductionClassification.EnsureMigrated(x);
+                    InvoiceDeductionClassification.EnsureMigrated(d);
+                    if(d.S("level")=="account_level"&&InvoiceDeductionClassification.AllocationsOf(d).Count==0)J.Need(d.S("accountId")==sourceLine.S("platformAccountId"),"يوزر الخصم لا يطابق مصدره.");
+                    foreach(var a in InvoiceDeductionClassification.AllocationsOf(d).OfType<JsonObject>().Where(x=>x.S("bearer")=="rider"))
+                        J.Need(accounts.SelectMany(ac=>Rows(ac["riders"]).OfType<JsonObject>()).Any(r=>r.S("rider")==a.S("riderId")),"مندوب الخصم لا يطابق توزيع التشغيل.");
                 }
                 else J.Need(!sourceLine!.ContainsKey("deductionAmount")||sourceLine.N("deductionAmount")==d.N("amount"),"الخصم يحتاج سطر مصدر.");
             }

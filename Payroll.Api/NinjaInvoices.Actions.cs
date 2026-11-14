@@ -34,10 +34,10 @@ public static partial class NinjaInvoices
         {
             if(manage&&InvoiceDiscard.Can(c,tx,invoice))actions.Add("discard");
             if(manage&&invoice.S("approvalStatus")=="pending"&&parts.Count>0)actions.Add("classify");
-            if(approve&&independent&&open&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>(d.S("level") is "company_level" or "account_level" or "rider_level")&&AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve")))actions.Add("approve");
+            if(approve&&independent&&open&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>InvoiceDeductionClassification.Classified(d)&&AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve")))actions.Add("approve");
             if(manage)actions.Add("dispute");
             if(approve&&disputes.Any(d=>d.S("status")=="open"&&AccessPolicy.Independent(actor,d.S("createdBy"),"platform.dispute_resolve")))actions.Add("resolve");
-            if(approve&&independent&&open&&invoice.S("approvalStatus")=="approved"&&disputes.All(d=>d.S("status")=="resolved")&&parts.All(d=>d.S("level")=="company_level"))
+            if(approve&&independent&&open&&invoice.S("approvalStatus")=="approved"&&disputes.All(d=>d.S("status")=="resolved")&&parts.All(InvoiceDeductionClassification.AllCompany))
             {try{PlatformPosting.Demand(c,"ninja",tx);actions.Add("post");}catch(ApiError){}}
         }
         var blockers=new JsonArray();
@@ -46,10 +46,27 @@ public static partial class NinjaInvoices
             if(!approve)blockers.Add("حسابك لا يملك صلاحية اعتماد فواتير الرواتب.");
             if(!independent)blockers.Add("أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر (فصل الصلاحيات).");
             if(!open)blockers.Add("الفترة المحاسبية مغلقة.");
-            int unclassified=parts.Count(d=>d.S("level") is not ("company_level" or "account_level" or "rider_level"));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على اليوزر أو على الشركة).");
+            int unclassified=parts.Count(d=>!InvoiceDeductionClassification.Classified(d));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على اليوزر أو على الشركة).");
             int ownClass=parts.Count(d=>!AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve"));if(ownClass>0)blockers.Add($"أنت صنّفت {ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.");
         }
-        result["approvalBlockers"]=blockers;result["approvalStatus"]=invoice.S("approvalStatus","pending");result["allowedActions"]=actions;result["lines"]=new JsonArray(lines.Select(l=>(JsonNode?)l.Clone()).ToArray());result["disputes"]=new JsonArray(disputes.Select(d=>(JsonNode?)d.Clone()).ToArray());return result;
+        // Attach default §40.1 proposal on each deduction for the classify UI.
+        var lineViews=new JsonArray();
+        foreach(var line in lines)
+        {
+            var view=line.Clone();
+            var account=Store.Get(c,line.S("platformAccountId"),"platform_account",tx);
+            var operators=(account?["assignments"] as JsonArray??[]).OfType<JsonObject>().Select(a=>a.S("riderId")).Where(id=>id!="").Distinct(StringComparer.Ordinal).Select(id=>(id,1m)).ToList();
+            var deductions=new JsonArray();
+            foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>())
+            {
+                var row=d.Clone();
+                if(InvoiceDeductionClassification.AllocationsOf(row).Count==0)
+                    row["proposal"]=InvoiceDeductionClassification.Propose(operators,row.N("amount"),companyBearer:row.S("level")=="company_level",expenseAccount:row.S("expenseAccount"));
+                deductions.Add(row);
+            }
+            view["deductions"]=deductions;lineViews.Add(view);
+        }
+        result["approvalBlockers"]=blockers;result["approvalStatus"]=invoice.S("approvalStatus","pending");result["allowedActions"]=actions;result["lines"]=lineViews;result["disputes"]=new JsonArray(disputes.Select(d=>(JsonNode?)d.Clone()).ToArray());return result;
     }
     static JsonObject Act(Store store,HttpContext ctx,string id,Func<DbConnection,DbTransaction,JsonObject> action)=>store.Write((c,tx)=>{action(c,tx);return View(c,tx,ctx.User,Get(c,tx,ctx.User,id));});
 }

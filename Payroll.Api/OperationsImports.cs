@@ -45,8 +45,11 @@ public static class OperationsImports
         void Add(JsonObject line,JsonObject part,string category)
         {
             decimal amount=part==line?line.N("deductionAmount"):part.N("amount");if(amount==0)return;
-            string level=part.S("level",part.S("deductionLevel"));J.Need(amount>0&&amount==J.Money(amount)&&level is "company_level" or "account_level" or "rider_level","يلزم تصنيف خصومات الفاتورة المعتمد قبل التشغيل.");
-            result.Add(new JsonObject{["sourceLineId"]=line.S("id"),["sourceCategory"]=category,["level"]=level,["accountId"]=level=="account_level"?line.S("platformAccountId",line.S("accountId")):"",["amount"]=amount,["expenseAccount"]=part.S("expenseAccount"),["riderId"]=part.S("riderId")});
+            InvoiceDeductionClassification.EnsureMigrated(part);
+            string level=part.S("level",part.S("deductionLevel"));J.Need(amount>0&&amount==J.Money(amount)&&(InvoiceDeductionClassification.AllocationsOf(part).Count>0||level is "company_level" or "account_level" or "rider_level"),"يلزم تصنيف خصومات الفاتورة المعتمد قبل التشغيل.");
+            var row=new JsonObject{["sourceLineId"]=line.S("id"),["sourceCategory"]=category,["level"]=level,["accountId"]=level=="account_level"?line.S("platformAccountId",line.S("accountId")):"",["amount"]=amount,["expenseAccount"]=part.S("expenseAccount"),["riderId"]=part.S("riderId")};
+            if(part["allocations"]!=null)row["allocations"]=part["allocations"]!.DeepClone();
+            result.Add(row);
         }
     }
     static void Assignment(JsonObject account,string rider,string period,string from,string to)

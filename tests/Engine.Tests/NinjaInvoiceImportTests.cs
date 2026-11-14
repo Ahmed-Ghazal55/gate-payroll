@@ -75,7 +75,7 @@ public sealed class NinjaInvoiceImportTests
         Assert.IsFalse(checker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));
         StringAssert.Contains(string.Join("|",checker["approvalBlockers"]!.AsArray()),"بلا تصنيف");
         var line=checker["lines"]!.AsArray()[0]!.AsObject();
-        var batch=new JsonObject{["items"]=new JsonArray(new JsonObject{["lineId"]=line.S("id"),["category"]="penalty",["level"]="account_level"})};
+        var batch=new JsonObject{["items"]=new JsonArray(new JsonObject{["lineId"]=line.S("id"),["category"]="penalty",["level"]="company_level",["expenseAccount"]="526402"})};
         f.Store.Write((c,tx)=>NinjaInvoices.ClassifyBatch(c,tx,Actor(),invoice.S("id"),batch));
         var maker=f.Store.Read(c=>NinjaInvoices.View(c,null,Actor(),invoice));
         StringAssert.Contains(string.Join("|",maker["approvalBlockers"]!.AsArray()),"مستخدم آخر");Assert.IsFalse(maker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));

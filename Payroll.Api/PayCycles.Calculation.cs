@@ -109,8 +109,13 @@ public static partial class PayCycles
             }
         }
         foreach(var invoice in Rows(cycle["invoices"]).OfType<JsonObject>())
-        foreach(var d in Rows(invoice["deductions"]).OfType<JsonObject>().Where(d=>d.S("level")=="rider_level"))
-            deductions.Add(new JsonObject{["rider"]=d.S("riderId"),["category"]=d.S("sourceCategory"),["source"]=d.S("sourceLineId"),["amount"]=-d.N("amount"),["accountCode"]=PayPlatforms.For(invoice.S("app")).Receivable,["app"]=invoice.S("app"),["type"]="platform_rider",["phase"]=1,["order"]=5,["labelAr"]="خصم فاتورة على المندوب"});
+        foreach(var d in Rows(invoice["deductions"]).OfType<JsonObject>())
+        {
+            InvoiceDeductionClassification.EnsureMigrated(d);
+            string app=invoice.S("app");
+            foreach(var row in InvoiceDeductionClassification.ExpandForCycle(d,app,PayPlatforms.For(app).Receivable))
+                deductions.Add(row);
+        }
         // Current-month Keeta fallback fuel is operating cost, not a personal instalment.
         foreach(var d in deductions.OfType<JsonObject>().Where(d=>d.S("type")=="debt"&&d.S("debtCategory")=="FuelOverage"))
         {
@@ -210,7 +215,12 @@ public static partial class PayCycles
         foreach(var invoice in Rows(cycle["invoices"]).OfType<JsonObject>().Where(_=>first))
         {
             string app=invoice.S("app"),id=invoice.S("invoiceId"),recv=PayPlatforms.For(app).Receivable;var source=Store.Get(c,id,"platform_invoice",tx)!;Add(recv,source.N("vat"),0,app,"",id);Add(accounts.S("outputVat"),0,source.N("vat"),app,"",id);
-            foreach(var d in Rows(invoice["deductions"]).OfType<JsonObject>().Where(d=>d.S("level")=="company_level")){Add(d.S("expenseAccount"),d.N("amount"),0,app,"",d.S("sourceLineId"));Add(recv,0,d.N("amount"),app,"",d.S("sourceLineId"));}
+            foreach(var d in Rows(invoice["deductions"]).OfType<JsonObject>())
+            {
+                InvoiceDeductionClassification.EnsureMigrated(d);
+                foreach(var a in InvoiceDeductionClassification.CompanyAllocations(d))
+                {Add(a.S("expenseAccount"),a.N("amount"),0,app,"",d.S("sourceLineId"));Add(recv,0,a.N("amount"),app,"",d.S("sourceLineId"));}
+            }
         }
         foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>selected.Contains(d.S("rider"))&&d.S("type")=="housing"))
         {decimal amount=-d.N("amount");Add("212103",amount,0,"",d.S("rider"),d.S("source"));Add(accounts.S("housingIncome"),0,amount,"",d.S("rider"),d.S("source"));}
