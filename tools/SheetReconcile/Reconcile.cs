@@ -79,6 +79,33 @@ public static class Reconcile
     }
 
     /// <summary>Excel often stores 10-digit iqama as a float (e.g. 2.640335853E9).</summary>
+    /// <summary>Collapse line breaks and repeated spaces so a header can be matched exactly.</summary>
+    public static string NormalizeHeader(string? raw)
+        => Regex.Replace((raw??"").Replace('\n',' ').Replace('\r',' '),@"\s+"," ").Trim();
+
+    /// <summary>Last column whose normalised header equals <paramref name="name"/>. Never a substring match.</summary>
+    public static int ExactColumn(IReadOnlyList<string> headers,string name)
+    {
+        int found=-1;
+        for(int i=0;i<headers.Count;i++)
+            if(NormalizeHeader(headers[i])==name)found=i;
+        return found;
+    }
+
+    /// <summary>
+    /// Sheet salary: day value × days + per-order × orders + bonus (orders−450)×8 when orders &gt; 450 + net allowance.
+    /// Net allowance must be ≥ 0 because a salary band's internet field cannot be negative.
+    /// </summary>
+    public static bool TrySalaryEarned(decimal dayValue,decimal orderRate,decimal allowance,int orders,int days,out decimal earned)
+    {
+        earned=0;
+        if(dayValue<0||orderRate<0||allowance<0||orders<0||days<0)return false;
+        if(dayValue==0&&orderRate==0)return false;
+        decimal bonus=orders>450?(orders-450)*8m:0;
+        earned=dayValue*days+orderRate*orders+bonus+allowance;
+        return true;
+    }
+
     public static string NormalizeIqamaDigits(string raw)
     {
         string t=(raw??"").Trim();
@@ -156,23 +183,23 @@ public static class Reconcile
 
     static ClassifiedMismatch Classify(string hash,string stage,decimal sheet,decimal ours,decimal diff,string skip,IReadOnlyList<string> notes)
     {
-        if(skip=="missing_ours")return new(hash,stage,sheet,ours,diff,'d',"ours missing — captain/ops bind or draft blocker");
-        if(ours==0&&sheet!=0&&(stage is "due" or "net" or "transfer"))
-            return new(hash,stage,sheet,ours,diff,'b',"rider present on sheet but zero entitlement in cycle (salary band unmapped or no ops share)");
-        if(notes.Any(n=>n.Contains("salary_scheme_unmapped_hash="+hash,StringComparison.Ordinal)))
-            return new(hash,stage,sheet,ours,diff,'b',"§40: sheet راتب day/order/bonus not mapped into target_salary bands; commission-10% used");
-        if(stage is "fuel" or "stage4_total")
+        // (b) only when the loader already recomputed both numbers and named the rule and the sheet column.
+        string? hand=notes.FirstOrDefault(n=>n.StartsWith("classb:"+hash+":"+stage+":",StringComparison.Ordinal));
+        if(hand!=null)
         {
-            if(ours==sheet*2||sheet==ours*2)
-                return new(hash,stage,sheet,ours,diff,'c',"fuel BN duplicated across company cycles / shared paste");
-            return new(hash,stage,sheet,ours,diff,'b',"BN/AQ–BE from transfers workbook only («من ملف التحويلات، بدون مصدر أصلي»)");
+            string text=hand[("classb:"+hash+":"+stage+":").Length..];
+            if(text.Contains('§')&&text.Contains("sheet ",StringComparison.Ordinal))
+                return new(hash,stage,sheet,ours,diff,'b',text);
         }
-        if(Math.Abs(diff)<=5m)
-            return new(hash,stage,sheet,ours,diff,'c',"small sheet/engine rounding or paste drift");
-        // Sheet AA ≈ 90% of Ninja Final; engine uses baseGross+incentives. Residual often contract/pass-through shape.
-        if(stage is "due" or "net" or "transfer")
-            return new(hash,stage,sheet,ours,diff,'b',"§40.3 percent base (signed gross−penalties) vs sheet Final×(1−BV) / multi-rider order split");
-        return new(hash,stage,sheet,ours,diff,'d',"unexplained — needs Ghazal");
+        string? sheetErr=notes.FirstOrDefault(n=>n.StartsWith("classc:"+hash+":"+stage+":",StringComparison.Ordinal));
+        if(sheetErr!=null)
+            return new(hash,stage,sheet,ours,diff,'c',sheetErr[("classc:"+hash+":"+stage+":").Length..]);
+        if(skip=="missing_ours")
+        {
+            string? why=notes.FirstOrDefault(n=>n.StartsWith("missing:"+hash+":",StringComparison.Ordinal));
+            return new(hash,stage,sheet,ours,diff,'d',why==null?"ours missing — no cycle row":why[("missing:"+hash+":").Length..]);
+        }
+        return new(hash,stage,sheet,ours,diff,'d',"unexplained — not relabelled");
     }
 
     public static string RenderGoldenMarkdown(GoldenReport report)

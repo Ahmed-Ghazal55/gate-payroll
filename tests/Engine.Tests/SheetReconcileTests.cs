@@ -29,6 +29,32 @@ public sealed class SheetReconcileTests
     }
 
     [TestMethod]
+    public void ExactColumnPrefersDeliverySplitNotTheSimilarHeader()
+    {
+        string[] headers=["تسليم عدد الطلبات","تسليم عدد طلبات"];
+        Assert.AreEqual(1,Reconcile.ExactColumn(headers,"تسليم عدد طلبات"));
+        Assert.AreEqual(0,Reconcile.ExactColumn(headers,"تسليم عدد الطلبات"));
+        Assert.AreEqual(-1,Reconcile.ExactColumn(headers,"طلبات"));
+    }
+
+    [TestMethod]
+    public void ExactColumnCollapsesLineBreaks()
+    {
+        string[] headers=["تسليم\nعدد طلبات"];
+        Assert.AreEqual(0,Reconcile.ExactColumn(headers,"تسليم عدد طلبات"));
+    }
+
+    [TestMethod]
+    public void SalaryFormulaIncludesDayOrderBonusAndAllowance()
+    {
+        Assert.IsTrue(Reconcile.TrySalaryEarned(100,2,50,100,10,out var low));
+        Assert.AreEqual(1250m,low);
+        Assert.IsTrue(Reconcile.TrySalaryEarned(100,2,50,500,10,out var high));
+        Assert.AreEqual(2450m,high);
+        Assert.IsFalse(Reconcile.TrySalaryEarned(100,2,-1,10,10,out _));
+    }
+
+    [TestMethod]
     public void CompareReportsStageAggregates()
     {
         string h=Reconcile.HashIqama("2000000001");

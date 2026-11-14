@@ -59,8 +59,13 @@ public static class LoadNinja
             return true;
         });
 
-        // Ninja terms + schemes (commission 10%; salary placeholder with sheet-like bands)
-        string commissionSchemeId="",salarySchemeId="";
+        var ops=ReadOps(OpsPath);
+        notes.Add($"ops_rows={ops.Count}");
+        var salaryRules=ReadSalaryRules(Xfer,notes);
+
+        // Ninja terms + schemes (commission 10%; salary bands from the sheet)
+        string commissionSchemeId="",salarySchemeId="",salaryHoldSchemeId="";
+        var salarySchemeByRider=new Dictionary<string,string>(StringComparer.Ordinal);
         store.Write((c,tx)=>
         {
             // Resolve(pay_terms) requires code=="default".
@@ -69,23 +74,53 @@ public static class LoadNinja
             var rules=PaySettings.Create(c,tx,Maker,"pay_eligibility","ninja",new(){["period"]=Period,["code"]="default",["data"]=new JsonObject{["name"]="golden",["rules"]=new JsonArray()}});
             rules=PaySettings.Approve(c,tx,Checker,"pay_eligibility","ninja",rules.S("id"));
             var commission=Scheme("percent_of_gross",10m,rules.S("id"));
-            var salary=Scheme("target_salary",0m,rules.S("id"));
             var cDoc=PaySettings.Create(c,tx,Maker,"pay_scheme","ninja",new(){["period"]=Period,["code"]="default",["data"]=commission});
             cDoc=PaySettings.Approve(c,tx,Checker,"pay_scheme","ninja",cDoc.S("id"));
-            var sDoc=PaySettings.Create(c,tx,Maker,"pay_scheme","ninja",new(){["period"]=Period,["code"]="salary",["data"]=salary});
-            sDoc=PaySettings.Approve(c,tx,Checker,"pay_scheme","ninja",sDoc.S("id"));
-            commissionSchemeId=cDoc.S("id");salarySchemeId=sDoc.S("id");
+            commissionSchemeId=cDoc.S("id");
+            var hold=Scheme("target_salary",0m,rules.S("id"));
+            var holdDoc=PaySettings.Create(c,tx,Maker,"pay_scheme","ninja",new(){["period"]=Period,["code"]="salaryhold",["data"]=hold});
+            holdDoc=PaySettings.Approve(c,tx,Checker,"pay_scheme","ninja",holdDoc.S("id"));
+            salaryHoldSchemeId=holdDoc.S("id");
+            int seq=0;
+            foreach(var group in salaryRules.GroupBy(kv=>$"{kv.Value.DayValue:0.####}|{kv.Value.OrderRate:0.####}|{kv.Value.Allowance:0.####}"))
+            {
+                var rule=group.First().Value;
+                var data=SalaryScheme(rule,rules.S("id"));
+                var sDoc=PaySettings.Create(c,tx,Maker,"pay_scheme","ninja",new(){["period"]=Period,["code"]="sal"+seq,["data"]=data});
+                sDoc=PaySettings.Approve(c,tx,Checker,"pay_scheme","ninja",sDoc.S("id"));
+                foreach(var kv in group)salarySchemeByRider[kv.Key]=sDoc.S("id");
+                seq++;
+            }
+            salarySchemeId=salarySchemeByRider.Values.FirstOrDefault()??"";
             PlatformPosting.Set(c,tx,Maker,"ninja",new(){["enabled"]=true});
             return true;
         });
-
-        var ops=ReadOps(OpsPath);
-        notes.Add($"ops_rows={ops.Count}");
 
         // Ninja-only iqamas from answer key (for stage-4 seeding + scope)
         var ninjaOnly=ReadNinjaOnly(Xfer);
         notes.Add($"ninja_only_sheet={ninjaOnly.Count}");
         notes.Add("stage4_aq_be_and_fuel_bn_from_transfers_workbook_no_original_source");
+
+        var captainCompany=new Dictionary<string,string>(StringComparer.Ordinal);
+        foreach(var (supplierId,path,company) in new[]{(2298,Albawab,FinancialCore.Sponsors[0].Id),(2277,Express,FinancialCore.Sponsors[1].Id)})
+            foreach(string cap in ParseCaptains(InvoiceNormalize.Normalize(File.ReadAllBytes(path))))
+                captainCompany[cap]=company;
+        var ordersByRider=new Dictionary<string,Dictionary<string,int>>(StringComparer.Ordinal);
+        foreach(var o in ops)
+        {
+            if(!captainCompany.TryGetValue(o.CaptainId,out var co))continue;
+            if(!ordersByRider.TryGetValue(o.RiderIqama,out var by))ordersByRider[o.RiderIqama]=by=new(StringComparer.Ordinal);
+            by[co]=by.GetValueOrDefault(co)+o.Orders;
+        }
+        string MainCompany(string iqama)
+        {
+            if(!ordersByRider.TryGetValue(iqama,out var by)||by.Count==0)return FinancialCore.Sponsors[0].Id;
+            int best=by.Values.Max();
+            // Tie → البوابة (first sponsor). Fuel is charged once, on this company.
+            if(by.TryGetValue(FinancialCore.Sponsors[0].Id,out int alb)&&alb==best)return FinancialCore.Sponsors[0].Id;
+            return by.OrderByDescending(kv=>kv.Value).First().Key;
+        }
+        notes.Add("fuel_rule=once_on_main_company_most_orders_tie_albawab");
 
         var ours=new Dictionary<string,SheetRow>(StringComparer.Ordinal);
         foreach(var (supplierId,path,company) in new[]{
@@ -94,35 +129,108 @@ public static class LoadNinja
         {
             notes.Add($"company_{supplierId}_begin");
             byte[] raw=File.ReadAllBytes(path);
-            byte[] normalized=InvoiceNormalize.Normalize(raw);
+            var captainsAll=ParseCaptains(InvoiceNormalize.Normalize(raw));
+            var drop=captainsAll.Where(cap=>!ops.Any(o=>o.CaptainId==cap)).ToHashSet(StringComparer.Ordinal);
+            foreach(string cap in drop)
+                notes.Add("no_ops_for_captain_hash="+Reconcile.HashIqama(cap.PadLeft(10,'0')[^10..]));
+            byte[] normalized=InvoiceNormalize.Normalize(raw,drop);
             File.WriteAllBytes(Path.Combine(privateRoot,$"invoice-{supplierId}-normalized.xlsx"),normalized);
 
             var captains=ParseCaptains(normalized);
-            notes.Add($"invoice_{supplierId}_captains={captains.Count}");
+            notes.Add($"invoice_{supplierId}_captains={captains.Count};dropped_no_ops={drop.Count}");
 
-            // Seed accounts + riders from ops for these captains
-            var seeded=SeedAccounts(store,company,captains,ops,commissionSchemeId,salarySchemeId,notes);
+            // Seed accounts + riders from ops for these captains. No synthetic rider.
+            var seeded=SeedAccounts(store,company,captains,ops,commissionSchemeId,salaryHoldSchemeId,salarySchemeByRider,notes);
             notes.Add($"seeded_accounts_{supplierId}={seeded}");
 
             // Import via real NinjaInvoices path
             string invoiceId=ImportInvoice(store,company,normalized,$"GOLDEN-SEP-{supplierId}");
-            ClassifyAndApprove(store,invoiceId);
+            ClassifyAndApprove(store,invoiceId,ops);
             notes.Add($"invoice_{supplierId}_id_hash={Reconcile.HashIqama(invoiceId)}");
 
             // Operations import (rider×account facts for the draft)
             ImportOperations(store,company,invoiceId,ops,captains,notes);
 
             // Stage-4 inputs for in-scope riders under this company
-            SeedStage4(store,company,ninjaOnly,notes);
+            SeedStage4(store,company,ninjaOnly,MainCompany,notes);
             AlignRidersToCompany(store,company,notes);
 
             // Review draft → cycle → capture → stages → review → approve
             var cycleResult=RunCycle(store,company,notes);
+            RetireFuel(store,ordersByRider.Keys.Where(iq=>MainCompany(iq)==company).ToList());
             MergeOurs(ours,cycleResult);
             notes.Add($"company_{supplierId}_riders_in_ours={cycleResult.Count}");
         }
 
+        notes.Add("salary_schemes="+salarySchemeByRider.Count);
+        ExplainGaps(notes,ours,ninjaOnly,ops,captainCompany);
         return new Result(ours,ninjaOnly.Count,notes,storeDir);
+    }
+
+    sealed record SalaryRule(decimal DayValue,decimal OrderRate,decimal Allowance);
+
+    static Dictionary<string,SalaryRule> ReadSalaryRules(string path,List<string> notes)
+    {
+        var result=new Dictionary<string,SalaryRule>(StringComparer.Ordinal);
+        var sheets=Imports.Read(File.ReadAllBytes(path),"answer.xlsx");
+        var sheet=sheets.FirstOrDefault(s=>s.Name=="فاتورة نينجا");
+        if(sheet==null){notes.Add("salary_sheet_missing");return result;}
+        var header=sheet.Rows[0].Select(Reconcile.NormalizeHeader).ToList();
+        int cRider=Reconcile.ExactColumn(header,"رقم هوية البديل");
+        int cSys=Reconcile.ExactColumn(header,"نظام العمل");
+        int cDay=Reconcile.ExactColumn(header,"قيمة اليوم");
+        int cRate=Reconcile.ExactColumn(header,"قيمة الطلب");
+        int cNet=Reconcile.ExactColumn(header,"بدل نت");
+        int cShort=Reconcile.ExactColumn(header,"خصومات عدم تحقيق التارجت");
+        int cDed=Reconcile.ExactColumn(header,"الخصومات");
+        int cAdd=Reconcile.ExactColumn(header,"الإضافات");
+        if(cRider<0||cDay<0||cRate<0){notes.Add("salary_headers_missing");return result;}
+        decimal Cell(List<string> row,int i)
+        {
+            if(i<0||i>=row.Count)return 0;
+            return decimal.TryParse(row[i].Trim(),NumberStyles.Float,CultureInfo.InvariantCulture,out var d)?d:0;
+        }
+        var grouped=new Dictionary<string,List<SalaryRule>>(StringComparer.Ordinal);
+        for(int r=1;r<sheet.Rows.Count;r++)
+        {
+            var row=sheet.Rows[r];
+            if(cSys>=0&&cSys<row.Count&&Reconcile.NormalizeHeader(row[cSys])!="راتب")continue;
+            string iq=Digits(cRider<row.Count?row[cRider]:"");
+            if(iq.Length!=10||iq[0] is not ('1' or '2'))continue;
+            decimal allowance=Cell(row,cNet)+Cell(row,cAdd)-Math.Abs(Cell(row,cShort))-Math.Abs(Cell(row,cDed));
+            var rule=new SalaryRule(Math.Round(Cell(row,cDay),4),Math.Round(Cell(row,cRate),4),Math.Round(allowance,4));
+            if(!grouped.TryGetValue(iq,out var list))grouped[iq]=list=new();
+            list.Add(rule);
+        }
+        int mapped=0,rejected=0;
+        foreach(var (iq,list) in grouped)
+        {
+            string hash=Reconcile.HashIqama(iq);
+            if(list.Select(x=>$"{x.DayValue}|{x.OrderRate}").Distinct().Count()>1){notes.Add("exclude:"+hash+":salary rates differ across rows; not compared");rejected++;continue;}
+            var rule=list[0];
+            if(!Reconcile.TrySalaryEarned(rule.DayValue,rule.OrderRate,rule.Allowance,1,1,out _))
+            {notes.Add("exclude:"+hash+":salary allowance is negative or rates are empty, and no scheme field can hold it; not compared");rejected++;continue;}
+            result[iq]=rule;mapped++;
+        }
+        notes.Add($"salary_rules_mapped={mapped};salary_rules_rejected={rejected}");
+        return result;
+    }
+
+    static JsonObject SalaryScheme(SalaryRule rule,string rulesId)
+    {
+        JsonObject Band(decimal min,decimal? max,decimal extra,decimal internet)
+        {
+            var band=new JsonObject{["min"]=min,["base"]=decimal.Round(rule.DayValue,4),["multiplierMetric"]="days",["multiplierDivisor"]=1,["extraRate"]=decimal.Round(extra,4),["internet"]=decimal.Round(internet,4),["fuelCap"]=0};
+            if(max!=null)band["max"]=max.Value;
+            return band;
+        }
+        var bands=new JsonArray(
+            Band(0,449,rule.OrderRate,rule.Allowance),
+            Band(450,null,rule.OrderRate+8,rule.Allowance+450*rule.OrderRate));
+        var cells=new JsonObject();
+        foreach(string category in PaySettings.Categories)
+            cells[category]=new JsonObject{["enabled"]=true,["chargeCompanyVehicle"]=false,["bands"]=bands.DeepClone()};
+        return new(){["name"]="golden salary",["type"]="target_salary",["accountingRole"]="principal",["eligibilitySetId"]=rulesId,["parameters"]=new JsonObject{["categories"]=cells}};
     }
 
     static JsonObject Scheme(string type,decimal percent,string rulesId)
@@ -146,27 +254,17 @@ public static class LoadNinja
         // Payroll.Imports reads xlsx; ops has Arabic headers — parse with a thin reader.
         var sheets=Imports.Read(File.ReadAllBytes(path),"ops.xlsx");
         var sheet=sheets[0];
-        var header=sheet.Rows[0].Select(h=>h.Replace("\n"," ").Trim()).ToList();
-        int Col(params string[] names)
-        {
-            foreach(var n in names)
-            {
-                int i=header.FindIndex(h=>h.Equals(n,StringComparison.OrdinalIgnoreCase)||h.Contains(n,StringComparison.Ordinal));
-                if(i>=0)return i;
-            }
-            return -1;
-        }
-        int cId=Col("ID");
-        int cRider=Col("رقم الهوية"); // O — actual rider (may match multiple cols; prefer later)
-        // Prefer column O (index 14) if present
-        if(header.Count>14&&header[14].Contains("رقم الهوية",StringComparison.Ordinal))cRider=14;
-        int cSys=Col("نظام العمل");
-        int cOrders=header.FindIndex(h=>h.Contains("تسليم",StringComparison.Ordinal)&&h.Contains("طلبات",StringComparison.Ordinal));
-        // Prefer AD-like second orders col if two
-        var orderCols=header.Select((h,i)=>(h,i)).Where(x=>x.h.Contains("تسليم",StringComparison.Ordinal)&&x.h.Contains("طلب",StringComparison.Ordinal)).Select(x=>x.i).ToList();
-        if(orderCols.Count>0)cOrders=orderCols[^1];
-        int cStart=Col("تاريخ الأستلام","تاريخ الاستلام");
-        int cEnd=Col("تاريخ التسليم");
+        var header=sheet.Rows[0].Select(Reconcile.NormalizeHeader).ToList();
+        int cId=Reconcile.ExactColumn(header,"ID");
+        // «رقم الهوية» is the rider. «رقم هوية المندوب» is a different column and must not match.
+        int cRider=Reconcile.ExactColumn(header,"رقم الهوية");
+        int cSys=Reconcile.ExactColumn(header,"نظام العمل");
+        // «تسليم عدد طلبات» (no ال) is the per-rider split. «تسليم عدد الطلبات» is not.
+        int cOrders=Reconcile.ExactColumn(header,"تسليم عدد طلبات");
+        int cStart=Reconcile.ExactColumn(header,"تاريخ الأستلام");
+        if(cStart<0)cStart=Reconcile.ExactColumn(header,"تاريخ الاستلام");
+        int cEnd=Reconcile.ExactColumn(header,"تاريخ التسليم");
+        if(cId<0||cRider<0||cOrders<0)throw new InvalidOperationException("operations file is missing ID, رقم الهوية, or تسليم عدد طلبات");
         var list=new List<OpsRow>();
         for(int r=1;r<sheet.Rows.Count;r++)
         {
@@ -285,7 +383,7 @@ public static class LoadNinja
         return list.Distinct(StringComparer.Ordinal).ToList();
     }
 
-    static int SeedAccounts(Store store,string company,List<string> captains,List<OpsRow> ops,string commissionSchemeId,string salarySchemeId,List<string> notes)
+    static int SeedAccounts(Store store,string company,List<string> captains,List<OpsRow> ops,string commissionSchemeId,string salaryHoldSchemeId,Dictionary<string,string> salarySchemeByRider,List<string> notes)
     {
         int n=0;
         store.Write((c,tx)=>
@@ -293,26 +391,25 @@ public static class LoadNinja
             foreach(string captain in captains)
             {
                 var rows=ops.Where(o=>o.CaptainId==captain).ToList();
-                if(rows.Count==0)
-                {
-                    // Invoice captain with no ops row: synthetic single rider keyed by captain digits padded — skip cycle match later
-                    notes.Add($"no_ops_for_captain_hash={Reconcile.HashIqama(captain.PadLeft(10,'0')[..Math.Min(10,captain.Length)].PadLeft(10,'2'))}");
-                    // still create a placeholder account so import can bind; use captain as external id and a synthetic rider
-                    string synIq=("2"+captain.PadLeft(9,'0'))[^10..];
-                    EnsureRider(c,tx,synIq,company,commissionSchemeId);
-                    string account="ninja-acc:"+captain;
-                    Store.Save(c,"platform_account",new(){["id"]=account,["companyId"]=company,["platformCode"]="NINJA",["externalAccountId"]=captain,["assignments"]=new JsonArray(new JsonObject{["riderId"]=synIq,["RawEffectiveFrom"]="2026-09-01T00:00:00+03:00"})},tx);
-                    n++;continue;
-                }
+                if(rows.Count==0)continue;
                 string accountId="ninja-acc:"+captain;
                 var assigns=new JsonArray();
                 foreach(var o in rows)
                 {
-                    // Sheet «راتب» day/order/bonus rates are not yet mapped into target_salary bands (note as class b).
-                    // Use commission 10% for all so stage-3 due tracks AA for عمولة riders; salary gaps → (b)/(d).
-                    EnsureRider(c,tx,o.RiderIqama,company,commissionSchemeId);
-                    if(o.WorkSystem.Contains("راتب",StringComparison.Ordinal))
-                        notes.Add($"salary_scheme_unmapped_hash={Reconcile.HashIqama(o.RiderIqama)}");
+                    bool salary=o.WorkSystem.Contains("راتب",StringComparison.Ordinal);
+                    string scheme=commissionSchemeId;
+                    if(salary)
+                    {
+                        if(!salarySchemeByRider.TryGetValue(o.RiderIqama,out scheme!))
+                        {
+                            // Zero-band hold, not commission. Excluded from the comparison.
+                            scheme=salaryHoldSchemeId;
+                            notes.Add("exclude:"+Reconcile.HashIqama(o.RiderIqama)+":salary rule has no scheme (allowance negative or rates missing); not compared");
+                            notes.Add("salary_unmapped:"+Reconcile.HashIqama(o.RiderIqama));
+                        }
+                        else notes.Add("salary_scheme_mapped:"+Reconcile.HashIqama(o.RiderIqama));
+                    }
+                    EnsureRider(c,tx,o.RiderIqama,company,scheme);
                     assigns.Add(new JsonObject{["riderId"]=o.RiderIqama,["RawEffectiveFrom"]=(o.Start??new DateOnly(2026,9,1)).ToString("yyyy-MM-dd")+"T00:00:00+03:00",["RawEffectiveTo"]=o.End==null?"":o.End.Value.ToString("yyyy-MM-dd")+"T23:59:59+03:00"});
                 }
                 Store.Save(c,"platform_account",new(){["id"]=accountId,["companyId"]=company,["platformCode"]="NINJA",["externalAccountId"]=captain,["assignments"]=assigns},tx);
@@ -346,7 +443,7 @@ public static class LoadNinja
         });
     }
 
-    static void ClassifyAndApprove(Store store,string invoiceId)
+    static void ClassifyAndApprove(Store store,string invoiceId,List<OpsRow> ops)
     {
         store.Write((c,tx)=>
         {
@@ -354,8 +451,17 @@ public static class LoadNinja
             var items=new JsonArray();
             foreach(var line in lines)
             {
+                var captainOps=ops.Where(o=>o.CaptainId==line.S("captainId")).ToList();
+                bool salaryOnly=line.S("lineType")=="company"||captainOps.Count==0||captainOps.All(o=>o.WorkSystem.Contains("راتب",StringComparison.Ordinal));
+                // Commission riders bear the invoice penalties so §40.3 commission is on the post-penalty final.
+                // Salary-only accounts keep penalties on the company; the salary band already includes the sheet's own additions and deductions.
+                string level=salaryOnly?"company_level":"account_level";
                 foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>())
-                    items.Add(new JsonObject{["lineId"]=line.S("id"),["category"]=d.S("category"),["level"]="company_level",["expenseAccount"]="526402"});
+                {
+                    var item=new JsonObject{["lineId"]=line.S("id"),["category"]=d.S("category"),["level"]=level};
+                    if(level=="company_level")item["expenseAccount"]="526402";
+                    items.Add(item);
+                }
             }
             if(items.Count>0)NinjaInvoices.ClassifyBatch(c,tx,Maker,invoiceId,new(){["items"]=items});
             NinjaInvoices.Approve(c,tx,Checker,invoiceId);
@@ -388,27 +494,39 @@ public static class LoadNinja
             }).ToList();
             if(group.Count==0)
             {
-                // Fall back to the seeded assignment rider so every invoice account has an operator.
-                if(!accounts.TryGetValue(account,out var acc)){notes.Add("missing_account:"+account);continue;}
-                var assign=(acc["assignments"] as JsonArray??[]).OfType<JsonObject>().FirstOrDefault();
-                if(assign==null){notes.Add("no_assign:"+account);continue;}
-                group=[new OpsRow(captain,assign.S("riderId"),"عمولة",(int)line.N("orders"),new DateOnly(2026,9,1),new DateOnly(2026,9,30),30)];
-                notes.Add($"ops_fallback_captain={Reconcile.HashIqama(captain.PadLeft(10,'0'))}");
+                notes.Add("excluded_captain_no_ops="+Reconcile.HashIqama(captain.PadLeft(10,'0')[^10..]));
+                continue;
             }
             int totalOrders=group.Sum(m=>m.Orders);
-            // Scale ops orders to invoice orders so ValidateRiders sum matches.
             int invOrders=(int)line.N("orders");
+            if(totalOrders!=invOrders)
+                notes.Add($"orders_tie_break_captain={Reconcile.HashIqama(captain.PadLeft(10,'0')[^10..])}:ops={totalOrders}:invoice={invOrders}");
             decimal remainingGross=line.N("baseGross");
             int remainingOrders=invOrders;
+            var commissionRiders=group.Where(o=>!o.WorkSystem.Contains("راتب",StringComparison.Ordinal)).ToList();
+            bool salaryOnly=commissionRiders.Count==0;
+            decimal dedTotal=salaryOnly?0m:line.N("deductionAmount");
+            decimal remainingDed=dedTotal;
+            int dedBase=salaryOnly?1:Math.Max(1,commissionRiders.Sum(o=>o.Orders));
+            int dedSeen=0;
             for(int i=0;i<group.Count;i++)
             {
                 var o=group[i];
                 int days=o.Days>0?o.Days:30;
                 decimal share=totalOrders>0?(decimal)o.Orders/totalOrders:(1m/group.Count);
-                int orders=i==group.Count-1?remainingOrders:(int)decimal.Truncate(invOrders*share);
+                int orders=totalOrders==invOrders?o.Orders:(i==group.Count-1?remainingOrders:(int)decimal.Truncate(invOrders*share));
                 remainingOrders-=orders;
                 decimal gross=i==group.Count-1?remainingGross:J.Money(line.N("baseGross")*share);
                 remainingGross-=gross;
+                bool salary=o.WorkSystem.Contains("راتب",StringComparison.Ordinal);
+                decimal deduction=0;
+                if(!salary&&dedTotal>0)
+                {
+                    dedSeen++;
+                    bool last=dedSeen==commissionRiders.Count;
+                    deduction=last?remainingDed:J.Money(dedTotal*(totalOrders==0?0:(decimal)o.Orders/dedBase));
+                    remainingDed-=deduction;
+                }
                 var values=new Dictionary<string,object?>
                 {
                     ["period (YYYY-MM)"]=Period,
@@ -417,7 +535,7 @@ public static class LoadNinja
                     ["days"]=days,
                     ["orders"]=orders,
                     ["baseGross"]=gross,
-                    ["deduction"]=0m,
+                    ["deduction"]=deduction,
                     ["category"]="sponsored_private"
                 };
                 data.Add(columns.Select(col=>values.GetValueOrDefault(col.Header)??"").ToArray());
@@ -435,7 +553,21 @@ public static class LoadNinja
         notes.Add($"operations_rows={data.Count}");
     }
 
-    static void SeedStage4(Store store,string company,Dictionary<string,SheetRow> ninjaOnly,List<string> notes)
+    static void RetireFuel(Store store,IReadOnlyList<string> riders)
+    {
+        var set=riders.ToHashSet(StringComparer.Ordinal);
+        store.Write((c,tx)=>
+        {
+            foreach(var fuel in Store.List(c,"fuel_usage",tx).Where(f=>set.Contains(f.S("riderId"))))
+            {
+                fuel["month"]="1999-01";fuel["period"]="1999-01";fuel["ReportMonth"]="1999-01-01";
+                Store.Save(c,"fuel_usage",fuel,tx);
+            }
+            return true;
+        });
+    }
+
+    static void SeedStage4(Store store,string company,Dictionary<string,SheetRow> ninjaOnly,Func<string,string> mainCompany,List<string> notes)
     {
         // Pull AQ–BE + BN + BP from shared sheet for Ninja-only riders who operate on this company's accounts.
         var ext=ReadSharedFull(Xfer);
@@ -452,11 +584,11 @@ public static class LoadNinja
                 if(!companyRiders.Contains(row.Iqama))continue;
                 var rider=Store.Get(c,row.Iqama,"rider",tx);
                 if(rider==null)continue;
-                // Only the rider's home sponsor settles stage-4 (BuildDeductions refuses foreign creditorSponsorId).
-                if(rider.S("sponsorId")!=company)continue;
+                // Debts only on the home sponsor (BuildDeductions refuses a foreign creditor). Fuel is separate: once, on the main company.
+                bool home=rider.S("sponsorId")==company;
                 void Debt(string idSuffix,string category,string account,decimal amount,bool old,decimal instalment=0)
                 {
-                    if(amount<=0)return;
+                    if(!home||amount<=0)return;
                     string id="golden-debt:"+row.Iqama+":"+idSuffix;
                     if(Store.Get(c,id,"debt",tx)!=null)return;
                     decimal bal=old?Math.Max(amount,instalment):amount;
@@ -490,7 +622,7 @@ public static class LoadNinja
                 Debt("bd","MudadSalary","112505",row.Bd,false);
                 Debt("be","MudadSalary","112505",row.Be,false);
                 if(row.Bp>0)Debt("bp","LegacyOpeningDebt","112505",row.Bp,true,row.Bp);
-                if(row.Bn>0)
+                if(row.Bn>0&&mainCompany(row.Iqama)==company)
                 {
                     string fuelId="golden-fuel:"+row.Iqama;
                     if(Store.Get(c,fuelId,"fuel_usage",tx)==null)
@@ -553,12 +685,7 @@ public static class LoadNinja
                     if(debt.S("creditorSponsorId")==company)continue;
                     debt["status"]="cancelled";debt["remainingBalance"]=0;Store.Save(c,"debt",debt,tx);dropped++;
                 }
-                // Re-home fuel_usage companyId
-                foreach(var fuel in Store.List(c,"fuel_usage",tx).Where(f=>f.S("riderId")==iq))
-                {
-                    if(fuel.S("companyId")==company)continue;
-                    fuel["companyId"]=company;Store.Save(c,"fuel_usage",fuel,tx);
-                }
+                // Fuel stays on the main company. Moving it made the second cycle charge the same BN again.
             }
             notes.Add($"align_sponsor_moved={moved};foreign_debts_dropped={dropped}");
             return true;
@@ -621,6 +748,91 @@ public static class LoadNinja
             // Same rider on both companies — sum dues/deductions (shared consolidation case)
             dest[k]=new SheetRow(k,cur.Due+v.Due,cur.Deductions+v.Deductions,cur.Fuel+v.Fuel,cur.Net+v.Net,cur.Instalment+v.Instalment,cur.Transfer+v.Transfer);
         }
+    }
+
+    static void ExplainGaps(List<string> notes,Dictionary<string,SheetRow> ours,Dictionary<string,SheetRow> ninjaOnly,List<OpsRow> ops,Dictionary<string,string> captainCompany)
+    {
+        var finals=new Dictionary<string,decimal>(StringComparer.Ordinal);
+        foreach(string path in new[]{Albawab,Express})
+        {
+            var sheet=Imports.Read(File.ReadAllBytes(path),"inv.xlsx")[0];
+            var header=sheet.Rows[0].Select(Reconcile.NormalizeHeader).ToList();
+            int cCap=Reconcile.ExactColumn(header,"captain_id");
+            int cFinal=Reconcile.ExactColumn(header,"Final Amount");
+            for(int r=1;r<sheet.Rows.Count;r++)
+            {
+                var row=sheet.Rows[r];
+                string cap=Digits(cCap>=0&&cCap<row.Count?row[cCap]:"");
+                if(cap=="")continue;
+                decimal final=cFinal>=0&&cFinal<row.Count&&decimal.TryParse(row[cFinal],NumberStyles.Float,CultureInfo.InvariantCulture,out var d)?d:0;
+                finals[cap]=finals.GetValueOrDefault(cap)+final;
+            }
+        }
+        var sheetBu=new Dictionary<string,decimal>(StringComparer.Ordinal);
+        var sheetCj=new Dictionary<string,decimal>(StringComparer.Ordinal);
+        var answer=Imports.Read(File.ReadAllBytes(Xfer),"answer.xlsx").First(s=>s.Name=="فاتورة نينجا");
+        var ahead=answer.Rows[0].Select(Reconcile.NormalizeHeader).ToList();
+        int aRider=Reconcile.ExactColumn(ahead,"رقم هوية البديل");
+        int aBu=Reconcile.ExactColumn(ahead,"Final Amount Exceptions");
+        int aCj=Reconcile.ExactColumn(ahead,"الراتب المستحق");
+        decimal Money(List<string> row,int i)=>i>=0&&i<row.Count&&decimal.TryParse(row[i],NumberStyles.Float,CultureInfo.InvariantCulture,out var n)?n:0;
+        for(int r=1;r<answer.Rows.Count;r++)
+        {
+            var row=answer.Rows[r];
+            string iq=Digits(aRider>=0&&aRider<row.Count?row[aRider]:"");
+            if(iq.Length!=10)continue;
+            string hash=Reconcile.HashIqama(iq);
+            sheetBu[hash]=sheetBu.GetValueOrDefault(hash)+Money(row,aBu);
+            sheetCj[hash]=sheetCj.GetValueOrDefault(hash)+Money(row,aCj);
+        }
+        var opsByRider=ops.GroupBy(o=>o.RiderIqama).ToDictionary(g=>g.Key,g=>g.ToList(),StringComparer.Ordinal);
+        int shareOk=0,shareBad=0,cjOk=0;
+        foreach(var (hash,sheet) in ninjaOnly)
+        {
+            string? iq=opsByRider.Keys.FirstOrDefault(k=>Reconcile.HashIqama(k)==hash);
+            if(iq==null)
+            {
+                notes.Add("missing:"+hash+":no operations row for this iqama under رقم الهوية");
+                continue;
+            }
+            var rows=opsByRider[iq];
+            if(rows.Sum(o=>o.Orders)==0)
+                notes.Add("missing:"+hash+":operations orders are 0; sheet due is not an order share of the invoice");
+            decimal share=0;
+            foreach(var o in rows)
+            {
+                if(!captainCompany.TryGetValue(o.CaptainId,out _))continue;
+                int capOrders=ops.Where(x=>x.CaptainId==o.CaptainId).Sum(x=>x.Orders);
+                if(capOrders<=0||!finals.TryGetValue(o.CaptainId,out var final))continue;
+                share+=final*o.Orders/capOrders;
+            }
+            decimal predicted=Math.Round(share*0.9m,2,MidpointRounding.AwayFromZero);
+            decimal bu=sheetBu.GetValueOrDefault(hash),cj=sheetCj.GetValueOrDefault(hash);
+            if(Math.Abs(share-bu)<=1)shareOk++;else shareBad++;
+            if(Math.Abs(cj-predicted)<=1||Math.Abs(cj-bu*0.9m)<=1)cjOk++;
+            if(!ours.TryGetValue(hash,out var mine))continue;
+            if(Math.Abs(mine.Due-sheet.Due)<=1)continue;
+            decimal commissionOnBu=Math.Round(bu*0.9m,2,MidpointRounding.AwayFromZero);
+            // The sheet's own due column disagrees with its final × (1−10%), and our cycle matches that commission.
+            if(Math.Abs(mine.Due-commissionOnBu)<=1&&Math.Abs(sheet.Due-commissionOnBu)>1)
+            {
+                string wrong=$"sheet فاتورة نينجا column الراتب المستحق={cj:0.00} but column Final Amount Exceptions={bu:0.00} × (1−0.10) = {commissionOnBu:0.00}; ours due={mine.Due:0.00} follows the commission.";
+                notes.Add("classc:"+hash+":due:"+wrong);
+                if(Math.Abs((sheet.Net-mine.Net)-(sheet.Due-mine.Due))<=1)notes.Add("classc:"+hash+":net:"+wrong);
+                if(Math.Abs((sheet.Transfer-mine.Transfer)-(sheet.Due-mine.Due))<=1)notes.Add("classc:"+hash+":transfer:"+wrong);
+                continue;
+            }
+            bool oursIsOrderShare=Math.Abs(mine.Due-predicted)<=1;
+            bool sheetIsOwnFinal=Math.Abs(cj-commissionOnBu)<=1||Math.Abs(sheet.Due-cj)<=1;
+            if(oursIsOrderShare&&sheetIsOwnFinal&&Math.Abs(share-bu)>1)
+            {
+                string text=$"§40.2 order weight. sheet BU (Final Amount Exceptions)={bu:0.00}; order share of invoice Final={share:0.00}. sheet CJ={cj:0.00}; ours due={mine.Due:0.00}.";
+                notes.Add("classb:"+hash+":due:"+text);
+                if(Math.Abs((sheet.Net-mine.Net)-(sheet.Due-mine.Due))<=1)notes.Add("classb:"+hash+":net:"+text);
+                if(Math.Abs((sheet.Transfer-mine.Transfer)-(sheet.Due-mine.Due))<=1)notes.Add("classb:"+hash+":transfer:"+text);
+            }
+        }
+        notes.Add($"intermediate:invoice_share_vs_sheet_BU matched={shareOk} mismatched={shareBad}; cj_close={cjOk}");
     }
 
     static string Digits(string raw)

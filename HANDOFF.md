@@ -4,27 +4,19 @@
 |---|---|
 | Current writer | none |
 | Branch | feat/pay-pipeline-six-stages |
-| Updated | 2026-11-14 by Cursor (W1-M3) |
+| Updated | 2026-11-14 by Cursor (W1-M3b) |
 | Live | `/health` = **0.21.0** (this branch not deployed) |
-| Tip | `3532327` — W1-M3; CI green `43616445623` |
+| Tip | W1-M3b loader fix (hash after commit) |
 
-## Done (W1-M3)
-- Data check `~/.agents/reviews/W1-M3-data-check.md` — gate 1–4 PASS (STOP=no); Ninja-only **183**.
-- `dotnet run --project tools/GoldenNinja` → Private store `~/Private/gate-data/golden-2026-09/` (700); never committed. (Loader kept out of `SheetReconcile` so CI does not race `Payroll.Sync.deps.json`.)
-- Report `~/.agents/reviews/W1-golden-september.md`: BF **183/183**, BN≈**180/183**, BP **182/183**; due/BQ ~5% ±1 SAR.
-- Classes: **(a)=0**, (b)=483, (c)=33, (d)=12 (3 missing-ours hashes). Gap = §40.3 base vs sheet Final×(1−BV) / multi-rider split / راتب bands unmapped; AQ–BE+BN from transfers only.
-- Engine **577/577 / 0 skipped** with local `gate-sql-test`. Code: `tools/GoldenNinja/*`, `SheetReconcile/Reconcile.cs`.
-
-## Claude check of W1-M3 (2026-11-14) — golden NOT proven
-- Result: due 10/183 and transfer 9/183 within ±1 SAR; ours is mostly HIGHER than the sheet (e.g. 152 vs 465, 1,395 vs 2,671). Stage 4 (BF 183/183, BP 182/183) is fine.
-- The "(b) §40 by design" label is wrong for the main gap: §40.3 commission after penalties = the sheet (Final Amount already net of penalties × (1 − BV)). Real causes in the loader notes: 16 `salary_scheme_unmapped` riders run as 10% commission; `no_ops_for_captain` / `ops_fallback_captain`.
-- Data gate was changed vs the prompt: «ops orders vs invoice» (prompt check 3) failed for **29/190 captains (15%)** — e.g. ops 0 vs invoice 336 — so the run should have stopped; «ops (captain, rider) vs فاتورة نينجا» (prompt check 4) was not done.
-- (d): 3 riders missing from our cycle (one with due 6,552.78).
-- Claude re-check of the source: both the ops file and the workbook sheet `داتا نينجا للارشيف` tie to the invoice orders for **190/191 captains with 0 mismatches** when read from the column «تسليم عدد طلبات» (the per-rider split). The file also has «تسليم عدد الطلبات»; the 29 mismatches point to the loader reading the wrong one. So the data is fine; the loader is not.
-- One fix round is used (rule 4) → Ghazal decides whether to run a second, narrow round (M3b).
+## Done (W1-M3b)
+- Gate restored: orders column «تسليم عدد طلبات» ties 190/191 (0 mismatches). Check 4 fails 3/191 (1.57%). STOP = no.
+- Due **147/178 (82.6%)**, transfer **138/178 (77.5%)**. (a)=0. Not 95%, and (d) remains — not relabelled.
+- Causes: (c) 19 sheet CJ ≠ BU×0.9; (b) 6 §40.2 order weight; (d) 3 with no ops share. 6 salary riders excluded (negative allowance).
+- Fuel once on the main company. Engine tests **580/580 / 0 skipped** with local `gate-sql-test`.
+- Reports: `~/.agents/reviews/W1-golden-september.md`, `W1-M3-data-check.md`.
 
 ## Next step (exact)
-Claude reads W1-golden-september.md + data-check; decide if due/BQ (b) gaps need sheet-rate mapping before Antigravity W3. No merge/deploy.
+Claude reads both reports. Due is below 95% and three riders stay (d). No merge and no deploy. Antigravity W3 waits for Claude.
 
 ## Do not
-- Do not write to ERP or db77738. No secrets/PII in git. No merge/deploy/version bump without Ghazal's yes.
+- Do not write to ERP or db77738. No secrets or PII in git. No merge, deploy, or version bump without Ghazal's yes.

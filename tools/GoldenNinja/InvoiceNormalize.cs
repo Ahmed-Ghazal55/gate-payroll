@@ -17,7 +17,7 @@ public static class InvoiceNormalize
         ("National Day Bonus ","100 SAR BONUS"),
     ];
 
-    public static byte[] Normalize(byte[] source)
+    public static byte[] Normalize(byte[] source,IReadOnlySet<string>? dropCaptains=null)
     {
         // Read via Imports so shared-string / typed cells match production.
         var sheets=Payroll.Imports.Read(source,"invoice.xlsx");
@@ -60,13 +60,15 @@ public static class InvoiceNormalize
         Ensure("Target Level Type");
 
         // Align every data row to header width
+        int captainCol=header.FindIndex(h=>h.Equals("captain_id",StringComparison.OrdinalIgnoreCase));
         var rows=new List<List<string>>{header};
         for(int r=1;r<sheet.Rows.Count;r++)
         {
             var row=sheet.Rows[r].ToList();
             while(row.Count<header.Count)row.Add("");
             if(row.Count>header.Count)row=row.Take(header.Count).ToList();
-            // empty captain skip later
+            string captain=captainCol>=0&&captainCol<row.Count?Digits(row[captainCol]):"";
+            if(captain!=""&&dropCaptains!=null&&dropCaptains.Contains(captain))continue;
             rows.Add(row);
         }
         return WriteSheet(rows);
@@ -89,5 +91,15 @@ public static class InvoiceNormalize
             Entry("xl/worksheets/sheet1.xml",new XElement(ns+"worksheet",new XElement(ns+"sheetData",rows.Select((r,i)=>Cells(r,i+1)))).ToString());
         }
         return memory.ToArray();
+    }
+
+    static string Digits(string raw)
+    {
+        string t=(raw??"").Trim();
+        if(decimal.TryParse(t,NumberStyles.Float,CultureInfo.InvariantCulture,out var n)&&t.Contains('.') )
+            return decimal.Truncate(n).ToString("0",CultureInfo.InvariantCulture);
+        var b=new StringBuilder();
+        foreach(char ch in t)if(char.IsDigit(ch))b.Append(ch);
+        return b.ToString();
     }
 }
