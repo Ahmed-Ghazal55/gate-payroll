@@ -40,16 +40,20 @@ public static partial class PaySettings
     static void ValidateTerms(JsonObject data)
     {
         PayValues.Fields(data,"name","billingModel","parameters");string model=data.Required("billingModel");var p=PayValues.Object(data["parameters"]);
+        // §40.2 open setting: weight default orders, tie-break days (never auto-accept without reviewer).
+        if(p.ContainsKey("riderAllocationWeight")){string w=p.Required("riderAllocationWeight");J.Need(PayReviewCategory.AllocationWeights.Contains(w),"وزن توزيع المناديب غير مدعوم.");}
+        if(p.ContainsKey("riderAllocationTieBreak")){string t=p.Required("riderAllocationTieBreak");J.Need(PayReviewCategory.AllocationWeights.Contains(t),"كسر تعادل التوزيع غير مدعوم.");}
+        var core=p.Clone();core.Remove("riderAllocationWeight");core.Remove("riderAllocationTieBreak");
         switch(model)
         {
             case "per_order":
-                PayValues.Fields(p,"pricePerOrder","perKmRate","includedKm","maxBillableKm","classRates","companyCostAccount");PayValues.Number(p,"pricePerOrder");
-                if(p.ContainsKey("perKmRate")){PayValues.Number(p,"perKmRate");PayValues.Number(p,"includedKm");J.Need(PayValues.Number(p,"maxBillableKm")>=p.N("includedKm"),"حد المسافة غير صالح.");}
-                if(p.ContainsKey("classRates")){var classes=PayValues.Object(p["classRates"]);foreach(var field in classes){PayValues.Name(field.Key);PayValues.Number(classes,field.Key);}}
+                PayValues.Fields(core,"pricePerOrder","perKmRate","includedKm","maxBillableKm","classRates","companyCostAccount");PayValues.Number(core,"pricePerOrder");
+                if(core.ContainsKey("perKmRate")){PayValues.Number(core,"perKmRate");PayValues.Number(core,"includedKm");J.Need(PayValues.Number(core,"maxBillableKm")>=core.N("includedKm"),"حد المسافة غير صالح.");}
+                if(core.ContainsKey("classRates")){var classes=PayValues.Object(core["classRates"]);foreach(var field in classes){PayValues.Name(field.Key);PayValues.Number(classes,field.Key);}}
                 break;
-            case "slabs":PayValues.Fields(p,"metric","bands","companyCostAccount");PayValues.Name(p.Required("metric"));Bands(p["bands"]);break;
-            case "flat_target":PayValues.Fields(p,"targetOrders","monthlyAmount","extraRate","shortfallPerOrder","prorate","companyCostAccount");PayValues.Number(p,"targetOrders",1);PayValues.Number(p,"monthlyAmount");PayValues.Number(p,"extraRate");PayValues.Number(p,"shortfallPerOrder");PayValues.Flag(p,"prorate");break;
-            case "ninja_target":NinjaBilling.Validate(p);break;
+            case "slabs":PayValues.Fields(core,"metric","bands","companyCostAccount");PayValues.Name(core.Required("metric"));Bands(core["bands"]);break;
+            case "flat_target":PayValues.Fields(core,"targetOrders","monthlyAmount","extraRate","shortfallPerOrder","prorate","companyCostAccount");PayValues.Number(core,"targetOrders",1);PayValues.Number(core,"monthlyAmount");PayValues.Number(core,"extraRate");PayValues.Number(core,"shortfallPerOrder");PayValues.Flag(core,"prorate");break;
+            case "ninja_target":NinjaBilling.Validate(core);break;
             default:throw new ApiError("نموذج محاسبة الشركة الأم غير مدعوم.");
         }
         if(p.ContainsKey("companyCostAccount")){string account=PayPlatforms.Active(p.S("companyCostAccount"));J.Need(account.StartsWith('5'),"خصم الشركة يحتاج حساب تكلفة.");}

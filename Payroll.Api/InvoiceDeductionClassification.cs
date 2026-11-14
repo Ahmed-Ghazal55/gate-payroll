@@ -63,8 +63,11 @@ public static class InvoiceDeductionClassification
         return deduction;
     }
 
-    /// <summary>Default proposal (§40.1): single operator → rider; dated → assignee that day; else order-share; company choice stays company.</summary>
-    public static JsonArray Propose(IReadOnlyList<(string Rider,decimal Orders)> operators,decimal amount,string? date="",string? assigneeOnDate="",bool companyBearer=false,string expenseAccount="")
+    /// <summary>Default proposal (§40.1/§40.2): single operator → rider; dated → assignee that day; else weighted split; company choice stays company.</summary>
+    public static JsonArray Propose(IReadOnlyList<(string Rider,decimal Orders)> operators,decimal amount,string? date="",string? assigneeOnDate="",bool companyBearer=false,string expenseAccount="",string weight="orders",string tieBreak="days")
+        =>Propose(operators.Select(o=>new PayReviewCategory.OperatorMetrics(o.Rider,o.Orders)).ToList(),amount,date,assigneeOnDate,companyBearer,expenseAccount,weight,tieBreak);
+
+    public static JsonArray Propose(IReadOnlyList<PayReviewCategory.OperatorMetrics> operators,decimal amount,string? date="",string? assigneeOnDate="",bool companyBearer=false,string expenseAccount="",string weight="orders",string tieBreak="days")
     {
         amount=J.Money(amount);
         if(companyBearer)
@@ -74,14 +77,8 @@ public static class InvoiceDeductionClassification
         if(operators.Count==1)
             return [new JsonObject{["bearer"]="rider",["riderId"]=operators[0].Rider,["amount"]=amount}];
         if(operators.Count==0)return [new JsonObject{["bearer"]="company",["amount"]=amount,["expenseAccount"]=expenseAccount}];
-        // Order-share with largest-remainder (halala units).
         long units=(long)Math.Round(amount*100m,MidpointRounding.AwayFromZero);
-        decimal total=operators.Sum(o=>o.Orders);
-        var shares=operators.Select(o=>total==0?1m/operators.Count:o.Orders/total).ToList();
-        var whole=shares.Select(s=>(long)decimal.Floor(s*units)).ToList();
-        long left=units-whole.Sum();
-        foreach(int i in shares.Select((s,i)=>(Frac:s*units-whole[i],I:i)).OrderByDescending(x=>x.Frac).ThenBy(x=>x.I).Take((int)Math.Max(0,left)).Select(x=>x.I))
-            whole[i]++;
+        var whole=PayReviewCategory.SplitUnits(operators,units,weight,tieBreak);
         var result=new JsonArray();
         for(int i=0;i<operators.Count;i++)
             result.Add(new JsonObject{["bearer"]="rider",["riderId"]=operators[i].Rider,["amount"]=J.Money(whole[i]/100m)});
