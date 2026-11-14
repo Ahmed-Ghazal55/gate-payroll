@@ -3,10 +3,17 @@
 | Field | Value |
 |---|---|
 | Current writer | — |
-| Branch | release/0.21.0 (from feat/run-input-snapshots) |
-| Updated | 2026-11-14 by Claude (release 0.21.0) |
-| Live | `/health` = **0.20.0**; release 0.21.0 waits for Ghazal: setting `ConnectionStrings__ErpReadonly`, then «ادمج» |
-| Tip | `1a2f66a` pushed; CI run [43553059387](https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43553059387) green |
+| Branch | main = `8e1b6e3` (0.21.0, PR #37); open fix: `fix/release-safety-first-boot` |
+| Updated | 2026-11-14 by Claude (0.21.0 deployed + first-boot incident) |
+| Live | `/health` = **0.21.0**, `dataPreservationVerified=true`, `releaseCheckpointPresent=true`, `operationsSource=erp_live`, **`erpReadonlyConfigured=false`** (Ghazal sets `ConnectionStrings__ErpReadonly`) |
+| Deploy | run [43555124388](https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43555124388): FTPS upload OK; first boot failed (500.30); fixed by restart; health step red |
+
+## Deploy 0.21.0 and first-boot incident (2026-11-14, Claude)
+- Ghazal «ادمج» → PR #37 squash `8e1b6e3`; PR #36 closed (included).
+- **Incident (~04:20–04:45 UTC, site down with HTTP 500.30):** `Store` takes the before-upgrade snapshot before `PayRunInputs.Ensure`. The old DB had no `pay.PayRunInput` → snapshot without `pay_run_input`; after Ensure → `pay_run_input:0` → "Startup document preservation verification failed".
+- Recovery: the table was created on the failed boot (read-only check: schema + table exist, 233 647 records intact). Restart via `scripts/monsterasp_ftps.py prepare` → `finish` (marker only; protected metadata unchanged) → `/health` 0.21.0 green.
+- Code fix on `fix/release-safety-first-boot`: `ReleaseSafety.Capture` always records `pay_run_input` (0 when the table is absent). Test `FirstBootOfPreL2DatabaseCreatesRunInputTableAndStarts` (`EnterpriseTests.cs`) failed before, passes after; related tests 48/48 with SQL. Not urgent for hosted (table now exists); merge = deploy, so it waits for Ghazal's «ادمج».
+- Next: Ghazal sets `ConnectionStrings__ErpReadonly` on MonsterASP (operations screens return 503 until then). Then Ninja 2026-10 parallel run (`docs/runbooks/NINJA-2026-10.md`).
 
 ## Release 0.21.0 (2026-11-14, Claude)
 - Version `0.21.0`: `ReleaseSafety.cs:10`, health pin `scripts/monsterasp_ftps.py:184-190` (+ its test), node tests (`tests/enterprise.mjs`, `campaigns.mjs`, `finance-views.mjs`, `rider-statement-simple.mjs`), `docs/api/ENDPOINTS.md` title.

@@ -24,11 +24,12 @@ public static class ReleaseSafety
             if(c is SqliteConnection)pri.CommandText="SELECT COUNT(*) FROM pay_run_input";
             else pri.CommandText="SELECT COUNT_BIG(*) FROM pay.PayRunInput";
             payRunInputs=Convert.ToInt32(pri.ExecuteScalar()??0,System.Globalization.CultureInfo.InvariantCulture);
-            counts["pay_run_input"]=payRunInputs;
-            byte[] tag=Encoding.UTF8.GetBytes("pay_run_input:"+payRunInputs);
-            digest.AppendData(Encoding.UTF8.GetBytes(tag.Length+":"));digest.AppendData(tag);
         }
-        catch{/* table may be absent on pre-L2 checkpoints */}
+        catch{/* table absent on a pre-L2 database: same as 0 rows, so the first upgrade boot compares equal */}
+        // Always record the count (0 when absent): before-upgrade (no table) and after-upgrade (empty table) must match.
+        counts["pay_run_input"]=payRunInputs;
+        byte[] tag=Encoding.UTF8.GetBytes("pay_run_input:"+payRunInputs);
+        digest.AppendData(Encoding.UTF8.GetBytes(tag.Length+":"));digest.AppendData(tag);
         return new{counts,recordsSha256=Convert.ToHexString(digest.GetHashAndReset()),payRunInputRows=payRunInputs};
     }
     // This checkpoint stays under private App_Data and never enters a publish artifact.
