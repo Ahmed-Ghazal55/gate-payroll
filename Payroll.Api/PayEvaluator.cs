@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 namespace Payroll;
 
-public sealed record PayFacts(string Rider,string App,string Period,string Category,int Orders,decimal PlatformGross,decimal Incentives,decimal Days,string VehicleType="private",decimal? VehicleDays=null,IReadOnlyDictionary<string,decimal?>? Metrics=null,decimal? ChefzFullTimeCommission=null);
+public sealed record PayFacts(string Rider,string App,string Period,string Category,int Orders,decimal PlatformGross,decimal Incentives,decimal Days,string VehicleType="private",decimal? VehicleDays=null,IReadOnlyDictionary<string,decimal?>? Metrics=null,decimal? ChefzFullTimeCommission=null,decimal PlatformPenalties=0);
 public sealed record PayExplain(string Label,string Formula,JsonObject Inputs,decimal Amount,string Category,bool AffectsNet=true,string? AccountCode=null);
 public sealed record PayRiderShare(string Rider,int Orders,decimal BaseGross);
 public sealed record PayAllocatedShare(string Rider,int Orders,decimal BaseGross,decimal Incentive);
@@ -12,7 +12,12 @@ public sealed class PayEvaluation
     public int Orders {get;init;}public decimal Days {get;init;}public decimal PlatformGross {get;init;}public decimal Incentives {get;init;}public decimal Gross {get;init;}public decimal CompanyCommission {get;init;}public decimal OperatingCost {get;init;}public string OperatingCostAccount {get;init;}="";
     public decimal VehicleCharge {get;init;}public decimal FuelCap {get;init;}public decimal Entitlement {get;init;}public decimal NetBeforePersonal {get;init;}public string Status {get;init;}="needs_decision";public JsonObject? Band {get;init;}
     public bool IneligibleKeetaSalary {get;init;}public decimal RecoveredOperatingCost {get;init;}public decimal UnrecoveredOperatingCost {get;init;}public decimal UnrecoveredVehicleCharge {get;init;}
+    public decimal PlatformPenalties {get;init;}public bool PenaltiesInCommissionBase {get;init;}public bool SalaryOperationalExpense {get;init;}
     public IReadOnlyList<PayExplain> Lines {get;init;}=[];public IReadOnlyList<string> Blockers {get;init;}=[];
+}
+public static class PayExpenseAccounts
+{
+    public const string SalaryFuel="512116",SalaryHousing="512109",SalaryVehicle="512121",SalaryIqama="512202";
 }
 
 // Formula shapes only. All rates, bands, day counts, cutoff, rent and precision come from versioned data.
@@ -74,7 +79,7 @@ public static class PayEvaluator
     {
         string app=PayPlatforms.App(facts.App);J.Period(facts.Period);Approved(scheme,app,facts.Period);J.Need(global.S("status")=="approved"&&string.CompareOrdinal(global.S("effectiveFrom"),facts.Period+"-01")<=0,"إعداد الأيام والإيجار غير معتمد للشهر.");
         var values=PayValues.Object(global["data"]?["values"]);int monthDays=DaysInPayrollMonth(facts.Period,values);J.Need(facts.Orders>=0&&facts.Days>=0&&facts.Days==decimal.Truncate(facts.Days),"الطلبات والأيام غير صالحة.");decimal days=Math.Min(facts.Days,monthDays);
-        var data=PayValues.Object(scheme["data"]);PaySettings.Validate("pay_scheme",app,data);J.Need(PaySettings.Categories.Contains(facts.Category),"فئة مندوب غير معروفة.");string type=data.S("type"),role=data.S("accountingRole");var p=PayValues.Object(data["parameters"]?["categories"]?[facts.Category]);var lines=new List<PayExplain>();var blockers=new List<string>();decimal total=Round(facts.PlatformGross+facts.Incentives,values),earned=0,fee=0,cost=0,rent=0,fuelCap=0;JsonObject? chosen=null;
+        var data=PayValues.Object(scheme["data"]);PaySettings.Validate("pay_scheme",app,data);J.Need(PaySettings.Categories.Contains(facts.Category),"فئة مندوب غير معروفة.");string type=data.S("type"),role=data.S("accountingRole");var p=PayValues.Object(data["parameters"]?["categories"]?[facts.Category]);var lines=new List<PayExplain>();var blockers=new List<string>();decimal total=Round(facts.PlatformGross+facts.Incentives,values),earned=0,fee=0,cost=0,rent=0,fuelCap=0;decimal penalties=Round(Math.Max(0,facts.PlatformPenalties),values);JsonObject? chosen=null;
         void Line(string label,string formula,JsonObject inputs,decimal amount,string category,bool affects=true,string? account=null)=>lines.Add(new(label,formula,inputs,Round(amount,values),category,affects,account));
         Line("استحقاق المنصة قبل النظام الداخلي","platformGross + incentives",new(){["platformGross"]=facts.PlatformGross,["incentives"]=facts.Incentives},total,"source_gross",false);
         if(!p.B("enabled"))blockers.Add("category_not_enabled");
@@ -113,8 +118,14 @@ public static class PayEvaluator
             }
             else if(!fallback&&!zero)
             {
-                fee=type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>facts.ChefzFullTimeCommission.Value,"daily_commission"=>p.N("dailyCommission")*days,"monthly_commission"=>p.N("monthlyCommission")*(p.B("prorate")?days/monthDays:1),"percent_of_gross" or "percent_monthly_with_vehicle"=>total*p.N("companyPercent")/100,_=>throw new ApiError("نوع نظام غير مدعوم.")};fee=Round(fee,values);earned=total-fee;
-                Line("الإجمالي قبل العمولة","platformGross + incentives",new(){["gross"]=facts.PlatformGross,["incentives"]=facts.Incentives},total,"earnings");Line("عمولة الشركة",type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>"chefz half-month commission from reviewed operation days","daily_commission"=>"dailyCommission × days","monthly_commission"=>"monthlyCommission × (prorate ? days/monthDays : 1)",_=>"gross × companyPercent /100 before deductions"},new(){["parameters"]=p.Clone(),["days"]=days,["monthDays"]=monthDays,["gross"]=total,["chefzFullTimeCommission"]=facts.ChefzFullTimeCommission},-fee,"company_commission");
+                bool percent=type is "percent_of_gross" or "percent_monthly_with_vehicle";
+                // §40.3: base is signed (Ninja negative Final Amount must not floor to zero — §40.6 carry needs a negative net).
+                // No commission on a non-positive base: the whole negative share stays on the rider (September sheet practice: BX = BU when BU ≤ 0).
+                decimal commissionBase=percent?total-penalties:total;
+                if(percent&&penalties>0)Line("غرامات المنصة على المندوب قبل النسبة","platform penalties allocated to rider (§40.3)",new(){["penalties"]=penalties,["gross"]=total},-penalties,"platform_penalties",false);
+                fee=type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>facts.ChefzFullTimeCommission.Value,"daily_commission"=>p.N("dailyCommission")*days,"monthly_commission"=>p.N("monthlyCommission")*(p.B("prorate")?days/monthDays:1),"percent_of_gross" or "percent_monthly_with_vehicle"=>Math.Max(0,commissionBase)*p.N("companyPercent")/100,_=>throw new ApiError("نوع نظام غير مدعوم.")};fee=Round(fee,values);earned=Round(commissionBase-fee,values);
+                Line("الإجمالي قبل العمولة",percent?"(platformGross + incentives − platformPenalties)":"platformGross + incentives",new(){["gross"]=facts.PlatformGross,["incentives"]=facts.Incentives,["platformPenalties"]=penalties,["commissionBase"]=commissionBase},commissionBase,"earnings");
+                Line("عمولة الشركة",type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>"chefz half-month commission from reviewed operation days","daily_commission"=>"dailyCommission × days","monthly_commission"=>"monthlyCommission × (prorate ? days/monthDays : 1)",_=>"commissionBase × companyPercent /100 (§40.3)"},new(){["parameters"]=p.Clone(),["days"]=days,["monthDays"]=monthDays,["gross"]=total,["commissionBase"]=commissionBase,["chefzFullTimeCommission"]=facts.ChefzFullTimeCommission},-fee,"company_commission");
             }
             if(fallback&&!zero)
             {
@@ -125,18 +136,29 @@ public static class PayEvaluator
             {
                 string expected=facts.Category.EndsWith("_company_car",StringComparison.Ordinal)?"company_car":facts.Category.EndsWith("_company_bike",StringComparison.Ordinal)?"company_bike":"private";J.Need(expected==facts.VehicleType,"المركبة لا تطابق فئة المندوب.");
                 if(expected!="private"&&facts.VehicleDays==null)blockers.Add("vehicle_period_missing");else rent=VehicleCharge(expected,facts.VehicleDays??0,facts.Period,values);
-                Line("مقابل حيازة المركبة","monthlyRent / monthDays × min(vehicleDays,monthDays)",new(){["type"]=expected,["vehicleDays"]=facts.VehicleDays,["monthDays"]=monthDays,["monthlyRent"]=values["vehicleRent"]?[expected]?.DeepClone()},-rent,"vehicle_charge");
+                bool salaryVehicle=type=="target_salary";
+                Line("مقابل حيازة المركبة","monthlyRent / monthDays × min(vehicleDays,monthDays)"+(salaryVehicle?" (مصروف شركة §40.3)":""),new(){["type"]=expected,["vehicleDays"]=facts.VehicleDays,["monthDays"]=monthDays,["monthlyRent"]=values["vehicleRent"]?[expected]?.DeepClone()},salaryVehicle?rent:-rent,"vehicle_charge",!salaryVehicle,salaryVehicle?PayExpenseAccounts.SalaryVehicle:null);
             }
         }
         // BR22.9.2 applies only to the ineligible Keeta salary fallback, never to commission or Ninja.
         bool protectedSalary=app=="keeta"&&type=="target_salary"&&fallback&&!zero;
+        bool salaryExpense=type=="target_salary"&&!protectedSalary;
         decimal recovered=protectedSalary?Math.Min(Math.Max(0,earned),cost):cost,unrecovered=cost-recovered;
         string costAccount=p.S("operatingCostAccount");if(cost!=0){if(costAccount=="")blockers.Add("operating_cost_account_missing");else PayPlatforms.Active(costAccount);Line("تكلفة التشغيل المستردة","min(earnings, operatingCost) for BR22.9.2",new(){["operatingCost"]=cost,["companyCost"]=unrecovered},-recovered,"operating_cost",account:costAccount);}
         if(unrecovered>0)Line("تكلفة عدم الصلاحية على الشركة","operatingCost - recoveredOperatingCost",new(){["operatingCost"]=cost,["recovered"]=recovered},unrecovered,"unrecovered_operating_cost",false,"512121");
         decimal unrecoveredRent=protectedSalary?Math.Max(0,rent-Math.Max(0,earned-recovered)):0;
         if(unrecoveredRent>0){rent-=unrecoveredRent;int i=lines.FindIndex(l=>l.Category=="vehicle_charge");if(i>=0)lines[i]=lines[i] with{Amount=-rent};Line("حيازة غير مستردة على الشركة","vehicle charge - recovered charge",new(),unrecoveredRent,"unrecovered_vehicle_cost",false,"512121");}
-        decimal entitlement=Round(earned-recovered,values),net=Round(entitlement-rent,values),commission=role=="agent"?Round(total-earned,values):fee;
-        if(net<0)blockers.Add("negative_net_requires_decision");if(role=="agent"&&commission<0&&total>=0)blockers.Add("negative_company_share_requires_decision");
-        return new(){Rider=facts.Rider,App=app,Period=facts.Period,Category=facts.Category,SchemeType=type,AccountingRole=role,Orders=facts.Orders,Days=days,PlatformGross=facts.PlatformGross,Incentives=facts.Incentives,Gross=Round(earned,values),CompanyCommission=commission,OperatingCost=cost,OperatingCostAccount=costAccount,RecoveredOperatingCost=recovered,UnrecoveredOperatingCost=unrecovered,UnrecoveredVehicleCharge=unrecoveredRent,IneligibleKeetaSalary=protectedSalary,VehicleCharge=rent,FuelCap=fuelCap,Entitlement=entitlement,NetBeforePersonal=net,Status=blockers.Count==0?"ready":"needs_decision",Band=chosen,Lines=lines,Blockers=blockers.Distinct().ToArray()};
+        if(salaryExpense&&fuelCap>0)Line("بدل وقود لمندوب الراتب (حتى السقف)","fuelCap as company expense; overage on rider (§22.9 / open decision 5)",new(){["fuelCap"]=fuelCap},fuelCap,"salary_fuel_expense",false,PayExpenseAccounts.SalaryFuel);
+        decimal entitlement=Round(earned-recovered,values);
+        // §40.3 salary: vehicle/operating shown as expense, not deducted from net (Keeta ineligible fallback keeps §22.9.2 recovery).
+        decimal netRent=salaryExpense?0:rent;
+        decimal net=Round(entitlement-netRent,values);
+        bool penaltiesInBase=type is "percent_of_gross" or "percent_monthly_with_vehicle";
+        // Agent company share is on the signed post-penalty base when §40.3 applies (not total−earned, which would swallow penalties).
+        decimal agentBase=penaltiesInBase?total-penalties:total;
+        decimal commission=role=="agent"?Round(agentBase-earned,values):fee;
+        // §40.6: negative net is allowed; carry to 112507 posts at final approval (do not block evaluate/merge).
+        if(role=="agent"&&commission<0&&agentBase>=0)blockers.Add("negative_company_share_requires_decision");
+        return new(){Rider=facts.Rider,App=app,Period=facts.Period,Category=facts.Category,SchemeType=type,AccountingRole=role,Orders=facts.Orders,Days=days,PlatformGross=facts.PlatformGross,Incentives=facts.Incentives,Gross=Round(earned,values),CompanyCommission=commission,OperatingCost=cost,OperatingCostAccount=costAccount,RecoveredOperatingCost=recovered,UnrecoveredOperatingCost=unrecovered,UnrecoveredVehicleCharge=unrecoveredRent,IneligibleKeetaSalary=protectedSalary,VehicleCharge=rent,FuelCap=fuelCap,Entitlement=entitlement,NetBeforePersonal=net,PlatformPenalties=penalties,PenaltiesInCommissionBase=penaltiesInBase,SalaryOperationalExpense=salaryExpense,Status=blockers.Count==0?"ready":"needs_decision",Band=chosen,Lines=lines,Blockers=blockers.Distinct().ToArray()};
     }
 }

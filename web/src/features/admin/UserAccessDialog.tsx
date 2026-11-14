@@ -39,6 +39,8 @@ export function UserAccessDialog({ user, users, catalog, isAdmin, onClose, onSav
   const [until, setUntil] = useState(user.approvalExceptionUntil ?? '');
   const [reason, setReason] = useState(user.approvalExceptionReason ?? '');
   const [busy, setBusy] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [renameReason, setRenameReason] = useState('');
 
   const baseline = useMemo(() => new Set(roleBaseline(catalog, role)), [catalog, role]);
   const mark = (code: string): Mark => (denied.includes(code) ? 'denied' : added.includes(code) ? 'added' : 'role');
@@ -80,6 +82,19 @@ export function UserAccessDialog({ user, users, catalog, isAdmin, onClose, onSav
       setPassword('');
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : 'تعذر تعيين كلمة المرور', 'danger');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const rename = async () => {
+    setBusy(true);
+    try {
+      await api.renameUser(user.id, newName.trim(), renameReason.trim());
+      toast('تم تغيير اسم المستخدم. جلساته انتهت، ويدخل بالاسم الجديد بنفس كلمة المرور.', 'success');
+      setNewName(''); setRenameReason('');
+      onSaved();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'تعذر تغيير اسم المستخدم', 'danger');
     } finally {
       setBusy(false);
     }
@@ -129,6 +144,18 @@ export function UserAccessDialog({ user, users, catalog, isAdmin, onClose, onSav
           </label>
           <button type="button" disabled={busy || password.length < 12} onClick={resetPassword} className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-xs font-bold disabled:opacity-50">تعيين</button>
         </div>
+        {isAdmin && (
+          <div className="flex flex-wrap items-end gap-2 rounded-lg border border-[var(--line)] p-2" data-testid="user-rename">
+            <label className="min-w-40 flex-1 space-y-1 text-xs font-bold">اسم مستخدم جديد
+              <input aria-label="اسم مستخدم جديد" autoComplete="off" value={newName} onChange={(e) => setNewName(e.target.value)} className={field} />
+            </label>
+            <label className="min-w-40 flex-1 space-y-1 text-xs font-bold">سبب التغيير
+              <input aria-label="سبب تغيير اسم المستخدم" value={renameReason} onChange={(e) => setRenameReason(e.target.value)} className={field} />
+            </label>
+            <button type="button" disabled={busy || newName.trim().length < 3 || renameReason.trim().length < 3} onClick={rename} className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-xs font-bold disabled:opacity-50">تغيير الاسم</button>
+            <p className="w-full text-[11px] text-[var(--muted)]">الاسم القديم بيفضل محجوز ومحسوب على نفس الشخص في شرط المجهّز والمعتمد. كلمة المرور ما بتتغيرش.</p>
+          </div>
+        )}
         {isAdmin && user.username.toLowerCase() === 'ghazal' && (
           <div id="approval-exception" className="grid gap-2 rounded-lg border border-red-500 p-2 sm:grid-cols-2">
             <p className="text-xs font-bold text-red-700 dark:text-red-300 sm:col-span-2">استثناء الاعتماد المؤقت: يلغي شرط المعتمد المختلف بس، وكل استخدام بيتسجل. لازم يتقفل قبل الصرف الحقيقي.</p>

@@ -97,6 +97,12 @@ public static partial class PayCycles
                 "ninja_daily" or "ninja_daily_deduction" or "chefz_daily"=>rows.Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)),
                 "vehicle_assignment"=>rows.Where(a=>PeriodOverlap(a,period,"startedAt","endedAt")&&(riderIds.Count==0||riderIds.Contains(a.S("riderId")))),
                 "housing_residence"=>rows.Where(r=>PeriodOverlap(r,period,"effectiveFrom","effectiveTo")&&(riderIds.Count==0||riderIds.Contains(r.S("riderId")))),
+                "fuel_usage"=>rows.Where(f=>
+                {
+                    string m=f.S("month",f.S("period",f.S("ReportMonth")));
+                    if(m.Length>=7)m=m[..7];
+                    return m==period&&(riderIds.Count==0||riderIds.Contains(f.S("riderId")));
+                }),
                 _=>rows
             };
             foreach(var row in rows)

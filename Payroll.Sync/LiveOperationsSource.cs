@@ -44,6 +44,8 @@ public static class LiveOperationsSource
         "rider_work_timeline"=>[Req("app","RiderClientAssignments"),Req("app","PlatformRiderAccounts"),Req("platform","ClientPlatforms"),Opt("app","RiderAssignmentEvents"),Opt("app","PlatformAccountDayUsages"),..Riders(),..Sponsors()],
         "custody_equipment"=>[Req("maintenance","RiderInventoryIssues"),Opt("maintenance","RiderInventoryIssueLines"),..Riders(),..Sponsors()],
         "vehicle_expense"=>[Req("maintenance","VehicleExpenses"),..Vehicles(),..Riders(),..Sponsors()],
+        // B2: live fuel capture uses the same FuelCard* tables as PullContracts fuel_usage_month.
+        "fuel_usage"=>[Req("app","FuelCardMonthlyUsages"),Req("app","FuelCards"),Opt("app","FuelCardRiderAssignments"),..Riders(),..Sponsors()],
         "chefz_account"=>[Req("chefz","AccountDetails"),..PlatformAccounts()],
         "chefz_account_type_change"=>[Req("chefz","AccountTypeChanges"),..PlatformAccounts()],
         "chefz_daily"=>[Req("chefz","DailyPerformance"),..PlatformAccounts()],
@@ -69,7 +71,23 @@ public static class LiveOperationsSource
     {
         if(kind=="sponsorship_period")return [];
         var plan=ImportPlan.Build(snapshot,sponsors);
+        // PullContracts emits fuel_usage_month; operations FieldMap + capture use fuel_usage (B2).
+        if(kind=="fuel_usage")
+            return plan.Documents.Where(d=>d.Kind=="fuel_usage_month").Select(d=>NormalizeFuelUsage(d.Body)).ToList();
         return plan.Documents.Where(d=>d.Kind==kind).Select(d=>d.Body).ToList();
+    }
+    /// <summary>Map ERP ReportMonth / TotalAmount shape onto Operations.FieldMap fuel_usage keys (month = yyyy-MM).</summary>
+    static JsonObject NormalizeFuelUsage(JsonObject body)
+    {
+        var doc=body.Clone();
+        string month=doc.S("month",doc.S("ReportMonth",doc.S("period")));
+        if(month.Length>=7)month=month[..7];
+        doc["month"]=month;doc["period"]=month;
+        if(!doc.ContainsKey("amount")||doc["amount"] is null)doc["amount"]=doc["TotalAmount"]?.DeepClone()??doc["totalAmount"]?.DeepClone();
+        if(!doc.ContainsKey("totalAmount")||doc["totalAmount"] is null)doc["totalAmount"]=doc["amount"]?.DeepClone();
+        if(!doc.ContainsKey("liters")||doc["liters"] is null)doc["liters"]=doc["TotalLiters"]?.DeepClone();
+        if(doc.S("riderId")==""&&doc.S("RiderProfileId")!="")doc["riderId"]=doc.S("RiderProfileId");
+        return doc;
     }
 
     public static IReadOnlyList<JsonObject> ReadDocuments(DbConnection source,IReadOnlyList<ISyncSponsor> sponsors,string kind,CancellationToken cancellationToken=default)

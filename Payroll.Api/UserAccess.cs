@@ -267,6 +267,13 @@ public static class UserAccess
     }
 
     public static string Normalize(string name) => name.Trim().ToUpperInvariant();
+    static IEnumerable<string> KnownCodes(JsonNode? list)=>(list as JsonArray??[]).Select(x=>x?.GetValue<string>()??"").Where(code=>PermissionsCatalog.Any(p=>p.Code==code));
+    public const string FormerUsernameClaim="formerUsername";
+    public static IEnumerable<string> FormerUsernames(JsonObject u)=>(u["formerUsernames"] as JsonArray??[]).Select(n=>n?.GetValue<string>()??"").Where(n=>n!="");
+    /// <summary>A name is taken if any user has it now or had it before (old names stay reserved so history keeps one owner).</summary>
+    public static bool NameTaken(DbConnection c,string username,DbTransaction? tx=null,string? exceptUserId=null)
+        =>Store.List(c,"user",tx).Any(u=>u.S("id")!=exceptUserId&&(Normalize(u.S("username"))==Normalize(username)||FormerUsernames(u).Any(f=>Normalize(f)==Normalize(username))));
+    static void ValidateUsername(string username)=>J.Need(username.Length is >= 3 and <= 60 && Regex.IsMatch(username, @"^[\p{L}\p{N}_.@-]+$"), "اسم المستخدم من3إلى60حرفًا دون مسافات أو محارف خاصة.");
     public static JsonObject? Find(DbConnection c, string username, DbTransaction? tx = null) =>
         Store.List(c, "user", tx).SingleOrDefault(u => Normalize(u.S("username")) == Normalize(username));
 
@@ -279,9 +286,8 @@ public static class UserAccess
             .FirstOrDefault(d => d.S("code") == deptCode)?.S("nameAr") ?? deptCode;
         var perms = new JsonArray();
         foreach (var p in EffectivePermissions(u)) perms.Add(p);
-        var customPerms = new JsonArray();
-        if (u["customPermissions"] is JsonArray cp)
-            foreach (var x in cp) customPerms.Add(x?.GetValue<string>() ?? "");
+        // Only codes still in the catalog: a stored code removed in an older release grants nothing and would make every save fail validation.
+        var customPerms = new JsonArray(KnownCodes(u["customPermissions"]).Select(x => (JsonNode?)x).ToArray());
 
         return new()
         {
@@ -297,7 +303,8 @@ public static class UserAccess
             ["permissions"] = perms,
             ["mustChangePassword"] = u.B("mustChangePassword"),
             ["customPermissions"] = customPerms,
-            ["deniedPermissions"] = u["deniedPermissions"]?.DeepClone()??new JsonArray(),
+            ["deniedPermissions"] = new JsonArray(KnownCodes(u["deniedPermissions"]).Select(x => (JsonNode?)x).ToArray()),
+            ["formerUsernames"] = new JsonArray(FormerUsernames(u).Select(n=>(JsonNode?)n).ToArray()),
             ["financialScope"] = FinancialScopes.Effective(u),
             ["createdAt"] = u.S("createdAt"),
             ["lastLoginAt"] = u.S("lastLoginAt"),
@@ -331,9 +338,28 @@ public static class UserAccess
         J.Need(permissions.Count<=PermissionsCatalog.Length&&permissions.OfType<JsonValue>().Count()==permissions.Count,"قائمة صلاحيات غير صالحة.");
         foreach(var p in permissions)J.Need(PermissionsCatalog.Any(x=>x.Code==p!.GetValue<string>()),"صلاحية غير معروفة.");
     }
+    /// <summary>Admin-only login rename. Keeps the user id, reserves the old name, moves dated bypass grants, ends sessions, audits from→to.</summary>
+    public static JsonObject Rename(DbConnection c, DbTransaction tx, ClaimsPrincipal actor, string id, JsonObject input)
+    {
+        J.Need(AccessPolicy.Administrator(actor), "تغيير اسم المستخدم لمسؤول النظام فقط.", 403);
+        var u = Store.Get(c, id, "user", tx) ?? throw new ApiError("الحساب غير موجود.", 404);
+        string next = input.Required("username").Trim(), reason = input.Required("reason").Trim(), old = u.S("username");
+        ValidateUsername(next);
+        J.Need(reason.Length is >= 3 and <= 500 && !reason.Any(char.IsControl), "اكتب سبب تغيير اسم المستخدم (3 إلى 500 حرف).");
+        J.Need(Normalize(next) != Normalize(old), "الاسم الجديد مطابق للحالي.");
+        J.Need(!NameTaken(c, next, tx, id), "اسم المستخدم مسجل بالفعل أو كان مستخدمًا قبل كده.");
+        var former = new JsonArray(FormerUsernames(u).Append(old).Distinct(StringComparer.OrdinalIgnoreCase).Select(n => (JsonNode?)n).ToArray());
+        u["username"] = next; u["formerUsernames"] = former; u["securityVersion"] = Guid.NewGuid().ToString("N");
+        Store.Save(c, "user", u, tx);
+        // Dated bypass grants follow the person, not the old name.
+        foreach (var grant in Store.List(c, AccessPolicy.BypassGrantKind, tx).Where(g => g.S("userId") == id || Normalize(g.S("username")) == Normalize(old)))
+        { grant["username"] = next; Store.Save(c, AccessPolicy.BypassGrantKind, grant, tx); }
+        Store.Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = "admin.username_changed", ["entityId"] = id, ["actor"] = actor.Identity!.Name, ["at"] = DateTimeOffset.UtcNow.ToString("O"), ["from"] = old, ["to"] = next, ["reason"] = reason }, tx);
+        return Public(WithRole(c, tx, u));
+    }
     public static JsonObject Create(string username, string password, string role, string? id = null, string? department = null, int? rankLevel = null, JsonArray? customPermissions = null)
     {
-        J.Need(username.Length is >= 3 and <= 60 && Regex.IsMatch(username, @"^[\p{L}\p{N}_.@-]+$"), "اسم المستخدم من3إلى60حرفًا دون مسافات أو محارف خاصة.");
+        ValidateUsername(username);
         J.Need(password.Length is >= 12 and <= 200, "كلمة المرور من12إلى200حرف.");
         J.Need(Roles.Contains(role), "دور غير صالح.");
         var roleDef = ResolveRoleDef(role);
@@ -376,6 +402,7 @@ public static class UserAccess
         var claims=new List<Claim>{new(ClaimTypes.NameIdentifier,u.S("id")),new(ClaimTypes.Name,u.S("username")),new(ClaimTypes.Role,Role(u)),new("department",Department(u)),new("rankLevel",RankLevel(u).ToString()),new("securityVersion",u.S("securityVersion"))};
         claims.AddRange(EffectivePermissions(u).Select(p=>new Claim("permission",p)));
         if(MustChangePassword(u))claims.Add(new("mustChangePassword","true"));
+        foreach(var former in FormerUsernames(u))claims.Add(new(FormerUsernameClaim,former));
         claims.AddRange(FinancialScopes.Claims(u));
         foreach(string field in new[]{"approvalExceptionUntil","approvalExceptionReason"})if(u.S(field)!="")claims.Add(new(field,u.S(field)));
         return new(new ClaimsIdentity(claims,CookieAuthenticationDefaults.AuthenticationScheme));
@@ -419,7 +446,7 @@ public static class UserAccess
         api.MapPost("/users", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             string name = input.Required("username");
-            J.Need(Find(c, name, tx) == null, "اسم المستخدم مسجل بالفعل.");
+            J.Need(!NameTaken(c, name, tx), "اسم المستخدم مسجل بالفعل أو كان مستخدمًا قبل كده.");
             string role = input.Required("role");
             string? dept = input.ContainsKey("department") ? input.S("department") : null;
             int? rank = input.ContainsKey("rankLevel") ? (int)input.N("rankLevel") : null;
@@ -492,6 +519,8 @@ public static class UserAccess
             foreach (var user in Store.List(c, "user", tx).Where(u => Role(u) == def.Code)) { user["securityVersion"] = Guid.NewGuid().ToString("N"); Store.Save(c, "user", user, tx); }
             return new JsonObject { ["code"] = def.Code, ["permissions"] = list.DeepClone() };
         })).WithTags("Administration").WithSummary("Replace a role template and end its users' sessions");
+        api.MapPut("/users/{id}/username", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) => Rename(c, tx, ctx.User, id, input)))
+            .WithTags("Administration").WithSummary("Rename a login (admin only); old names stay reserved and keep maker-checker history; ends the user's sessions");
         api.MapPut("/users/{id}", UpdateUser).WithTags("Administration").WithSummary("Update a user and invalidate existing sessions");
         api.MapPut("/users/{id}/status", UpdateUser).WithTags("Administration").WithSummary("Legacy alias for updating a user");
     }

@@ -29,6 +29,31 @@ public static partial class PayCycles
             d["approvedBy"]=actor.Identity!.Name;d["status"]="posted";
         }
     }
+    /// <summary>B1: at final approval, settle each stage-4 take against its debt (or mark fuel_usage rider part posted). Idempotent per cycle + source.</summary>
+    static void SettleStage4(DbConnection c,DbTransaction tx,JsonObject cycle,JsonObject row,ClaimsPrincipal actor)
+    {
+        string period=cycle.S("period"),cycleId=cycle.S("id");
+        foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==row.S("rider")&&d.S("type")=="stage4"))
+        {
+            if(d.S("status")=="posted")continue;
+            decimal take=-d.N("amount");if(take<=0){d["status"]="posted";d["approvedBy"]=actor.Identity!.Name;continue;}
+            var debt=Store.Get(c,d.S("source"),"debt",tx);
+            if(debt!=null)
+            {
+                FinancialScopes.DemandDebt(actor,debt);
+                var before=Rows(cycle["debtBefore"]).OfType<JsonObject>().Single(b=>b.S("id")==debt.S("id"));J.Need(JsonNode.DeepEquals(before,debt),"تغير الدين منذ المراجعة؛ أعد الاحتساب.");
+                J.Need(debt.S("status")=="active"&&take<=debt.N("remainingBalance"),"رصيد الدين لا يكفي لاستقطاع المرحلة 4.");
+                string ledgerId="stage4:"+d.S("source")+":"+period+":"+cycleId;
+                J.Need(Store.Get(c,ledgerId,"ledger",tx)==null,"استقطاع المرحلة 4 مرحل بالفعل.");
+                debt["paidAmount"]=J.Money(Debts.PaidAmount(debt)+take);
+                debt["remainingBalance"]=J.Money(debt.N("remainingBalance")-take);
+                if(debt.N("remainingBalance")==0)debt["status"]="settled";
+                debt["lastDeductionPeriod"]=period;Store.Save(c,"debt",debt,tx);
+                Store.Save(c,"ledger",new(){["id"]=ledgerId,["iqama"]=row.S("rider"),["period"]=period,["amount"]=-take,["kind"]="stage4",["debtId"]=debt.S("id"),["sourceRef"]=cycleId,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")},tx);
+            }
+            d["approvedBy"]=actor.Identity!.Name;d["status"]="posted";
+        }
+    }
     static decimal DebtLedgerBalance(DbConnection c,DbTransaction tx,JsonObject debt)
     {
         string account=PayPosting.DebtAccount(debt),company=FinancialCore.RequireDebtSponsor(debt).Id;

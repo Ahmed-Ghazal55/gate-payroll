@@ -41,30 +41,51 @@ public static class BankPayrollFiles
         var period=FinanceViews.Periods(input.S("from",input.S("period")),input.S("to",input.S("period")));return(sponsor,period.From,period.To);
     }
     private static string Kind((string Sponsor,string From,string To) request)=>"bank-file:"+request.Sponsor+":"+request.From+":"+request.To;
-    // The closing posted 2110 liability includes prior approved dues and subtracts deductions/payments.
-    // Never use an unapproved preview result, the legacy ledger, or the 121x debt accounts as payable.
-    private static (JsonArray Payable,JsonArray Excluded) Rows(DbConnection c,DbTransaction? tx,ClaimsPrincipal user,(string Sponsor,string From,string To) request)
+    // M1: prefer the stage-6 remainder from approved pay cycles (after instalment confirmation).
+    // Legacy runs still use the posted 2110/212103 closing payable. Never use unapproved previews or 121x debt.
+    private static (JsonArray Payable,JsonArray Excluded,string Basis) Rows(DbConnection c,DbTransaction? tx,ClaimsPrincipal user,(string Sponsor,string From,string To) request)
     {
         var riders=Store.List(c,"rider",tx).GroupBy(r=>r.S("iqama",r.S("id"))).ToDictionary(g=>g.Key,g=>g.First());
-        var amounts=new Dictionary<string,decimal>();
-        var eligible=Store.List(c,"run",tx).Where(r=>r.S("approvedAt")!=""&&r.S("sponsorId")==request.Sponsor&&string.CompareOrdinal(r.S("period"),request.From)>=0&&string.CompareOrdinal(r.S("period"),request.To)<=0).Select(r=>r.S("iqama")).ToHashSet(StringComparer.Ordinal);
-        foreach(var journal in Store.List(c,"journal",tx).Where(FinanceViews.Posted).Where(j=>string.CompareOrdinal(j.S("period"),request.To)<=0))
-        foreach(var line in (journal["lines"] as JsonArray??[]).OfType<JsonObject>().Where(l=>l.S("accountCode") is "2110" or "212103"&&l.S("sponsorId")==request.Sponsor&&l.S("iqama")!=""))
+        var amounts=new Dictionary<string,decimal>(StringComparer.Ordinal);
+        var pendingRiders=new HashSet<string>(StringComparer.Ordinal);
+        var cycles=Store.List(c,PayCycles.Kind,tx).Where(d=>d.S("companyId")==request.Sponsor&&(d.S("status") is "approved" or "partially_approved")&&string.CompareOrdinal(d.S("period"),request.From)>=0&&string.CompareOrdinal(d.S("period"),request.To)<=0).ToList();
+        bool usedCycle=false;
+        foreach(var cycle in cycles)
         {
-            string iqama=line.S("iqama");
-            J.Period(journal.S("period"));
-            if(string.CompareOrdinal(journal.S("period"),request.From)>=0)eligible.Add(iqama);
-            amounts[iqama]=amounts.GetValueOrDefault(iqama)+line.N("credit")-line.N("debit");
+            usedCycle=true;
+            foreach(var row in (cycle["riders"] as JsonArray??[]).OfType<JsonObject>())
+            {
+                string iqama=row.S("rider");
+                if(row.S("salaryApprovedAt")==""){pendingRiders.Add(iqama);continue;}
+                bool hasDebt=(cycle["deductions"] as JsonArray??[]).OfType<JsonObject>().Any(d=>d.S("rider")==iqama&&d.S("type")=="debt");
+                if(hasDebt&&row.S("debtDeductionStatus")!="confirmed"){pendingRiders.Add(iqama);continue;}
+                decimal remainder=J.Money(Math.Max(0,row.S("debtDeductionStatus")=="confirmed"?row.N("net"):row.N("salaryNet",row.N("net"))));
+                amounts[iqama]=amounts.GetValueOrDefault(iqama)+remainder;
+            }
         }
-        var pendingRiders=Store.List(c,PayCycles.Kind,tx).Where(d=>d.S("companyId")==request.Sponsor&&d.S("status") is not ("cancelled" or "reversed")&&string.CompareOrdinal(d.S("period"),request.To)<=0)
-            .SelectMany(d=>(d["riders"] as JsonArray??[]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&d.S("status")!="approved"||r.S("debtDeductionStatus")=="pending")).Select(r=>r.S("rider")).ToHashSet(StringComparer.Ordinal);
-        var rows=new JsonArray();var excluded=new JsonArray();foreach(string iqama in eligible.OrderBy(value=>value,StringComparer.Ordinal))
+        var eligible=amounts.Keys.ToHashSet(StringComparer.Ordinal);
+        if(!usedCycle)
+        {
+            eligible=Store.List(c,"run",tx).Where(r=>r.S("approvedAt")!=""&&r.S("sponsorId")==request.Sponsor&&string.CompareOrdinal(r.S("period"),request.From)>=0&&string.CompareOrdinal(r.S("period"),request.To)<=0).Select(r=>r.S("iqama")).ToHashSet(StringComparer.Ordinal);
+            foreach(var journal in Store.List(c,"journal",tx).Where(FinanceViews.Posted).Where(j=>string.CompareOrdinal(j.S("period"),request.To)<=0))
+            foreach(var line in (journal["lines"] as JsonArray??[]).OfType<JsonObject>().Where(l=>l.S("accountCode") is "2110" or "212103"&&l.S("sponsorId")==request.Sponsor&&l.S("iqama")!=""))
+            {
+                string iqama=line.S("iqama");
+                J.Period(journal.S("period"));
+                if(string.CompareOrdinal(journal.S("period"),request.From)>=0)eligible.Add(iqama);
+                amounts[iqama]=amounts.GetValueOrDefault(iqama)+line.N("credit")-line.N("debit");
+            }
+            foreach(var d in Store.List(c,PayCycles.Kind,tx).Where(d=>d.S("companyId")==request.Sponsor&&d.S("status") is not ("cancelled" or "reversed")&&string.CompareOrdinal(d.S("period"),request.To)<=0))
+            foreach(var r in (d["riders"] as JsonArray??[]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&d.S("status")!="approved"||r.S("debtDeductionStatus")=="pending"))
+                pendingRiders.Add(r.S("rider"));
+        }
+        string basis=usedCycle?"stage6_remainder":Store.List(c,PayCycles.Kind,tx).Any(d=>d.S("status")=="approved"&&d.S("companyId")==request.Sponsor&&string.CompareOrdinal(d.S("period"),request.To)<=0)?"posted_2110_212103_closing_payable":"posted_2110_closing_payable";
+        var rows=new JsonArray();var excluded=new JsonArray();foreach(string iqama in eligible.Concat(pendingRiders).Distinct(StringComparer.Ordinal).OrderBy(value=>value,StringComparer.Ordinal))
         {
             riders.TryGetValue(iqama,out var rider);
             if(rider.B("isEmployee")||rider.S("personRole") is "Employee" or "employee" or "administrative")continue;
             decimal balance=amounts.GetValueOrDefault(iqama);
-            bool pendingCycle=pendingRiders.Contains(iqama);
-            if(pendingCycle){excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]="pay_cycle_pending_salary_or_debt_confirmation"});continue;}
+            if(pendingRiders.Contains(iqama)){excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]="pay_cycle_pending_salary_or_debt_confirmation"});continue;}
             if(balance<=0)
             {
                 excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]=balance==0?"zero_balance":"rider_owes_company"});
@@ -75,20 +96,37 @@ public static class BankPayrollFiles
             var row=new JsonObject{["bank"]=Banks.GetValueOrDefault(code,""),["iban"]=iban,["amount"]=balance,["notes"]="",["name"]=rider.S("name"),["iqama"]=iqama,["address"]=rider.S("address",rider.S("nationalAddress"))};
             row["errors"]=Validate(row);rows.Add(row);
         }
-        return(rows,excluded);
+        return(rows,excluded,basis);
     }
     public const string DoNotSendMark="لا يُرسل — تشغيل موازٍ";
     static bool ComparisonOnly(JsonObject input)=>input.B("comparisonOnly")||input.B("doNotSend")||input.S("mode")=="parallel_comparison";
     // BR §38.5: mark parallel-run bank files «لا يُرسل» outside the CSV body (filename, preview fields, audit), never inside BOM/CRLF/header/rows.
     public static JsonObject Preview(DbConnection c,ClaimsPrincipal user,JsonObject input)
     {
-        var request=Request(user,input);var(rows,excluded)=Rows(c,null,user,request);bool comparison=ComparisonOnly(input);
-        return new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To,["basis"]=Store.List(c,PayCycles.Kind).Any(d=>d.S("status")=="approved"&&d.S("companyId")==request.Sponsor&&string.CompareOrdinal(d.S("period"),request.To)<=0)?"posted_2110_212103_closing_payable":"posted_2110_closing_payable",["comparisonOnly"]=comparison,["doNotSend"]=comparison,["doNotSendMark"]=comparison?DoNotSendMark:"",["rows"]=rows,["excludedRows"]=excluded,["previewToken"]=FinancialImports.Issue(c,Kind(request)+(comparison?":parallel":""),rows,user.Identity?.Name??""),["expiresInSeconds"]=1200,["canExport"]=rows.Count>0&&rows.OfType<JsonObject>().All(r=>r["errors"]!.AsArray().Count==0)};
+        var request=Request(user,input);var(rows,excluded,basis)=Rows(c,null,user,request);bool comparison=ComparisonOnly(input);
+        return new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To,["basis"]=basis,["comparisonOnly"]=comparison,["doNotSend"]=comparison,["doNotSendMark"]=comparison?DoNotSendMark:"",["rows"]=rows,["excludedRows"]=excluded,["previewToken"]=FinancialImports.Issue(c,Kind(request)+(comparison?":parallel":""),rows,user.Identity?.Name??""),["expiresInSeconds"]=1200,["canExport"]=rows.Count>0&&rows.OfType<JsonObject>().All(r=>r["errors"]!.AsArray().Count==0)};
+    }
+    /// <summary>M1: when the file is marked sent (not «لا يُرسل»), post Dr 212103 / Cr bank for the exported amounts.</summary>
+    static void PostPayout(DbConnection c,DbTransaction tx,ClaimsPrincipal user,(string Sponsor,string From,string To) request,IReadOnlyList<JsonObject> rows,string actor,string bankAccount)
+    {
+        PayPlatforms.Active(bankAccount);J.Need(bankAccount.StartsWith('1'),"حساب البنك للصرف يجب أن يكون أصلًا.");
+        string key="bank-payout:"+request.Sponsor+":"+request.From+":"+request.To;
+        if(Store.List(c,"journal",tx).Any(j=>j.S("reference")==key&&FinanceViews.Posted(j)))return;
+        var lines=new JsonArray();
+        foreach(var row in rows)
+        {
+            decimal amount=row.N("amount");if(amount<=0)continue;
+            lines.Add(PayPosting.Line("212103",request.Sponsor,amount,0,"",row.S("iqama"),request.To,key));
+            lines.Add(PayPosting.Line(bankAccount,request.Sponsor,0,amount,"",row.S("iqama"),request.To,key));
+        }
+        if(lines.Count==0)return;
+        var journal=FinancialCore.PostJournal(c,tx,"bank_payroll_payout","صرف ملف رواتب التطبيقات",request.To,key,lines,actor,originSponsorId:request.Sponsor,creditorSponsorId:request.Sponsor,targetChart:true,payChart:true);
+        journal["reference"]=key;Store.Save(c,"journal",journal,tx);
     }
     public static Download Export(DbConnection c,DbTransaction tx,ClaimsPrincipal user,JsonObject input)
     {
         var request=Request(user,input);string actor=user.Identity?.Name??"";bool comparison=ComparisonOnly(input);
-        var(baseline,excluded)=Rows(c,tx,user,request);
+        var(baseline,excluded,_)=Rows(c,tx,user,request);
         FinancialImports.Verify(c,tx,new JsonObject{["rows"]=baseline.DeepClone(),["fingerprint"]=input.S("previewToken"),["confirm"]=true},Kind(request)+(comparison?":parallel":""),actor);
         var rows=input["rows"] as JsonArray??throw new ApiError("صفوف التصدير مطلوبة.");
         var excludedIds=excluded.OfType<JsonObject>().Select(row=>row.S("iqama")).ToHashSet(StringComparer.Ordinal);
@@ -106,6 +144,12 @@ public static class BankPayrollFiles
             J.Need(Validate(row,input.B("confirmBankCode40")).Count==0,"يوجد خطأ في صفوف ملف البنك؛ صححه وأعد المعاينة قبل التصدير.");
             if(row.N("amount")!=original.N("amount")||row.S("notes")!=original.S("notes")||row.S("bank")!=original.S("bank"))edited++;
             total+=row.N("amount");checkedRows.Add(row);
+        }
+        // M1: payout journal only when explicitly marked sent — never on plain export or parallel «لا يُرسل».
+        if(!comparison&&(input.B("markSent")||input.B("sent")||input.S("action")=="mark_sent"))
+        {
+            string bank=input.S("bankAccountCode",PipelineSettings.Current().S("payrollBankAccount","111101"));
+            PostPayout(c,tx,user,request,checkedRows,actor,bank);
         }
         byte[] bytes=Csv(checkedRows);string filename=(comparison?"DO-NOT-SEND_":"")+DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)+"_bulkPayroll.csv";
         // Metadata only. Never persist the exported rows, identifiers, names, IBANs or notes.

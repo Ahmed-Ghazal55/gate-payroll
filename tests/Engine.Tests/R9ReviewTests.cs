@@ -16,11 +16,10 @@ public sealed class R9ReviewTests
             var scheme=f.Approve("pay_scheme","hs",f.Draft("pay_scheme","hs",data,"negative"));
             f.Store.Write((c,tx)=>{var assignment=Store.Get(c,"synthetic-choice-hs1","pay_assignment",tx)!;assignment["schemeId"]=scheme.S("id");Store.Save(c,"pay_assignment",assignment,tx);return true;});
             var cycle=PayCycleTests.Through(f,input);string id=cycle.S("id");Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
-            Assert.AreEqual("partially_approved",PayCycleTests.Advance(f,id,7,true).S("status"),"The ready rider must post while the negative rider waits.");
-            Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>{Store.Save(c,"run",new(){["id"]="synthetic-partial-duplicate-run",["iqama"]="2000000002",["period"]="2026-10",["approvedAt"]="2026-11-01"},tx);return true;}),"Partial approval must also prevent duplicate legacy payroll.");
-            Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
-            Review(f,id,new(){["action"]="approve",["reason"]="Final deficit accepted after review"});
-            cycle=PayCycleTests.Advance(f,id,7,true);Assert.AreEqual("approved",cycle.S("status"));Assert.IsTrue(cycle["riders"]!.AsArray().All(r=>r!.S("status")=="ready"));
+            // §40.6: negative net is no longer held for review — both riders approve and carry posts on 112507.
+            cycle=PayCycleTests.Advance(f,id,7,true);Assert.AreEqual("approved",cycle.S("status"),"Negative net posts with carry; no partial hold.");
+            Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>{Store.Save(c,"run",new(){["id"]="synthetic-partial-duplicate-run",["iqama"]="2000000002",["period"]="2026-10",["approvedAt"]="2026-11-01"},tx);return true;}),"Approval must also prevent duplicate legacy payroll.");
+            Assert.IsTrue(cycle["riders"]!.AsArray().All(r=>r!.S("status")=="ready"));
             var debt=f.Store.Read(c=>Store.List(c,"debt").Single());Assert.AreEqual("NegativeSalaryCarryover",debt.S("category"));Assert.AreEqual(100m,debt.N("remainingBalance"));Assert.AreEqual("112507",debt.S("receivableAccountCode"));
             var originals=f.Store.Read(c=>Store.List(c,"journal").ToDictionary(j=>j.S("id"),j=>j.ToJsonString()));
             PayCycleTests.Advance(f,id,7,true);Assert.AreEqual(originals.Count,f.Store.Read(c=>Store.List(c,"journal").Count));

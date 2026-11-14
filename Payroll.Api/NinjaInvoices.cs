@@ -117,7 +117,13 @@ public static partial class NinjaInvoices
         if(invoice.S("approvalStatus")=="approved")return invoice;
         foreach(var line in Lines(c,tx,id))
         {
-            foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>()){J.Need(d.S("level") is "company_level" or "account_level" or "rider_level","صنف خصومات الشركة واليوزر أولًا.");J.Need(AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve",c,tx,invoice),"يلزم مراجع مستقل.",403);}
+            foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>())
+            {
+                InvoiceDeductionClassification.EnsureMigrated(d);
+                J.Need(d.S("migrationStatus")!=InvoiceDeductionClassification.NeedsReview,"يوجد خصم يوزر متعدد المناديب يحتاج توزيعًا صريحًا.");
+                J.Need(InvoiceDeductionClassification.AllocationsOf(d).Count>0||d.S("level") is "company_level" or "rider_level" or "account_level","صنف خصومات الفاتورة أولًا.");
+                J.Need(AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve",c,tx,invoice),"يلزم مراجع مستقل.",403);
+            }
             line["status"]="final";Store.Save(c,"platform_invoice_line",line,tx);
             PlatformDeductions.ConfirmClassified(c,tx,actor,invoice,line);
         }
@@ -144,7 +150,10 @@ public static partial class NinjaInvoices
         Add("112806",invoice.N("amountExclVat")+invoice.N("vat"),0,id);Add("411104",0,invoice.N("amountExclVat"),id);Add("213201",0,invoice.N("vat"),id);
         foreach(var line in Lines(c,tx,id))foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>())
         {
-            J.Need(d.S("level")=="company_level","خصم اليوزر يحتاج توزيع المندوب ودورة الرواتب؛ لا ينشأ دين بالتخمين.");Add(d.Required("expenseAccount"),d.N("amount"),0,line.S("id"));Add("112806",0,d.N("amount"),line.S("id"),line.S("platformAccountId"));
+            InvoiceDeductionClassification.EnsureMigrated(d);
+            var companyParts=InvoiceDeductionClassification.CompanyAllocations(d).ToList();
+            J.Need(companyParts.Count>0&&InvoiceDeductionClassification.AllocationsOf(d).Count==companyParts.Count,"خصم المندوب يحتاج توزيعًا ودورة الرواتب؛ لا ينشأ دين بالتخمين.");
+            foreach(var a in companyParts){Add(a.Required("expenseAccount"),a.N("amount"),0,line.S("id"));Add("112806",0,a.N("amount"),line.S("id"),line.S("platformAccountId"));}
         }
         var journal=FinancialCore.PostJournal(c,tx,"ninja_invoice","فاتورة نينجا المعتمدة",period,"NINJA-INVOICE:"+id,lines,actor.Identity!.Name!,originSponsorId:company,creditorSponsorId:company,targetChart:true,payChart:true);
         invoice["journalEntryId"]=journal.S("id");invoice["accountingStatus"]="posted";Store.Save(c,"platform_invoice",invoice,tx);Store.Audit(c,tx,"platform.ninja.invoice_posted",id,actor.Identity!.Name!);return invoice;
@@ -164,8 +173,9 @@ public static partial class NinjaInvoices
         api.MapGet("/platforms/ninja/invoices",(HttpContext ctx)=>{AccessPolicy.Demand(ctx.User,"pay.view");return store.Read(c=>ApiPagination.Apply(Store.List(c,"platform_invoice").Where(i=>InvoiceDiscard.Active(i)&&i.S("platform")=="Ninja"&&FinancialScopes.Sponsor(ctx.User,i.S("companyId"))&&FinancialScopes.Platform(ctx.User,"Ninja")).Select(i=>View(c,null,ctx.User,i)),ctx.Request.Query,true));}).WithTags("Platforms").WithSummary("List scoped Ninja invoices");
         api.MapGet("/platforms/ninja/invoices/{id}",(string id,HttpContext ctx)=>store.Read(c=>View(c,null,ctx.User,Get(c,null,ctx.User,id)))).WithTags("Platforms").WithSummary("Read a scoped Ninja invoice with available server actions");
         api.MapGet("/platforms/ninja/invoices/{id}/lines",(string id,HttpContext ctx)=>store.Read(c=>{Get(c,null,ctx.User,id);return Lines(c,null,id);})).WithTags("Platforms").WithSummary("Read invoiced Ninja entitlements and expected differences");
-        api.MapPost("/platforms/ninja/invoices/{id}/classify",(string id,JsonObject input,HttpContext ctx)=>Act(store,ctx,id,(c,tx)=>Classify(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Classify an immutable Ninja deduction as company or account level");
+        api.MapPost("/platforms/ninja/invoices/{id}/classify",(string id,JsonObject input,HttpContext ctx)=>Act(store,ctx,id,(c,tx)=>Classify(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Classify a Ninja deduction with bearer allocations (company or rider+)");
         api.MapPost("/platforms/ninja/invoices/{id}/classify-batch",(string id,JsonObject input,HttpContext ctx)=>Act(store,ctx,id,(c,tx)=>ClassifyBatch(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Classify many Ninja deductions in one transaction");
+        api.MapGet("/platforms/ninja/invoices/{id}/multi-rider-deductions",(string id,HttpContext ctx)=>store.Read(c=>{Get(c,null,ctx.User,id);return InvoiceDeductionClassification.MultiRiderReport(c,null,id);})).WithTags("Platforms").WithSummary("Counts and amounts of multi-rider account deductions needing re-class (no names)");
         api.MapPost("/platforms/ninja/invoices/{id}/approve",(string id,HttpContext ctx)=>Act(store,ctx,id,(c,tx)=>Approve(c,tx,ctx.User,id))).WithTags("Platforms").WithSummary("Independently approve invoiced Ninja facts; expected differences never block");
         api.MapPost("/platforms/ninja/invoices/{id}/dispute",(string id,JsonObject input,HttpContext ctx)=>Act(store,ctx,id,(c,tx)=>Dispute(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Record an explicit formal Ninja dispute; expected differences do not create one");
         api.MapPost("/platforms/ninja/invoices/{id}/resolve",(string id,JsonObject input,HttpContext ctx)=>Act(store,ctx,id,(c,tx)=>Dispute(c,tx,ctx.User,id,input,true))).WithTags("Platforms").WithSummary("Independently resolve a formal Ninja dispute without changing invoiced amounts");

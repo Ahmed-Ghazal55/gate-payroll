@@ -30,7 +30,7 @@ public sealed class PayCycleTests
         }
     }
     static JsonObject Create(PayFixture f,JsonObject input)=>f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input));
-    internal static JsonObject Capture(PayFixture f,string id)=>f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,input:new(){["zeroKindReasons"]=new JsonObject{["vehicle_assignment"]="fixture: no vehicle assignments",["ninja_daily"]="fixture: non-ninja cycle"}}));
+    internal static JsonObject Capture(PayFixture f,string id)=>f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,input:new(){["zeroKindReasons"]=new JsonObject{["vehicle_assignment"]="fixture: no vehicle assignments",["ninja_daily"]="fixture: non-ninja cycle",["fuel_usage"]="fixture: no fuel usage rows"}}));
     internal static JsonObject Advance(PayFixture f,string id,int stage,bool checker=false)=>f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,checker?PayFixture.Checker:PayFixture.Maker,id,new(){["stage"]=stage}));
     // BR §32: stage 7 needs every row reviewed; helpers approve all ready rows unless a test reviews them itself.
     internal static JsonObject Through(PayFixture f,JsonObject input,int stage=6,bool review=true){var d=Create(f,input);Capture(f,d.S("id"));d=f.Store.Read(c=>Store.Get(c,d.S("id"),PayCycles.Kind)!);for(int s=1;s<=stage;s++)d=Advance(f,d.S("id"),s);
@@ -73,9 +73,17 @@ public sealed class PayCycleTests
      var(g,other,_d)=Setup(false);using(g){other["invoices"]![0]!["accounts"]![0]!["riders"]![0]!["rider"]=Rider(3);var d=Create(g,other);Capture(g,d.S("id"));Advance(g,d.S("id"),1);Advance(g,d.S("id"),2);Assert.ThrowsExactly<ApiError>(()=>Advance(g,d.S("id"),3));}}
     [TestMethod]
     public void NegativeNetReachesReviewAndOnlyFinalApprovalCreatesCarry()
-    {var(f,input,_)=Setup(false);using(f){var data=PayFixture.Scheme("monthly_commission");data["parameters"]!["categories"]!["sponsored_private"]!["prorate"]=false;var scheme=f.Draft("pay_scheme","hs",data,"negative");f.Approve("pay_scheme","hs",scheme);f.Store.Write((c,tx)=>{var choice=Store.Get(c,"synthetic-choice-hs1","pay_assignment",tx)!;choice["schemeId"]=scheme.S("id");Store.Save(c,"pay_assignment",choice,tx);return true;});var cycle=Through(f,input,6);Assert.AreEqual("needs_decision",cycle.S("status"));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
-        f.Store.Write((c,tx)=>PayCycles.ReviewRider(c,tx,PayFixture.Maker,cycle.S("id"),Rider(1),new(){["action"]="approve",["reason"]="Carry remaining final shortfall"}));
-        Advance(f,cycle.S("id"),7,true);Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"debt").Count));Assert.AreEqual("112507",f.Store.Read(c=>Store.List(c,"debt").Single().S("receivableAccountCode")));}}
+    {
+        // §40.6: negative net stays on the review path as ready; carry debt appears only at stage-7 approval.
+        var(f,input,_)=Setup(false);using(f)
+        {
+            var data=PayFixture.Scheme("monthly_commission");data["parameters"]!["categories"]!["sponsored_private"]!["prorate"]=false;var scheme=f.Draft("pay_scheme","hs",data,"negative");f.Approve("pay_scheme","hs",scheme);
+            f.Store.Write((c,tx)=>{var choice=Store.Get(c,"synthetic-choice-hs1","pay_assignment",tx)!;choice["schemeId"]=scheme.S("id");Store.Save(c,"pay_assignment",choice,tx);return true;});
+            var cycle=Through(f,input,6);Assert.AreEqual("review",cycle.S("status"));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
+            Assert.IsTrue(cycle["riders"]!.AsArray().OfType<JsonObject>().Any(r=>r.N("net")<0&&r.S("status")=="ready"));
+            Advance(f,cycle.S("id"),7,true);Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"debt").Count));Assert.AreEqual("112507",f.Store.Read(c=>Store.List(c,"debt").Single().S("receivableAccountCode")));
+        }
+    }
     [TestMethod]
     public void IndependentReversalAppendsJournalsRestoresDebtAndKeepsOriginalBodies()
     {var(f,input,debt)=Setup();using(f){var before=f.Store.Read(c=>Store.Get(c,debt,"debt")!.Clone());var cycle=Through(f,input);Advance(f,cycle.S("id"),7,true);Advance(f,cycle.S("id"),8,true);var journals=f.Store.Read(c=>Store.List(c,"journal").ToDictionary(j=>j.S("id"),j=>j.ToJsonString()));f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["action"]="reversal_request",["period"]="2026-11",["note"]="Synthetic corrected source"}));Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["action"]="reversal_approve"})));var reverse=f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Checker,cycle.S("id"),new(){["action"]="reversal_approve"}));Assert.AreEqual("reversed",reverse.S("status"));Assert.IsTrue(JsonNode.DeepEquals(before,f.Store.Read(c=>Store.Get(c,debt,"debt"))));foreach(var old in journals)Assert.AreEqual(old.Value,f.Store.Read(c=>Store.Get(c,old.Key,"journal")!.ToJsonString()));Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"ledger_reversal").Count));}}
@@ -88,7 +96,7 @@ public sealed class PayCycleTests
         foreach(string app in new[]{"keeta","hs"}){var data=PayFixture.Scheme("percent_monthly_with_vehicle");var scheme=f.Approve("pay_scheme",app,f.Draft("pay_scheme",app,data,"vehicle"));f.Store.Write((c,tx)=>{foreach(int i in new[]{1,2}){var choice=Store.Get(c,"synthetic-choice-"+app+i,"pay_assignment",tx)!;choice["schemeId"]=scheme.S("id");Store.Save(c,"pay_assignment",choice,tx);}return true;});}
         f.Store.Write((c,tx)=>{Store.Save(c,"vehicle",new(){["id"]="synthetic-bike",["vehicleType"]=1,["ownershipType"]=1},tx);foreach(int i in new[]{1,2})Store.Save(c,"vehicle_assignment",new(){["id"]="synthetic-bike-assignment-"+i,["vehicleId"]="synthetic-bike",["riderId"]=Rider(i),["startedAt"]="2026-10-01T00:00:00+03:00",["endedAt"]="2026-10-02T00:00:00+03:00"},tx);return true;});
         var cycle=Through(f,input);var lines=f.Store.Read(c=>PayCycles.Lines(c,null,cycle.S("id")));Assert.AreEqual(26.67m,lines.Where(l=>l.S("rider")==Rider(1)).Sum(l=>l.N("allocatedVehicleCharge")));Assert.AreEqual(162.33m,cycle["riders"]!.AsArray().Single(r=>r.S("rider")==Rider(1))!.N("net"));Advance(f,cycle.S("id"),7,true);Advance(f,cycle.S("id"),8,true);
-        var preview=f.Store.Read(c=>BankPayrollFiles.Preview(c,PayFixture.Maker,new(){["sponsorId"]=input.S("companyId"),["period"]="2026-10"}));Assert.AreEqual("posted_2110_212103_closing_payable",preview.S("basis"));Assert.AreEqual(162.33m,preview["rows"]!.AsArray().Single(r=>r.S("iqama")==Rider(1))!.N("amount"));}}
+        var preview=f.Store.Read(c=>BankPayrollFiles.Preview(c,PayFixture.Maker,new(){["sponsorId"]=input.S("companyId"),["period"]="2026-10"}));Assert.AreEqual("stage6_remainder",preview.S("basis"));Assert.AreEqual(162.33m,preview["rows"]!.AsArray().Single(r=>r.S("iqama")==Rider(1))!.N("amount"));}}
 
     [TestMethod]
     public void NormalizedUploadStaysPendingUntilIndependentCycleApproval()

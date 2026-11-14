@@ -15,7 +15,7 @@ public sealed class PlatformInvoiceWorkflow(string app)
     void Open(DbConnection c,DbTransaction? tx,JsonObject invoice)=>J.Need(!Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==invoice.S("companyId")&&p.S("period")==invoice.S("period")&&p.S("status")=="closed"),"الفترة المحاسبية مغلقة.");
     public JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject invoice)
     {
-        Scope(actor,"pay.view",invoice.S("companyId"));var result=invoice.Clone();var actions=new JsonArray();string id=invoice.S("id");
+        Scope(actor,"pay.view",invoice.S("companyId"));var result=invoice.Clone();var actions=new JsonArray();string id=invoice.S("id");bool bypass=AccessPolicy.BypassForView(c,tx,actor);
         bool unused=!Store.List(c,PayCycles.Kind,tx).Any(p=>p.S("status") is not ("cancelled" or "reversed")&&(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==id)),open=!Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==invoice.S("companyId")&&p.S("period")==invoice.S("period")&&p.S("status")=="closed");
         var parts=Lines(c,tx,id).SelectMany(l=>(l["deductions"] as JsonArray??[]).OfType<JsonObject>()).ToList();
         var disputes=Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==id).ToList();
@@ -24,20 +24,20 @@ public sealed class PlatformInvoiceWorkflow(string app)
             if(AccessPolicy.Has(actor,"pay.manage")){if(InvoiceDiscard.Can(c,tx,invoice))actions.Add("discard");if(invoice.S("approvalStatus")=="pending")actions.Add("classify");actions.Add("dispute");}
             if(AccessPolicy.Has(actor,"pay.approve"))
             {
-                bool independent=AccessPolicy.Independent(actor,invoice.S("createdBy"),"platform.invoice_approve");
-                if(open&&independent&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>d.S("level") is "company_level" or "account_level" or "rider_level"&&AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve")))actions.Add("approve");
-                if(disputes.Any(d=>d.S("status")=="open"&&AccessPolicy.Independent(actor,d.S("createdBy"),"platform.dispute_resolve")))actions.Add("resolve");
-                if(open&&independent&&invoice.S("approvalStatus")=="approved"&&invoice.S("accountingRole")=="principal"&&PlatformPosting.Enabled(c,app,tx)&&parts.All(d=>d.S("level")=="company_level")&&disputes.All(d=>d.S("status")=="resolved"))actions.Add("post");
+                bool independent=AccessPolicy.IndependentForView(actor,invoice.S("createdBy"),bypass);
+                if(open&&independent&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>InvoiceDeductionClassification.Classified(d)&&AccessPolicy.IndependentForView(actor,d.S("classifiedBy"),bypass)))actions.Add("approve");
+                if(disputes.Any(d=>d.S("status")=="open"&&AccessPolicy.IndependentForView(actor,d.S("createdBy"),bypass)))actions.Add("resolve");
+                if(open&&independent&&invoice.S("approvalStatus")=="approved"&&invoice.S("accountingRole")=="principal"&&PlatformPosting.Enabled(c,app,tx)&&parts.All(InvoiceDeductionClassification.AllCompany)&&disputes.All(d=>d.S("status")=="resolved"))actions.Add("post");
             }
         }
         var blockers=new JsonArray();
         if(InvoiceDiscard.Active(invoice)&&invoice.S("journalEntryId")==""&&unused&&invoice.S("approvalStatus")=="pending")
         {
             if(!AccessPolicy.Has(actor,"pay.approve"))blockers.Add("حسابك لا يملك صلاحية اعتماد فواتير الرواتب.");
-            if(!AccessPolicy.Independent(actor,invoice.S("createdBy"),"platform.invoice_approve"))blockers.Add("أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر (فصل الصلاحيات).");
+            if(!AccessPolicy.IndependentForView(actor,invoice.S("createdBy"),bypass))blockers.Add("أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر (فصل الصلاحيات).");
             if(!open)blockers.Add("الفترة المحاسبية مغلقة.");
-            int unclassified=parts.Count(d=>d.S("level") is not ("company_level" or "account_level" or "rider_level"));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا.");
-            int ownClass=parts.Count(d=>d.S("classifiedBy")!=""&&!AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve"));if(ownClass>0)blockers.Add($"أنت صنّفت {ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.");
+            int unclassified=parts.Count(d=>!InvoiceDeductionClassification.Classified(d));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا.");
+            int ownClass=parts.Count(d=>d.S("classifiedBy")!=""&&!AccessPolicy.IndependentForView(actor,d.S("classifiedBy"),bypass));if(ownClass>0)blockers.Add($"أنت صنّفت {ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.");
         }
         result["approvalBlockers"]=blockers;result["allowedActions"]=actions;return result;
     }
@@ -52,7 +52,13 @@ public sealed class PlatformInvoiceWorkflow(string app)
         if(invoice.S("approvalStatus")=="approved")return invoice;
         foreach(var line in Lines(c,tx,id))
         {
-            foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>()){J.Need(d.S("level") is "company_level" or "account_level" or "rider_level","صنف خصومات الشركة واليوزر أولًا.");J.Need(AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve",c,tx,invoice),"يلزم مراجع مستقل.",403);}
+            foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>())
+            {
+                InvoiceDeductionClassification.EnsureMigrated(d);
+                J.Need(d.S("migrationStatus")!=InvoiceDeductionClassification.NeedsReview,"يوجد خصم يوزر متعدد المناديب يحتاج توزيعًا صريحًا.");
+                J.Need(InvoiceDeductionClassification.AllocationsOf(d).Count>0||d.S("level") is "company_level" or "rider_level" or "account_level","صنف خصومات الفاتورة أولًا.");
+                J.Need(AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve",c,tx,invoice),"يلزم مراجع مستقل.",403);
+            }
             line["status"]="final";Store.Save(c,"platform_invoice_line",line,tx);
             PlatformDeductions.ConfirmClassified(c,tx,actor,invoice,line);
         }
@@ -79,7 +85,10 @@ public sealed class PlatformInvoiceWorkflow(string app)
         Add(Platform.Receivable,invoice.N("amountExclVat")+invoice.N("vat"),0,id);Add(PayPlatforms.Revenue(app,"principal"),0,invoice.N("amountExclVat"),id);Add("213201",0,invoice.N("vat"),id);
         foreach(var line in Lines(c,tx,id))foreach(var d in (line["deductions"] as JsonArray??[]).OfType<JsonObject>())
         {
-            J.Need(d.S("level")=="company_level","خصم اليوزر يحتاج توزيع المندوب ودورة الرواتب؛ لا ينشأ دين بالتخمين.");Add(d.Required("expenseAccount"),d.N("amount"),0,line.S("id"));Add(Platform.Receivable,0,d.N("amount"),line.S("id"),line.S("platformAccountId"));
+            InvoiceDeductionClassification.EnsureMigrated(d);
+            var companyParts=InvoiceDeductionClassification.CompanyAllocations(d).ToList();
+            J.Need(companyParts.Count>0&&InvoiceDeductionClassification.AllocationsOf(d).Count==companyParts.Count,"خصم المندوب يحتاج توزيعًا ودورة الرواتب؛ لا ينشأ دين بالتخمين.");
+            foreach(var a in companyParts){Add(a.Required("expenseAccount"),a.N("amount"),0,line.S("id"));Add(Platform.Receivable,0,a.N("amount"),line.S("id"),line.S("platformAccountId"));}
         }
         var journal=FinancialCore.PostJournal(c,tx,app+"_invoice","فاتورة المنصة المعتمدة",period,app.ToUpperInvariant()+"-INVOICE:"+id,lines,actor.Identity!.Name!,originSponsorId:company,creditorSponsorId:company,targetChart:true,payChart:true);
         invoice["journalEntryId"]=journal.S("id");invoice["accountingStatus"]="posted";Store.Save(c,"platform_invoice",invoice,tx);Store.Audit(c,tx,"platform."+app+".invoice_posted",id,actor.Identity!.Name!);return invoice;

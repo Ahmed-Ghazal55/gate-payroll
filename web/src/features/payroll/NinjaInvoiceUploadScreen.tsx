@@ -819,7 +819,7 @@ export function NinjaInvoiceUploadScreen({
         (d) => d.level !== 'company_level' && d.level !== 'account_level',
       ).length;
       if (unclassified > 0) {
-        blockers.push(`${unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على اليوزر أو على الشركة).`);
+        blockers.push(`${unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على المندوب اللي اشتغل أو على الشركة).`);
       }
       const ownClass = parts.filter(
         (d) => (d.classifiedBy || '').toLowerCase() === username,
@@ -881,7 +881,7 @@ export function NinjaInvoiceUploadScreen({
       }
       const unclassified = deductionGroups.reduce((n, g) => n + g.unclassified, 0);
       if (unclassified > 0) {
-        return { title: `صنّف ${unclassified} خصم من اللوحة أسفل الصفحة.`, detail: 'لكل نوع خصم: على اليوزر أم على الشركة.', action: nextInvoiceButton };
+        return { title: `صنّف ${unclassified} خصم من اللوحة أسفل الصفحة.`, detail: 'لكل نوع خصم: على المندوب اللي اشتغل على اليوزر أم على الشركة.', action: nextInvoiceButton };
       }
       return { title: 'الفاتورة محفوظة وتنتظر مراجعًا آخر.', detail: approvalBlockers.join(' '), action: nextInvoiceButton };
     }
@@ -1358,7 +1358,7 @@ export function NinjaInvoiceUploadScreen({
 
           {allowedActions.includes('classify') && deductionGroups.length > 0 && (
             <div id="ninja-classify-panel" className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/30 space-y-2">
-              <p className="text-xs font-bold text-[var(--ink)]">تصنيف خصومات الفاتورة: على اليوزر أم على الشركة</p>
+              <p className="text-xs font-bold text-[var(--ink)]">تصنيف خصومات الفاتورة: على المندوب اللي اشتغل على اليوزر أم على الشركة</p>
               {deductionGroups.map((group) => {
                 const level = classLevel[group.category] ?? (group.companyOnly ? 'company_level' : 'account_level');
                 return (
@@ -1378,7 +1378,7 @@ export function NinjaInvoiceUploadScreen({
                       onFocus={() => group.companyOnly && loadCostAccounts()}
                       className="px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
                     >
-                      <option value="account_level">على اليوزر</option>
+                      <option value="account_level">على المندوب اللي اشتغل على اليوزر</option>
                       <option value="company_level">على الشركة</option>
                       <option value="rider_level">على مندوب محدد</option>
                     </select>

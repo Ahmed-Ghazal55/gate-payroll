@@ -35,6 +35,50 @@ public sealed class PayEvaluatorTests
     public void CommissionFormulaShapesUseExplicitParameters(string type,int expected)
     {var result=Eval(type);Assert.AreEqual((decimal)expected,result.NetBeforePersonal);Assert.AreEqual(1100m-result.Gross,result.CompanyCommission);Assert.AreEqual("ready",result.Status);Assert.AreEqual(result.NetBeforePersonal,result.Lines.Where(l=>l.AffectsNet).Sum(l=>l.Amount));}
     [TestMethod]
+    public void PercentCommissionUsesShareAfterPlatformPenalties()
+    {
+        // §40.3: commission = % × (share − rider platform penalties), before stage-4 items.
+        var facts=Facts(gross:1000,incentive:0) with{PlatformPenalties=100m};
+        var result=Eval("percent_of_gross",facts); // companyPercent 10
+        Assert.AreEqual(90m,result.CompanyCommission);
+        Assert.AreEqual(810m,result.Gross);
+        Assert.AreEqual(810m,result.NetBeforePersonal);
+        Assert.IsTrue(result.PenaltiesInCommissionBase);
+        Assert.AreEqual(100m,result.PlatformPenalties);
+    }
+    [TestMethod]
+    public void PercentCommissionKeepsNegativePlatformShareReady()
+    {
+        // §40.3 / §40.6: a negative Ninja Final Amount stays signed and ready; the company takes NO commission on it
+        // (September sheet: الصافي بعد العمولة = Final Amount when it is negative), so the whole negative is the rider's.
+        var result=Eval("percent_of_gross",Facts(gross:-22.95m,incentive:0,orders:1,days:1));
+        Assert.AreEqual(0m,result.CompanyCommission);
+        Assert.AreEqual(-22.95m,result.Gross);
+        Assert.AreEqual(-22.95m,result.NetBeforePersonal);
+        Assert.AreEqual("ready",result.Status);
+        CollectionAssert.DoesNotContain(result.Blockers.ToArray(),"negative_net_requires_decision");
+    }
+    [TestMethod]
+    public void SalaryRiderVehicleIsCompanyExpenseNotDeducted()
+    {
+        var result=Eval("target_salary",Facts("sponsored_company_bike",vehicle:"company_bike",vehicleDays:15),p=>p["chargeCompanyVehicle"]=true);
+        Assert.IsTrue(result.SalaryOperationalExpense);
+        Assert.AreEqual(400m,result.VehicleCharge);
+        Assert.AreEqual(result.Entitlement,result.NetBeforePersonal); // rent not deducted
+        Assert.IsTrue(result.Lines.Any(l=>l.Category=="vehicle_charge"&&!l.AffectsNet&&l.AccountCode==PayExpenseAccounts.SalaryVehicle));
+        Assert.IsTrue(result.Lines.Any(l=>l.Category=="salary_fuel_expense"&&!l.AffectsNet&&l.AccountCode==PayExpenseAccounts.SalaryFuel));
+    }
+    [TestMethod]
+    public void KeetaIneligibleSalaryKeeps2292Recovery()
+    {
+        var scheme=Scheme("target_salary");scheme["data"]!["eligibilitySetId"]="synthetic-rules";
+        var cell=scheme["data"]!["parameters"]!["categories"]!["sponsored_private"]!.AsObject();cell["fallbackRate"]=1;cell["operatingCost"]=50;cell["operatingCostAccount"]="411101";
+        var result=PayEvaluator.Evaluate(Facts(metrics:new Dictionary<string,decimal?>{["validity"]=0}),scheme,Rules("per_order"),Global());
+        Assert.IsTrue(result.IneligibleKeetaSalary);
+        Assert.IsFalse(result.SalaryOperationalExpense);
+        Assert.AreEqual(50m,result.RecoveredOperatingCost);
+    }
+    [TestMethod]
     public void PercentMonthlyVehicleUsesGrossBeforeAllDeductionsAndChargesConfiguredVehicleRent()
     {var result=Eval("percent_monthly_with_vehicle",Facts("external_company_bike",gross:2000,incentive:0,days:15,vehicle:"company_bike",vehicleDays:15));Assert.AreEqual(200m,result.CompanyCommission);Assert.AreEqual(400m,result.VehicleCharge);Assert.AreEqual(1400m,result.NetBeforePersonal);}
     [TestMethod]
@@ -65,9 +109,10 @@ public sealed class PayEvaluatorTests
         var scheme=Scheme("target_salary");scheme["data"]!["eligibilitySetId"]="synthetic-rules";var missing=PayEvaluator.Evaluate(Facts(),scheme,Rules("zero"),Global());Assert.AreEqual("needs_decision",missing.Status);CollectionAssert.Contains(missing.Blockers.ToArray(),"metric_missing:validity");var foreign=Rules("zero");foreign["app"]="hs";Assert.ThrowsExactly<ApiError>(()=>PayEvaluator.Evaluate(Facts(),scheme,foreign,Global()));
     }
     [TestMethod]
-    public void NegativeNetRemainsAnExplainableDecisionWithoutAnyAutomaticDebtOrMutation()
+    public void NegativeNetIsReadyWithoutAutomaticDebtMutation()
     {
-        var scheme=Scheme();var facts=Facts(gross:100,incentive:0);var global=Global();string before=scheme.ToJsonString()+global.ToJsonString();var result=PayEvaluator.Evaluate(facts,scheme,null,global);Assert.AreEqual(-200m,result.NetBeforePersonal);Assert.AreEqual("needs_decision",result.Status);CollectionAssert.Contains(result.Blockers.ToArray(),"negative_net_requires_decision");Assert.AreEqual(before,scheme.ToJsonString()+global.ToJsonString());Assert.IsTrue(result.Lines.All(l=>l.Formula!=""&&l.Label!=""));
+        // §40.6: negative net stays ready; carry debt is created only at final approval.
+        var scheme=Scheme();var facts=Facts(gross:100,incentive:0);var global=Global();string before=scheme.ToJsonString()+global.ToJsonString();var result=PayEvaluator.Evaluate(facts,scheme,null,global);Assert.AreEqual(-200m,result.NetBeforePersonal);Assert.AreEqual("ready",result.Status);CollectionAssert.DoesNotContain(result.Blockers.ToArray(),"negative_net_requires_decision");Assert.AreEqual(before,scheme.ToJsonString()+global.ToJsonString());Assert.IsTrue(result.Lines.All(l=>l.Formula!=""&&l.Label!=""));
     }
     [TestMethod]
     public void MissingVehicleEvidenceDoesNotInferAFullMonthAndDraftSettingsAreRejected()

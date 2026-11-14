@@ -68,6 +68,9 @@ public static class LiveOperationsQuery
             P("maintenance","RiderInventoryIssueLines",r=>r.S("Id"))]));
         Add(new("vehicle_expense","maintenance","VehicleExpenses",Cols("maintenance","VehicleExpenses"),[],null,null,"RiderProfileId",true,false,false,false,[
             P("app","Vehicles",r=>r.S("VehicleId"))]));
+        // §40.4 fuel capture: FuelCardMonthlyUsages + card→rider assignments (scope via RiderProfileId).
+        Add(new("fuel_usage","app","FuelCardMonthlyUsages",Cols("app","FuelCardMonthlyUsages"),["FuelType"],null,null,"RiderProfileId",false,false,false,false,[
+            P("app","FuelCards",r=>r.S("FuelCardId")),P("app","FuelCardRiderAssignments",r=>r.S("FuelCardId"))]));
         Add(new("chefz_account","chefz","AccountDetails",Cols("chefz","AccountDetails"),["ReportIdNumber","AccountType","VehicleType","DashboardStatus"],null,null,null,false,true,false,false,[
             P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("platform","ClientPlatforms",r=>"")]));
         Add(new("chefz_account_type_change","chefz","AccountTypeChanges",Cols("chefz","AccountTypeChanges"),[],null,null,null,false,true,false,false,[
@@ -321,6 +324,9 @@ public static class LiveOperationsQuery
                 parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,2,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > DATEADD(day,-1,CONVERT(date,@pf)))");
             else if(spec.Kind=="rider_work_timeline")
                 parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,2,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > DATEADD(day,-1,CONVERT(date,@pf)))");
+            else if(spec.Kind=="fuel_usage")
+                // §40.4 / B2: ReportMonth is a date; keep the cycle month only (no silent all-months pull).
+                parts.Add($"{prefix}[ReportMonth] >= CONVERT(date,@pf) AND {prefix}[ReportMonth] < DATEADD(day,1,CONVERT(date,@pt))");
         }
         if(page.PlatformApp.Length>0&&spec.Kind is "platform_account" or "ninja_daily" or "ninja_daily_deduction" or "chefz_daily" or "rider_work_timeline" or "platform_day_usage")
         {

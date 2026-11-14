@@ -40,7 +40,8 @@ public sealed class HousingChargeTests
                 return true;
             });
             var cycle=PayCycleTests.Through(f,input,6);
-            Assert.AreEqual("needs_decision",cycle.S("status"));
+            // §40.6: a negative net is no longer a decision blocker; it carries to debt at final approval.
+            Assert.AreEqual("review",cycle.S("status"));
             Assert.IsTrue(cycle["riders"]!.AsArray().OfType<JsonObject>().Any(r=>r.N("net")<0));
             Assert.AreEqual(0,cycle["deductions"]!.AsArray().OfType<JsonObject>().Count(d=>d.S("type")=="housing"));
         }

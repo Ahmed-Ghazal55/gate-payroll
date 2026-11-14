@@ -580,11 +580,10 @@ try {
       headers: { Cookie: cookieB },
     });
     const cyclesData = await cyclesRes.json();
-    assert.ok(['review', 'needs_decision'].includes((cyclesData.items || cyclesData)[0].status), 'A negative captain must stay reviewable');
+    assert.ok(['review', 'needs_decision'].includes((cyclesData.items || cyclesData)[0].status), 'Cycle stays on the review path through stage 4');
     cycleId = (cyclesData.items || cyclesData)[0]?.id;
     assert.ok(cycleId, 'Cycle must exist in API');
-    // R9: a negative row must reach the review grid. Drive the real API while the
-    // frontend stepper is upgraded to the server's allowedActions and stage 8.
+    // §40.6: negative net no longer blocks merge; stages 5–6 advance and the row stays on the review grid as ready.
     for (const stage of [5, 6]) {
       const response = await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(cycleId)}/advance`, {
         method: 'POST', headers: { Cookie: cookieB, 'Content-Type': 'application/json' },
@@ -596,7 +595,7 @@ try {
     const reviewResponse = await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(cycleId)}/review`, { headers: { Cookie: cookieB } });
     assert.equal(reviewResponse.status, 200);
     const review = await reviewResponse.json();
-    assert.ok(review.rows.some((r) => r.net < 0 && r.status === 'needs_decision'), 'Negative captain remains visible for review before final approval');
+    assert.ok(review.rows.some((r) => r.net < 0 && r.status === 'ready'), 'Negative captain is ready on the review grid; carry posts at final approval (§40.6)');
     console.log('✓ Active cycle id verified from API:', cycleId);
 
     await context.close();

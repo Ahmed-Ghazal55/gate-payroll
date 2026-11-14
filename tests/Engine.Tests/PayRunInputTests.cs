@@ -131,7 +131,8 @@ public sealed class PayRunInputTests
             var staged=new Dictionary<string,List<JsonObject>>(StringComparer.Ordinal)
             {
                 ["platform_account"]=[new(){["id"]="a1",["companyId"]=FinancialCore.Sponsors[0].Id,["platformCode"]="keeta",["assignments"]=new JsonArray()}],
-                ["housing_residence"]=[]
+                ["housing_residence"]=[],
+                ["fuel_usage"]=[]
             };
             var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,liveRows:kind=>staged.TryGetValue(kind,out var rows)?rows:throw new ApiError("مصدر التقاط ناقص لنوع: "+kind,503),input:new(){["zeroKindReasons"]=new JsonObject{["vehicle_assignment"]="n/a",["ninja_daily"]="n/a"}})));
             Assert.AreEqual(503,err.Status);
@@ -150,7 +151,8 @@ public sealed class PayRunInputTests
                 ["platform_account"]=[new(){["id"]="scoped-a",["companyId"]=FinancialCore.Sponsors[0].Id,["platformCode"]="keeta",["assignments"]=new JsonArray()}],
                 ["vehicle_assignment"]=[new(){["id"]="va-s",["riderId"]=Rider(1),["vehicleId"]="v1",["startedAt"]="2026-10-01T00:00:00+03:00",["endedAt"]=""}],
                 ["housing_residence"]=[],
-                ["vehicle"]=[new(){["id"]="v1",["vehicleType"]=1,["ownershipType"]=1}]
+                ["vehicle"]=[new(){["id"]="v1",["vehicleType"]=1,["ownershipType"]=1}],
+                ["fuel_usage"]=[]
             };
             Func<string,IEnumerable<JsonObject>> live=kind=>staged[kind];
             var a=f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,liveRows:live));

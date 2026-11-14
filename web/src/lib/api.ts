@@ -1680,6 +1680,8 @@ export const api = {
   getDebtDeductions: (cycleId: string) => handleRequest<DebtDeductionsView>(`/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`),
   actDebtDeductions: (cycleId: string, body: { action: 'edit'; rider: string; key: string; amount: number; reason?: string } | { action: 'confirm'; rider: string } | { action: 'confirm-all' }) =>
     handleRequest<DebtDeductionsView>(`/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`, { method: 'POST', body: JSON.stringify(body) }),
+  renameUser: (id: string, username: string, reason: string) =>
+    handleRequest<ApiResp<'/api/users/{id}/username', 'put'>>(`/users/${encodeURIComponent(id)}/username`, { method: 'PUT', body: JSON.stringify({ username, reason }) }),
   resetUserPassword: (id: string, password: string) =>
     handleRequest<unknown>(`/users/${encodeURIComponent(id)}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
   changeMyPassword: (currentPassword: string, newPassword: string) =>

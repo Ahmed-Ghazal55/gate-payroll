@@ -79,11 +79,13 @@ public static class PayReviewDraft
                     decimal erpOrders=rows.Sum(d=>d.N("orders"));
                     if(rows.Count>0&&erpOrders!=line.N("orders"))Warn("orders_variance",erpOrders>line.N("orders")?"طلبات ERP أعلى من الفاتورة؛ راجع المصدر. الفاتورة هي المعتمدة.":"طلبات ERP أقل من الفاتورة؛ الفاتورة هي المعتمدة.",source,erpOrders,line.N("orders"));
                     decimal accountDeduction=(line["deductions"] as JsonArray??[]).OfType<JsonObject>().Where(d=>d.S("level")=="account_level").Sum(d=>d.N("amount"));
-                    // A multi-operator split is proposed from ERP's share but never accepted without a reviewer.
+                    // A multi-operator split is proposed from ERP's share but never accepted without a reviewer (§40.2).
                     var groups=rows.GroupBy(d=>d.S("riderId")).ToList();
                     if(groups.Count>1)
                     {
-                        proposals.Add(new JsonObject{["sourceLineId"]=source,["accountId"]=accountId,["riders"]=PayReviewCategory.Propose(groups.Select(g=>(g.Key,g.Sum(d=>d.N("orders")))).OrderBy(x=>x.Key,StringComparer.Ordinal).ToList(),line.N("orders"),line.N("baseGross"),accountDeduction)});
+                        var (weight,tie)=PayReviewCategory.AllocationSetting(c,tx,"ninja",period);
+                        var metrics=groups.Select(g=>new PayReviewCategory.OperatorMetrics(g.Key,g.Sum(d=>d.N("orders")),g.Select(d=>d.S("date")[..10]).Distinct().Count(),1m,0m)).OrderBy(x=>x.Rider,StringComparer.Ordinal).ToList();
+                        proposals.Add(new JsonObject{["sourceLineId"]=source,["accountId"]=accountId,["weight"]=weight,["tieBreak"]=tie,["riders"]=PayReviewCategory.Propose(metrics,line.N("orders"),line.N("baseGross"),accountDeduction,weight,tie)});
                         Block("allocation_required","يوجد أكثر من مشغل؛ راجع التوزيع المقترح ثم استورده.","import_operations",source);continue;
                     }
                     string riderId=onlyAssigned??groups.Single().Key;

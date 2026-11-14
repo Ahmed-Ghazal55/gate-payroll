@@ -24,10 +24,10 @@ public static class PayRunInputs
 
     public static IReadOnlyList<string> KindsForApp(string app)=>app switch
     {
-        "ninja"=>["ninja_daily","platform_account","vehicle_assignment","housing_residence","vehicle"],
-        "chefz"=>["platform_account","vehicle_assignment","housing_residence","vehicle"],
-        "keeta" or "hs" or "jahez"=>["platform_account","vehicle_assignment","housing_residence","vehicle"],
-        _=>["platform_account","vehicle_assignment","housing_residence","vehicle"]
+        "ninja"=>["ninja_daily","platform_account","vehicle_assignment","housing_residence","vehicle","fuel_usage"],
+        "chefz"=>["platform_account","vehicle_assignment","housing_residence","vehicle","fuel_usage"],
+        "keeta" or "hs" or "jahez"=>["platform_account","vehicle_assignment","housing_residence","vehicle","fuel_usage"],
+        _=>["platform_account","vehicle_assignment","housing_residence","vehicle","fuel_usage"]
     };
 
     public static void Ensure(DbConnection c,DbTransaction? tx=null)
