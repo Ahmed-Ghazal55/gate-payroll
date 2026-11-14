@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:43725/"
+      "url": "http://127.0.0.1:33413/"
     }
   ],
   "paths": {
@@ -4218,7 +4218,7 @@
         "tags": [
           "Platforms"
         ],
-        "summary": "Classify an immutable Ninja deduction as company or account level",
+        "summary": "Classify a Ninja deduction with bearer allocations (company or rider+)",
         "parameters": [
           {
             "name": "id",
@@ -4483,6 +4483,240 @@
           },
           "required": true
         },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "companyId",
+                    "period",
+                    "amountExclVat",
+                    "deductionsTotal",
+                    "vat",
+                    "status",
+                    "approvalStatus",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "amountExclVat": {
+                      "type": "number"
+                    },
+                    "deductionsTotal": {
+                      "type": "number"
+                    },
+                    "vat": {
+                      "type": "number"
+                    },
+                    "approvalStatus": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "accountingStatus": {
+                      "type": "string"
+                    },
+                    "reversalJournalEntryId": {
+                      "type": "string"
+                    },
+                    "disputes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "status",
+                          "reason",
+                          "createdBy"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "resolvedBy": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "accountIds": {
+                      "type": [
+                        "null",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "invoiceId",
+                          "sourceRow",
+                          "baseGross",
+                          "incentives",
+                          "deductionAmount",
+                          "orders",
+                          "vat",
+                          "invoiced",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "invoiceId": {
+                            "type": "string"
+                          },
+                          "sourceRow": {
+                            "type": "number"
+                          },
+                          "platformAccountId": {
+                            "type": "string"
+                          },
+                          "captainId": {
+                            "type": "string"
+                          },
+                          "lineType": {
+                            "type": "string"
+                          },
+                          "baseGross": {
+                            "type": "number"
+                          },
+                          "incentives": {
+                            "type": "number"
+                          },
+                          "deductionAmount": {
+                            "type": "number"
+                          },
+                          "orders": {
+                            "type": "number"
+                          },
+                          "vat": {
+                            "type": "number"
+                          },
+                          "expected": {
+                            "type": "number"
+                          },
+                          "invoiced": {
+                            "type": "number"
+                          },
+                          "difference": {
+                            "type": "number"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "deductions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "category",
+                                "amount",
+                                "level"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                },
+                                "level": {
+                                  "type": "string"
+                                },
+                                "expenseAccount": {
+                                  "type": "string"
+                                },
+                                "riderId": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platforms/ninja/invoices/{id}/multi-rider-deductions": {
+      "get": {
+        "tags": [
+          "Platforms"
+        ],
+        "summary": "Counts and amounts of multi-rider account deductions needing re-class (no names)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response (stored wire field names)",
@@ -11950,6 +12184,86 @@
         }
       }
     },
+    "/api/pay/shared-riders": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Queue of shared multi-app riders awaiting consolidation (مندوب عمل مشترك)",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JsonObject"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/shared-riders/{rider}/{period}/release": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Approver releases a held shared rider with a reason",
+        "parameters": [
+          {
+            "name": "rider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pay/review-draft": {
       "get": {
         "tags": [
@@ -12501,6 +12815,50 @@
                               },
                               "direction": {
                                 "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "fuelCardId": {
+                                "type": "string"
+                              },
+                              "month": {
+                                "type": "string"
+                              },
+                              "period": {
+                                "type": "string"
+                              },
+                              "liters": {
+                                "type": "string"
+                              },
+                              "amount": {
+                                "type": "number"
+                              },
+                              "totalAmount": {
+                                "type": "string"
+                              },
+                              "amountBeforeTax": {
+                                "type": "string"
+                              },
+                              "vat": {
+                                "type": "number"
+                              },
+                              "fuelType": {
+                                "type": "number"
                               }
                             }
                           },
@@ -13388,6 +13746,50 @@
                               },
                               "direction": {
                                 "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "fuelCardId": {
+                                "type": "string"
+                              },
+                              "month": {
+                                "type": "string"
+                              },
+                              "period": {
+                                "type": "string"
+                              },
+                              "liters": {
+                                "type": "string"
+                              },
+                              "amount": {
+                                "type": "number"
+                              },
+                              "totalAmount": {
+                                "type": "string"
+                              },
+                              "amountBeforeTax": {
+                                "type": "string"
+                              },
+                              "vat": {
+                                "type": "number"
+                              },
+                              "fuelType": {
+                                "type": "number"
                               }
                             }
                           },

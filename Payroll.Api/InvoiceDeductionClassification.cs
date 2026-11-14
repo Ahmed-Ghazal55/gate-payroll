@@ -149,7 +149,19 @@ public static class InvoiceDeductionClassification
         rider=J.Iqama(rider);var person=Store.Get(c,rider,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(actor,person);
         string app=PayPlatforms.For(invoice.S("platform")).App,period=invoice.S("period");var month=DateTimeOffset.Parse(period+"-01T00:00:00+03:00",CultureInfo.InvariantCulture);
         string accountId=line.S("platformAccountId");
-        J.Need(ErpRiderClassification.ListedAsRider(person)&&Store.List(c,"platform_account",tx).Any(a=>a.S("id")==accountId&&a.S("companyId")==invoice.S("companyId")&&PayPlatforms.For(a.S("platformCode")).App==app&&(a["assignments"] as JsonArray??[]).OfType<JsonObject>().Any(x=>x.S("riderId")==rider&&AssignmentSpan.Overlaps(x,month,month.AddMonths(1)))),"المندوب ليس مشغلًا فعليًا لليوزر في السجل والشهر.");
+        IEnumerable<JsonObject> accounts=Store.List(c,"platform_account",tx).Where(a=>a.S("companyId")==invoice.S("companyId")&&PayPlatforms.For(a.S("platformCode")).App==app);
+        if(accountId!="")accounts=accounts.Where(a=>a.S("id")==accountId);
+        else
+        {
+            // Company / supplier lines have no platformAccountId — resolve via captain on this invoice.
+            string captain=line.S("captainId");
+            var captainAccounts=Store.List(c,"platform_invoice_line",tx)
+                .Where(l=>l.S("invoiceId")==invoice.S("id")&&l.S("captainId")==captain&&l.S("platformAccountId")!="")
+                .Select(l=>l.S("platformAccountId")).ToHashSet(StringComparer.Ordinal);
+            if(captainAccounts.Count>0)accounts=accounts.Where(a=>captainAccounts.Contains(a.S("id")));
+            else if(captain!="")accounts=accounts.Where(a=>a.S("externalAccountId")==captain||a.S("ExternalAccountId")==captain);
+        }
+        J.Need(ErpRiderClassification.ListedAsRider(person)&&accounts.Any(a=>(a["assignments"] as JsonArray??[]).OfType<JsonObject>().Any(x=>x.S("riderId")==rider&&AssignmentSpan.Overlaps(x,month,month.AddMonths(1)))),"المندوب ليس مشغلًا فعليًا لليوزر في السجل والشهر.");
     }
 
     static void Money(JsonObject row,string key){decimal n=row.N(key);J.Need(n==J.Money(n)&&n>=0,"المبلغ بدقة هللتين.");}

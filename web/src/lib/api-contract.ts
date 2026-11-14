@@ -3921,7 +3921,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Classify an immutable Ninja deduction as company or account level */
+        /** Classify a Ninja deduction with bearer allocations (company or rider+) */
         post: {
             parameters: {
                 query?: never;
@@ -4092,6 +4092,95 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platforms/ninja/invoices/{id}/multi-rider-deductions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Counts and amounts of multi-rider account deductions needing re-class (no names) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            platform?: string;
+                            period: string;
+                            reference?: string;
+                            amountExclVat: number;
+                            deductionsTotal: number;
+                            vat: number;
+                            approvalStatus: string;
+                            status: string;
+                            allowedActions: string[];
+                            approvalBlockers?: string[];
+                            journalEntryId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            accountingStatus?: string;
+                            reversalJournalEntryId?: string;
+                            disputes?: {
+                                id: string;
+                                status: string;
+                                reason: string;
+                                createdBy: string;
+                                resolvedBy?: string;
+                            }[];
+                            accountIds?: null | string[];
+                            lines?: {
+                                id: string;
+                                invoiceId: string;
+                                sourceRow: number;
+                                platformAccountId?: string;
+                                captainId?: string;
+                                lineType?: string;
+                                baseGross: number;
+                                incentives: number;
+                                deductionAmount: number;
+                                orders: number;
+                                vat: number;
+                                expected?: number;
+                                invoiced: number;
+                                difference?: number;
+                                reason?: string;
+                                status: string;
+                                deductions?: {
+                                    category: string;
+                                    amount: number;
+                                    level: string;
+                                    expenseAccount?: string;
+                                    riderId?: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7645,6 +7734,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pay/shared-riders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Queue of shared multi-app riders awaiting consolidation (مندوب عمل مشترك) */
+        get: {
+            parameters: {
+                query?: {
+                    period?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/shared-riders/{rider}/{period}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approver releases a held shared rider with a reason */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    rider: string;
+                    period: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pay/review-draft": {
         parameters: {
             query?: never;
@@ -7829,6 +7999,19 @@ export interface paths {
                                 eventTypeCode?: string;
                                 occurredAt?: string;
                                 direction?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                fuelCardId?: string;
+                                month?: string;
+                                period?: string;
+                                liters?: string;
+                                amount?: number;
+                                totalAmount?: string;
+                                amountBeforeTax?: string;
+                                vat?: number;
+                                fuelType?: number;
                             } | {
                                 id: string;
                                 code?: string;
@@ -8106,6 +8289,19 @@ export interface paths {
                                 eventTypeCode?: string;
                                 occurredAt?: string;
                                 direction?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                fuelCardId?: string;
+                                month?: string;
+                                period?: string;
+                                liters?: string;
+                                amount?: number;
+                                totalAmount?: string;
+                                amountBeforeTax?: string;
+                                vat?: number;
+                                fuelType?: number;
                             } | {
                                 id: string;
                                 code?: string;

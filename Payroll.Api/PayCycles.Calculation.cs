@@ -36,8 +36,8 @@ public static partial class PayCycles
             decimal penalties=rows.Sum(r=>r.N("deduction"));
             var result=PayEvaluator.Evaluate(new(rider,app,period,category,rows.Sum(r=>(int)r.N("orders")),rows.Sum(r=>r.N("baseGross")),rows.Sum(r=>r.N("incentive")),rows[0].N("days"),vehicle.Type,vehicle.Days,metrics,chefzFee,penalties),scheme,rules,global);
             var doc=Json(result);doc["id"]="pay-line:"+Guid.NewGuid().ToString("N");doc["cycleId"]=cycle.S("id");doc["companyId"]=cycle.S("companyId");doc["schemeId"]=scheme.S("id");doc["schemeName"]=scheme["data"].S("name");doc["globalSettingId"]=global.S("id");doc["assignmentId"]=assignment.S("id");doc["termsId"]=PaySettings.Resolve(c,tx,"pay_terms",app,period).S("id");doc["sources"]=new JsonArray(rows.Select(r=>(JsonNode?)r.Clone()).ToArray());doc["vehicleSources"]=vehicle.Sources;
-            // §40.3 percent: penalties already in commission base — do not subtract again at Merge.
-            doc["accountDeduction"]=result.PenaltiesInCommissionBase?0:penalties;doc["platformPenalties"]=penalties;
+            // §40.3 percent: penalties already in commission base — do not subtract again at Merge or in PostEarnings source.deduction.
+            doc["accountDeduction"]=result.PenaltiesInCommissionBase?0:penalties;doc["platformPenalties"]=penalties;doc["penaltiesInCommissionBase"]=result.PenaltiesInCommissionBase;
             doc["vehicleType"]=vehicle.Type;Store.Save(c,LineKind,doc,tx);
         }
         if(Lines(c,tx,cycle.S("id")).Any(l=>l.S("status")!="ready"))cycle["status"]="needs_decision";
@@ -124,7 +124,8 @@ public static partial class PayCycles
             foreach(var debt in Store.List(c,"debt",tx).Where(d=>d.S("iqama")==rider&&d.S("status")=="active"&&d.N("remainingBalance")>0&&!PlatformDeductions.Skip(tags,d)&&string.CompareOrdinal(d.S("effectiveFrom","0000-00"),period)<=0&&string.CompareOrdinal(d.S("lastDeductionPeriod"),period)<0&&!(residenceDays>0&&d.S("category")=="HousingDeduction")).OrderBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Phase).ThenBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Order).ThenBy(d=>d.S("createdAt")).ThenBy(d=>d.S("id")))
             {
                 decimal amount=J.Money(debt.S("category")=="FuelOverage"&&debt.S("effectiveFrom")==period&&group.Any(l=>l.B("ineligibleKeetaSalary"))?debt.N("remainingBalance"):Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment")));FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);var dp=ConfigLists.Phase(c,tx,debt.S("category"));
-                bool thisMonth=debt.S("effectiveFrom")==period;
+                // §40.4 stage-4 sources are month-created operational debts; NegativeSalaryCarryover stays stage 8 (§40.6 instalment / confirm).
+                bool thisMonth=debt.S("effectiveFrom")==period&&debt.S("category")!="NegativeSalaryCarryover";
                 if(thisMonth)
                 {
                     decimal take=J.Money(Math.Min(amount,Math.Max(0,available)));
@@ -263,12 +264,28 @@ public static partial class PayCycles
         foreach(var line in Lines(c,tx,cycle.S("id")).Where(l=>selected.Contains(l.S("rider"))))
         {
             string app=line.S("app"),rider=line.S("rider"),id=line.S("id");decimal total=line.N("platformGross")+line.N("incentives"),earned=line.N("gross");string recv=PayPlatforms.For(app).Receivable;
-            foreach(var source in Rows(line["sources"]).OfType<JsonObject>())Add(recv,source.N("baseGross")+source.N("incentive"),0,app,rider,source.S("sourceLineId"),source.S("accountId"));
-            if(line.S("accountingRole")=="agent"){Add("212103",0,earned,app,rider,id);Add(PayPlatforms.Revenue(app,"agent"),0,total-earned,app,rider,id);}else{Add(PayPlatforms.Revenue(app,"principal"),0,total,app,rider,id);Add(accounts.S("salaryExpense"),earned,0,app,rider,id);Add("212103",0,earned,app,rider,id);}
+            bool penaltiesInBase=line.B("penaltiesInCommissionBase");
+            foreach(var source in Rows(line["sources"]).OfType<JsonObject>())
+            {
+                decimal grossPart=source.N("baseGross")+source.N("incentive"),ded=source.N("deduction");
+                // §40.3 percent: Gross/212103 already net of penalties — take receivable net of ded (skip the 212103↔recv deduction pair).
+                if(penaltiesInBase)Add(recv,grossPart-ded,0,app,rider,source.S("sourceLineId"),source.S("accountId"));
+                else
+                {
+                    Add(recv,grossPart,0,app,rider,source.S("sourceLineId"),source.S("accountId"));
+                    Add("212103",ded,0,app,rider,source.S("sourceLineId"),source.S("accountId"));Add(recv,0,ded,app,rider,source.S("sourceLineId"),source.S("accountId"));
+                }
+            }
+            if(line.S("accountingRole")=="agent"){Add("212103",0,earned,app,rider,id);Add(PayPlatforms.Revenue(app,"agent"),0,total-earned,app,rider,id);}
+            else
+            {
+                // §40.3: revenue matches receivable intake (gross − platform penalties already in commission base).
+                decimal revenue=penaltiesInBase?J.Money(total-line.N("platformPenalties")):total;
+                Add(PayPlatforms.Revenue(app,"principal"),0,revenue,app,rider,id);Add(accounts.S("salaryExpense"),earned,0,app,rider,id);Add("212103",0,earned,app,rider,id);
+            }
             decimal rent=line.N("allocatedVehicleCharge"),cost=line.N("operatingCost"),deduction=line.N("accountDeduction");
             Add("212103",line.N("recoveredOperatingCost",cost),0,app,rider,id);Add("512121",line.N("unrecoveredOperatingCost"),0,app,rider,id);Add(line.S("operatingCostAccount"),0,cost,app,rider,id);
             string vehicleIncome=accounts.S(line.S("vehicleType")=="company_car"?"vehicleIncomeCar":"vehicleIncomeBike");Add("212103",rent,0,app,rider,id);Add("512121",line.N("unrecoveredVehicleCharge"),0,app,rider,id);Add(vehicleIncome,0,rent+line.N("unrecoveredVehicleCharge"),app,rider,id);
-            foreach(var source in Rows(line["sources"]).OfType<JsonObject>()){Add("212103",source.N("deduction"),0,app,rider,source.S("sourceLineId"),source.S("accountId"));Add(recv,0,source.N("deduction"),app,rider,source.S("sourceLineId"),source.S("accountId"));}
         }
         foreach(var invoice in Rows(cycle["invoices"]).OfType<JsonObject>().Where(_=>first))
         {
