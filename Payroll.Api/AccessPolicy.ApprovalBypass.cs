@@ -29,7 +29,11 @@ public static partial class AccessPolicy
         =>actor.Identity?.IsAuthenticated==true&&!string.IsNullOrWhiteSpace(actor.Identity.Name)&&ActiveBypassGrant(c,tx,actor.Identity.Name)!=null;
     /// <summary>View-time maker-checker: another user, or the actor holds an active bypass grant. The approve action still audits via <c>Independent(...,c,tx,record)</c>.</summary>
     public static bool IndependentForView(ClaimsPrincipal actor,string maker,bool bypass)
-        =>!string.Equals(actor.Identity?.Name,maker,StringComparison.OrdinalIgnoreCase)||bypass;
+        =>!SamePerson(actor,maker)||bypass;
+    /// <summary>Maker-checker identity: the actor's current username or any former username (after a rename) counts as the same person.</summary>
+    public static bool SamePerson(ClaimsPrincipal actor,string maker)
+        =>!string.IsNullOrWhiteSpace(maker)&&(string.Equals(actor.Identity?.Name,maker,StringComparison.OrdinalIgnoreCase)
+            ||actor.FindAll(UserAccess.FormerUsernameClaim).Any(c=>string.Equals(c.Value,maker,StringComparison.OrdinalIgnoreCase)));
     public static JsonObject GrantBypass(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)
     {
         J.Need(Administrator(actor)||Has(actor,"users.manage"),"منح تجاوز الاعتماد لمدير الصلاحيات فقط.",403);

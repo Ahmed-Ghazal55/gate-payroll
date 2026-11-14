@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:43725/"
+      "url": "http://127.0.0.1:42755/"
     }
   ],
   "paths": {
@@ -15297,6 +15297,46 @@
         "parameters": [
           {
             "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}/username": {
+      "put": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Rename a login (admin only); old names stay reserved and keep maker-checker history; ends the user's sessions",
+        "parameters": [
+          {
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {

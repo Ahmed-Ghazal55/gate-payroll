@@ -384,6 +384,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/users/{id}/reset-password` | Payroll.Api/UserAccess.cs:466 | Admin / SuperAdmin | old UI | keep |
 | PUT | `/api/roles/{code}/permissions` | Payroll.Api/UserAccess.cs:483 | see AccessPolicy + handler | old UI | keep |
 | PUT | `/api/users/{id}` | Payroll.Api/UserAccess.cs:495 | Admin / SuperAdmin | none | new |
+| PUT | `/api/users/{id}/username` | Payroll.Api/UserAccess.cs:522 | Admin / SuperAdmin | admin user dialog | new |
 | PUT | `/api/users/{id}/status` | Payroll.Api/UserAccess.cs:496 | Admin / SuperAdmin | old UI | keep |
 
 ## Compatibility and deprecations

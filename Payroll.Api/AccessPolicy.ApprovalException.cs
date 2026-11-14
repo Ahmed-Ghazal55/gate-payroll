@@ -15,7 +15,7 @@ public static partial class AccessPolicy
     // the same transaction and stamps the operation's actual stored document.
     public static bool Independent(ClaimsPrincipal actor,string maker,string operation,DbConnection? c=null,DbTransaction? tx=null,JsonObject? record=null,DateTimeOffset? evidenceAt=null)
     {
-        if(!string.Equals(actor.Identity?.Name,maker,StringComparison.OrdinalIgnoreCase))return true;
+        if(!SamePerson(actor,maker))return true;
         if(evidenceAt is {} approved)
         {
             // Historical evidence: keep dated ghazal rows and new bypass audits valid.
