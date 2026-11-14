@@ -5,6 +5,11 @@ namespace Payroll;
 
 public static partial class PayCycles
 {
+    static string FuelMonth(JsonObject fuel)
+    {
+        string m=fuel.S("month",fuel.S("period",fuel.S("ReportMonth")));
+        return m.Length>=7?m[..7]:m;
+    }
     static (string Type,decimal Days,JsonArray Sources) Vehicle(DbConnection c,DbTransaction tx,JsonObject cycle,string rider,string period,string category,JsonObject values)
     {
         string type=category.EndsWith("_company_car",StringComparison.Ordinal)?"company_car":category.EndsWith("_company_bike",StringComparison.Ordinal)?"company_bike":"private";var sources=new JsonArray();if(type=="private")return(type,0,sources);
@@ -140,9 +145,9 @@ public static partial class PayCycles
                 }
             }
             // Captured fuel_usage (ERP FuelCardMonthlyUsages) for the cycle month → stage 4.
-            foreach(var fuel in CycleOps(c,tx,cycle,"fuel_usage").Where(f=>f.S("riderId")==rider&&f.S("month",f.S("period"))==period))
+            foreach(var fuel in CycleOps(c,tx,cycle,"fuel_usage").Where(f=>f.S("riderId")==rider&&FuelMonth(f)==period))
             {
-                decimal fuelAmt=J.Money(fuel.N("amount",fuel.N("totalAmount")));if(fuelAmt<=0)continue;
+                decimal fuelAmt=J.Money(fuel.N("amount",fuel.N("totalAmount",fuel.N("TotalAmount"))));if(fuelAmt<=0)continue;
                 decimal cap=group.Max(l=>l.N("fuelCap"));bool salary=group.All(l=>l.B("salaryOperationalExpense")||(l.S("schemeType")=="target_salary"&&!l.B("ineligibleKeetaSalary")));
                 decimal companyPart=salary?Math.Min(fuelAmt,cap>0?cap:fuelAmt):0,riderPart=fuelAmt-companyPart;
                 if(companyPart>0)deductions.Add(new JsonObject{["rider"]=rider,["category"]="FuelExpense",["amount"]=0,["companyCost"]=companyPart,["source"]=fuel.S("id"),["accountCode"]=PayExpenseAccounts.SalaryFuel,["type"]="company_expense",["phase"]=1,["order"]=15,["labelAr"]="مصروف وقود لمندوب الراتب",["month"]=period,["affectsNet"]=false});

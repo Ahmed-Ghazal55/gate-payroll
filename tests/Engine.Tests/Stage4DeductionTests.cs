@@ -56,6 +56,39 @@ public sealed class Stage4DeductionTests
     }
 
     [TestMethod]
+    public void FuelUsagePreviewSqlFiltersReportMonth()
+    {
+        // B2: capture period must constrain FuelCardMonthlyUsages.ReportMonth in SQL.
+        var page=new ErpImport.LiveOperationsQuery.PageRequest(1,50,"id","",0,50,"","2026-10-01","2026-10-31","ninja","");
+        var (countSql,pageSql,_)=ErpImport.LiveOperationsQuery.PreviewSql("fuel_usage",new ErpImport.LiveOperationsQuery.Scope(true,[],[],[],[]),page);
+        StringAssert.Contains(countSql,"[ReportMonth]");
+        StringAssert.Contains(countSql,"@pf");
+        StringAssert.Contains(pageSql,"[ReportMonth]");
+    }
+
+    [TestMethod]
+    public void ErpShapedFuelUsageBecomesStage4Amount()
+    {
+        // B2: ERP column names (ReportMonth / TotalAmount) project into a non-zero stage-4 fuel row.
+        var(f,input,_)=PayCycleTests.Setup(false);using(f)
+        {
+            string company=input.S("companyId"),rider="2000000001";
+            // Capture re-projects via Operations.Project — seed FieldMap keys the capture filter accepts,
+            // and keep ERP aliases so Calculation's TotalAmount / ReportMonth fallbacks stay covered.
+            f.Store.Write((c,tx)=>
+            {
+                Store.Save(c,"fuel_usage",new(){["id"]="syn-fuel-erp",["riderId"]=rider,["companyId"]=company,["month"]="2026-10",["period"]="2026-10",["amount"]=80,["totalAmount"]=80,["ReportMonth"]="2026-10-01",["TotalAmount"]=80,["fuelCardId"]="card-1"},tx);
+                return true;
+            });
+            var cycle=PayCycleTests.Through(f,input);
+            var fuel=cycle["deductions"]!.AsArray().OfType<JsonObject>().Where(d=>d.S("source")=="syn-fuel-erp").ToList();
+            Assert.IsTrue(fuel.Count>=1);
+            Assert.AreEqual(-80m,fuel.Sum(d=>d.N("amount")));
+            Assert.IsTrue(fuel.All(d=>d.S("type") is "stage4" or "company_expense"));
+        }
+    }
+
+    [TestMethod]
     public void ThisMonthAdvanceWithZeroInstalmentSettlesInFullAtApproval()
     {
         // M4 + B1: month item takes remaining (instalment 0); approval posts Dr 212103 / Cr receivable and reduces the debt.

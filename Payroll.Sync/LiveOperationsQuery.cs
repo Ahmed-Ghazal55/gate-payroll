@@ -324,6 +324,9 @@ public static class LiveOperationsQuery
                 parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,2,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > DATEADD(day,-1,CONVERT(date,@pf)))");
             else if(spec.Kind=="rider_work_timeline")
                 parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,2,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > DATEADD(day,-1,CONVERT(date,@pf)))");
+            else if(spec.Kind=="fuel_usage")
+                // §40.4 / B2: ReportMonth is a date; keep the cycle month only (no silent all-months pull).
+                parts.Add($"{prefix}[ReportMonth] >= CONVERT(date,@pf) AND {prefix}[ReportMonth] < DATEADD(day,1,CONVERT(date,@pt))");
         }
         if(page.PlatformApp.Length>0&&spec.Kind is "platform_account" or "ninja_daily" or "ninja_daily_deduction" or "chefz_daily" or "rider_work_timeline" or "platform_day_usage")
         {
