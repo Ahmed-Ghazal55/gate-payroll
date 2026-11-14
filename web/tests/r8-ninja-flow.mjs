@@ -521,11 +521,16 @@ try {
 
     const createCycleBtn = page.locator('button:has-text("إنشاء دورة الرواتب")');
     await createCycleBtn.waitFor({ state: 'visible', timeout: 8000 });
-    await createCycleBtn.click();
+    // Wait for the create POST itself: reading the list right after the click raced the write.
+    const [createResponse] = await Promise.all([
+      page.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname.endsWith('/api/pay/cycles'), { timeout: 15000 }),
+      createCycleBtn.click(),
+    ]);
+    assert.equal(createResponse.status(), 200, `create cycle must succeed: ${await createResponse.text()}`);
     console.log('✓ Clicked «إنشاء دورة الرواتب»');
     // L2: freeze ops inputs before stage advance (U2 will wire the capture button).
-    const createdCycles = await (await fetch(`${baseUrl}/api/pay/cycles?period=2026-10`, { headers: { Cookie: cookieB } })).json();
-    const createdId = (createdCycles.items || createdCycles)[0]?.id;
+    const created = await createResponse.json();
+    const createdId = created?.id ?? created?.cycle?.id;
     assert.ok(createdId, 'Cycle id required before capture-inputs');
     const captureRes = await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(createdId)}/capture-inputs`, {
       method: 'POST', headers: { Cookie: cookieB, 'Content-Type': 'application/json' }, body: '{}',
