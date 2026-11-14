@@ -42,6 +42,7 @@ import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { RiderAccountsPanel } from '../../components/riders/RiderAccountsPanel';
 import type {
   RiderRecord,
   RiderProfile360,
@@ -811,64 +812,7 @@ function RidersPageInner() {
 
               {/* View 2: Platform Accounts (F3) */}
               {profileSubTab === 'accounts' && (
-                <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-                  <div className="p-4 border-b border-[var(--line)]">
-                    <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                      حسابات وتكليفات المنصات الميدانية (GET /api/riders/{'{iqama}'}/accounts)
-                    </h3>
-                    <p className="text-xs text-[var(--muted)] mt-0.5">
-                      مطابقة معرفات العمل وتكليفات التشغيل الفعلي مع تواريخ الاستلام والتسليم.
-                    </p>
-                  </div>
-
-                  {loadingAccounts ? (
-                    <div className="p-6 space-y-2">
-                      <Skeleton className="h-8 w-full" />
-                      <Skeleton className="h-8 w-full" />
-                    </div>
-                  ) : riderAccounts.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-[var(--muted)]">
-                      لا توجد حسابات منصات مرتبطة بهذا المندوب حالياً.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-start text-xs sm:text-sm">
-                        <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                          <tr>
-                            <th className="p-3 text-start">كود الحساب</th>
-                            <th className="p-3 text-start">معرف المنصة الخارجي</th>
-                            <th className="p-3 text-start">تطبيق المنصة</th>
-                            <th className="p-3 text-start">المدينة</th>
-                            <th className="p-3 text-start">العلاقة</th>
-                            <th className="p-3 text-start">فترات التكليف الفعلي</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--line)]">
-                          {riderAccounts.map((acc: any) => (
-                            <tr key={acc.id || acc.code} className="hover:bg-[var(--row-hover)] transition">
-                              <td className="p-3 font-mono font-bold text-[var(--accent)]">{acc.code || acc.id}</td>
-                              <td className="p-3 font-mono font-bold">{acc.externalAccountId || '-'}</td>
-                              <td className="p-3 font-bold">{acc.platformCode || '-'}</td>
-                              <td className="p-3 text-xs">{acc.cityId || '-'}</td>
-                              <td className="p-3">
-                                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[var(--money-pos)]/15 text-[var(--money-pos)]">
-                                  {acc.relationship === 'actual_operator' ? 'مشغل فعلي' : acc.relationship || 'مشغل'}
-                                </span>
-                              </td>
-                              <td className="p-3 text-xs font-mono text-[var(--muted)]">
-                                {acc.assignments?.map((a: any, i: number) => (
-                                  <div key={i}>
-                                    {a.RawEffectiveFrom?.slice(0, 10) || a.EffectiveFrom?.slice(0, 10) || 'بداية'} ➔ {a.RawEffectiveTo?.slice(0, 10) || a.EffectiveTo?.slice(0, 10) || 'مستمر'}
-                                  </div>
-                                )) || '-'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
+                <RiderAccountsPanel iqama={profileData?.rider?.iqama || profileIqama} />
               )}
             </div>
           )}

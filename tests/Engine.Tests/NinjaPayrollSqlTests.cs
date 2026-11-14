@@ -83,6 +83,7 @@ public sealed class NinjaPayrollSqlTests
             var reviewAccount=review["invoices"]![0]!["accounts"]![0]!.AsObject();Assert.AreEqual(6500m,reviewAccount.N("baseGross"));Assert.AreEqual(source,reviewAccount.S("sourceLineId"));
             var cycleInput=new JsonObject{["period"]="2026-10",["companyId"]=company,["app"]="ninja",["invoices"]=review["invoices"]!.DeepClone()};
             var cycle=(await Request(maker,"/api/pay/cycles",cycleInput)).AsObject();string id=cycle.S("id"),cyclePath="/api/pay/cycles/"+Uri.EscapeDataString(id);
+            await Request(maker,cyclePath+"/capture-inputs",new());
             for(int stage=1;stage<=6;stage++)cycle=(await Request(maker,cyclePath+"/advance",new(){["stage"]=stage})).AsObject();
             var linePage=(await Request(maker,cyclePath+"/lines")).AsObject();var payLine=linePage["items"]![0]!.AsObject();Assert.AreEqual(6500m,payLine.N("platformGross"));Assert.AreEqual(source,payLine["sources"]![0].S("sourceLineId"));Assert.AreEqual(1,payLine["sources"]![0]!["operationSourceIds"]!.AsArray().Count);
             decimal net=cycle["riders"]![0]!.N("net");Assert.AreEqual(6490m,net);Assert.AreEqual(6470m,net-20m,"The company bears its classified 20; the rider bears only 10.");

@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
+import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
-  Truck,
   MapPin,
   Home,
   Car,
@@ -13,22 +13,21 @@ import {
   Smartphone,
   RefreshCw,
   Search,
-  Filter,
-  Download,
-  AlertCircle,
+  X,
+  Upload,
+  AlertTriangle,
   Clock,
   Layers,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
-import { api } from '../../lib/api';
+import { api, ApiError, OperationsResponse, OperationRow } from '../../lib/api';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { SourceBadge, formatRiyadhDateTime } from '../../components/ui/SourceBadge';
 
 const KIND_MAP: Record<string, string> = {
   cities: 'city',
@@ -40,69 +39,153 @@ const KIND_MAP: Record<string, string> = {
   accounts: 'platform_account',
 };
 
+const PAGE_SIZES = [25, 50, 100, 200];
+
 function OperationsPageInner() {
-  const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const tabFromUrl = searchParams?.get('tab') || 'cities';
-  const [activeTab, setActiveTab] = useState<string>(tabFromUrl);
+  const pageFromUrl = parseInt(searchParams?.get('page') || '1', 10);
+  const sizeFromUrl = parseInt(searchParams?.get('size') || '25', 10);
+  const qFromUrl = searchParams?.get('q') || '';
 
+  const [activeTab, setActiveTab] = useState<string>(tabFromUrl);
+  const [page, setPage] = useState<number>(pageFromUrl > 0 ? pageFromUrl : 1);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZES.includes(sizeFromUrl) ? sizeFromUrl : 25);
+  const [searchQuery, setSearchQuery] = useState<string>(qFromUrl);
+  const [debouncedQuery, setDebouncedQuery] = useState<string>(qFromUrl);
+
+  const [items, setItems] = useState<OperationRow[]>([]);
+  const [total, setTotal] = useState<number>(0);
+  const [source, setSource] = useState<string>('');
+  const [asOf, setAsOf] = useState<string>('');
+  const [allowedActions, setAllowedActions] = useState<string[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [is503, setIs503] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Sync tab change from URL
   useEffect(() => {
     if (tabFromUrl && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
+      setPage(1);
     }
   }, [tabFromUrl]);
 
-  const [loading, setLoading] = useState<boolean>(true);
-  const [items, setItems] = useState<any[]>([]);
-  const [total, setTotal] = useState<number>(0);
-  const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(25);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [apiUnavailable, setApiUnavailable] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadTabData = async (tabKey: string, targetPage = page, query = searchQuery) => {
-    const kind = KIND_MAP[tabKey] || tabKey;
-    setLoading(true);
-    setError(null);
-    setApiUnavailable(false);
-    try {
-      const res = await api.getOperations(kind, {
-        page: targetPage,
-        pageSize,
-        q: query.trim() || undefined,
-      });
-      const rows = res?.items || (Array.isArray(res) ? res : []);
-      setItems(rows);
-      setTotal(res?.total ?? rows.length);
-    } catch (err: any) {
-      if (err?.status === 404 || err?.message?.includes('404') || err?.message?.includes('غير موجود')) {
-        setApiUnavailable(true);
-      } else {
-        setError(err?.message || 'تعذر استرجاع بيانات التشغيل');
-      }
-      setItems([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Debounce typing (300 ms)
   useEffect(() => {
-    setPage(1);
-    loadTabData(activeTab, 1, searchQuery);
-  }, [activeTab]);
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Sync URL search params
+  const updateUrl = useCallback(
+    (newTab: string, newPage: number, newSize: number, newQ: string) => {
+      if (typeof window === 'undefined') return;
+      const sp = new URLSearchParams();
+      if (newTab && newTab !== 'cities') sp.set('tab', newTab);
+      if (newPage > 1) sp.set('page', String(newPage));
+      if (newSize !== 25) sp.set('size', String(newSize));
+      if (newQ.trim()) sp.set('q', newQ.trim());
+      const qs = sp.toString() ? `?${sp.toString()}` : '';
+      router.replace(`${pathname}${qs}`, { scroll: false });
+    },
+    [router, pathname]
+  );
+
+  // Fetch operations data from server
+  const loadTabData = useCallback(
+    async (
+      targetTab: string,
+      targetPage: number,
+      targetPageSize: number,
+      targetQuery: string
+    ) => {
+      const kind = KIND_MAP[targetTab] || targetTab;
+      setLoading(true);
+      setErrorMsg(null);
+      setIs503(false);
+
+      try {
+        const res: OperationsResponse = await api.getOperations(kind, {
+          page: targetPage,
+          pageSize: targetPageSize,
+          q: targetQuery.trim() || undefined,
+        });
+
+        const rows = res?.items || (Array.isArray(res) ? res : []);
+        setItems(rows);
+        setTotal(res?.total ?? rows.length);
+        setSource(res?.source || '');
+        setAsOf(res?.asOf || '');
+        setAllowedActions(res?.allowedActions || []);
+        setPage(res?.page ?? targetPage);
+        setPageSize(res?.pageSize ?? targetPageSize);
+      } catch (err: unknown) {
+        const status =
+          err instanceof ApiError
+            ? err.status
+            : typeof err === 'object' && err !== null && 'status' in err && typeof err.status === 'number'
+            ? err.status
+            : undefined;
+        const msg = err instanceof Error && err.message ? err.message : 'تعذر استرجاع بيانات التشغيل';
+
+        if (status === 503 || msg.includes('503') || msg.includes('مصدر التشغيل')) {
+          setIs503(true);
+          setErrorMsg(msg);
+          // 4. Errors: 503 -> keeping the last page shown!
+          // Do NOT clear items if we already have data
+        } else {
+          setErrorMsg(msg);
+          setItems([]);
+          setTotal(0);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  // Track initial mount
+  const isFirstMount = useRef(true);
+
+  // Primary data-fetching trigger on tab or debounced query change
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      loadTabData(activeTab, page, pageSize, debouncedQuery);
+      return;
+    }
+    // Reset to page 1 on search or tab change
     setPage(1);
-    loadTabData(activeTab, 1, searchQuery);
-  };
+    updateUrl(activeTab, 1, pageSize, debouncedQuery);
+    loadTabData(activeTab, 1, pageSize, debouncedQuery);
+  }, [activeTab, debouncedQuery]);
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
-    loadTabData(activeTab, newPage, searchQuery);
+    updateUrl(activeTab, newPage, pageSize, debouncedQuery);
+    loadTabData(activeTab, newPage, pageSize, debouncedQuery);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPage(1);
+    updateUrl(activeTab, 1, newSize, debouncedQuery);
+    loadTabData(activeTab, 1, newSize, debouncedQuery);
+  };
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    setSearchQuery('');
+    setDebouncedQuery('');
+    setPage(1);
+    updateUrl(tabId, 1, pageSize, '');
   };
 
   const sectionTabs: SectionTabItem[] = [
@@ -115,44 +198,86 @@ function OperationsPageInner() {
     { id: 'accounts', label: 'حسابات المنصات والمعرفات', icon: <Smartphone size={16} /> },
   ];
 
-  const currentTabInfo = {
-    cities: { title: 'المدن التشغيلية والمناطق', desc: 'مواقع ومراكز التشغيل، نطاقات التوصيل، والمشرفين الميدانيين المسؤولين.' },
-    housing: { title: 'السكن والإيواء الميداني', desc: 'إدارة وحدات الإيواء وسكن المناديب، العقود، وتوزيع التكاليف التشغيلية.' },
-    vehicles: { title: 'أسطول المركبات والتسليمات', desc: 'السيارات والدراجات النارية، تسليمات العهد، رخص السير والتأمين، ومتابعة الصيانة.' },
-    custody: { title: 'العهد الشهرية والأجهزة', desc: 'الأجهزة الذكية، الحقائب الحرارية، والزي الرسمي الموزع على الكوادر.' },
-    guarantees: { title: 'الكفالات والضمانات المالية', desc: 'الكفالات الغارمة وسندات الضمان ضد المخاطر المالية والعهد.' },
-    cases: { title: 'القضايا والمنازعات التشغيلية', desc: 'متابعة البلاغات المرورية، المطالبات القانونية، والنزاعات مع المنصات أو الأطراف الخارجية.' },
-    accounts: { title: 'حسابات المنصات ومعرفات العمل', desc: 'معرفات المناديب على تطبيقات التوصيل، التبديل والتسليم بين المناديب، ومطابقة الهويات.' },
-  }[activeTab] || { title: 'التشغيل والأصول', desc: 'إدارة العمليات التشغيلية والأصول الميدانية.' };
+  const currentTabInfo = useMemo(() => {
+    switch (activeTab) {
+      case 'cities':
+        return {
+          title: 'المدن التشغيلية والمناطق',
+          shortLabel: 'المدن والمناطق',
+          desc: 'مواقع ومراكز التشغيل، نطاقات التوصيل، والمشرفين الميدانيين المسؤولين.',
+          icon: MapPin,
+        };
+      case 'housing':
+        return {
+          title: 'السكن والإيواء الميداني',
+          shortLabel: 'وحدات السكن',
+          desc: 'إدارة وحدات الإيواء وسكن المناديب، العقود، وتوزيع التكاليف التشغيلية.',
+          icon: Home,
+        };
+      case 'vehicles':
+        return {
+          title: 'أسطول المركبات والتسليمات',
+          shortLabel: 'أسطول المركبات',
+          desc: 'السيارات والدراجات النارية، تسليمات العهد، رخص السير والتأمين، ومتابعة الصيانة.',
+          icon: Car,
+        };
+      case 'custody':
+        return {
+          title: 'العهد الشهرية والأجهزة',
+          shortLabel: 'العهد والأجهزة',
+          desc: 'الأجهزة الذكية، الحقائب الحرارية، والزي الرسمي الموزع على الكوادر.',
+          icon: PackageCheck,
+        };
+      case 'guarantees':
+        return {
+          title: 'الكفالات والضمانات المالية',
+          shortLabel: 'الكفالات والضمانات',
+          desc: 'الكفالات الغارمة وسندات الضمان ضد المخاطر المالية والعهد.',
+          icon: ShieldAlert,
+        };
+      case 'cases':
+        return {
+          title: 'القضايا والمنازعات التشغيلية',
+          shortLabel: 'القضايا والمنازعات',
+          desc: 'متابعة البلاغات المرورية، المطالبات القانونية، والنزاعات مع المنصات أو الأطراف الخارجية.',
+          icon: Scale,
+        };
+      case 'accounts':
+      default:
+        return {
+          title: 'حسابات المنصات ومعرفات العمل',
+          shortLabel: 'حسابات المنصات',
+          desc: 'معرفات المناديب على تطبيقات التوصيل، التبديل والتسليم بين المناديب، ومطابقة الهويات.',
+          icon: Smartphone,
+        };
+    }
+  }, [activeTab]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const tabColumns: ColumnDef<any>[] = useMemo(() => {
+  const tabColumns: ColumnDef<OperationRow>[] = useMemo(() => {
     switch (activeTab) {
       case 'cities':
         return [
           {
             key: 'code',
             header: 'رمز المدينة',
-            filterable: true,
-            render: (it: any) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
           },
           {
             key: 'nameAr',
             header: 'الاسم بالعربية',
-            filterable: true,
-            render: (it: any) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
           },
           {
             key: 'nameEn',
             header: 'الاسم بالإنجليزية',
-            filterable: true,
-            render: (it: any) => <span className="text-xs text-[var(--muted)] font-mono">{it.nameEn || '-'}</span>,
+            render: (it: OperationRow) => <span className="text-xs text-[var(--muted)] font-mono">{it.nameEn || '-'}</span>,
           },
           {
             key: 'globalCityId',
             header: 'المعرف الموحد',
-            render: (it: any) => <span className="font-mono text-xs">{it.globalCityId || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs">{it.globalCityId || '-'}</span>,
           },
         ];
       case 'housing':
@@ -160,30 +285,28 @@ function OperationsPageInner() {
           {
             key: 'code',
             header: 'كود السكن',
-            filterable: true,
-            render: (it: any) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
           },
           {
             key: 'nameAr',
             header: 'اسم الوحدة',
-            filterable: true,
-            render: (it: any) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
           },
           {
             key: 'cityId',
             header: 'المدينة',
-            render: (it: any) => <span className="text-xs">{it.cityId || '-'}</span>,
+            render: (it: OperationRow) => <span className="text-xs">{it.cityId || '-'}</span>,
           },
           {
             key: 'rooms',
             header: 'عدد الغرف',
             numeric: true,
-            render: (it: any) => <span className="num">{it.rooms?.length ?? '-'}</span>,
+            render: (it: OperationRow) => <span className="num">{it.rooms?.length ?? '-'}</span>,
           },
           {
             key: 'openedDate',
             header: 'تاريخ الافتتاح',
-            render: (it: any) => <span className="font-mono text-xs text-[var(--muted)]">{it.openedDate || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.openedDate || '-'}</span>,
           },
         ];
       case 'vehicles':
@@ -191,8 +314,7 @@ function OperationsPageInner() {
           {
             key: 'plateNumber',
             header: 'رقم اللوحة',
-            filterable: true,
-            render: (it: any) => (
+            render: (it: OperationRow) => (
               <span className="font-mono font-bold text-[var(--ink)]">
                 {it.plateNumberAr || it.plateNumberEn || it.assetNumber || it.id}
               </span>
@@ -201,9 +323,9 @@ function OperationsPageInner() {
           {
             key: 'vehicleType',
             header: 'نوع المركبة',
-            render: (it: any) => (
+            render: (it: OperationRow) => (
               <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">
-                {it.vehicleType === 'Car' || it.vehicleType === 'car' ? 'سيارة' : 'دباب'}
+                {String(it.vehicleType ?? '').toLowerCase() === 'car' || it.vehicleType === 1 ? 'سيارة' : 'دباب'}
               </span>
             ),
           },
@@ -211,23 +333,23 @@ function OperationsPageInner() {
             key: 'modelYear',
             header: 'سنة الموديل',
             numeric: true,
-            render: (it: any) => <span className="num">{it.modelYear || '-'}</span>,
+            render: (it: OperationRow) => <span className="num">{it.modelYear || '-'}</span>,
           },
           {
             key: 'vin',
             header: 'رقم الهيكل / VIN',
-            render: (it: any) => <span className="font-mono text-xs text-[var(--muted)]">{it.vin || it.chassisNumber || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.vin || it.chassisNumber || '-'}</span>,
           },
           {
             key: 'currentOdometer',
             header: 'العداد الحالي',
             numeric: true,
-            render: (it: any) => <span className="num font-medium">{it.currentOdometer ? `${it.currentOdometer} كم` : '-'}</span>,
+            render: (it: OperationRow) => <span className="num font-medium">{it.currentOdometer ? `${it.currentOdometer} كم` : '-'}</span>,
           },
           {
             key: 'currentOperationalStatus',
             header: 'الحالة التشغيلية',
-            render: (it: any) => (
+            render: (it: OperationRow) => (
               <span
                 className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                   it.currentOperationalStatus === 'Active' || it.currentOperationalStatus === 'active'
@@ -245,23 +367,22 @@ function OperationsPageInner() {
           {
             key: 'assignmentId',
             header: 'معرف التكليف',
-            filterable: true,
-            render: (it: any) => <span className="font-mono font-bold">{it.assignmentId || it.id}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold">{it.assignmentId || it.id}</span>,
           },
           {
             key: 'eventTypeCode',
             header: 'نوع الحدث',
-            render: (it: any) => <span>{it.eventTypeCode || '-'}</span>,
+            render: (it: OperationRow) => <span>{it.eventTypeCode || '-'}</span>,
           },
           {
             key: 'direction',
             header: 'الاتجاه',
-            render: (it: any) => <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">{it.direction || '-'}</span>,
+            render: (it: OperationRow) => <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">{it.direction || '-'}</span>,
           },
           {
             key: 'occurredAt',
             header: 'تاريخ التوثيق',
-            render: (it: any) => <span className="font-mono text-xs text-[var(--muted)]">{it.occurredAt || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.occurredAt || '-'}</span>,
           },
         ];
       case 'guarantees':
@@ -269,24 +390,22 @@ function OperationsPageInner() {
           {
             key: 'riderId',
             header: 'إقامة المندوب',
-            filterable: true,
-            render: (it: any) => <span className="font-mono font-bold text-[var(--ink)]">{it.riderId}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--ink)]">{it.riderId}</span>,
           },
           {
             key: 'sponsorId',
             header: 'السجل / الكفيل',
-            filterable: true,
-            render: (it: any) => <span className="text-xs font-mono">{it.sponsorId || it.companyId || '-'}</span>,
+            render: (it: OperationRow) => <span className="text-xs font-mono">{it.sponsorId || it.companyId || '-'}</span>,
           },
           {
             key: 'effectiveFrom',
             header: 'سريان من',
-            render: (it: any) => <span className="font-mono text-xs">{it.effectiveFrom || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs">{it.effectiveFrom || '-'}</span>,
           },
           {
             key: 'effectiveTo',
             header: 'سريان إلى',
-            render: (it: any) => <span className="font-mono text-xs text-[var(--muted)]">{it.effectiveTo || 'مستمر'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.effectiveTo || 'مستمر'}</span>,
           },
         ];
       case 'cases':
@@ -294,29 +413,27 @@ function OperationsPageInner() {
           {
             key: 'number',
             header: 'رقم القضية',
-            filterable: true,
-            render: (it: any) => <span className="font-mono font-bold text-[var(--danger)]">{it.number || it.id}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--danger)]">{it.number || it.id}</span>,
           },
           {
             key: 'personName',
             header: 'اسم الطرف',
-            filterable: true,
-            render: (it: any) => <span className="font-semibold">{it.personName || it.riderId || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-semibold">{it.personName || it.riderId || '-'}</span>,
           },
           {
             key: 'personTypeCode',
             header: 'الصفة',
-            render: (it: any) => <span>{it.personTypeCode || '-'}</span>,
+            render: (it: OperationRow) => <span>{it.personTypeCode || '-'}</span>,
           },
           {
             key: 'caseDate',
             header: 'التاريخ',
-            render: (it: any) => <span className="font-mono text-xs">{it.caseDate || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs">{it.caseDate || '-'}</span>,
           },
           {
             key: 'details',
             header: 'التفاصيل',
-            render: (it: any) => <span className="text-xs text-[var(--muted)] truncate max-w-xs block">{it.details || '-'}</span>,
+            render: (it: OperationRow) => <span className="text-xs text-[var(--muted)] truncate max-w-xs block">{it.details || '-'}</span>,
           },
         ];
       case 'accounts':
@@ -325,29 +442,27 @@ function OperationsPageInner() {
           {
             key: 'code',
             header: 'كود الحساب',
-            filterable: true,
-            render: (it: any) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
           },
           {
             key: 'externalAccountId',
             header: 'معرف المنصة الخارجي',
-            render: (it: any) => <span className="font-mono text-xs">{it.externalAccountId || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs">{it.externalAccountId || '-'}</span>,
           },
           {
             key: 'platformCode',
             header: 'المنصة',
-            filterable: true,
-            render: (it: any) => <span className="text-xs font-bold">{it.platformCode || '-'}</span>,
+            render: (it: OperationRow) => <span className="text-xs font-bold">{it.platformCode || '-'}</span>,
           },
           {
             key: 'registeredRiderId',
             header: 'المندوب المسجل',
-            render: (it: any) => <span className="font-mono text-xs">{it.registeredRiderId || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs">{it.registeredRiderId || '-'}</span>,
           },
           {
             key: 'assignments',
             header: 'المشغلون الفعليون',
-            render: (it: any) => <span className="num font-bold">{it.assignments ? `${it.assignments.length} مشغل` : '-'}</span>,
+            render: (it: OperationRow) => <span className="num font-bold">{it.assignments ? `${it.assignments.length} مشغل` : '-'}</span>,
           },
         ];
     }
@@ -355,131 +470,189 @@ function OperationsPageInner() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Page Header with Source Badge and Import Center Link */}
       <PageHeader
         title="التشغيل والأصول الميدانية"
         eyebrow="العمليات واللوجستيات"
         description="إدارة أسطول المركبات، السكن والإيواء، تسليم واستلام العهد والأجهزة، حسابات المنصات، والقضايا والضمانات التشغيلية."
         primaryAction={{
           label: 'تحديث البيانات',
-          icon: <RefreshCw size={15} />,
-          onClick: () => loadTabData(activeTab, page, searchQuery),
+          icon: <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />,
+          onClick: () => loadTabData(activeTab, page, pageSize, debouncedQuery),
         }}
-      />
+      >
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[var(--line)]">
+          {source && <SourceBadge source={source} asOf={asOf} />}
 
-      {/* Stat Cards */}
+          <Link
+            href="/imports/"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] transition"
+          >
+            <Upload size={13} />
+            <span>مركز الاستيراد</span>
+          </Link>
+        </div>
+      </PageHeader>
+
+      {/* 6. Stat Cards: Using total of the active tab only (no fake counts for other tabs) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
-          label="المدن والمناطق"
-          value={activeTab === 'cities' ? total : 'مغطاة'}
-          hint="الرياض، جدة، الدمام، ومراكز الفروع"
-          icon={MapPin}
-          active={activeTab === 'cities'}
-          onClick={() => setActiveTab('cities')}
-          loading={loading && activeTab === 'cities'}
+          label={`إجمالي سجلات ${currentTabInfo.shortLabel}`}
+          value={loading ? '...' : total}
+          hint="إجمالي السجلات المطابقة في مصدر التشغيل"
+          icon={currentTabInfo.icon}
+          active={true}
+          loading={loading}
         />
         <StatCard
-          label="أسطول المركبات"
-          value={activeTab === 'vehicles' ? total : 'أسطول مسجل'}
-          hint="سيارات ودراجات نارية مسجلة"
-          icon={Car}
-          active={activeTab === 'vehicles'}
-          onClick={() => setActiveTab('vehicles')}
-          loading={loading && activeTab === 'vehicles'}
+          label="السجلات المعروضة"
+          value={loading ? '...' : items.length}
+          hint={`الصفحة ${page} من أصل ${totalPages} (بحجم ${pageSize})`}
+          icon={Layers}
+          loading={loading}
         />
         <StatCard
-          label="وحدات السكن"
-          value={activeTab === 'housing' ? total : 'سكن معتمد'}
-          hint="إيواء الكوادر وكفالة الشركة"
-          icon={Home}
-          active={activeTab === 'housing'}
-          onClick={() => setActiveTab('housing')}
-          loading={loading && activeTab === 'housing'}
+          label="مصدر البيانات"
+          value={source === 'erp_live' ? 'نظام الموارد المباشر' : source === 'store' ? 'بيانات تجريبية محلية' : 'بانتظار المصدر'}
+          hint={source === 'erp_live' ? 'قراءة مباشرة حية للقراءة فقط' : 'مخزن التطوير التجريبي'}
+          icon={CheckCircle2}
+          loading={loading && !source}
         />
         <StatCard
-          label="العهد والأجهزة"
-          value={activeTab === 'custody' ? total : 'عهد موثقة'}
-          hint="أجهزة ذكية وحقائب حرارية"
-          icon={PackageCheck}
-          active={activeTab === 'custody'}
-          onClick={() => setActiveTab('custody')}
-          loading={loading && activeTab === 'custody'}
+          label="توقيت آخر قراءة"
+          value={asOf ? (formatRiyadhDateTime(asOf).split('،')[1]?.trim() || 'محدث') : '-'}
+          hint={asOf ? `بتاريخ ${formatRiyadhDateTime(asOf).split('،')[0]?.trim()} بتوقيت الرياض` : 'بانتظار القراءة'}
+          icon={Clock}
+          loading={loading && !asOf}
         />
       </div>
 
-      {/* Tabs */}
+      {/* Section Tabs */}
       <SectionTabs
         tabs={sectionTabs}
         activeTab={activeTab}
-        onChange={(tabId) => setActiveTab(tabId)}
+        onChange={handleTabChange}
       />
 
       {/* Content Area */}
       <div className="space-y-4">
-        <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] flex flex-wrap items-center justify-between gap-3">
+        {/* Tab Toolbar: Title, Source Badge, and Server Search with 300ms Debounce */}
+        <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] flex flex-wrap items-center justify-between gap-3 shadow-2xs">
           <div>
-            <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-              {currentTabInfo.title}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                {currentTabInfo.title}
+              </h3>
+            </div>
             <p className="text-xs text-[var(--muted)] mt-0.5">
               {currentTabInfo.desc}
             </p>
           </div>
 
-          {/* Search bar */}
-          <form onSubmit={handleSearch} className="flex items-center gap-2">
+          {/* 1. Server Search Input (Debounced 300 ms) */}
+          <div className="flex items-center gap-2">
             <div className="relative">
-              <Search size={15} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none" />
               <input
                 type="text"
-                placeholder="بحث في السجلات..."
+                placeholder="بحث في سجلات التشغيل..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="ps-9 pe-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs focus:outline-hidden w-48 sm:w-64"
+                className="ps-9 pe-8 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-hidden w-52 sm:w-72 transition"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="مسح البحث"
+                  className="absolute end-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
-            <button
-              type="submit"
-              className="px-3 py-1.5 rounded-xl bg-[var(--raised)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--line)] transition cursor-pointer"
-            >
-              بحث
-            </button>
-          </form>
+          </div>
         </div>
 
-        {apiUnavailable ? (
-          <div className="p-8 rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-center space-y-4 shadow-xs">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--warning)]/15 text-[var(--warning)] text-xs font-bold">
-              <Clock size={15} />
-              <span>غير متاح بعد — بانتظار اكتمال واجهات خادم التشغيل</span>
+        {/* 4. Errors: 503 Warning Banner when keeping last page shown */}
+        {is503 && items.length > 0 && (
+          <div
+            role="alert"
+            className="p-4 rounded-2xl border border-[var(--warning)]/30 bg-[var(--warning)]/10 flex flex-wrap items-center justify-between gap-3 shadow-xs"
+          >
+            <div className="flex items-center gap-2.5 text-xs text-[var(--warning)] font-bold">
+              <AlertTriangle size={18} className="shrink-0" />
+              <div>
+                <span className="font-extrabold block text-sm">مصدر التشغيل غير متاح الآن</span>
+                <span className="font-normal text-[var(--muted)]">
+                  تم الإبقاء على آخر صفحة قراءة معروضة أدناه ({errorMsg || 'تعذر الاتصال بقاعدة بيانات التشغيل'})
+                </span>
+              </div>
             </div>
-            <h4 className="text-base font-bold text-[var(--ink)]">
-              واجهة استرجاع {currentTabInfo.title} قيد التطوير
+            <button
+              type="button"
+              onClick={() => loadTabData(activeTab, page, pageSize, debouncedQuery)}
+              className="px-3.5 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <RefreshCw size={13} />
+              <span>إعادة المحاولة</span>
+            </button>
+          </div>
+        )}
+
+        {/* 4. Errors: 503 Full Card when no data was loaded yet */}
+        {is503 && items.length === 0 ? (
+          <div
+            role="alert"
+            className="p-8 rounded-2xl border border-[var(--warning)]/30 bg-[var(--surface)] text-center space-y-4 shadow-xs"
+          >
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--warning)]/15 text-[var(--warning)] text-xs font-bold">
+              <AlertTriangle size={16} />
+              <span>مصدر التشغيل غير متاح الآن</span>
+            </div>
+            <h4 className="text-base sm:text-lg font-bold text-[var(--ink)]">
+              تعذر الاتصال بمصدر التشغيل اللوجستي
             </h4>
+            <p className="text-xs sm:text-sm text-[var(--muted)] max-w-md mx-auto">
+              {errorMsg || 'نظام الموارد الميداني أو اتصال قاعدة بيانات التشغيل غير متاح حالياً. يرجى إعادة المحاولة.'}
+            </p>
             <div className="pt-2">
               <button
                 type="button"
-                onClick={() => loadTabData(activeTab)}
-                className="px-4 py-2 rounded-xl bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--line)] text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer"
+                onClick={() => loadTabData(activeTab, page, pageSize, debouncedQuery)}
+                className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] hover:opacity-90 text-xs sm:text-sm font-bold transition inline-flex items-center gap-2 cursor-pointer shadow-xs"
               >
                 <RefreshCw size={14} />
-                <span>إعادة المحاولة والفحص</span>
+                <span>إعادة المحاولة</span>
               </button>
             </div>
           </div>
-        ) : error ? (
-          <ErrorState title="تعذر تحميل بيانات التشغيل" message={error} onRetry={() => loadTabData(activeTab, page, searchQuery)} />
+        ) : errorMsg && !is503 ? (
+          <ErrorState
+            title="تعذر تحميل بيانات التشغيل"
+            message={errorMsg}
+            onRetry={() => loadTabData(activeTab, page, pageSize, debouncedQuery)}
+          />
         ) : (
+          /* 1. Server Paging and Search: DataTable in serverSide mode */
           <DataTable
             tableId={`operations-${activeTab}`}
             columns={tabColumns}
             data={items}
+            totalCount={total}
             loading={loading}
+            page={page}
+            pageSize={pageSize}
+            pageSizes={PAGE_SIZES}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+            serverSide={true}
+            searchable={false}
             emptyTitle={`لا توجد سجلات حالية في ${currentTabInfo.title}`}
             emptyDescription={
-              searchQuery
-                ? 'لم يتم العثور على نتائج تطابق معايير البحث.'
-                : 'تظهر السجلات هنا فور تسجيلها أو استيرادها من مساحات التشغيل.'
+              debouncedQuery
+                ? 'لم يتم العثور على نتائج تطابق معايير البحث في مصدر التشغيل.'
+                : 'تظهر السجلات هنا فور توفرها من مصدر التشغيل اللوجستي.'
             }
             exportFilename={`operations_${activeTab}`}
             showTotals={true}

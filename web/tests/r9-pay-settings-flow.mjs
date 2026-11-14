@@ -579,11 +579,23 @@ try {
 
     const createCycleBtn = pageA.locator('button', { hasText: 'إنشاء دورة الرواتب' });
     await createCycleBtn.waitFor({ state: 'visible', timeout: 10000 });
-    await createCycleBtn.click();
+    const [createResponse] = await Promise.all([
+      pageA.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname.endsWith('/api/pay/cycles'), { timeout: 15000 }),
+      createCycleBtn.click(),
+    ]);
+    assert.equal(createResponse.status(), 200, `create cycle must succeed: ${await createResponse.text()}`);
     console.log('✓ Clicked «إنشاء دورة الرواتب» from Review Draft');
 
-    await pageA.waitForTimeout(1000);
-    await pageA.waitForLoadState('networkidle');
+    // L2 / U2 (BR §39.2): click «التقاط المدخلات» in the browser before stage advance.
+    const captureBtn = pageA.locator('#btn-capture-cycle-inputs');
+    await captureBtn.waitFor({ state: 'visible', timeout: 10000 });
+    const [captureResponse] = await Promise.all([
+      pageA.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname.endsWith('/capture-inputs'), { timeout: 15000 }),
+      captureBtn.click(),
+    ]);
+    assert.equal(captureResponse.status(), 200, `capture-inputs must succeed via UI button: ${await captureResponse.text()}`);
+    await pageA.locator('[data-testid="cycle-inputs-counts-table"]').waitFor({ state: 'visible', timeout: 8000 });
+    console.log('✓ Clicked «التقاط المدخلات» in browser and verified counts table');
 
     // Advance stages with the stepper button until Stage 4 (lines generated)
     for (let stage = 1; stage <= 4; stage++) {

@@ -7149,6 +7149,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pay/cycles/{id}/capture-inputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Freeze live ERP (or store) ops inputs for this cycle until approval */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            approvalResult?: {
+                                approved: number;
+                                skipped: number;
+                                skippedRows: {
+                                    rider: string;
+                                    reason: string;
+                                }[];
+                            };
+                            id: string;
+                            companyId: string;
+                            period: string;
+                            app?: string;
+                            stage: number;
+                            status: string;
+                            allowedActions?: string[];
+                            approvalBlockers?: string[];
+                            debtDeductionStatus?: string;
+                            invoices: {
+                                invoiceId: string;
+                                app: string;
+                                accounts: {
+                                    accountId: string;
+                                    sourceLineId: string;
+                                    baseGross: number;
+                                    incentives: number;
+                                    orders: number;
+                                    riders: {
+                                        rider: string;
+                                        sourceLineId?: string;
+                                        operationSourceIds?: string[];
+                                        baseGross: number;
+                                        orders: number;
+                                        deduction: number;
+                                        category: string;
+                                        days: number;
+                                        metrics: Record<string, never>;
+                                    }[];
+                                }[];
+                                deductions: Record<string, never>[];
+                            }[];
+                            riders?: {
+                                rider: string;
+                                net: number;
+                                carried?: number;
+                                closing?: number;
+                                status: string;
+                                review?: string;
+                                salaryNet?: number;
+                                carryAmount?: number;
+                                carryDebtId?: string;
+                                salaryApprovedAt?: string;
+                                debtDeductionStatus?: string;
+                                blockers?: string[];
+                            }[];
+                            journalEntryId?: string;
+                            history?: Record<string, never>[];
+                            deductions?: Record<string, never>[];
+                            inputsCapturedAt?: string;
+                            inputsCapturedBy?: string;
+                            inputsCaptureCounts?: {
+                                [key: string]: number;
+                            };
+                            capture?: {
+                                cycleId: string;
+                                capturedAt: string;
+                                counts: {
+                                    [key: string]: number;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pay/cycles": {
         parameters: {
             query?: never;
@@ -7231,6 +7343,18 @@ export interface paths {
                                 journalEntryId?: string;
                                 history?: Record<string, never>[];
                                 deductions?: Record<string, never>[];
+                                inputsCapturedAt?: string;
+                                inputsCapturedBy?: string;
+                                inputsCaptureCounts?: {
+                                    [key: string]: number;
+                                };
+                                capture?: {
+                                    cycleId: string;
+                                    capturedAt: string;
+                                    counts: {
+                                        [key: string]: number;
+                                    };
+                                };
                             }[];
                             total: number;
                             page: number;
@@ -7319,6 +7443,18 @@ export interface paths {
                             journalEntryId?: string;
                             history?: Record<string, never>[];
                             deductions?: Record<string, never>[];
+                            inputsCapturedAt?: string;
+                            inputsCapturedBy?: string;
+                            inputsCaptureCounts?: {
+                                [key: string]: number;
+                            };
+                            capture?: {
+                                cycleId: string;
+                                capturedAt: string;
+                                counts: {
+                                    [key: string]: number;
+                                };
+                            };
                         };
                     };
                 };
@@ -7419,6 +7555,18 @@ export interface paths {
                             journalEntryId?: string;
                             history?: Record<string, never>[];
                             deductions?: Record<string, never>[];
+                            inputsCapturedAt?: string;
+                            inputsCapturedBy?: string;
+                            inputsCaptureCounts?: {
+                                [key: string]: number;
+                            };
+                            capture?: {
+                                cycleId: string;
+                                capturedAt: string;
+                                counts: {
+                                    [key: string]: number;
+                                };
+                            };
                         };
                     };
                 };
@@ -7595,7 +7743,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read allowlisted ERP operations with company scope and pagination */
+        /** Read allowlisted ERP operations (live from logistics ERP on hosted) with company scope and pagination */
         get: {
             parameters: {
                 query?: never;
@@ -7607,13 +7755,252 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            items: ({
+                                id: string;
+                                platformAccountId?: string;
+                                companyId?: string;
+                                registeredRiderId?: string;
+                                reportIdNumber?: string;
+                                accountType?: string;
+                                vehicleType?: number;
+                                dashboardStatus?: string;
+                            } | {
+                                id: string;
+                                platformAccountId?: string;
+                                companyId?: string;
+                                previousTypeCode?: string;
+                                accountType?: string;
+                                effectiveFrom?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                totalValidOffers?: number;
+                                acceptedOffers?: number;
+                                declinedOffers?: number;
+                                missedOffers?: number;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                orderId?: string;
+                                deliveryFees?: number;
+                                cashCollected?: number;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                periodFrom?: string;
+                                periodTo?: string;
+                                gross?: number;
+                                companyAmount?: number;
+                                riderAmount?: number;
+                            } | {
+                                id: string;
+                                code?: string;
+                                nameAr?: string;
+                                nameEn?: string;
+                                name?: string;
+                                globalCityId?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                issueNumber?: string;
+                                issuedAt?: string;
+                                quantity?: number;
+                                returnedQuantity?: number;
+                                totalCost?: number;
+                            } | {
+                                id: string;
+                                assignmentId?: string;
+                                eventTypeCode?: string;
+                                occurredAt?: string;
+                                direction?: string;
+                            } | {
+                                id: string;
+                                code?: string;
+                                nameAr?: string;
+                                nameEn?: string;
+                                cityId?: string;
+                                openedDate?: string;
+                                closedDate?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                housingId?: string;
+                                roomSourceId?: string;
+                                effectiveFrom?: string;
+                                effectiveTo?: string;
+                            } | {
+                                id: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                from?: string;
+                                to?: string;
+                                rate?: number;
+                            } | {
+                                id: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                count?: number;
+                            } | {
+                                id: string;
+                                companyId?: string;
+                                number?: string;
+                                personName?: string;
+                                personTypeCode?: string;
+                                riderId?: string;
+                                partyRoleCode?: string;
+                                caseDate?: string;
+                                caseTime?: string;
+                                details?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                orders?: number;
+                                hours?: number;
+                                CaptainId?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                collectedAmount?: number;
+                                amount?: number;
+                                CaptainId?: string;
+                            } | {
+                                id: string;
+                                frozen?: boolean;
+                                policyVersion?: string;
+                                inputRevision?: string;
+                                reason?: string;
+                                createdAt?: string;
+                            } | {
+                                id: string;
+                                code?: string;
+                                externalAccountId?: string;
+                                platformCode?: string;
+                                registeredRiderId?: string;
+                                companyId?: string;
+                                cityId?: string;
+                                paymentModelCode?: string;
+                                startDate?: string;
+                                endDate?: string;
+                                assignments?: {
+                                    riderId?: string;
+                                    RawEffectiveFrom?: string;
+                                    RawEffectiveTo?: string;
+                                    EffectiveFrom?: string;
+                                    EffectiveTo?: string;
+                                    Status?: string;
+                                    IsRealRider?: boolean;
+                                }[];
+                                relationship?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                orders?: number;
+                                hours?: number;
+                                collectedAmount?: number;
+                                deductionsAmount?: number;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformCode?: string;
+                                platformAccountId?: string;
+                                accountCode?: string;
+                                externalAccountId?: string;
+                                effectiveFrom?: string;
+                                effectiveTo?: string;
+                                endReasonCode?: string;
+                                endReason?: string;
+                                nextRiderId?: string;
+                                paymentModelCode?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                sponsorId?: string;
+                                effectiveFrom?: string;
+                                effectiveTo?: string;
+                            } | {
+                                id: string;
+                                assetNumber?: string;
+                                serialNumber?: string;
+                                plateNumberAr?: string;
+                                plateNumberEn?: string;
+                                vin?: string;
+                                chassisNumber?: string;
+                                modelYear?: number;
+                                vehicleType?: number;
+                                fuelType?: number;
+                                ownershipType?: number;
+                                currentOdometer?: number;
+                                currentOperationalStatus?: string;
+                                registrationType?: string;
+                                companyId?: string;
+                                registeredOwnerCompanyId?: string;
+                                cityId?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                vehicleId?: string;
+                                startedAt?: string;
+                                endedAt?: string;
+                                startOdometer?: number;
+                                endOdometer?: number;
+                                isRealRider?: boolean;
+                                permissionStartsOn?: string;
+                                permissionEndsOn?: string;
+                            } | {
+                                id: string;
+                                vehicleId?: string;
+                                riderId?: string;
+                                companyId?: string;
+                                type?: string;
+                                occurredOn?: string;
+                                amount?: number;
+                                vat?: number;
+                                amountBeforeTax?: string;
+                            } | {
+                                id: string;
+                                vehicleId?: string;
+                                companyId?: string;
+                                statusCode?: string;
+                                effectiveFrom?: string;
+                                effectiveTo?: string;
+                                reason?: string;
+                                reasonCode?: string;
+                            } | Record<string, never>)[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
                     };
                 };
             };
@@ -7633,7 +8020,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read actual rider platform assignments and receive/deliver dates */
+        /** Read actual rider platform assignments (live from logistics ERP on hosted) */
         get: {
             parameters: {
                 query?: never;
@@ -7645,13 +8032,252 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            items: ({
+                                id: string;
+                                platformAccountId?: string;
+                                companyId?: string;
+                                registeredRiderId?: string;
+                                reportIdNumber?: string;
+                                accountType?: string;
+                                vehicleType?: number;
+                                dashboardStatus?: string;
+                            } | {
+                                id: string;
+                                platformAccountId?: string;
+                                companyId?: string;
+                                previousTypeCode?: string;
+                                accountType?: string;
+                                effectiveFrom?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                totalValidOffers?: number;
+                                acceptedOffers?: number;
+                                declinedOffers?: number;
+                                missedOffers?: number;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                orderId?: string;
+                                deliveryFees?: number;
+                                cashCollected?: number;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                periodFrom?: string;
+                                periodTo?: string;
+                                gross?: number;
+                                companyAmount?: number;
+                                riderAmount?: number;
+                            } | {
+                                id: string;
+                                code?: string;
+                                nameAr?: string;
+                                nameEn?: string;
+                                name?: string;
+                                globalCityId?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                issueNumber?: string;
+                                issuedAt?: string;
+                                quantity?: number;
+                                returnedQuantity?: number;
+                                totalCost?: number;
+                            } | {
+                                id: string;
+                                assignmentId?: string;
+                                eventTypeCode?: string;
+                                occurredAt?: string;
+                                direction?: string;
+                            } | {
+                                id: string;
+                                code?: string;
+                                nameAr?: string;
+                                nameEn?: string;
+                                cityId?: string;
+                                openedDate?: string;
+                                closedDate?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                housingId?: string;
+                                roomSourceId?: string;
+                                effectiveFrom?: string;
+                                effectiveTo?: string;
+                            } | {
+                                id: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                from?: string;
+                                to?: string;
+                                rate?: number;
+                            } | {
+                                id: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                count?: number;
+                            } | {
+                                id: string;
+                                companyId?: string;
+                                number?: string;
+                                personName?: string;
+                                personTypeCode?: string;
+                                riderId?: string;
+                                partyRoleCode?: string;
+                                caseDate?: string;
+                                caseTime?: string;
+                                details?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                orders?: number;
+                                hours?: number;
+                                CaptainId?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                collectedAmount?: number;
+                                amount?: number;
+                                CaptainId?: string;
+                            } | {
+                                id: string;
+                                frozen?: boolean;
+                                policyVersion?: string;
+                                inputRevision?: string;
+                                reason?: string;
+                                createdAt?: string;
+                            } | {
+                                id: string;
+                                code?: string;
+                                externalAccountId?: string;
+                                platformCode?: string;
+                                registeredRiderId?: string;
+                                companyId?: string;
+                                cityId?: string;
+                                paymentModelCode?: string;
+                                startDate?: string;
+                                endDate?: string;
+                                assignments?: {
+                                    riderId?: string;
+                                    RawEffectiveFrom?: string;
+                                    RawEffectiveTo?: string;
+                                    EffectiveFrom?: string;
+                                    EffectiveTo?: string;
+                                    Status?: string;
+                                    IsRealRider?: boolean;
+                                }[];
+                                relationship?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformAccountId?: string;
+                                date?: string;
+                                orders?: number;
+                                hours?: number;
+                                collectedAmount?: number;
+                                deductionsAmount?: number;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                platformCode?: string;
+                                platformAccountId?: string;
+                                accountCode?: string;
+                                externalAccountId?: string;
+                                effectiveFrom?: string;
+                                effectiveTo?: string;
+                                endReasonCode?: string;
+                                endReason?: string;
+                                nextRiderId?: string;
+                                paymentModelCode?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                companyId?: string;
+                                sponsorId?: string;
+                                effectiveFrom?: string;
+                                effectiveTo?: string;
+                            } | {
+                                id: string;
+                                assetNumber?: string;
+                                serialNumber?: string;
+                                plateNumberAr?: string;
+                                plateNumberEn?: string;
+                                vin?: string;
+                                chassisNumber?: string;
+                                modelYear?: number;
+                                vehicleType?: number;
+                                fuelType?: number;
+                                ownershipType?: number;
+                                currentOdometer?: number;
+                                currentOperationalStatus?: string;
+                                registrationType?: string;
+                                companyId?: string;
+                                registeredOwnerCompanyId?: string;
+                                cityId?: string;
+                            } | {
+                                id: string;
+                                riderId?: string;
+                                vehicleId?: string;
+                                startedAt?: string;
+                                endedAt?: string;
+                                startOdometer?: number;
+                                endOdometer?: number;
+                                isRealRider?: boolean;
+                                permissionStartsOn?: string;
+                                permissionEndsOn?: string;
+                            } | {
+                                id: string;
+                                vehicleId?: string;
+                                riderId?: string;
+                                companyId?: string;
+                                type?: string;
+                                occurredOn?: string;
+                                amount?: number;
+                                vat?: number;
+                                amountBeforeTax?: string;
+                            } | {
+                                id: string;
+                                vehicleId?: string;
+                                companyId?: string;
+                                statusCode?: string;
+                                effectiveFrom?: string;
+                                effectiveTo?: string;
+                                reason?: string;
+                                reasonCode?: string;
+                            } | Record<string, never>)[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
                     };
                 };
             };

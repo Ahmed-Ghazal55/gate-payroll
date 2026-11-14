@@ -104,6 +104,7 @@ public sealed class R10ReviewFixTests
         var(f,input,_)=PayCycleTests.Setup(false);using(f)
         {
             var other=SecondCompany(f,input);var a=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input));var b=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,other));
+            PayCycleTests.Capture(f,a.S("id"));PayCycleTests.Capture(f,b.S("id"));
             for(int s=1;s<=6;s++)PayCycleTests.Advance(f,a.S("id"),s);f.Store.Write((c,tx)=>PayCycles.ReviewAll(c,tx,PayFixture.Maker,a.S("id")));PayCycleTests.Advance(f,a.S("id"),7,true);PayCycleTests.Advance(f,a.S("id"),8,true);
             for(int s=1;s<=6;s++)PayCycleTests.Advance(f,b.S("id"),s);f.Store.Write((c,tx)=>PayCycles.ReviewAll(c,tx,PayFixture.Maker,b.S("id")));Assert.AreEqual("approved",PayCycleTests.Advance(f,b.S("id"),7,true).S("status"));
             Assert.AreEqual(2,f.Store.Read(c=>Store.List(c,"journal").Count(j=>j.S("payCycleId")!="")));Assert.IsTrue(f.Store.Read(c=>Store.List(c,"journal").All(j=>j.N("totalDebit")==j.N("totalCredit"))));
@@ -115,6 +116,7 @@ public sealed class R10ReviewFixTests
         var(f,input,debt)=PayCycleTests.Setup();using(f)
         {
             var cycle=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input));
+            PayCycleTests.Capture(f,cycle.S("id"));
             f.Store.Write((c,tx)=>{var d=Store.Get(c,debt,"debt",tx)!;d["remainingBalance"]=d.N("remainingBalance")+1;Store.Save(c,"debt",d,tx);return true;});
             Assert.ThrowsExactly<ApiError>(()=>PayCycleTests.Advance(f,cycle.S("id"),1));
         }

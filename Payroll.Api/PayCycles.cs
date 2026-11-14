@@ -5,6 +5,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 namespace Payroll;
 
 public static partial class PayCycles
@@ -96,6 +98,7 @@ public static partial class PayCycles
         }
         if(input.S("action").StartsWith("reversal",StringComparison.Ordinal))return Reverse(c,tx,actor,cycle,input);
         PayValues.Fields(input,"stage");J.Need(PayValues.Number(input,"stage",1,7)==current+1,"المراحل بالترتيب؛ أرسل المرحلة التالية المتوقعة.");Scope(actor,cycle,current==6?"pay.approve":"pay.manage");J.Need(cycle.S("status") is "draft" or "review" or "needs_decision","الدورة غير متاحة للمراحل.");
+        DemandCaptured(cycle);
         J.Need(cycle.S("sourceFingerprint")==Fingerprint(c,tx,cycle),"تغير المصدر منذ بدء المراجعة؛ أعد إنشاء دورة مراجعة مستقلة.");Open(c,tx,cycle);ReviewInvoices(c,tx,cycle);int next=current+1;
         if(next==2)ValidateAccounts(c,tx,cycle);
         if(next==3)ValidateRiders(c,tx,cycle,actor);
@@ -107,11 +110,14 @@ public static partial class PayCycles
         cycle["history"]!.AsArray().Add(new JsonObject{["stage"]=next,["advancedBy"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O")});Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_advanced",id,actor.Identity!.Name!);return cycle;
     }
     static IEnumerable<(string App,JsonObject Account)> Accounts(JsonObject cycle)=>Rows(cycle["invoices"]).OfType<JsonObject>().SelectMany(i=>Rows(i["accounts"]).OfType<JsonObject>().Select(a=>(i.S("app"),a)));
+    // Captured cycles read freeze only (M6). Pre-capture import/synthetic validation still uses Store.
+    static JsonObject? OpsDoc(DbConnection c,DbTransaction? tx,JsonObject cycle,string kind,string docId)
+        =>PayRunInputs.Captured(cycle)?CycleOpsGet(c,tx,cycle,kind,docId):Store.Get(c,docId,kind,tx);
     static void ValidateAccounts(DbConnection c,DbTransaction tx,JsonObject cycle)
     {
         foreach(var (app,a) in Accounts(cycle))
         {
-            var source=Store.Get(c,a.Required("accountId"),"platform_account",tx)??throw new ApiError("يوزر المنصة غير موجود.");
+            var source=OpsDoc(c,tx,cycle,"platform_account",a.Required("accountId"))??throw new ApiError("يوزر المنصة غير موجود.");
             J.Need(source.S("companyId")==cycle.S("companyId")&&PayPlatforms.For(source.S("platformCode")).App==app,"السجل أو التطبيق لا يطابق اليوزر.");PaySettings.Resolve(c,tx,"pay_terms",app,cycle.S("period"));
         }
     }
@@ -123,7 +129,7 @@ public static partial class PayCycles
     {
         foreach(var (app,a) in Accounts(cycle))
         {
-            var source=Store.Get(c,a.S("accountId"),"platform_account",tx)!;var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();J.Need(shares.Count>0&&shares.Select(r=>r.S("rider")).Distinct().Count()==shares.Count,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
+            var source=OpsDoc(c,tx,cycle,"platform_account",a.S("accountId"))??throw new ApiError("يوزر المنصة غير موجود.");var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();J.Need(shares.Count>0&&shares.Select(r=>r.S("rider")).Distinct().Count()==shares.Count,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
             foreach(var r in shares)
             {
                 PayValues.Fields(r,"rider","orders","baseGross","deduction","category","days","metrics","sourceLineId","operationSourceIds","chefzFullTimeCommission");
@@ -134,7 +140,7 @@ public static partial class PayCycles
                     J.Need(r["operationSourceIds"] is JsonArray proof&&proof.Count>0&&proof.All(p=>p is JsonValue j&&j.TryGetValue<string>(out _)),"مراجع مصدر التشغيل مطلوبة.");
                     foreach(string proofId in r["operationSourceIds"]!.AsArray().Select(p=>p!.GetValue<string>()))
                     {
-                        var day=Store.Get(c,proofId,"ninja_daily",tx);var import=Store.Get(c,proofId,OperationsImports.Kind,tx);
+                        var day=OpsDoc(c,tx,cycle,"ninja_daily",proofId);var import=Store.Get(c,proofId,OperationsImports.Kind,tx);
                         bool dailyMatch=day!=null&&day.S("riderId")==r.S("rider")&&day.S("platformAccountId")==a.S("accountId")&&day.S("companyId")==cycle.S("companyId")&&day.S("date").StartsWith(cycle.S("period")+"-",StringComparison.Ordinal);
                         bool importedMatch=import!=null&&import.S("invoiceId")==Store.Get(c,a.S("sourceLineId"),"platform_invoice_line",tx)?.S("invoiceId")&&(import["review"]?["accounts"] as JsonArray??[]).OfType<JsonObject>().Any(ac=>ac.S("accountId")==a.S("accountId")&&(ac["riders"] as JsonArray??[]).OfType<JsonObject>().Any(share=>share.S("rider")==r.S("rider")&&new[]{"orders","baseGross","deduction","category","days","metrics"}.All(key=>JsonNode.DeepEquals(share[key],r[key]))));
                         J.Need(dailyMatch||importedMatch,"مرجع التشغيل لا يطابق توزيع المندوب.");
@@ -150,18 +156,53 @@ public static partial class PayCycles
     }
     static JsonObject Json(object value)=>JsonSerializer.SerializeToNode(value,new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
     public static List<JsonObject> Lines(DbConnection c,DbTransaction? tx,string id)=>Store.List(c,LineKind,tx).Where(l=>l.S("cycleId")==id).ToList();
-    public static void Map(RouteGroupBuilder api,Store store)
+    public static void Map(RouteGroupBuilder api,Store store,IConfiguration? config=null,IHostEnvironment? env=null)
     {
         MapReview(api,store);
         api.MapGet("/pay/validate-gaps",(HttpContext ctx)=>
         {
             string company=ctx.Request.Query["companyId"].ToString(),period=ctx.Request.Query["period"].ToString(),app=ctx.Request.Query["app"].ToString();
             J.Need(company!=""&&period!="","الشركة والشهر مطلوبان.");if(app=="")app="ninja";
+            if(config!=null&&env!=null&&Operations.SourceMode(config,env)==Operations.SourceLive)
+            {
+                var accounts=StagePreCycleKind(ctx,store,config,"platform_account",company,period,app);
+                var daily=app=="ninja"?StagePreCycleKind(ctx,store,config,"ninja_daily",company,period,app):[];
+                return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app,ValidateGapsLiveOps(accounts,daily)));
+            }
             return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app));
         }).WithTags("Payroll").WithSummary("Counts-only ValidateRiders gap report (no identities)");
         api.MapGet("/pay/cycles/{id}/unrecovered-costs",(string id,HttpContext ctx)=>store.Read(c=>UnrecoveredCosts(c,ctx.User,id))).WithTags("Payroll").WithSummary("Read Keeta ineligibility operating and fuel costs borne by the company");
         api.MapGet("/pay/cycles/{id}/debt-deductions",(string id,HttpContext ctx)=>store.Read(c=>DebtDeductionsView(c,null,ctx.User,id))).WithTags("Payroll").WithSummary("Review due debts after salary approval, capped by positive net");
         api.MapPost("/pay/cycles/{id}/debt-deductions",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>DebtDeductionsAct(c,tx,ctx.User,id,input))).WithTags("Payroll").WithSummary("Choose zero or a due installment and independently confirm deductions");
+        api.MapPost("/pay/cycles/{id}/capture-inputs",(string id,JsonObject? input,HttpContext ctx)=>
+        {
+            // Stage live pages outside the document write TX when ERP is live; store mode freezes fixtures inside CaptureInputs.
+            Dictionary<string,List<JsonObject>>? staged=null;
+            if(config!=null&&env!=null&&Operations.SourceMode(config,env)==Operations.SourceLive)
+            {
+                var meta=store.Read(c=>Store.Get(c,id,Kind)??throw new ApiError("الدورة غير موجودة.",404));
+                Scope(ctx.User,meta,"pay.manage");
+                if(!PayRunInputs.CaptureAllowed(meta))throw new ApiError(PayRunInputs.Sealed(meta)?"لا يمكن التقاط المدخلات بعد الاعتماد.":"لا يمكن إعادة التقاط المدخلات بعد بدء الحساب؛ ألغِ الدورة وأنشئ أخرى.",409);
+                staged=StageLiveCapture(ctx,store,config,meta);
+            }
+            return store.Write((c,tx)=>
+            {
+                Func<string,IEnumerable<JsonObject>>? live=null;
+                if(staged!=null)
+                {
+                    live=kind=>
+                    {
+                        if(kind!="vehicle"&&!staged.ContainsKey(kind))throw new ApiError("مصدر التقاط ناقص لنوع: "+kind,503);
+                        return staged.TryGetValue(kind,out var rows)?rows:Array.Empty<JsonObject>();
+                    };
+                }
+                var captured=CaptureInputs(c,tx,ctx.User,id,config,env,live,input);
+                var cycle=Store.Get(c,id,Kind,tx)!;
+                var view=View(c,tx,ctx.User,cycle);
+                view["capture"]=captured;
+                return view;
+            });
+        }).WithTags("Payroll").WithSummary("Freeze live ERP (or store) ops inputs for this cycle until approval");
         api.MapGet("/pay/cycles",(HttpContext ctx)=>{AccessPolicy.Demand(ctx.User,"pay.view");string period=ctx.Request.Query["period"].ToString();if(period!="")J.Period(period);return store.Read(c=>ApiPagination.Apply(Store.List(c,Kind).Where(d=>Visible(ctx.User,d)&&(period==""||d.S("period")==period)).Select(d=>View(c,null,ctx.User,d)),ctx.Request.Query,true));}).WithTags("Payroll").WithSummary("Read scoped monthly app cycles and stage history");
         api.MapPost("/pay/cycles",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Create(c,tx,ctx.User,input)))).WithTags("Payroll").WithSummary("Review approved invoices and classify company versus account deductions");
         api.MapPost("/pay/cycles/{id}/advance",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Advance(c,tx,ctx.User,id,input)))).WithTags("Payroll").WithSummary("Advance one gated stage or independently approve target payroll posting");

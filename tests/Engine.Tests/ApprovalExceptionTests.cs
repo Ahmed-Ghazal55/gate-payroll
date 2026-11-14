@@ -42,6 +42,7 @@ public sealed class ApprovalExceptionTests
         {
             var user=User();f.Store.Write((c,tx)=>{Store.Save(c,"user",user,tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="ghazal",["from"]=Day(0),["to"]=Day(2),["reason"]="Ninja October §35 grant"});return true;});
             var actor=UserAccess.Principal(user);string id=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,actor,input)).S("id");
+            f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,actor,id));
             for(int stage=1;stage<=6;stage++){int next=stage;f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,actor,id,new(){["stage"]=next}));}
             f.Store.Write((c,tx)=>PayCycles.ReviewAll(c,tx,actor,id));
             Assert.IsTrue(f.Store.Read(c=>PayCycles.View(c,null,actor,Store.Get(c,id,PayCycles.Kind)!))["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve_salaries"));

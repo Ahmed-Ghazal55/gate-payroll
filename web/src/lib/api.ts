@@ -94,6 +94,7 @@ export type RiderLookupItem = ApiResp<'/api/riders/lookup'>[number];
 export type DebtDeductionsView = ApiResp<'/api/pay/cycles/{id}/debt-deductions'>;
 export type PayCycleItem = ApiResp<'/api/pay/cycles'>['items'][number];
 export type PayCyclesResponse = ApiResp<'/api/pay/cycles'>;
+export type PayCycleCaptureResponse = ApiResp<'/api/pay/cycles/{id}/capture-inputs', 'post'>;
 export type PayCycleLinesResponse = ApiResp<'/api/pay/cycles/{id}/lines'>;
 export type PayCycleLineItem = PayCycleLinesResponse['items'][number];
 
@@ -103,6 +104,28 @@ export type PayEligibilityItem = PayEligibilityResponse['items'][number];
 
 export type ManualJournalItem = ApiResp<'/api/finance/journals/manual'>['items'][number];
 export type ManualJournalLineItem = NonNullable<ManualJournalItem['lines']>[number];
+
+type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
+type RawOperationItem = Exclude<ApiResp<'/api/operations/{kind}'>['items'][number], Record<string, never>>;
+type RawPlatformAccountItem = Extract<RawOperationItem, { assignments?: unknown }>;
+/** Contract-derived (ApiContracts.AssignmentRow); fields match Operations.Assignment. */
+export type RiderAccountAssignment = NonNullable<RawPlatformAccountItem['assignments']>[number];
+export type OperationRow = Omit<Partial<UnionToIntersection<RawOperationItem>>, 'assignments'> & {
+  id?: string;
+  rooms?: Record<string, unknown>[];
+  assignments?: RiderAccountAssignment[];
+};
+export type OperationsResponse = Omit<ApiResp<'/api/operations/{kind}'>, 'items'> & {
+  items: OperationRow[];
+};
+type RawRiderAccountItem = Exclude<ApiResp<'/api/riders/{iqama}/accounts'>['items'][number], Record<string, never>>;
+export type RiderAccountRow = Omit<Partial<UnionToIntersection<RawRiderAccountItem>>, 'assignments'> & {
+  id?: string;
+  assignments?: RiderAccountAssignment[];
+};
+export type RiderAccountsResponse = Omit<ApiResp<'/api/riders/{iqama}/accounts'>, 'items'> & {
+  items: RiderAccountRow[];
+};
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
 
@@ -1194,7 +1217,7 @@ export const api = {
     if (params?.pageSize) p.set('pageSize', String(params.pageSize));
     if (params?.q) p.set('q', params.q);
     const qs = p.toString() ? `?${p.toString()}` : '';
-    return handleRequest<any>(`/operations/${encodeURIComponent(kind)}${qs}`);
+    return handleRequest<OperationsResponse>(`/operations/${encodeURIComponent(kind)}${qs}`);
   },
 
   getRiderAccounts: (iqama: string, params?: { page?: number; pageSize?: number }) => {
@@ -1202,7 +1225,7 @@ export const api = {
     if (params?.page) p.set('page', String(params.page));
     if (params?.pageSize) p.set('pageSize', String(params.pageSize));
     const qs = p.toString() ? `?${p.toString()}` : '';
-    return handleRequest<any>(`/riders/${encodeURIComponent(iqama)}/accounts${qs}`);
+    return handleRequest<RiderAccountsResponse>(`/riders/${encodeURIComponent(iqama)}/accounts${qs}`);
   },
 
   getRiderMonthlyStatement: (iqama: string, period: string) =>
@@ -1294,6 +1317,11 @@ export const api = {
     handleRequest<PayCycleItem>(`/pay/cycles/${encodeURIComponent(id)}/advance`, {
       method: 'POST',
       body: JSON.stringify(input),
+    }),
+  capturePayCycleInputs: (id: string) =>
+    handleRequest<PayCycleCaptureResponse>(`/pay/cycles/${encodeURIComponent(id)}/capture-inputs`, {
+      method: 'POST',
+      body: '{}',
     }),
   getPayCycleLines: (id: string, params?: { app?: string; rider?: string }) => {
     const q = new URLSearchParams();

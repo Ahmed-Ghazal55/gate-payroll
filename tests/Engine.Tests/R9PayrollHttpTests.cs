@@ -44,6 +44,7 @@ public sealed class R9PayrollHttpTests
         var operationPreview=(await f.Request(f.Maker,"/api/pay/apps/ninja/operations/import/preview",operationInput)).AsObject();operationInput["rows"]=operationPreview["rows"]!.DeepClone();operationInput["fingerprint"]=operationPreview.S("fingerprint");operationInput["confirm"]=true;await f.Request(f.Maker,"/api/pay/apps/ninja/operations/import/commit",operationInput);
         var draft=(await f.Request(f.Maker,"/api/pay/review-draft?app=ninja&period=2026-10&companyId="+company)).AsObject();Assert.IsTrue(draft.B("canCreate"));
         var cycle=(await f.Request(f.Maker,"/api/pay/cycles",new(){["period"]="2026-10",["companyId"]=company,["app"]="ninja",["invoices"]=draft["invoices"]!.DeepClone()})).AsObject();string id=cycle.S("id"),path="/api/pay/cycles/"+Uri.EscapeDataString(id);
+        await f.Request(f.Maker,path+"/capture-inputs",new());
         for(int stage=1;stage<=6;stage++)await f.Request(f.Maker,path+"/advance",new(){["stage"]=stage});
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count(d=>d.S("category")=="NegativeSalaryCarryover")));
         await f.Request(f.Maker,path+"/review/"+Positive,new(){["action"]="adjust",["itemType"]="bonus",["amount"]=100,["reason"]="Synthetic bonus"});await f.Request(f.Maker,path+"/review/"+Positive,new(){["action"]="adjust",["itemType"]="correction",["amount"]=-200,["reason"]="Synthetic downward correction"});

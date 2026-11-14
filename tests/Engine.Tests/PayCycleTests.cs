@@ -30,9 +30,10 @@ public sealed class PayCycleTests
         }
     }
     static JsonObject Create(PayFixture f,JsonObject input)=>f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input));
+    internal static JsonObject Capture(PayFixture f,string id)=>f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,input:new(){["zeroKindReasons"]=new JsonObject{["vehicle_assignment"]="fixture: no vehicle assignments",["ninja_daily"]="fixture: non-ninja cycle"}}));
     internal static JsonObject Advance(PayFixture f,string id,int stage,bool checker=false)=>f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,checker?PayFixture.Checker:PayFixture.Maker,id,new(){["stage"]=stage}));
     // BR §32: stage 7 needs every row reviewed; helpers approve all ready rows unless a test reviews them itself.
-    internal static JsonObject Through(PayFixture f,JsonObject input,int stage=6,bool review=true){var d=Create(f,input);for(int s=1;s<=stage;s++)d=Advance(f,d.S("id"),s);
+    internal static JsonObject Through(PayFixture f,JsonObject input,int stage=6,bool review=true){var d=Create(f,input);Capture(f,d.S("id"));d=f.Store.Read(c=>Store.Get(c,d.S("id"),PayCycles.Kind)!);for(int s=1;s<=stage;s++)d=Advance(f,d.S("id"),s);
         if(review&&stage==6){string id=d.S("id");f.Store.Write((c,tx)=>PayCycles.ReviewAll(c,tx,PayFixture.Maker,id));d=f.Store.Read(c=>Store.Get(c,id,PayCycles.Kind)!);}return d;}
     [TestMethod]
     public void ReviewGridShowsPhasesEditsApproveRowsAndGatesFinalApproval()
@@ -65,11 +66,11 @@ public sealed class PayCycleTests
     }
     [TestMethod]
     public void SourceMutationAndSkippedStagesAreRefusedAndDraftCanBeCancelled()
-    {var(f,input,_)=Setup(false);using(f){var cycle=Create(f,input);Assert.ThrowsExactly<ApiError>(()=>Advance(f,cycle.S("id"),2));f.Store.Write((c,tx)=>{Store.Save(c,"adjustment",new(){["id"]="synthetic-later-adjustment",["iqama"]=Rider(1),["period"]="2026-10",["amount"]=-1},tx);return true;});Assert.ThrowsExactly<ApiError>(()=>Advance(f,cycle.S("id"),1));f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["action"]="cancel"}));Assert.AreEqual("draft",Create(f,input).S("status"));}}
+    {var(f,input,_)=Setup(false);using(f){var cycle=Create(f,input);Capture(f,cycle.S("id"));Assert.ThrowsExactly<ApiError>(()=>Advance(f,cycle.S("id"),2));f.Store.Write((c,tx)=>{Store.Save(c,"adjustment",new(){["id"]="synthetic-later-adjustment",["iqama"]=Rider(1),["period"]="2026-10",["amount"]=-1},tx);return true;});Assert.ThrowsExactly<ApiError>(()=>Advance(f,cycle.S("id"),1));f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["action"]="cancel"}));Assert.AreEqual("draft",Create(f,input).S("status"));}}
     [TestMethod]
     public void RegisteredOwnerCannotReplaceAnActualOperatorAndGateOffPreventsAllWrites()
     {var(f,input,_)=Setup(false);using(f){var cycle=Through(f,input);f.Store.Write((c,tx)=>{PlatformPosting.Set(c,tx,PayFixture.Maker,"keeta",new(){["enabled"]=false});return true;});Assert.ThrowsExactly<ApiError>(()=>Advance(f,cycle.S("id"),7,true));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"journal").Count));}
-     var(g,other,_d)=Setup(false);using(g){other["invoices"]![0]!["accounts"]![0]!["riders"]![0]!["rider"]=Rider(3);var d=Create(g,other);Advance(g,d.S("id"),1);Advance(g,d.S("id"),2);Assert.ThrowsExactly<ApiError>(()=>Advance(g,d.S("id"),3));}}
+     var(g,other,_d)=Setup(false);using(g){other["invoices"]![0]!["accounts"]![0]!["riders"]![0]!["rider"]=Rider(3);var d=Create(g,other);Capture(g,d.S("id"));Advance(g,d.S("id"),1);Advance(g,d.S("id"),2);Assert.ThrowsExactly<ApiError>(()=>Advance(g,d.S("id"),3));}}
     [TestMethod]
     public void NegativeNetReachesReviewAndOnlyFinalApprovalCreatesCarry()
     {var(f,input,_)=Setup(false);using(f){var data=PayFixture.Scheme("monthly_commission");data["parameters"]!["categories"]!["sponsored_private"]!["prorate"]=false;var scheme=f.Draft("pay_scheme","hs",data,"negative");f.Approve("pay_scheme","hs",scheme);f.Store.Write((c,tx)=>{var choice=Store.Get(c,"synthetic-choice-hs1","pay_assignment",tx)!;choice["schemeId"]=scheme.S("id");Store.Save(c,"pay_assignment",choice,tx);return true;});var cycle=Through(f,input,6);Assert.AreEqual("needs_decision",cycle.S("status"));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));

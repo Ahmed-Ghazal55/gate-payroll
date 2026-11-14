@@ -31,6 +31,7 @@ public sealed class DisabledJobsSchedule(JobsOptions? options=null) : IJobsSched
     public void MarkFinished(DateTimeOffset at) { }
     public JobsHealth Health()=>new(false,null,null);
 }
+// TODO 2026-11-13: remove ErpSyncJob and S1–S4 mirror after first payroll (Ninja 2026-10). Jobs stay disabled until then.
 public sealed class HangfireJobsSchedule(JobStorage storage,IRecurringJobManager recurring,IBackgroundJobClient client,JobsOptions options,Store store,TimeProvider clock) : IJobsSchedule
 {
     public const string DailyCron="0 10 * * *",Zone="Asia/Riyadh";

@@ -20,7 +20,7 @@ async function req(route,body,status=200,auth=true){
 }
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(server.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}assert.ok(ready,logs);
- assert.equal((await req('/health',undefined,200,false)).version,'0.20.0');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.21.0');
  await req('/api/finance/coa/target',undefined,401,false);
  const password=randomBytes(24).toString('hex');await req('/api/auth/setup',{username:'synthetic-admin',password});const admin=cookie;
  const coa=await req('/api/finance/coa/target');assert.equal(coa.accounts.length,411);assert.equal(coa.accounts.filter(a=>a.posting&&a.status==='active').length,235);assert.deepEqual(Object.fromEntries(['excel','modified','new'].map(source=>[source,coa.accounts.filter(a=>a.source===source).length])),{excel:294,modified:28,new:89});assert.ok(coa.accounts.every(a=>['source','sourceNote','statusNote','subledger'].every(key=>Object.hasOwn(a,key))));

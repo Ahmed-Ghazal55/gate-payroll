@@ -97,7 +97,7 @@ public static class SourceReader
         if(modules.Count>0)modules.Add("workforce");
         return modules;
     }
-    internal static Dictionary<string,List<JsonObject>> ReadTables(DbConnection connection,IReadOnlyList<SourceTable> catalog,CancellationToken cancellationToken=default,IReadOnlyDictionary<string,SourceWatermark>? watermarks=null,byte[]? rowversionUpper=null,HashSet<string>? skippedModules=null,Dictionary<string,string>? nextWatermarks=null,HashSet<string>? skippedTables=null)
+    public static Dictionary<string,List<JsonObject>> ReadTables(DbConnection connection,IReadOnlyList<SourceTable> catalog,CancellationToken cancellationToken=default,IReadOnlyDictionary<string,SourceWatermark>? watermarks=null,byte[]? rowversionUpper=null,HashSet<string>? skippedModules=null,Dictionary<string,string>? nextWatermarks=null,HashSet<string>? skippedTables=null)
     {
         bool sql=connection is SqlConnection;
         var tables=new Dictionary<string,List<JsonObject>>(StringComparer.Ordinal);
@@ -228,7 +228,7 @@ public static class SourceReader
         if(!table.Fields.Split(' ').All(fields.Contains))throw new ImportFailure("source_contract_missing_fields:"+table.Name);
         return true;
     }
-    internal static JsonNode? Value(object? value)=>value switch
+    public static JsonNode? Value(object? value)=>value switch
     {
         null=>null,Guid g=>JsonValue.Create(g.ToString("D")), DateTimeOffset d=>JsonValue.Create(d.ToString("O")),DateTime d=>JsonValue.Create(d.ToString("yyyy-MM-ddTHH:mm:ss.fffffff")),TimeSpan t=>JsonValue.Create(t.ToString("c")),byte[]=>throw new ImportFailure("binary_source_field_not_allowed"),_=>System.Text.Json.JsonSerializer.SerializeToNode(value)
     };

@@ -5,13 +5,13 @@ namespace Payroll;
 
 public static partial class PayCycles
 {
-    static (string Type,decimal Days,JsonArray Sources) Vehicle(DbConnection c,DbTransaction tx,string rider,string period,string category,JsonObject values)
+    static (string Type,decimal Days,JsonArray Sources) Vehicle(DbConnection c,DbTransaction tx,JsonObject cycle,string rider,string period,string category,JsonObject values)
     {
         string type=category.EndsWith("_company_car",StringComparison.Ordinal)?"company_car":category.EndsWith("_company_bike",StringComparison.Ordinal)?"company_bike":"private";var sources=new JsonArray();if(type=="private")return(type,0,sources);
         var intervals=new List<(DateTimeOffset From,DateTimeOffset To)>();var month=Time(period+"-01T00:00:00+03:00");
-        foreach(var a in Store.List(c,"vehicle_assignment",tx).Where(a=>a.S("riderId")==rider&&Overlaps(a,period,"startedAt","endedAt")))
+        foreach(var a in CycleOps(c,tx,cycle,"vehicle_assignment").Where(a=>a.S("riderId")==rider&&Overlaps(a,period,"startedAt","endedAt")))
         {
-            var vehicle=Store.Get(c,a.S("vehicleId"),"vehicle",tx)??throw new ApiError("المركبة المكلف بها غير موجودة.");string actual=vehicle.S("vehicleType") switch{"1" or "Motorcycle"=>"company_bike","2" or "Car"=>"company_car",_=>"unknown"};
+            var vehicle=CycleOpsGet(c,tx,cycle,"vehicle",a.S("vehicleId"))??throw new ApiError("المركبة المكلف بها غير موجودة.");string actual=vehicle.S("vehicleType") switch{"1" or "Motorcycle"=>"company_bike","2" or "Car"=>"company_car",_=>"unknown"};
             J.Need(actual==type&&vehicle.S("ownershipType") is "1" or "2" or "Owned" or "Leased","نوع أو ملكية المركبة لا يطابق فئة الإيجار؛ راجع المصدر.");var from=Time(a.S("startedAt"));var to=a.S("endedAt")==""?month.AddMonths(1):Time(a.S("endedAt"));intervals.Add((from,to));sources.Add(a.S("id"));
         }
         J.Need(intervals.Count>0,"حيازة مركبة الشركة غير مثبتة بالفترة.");var merged=new List<(DateTimeOffset From,DateTimeOffset To)>();foreach(var i in intervals.OrderBy(i=>i.From)){if(merged.Count>0&&i.From<=merged[^1].To){var last=merged[^1];merged[^1]=(last.From,i.To>last.To?i.To:last.To);}else merged.Add(i);}
@@ -31,7 +31,7 @@ public static partial class PayCycles
             J.Need(rows.Select(r=>FinancialImports.Canonical(r["metrics"]??new JsonObject())).Distinct().Count()==1,"مقاييس أهلية المندوب يجب أن تخص التطبيق كله دون تضارب.");string rider=group.Key.Rider,app=group.Key.App,category=rows[0].S("category");
             J.Need(!Store.List(c,"run",tx).Any(r=>r.S("iqama")==rider&&r.S("period")==period),"المندوب لديه مسير قديم لنفس الشهر؛ يلزم تسوية معتمدة قبل المسار الجديد.");
             var assignment=PayAssignments.Resolve(c,tx,rider,app,period);var scheme=Store.Get(c,assignment.S("schemeId"),"pay_scheme",tx)!;string rulesId=scheme["data"].S("eligibilitySetId");var rules=rulesId==""?null:Store.Get(c,rulesId,"pay_eligibility",tx);
-            var vehicle=Vehicle(c,tx,rider,period,category,values);var metrics=(rows[0]["metrics"] as JsonObject??new()).ToDictionary(p=>p.Key,p=>(decimal?)PayValues.Number(rows[0]["metrics"]!.AsObject(),p.Key,-1000000000));
+            var vehicle=Vehicle(c,tx,cycle,rider,period,category,values);var metrics=(rows[0]["metrics"] as JsonObject??new()).ToDictionary(p=>p.Key,p=>(decimal?)PayValues.Number(rows[0]["metrics"]!.AsObject(),p.Key,-1000000000));
             var chefzFees=rows.Where(r=>r.ContainsKey("chefzFullTimeCommission")).Select(r=>r.N("chefzFullTimeCommission")).Distinct().ToList();J.Need(chefzFees.Count<=1,"عمولة دوام شيفز متضاربة بين حسابات المندوب.");decimal? chefzFee=chefzFees.Count==1?chefzFees[0]:null;
             var result=PayEvaluator.Evaluate(new(rider,app,period,category,rows.Sum(r=>(int)r.N("orders")),rows.Sum(r=>r.N("baseGross")),rows.Sum(r=>r.N("incentive")),rows[0].N("days"),vehicle.Type,vehicle.Days,metrics,chefzFee),scheme,rules,global);
             var doc=Json(result);doc["id"]="pay-line:"+Guid.NewGuid().ToString("N");doc["cycleId"]=cycle.S("id");doc["companyId"]=cycle.S("companyId");doc["schemeId"]=scheme.S("id");doc["schemeName"]=scheme["data"].S("name");doc["globalSettingId"]=global.S("id");doc["assignmentId"]=assignment.S("id");doc["termsId"]=PaySettings.Resolve(c,tx,"pay_terms",app,period).S("id");doc["sources"]=new JsonArray(rows.Select(r=>(JsonNode?)r.Clone()).ToArray());doc["vehicleSources"]=vehicle.Sources;doc["accountDeduction"]=rows.Sum(r=>r.N("deduction"));
@@ -39,20 +39,20 @@ public static partial class PayCycles
         }
         if(Lines(c,tx,cycle.S("id")).Any(l=>l.S("status")!="ready"))cycle["status"]="needs_decision";
     }
-    static string? VehicleIdOf(DbConnection c,DbTransaction tx,JsonObject line)
+    static string? VehicleIdOf(DbConnection c,DbTransaction tx,JsonObject cycle,JsonObject line)
     {
         if(line["vehicleSources"] is not JsonArray sources)return null;
         foreach(var node in sources)
         {
             string id=node switch{JsonValue v when v.TryGetValue<string>(out var s)=>s,_=>""};if(id=="")continue;
-            var assignment=Store.Get(c,id,"vehicle_assignment",tx);if(assignment!=null)return assignment.S("vehicleId");
+            var assignment=CycleOpsGet(c,tx,cycle,"vehicle_assignment",id);if(assignment!=null)return assignment.S("vehicleId");
         }
         return null;
     }
     /// <summary>BR §38.4: after per-rider once-across-apps allocation, scale shared vehicles so total ≤ type monthly rent.</summary>
-    static void CapSharedVehicleRent(DbConnection c,DbTransaction tx,IReadOnlyList<JsonObject> lines,JsonObject values)
+    static void CapSharedVehicleRent(DbConnection c,DbTransaction tx,JsonObject cycle,IReadOnlyList<JsonObject> lines,JsonObject values)
     {
-        foreach(var group in lines.Where(l=>l.N("allocatedVehicleCharge")>0).GroupBy(l=>VehicleIdOf(c,tx,l)??"").Where(g=>g.Key!=""))
+        foreach(var group in lines.Where(l=>l.N("allocatedVehicleCharge")>0).GroupBy(l=>VehicleIdOf(c,tx,cycle,l)??"").Where(g=>g.Key!=""))
         {
             var rows=group.OrderBy(l=>l.S("rider"),StringComparer.Ordinal).ThenBy(l=>l.S("app"),StringComparer.Ordinal).ToList();
             string type=rows[0].S("vehicleType");decimal total=rows.Sum(l=>l.N("allocatedVehicleCharge")),cap=PayEvaluator.MonthlyVehicleRent(type,values);
@@ -64,10 +64,10 @@ public static partial class PayCycles
             }
         }
     }
-    static int HousingDaysForRider(DbConnection c,DbTransaction tx,string rider,string period,JsonObject values)
+    static int HousingDaysForRider(DbConnection c,DbTransaction tx,JsonObject cycle,string rider,string period,JsonObject values)
     {
         var dates=new HashSet<DateOnly>();
-        foreach(var r in Store.List(c,"housing_residence",tx).Where(r=>r.S("riderId")==rider&&Overlaps(r,period,"effectiveFrom","effectiveTo")))
+        foreach(var r in CycleOps(c,tx,cycle,"housing_residence").Where(r=>r.S("riderId")==rider&&Overlaps(r,period,"effectiveFrom","effectiveTo")))
             dates.UnionWith(PayEvaluator.ResidenceDates(r.S("effectiveFrom"),r.S("effectiveTo"),period));
         return Math.Min(dates.Count,PayEvaluator.DaysInPayrollMonth(period,values));
     }
@@ -80,11 +80,11 @@ public static partial class PayCycles
             J.Need(group.Select(l=>l.S("category")).Distinct().Count()==1,"فئة المندوب بين التطبيقات متضاربة؛ راجع التصنيف.");var charged=group.Where(l=>l.N("vehicleCharge")>0).OrderBy(l=>l.S("app"),StringComparer.Ordinal).ToList();decimal rent=charged.Count==0?0:charged[0].N("vehicleCharge");J.Need(charged.All(l=>l.N("vehicleCharge")==rent),"فترات إيجار المركبة متضاربة.");
             foreach(var l in charged){l["allocatedVehicleCharge"]=l.S("id")==charged[0].S("id")?rent:0;Store.Save(c,LineKind,l,tx);}
         }
-        CapSharedVehicleRent(c,tx,lines,values);lines=Lines(c,tx,cycle.S("id"));
+        CapSharedVehicleRent(c,tx,cycle,lines,values);lines=Lines(c,tx,cycle.S("id"));
         foreach(var group in lines.GroupBy(l=>l.S("rider")))
         {
             decimal rent=group.Sum(l=>l.N("allocatedVehicleCharge"));decimal available=group.Sum(l=>l.N("entitlement")-l.N("accountDeduction"))-rent;string rider=group.Key;var tags=PlatformDeductions.Categories(Store.List(c,PlatformDeductions.Kind,tx),rider,period);
-            int residenceDays=HousingDaysForRider(c,tx,rider,period,values);decimal housing=0;bool housingRateReady=residenceDays==0;
+            int residenceDays=HousingDaysForRider(c,tx,cycle,rider,period,values);decimal housing=0;bool housingRateReady=residenceDays==0;
             if(residenceDays>0)
             {
                 try{housingRateReady=PayValues.Number(values,"housingMonthly")>0;}catch(ApiError){housingRateReady=false;}

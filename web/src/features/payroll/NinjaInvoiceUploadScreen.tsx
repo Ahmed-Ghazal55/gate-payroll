@@ -163,7 +163,7 @@ export function NinjaInvoiceUploadScreen({
     (async () => {
       const found: OperationAccount[] = [];
       for (let page = 1; page <= 20; page++) {
-        const res = (await api.getOperations('platform_account', { page, pageSize: 200, q: platform })) as { items?: OperationAccount[]; total?: number };
+        const res = (await api.getOperations('platform_account', { page, pageSize: 200, q: platform })) as unknown as { items?: OperationAccount[]; total?: number };
         const items = res?.items || [];
         found.push(...items);
         if (items.length === 0 || found.length >= (res?.total ?? 0)) break;
