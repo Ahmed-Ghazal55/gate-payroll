@@ -79,7 +79,7 @@ public sealed class DebtSheetImportTests
     [TestMethod]
     public void ApprovedOpeningCategoriesMapToTheirOwnReceivablesAndStayBehindReview()
     {
-        foreach(var (category,account,permission) in new[]{("LegacyOpeningDebt","112505","debts.create.administrative"),("InternetAdvance","112503","debts.create.advance"),("HsWalletTopUp","112513","debts.create.advance")})
+        foreach(var (category,account,permission) in new[]{("LegacyOpeningDebt","112505","debts.create.administrative"),("InternetAdvance","112503","debts.create.advance"),("HsWalletTopUp","112506","debts.create.advance")})
         {
             var meta=FinancialCore.ResolveCategory(category);
             Assert.AreEqual(account,FinanceViews.MapAccount(new(){["accountCode"]=meta.ReceivableAccountCode},new(),new(){["category"]=category},null,null));

@@ -120,9 +120,30 @@ public static partial class PayCycles
             {
                 string account=cycle["adjustmentAccounts"].S(a.S("id"));J.Need(account!="","كل تعديل يحتاج حسابًا محددًا على الشجرة الجديدة.");PayPlatforms.Active(account);J.Need(account.StartsWith(a.N("amount")>0?'5':'4'),"نوع حساب التعديل لا يطابق الإضافة أو الخصم.");var ph=a.N("amount")>0?(3,90,"تعديل راتب / حافز"):ConfigLists.Phase(c,tx,a.S("category"));deductions.Add(new JsonObject{["rider"]=rider,["category"]=a.S("category"),["amount"]=a.N("amount"),["source"]=a.S("id"),["accountCode"]=account,["type"]="adjustment",["phase"]=ph.Item1,["order"]=ph.Item2,["labelAr"]=ph.Item3});available+=a.N("amount");
             }
+            // §40.4: this-month items before net; §40.6 stage 8 keeps debts opened before the cycle month only.
             foreach(var debt in Store.List(c,"debt",tx).Where(d=>d.S("iqama")==rider&&d.S("status")=="active"&&d.N("remainingBalance")>0&&!PlatformDeductions.Skip(tags,d)&&string.CompareOrdinal(d.S("effectiveFrom","0000-00"),period)<=0&&string.CompareOrdinal(d.S("lastDeductionPeriod"),period)<0&&!(residenceDays>0&&d.S("category")=="HousingDeduction")).OrderBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Phase).ThenBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Order).ThenBy(d=>d.S("createdAt")).ThenBy(d=>d.S("id")))
             {
-                decimal amount=J.Money(debt.S("category")=="FuelOverage"&&debt.S("effectiveFrom")==period&&group.Any(l=>l.B("ineligibleKeetaSalary"))?debt.N("remainingBalance"):Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment")));FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);var dp=ConfigLists.Phase(c,tx,debt.S("category"));deductions.Add(new JsonObject{["rider"]=rider,["category"]="debt_installment",["debtCategory"]=debt.S("category"),["amount"]=0,["requestedAmount"]=amount,["computed"]=-amount,["source"]=debt.S("id"),["accountCode"]=account,["type"]="debt",["phase"]=dp.Phase,["order"]=dp.Order,["labelAr"]=dp.LabelAr});debtBefore.Add(debt.Clone());
+                decimal amount=J.Money(debt.S("category")=="FuelOverage"&&debt.S("effectiveFrom")==period&&group.Any(l=>l.B("ineligibleKeetaSalary"))?debt.N("remainingBalance"):Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment")));FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);var dp=ConfigLists.Phase(c,tx,debt.S("category"));
+                bool thisMonth=debt.S("effectiveFrom")==period;
+                if(thisMonth)
+                {
+                    decimal take=J.Money(Math.Min(amount,Math.Max(0,available)));
+                    deductions.Add(new JsonObject{["rider"]=rider,["category"]=debt.S("category"),["debtCategory"]=debt.S("category"),["amount"]=-take,["requestedAmount"]=amount,["computed"]=-amount,["source"]=debt.S("id"),["accountCode"]=account,["type"]="stage4",["phase"]=dp.Phase,["order"]=dp.Order,["labelAr"]=dp.LabelAr,["app"]="",["accountId"]="",["month"]=period});
+                    available-=take;debtBefore.Add(debt.Clone());
+                }
+                else
+                {
+                    deductions.Add(new JsonObject{["rider"]=rider,["category"]="debt_installment",["debtCategory"]=debt.S("category"),["amount"]=0,["requestedAmount"]=amount,["computed"]=-amount,["source"]=debt.S("id"),["accountCode"]=account,["type"]="debt",["phase"]=dp.Phase,["order"]=dp.Order,["labelAr"]=dp.LabelAr});debtBefore.Add(debt.Clone());
+                }
+            }
+            // Captured fuel_usage (ERP FuelCardMonthlyUsages) for the cycle month → stage 4.
+            foreach(var fuel in CycleOps(c,tx,cycle,"fuel_usage").Where(f=>f.S("riderId")==rider&&f.S("month",f.S("period"))==period))
+            {
+                decimal fuelAmt=J.Money(fuel.N("amount",fuel.N("totalAmount")));if(fuelAmt<=0)continue;
+                decimal cap=group.Max(l=>l.N("fuelCap"));bool salary=group.All(l=>l.B("salaryOperationalExpense")||(l.S("schemeType")=="target_salary"&&!l.B("ineligibleKeetaSalary")));
+                decimal companyPart=salary?Math.Min(fuelAmt,cap>0?cap:fuelAmt):0,riderPart=fuelAmt-companyPart;
+                if(companyPart>0)deductions.Add(new JsonObject{["rider"]=rider,["category"]="FuelExpense",["amount"]=0,["companyCost"]=companyPart,["source"]=fuel.S("id"),["accountCode"]=PayExpenseAccounts.SalaryFuel,["type"]="company_expense",["phase"]=1,["order"]=15,["labelAr"]="مصروف وقود لمندوب الراتب",["month"]=period,["affectsNet"]=false});
+                if(riderPart>0){decimal take=J.Money(Math.Min(riderPart,Math.Max(0,available)));deductions.Add(new JsonObject{["rider"]=rider,["category"]="FuelOverage",["amount"]=-take,["source"]=fuel.S("id"),["accountCode"]="112511",["type"]="stage4",["phase"]=1,["order"]=10,["labelAr"]="وقود على المندوب",["month"]=period,["app"]="",["accountId"]=""});available-=take;}
             }
         }
         foreach(var invoice in Rows(cycle["invoices"]).OfType<JsonObject>())
@@ -134,11 +155,11 @@ public static partial class PayCycles
                 deductions.Add(row);
         }
         // Current-month Keeta fallback fuel is operating cost, not a personal instalment.
-        foreach(var d in deductions.OfType<JsonObject>().Where(d=>d.S("type")=="debt"&&d.S("debtCategory")=="FuelOverage"))
+        foreach(var d in deductions.OfType<JsonObject>().Where(d=>(d.S("type") is "debt" or "stage4")&&d.S("debtCategory")=="FuelOverage"))
         {
-            var debt=Store.Get(c,d.S("source"),"debt",tx)!;
+            var debt=Store.Get(c,d.S("source"),"debt",tx);if(debt==null)continue;
             if(debt.S("effectiveFrom")==period&&groupProtected(d.S("rider")))
-            {J.Need(d.S("accountCode")=="112511","وقود راتب كيتا غير المؤهل يحتاج ذمة الوقود 112511 وفق §22.9.2.");d["type"]="fuel_recovery";d["fuelTotal"]=debt.N("remainingBalance");}
+            {J.Need(d.S("accountCode")=="112511","وقود راتب كيتا غير المؤهل يحتاج ذمة الوقود 112511 وفق §22.9.2.");d["type"]="fuel_recovery";d["fuelTotal"]=debt.N("remainingBalance");d["amount"]=0;}
         }
         bool groupProtected(string rider)=>lines.Any(l=>l.S("rider")==rider&&l.B("ineligibleKeetaSalary"));
         cycle["deductions"]=deductions;cycle["debtBefore"]=debtBefore;

@@ -7,7 +7,7 @@ namespace Payroll;
 
 public static class Operations
 {
-    public static readonly string[] Kinds=["city","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","sponsorship_period","legal_case","platform_account","vehicle_operational_status","platform_day_usage","rider_work_timeline","custody_equipment","vehicle_expense","chefz_account","chefz_account_type_change","chefz_daily","chefz_settlement","chefz_order_row","ninja_daily","ninja_daily_deduction","ninja_evaluation_snapshot","jahez_commission_policy","jahez_daily_order"];
+    public static readonly string[] Kinds=["city","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","sponsorship_period","legal_case","platform_account","vehicle_operational_status","platform_day_usage","rider_work_timeline","custody_equipment","vehicle_expense","fuel_usage","chefz_account","chefz_account_type_change","chefz_daily","chefz_settlement","chefz_order_row","ninja_daily","ninja_daily_deduction","ninja_evaluation_snapshot","jahez_commission_policy","jahez_daily_order"];
     /// <summary>Public field map for OpenAPI / contracts (M8).</summary>
     public static IReadOnlyDictionary<string,string[]> FieldMap=>Fields;
     static readonly Dictionary<string,string[]> Fields=new(){
@@ -20,6 +20,7 @@ public static class Operations
         ["custody_handover"]=["assignmentId","eventTypeCode","occurredAt","direction"],
         ["custody_equipment"]=["riderId","companyId","issueNumber","issuedAt","quantity","returnedQuantity","totalCost"],
         ["vehicle_expense"]=["vehicleId","riderId","companyId","type","occurredOn","amount","vat","amountBeforeTax"],
+        ["fuel_usage"]=["riderId","companyId","fuelCardId","month","period","liters","amount","totalAmount","amountBeforeTax","vat","fuelType"],
         ["sponsorship_period"]=["riderId","companyId","sponsorId","effectiveFrom","effectiveTo"],
         ["legal_case"]=["companyId","number","personName","personTypeCode","riderId","partyRoleCode","caseDate","caseTime","details"],
         ["platform_account"]=["code","externalAccountId","platformCode","registeredRiderId","companyId","cityId","paymentModelCode","startDate","endDate"],
@@ -63,7 +64,7 @@ public static class Operations
         if(kind is "vehicle" or "legal_case" or "sponsorship_period" or "vehicle_expense" or "chefz_account" or "chefz_account_type_change" or "jahez_commission_policy" or "jahez_daily_order")return Company(actor,row.S("companyId",row.S("sponsorId")));
         if(kind=="vehicle_operational_status")return Company(actor,row.S("companyId"))||Get("vehicle",row.S("vehicleId")) is {} statusVehicle&&Company(actor,statusVehicle.S("companyId",row.S("companyId")));
         if(kind=="housing")return FinancialScopes.AllCompanies(actor)||Residences().Any(r=>r.S("housingId")==row.S("id")&&Person(c,actor,r.S("riderId")));
-        if(kind is "housing_residence" or "custody_equipment" or "platform_day_usage" or "rider_work_timeline" or "chefz_daily" or "chefz_settlement" or "chefz_order_row" or "ninja_daily" or "ninja_daily_deduction")return Person(c,actor,row.S("riderId"));
+        if(kind is "housing_residence" or "custody_equipment" or "platform_day_usage" or "rider_work_timeline" or "chefz_daily" or "chefz_settlement" or "chefz_order_row" or "ninja_daily" or "ninja_daily_deduction" or "fuel_usage")return Person(c,actor,row.S("riderId"));
         if(kind=="vehicle_assignment")return Person(c,actor,row.S("riderId"))&&Get("vehicle",row.S("vehicleId")) is {} vehicle&&Company(actor,vehicle.S("companyId"));
         if(kind=="custody_handover")return Get("vehicle_assignment",row.S("assignmentId")) is {} assignment&&Visible(c,actor,"vehicle_assignment",assignment,parent,liveKind);
         if(kind=="ninja_evaluation_snapshot")return AccessPolicy.Has(actor,"operations.view");

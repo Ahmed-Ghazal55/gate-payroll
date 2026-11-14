@@ -68,6 +68,9 @@ public static class LiveOperationsQuery
             P("maintenance","RiderInventoryIssueLines",r=>r.S("Id"))]));
         Add(new("vehicle_expense","maintenance","VehicleExpenses",Cols("maintenance","VehicleExpenses"),[],null,null,"RiderProfileId",true,false,false,false,[
             P("app","Vehicles",r=>r.S("VehicleId"))]));
+        // §40.4 fuel capture: FuelCardMonthlyUsages + card→rider assignments (scope via RiderProfileId).
+        Add(new("fuel_usage","app","FuelCardMonthlyUsages",Cols("app","FuelCardMonthlyUsages"),["FuelType"],null,null,"RiderProfileId",false,false,false,false,[
+            P("app","FuelCards",r=>r.S("FuelCardId")),P("app","FuelCardRiderAssignments",r=>r.S("FuelCardId"))]));
         Add(new("chefz_account","chefz","AccountDetails",Cols("chefz","AccountDetails"),["ReportIdNumber","AccountType","VehicleType","DashboardStatus"],null,null,null,false,true,false,false,[
             P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("platform","ClientPlatforms",r=>"")]));
         Add(new("chefz_account_type_change","chefz","AccountTypeChanges",Cols("chefz","AccountTypeChanges"),[],null,null,null,false,true,false,false,[
