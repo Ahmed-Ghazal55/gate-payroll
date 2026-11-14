@@ -47,6 +47,17 @@ public sealed class PayEvaluatorTests
         Assert.AreEqual(100m,result.PlatformPenalties);
     }
     [TestMethod]
+    public void PercentCommissionKeepsNegativePlatformShareReady()
+    {
+        // §40.3 / §40.6: Ninja negative Final Amount must stay signed through percent commission (no Math.Max floor).
+        var result=Eval("percent_of_gross",Facts(gross:-22.95m,incentive:0,orders:1,days:1));
+        Assert.AreEqual(-2.30m,result.CompanyCommission);
+        Assert.AreEqual(-20.65m,result.Gross);
+        Assert.AreEqual(-20.65m,result.NetBeforePersonal);
+        Assert.AreEqual("ready",result.Status);
+        CollectionAssert.DoesNotContain(result.Blockers.ToArray(),"negative_net_requires_decision");
+    }
+    [TestMethod]
     public void SalaryRiderVehicleIsCompanyExpenseNotDeducted()
     {
         var result=Eval("target_salary",Facts("sponsored_company_bike",vehicle:"company_bike",vehicleDays:15),p=>p["chargeCompanyVehicle"]=true);

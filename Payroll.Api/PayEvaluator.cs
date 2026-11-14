@@ -119,8 +119,9 @@ public static class PayEvaluator
             else if(!fallback&&!zero)
             {
                 bool percent=type is "percent_of_gross" or "percent_monthly_with_vehicle";
-                decimal commissionBase=percent?Math.Max(0,total-penalties):total;
-                if(percent&&penalties>0)Line("غرامات المنصة على المندوب قبل النسبة","platform penalties allocated to rider (§40.3)",new(){["penalties"]=penalties,["gross"]=total},-penalties,"platform_penalties");
+                // §40.3: base is signed (Ninja negative Final Amount must not floor to zero — §40.6 carry needs a negative net).
+                decimal commissionBase=percent?total-penalties:total;
+                if(percent&&penalties>0)Line("غرامات المنصة على المندوب قبل النسبة","platform penalties allocated to rider (§40.3)",new(){["penalties"]=penalties,["gross"]=total},-penalties,"platform_penalties",false);
                 fee=type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>facts.ChefzFullTimeCommission.Value,"daily_commission"=>p.N("dailyCommission")*days,"monthly_commission"=>p.N("monthlyCommission")*(p.B("prorate")?days/monthDays:1),"percent_of_gross" or "percent_monthly_with_vehicle"=>commissionBase*p.N("companyPercent")/100,_=>throw new ApiError("نوع نظام غير مدعوم.")};fee=Round(fee,values);earned=Round(commissionBase-fee,values);
                 Line("الإجمالي قبل العمولة",percent?"(platformGross + incentives − platformPenalties)":"platformGross + incentives",new(){["gross"]=facts.PlatformGross,["incentives"]=facts.Incentives,["platformPenalties"]=penalties,["commissionBase"]=commissionBase},commissionBase,"earnings");
                 Line("عمولة الشركة",type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>"chefz half-month commission from reviewed operation days","daily_commission"=>"dailyCommission × days","monthly_commission"=>"monthlyCommission × (prorate ? days/monthDays : 1)",_=>"commissionBase × companyPercent /100 (§40.3)"},new(){["parameters"]=p.Clone(),["days"]=days,["monthDays"]=monthDays,["gross"]=total,["commissionBase"]=commissionBase,["chefzFullTimeCommission"]=facts.ChefzFullTimeCommission},-fee,"company_commission");
@@ -152,8 +153,8 @@ public static class PayEvaluator
         decimal netRent=salaryExpense?0:rent;
         decimal net=Round(entitlement-netRent,values);
         bool penaltiesInBase=type is "percent_of_gross" or "percent_monthly_with_vehicle";
-        // Agent company share is on the post-penalty base when §40.3 applies (not total−earned, which would swallow penalties).
-        decimal agentBase=penaltiesInBase?Math.Max(0,total-penalties):total;
+        // Agent company share is on the signed post-penalty base when §40.3 applies (not total−earned, which would swallow penalties).
+        decimal agentBase=penaltiesInBase?total-penalties:total;
         decimal commission=role=="agent"?Round(agentBase-earned,values):fee;
         // §40.6: negative net is allowed; carry to 112507 posts at final approval (do not block evaluate/merge).
         if(role=="agent"&&commission<0&&agentBase>=0)blockers.Add("negative_company_share_requires_decision");
