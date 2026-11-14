@@ -61,7 +61,17 @@ public static class LoadNinja
 
         var ops=ReadOps(OpsPath);
         notes.Add($"ops_rows={ops.Count}");
-        var salaryRules=ReadSalaryRules(Xfer,notes);
+        var salaryPairs=new HashSet<string>(StringComparer.Ordinal);
+        var salaryRules=ReadSalaryRules(Xfer,notes,salaryPairs);
+        // The answer-key row decides the system per (captain, rider): a row with no commission % and a day value or
+        // per-order rate is a salary row even when the operations file leaves «نظام العمل» blank.
+        int promoted=0;
+        ops=ops.Select(o=>
+        {
+            if(o.WorkSystem.Contains("راتب",StringComparison.Ordinal)||!salaryPairs.Contains(o.CaptainId+"|"+o.RiderIqama))return o;
+            promoted++;return o with{WorkSystem="راتب"};
+        }).ToList();
+        notes.Add("salary_rows_from_answer_key="+promoted);
 
         // Ninja terms + schemes (commission 10%; salary bands from the sheet)
         string commissionSchemeId="",salarySchemeId="",salaryHoldSchemeId="";
@@ -169,7 +179,7 @@ public static class LoadNinja
 
     sealed record SalaryRule(decimal DayValue,decimal OrderRate,decimal Allowance);
 
-    static Dictionary<string,SalaryRule> ReadSalaryRules(string path,List<string> notes)
+    static Dictionary<string,SalaryRule> ReadSalaryRules(string path,List<string> notes,HashSet<string> salaryPairs)
     {
         var result=new Dictionary<string,SalaryRule>(StringComparer.Ordinal);
         var sheets=Imports.Read(File.ReadAllBytes(path),"answer.xlsx");
@@ -184,6 +194,8 @@ public static class LoadNinja
         int cShort=Reconcile.ExactColumn(header,"خصومات عدم تحقيق التارجت");
         int cDed=Reconcile.ExactColumn(header,"الخصومات");
         int cAdd=Reconcile.ExactColumn(header,"الإضافات");
+        int cCap=Reconcile.ExactColumn(header,"ID");
+        int cPct=Reconcile.ExactColumn(header,"العمولة");
         if(cRider<0||cDay<0||cRate<0){notes.Add("salary_headers_missing");return result;}
         decimal Cell(List<string> row,int i)
         {
@@ -194,9 +206,13 @@ public static class LoadNinja
         for(int r=1;r<sheet.Rows.Count;r++)
         {
             var row=sheet.Rows[r];
-            if(cSys>=0&&cSys<row.Count&&Reconcile.NormalizeHeader(row[cSys])!="راتب")continue;
             string iq=Digits(cRider<row.Count?row[cRider]:"");
             if(iq.Length!=10||iq[0] is not ('1' or '2'))continue;
+            bool markedSalary=cSys>=0&&cSys<row.Count&&Reconcile.NormalizeHeader(row[cSys])=="راتب";
+            // Salary also when the row has no commission % and carries a day value or a per-order rate (ops «نظام العمل» blank).
+            bool salaryByRow=Cell(row,cPct)==0&&(Cell(row,cDay)>0||Cell(row,cRate)>0);
+            if(!markedSalary&&!salaryByRow)continue;
+            if(cCap>=0&&cCap<row.Count)salaryPairs.Add(Digits(row[cCap])+"|"+iq);
             decimal allowance=Cell(row,cNet)+Cell(row,cAdd)-Math.Abs(Cell(row,cShort))-Math.Abs(Cell(row,cDed));
             var rule=new SalaryRule(Math.Round(Cell(row,cDay),4),Math.Round(Cell(row,cRate),4),Math.Round(allowance,4));
             if(!grouped.TryGetValue(iq,out var list))grouped[iq]=list=new();

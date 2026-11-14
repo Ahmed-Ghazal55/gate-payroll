@@ -46,7 +46,7 @@ public static partial class NinjaInvoices
             if(!approve)blockers.Add("حسابك لا يملك صلاحية اعتماد فواتير الرواتب.");
             if(!independent)blockers.Add("أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر (فصل الصلاحيات).");
             if(!open)blockers.Add("الفترة المحاسبية مغلقة.");
-            int unclassified=parts.Count(d=>!InvoiceDeductionClassification.Classified(d));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على اليوزر أو على الشركة).");
+            int unclassified=parts.Count(d=>!InvoiceDeductionClassification.Classified(d));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على المندوب اللي اشتغل أو على الشركة).");
             int ownClass=parts.Count(d=>!AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve"));if(ownClass>0)blockers.Add($"أنت صنّفت {ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.");
         }
         // Attach default §40.1 proposal on each deduction for the classify UI.

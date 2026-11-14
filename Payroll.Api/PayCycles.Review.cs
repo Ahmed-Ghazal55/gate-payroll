@@ -20,7 +20,7 @@ public static partial class PayCycles
         var items=new JsonArray();
         foreach(var l in lines)
         {
-            if(l.N("accountDeduction")!=0)items.Add(Item("platform:"+l.S("id"),1,5,"خصم منصة على اليوزر ("+l.S("app")+")",-l.N("accountDeduction"),true,null,l.S("app")));
+            if(l.N("accountDeduction")!=0)items.Add(Item("platform:"+l.S("id"),1,5,"خصم منصة على المندوب من اليوزر ("+l.S("app")+")",-l.N("accountDeduction"),true,null,l.S("app")));
             if(l.N("allocatedVehicleCharge")!=0)items.Add(Item("vehicle:"+l.S("id"),1,20,"إيجار / بدل المركبة",-l.N("allocatedVehicleCharge"),true,null,l.S("vehicleType")));
         }
         foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==rider))
