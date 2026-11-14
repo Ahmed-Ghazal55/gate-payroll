@@ -66,6 +66,7 @@ import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { formatRiyadhDateTime } from '../../components/ui/SourceBadge';
 import { DebtDeductionStage } from '../../features/payroll/DebtDeductionStage';
 import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
@@ -118,6 +119,14 @@ function getPreviousMonth(period: string): string {
   }
   return `${y}-${String(m).padStart(2, '0')}`;
 }
+
+const CAPTURE_KIND_LABELS: Record<string, string> = {
+  ninja_daily: 'الأداء اليومي',
+  platform_account: 'حسابات المنصة',
+  vehicle_assignment: 'تسليم المركبات',
+  vehicle: 'المركبات',
+  housing_residence: 'السكن',
+};
 
 const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
   upload_invoice: { label: 'رفع فاتورة نينجا', href: '/app/payroll?tab=ninja_upload' },
@@ -419,6 +428,8 @@ function PayrollPageInner() {
   const [loadingDraft, setLoadingDraft] = useState<boolean>(false);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [creatingCycle, setCreatingCycle] = useState<boolean>(false);
+  const [capturingInputs, setCapturingInputs] = useState<boolean>(false);
+  const [captureError, setCaptureError] = useState<{ status?: number; message: string } | null>(null);
 
   // Rules Editor States (A6)
   const [rulesSection, setRulesSection] = useState<'eligibility' | 'record' | 'global'>('eligibility');
@@ -1507,6 +1518,31 @@ function PayrollPageInner() {
       showToast(err.message || `تعذر تقديم دورة الرواتب إلى المرحلة ${nextStage}`, 'error');
     } finally {
       setAdvancingCycle(false);
+    }
+  };
+
+  // Capture Cycle Inputs (BR §39.2)
+  const handleCaptureCycleInputs = async (cycle: PayCycleItem) => {
+    setCapturingInputs(true);
+    setCaptureError(null);
+    try {
+      const updated = await api.capturePayCycleInputs(cycle.id);
+      setCyclesList((prev) =>
+        prev.length > 0 ? prev.map((c) => (c.id === updated.id ? updated : c)) : [updated]
+      );
+      showToast('تم التقاط وتثبيت مدخلات الدورة بنجاح', 'success');
+    } catch (err: unknown) {
+      const status =
+        err instanceof ApiError
+          ? err.status
+          : typeof err === 'object' && err !== null && 'status' in err && typeof err.status === 'number'
+          ? err.status
+          : undefined;
+      const msg = err instanceof Error && err.message ? err.message : 'تعذر التقاط مدخلات الدورة';
+      setCaptureError({ status, message: msg });
+      showToast(msg, status === 503 ? 'warning' : 'error');
+    } finally {
+      setCapturingInputs(false);
     }
   };
 
@@ -3491,6 +3527,24 @@ function PayrollPageInner() {
                           <p className="text-xs text-[var(--muted)]">
                             {cycleSteps[activeCycle.stage + 1]?.desc || ''}
                           </p>
+                          {!activeCycle.inputsCapturedAt && (activeCycle.approvalBlockers || []).length > 0 && (
+                            <p className="text-xs font-bold text-[var(--warning)] mt-1 flex flex-wrap items-center gap-1.5">
+                              <AlertTriangle size={13} className="shrink-0" />
+                              <span>{(activeCycle.approvalBlockers || []).join(' • ')}</span>
+                              <a
+                                href="#btn-capture-cycle-inputs"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  const el = document.getElementById('btn-capture-cycle-inputs');
+                                  el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  el?.focus();
+                                }}
+                                className="underline text-[var(--accent)] hover:opacity-80"
+                              >
+                                انتقال لالتقاط المدخلات
+                              </a>
+                            </p>
+                          )}
                         </>
                       )}
                     </div>
@@ -3599,6 +3653,179 @@ function PayrollPageInner() {
                         </button>
                       )}
                     </div>
+                  </div>
+                );
+              })()}
+
+              {/* Cycle Inputs Snapshot Card (U2 / BR §39.2) */}
+              {activeCycle && (() => {
+                const canCaptureInputs = Boolean(activeCycle.allowedActions?.includes('capture_inputs'));
+                const isCaptured = Boolean(activeCycle.inputsCapturedAt);
+                const countEntries = Object.entries(activeCycle.inputsCaptureCounts || {});
+                const blockers = activeCycle.approvalBlockers || [];
+
+                return (
+                  <div
+                    id="cycle-inputs-card"
+                    data-testid="cycle-inputs-card"
+                    className="p-4 sm:p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                            مدخلات التشغيل المثبتة للدورة (BR §39.2)
+                          </h4>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                              isCaptured
+                                ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+                                : 'bg-[var(--warning)]/15 text-[var(--warning)]'
+                            }`}
+                          >
+                            {isCaptured ? 'تم التقاط المدخلات' : 'غير ملتقطة بعد'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--muted)] mt-0.5">
+                          تجميد لقطة مدخلات التشغيل الميداني والأداء اليومي قبل احتساب مراحل الدورة.
+                        </p>
+                      </div>
+
+                      {canCaptureInputs && (
+                        <button
+                          id="btn-capture-cycle-inputs"
+                          data-testid="btn-capture-cycle-inputs"
+                          type="button"
+                          disabled={capturingInputs}
+                          onClick={() => handleCaptureCycleInputs(activeCycle)}
+                          className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+                        >
+                          <RefreshCw size={14} className={capturingInputs ? 'animate-spin' : ''} />
+                          <span>{capturingInputs ? 'جاري التقاط المدخلات...' : 'التقاط المدخلات'}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {captureError && (
+                      <div
+                        role="alert"
+                        data-testid="cycle-capture-error"
+                        className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 text-xs font-bold ${
+                          captureError.status === 503
+                            ? 'border-[var(--warning)]/30 bg-[var(--warning)]/10 text-[var(--warning)]'
+                            : 'border-[var(--danger)]/30 bg-[var(--danger)]/10 text-[var(--danger)]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle size={16} className="shrink-0" />
+                          <span>{captureError.message}</span>
+                        </div>
+                        {captureError.status === 503 && canCaptureInputs && (
+                          <button
+                            type="button"
+                            disabled={capturingInputs}
+                            onClick={() => handleCaptureCycleInputs(activeCycle)}
+                            className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs hover:opacity-90 transition inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <RefreshCw size={13} className={capturingInputs ? 'animate-spin' : ''} />
+                            <span>إعادة المحاولة</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {!isCaptured ? (
+                      <div
+                        data-testid="cycle-inputs-blocker"
+                        className="p-3.5 rounded-xl border border-[var(--warning)]/30 bg-[var(--warning)]/10 flex flex-wrap items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="flex items-center gap-2 text-[var(--warning)] font-bold">
+                          <AlertTriangle size={16} className="shrink-0" />
+                          <span>
+                            {blockers.length > 0
+                              ? blockers.join(' • ')
+                              : 'التقط المدخلات أولًا'}
+                          </span>
+                        </div>
+                        {canCaptureInputs && (
+                          <a
+                            href="#btn-capture-cycle-inputs"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const el = document.getElementById('btn-capture-cycle-inputs');
+                              el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              el?.focus();
+                            }}
+                            className="font-bold text-[var(--accent)] hover:underline inline-flex items-center gap-1"
+                          >
+                            <span>انتقل إلى زر التقاط المدخلات</span>
+                            <ChevronRight size={13} />
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--muted)] bg-[var(--raised)]/50 px-3.5 py-2.5 rounded-xl border border-[var(--line)]">
+                          <div>
+                            <span>توقيت الالتقاط (الرياض): </span>
+                            <strong
+                              data-testid="cycle-inputs-captured-at"
+                              className="num font-mono font-bold text-[var(--ink)]"
+                            >
+                              {formatRiyadhDateTime(activeCycle.inputsCapturedAt)}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>التقط بواسطة: </span>
+                            <strong
+                              data-testid="cycle-inputs-captured-by"
+                              className="font-mono font-bold text-[var(--ink)]"
+                            >
+                              {activeCycle.inputsCapturedBy || '-'}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
+                          <table className="w-full text-start text-xs sm:text-sm" data-testid="cycle-inputs-counts-table">
+                            <thead className="bg-[var(--raised)]/60 border-b border-[var(--line)] text-[var(--muted)] font-semibold">
+                              <tr>
+                                <th className="py-2.5 px-3.5 text-start">النوع</th>
+                                <th className="py-2.5 px-3.5 text-start">عدد الصفوف</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[var(--line)]">
+                              {countEntries.map(([kind, count]) => {
+                                const isZero = count === 0;
+                                const label = CAPTURE_KIND_LABELS[kind] || kind;
+                                return (
+                                  <tr
+                                    key={kind}
+                                    data-kind={kind}
+                                    data-zero={isZero ? 'true' : 'false'}
+                                    className={
+                                      isZero
+                                        ? 'bg-[var(--warning)]/10 text-[var(--warning)] font-bold'
+                                        : 'hover:bg-[var(--row-hover)] text-[var(--ink)]'
+                                    }
+                                  >
+                                    <td className="py-2.5 px-3.5 font-semibold">
+                                      <div className="flex items-center gap-2">
+                                        {isZero && <AlertTriangle size={14} className="shrink-0 text-[var(--warning)]" />}
+                                        <span>{label}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3.5">
+                                      <span className="num font-mono font-bold">{count}</span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}

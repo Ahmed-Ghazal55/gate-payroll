@@ -20,7 +20,7 @@ import {
   Layers,
   CheckCircle2,
 } from 'lucide-react';
-import { api, OperationsResponse } from '../../lib/api';
+import { api, ApiError, OperationsResponse, OperationRow } from '../../lib/api';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
@@ -57,7 +57,7 @@ function OperationsPageInner() {
   const [searchQuery, setSearchQuery] = useState<string>(qFromUrl);
   const [debouncedQuery, setDebouncedQuery] = useState<string>(qFromUrl);
 
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<OperationRow[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [source, setSource] = useState<string>('');
   const [asOf, setAsOf] = useState<string>('');
@@ -125,9 +125,14 @@ function OperationsPageInner() {
         setAllowedActions(res?.allowedActions || []);
         setPage(res?.page ?? targetPage);
         setPageSize(res?.pageSize ?? targetPageSize);
-      } catch (err: any) {
-        const status = err?.status;
-        const msg = err?.message || 'تعذر استرجاع بيانات التشغيل';
+      } catch (err: unknown) {
+        const status =
+          err instanceof ApiError
+            ? err.status
+            : typeof err === 'object' && err !== null && 'status' in err && typeof err.status === 'number'
+            ? err.status
+            : undefined;
+        const msg = err instanceof Error && err.message ? err.message : 'تعذر استرجاع بيانات التشغيل';
 
         if (status === 503 || msg.includes('503') || msg.includes('مصدر التشغيل')) {
           setIs503(true);
@@ -250,29 +255,29 @@ function OperationsPageInner() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const tabColumns: ColumnDef<any>[] = useMemo(() => {
+  const tabColumns: ColumnDef<OperationRow>[] = useMemo(() => {
     switch (activeTab) {
       case 'cities':
         return [
           {
             key: 'code',
             header: 'رمز المدينة',
-            render: (it: any) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
           },
           {
             key: 'nameAr',
             header: 'الاسم بالعربية',
-            render: (it: any) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
           },
           {
             key: 'nameEn',
             header: 'الاسم بالإنجليزية',
-            render: (it: any) => <span className="text-xs text-[var(--muted)] font-mono">{it.nameEn || '-'}</span>,
+            render: (it: OperationRow) => <span className="text-xs text-[var(--muted)] font-mono">{it.nameEn || '-'}</span>,
           },
           {
             key: 'globalCityId',
             header: 'المعرف الموحد',
-            render: (it: any) => <span className="font-mono text-xs">{it.globalCityId || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs">{it.globalCityId || '-'}</span>,
           },
         ];
       case 'housing':
@@ -280,28 +285,28 @@ function OperationsPageInner() {
           {
             key: 'code',
             header: 'كود السكن',
-            render: (it: any) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
           },
           {
             key: 'nameAr',
             header: 'اسم الوحدة',
-            render: (it: any) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
           },
           {
             key: 'cityId',
             header: 'المدينة',
-            render: (it: any) => <span className="text-xs">{it.cityId || '-'}</span>,
+            render: (it: OperationRow) => <span className="text-xs">{it.cityId || '-'}</span>,
           },
           {
             key: 'rooms',
             header: 'عدد الغرف',
             numeric: true,
-            render: (it: any) => <span className="num">{it.rooms?.length ?? '-'}</span>,
+            render: (it: OperationRow) => <span className="num">{it.rooms?.length ?? '-'}</span>,
           },
           {
             key: 'openedDate',
             header: 'تاريخ الافتتاح',
-            render: (it: any) => <span className="font-mono text-xs text-[var(--muted)]">{it.openedDate || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.openedDate || '-'}</span>,
           },
         ];
       case 'vehicles':
@@ -309,7 +314,7 @@ function OperationsPageInner() {
           {
             key: 'plateNumber',
             header: 'رقم اللوحة',
-            render: (it: any) => (
+            render: (it: OperationRow) => (
               <span className="font-mono font-bold text-[var(--ink)]">
                 {it.plateNumberAr || it.plateNumberEn || it.assetNumber || it.id}
               </span>
@@ -318,9 +323,9 @@ function OperationsPageInner() {
           {
             key: 'vehicleType',
             header: 'نوع المركبة',
-            render: (it: any) => (
+            render: (it: OperationRow) => (
               <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">
-                {it.vehicleType === 'Car' || it.vehicleType === 'car' ? 'سيارة' : 'دباب'}
+                {String(it.vehicleType ?? '').toLowerCase() === 'car' || it.vehicleType === 1 ? 'سيارة' : 'دباب'}
               </span>
             ),
           },
@@ -328,23 +333,23 @@ function OperationsPageInner() {
             key: 'modelYear',
             header: 'سنة الموديل',
             numeric: true,
-            render: (it: any) => <span className="num">{it.modelYear || '-'}</span>,
+            render: (it: OperationRow) => <span className="num">{it.modelYear || '-'}</span>,
           },
           {
             key: 'vin',
             header: 'رقم الهيكل / VIN',
-            render: (it: any) => <span className="font-mono text-xs text-[var(--muted)]">{it.vin || it.chassisNumber || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.vin || it.chassisNumber || '-'}</span>,
           },
           {
             key: 'currentOdometer',
             header: 'العداد الحالي',
             numeric: true,
-            render: (it: any) => <span className="num font-medium">{it.currentOdometer ? `${it.currentOdometer} كم` : '-'}</span>,
+            render: (it: OperationRow) => <span className="num font-medium">{it.currentOdometer ? `${it.currentOdometer} كم` : '-'}</span>,
           },
           {
             key: 'currentOperationalStatus',
             header: 'الحالة التشغيلية',
-            render: (it: any) => (
+            render: (it: OperationRow) => (
               <span
                 className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                   it.currentOperationalStatus === 'Active' || it.currentOperationalStatus === 'active'
@@ -362,22 +367,22 @@ function OperationsPageInner() {
           {
             key: 'assignmentId',
             header: 'معرف التكليف',
-            render: (it: any) => <span className="font-mono font-bold">{it.assignmentId || it.id}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold">{it.assignmentId || it.id}</span>,
           },
           {
             key: 'eventTypeCode',
             header: 'نوع الحدث',
-            render: (it: any) => <span>{it.eventTypeCode || '-'}</span>,
+            render: (it: OperationRow) => <span>{it.eventTypeCode || '-'}</span>,
           },
           {
             key: 'direction',
             header: 'الاتجاه',
-            render: (it: any) => <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">{it.direction || '-'}</span>,
+            render: (it: OperationRow) => <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">{it.direction || '-'}</span>,
           },
           {
             key: 'occurredAt',
             header: 'تاريخ التوثيق',
-            render: (it: any) => <span className="font-mono text-xs text-[var(--muted)]">{it.occurredAt || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.occurredAt || '-'}</span>,
           },
         ];
       case 'guarantees':
@@ -385,22 +390,22 @@ function OperationsPageInner() {
           {
             key: 'riderId',
             header: 'إقامة المندوب',
-            render: (it: any) => <span className="font-mono font-bold text-[var(--ink)]">{it.riderId}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--ink)]">{it.riderId}</span>,
           },
           {
             key: 'sponsorId',
             header: 'السجل / الكفيل',
-            render: (it: any) => <span className="text-xs font-mono">{it.sponsorId || it.companyId || '-'}</span>,
+            render: (it: OperationRow) => <span className="text-xs font-mono">{it.sponsorId || it.companyId || '-'}</span>,
           },
           {
             key: 'effectiveFrom',
             header: 'سريان من',
-            render: (it: any) => <span className="font-mono text-xs">{it.effectiveFrom || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs">{it.effectiveFrom || '-'}</span>,
           },
           {
             key: 'effectiveTo',
             header: 'سريان إلى',
-            render: (it: any) => <span className="font-mono text-xs text-[var(--muted)]">{it.effectiveTo || 'مستمر'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.effectiveTo || 'مستمر'}</span>,
           },
         ];
       case 'cases':
@@ -408,27 +413,27 @@ function OperationsPageInner() {
           {
             key: 'number',
             header: 'رقم القضية',
-            render: (it: any) => <span className="font-mono font-bold text-[var(--danger)]">{it.number || it.id}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--danger)]">{it.number || it.id}</span>,
           },
           {
             key: 'personName',
             header: 'اسم الطرف',
-            render: (it: any) => <span className="font-semibold">{it.personName || it.riderId || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-semibold">{it.personName || it.riderId || '-'}</span>,
           },
           {
             key: 'personTypeCode',
             header: 'الصفة',
-            render: (it: any) => <span>{it.personTypeCode || '-'}</span>,
+            render: (it: OperationRow) => <span>{it.personTypeCode || '-'}</span>,
           },
           {
             key: 'caseDate',
             header: 'التاريخ',
-            render: (it: any) => <span className="font-mono text-xs">{it.caseDate || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs">{it.caseDate || '-'}</span>,
           },
           {
             key: 'details',
             header: 'التفاصيل',
-            render: (it: any) => <span className="text-xs text-[var(--muted)] truncate max-w-xs block">{it.details || '-'}</span>,
+            render: (it: OperationRow) => <span className="text-xs text-[var(--muted)] truncate max-w-xs block">{it.details || '-'}</span>,
           },
         ];
       case 'accounts':
@@ -437,27 +442,27 @@ function OperationsPageInner() {
           {
             key: 'code',
             header: 'كود الحساب',
-            render: (it: any) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
+            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
           },
           {
             key: 'externalAccountId',
             header: 'معرف المنصة الخارجي',
-            render: (it: any) => <span className="font-mono text-xs">{it.externalAccountId || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs">{it.externalAccountId || '-'}</span>,
           },
           {
             key: 'platformCode',
             header: 'المنصة',
-            render: (it: any) => <span className="text-xs font-bold">{it.platformCode || '-'}</span>,
+            render: (it: OperationRow) => <span className="text-xs font-bold">{it.platformCode || '-'}</span>,
           },
           {
             key: 'registeredRiderId',
             header: 'المندوب المسجل',
-            render: (it: any) => <span className="font-mono text-xs">{it.registeredRiderId || '-'}</span>,
+            render: (it: OperationRow) => <span className="font-mono text-xs">{it.registeredRiderId || '-'}</span>,
           },
           {
             key: 'assignments',
             header: 'المشغلون الفعليون',
-            render: (it: any) => <span className="num font-bold">{it.assignments ? `${it.assignments.length} مشغل` : '-'}</span>,
+            render: (it: OperationRow) => <span className="num font-bold">{it.assignments ? `${it.assignments.length} مشغل` : '-'}</span>,
           },
         ];
     }
@@ -587,7 +592,7 @@ function OperationsPageInner() {
             <button
               type="button"
               onClick={() => loadTabData(activeTab, page, pageSize, debouncedQuery)}
-              className="px-3.5 py-1.5 rounded-xl bg-[var(--warning)] text-[var(--ink)] font-bold text-xs hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="px-3.5 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <RefreshCw size={13} />
               <span>إعادة المحاولة</span>

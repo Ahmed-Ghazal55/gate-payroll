@@ -586,20 +586,16 @@ try {
     assert.equal(createResponse.status(), 200, `create cycle must succeed: ${await createResponse.text()}`);
     console.log('✓ Clicked «إنشاء دورة الرواتب» from Review Draft');
 
-    // L2 (BR §39): inputs must be captured before stage 2. Until U2 adds the button, capture through the API, then reload.
-    const createdCycle = await createResponse.json();
-    const cycleIdForCapture = createdCycle?.id ?? createdCycle?.cycle?.id;
-    assert.ok(cycleIdForCapture, 'Cycle id required before capture-inputs');
-    const captureRes = await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(cycleIdForCapture)}/capture-inputs`, {
-      method: 'POST', headers: { Cookie: cookieA, 'Content-Type': 'application/json' }, body: '{}',
-    });
-    assert.equal(captureRes.status, 200, `capture-inputs must succeed: ${await captureRes.text()}`);
-    await pageA.reload({ waitUntil: 'networkidle' });
-    // After a reload the page opens on the draft tab; switch to the cycle tab.
-    const cycleTabBtn = pageA.locator('button', { hasText: 'دورة الرواتب ومراحل المسير' });
-    await cycleTabBtn.first().waitFor({ state: 'visible', timeout: 10000 });
-    await cycleTabBtn.first().click();
-    await pageA.waitForLoadState('networkidle');
+    // L2 / U2 (BR §39.2): click «التقاط المدخلات» in the browser before stage advance.
+    const captureBtn = pageA.locator('#btn-capture-cycle-inputs');
+    await captureBtn.waitFor({ state: 'visible', timeout: 10000 });
+    const [captureResponse] = await Promise.all([
+      pageA.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname.endsWith('/capture-inputs'), { timeout: 15000 }),
+      captureBtn.click(),
+    ]);
+    assert.equal(captureResponse.status(), 200, `capture-inputs must succeed via UI button: ${await captureResponse.text()}`);
+    await pageA.locator('[data-testid="cycle-inputs-counts-table"]').waitFor({ state: 'visible', timeout: 8000 });
+    console.log('✓ Clicked «التقاط المدخلات» in browser and verified counts table');
 
     // Advance stages with the stepper button until Stage 4 (lines generated)
     for (let stage = 1; stage <= 4; stage++) {

@@ -37,11 +37,11 @@ export function SourceBadge({ source, asOf, className = '' }: SourceBadgeProps) 
     return (
       <span
         data-testid="source-badge-live"
-        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 shadow-2xs ${className}`}
+        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--success)]/15 text-[var(--success)] border border-[var(--success)]/30 shadow-2xs ${className}`}
         title={`مصدر القراءة: مباشر من نظام الموارد (آخر قراءة: ${formatted} بتوقيت الرياض)`}
       >
-        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" aria-hidden="true" />
-        <Database size={13} className="shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+        <span className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse shrink-0" aria-hidden="true" />
+        <Database size={13} className="shrink-0 text-[var(--success)]" aria-hidden="true" />
         <span>مباشر من نظام الموارد — آخر قراءة {formatted}</span>
       </span>
     );
@@ -51,11 +51,11 @@ export function SourceBadge({ source, asOf, className = '' }: SourceBadgeProps) 
     return (
       <span
         data-testid="source-badge-store"
-        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 shadow-2xs ${className}`}
+        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--warning)]/15 text-[var(--warning)] border border-[var(--warning)]/30 shadow-2xs ${className}`}
         title="مصدر القراءة: بيانات تجريبية محلية"
       >
-        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
-        <Server size={13} className="shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+        <span className="w-2 h-2 rounded-full bg-[var(--warning)] shrink-0" aria-hidden="true" />
+        <Server size={13} className="shrink-0 text-[var(--warning)]" aria-hidden="true" />
         <span>بيانات تجريبية محلية</span>
       </span>
     );

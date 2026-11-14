@@ -10,7 +10,13 @@ import {
   Layers,
   Clock,
 } from 'lucide-react';
-import { api, OperationsResponse, RiderAccountsResponse, ApiError } from '../../lib/api';
+import {
+  api,
+  RiderAccountsResponse,
+  RiderAccountRow,
+  RiderAccountAssignment,
+  ApiError,
+} from '../../lib/api';
 import { SourceBadge } from '../ui/SourceBadge';
 
 export interface RiderAccountsPanelProps {
@@ -21,7 +27,7 @@ export interface RiderAccountsPanelProps {
 const PAGE_SIZES = [25, 50, 100, 200];
 
 export function RiderAccountsPanel({ iqama, className = '' }: RiderAccountsPanelProps) {
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<RiderAccountRow[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
@@ -60,9 +66,14 @@ export function RiderAccountsPanel({ iqama, className = '' }: RiderAccountsPanel
         setAllowedActions(res?.allowedActions || []);
         setPage(res?.page ?? targetPage);
         setPageSize(res?.pageSize ?? targetSize);
-      } catch (err: any) {
-        const status = err?.status;
-        const msg = err?.message || 'تعذر استرجاع حسابات المنصات للمندوب';
+      } catch (err: unknown) {
+        const status =
+          err instanceof ApiError
+            ? err.status
+            : typeof err === 'object' && err !== null && 'status' in err && typeof err.status === 'number'
+            ? err.status
+            : undefined;
+        const msg = err instanceof Error && err.message ? err.message : 'تعذر استرجاع حسابات المنصات للمندوب';
 
         if (status === 503 || msg.includes('503') || msg.includes('مصدر التشغيل')) {
           setIs503(true);
@@ -140,7 +151,7 @@ export function RiderAccountsPanel({ iqama, className = '' }: RiderAccountsPanel
           <button
             type="button"
             onClick={() => fetchAccounts(page, pageSize)}
-            className="px-3 py-1 rounded-lg bg-[var(--warning)] text-[var(--ink)] font-bold text-xs hover:opacity-90 transition inline-flex items-center gap-1 cursor-pointer"
+            className="px-3 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs hover:opacity-90 transition inline-flex items-center gap-1 cursor-pointer"
           >
             <RefreshCw size={13} />
             <span>إعادة المحاولة</span>
@@ -217,7 +228,7 @@ export function RiderAccountsPanel({ iqama, className = '' }: RiderAccountsPanel
                     </td>
                   </tr>
                 ) : (
-                  items.map((acc: any, i: number) => (
+                  items.map((acc: RiderAccountRow, i: number) => (
                     <tr key={acc.id || acc.code || i} className="hover:bg-[var(--row-hover)] transition">
                       <td className="p-3 font-mono font-bold text-[var(--accent)]">{acc.code || acc.id}</td>
                       <td className="p-3 font-mono font-bold">{acc.externalAccountId || '-'}</td>
@@ -230,7 +241,7 @@ export function RiderAccountsPanel({ iqama, className = '' }: RiderAccountsPanel
                       </td>
                       <td className="p-3 text-xs font-mono text-[var(--muted)]">
                         {acc.assignments?.length ? (
-                          acc.assignments.map((a: any, j: number) => (
+                          acc.assignments.map((a: RiderAccountAssignment, j: number) => (
                             <div key={j}>
                               {a.RawEffectiveFrom?.slice(0, 10) || a.EffectiveFrom?.slice(0, 10) || 'بداية'} ➔ {a.RawEffectiveTo?.slice(0, 10) || a.EffectiveTo?.slice(0, 10) || 'مستمر'}
                             </div>

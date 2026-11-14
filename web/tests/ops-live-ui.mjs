@@ -257,6 +257,20 @@ async function main() {
     assert.ok(statementText.includes('حسابات وتكليفات المنصات الميدانية'), 'RiderAccountsPanel must be visible on statement page');
     console.log('✓ RiderAccountsPanel rendered in rider statement');
 
+    // Test J: Dark Mode (dim theme) verification on U1 operations screens
+    console.log('\n[Test J] Testing Dark Mode (dim theme) on /app/operations/ and /app/riders/statement/ ...');
+    await page.evaluate(() => {
+      window.localStorage.setItem('gate_theme', 'dim');
+      document.documentElement.setAttribute('data-theme', 'dim');
+    });
+    await page.goto(`${baseUrl}/app/operations/`);
+    await page.waitForLoadState('networkidle');
+    const themeAttr = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
+    assert.equal(themeAttr, 'dim', 'Document must have data-theme="dim"');
+    const dimBadge = page.locator('[data-testid="source-badge-store"]');
+    await dimBadge.waitFor({ state: 'visible', timeout: 5000 });
+    console.log('✓ Dark mode (dim) verified on Operations workspace and SourceBadge');
+
     await browser.close();
     console.log('\n======================================================');
     console.log('🎉 ALL U1 OPERATIONS UI TESTS PASSED SUCCESSFULLY!');

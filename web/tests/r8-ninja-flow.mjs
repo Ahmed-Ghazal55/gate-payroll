@@ -528,18 +528,32 @@ try {
     ]);
     assert.equal(createResponse.status(), 200, `create cycle must succeed: ${await createResponse.text()}`);
     console.log('✓ Clicked «إنشاء دورة الرواتب»');
-    // L2: freeze ops inputs before stage advance (U2 will wire the capture button).
-    const created = await createResponse.json();
-    const createdId = created?.id ?? created?.cycle?.id;
-    assert.ok(createdId, 'Cycle id required before capture-inputs');
-    const captureRes = await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(createdId)}/capture-inputs`, {
-      method: 'POST', headers: { Cookie: cookieB, 'Content-Type': 'application/json' }, body: '{}',
-    });
-    assert.equal(captureRes.status, 200, `capture-inputs must succeed: ${await captureRes.text()}`);
+    // Wait for cycle view and uncaptured inputs card to appear
+    const inputsCard = page.locator('#cycle-inputs-card');
+    await inputsCard.waitFor({ state: 'visible', timeout: 10000 });
+    const blockerText = await page.locator('[data-testid="cycle-inputs-blocker"]').textContent();
+    assert.ok(blockerText?.includes('التقط المدخلات أولًا'), 'Must display approvalBlocker «التقط المدخلات أولًا» before capture');
+    const captureBtn = page.locator('#btn-capture-cycle-inputs');
+    await captureBtn.waitFor({ state: 'visible', timeout: 8000 });
 
-    // Wait for cycle view to appear
-    await page.waitForTimeout(1000);
-    await page.waitForLoadState('networkidle');
+    // U2: Click «التقاط المدخلات» in the browser and verify card updates from response
+    const [captureResponse] = await Promise.all([
+      page.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname.endsWith('/capture-inputs'), { timeout: 15000 }),
+      captureBtn.click(),
+    ]);
+    assert.equal(captureResponse.status(), 200, `capture-inputs must succeed via UI button: ${await captureResponse.text()}`);
+    console.log('✓ Clicked «التقاط المدخلات» in browser');
+
+    const countsTable = page.locator('[data-testid="cycle-inputs-counts-table"]');
+    await countsTable.waitFor({ state: 'visible', timeout: 8000 });
+    const tableText = await countsTable.textContent();
+    assert.ok(tableText?.includes('الأداء اليومي'), 'Counts table must show Arabic label الأداء اليومي');
+    assert.ok(tableText?.includes('حسابات المنصة'), 'Counts table must show Arabic label حسابات المنصة');
+    assert.ok(tableText?.includes('تسليم المركبات'), 'Counts table must show Arabic label تسليم المركبات');
+    assert.ok(tableText?.includes('السكن'), 'Counts table must show Arabic label السكن');
+    const zeroRowsCount = await countsTable.locator('tr[data-zero="true"]').count();
+    assert.ok(zeroRowsCount > 0, 'Kinds with 0 rows must be highlighted with data-zero="true"');
+    console.log('✓ Inputs card verified: capturedAt, capturedBy, and counts table with Arabic labels');
 
     // Advance stages with the stepper button until Stage 4
     for (let stage = 1; stage <= 4; stage++) {
@@ -551,6 +565,10 @@ try {
       await page.waitForTimeout(800);
       await page.waitForLoadState('networkidle');
     }
+
+    // Verify capture button is gone once stage > 1 (removed from allowedActions by API)
+    assert.equal(await page.locator('#btn-capture-cycle-inputs').count(), 0, 'Capture inputs button must disappear when capture_inputs is no longer in allowedActions');
+    console.log('✓ Capture button gone after advancing past stage 1');
 
     // Verify stage 4 reached and lines exist
     const explainBtn = page.locator('button:has-text("كيف حُسب؟")');
