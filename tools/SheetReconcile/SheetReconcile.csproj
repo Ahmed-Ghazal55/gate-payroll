@@ -7,4 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RootNamespace>SheetReconcile</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Payroll.Api/Payroll.Api.csproj" AdditionalProperties="SkipFrontendBuild=true" />
+  </ItemGroup>
 </Project>

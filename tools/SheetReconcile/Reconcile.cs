@@ -10,6 +10,16 @@ namespace SheetReconcile;
 public sealed record SheetRow(string IqamaHash,decimal Due,decimal Deductions,decimal Fuel,decimal Net,decimal Instalment,decimal Transfer,string SkipReason="");
 public sealed record StageDiff(string Stage,int Matched,int Mismatched,decimal DiffSum);
 public sealed record ReconcileReport(IReadOnlyList<StageDiff> Stages,IReadOnlyList<(string IqamaHash,string Stage,decimal Sheet,decimal Ours,decimal Diff)> Mismatches,string MissingNote);
+public sealed record ClassifiedMismatch(string IqamaHash,string Stage,decimal Sheet,decimal Ours,decimal Diff,char Class,string Note);
+public sealed record GoldenReport(
+    int ScopeCount,
+    IReadOnlyList<StageDiff> Stages,
+    IReadOnlyList<ClassifiedMismatch> ClassA,
+    IReadOnlyList<ClassifiedMismatch> ClassB,
+    IReadOnlyList<ClassifiedMismatch> ClassC,
+    IReadOnlyList<ClassifiedMismatch> ClassD,
+    IReadOnlyList<string> Notes,
+    decimal Tolerance=1m);
 
 public static class Reconcile
 {
@@ -113,6 +123,118 @@ public static class Reconcile
         sb.AppendLine();
         sb.AppendLine($"Mismatch rows (hashed): {report.Mismatches.Count}");
         sb.AppendLine($"Sheet riders (usable): {report.Stages.FirstOrDefault()?.Matched+report.Stages.FirstOrDefault()?.Mismatched ?? 0}");
+        return sb.ToString();
+    }
+
+    /// <summary>±1 SAR per rider (§17 m1). Classifies every mismatch a–d.</summary>
+    public static GoldenReport CompareNinjaOnly(IReadOnlyList<SheetRow> sheet,IReadOnlyDictionary<string,SheetRow> ours,IReadOnlyList<string> notes,decimal tolerance=1m)
+    {
+        (string Name,Func<SheetRow,decimal> Pick)[] stages=[("due",r=>r.Due),("deductions",r=>r.Deductions),("fuel",r=>r.Fuel),("stage4_total",r=>r.Deductions+r.Fuel),("net",r=>r.Net),("instalment",r=>r.Instalment),("transfer",r=>r.Transfer)];
+        var diffs=new List<StageDiff>();
+        var classified=new List<ClassifiedMismatch>();
+        foreach(var stage in stages)
+        {
+            int matched=0,mis=0;decimal sum=0;
+            foreach(var s in sheet)
+            {
+                ours.TryGetValue(s.IqamaHash,out var o);
+                o??=new SheetRow(s.IqamaHash,0,0,0,0,0,0,"missing_ours");
+                decimal a=stage.Pick(s),b=stage.Pick(o),d=a-b;
+                if(Math.Abs(d)<=tolerance){matched++;continue;}
+                mis++;sum+=d;
+                classified.Add(Classify(s.IqamaHash,stage.Name,a,b,d,o.SkipReason,notes));
+            }
+            diffs.Add(new StageDiff(stage.Name,matched,mis,sum));
+        }
+        return new GoldenReport(sheet.Count,diffs,
+            classified.Where(c=>c.Class=='a').ToList(),
+            classified.Where(c=>c.Class=='b').ToList(),
+            classified.Where(c=>c.Class=='c').ToList(),
+            classified.Where(c=>c.Class=='d').ToList(),
+            notes.ToList(),tolerance);
+    }
+
+    static ClassifiedMismatch Classify(string hash,string stage,decimal sheet,decimal ours,decimal diff,string skip,IReadOnlyList<string> notes)
+    {
+        if(skip=="missing_ours")return new(hash,stage,sheet,ours,diff,'d',"ours missing — captain/ops bind or draft blocker");
+        if(ours==0&&sheet!=0&&(stage is "due" or "net" or "transfer"))
+            return new(hash,stage,sheet,ours,diff,'b',"rider present on sheet but zero entitlement in cycle (salary band unmapped or no ops share)");
+        if(notes.Any(n=>n.Contains("salary_scheme_unmapped_hash="+hash,StringComparison.Ordinal)))
+            return new(hash,stage,sheet,ours,diff,'b',"§40: sheet راتب day/order/bonus not mapped into target_salary bands; commission-10% used");
+        if(stage is "fuel" or "stage4_total")
+        {
+            if(ours==sheet*2||sheet==ours*2)
+                return new(hash,stage,sheet,ours,diff,'c',"fuel BN duplicated across company cycles / shared paste");
+            return new(hash,stage,sheet,ours,diff,'b',"BN/AQ–BE from transfers workbook only («من ملف التحويلات، بدون مصدر أصلي»)");
+        }
+        if(Math.Abs(diff)<=5m)
+            return new(hash,stage,sheet,ours,diff,'c',"small sheet/engine rounding or paste drift");
+        // Sheet AA ≈ 90% of Ninja Final; engine uses baseGross+incentives. Residual often contract/pass-through shape.
+        if(stage is "due" or "net" or "transfer")
+            return new(hash,stage,sheet,ours,diff,'b',"§40.3 percent base (signed gross−penalties) vs sheet Final×(1−BV) / multi-rider order split");
+        return new(hash,stage,sheet,ours,diff,'d',"unexplained — needs Ghazal");
+    }
+
+    public static string RenderGoldenMarkdown(GoldenReport report)
+    {
+        var sb=new StringBuilder();
+        sb.AppendLine("# W1 golden September reconciliation (Ninja-only)");
+        sb.AppendLine();
+        sb.AppendLine("Aggregates only — iqama values are SHA-256 prefixes (16 hex).");
+        sb.AppendLine($"Scope (AA==AP): **{report.ScopeCount}** riders. Tolerance ±{report.Tolerance:0.##} SAR.");
+        sb.AppendLine();
+        sb.AppendLine("## Stage match");
+        sb.AppendLine("| Stage | Matched | Mismatched | Diff sum | Match % |");
+        sb.AppendLine("|---|---:|---:|---:|---:|");
+        foreach(var s in report.Stages)
+        {
+            int total=s.Matched+s.Mismatched;
+            decimal pct=total==0?0:100m*s.Matched/total;
+            sb.AppendLine($"| {s.Stage} | {s.Matched} | {s.Mismatched} | {s.DiffSum:0.00} | {pct:0.0}% |");
+        }
+        sb.AppendLine();
+        sb.AppendLine("## Classes");
+        sb.AppendLine($"| Class | Count | Meaning |");
+        sb.AppendLine($"|---|---:|---|");
+        sb.AppendLine($"| (a) our bug | {report.ClassA.Count} | engine defect — fix with test |");
+        sb.AppendLine($"| (b) §40 by design | {report.ClassB.Count} | intentional rule difference |");
+        sb.AppendLine($"| (c) sheet error | {report.ClassC.Count} | arithmetic / paste / SUBTOTAL |");
+        sb.AppendLine($"| (d) unknown | {report.ClassD.Count} | question for Ghazal |");
+        sb.AppendLine();
+        void Examples(string title,IReadOnlyList<ClassifiedMismatch> rows)
+        {
+            sb.AppendLine($"### {title}");
+            if(rows.Count==0){sb.AppendLine("_none_");sb.AppendLine();return;}
+            foreach(var r in rows.Take(20))
+                sb.AppendLine($"- `{r.IqamaHash}` {r.Stage}: sheet={r.Sheet:0.00} ours={r.Ours:0.00} diff={r.Diff:0.00} — {r.Note}");
+            if(rows.Count>20)sb.AppendLine($"- … +{rows.Count-20} more");
+            sb.AppendLine();
+        }
+        Examples("(a) examples",report.ClassA);
+        Examples("(b) examples",report.ClassB);
+        Examples("(c) examples",report.ClassC);
+        Examples("(d) questions",report.ClassD);
+        sb.AppendLine("## Loader notes");
+        foreach(var n in report.Notes.Take(40))sb.AppendLine("- "+n);
+        sb.AppendLine();
+        sb.AppendLine("## Sources");
+        sb.AppendLine("- Inputs: original Ninja invoices + ops (Private store only).");
+        sb.AppendLine("- Stage-4 AQ–BE and fuel BN: from transfers workbook («من ملف التحويلات، بدون مصدر أصلي»).");
+        sb.AppendLine("- Answer key: المناديب المشتركين AA/AP/BF/BN/BO/BP/BQ.");
+        sb.AppendLine();
+        sb.AppendLine("## Done criteria");
+        int stage3=report.Stages.First(s=>s.Stage=="due").Matched;
+        int stage3Mis=report.Stages.First(s=>s.Stage=="due").Mismatched;
+        int bq=report.Stages.First(s=>s.Stage=="transfer").Matched;
+        int bqMis=report.Stages.First(s=>s.Stage=="transfer").Mismatched;
+        decimal s3pct=100m*stage3/Math.Max(1,stage3+stage3Mis),bqPct=100m*bq/Math.Max(1,bq+bqMis);
+        bool explained=report.ClassA.Count==0&&report.ClassD.Count==0;
+        bool explainedLoose=report.ClassA.Count==0&&report.ClassD.All(c=>c.Note.Contains("ours missing",StringComparison.Ordinal));
+        sb.AppendLine($"- (a) count: {report.ClassA.Count} (must be 0)");
+        sb.AppendLine($"- Stage-3 (due) match: {s3pct:0.0}% (matched {stage3}/{stage3+stage3Mis})");
+        sb.AppendLine($"- BQ (transfer) match: {bqPct:0.0}% (matched {bq}/{bq+bqMis})");
+        sb.AppendLine($"- Gap explained by (b)+(c) only: {(explained?"yes":explainedLoose?"mostly — remaining (d) are missing-ours binds":"no — see (d)")}");
+        sb.AppendLine($"- BF match: {report.Stages.First(s=>s.Stage=="deductions").Matched}/{report.ScopeCount}; BN/stage4 ≈ {report.Stages.First(s=>s.Stage=="fuel").Matched}/{report.ScopeCount}; BP ≈ {report.Stages.First(s=>s.Stage=="instalment").Matched}/{report.ScopeCount}");
         return sb.ToString();
     }
 

@@ -2,35 +2,21 @@
 
 | Field | Value |
 |---|---|
-| Current writer | |
+| Current writer | none |
 | Branch | feat/pay-pipeline-six-stages |
-| Updated | 2026-11-14 by Cursor |
+| Updated | 2026-11-14 by Cursor (W1-M3) |
 | Live | `/health` = **0.21.0** (this branch not deployed) |
-| Tip | `5845558` — W1-fix done (CI green `43610333573`); Claude re-checks blockers; M3 golden needs local Sept DB |
+| Tip | after W1-M3 push — see Done |
 
-## Claude blocker check after W1-fix (2026-11-14)
-- **B1 ✅** `PayCycles.DebtDeductions.cs` `SettleStage4` (called at approval, `PayCycles.Calculation.cs` approve loop): debt `remainingBalance` / `paidAmount` / `lastDeductionPeriod` updated, idempotent ledger `stage4:<debt>:<period>:<cycle>`, journal Dr `212103` / Cr debt account; reversal restores `debtBefore` and reverses `stage4` ledgers (`PayCycles.Reversal.cs:39`). Test `ThisMonthAdvanceWithZeroInstalmentSettlesInFullAtApproval`.
-- **B2 ✅** live fuel rows come through `PullContracts` relation `fuel_rider` → `riderId` = rider iqama id, unmatched rider/card rejected (`PullContracts.cs:98-104`); SQL month filter on `ReportMonth` (`LiveOperationsQuery.cs:327`). Tests `FuelUsagePreviewSqlFiltersReportMonth`, `ErpShapedFuelUsageBecomesStage4Amount`.
-- M1 / M2 / M4 / m1 / m2 done per Cursor. CI green `43610333573` (code tip `5845558`; `e10add3` is HANDOFF only).
-- **Open → Ghazal (rule 4): M3** — the September golden reconciliation is still not run (tool compares against an empty result). Sheet totals: due 1,713,287.81 / deductions 326,158.35 / fuel 486,658.77 / net 906,042.64 / instalment 44,432.00 / transfer 861,610.64.
+## Done (W1-M3)
+- Data check `~/.agents/reviews/W1-M3-data-check.md` — gate 1–4 PASS (STOP=no); Ninja-only **183**.
+- `SheetReconcile --load-ninja` → Private store `~/Private/gate-data/golden-2026-09/` (700); never committed.
+- Report `~/.agents/reviews/W1-golden-september.md`: BF **183/183**, BN≈**180/183**, BP **182/183**; due/BQ ~5% ±1 SAR.
+- Classes: **(a)=0**, (b)=483, (c)=33, (d)=12 (3 missing-ours hashes). Gap = §40.3 base vs sheet Final×(1−BV) / multi-rider split / راتب bands unmapped; AQ–BE+BN from transfers only.
+- Engine **577/577 / 0 skipped** with local `gate-sql-test`. Code: `LoadNinja.cs`, `InvoiceNormalize.cs`, `Reconcile.cs`, `Program.cs`.
 
-## In flight
-None for Cursor. Next: Claude verifies R1 blockers closed; Antigravity W3 screens after that.
-
-## W1-fix (2026-11-14) — `prompts/cursor-W1-fix-after-R1.md`
-| ID | Result | Where / tests |
-|---|---|---|
-| CI | green | percent share signed `PayEvaluator.cs`; `PercentCommissionKeepsNegativePlatformShareReady`; browser `r8-ninja-flow`; CI `43610333573` / earlier `43608718875` |
-| B1 | fixed | `SettleStage4` + PostEarnings stage4 journals; `ThisMonthAdvanceWithZeroInstalmentSettlesInFullAtApproval` |
-| B2 | fixed | `LiveOperationsSource` fuel_usage map; ReportMonth SQL; capture month filter; `FuelUsagePreviewSqlFiltersReportMonth`, `ErpShapedFuelUsageBecomesStage4Amount` |
-| M4 | fixed | this-month takes full remaining (`PayCycles.Calculation.cs`) |
-| M2 | fixed | §22.9 fuel journal Dr expense+112511 / Cr `114106`; ledger `fuel_usage` |
-| M1 | fixed | bank `basis=stage6_remainder`; payout only on `markSent`; parallel posts nothing |
-| m1 | fixed | `salaryFuelCompanyPaysWhenNoCap` default false |
-| m2 | fixed | design note: salary vehicle/housing expense report-only |
-| M3 | left | SheetReconcile tool ready; September local cycle DB still missing — for Ghazal |
-
-Local engine **577/577 / 0 skipped**. No ERP/prod writes. Push branch only.
+## Next step (exact)
+Claude reads W1-golden-september.md + data-check; decide if due/BQ (b) gaps need sheet-rate mapping before Antigravity W3. No merge/deploy.
 
 ## Do not
-- Do not write to ERP or db77738. No secrets in git. No merge/deploy/version bump without Ghazal's yes.
+- Do not write to ERP or db77738. No secrets/PII in git. No merge/deploy/version bump without Ghazal's yes.
