@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:41151/"
+      "url": "http://127.0.0.1:35661/"
     }
   ],
   "paths": {
@@ -10801,6 +10801,40 @@
                       "items": {
                         "type": "object"
                       }
+                    },
+                    "inputsCapturedAt": {
+                      "type": "string"
+                    },
+                    "inputsCapturedBy": {
+                      "type": "string"
+                    },
+                    "inputsCaptureCounts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    },
+                    "capture": {
+                      "required": [
+                        "cycleId",
+                        "capturedAt",
+                        "counts"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "cycleId": {
+                          "type": "string"
+                        },
+                        "capturedAt": {
+                          "type": "string"
+                        },
+                        "counts": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number"
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -11079,6 +11113,40 @@
                             "type": "array",
                             "items": {
                               "type": "object"
+                            }
+                          },
+                          "inputsCapturedAt": {
+                            "type": "string"
+                          },
+                          "inputsCapturedBy": {
+                            "type": "string"
+                          },
+                          "inputsCaptureCounts": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "number"
+                            }
+                          },
+                          "capture": {
+                            "required": [
+                              "cycleId",
+                              "capturedAt",
+                              "counts"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "cycleId": {
+                                "type": "string"
+                              },
+                              "capturedAt": {
+                                "type": "string"
+                              },
+                              "counts": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "number"
+                                }
+                              }
                             }
                           }
                         }
@@ -11368,6 +11436,40 @@
                       "items": {
                         "type": "object"
                       }
+                    },
+                    "inputsCapturedAt": {
+                      "type": "string"
+                    },
+                    "inputsCapturedBy": {
+                      "type": "string"
+                    },
+                    "inputsCaptureCounts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    },
+                    "capture": {
+                      "required": [
+                        "cycleId",
+                        "capturedAt",
+                        "counts"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "cycleId": {
+                          "type": "string"
+                        },
+                        "capturedAt": {
+                          "type": "string"
+                        },
+                        "counts": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number"
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -11655,6 +11757,40 @@
                       "type": "array",
                       "items": {
                         "type": "object"
+                      }
+                    },
+                    "inputsCapturedAt": {
+                      "type": "string"
+                    },
+                    "inputsCapturedBy": {
+                      "type": "string"
+                    },
+                    "inputsCaptureCounts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    },
+                    "capture": {
+                      "required": [
+                        "cycleId",
+                        "capturedAt",
+                        "counts"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "cycleId": {
+                          "type": "string"
+                        },
+                        "capturedAt": {
+                          "type": "string"
+                        },
+                        "counts": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number"
+                          }
+                        }
                       }
                     }
                   }

@@ -7238,6 +7238,18 @@ export interface paths {
                             journalEntryId?: string;
                             history?: Record<string, never>[];
                             deductions?: Record<string, never>[];
+                            inputsCapturedAt?: string;
+                            inputsCapturedBy?: string;
+                            inputsCaptureCounts?: {
+                                [key: string]: number;
+                            };
+                            capture?: {
+                                cycleId: string;
+                                capturedAt: string;
+                                counts: {
+                                    [key: string]: number;
+                                };
+                            };
                         };
                     };
                 };
@@ -7331,6 +7343,18 @@ export interface paths {
                                 journalEntryId?: string;
                                 history?: Record<string, never>[];
                                 deductions?: Record<string, never>[];
+                                inputsCapturedAt?: string;
+                                inputsCapturedBy?: string;
+                                inputsCaptureCounts?: {
+                                    [key: string]: number;
+                                };
+                                capture?: {
+                                    cycleId: string;
+                                    capturedAt: string;
+                                    counts: {
+                                        [key: string]: number;
+                                    };
+                                };
                             }[];
                             total: number;
                             page: number;
@@ -7419,6 +7443,18 @@ export interface paths {
                             journalEntryId?: string;
                             history?: Record<string, never>[];
                             deductions?: Record<string, never>[];
+                            inputsCapturedAt?: string;
+                            inputsCapturedBy?: string;
+                            inputsCaptureCounts?: {
+                                [key: string]: number;
+                            };
+                            capture?: {
+                                cycleId: string;
+                                capturedAt: string;
+                                counts: {
+                                    [key: string]: number;
+                                };
+                            };
                         };
                     };
                 };
@@ -7519,6 +7555,18 @@ export interface paths {
                             journalEntryId?: string;
                             history?: Record<string, never>[];
                             deductions?: Record<string, never>[];
+                            inputsCapturedAt?: string;
+                            inputsCapturedBy?: string;
+                            inputsCaptureCounts?: {
+                                [key: string]: number;
+                            };
+                            capture?: {
+                                cycleId: string;
+                                capturedAt: string;
+                                counts: {
+                                    [key: string]: number;
+                                };
+                            };
                         };
                     };
                 };
