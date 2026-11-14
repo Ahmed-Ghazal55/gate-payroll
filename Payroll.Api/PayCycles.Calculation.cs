@@ -123,9 +123,11 @@ public static partial class PayCycles
             // §40.4: this-month items before net; §40.6 stage 8 keeps debts opened before the cycle month only.
             foreach(var debt in Store.List(c,"debt",tx).Where(d=>d.S("iqama")==rider&&d.S("status")=="active"&&d.N("remainingBalance")>0&&!PlatformDeductions.Skip(tags,d)&&string.CompareOrdinal(d.S("effectiveFrom","0000-00"),period)<=0&&string.CompareOrdinal(d.S("lastDeductionPeriod"),period)<0&&!(residenceDays>0&&d.S("category")=="HousingDeduction")).OrderBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Phase).ThenBy(d=>ConfigLists.Phase(c,tx,d.S("category")).Order).ThenBy(d=>d.S("createdAt")).ThenBy(d=>d.S("id")))
             {
-                decimal amount=J.Money(debt.S("category")=="FuelOverage"&&debt.S("effectiveFrom")==period&&group.Any(l=>l.B("ineligibleKeetaSalary"))?debt.N("remainingBalance"):Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment")));FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);var dp=ConfigLists.Phase(c,tx,debt.S("category"));
+                FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);var dp=ConfigLists.Phase(c,tx,debt.S("category"));
                 // §40.4 stage-4 sources are month-created operational debts; NegativeSalaryCarryover stays stage 8 (§40.6 instalment / confirm).
                 bool thisMonth=debt.S("effectiveFrom")==period&&debt.S("category")!="NegativeSalaryCarryover";
+                // M4: this-month takes full remaining (still capped by available); old debts keep the instalment.
+                decimal amount=J.Money(thisMonth||(debt.S("category")=="FuelOverage"&&debt.S("effectiveFrom")==period&&group.Any(l=>l.B("ineligibleKeetaSalary")))?debt.N("remainingBalance"):Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment")));
                 if(thisMonth)
                 {
                     decimal take=J.Money(Math.Min(amount,Math.Max(0,available)));
@@ -236,6 +238,7 @@ public static partial class PayCycles
             J.Need(IndependentReview(actor,row,c,tx,cycle),"يلزم مراجع مستقل.",403);
             if(row.N("net")<0)CreateCarry(c,tx,cycle,row,actor);
             SettleOperatingFuel(c,tx,cycle,row,actor);
+            SettleStage4(c,tx,cycle,row,actor);
             row["salaryNet"]=row.N("net");row["salaryApprovedAt"]=now;row["salaryApprovedBy"]=actor.Identity!.Name;row["debtDeductionStatus"]="pending";
         }
         Store.Save(c,Kind,cycle,tx);
@@ -306,6 +309,13 @@ public static partial class PayCycles
         {
             string rider=d.S("rider"),source=d.S("source");decimal recovered=-d.N("amount"),companyCost=d.N("companyCost");
             Add("212103",recovered,0,d.S("app"),rider,source,debt:d.S("type")=="fuel_recovery"?source:"");Add("512121",companyCost,0,d.S("app"),rider,source,debt:d.S("type")=="fuel_recovery"?source:"");Add(d.S("accountCode"),0,recovered+companyCost,d.S("app"),rider,source,debt:d.S("type")=="fuel_recovery"?source:"");
+        }
+        // B1: stage-4 this-month debt / fuel rider part — Dr 212103 / Cr receivable (debt link when source is a debt).
+        foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>selected.Contains(d.S("rider"))&&d.S("type")=="stage4"))
+        {
+            decimal take=-d.N("amount");if(take<=0)continue;
+            string debtId=Store.Get(c,d.S("source"),"debt",tx)!=null?d.S("source"):"";
+            Add("212103",take,0,d.S("app"),d.S("rider"),d.S("source"),debt:debtId);Add(d.S("accountCode"),0,take,d.S("app"),d.S("rider"),d.S("source"),debt:debtId);
         }
         foreach(var row in Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>selected.Contains(r.S("rider"))&&r.N("salaryNet")<0))
         {Add("112507",-row.N("salaryNet"),0,"",row.S("rider"),row.S("carryDebtId"),debt:row.S("carryDebtId"));Add("212103",0,-row.N("salaryNet"),"",row.S("rider"),row.S("carryDebtId"),debt:row.S("carryDebtId"));}

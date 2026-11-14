@@ -36,7 +36,7 @@ public static partial class PayCycles
         foreach(var before in Rows(cycle["debtBefore"]).OfType<JsonObject>())Store.Save(c,"debt",before.Clone(),tx);
         foreach(var row in Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("carryDebtId")!=""))
         {var debt=Store.Get(c,row.S("carryDebtId"),"debt",tx)!;debt["status"]="reversed";debt["remainingBalance"]=0;debt["reversedBy"]=actor.Identity!.Name;debt["reversalCycleId"]=cycle.S("id");Store.Save(c,"debt",debt,tx);}
-        foreach(var ledger in Store.List(c,"ledger",tx).Where(l=>l.S("sourceRef")==cycle.S("id")&&l.S("kind")=="debt_installment"))Store.Save(c,"ledger_reversal",new(){["id"]="pay-reverse:"+ledger.S("id"),["reversesLedgerId"]=ledger.S("id"),["cycleId"]=cycle.S("id"),["amount"]=-ledger.N("amount"),["approvedBy"]=actor.Identity!.Name,["period"]=request.S("period")},tx);
+        foreach(var ledger in Store.List(c,"ledger",tx).Where(l=>l.S("sourceRef")==cycle.S("id")&&l.S("kind") is "debt_installment" or "stage4"))Store.Save(c,"ledger_reversal",new(){["id"]="pay-reverse:"+ledger.S("id"),["reversesLedgerId"]=ledger.S("id"),["cycleId"]=cycle.S("id"),["amount"]=-ledger.N("amount"),["approvedBy"]=actor.Identity!.Name,["period"]=request.S("period")},tx);
         cycle["status"]="reversed";cycle["reversedBy"]=actor.Identity!.Name;cycle["reversalPeriod"]=request.S("period");Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_reversed",cycle.S("id"),actor.Identity!.Name!);return cycle;
     }
     public static void GuardLegacyRun(DbConnection c,DbTransaction tx,JsonObject run)
