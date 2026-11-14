@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none — next: Ghazal decides the B3 leftover, then Antigravity U2 |
+| Current writer | none — next: Cursor `prompts/cursor-L2-fix2-b3-category.md`, then Antigravity U2 |
 | Branch | feat/run-input-snapshots |
 | Updated | 2026-11-14 by Claude (blocker check after L2-fix) |
 | Live | `/health` = **0.20.0** (this branch not deployed) |
