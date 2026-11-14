@@ -8,6 +8,8 @@ namespace Payroll;
 public static class Operations
 {
     public static readonly string[] Kinds=["city","housing","housing_residence","vehicle","vehicle_assignment","custody_handover","sponsorship_period","legal_case","platform_account","vehicle_operational_status","platform_day_usage","rider_work_timeline","custody_equipment","vehicle_expense","chefz_account","chefz_account_type_change","chefz_daily","chefz_settlement","chefz_order_row","ninja_daily","ninja_daily_deduction","ninja_evaluation_snapshot","jahez_commission_policy","jahez_daily_order"];
+    /// <summary>Public field map for OpenAPI / contracts (M8).</summary>
+    public static IReadOnlyDictionary<string,string[]> FieldMap=>Fields;
     static readonly Dictionary<string,string[]> Fields=new(){
         ["city"]=["code","nameAr","nameEn","name","globalCityId"],
         ["housing"]=["code","nameAr","nameEn","cityId","openedDate","closedDate"],

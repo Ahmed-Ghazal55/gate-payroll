@@ -17,7 +17,19 @@ public static class ReleaseSafety
             string kind=reader.GetString(1);counts[kind]=counts.GetValueOrDefault(kind)+1;
             for(int i=0;i<3;i++){byte[] value=Encoding.UTF8.GetBytes(reader.GetString(i));digest.AppendData(Encoding.UTF8.GetBytes(value.Length+":"));digest.AppendData(value);}
         }
-        return new{counts,recordsSha256=Convert.ToHexString(digest.GetHashAndReset())};
+        int payRunInputs=0;
+        try
+        {
+            using var pri=c.CreateCommand();pri.Transaction=tx;
+            if(c is SqliteConnection)pri.CommandText="SELECT COUNT(*) FROM pay_run_input";
+            else pri.CommandText="SELECT COUNT_BIG(*) FROM pay.PayRunInput";
+            payRunInputs=Convert.ToInt32(pri.ExecuteScalar()??0,System.Globalization.CultureInfo.InvariantCulture);
+            counts["pay_run_input"]=payRunInputs;
+            byte[] tag=Encoding.UTF8.GetBytes("pay_run_input:"+payRunInputs);
+            digest.AppendData(Encoding.UTF8.GetBytes(tag.Length+":"));digest.AppendData(tag);
+        }
+        catch{/* table may be absent on pre-L2 checkpoints */}
+        return new{counts,recordsSha256=Convert.ToHexString(digest.GetHashAndReset()),payRunInputRows=payRunInputs};
     }
     // This checkpoint stays under private App_Data and never enters a publish artifact.
     public static string? Checkpoint(DbConnection c,string dataDirectory)

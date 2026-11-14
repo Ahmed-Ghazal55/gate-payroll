@@ -1,95 +1,64 @@
 # Run input snapshots (L2)
 
-Money path: freeze ERP-sourced ops rows for one payroll cycle (one company, one app, one month) before calculation/approval. Binding rules: `~/Projects/active/gate-finance-spec/BUSINESS_RULES.md`. Plan: `.cursor/plans/live_ops_erp_reads_891ef52a.plan.md`. Branch: `feat/run-input-snapshots` from `feat/live-ops-erp-reads`.
+## Problem
 
-EGM Stage 5 (2026-11-13): artifacts in `~/.agents/work/egm/gate-payroll/`. Stages 6–9 deferred to Claude step R (Cursor EGM unverified; host RAM &lt; 5 GiB). One fix round below.
+Operations screens read logistics ERP live. Payroll calculation and approval must not move when ERP rows change mid-month. A cycle needs a frozen bag of ops rows (one company, month, and the apps on that cycle) before stages advance.
 
-## Goal
+## Goals
 
-Screens keep reading logistics ERP live. A payroll run must not depend on a changing ERP mirror. Maker runs `capture_inputs` (recapture allowed until sealed). Draft, calculation, review, **and cycle fingerprint** read only those frozen rows for the swapped kinds. Seal (no further capture writes): cycle status is `approved` or `partially_approved`, or any rider has `salaryApprovedAt`. Response 409, no write. Invoice/terms binding is an explicit non-goal for L2 (sibling seal later).
+1. Maker captures inputs once (recapture allowed only while **stage ≤ 1** — Ghazal seal decision **A0**).
+2. After capture, cycle readers and fingerprint use `pay_run_input` only for swapped kinds (never silent Store/ERP fallback).
+3. Live capture scopes by **cycle company** (commercial reg + that company's riders), not the actor.
+4. Keyset paging (`Id > @after`) for capture walks; recount at end; mismatch → 503, nothing written.
+5. Required kinds (Ninja: `ninja_daily`, `platform_account`, `vehicle_assignment`) with 0 rows need an explicit reason; `housing_residence` may be 0 without a reason.
 
-## Feature
+## Non-Goals
 
-### Table `pay_run_input`
+- Invoice / pay-terms seal (sibling later).
+- Full ERP mirror / re-enabling `ErpSyncJob` (TODO remains in `JobsSchedule.cs`).
+- UI that calls capture (**U2**). **L2 must not deploy before U2.**
+- Writing to ERP.
 
-Dedicated table (dual-engine like `SourceWatermarks`: SQL Server `pay.PayRunInput` + SQLite `pay_run_input`). Additive only. Recapture deletes only rows for that same unapproved cycle inside one publish transaction; never delete approved-cycle rows from product code.
+## Architecture flow
 
-| Column | Role |
+1. `POST /api/pay/cycles/{id}/capture-inputs` (optional `zeroKindReasons`).
+2. Live mode: stage pages outside the write TX via `LiveOperationsQuery` (period + platform in SQL, cycle `CaptureScope`, keyset + end recount) → short TX `PayRunInputs.Replace`.
+3. Store/CI mode: freeze from payroll Store fixtures inside the TX.
+4. One projection: `Operations.Project` in both modes.
+5. Advance/calc/review/fingerprint: `CycleOps` / `PayRunInputs.List|Get` after capture.
+6. Pre-cycle draft / validate-gaps / category: live ERP when `operationsSource=erp_live`, else Store; captured open cycle uses freeze.
+
+## Alternatives considered
+
+| Option | Choice |
 |---|---|
-| cycle_id | Pay cycle id |
-| platform | Cycle app (e.g. ninja) — denormalized per planner L2 |
-| period_from / period_to | Inclusive calendar bounds for the cycle month |
-| kind | Ops kind |
-| doc_id | Source document id |
-| body | JSON: calc-required fields ⊇ `Operations.Project` list for that kind |
-| source_rowversion | Opaque ERP rowversion when present; null if absent (not empty string) |
-| captured_at / captured_by | Capture stamp |
-| body_hash | SHA-256 of canonical body (planner L2; used in tests/audit) |
+| Seal after any calc vs stage≤1 (A0) vs richer seal (C) | **A0** (Ghazal default if undecided); `CaptureAllowed` is one function |
+| Actor scope vs cycle scope on capture | Cycle scope |
+| OFFSET vs keyset | Keyset for capture; OFFSET remains for UI without `afterId` |
+| Fat vs slim freeze table | Slim: cycle/kind/doc/body/captured_* only |
 
-Constraints: unique `(cycle_id, kind, doc_id)`; index `(cycle_id, kind)`. Module name: **`PayRunInputs`** (API surface may expose `RunInputs.List` as a thin alias).
+## Risks and mitigations
 
-### Capture kinds (closed set for Ninja first payroll)
+| Risk | Mitigation |
+|---|---|
+| Deploy before U2 | HANDOFF block; no screen calls capture |
+| Captured cycle, empty freeze | Startup guard |
+| Mid-capture ERP churn | End recount → 503 |
+| Multi-app cycle | Capture union of apps' kinds (stage every app) |
 
-Only kinds that have a named reader or fingerprint dependency:
+## Open questions by role
 
-| Kind | Scope in ERP read | Readers |
-|---|---|---|
-| `ninja_daily` | platform + period (date in month) | ValidateGaps, PayReviewDraft, Fingerprint |
-| `ninja_daily_deduction` | platform + period | Fingerprint / future review; capture so calc is not silent if wired |
-| `platform_account` | platform (+ company) | ValidateGaps, NinjaInvoices.Actions, Fingerprint |
-| `vehicle_assignment` | company + period overlap (not platform filter) | Calculation, PayReviewCategory, Fingerprint |
-| `housing_residence` | company riders + period overlap | Calculation |
-| `vehicle` | ids referenced by captured assignments | Fingerprint |
-| `rider_work_timeline` | **not captured in L2** (no reader yet) | — |
+- **Ghazal:** confirm A0 seal remains; approve push of this branch.
+- **Omar:** deploy only after U2.
+- **Planner:** invoice seal sibling timing.
 
-Chefz/Jahez: same pattern when that cycle app is used (daily + accounts + vehicle/housing). `rider` stays payroll master (not captured; drift noted for R). `ninja_account` is not a live ops kind — Actions uses `platform_account` only after L2.
+## File list (this fix round)
 
-### Capture action
+- `Payroll.Api/PayRunInputs.cs`, `PayCycles.Capture.cs`, `PayCycles.View.cs`, `PayCycles.Sources.cs`, `PayCycles.cs`, `PayCycles.ValidateGaps.cs`, `PayReviewDraft.cs`, `PayReviewCategory.cs`, `NinjaInvoices.Actions.cs`, `Operations.cs`, `ApiContracts.cs`, `ReleaseSafety.cs`, `Store.cs`
+- `Payroll.Sync/LiveOperationsQuery.cs`
+- `tests/Engine.Tests/PayRunInputTests.cs`, `PayCycleTests.cs`
+- `docs/design/run-inputs.md`
 
-`POST /api/pay/cycles/{id}/capture-inputs`
+## In-flight cycles rule
 
-- `allowedActions` includes `capture_inputs` only when not sealed (see Goal) and actor has `pay.manage` with company scope.
-- Live ERP via `LiveOperationsQuery` with **period (+ platform where kind is platform-scoped) in SQL `BuildWhere`**, not in-memory. Stream pages of 500 (capture-only constant; UI max stays 200). Prefer: stage pages outside the final TX, then one short TX delete+insert (or replace) for that cycle_id; if staging is too large for L2, document timeout risk and keep single TX with clear failure = no partial bag.
-- Audit `pay.inputs_captured` with counts per kind. Response: counts per kind + `captured_at`.
-
-### Readers
-
-`PayRunInputs.List(c, cycleId, kind)` returns frozen bodies.
-
-Swap cycle-scoped mirrored reads:
-
-- `PayCycles.Calculation.cs` — vehicle_assignment, housing_residence
-- `PayCycles.ValidateGaps.cs` — platform_account, ninja_daily
-- `PayCycles.Sources.cs` Fingerprint — vehicle_assignment, platform_account, ninja_daily, vehicle (from captured set)
-- `PayReviewDraft.cs` — ninja_daily
-- `PayReviewCategory.cs` — vehicle_assignment
-- `NinjaInvoices.Actions.cs` — platform_account for cycle-bound paths
-
-If a required kind has zero captured rows → review blocker «التقط المدخلات أولًا» (never silent zero; never fall back to Store mirror for those paths).
-
-Non-cycle (HANDOFF will list): `ChefzOperations.cs`, `KeetaInvoices.cs`, `HungerStationInvoices.Parse.cs`, `InvoiceDeductionClassification.cs` — not cycle-bound in L2.
-
-### Mirror off
-
-S1–S4 and `ErpSyncJob` stay disabled. TODO dated 2026-11-13: remove after first payroll. Do not touch old mirrored rows.
-
-### Contract gaps (prompt 4b — same PR, not money logic)
-
-OpenAPI row schemas per kind from `Operations.Fields`; regenerate `api-contract.ts`. Add `web/tests/ops-live-ui.mjs` and `tests/r8-contract.mjs` to browser CI list.
-
-## Open for Claude R / Ghazal (after one fix round)
-
-- Seal at any `salaryApprovedAt` vs only final `pay.approve` (BR §32).
-- Capture generations instead of delete+insert.
-- Rider stub in the bag; invoice/terms sibling seal.
-- Whether `body_hash` / per-row period stay long-term.
-
-## Detailed Implementation Plan
-
-1. `PayRunInputs.Ensure` + ReplaceCycle/List/hash; call Ensure from Store open beside other Ensures.
-2. Extend `LiveOperationsQuery` with optional period-from/to and capture page size 500; platform filter only for platform-scoped kinds.
-3. Capture endpoint + View action + audit; tests: capture, recapture, sealed → 409.
-4. Swap listed readers + Fingerprint; blocker when required kinds empty.
-5. Synthetic Ninja 2026-10: capture → draft/fingerprint use only `pay_run_input`; change fixture ERP after seal → approved run unchanged.
-6. OpenAPI + CI browser list; `gen-api-types --check`, contracts, browser list, 0 skipped.
-7. HANDOFF file:line + cycle-bound matrix; clear writer lock; stop for Claude migration/money review.
+Do not deploy L2 onto a host that already has open cycles mid-stage without a freeze bag. Captured cycles without `pay_run_input` rows fail startup. Cancel/recreate after upgrade if needed.

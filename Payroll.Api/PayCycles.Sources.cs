@@ -16,8 +16,13 @@ public static partial class PayCycles
         var riders=Accounts(cycle).SelectMany(a=>Rows(a.Account["riders"]).OfType<JsonObject>()).Select(r=>r.S("rider")).ToHashSet();
         var cache=new Dictionary<string,List<JsonObject>>();var selected=new SortedDictionary<string,JsonObject>(StringComparer.Ordinal);
         List<JsonObject> All(string kind){if(!cache.TryGetValue(kind,out var docs))cache[kind]=docs=Store.List(c,kind,tx);return docs;}
-        // Mirrored ops kinds: after capture, fingerprint only frozen pay_run_input rows (never live Store).
-        List<JsonObject> Ops(string kind)=>PayRunInputs.Captured(cycle)?PayRunInputs.List(c,tx,cycle.S("id"),kind):[];
+        // Mirrored ops kinds: fingerprint only frozen pay_run_input — never Store (M5). Empty until capture (Create sets a pre-freeze hash).
+        List<JsonObject> Ops(string kind)
+        {
+            if(!PayRunInputs.Captured(cycle))return [];
+            if(!cache.TryGetValue("ops:"+kind,out var docs))cache["ops:"+kind]=docs=PayRunInputs.List(c,tx,cycle.S("id"),kind);
+            return docs;
+        }
         void Add(string kind,IEnumerable<JsonObject> docs){foreach(var doc in docs)selected[kind+":"+doc.S("id")]=doc;}
         void Pick(string kind,Func<JsonObject,bool> predicate)=>Add(kind,All(kind).Where(predicate));
         bool Rider(JsonObject doc)=>riders.Contains(doc.S("rider",doc.S("riderId",doc.S("iqama"))));
@@ -29,7 +34,8 @@ public static partial class PayCycles
         var debtIds=debts.Select(d=>d.S("id")).ToHashSet();
         var vehicleAssignments=Ops("vehicle_assignment").Where(d=>Rider(d)&&Overlaps(d,period,"startedAt","endedAt")).ToList();
         var vehicleIds=vehicleAssignments.Select(d=>d.S("vehicleId")).ToHashSet();
-        Add("pay_assignment",assignments);Add("pay_scheme",schemes);Add("debt",debts);Add("vehicle_assignment",vehicleAssignments);
+        var residences=Ops("housing_residence").Where(d=>Rider(d)&&Overlaps(d,period,"effectiveFrom","effectiveTo")).ToList();
+        Add("pay_assignment",assignments);Add("pay_scheme",schemes);Add("debt",debts);Add("vehicle_assignment",vehicleAssignments);Add("housing_residence",residences);
         Pick("pay_eligibility",d=>rulesIds.Contains(d.S("id")));
         Add("vehicle",Ops("vehicle").Where(d=>vehicleIds.Contains(d.S("id"))));
         // Only what the calculation reads: a routine ERP sync of a status or a registration must not strand an open cycle.

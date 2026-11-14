@@ -17,19 +17,20 @@ public static class ApiContracts
         foreach(var (key,schema) in fields)props[key]=schema;
         return O(props,"id");
     }
-    static OpenApiSchema OperationsItem()=>new()
+    static OpenApiSchema OperationsItem()
     {
-        OneOf=[
-            OpsRow(("code",S()),("nameAr",S()),("nameEn",S()),("name",S()),("globalCityId",S())),
-            OpsRow(("riderId",S()),("housingId",S()),("roomSourceId",S()),("effectiveFrom",S()),("effectiveTo",S())),
-            OpsRow(("assetNumber",S()),("serialNumber",S()),("plateNumberAr",S()),("plateNumberEn",S()),("vin",S()),("chassisNumber",S()),("modelYear",N()),("vehicleType",S()),("fuelType",S()),("ownershipType",S()),("currentOdometer",N()),("currentOperationalStatus",S()),("registrationType",S()),("companyId",S()),("registeredOwnerCompanyId",S()),("cityId",S())),
-            OpsRow(("riderId",S()),("vehicleId",S()),("startedAt",S()),("endedAt",S()),("startOdometer",N()),("endOdometer",N()),("isRealRider",B()),("permissionStartsOn",S()),("permissionEndsOn",S())),
-            OpsRow(("code",S()),("externalAccountId",S()),("platformCode",S()),("registeredRiderId",S()),("companyId",S()),("cityId",S()),("paymentModelCode",S()),("startDate",S()),("endDate",S()),("assignments",A(Free()))),
-            OpsRow(("riderId",S()),("companyId",S()),("platformAccountId",S()),("date",S()),("orders",N()),("hours",N()),("CaptainId",S())),
-            OpsRow(("riderId",S()),("companyId",S()),("platformAccountId",S()),("date",S()),("collectedAmount",N()),("amount",N()),("CaptainId",S())),
-            Free()
-        ]
-    };
+        // M8: one schema per Operations.FieldMap kind (plus id); keyed OneOf for contract regen.
+        var schemas=new List<IOpenApiSchema>();
+        foreach(var (kind,fields) in Operations.FieldMap.OrderBy(kv=>kv.Key,StringComparer.Ordinal))
+        {
+            var props=fields.Select(f=>(f,Guess(f))).ToArray();
+            if(kind=="platform_account")props=props.Append(("assignments",A(Free()))).ToArray();
+            schemas.Add(OpsRow(props));
+        }
+        schemas.Add(Free());
+        return new(){AnyOf=schemas};
+    }
+    static OpenApiSchema Guess(string field)=>field is "orders" or "hours" or "amount" or "vat" or "modelYear" or "currentOdometer" or "startOdometer" or "endOdometer" or "quantity" or "returnedQuantity" or "totalCost" or "collectedAmount" or "deductionsAmount" or "deliveryFees" or "cashCollected" or "totalValidOffers" or "acceptedOffers" or "declinedOffers" or "missedOffers" or "gross" or "companyAmount" or "riderAmount" or "rate" or "count" or "vehicleType" or "fuelType" or "ownershipType"?N():field is "isRealRider" or "frozen"?B():S();
     static OpenApiSchema OperationsPage()=>O(new(){["items"]=A(OperationsItem()),["total"]=N(),["page"]=N(),["pageSize"]=N(),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","source","asOf","allowedActions");
 
     public static OpenApiSchema User()=>O(new(){["id"]=S(),["username"]=S(),["role"]=S(),["roleNameAr"]=S(),["roleSummaryAr"]=S(),["department"]=S(),["departmentNameAr"]=S(),["rankLevel"]=N(),["status"]=S(),["permissions"]=A(S()),["mustChangePassword"]=B(),["customPermissions"]=A(S()),["deniedPermissions"]=A(S()),["financialScope"]=Free(),["createdAt"]=S(),["lastLoginAt"]=S(),["approvalExceptionUntil"]=S(),["approvalExceptionReason"]=S(),["allowedActions"]=A(S())},"id","username","role","status","permissions","approvalExceptionUntil","approvalExceptionReason","allowedActions");

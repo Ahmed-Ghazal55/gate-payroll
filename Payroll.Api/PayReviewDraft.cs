@@ -2,13 +2,15 @@ using System.Data.Common;
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 namespace Payroll;
 
 // Read-only proposal. A saved D3 allocation wins; daily data never changes invoiced totals.
 public static class PayReviewDraft
 {
     static JsonArray Array(IEnumerable<JsonObject> rows)=>new(rows.Select(r=>(JsonNode?)r.Clone()).ToArray());
-    public static JsonObject Build(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string app,string period,string companyId)
+    public static JsonObject Build(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string app,string period,string companyId,Func<string,IEnumerable<JsonObject>>? liveOps=null)
     {
         J.Need(PayPlatforms.App(app)=="ninja","المراجعة المقترحة متاحة لنينجا فقط.");period=J.Period(period);string company=FinancialCore.ResolveSponsor(companyId).Id;
         OperationsImports.Scope(actor,"ninja",company,"pay.view");
@@ -20,11 +22,10 @@ public static class PayReviewDraft
         if(invoices.Count==0)Block("invoice_missing","ارفع واعتمد فاتورة نينجا للشركة والشهر.","upload_invoice");
         foreach(string kind in new[]{"pay_terms","pay_eligibility"})try{PaySettings.Resolve(c,tx,kind,"ninja",period);}catch(ApiError){Block(kind+"_missing","إعداد نينجا للشهر غير معتمد: "+kind,"approve_settings");}
         try{PaySettings.Global(c,tx,period+"-01");}catch(ApiError){Block("global_settings_missing","اعتمد إعدادات الأيام والإيجار بتاريخ الشهر.","approve_settings");}
-        // Pre-cycle draft still reads store; once a cycle captured inputs, draft uses the freeze (never silent empty).
+        // Captured cycle → freeze. Pre-cycle: liveOps when live mode, else store (B3).
         var openCycle=Store.List(c,PayCycles.Kind,tx).FirstOrDefault(p=>p.S("companyId")==company&&p.S("period")==period&&p.S("status") is not ("cancelled" or "reversed")&&(p.S("app")=="ninja"||(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("app")=="ninja"))&&PayRunInputs.Captured(p));
-        var daily=openCycle!=null
-            ?PayRunInputs.List(c,tx,openCycle.S("id"),"ninja_daily").Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList()
-            :Store.List(c,"ninja_daily",tx).Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList();
+        List<JsonObject> DailySource()=>openCycle!=null?PayRunInputs.List(c,tx,openCycle.S("id"),"ninja_daily"):(liveOps!=null?liveOps("ninja_daily").ToList():Store.List(c,"ninja_daily",tx));
+        var daily=DailySource().Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList();
         var people=Store.List(c,"rider",tx).ToDictionary(r=>r.S("id"),StringComparer.Ordinal);
         var invoicedAccounts=invoices.SelectMany(i=>NinjaInvoices.Lines(c,tx,i.S("id"))).Select(l=>l.S("platformAccountId")).Where(id=>id!="").ToHashSet(StringComparer.Ordinal);
         foreach(var row in daily.Where(d=>!invoicedAccounts.Contains(d.S("platformAccountId"))))
@@ -124,5 +125,13 @@ public static class PayReviewDraft
         return new(){["app"]="ninja",["period"]=period,["companyId"]=company,["invoices"]=reviews,["blockers"]=blockers,["warnings"]=warnings,["allocationProposals"]=proposals,["dataThrough"]=dataThrough,["unassignedOrders"]=unassigned,["ridersNotFound"]=missing,["evidence"]=evidence,["canCreate"]=blockers.Count==0&&reviews.Count>0,["totals"]=new JsonObject{["gross"]=invoices.Sum(i=>i.N("amountExclVat")),["deductions"]=invoices.Sum(i=>i.N("deductionsTotal")),["vat"]=invoices.Sum(i=>i.N("vat"))}};
     }
     static bool Covers(JsonObject assignment,string date)=>AssignmentSpan.Covers(assignment,date);
-    public static void Map(RouteGroupBuilder api,Store store)=>api.MapGet("/pay/review-draft",(string app,string period,string companyId,HttpContext ctx)=>store.Read(c=>Build(c,null,ctx.User,app,period,companyId))).WithTags("Payroll").WithSummary("Read source-bound Ninja cycle input and actionable blockers without writes");
+    public static void Map(RouteGroupBuilder api,Store store,IConfiguration? config=null,IHostEnvironment? env=null)=>api.MapGet("/pay/review-draft",(string app,string period,string companyId,HttpContext ctx)=>
+    {
+        if(config!=null&&env!=null&&Operations.SourceMode(config,env)==Operations.SourceLive)
+        {
+            var staged=PayCycles.StagePreCycleKind(ctx,store,config,"ninja_daily",companyId,period,app);
+            return store.Read(c=>Build(c,null,ctx.User,app,period,companyId,_=>staged));
+        }
+        return store.Read(c=>Build(c,null,ctx.User,app,period,companyId));
+    }).WithTags("Payroll").WithSummary("Read source-bound Ninja cycle input and actionable blockers without writes");
 }

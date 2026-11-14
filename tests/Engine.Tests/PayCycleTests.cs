@@ -30,7 +30,7 @@ public sealed class PayCycleTests
         }
     }
     static JsonObject Create(PayFixture f,JsonObject input)=>f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input));
-    internal static JsonObject Capture(PayFixture f,string id)=>f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id));
+    internal static JsonObject Capture(PayFixture f,string id)=>f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,input:new(){["zeroKindReasons"]=new JsonObject{["vehicle_assignment"]="fixture: no vehicle assignments",["ninja_daily"]="fixture: non-ninja cycle"}}));
     internal static JsonObject Advance(PayFixture f,string id,int stage,bool checker=false)=>f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,checker?PayFixture.Checker:PayFixture.Maker,id,new(){["stage"]=stage}));
     // BR §32: stage 7 needs every row reviewed; helpers approve all ready rows unless a test reviews them itself.
     internal static JsonObject Through(PayFixture f,JsonObject input,int stage=6,bool review=true){var d=Create(f,input);Capture(f,d.S("id"));d=f.Store.Read(c=>Store.Get(c,d.S("id"),PayCycles.Kind)!);for(int s=1;s<=stage;s++)d=Advance(f,d.S("id"),s);

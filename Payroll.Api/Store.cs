@@ -49,6 +49,10 @@ public sealed partial class Store
         cmd.ExecuteNonQuery();
         ErpDataIndexes.Ensure(c);
         PayRunInputs.Ensure(c);
+        // M9: captured cycle must have freeze rows (in-flight cycles cannot deploy without U2 + rows).
+        foreach(var cycle in List(c,PayCycles.Kind).Where(PayRunInputs.Captured))
+            if(PayRunInputs.CountForCycle(c,null,cycle.S("id"))==0)
+                throw new InvalidOperationException("Captured pay cycle is missing pay_run_input rows.");
         if(beforeUpgrade!=null&&beforeUpgrade!=System.Text.Json.JsonSerializer.Serialize(ReleaseSafety.Capture(c)))throw new InvalidOperationException("Startup document preservation verification failed.");
         DataPreservationVerified=true;
     }

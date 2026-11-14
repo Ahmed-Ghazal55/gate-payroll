@@ -110,8 +110,9 @@ public static partial class PayCycles
         cycle["history"]!.AsArray().Add(new JsonObject{["stage"]=next,["advancedBy"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O")});Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_advanced",id,actor.Identity!.Name!);return cycle;
     }
     static IEnumerable<(string App,JsonObject Account)> Accounts(JsonObject cycle)=>Rows(cycle["invoices"]).OfType<JsonObject>().SelectMany(i=>Rows(i["accounts"]).OfType<JsonObject>().Select(a=>(i.S("app"),a)));
+    // Captured cycles read freeze only (M6). Pre-capture import/synthetic validation still uses Store.
     static JsonObject? OpsDoc(DbConnection c,DbTransaction? tx,JsonObject cycle,string kind,string docId)
-        =>PayRunInputs.Captured(cycle)?PayRunInputs.Get(c,tx,cycle.S("id"),kind,docId):Store.Get(c,docId,kind,tx);
+        =>PayRunInputs.Captured(cycle)?CycleOpsGet(c,tx,cycle,kind,docId):Store.Get(c,docId,kind,tx);
     static void ValidateAccounts(DbConnection c,DbTransaction tx,JsonObject cycle)
     {
         foreach(var (app,a) in Accounts(cycle))
@@ -162,12 +163,18 @@ public static partial class PayCycles
         {
             string company=ctx.Request.Query["companyId"].ToString(),period=ctx.Request.Query["period"].ToString(),app=ctx.Request.Query["app"].ToString();
             J.Need(company!=""&&period!="","الشركة والشهر مطلوبان.");if(app=="")app="ninja";
+            if(config!=null&&env!=null&&Operations.SourceMode(config,env)==Operations.SourceLive)
+            {
+                var accounts=StagePreCycleKind(ctx,store,config,"platform_account",company,period,app);
+                var daily=app=="ninja"?StagePreCycleKind(ctx,store,config,"ninja_daily",company,period,app):[];
+                return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app,kind=>kind=="platform_account"?accounts:kind=="ninja_daily"?daily:Array.Empty<JsonObject>()));
+            }
             return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app));
         }).WithTags("Payroll").WithSummary("Counts-only ValidateRiders gap report (no identities)");
         api.MapGet("/pay/cycles/{id}/unrecovered-costs",(string id,HttpContext ctx)=>store.Read(c=>UnrecoveredCosts(c,ctx.User,id))).WithTags("Payroll").WithSummary("Read Keeta ineligibility operating and fuel costs borne by the company");
         api.MapGet("/pay/cycles/{id}/debt-deductions",(string id,HttpContext ctx)=>store.Read(c=>DebtDeductionsView(c,null,ctx.User,id))).WithTags("Payroll").WithSummary("Review due debts after salary approval, capped by positive net");
         api.MapPost("/pay/cycles/{id}/debt-deductions",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>DebtDeductionsAct(c,tx,ctx.User,id,input))).WithTags("Payroll").WithSummary("Choose zero or a due installment and independently confirm deductions");
-        api.MapPost("/pay/cycles/{id}/capture-inputs",(string id,HttpContext ctx)=>
+        api.MapPost("/pay/cycles/{id}/capture-inputs",(string id,JsonObject? input,HttpContext ctx)=>
         {
             // Stage live pages outside the document write TX when ERP is live; store mode freezes fixtures inside CaptureInputs.
             Dictionary<string,List<JsonObject>>? staged=null;
@@ -175,13 +182,21 @@ public static partial class PayCycles
             {
                 var meta=store.Read(c=>Store.Get(c,id,Kind)??throw new ApiError("الدورة غير موجودة.",404));
                 Scope(ctx.User,meta,"pay.manage");
-                if(PayRunInputs.Sealed(meta))throw new ApiError("لا يمكن التقاط المدخلات بعد الاعتماد.",409);
+                if(!PayRunInputs.CaptureAllowed(meta))throw new ApiError(PayRunInputs.Sealed(meta)?"لا يمكن التقاط المدخلات بعد الاعتماد.":"لا يمكن إعادة التقاط المدخلات بعد بدء الحساب؛ ألغِ الدورة وأنشئ أخرى.",409);
                 staged=StageLiveCapture(ctx,store,config,meta);
             }
             return store.Write((c,tx)=>
             {
-                Func<string,IEnumerable<JsonObject>>? live=staged==null?null:kind=>staged.TryGetValue(kind,out var rows)?rows:[];
-                var captured=CaptureInputs(c,tx,ctx.User,id,config,env,live);
+                Func<string,IEnumerable<JsonObject>>? live=null;
+                if(staged!=null)
+                {
+                    live=kind=>
+                    {
+                        if(kind!="vehicle"&&!staged.ContainsKey(kind))throw new ApiError("مصدر التقاط ناقص لنوع: "+kind,503);
+                        return staged.TryGetValue(kind,out var rows)?rows:Array.Empty<JsonObject>();
+                    };
+                }
+                var captured=CaptureInputs(c,tx,ctx.User,id,config,env,live,input);
                 var cycle=Store.Get(c,id,Kind,tx)!;
                 var view=View(c,tx,ctx.User,cycle);
                 view["capture"]=captured;

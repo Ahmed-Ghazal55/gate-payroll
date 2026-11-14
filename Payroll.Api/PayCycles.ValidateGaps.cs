@@ -6,15 +6,16 @@ namespace Payroll;
 public static partial class PayCycles
 {
     /// <summary>BR §38.5 / R11 T7: counts-only gaps that block ValidateRiders. Never returns identities or amounts.</summary>
-    public static JsonObject DiagnoseValidateGaps(DbConnection c,ClaimsPrincipal actor,string companyId,string period,string app)
+    public static JsonObject DiagnoseValidateGaps(DbConnection c,ClaimsPrincipal actor,string companyId,string period,string app,Func<string,IEnumerable<JsonObject>>? liveOps=null)
     {
         AccessPolicy.Demand(actor,"pay.view");period=J.Period(period);app=PayPlatforms.App(app);string company=FinancialCore.ResolveSponsor(companyId).Id;FinancialScopes.DemandSponsor(actor,company);
         var counts=new Dictionary<string,int>(StringComparer.Ordinal);
-        // Prefer frozen inputs when an open cycle for this company/period/app already captured; else store (pre-cycle diagnose).
+        // Captured cycle → freeze. Pre-cycle: liveOps when live mode, else store (B3).
         var cycle=Store.List(c,Kind).FirstOrDefault(p=>p.S("companyId")==company&&p.S("period")==period&&p.S("status") is not ("cancelled" or "reversed")&&(p.S("app")==app||(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("app")==app))&&PayRunInputs.Captured(p));
-        List<JsonObject> Accounts()=>cycle!=null?PayRunInputs.List(c,null,cycle.S("id"),"platform_account").Where(a=>a.S("companyId")==company&&PayPlatforms.For(a.S("platformCode")).App==app).ToList():Store.List(c,"platform_account").Where(a=>a.S("companyId")==company&&PayPlatforms.For(a.S("platformCode")).App==app).ToList();
-        List<JsonObject> Daily()=>cycle!=null?PayRunInputs.List(c,null,cycle.S("id"),"ninja_daily").Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList():Store.List(c,"ninja_daily").Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList();
-        JsonObject? AccountGet(string id)=>cycle!=null?PayRunInputs.Get(c,null,cycle.S("id"),"platform_account",id):Store.Get(c,id,"platform_account");
+        List<JsonObject> Ops(string kind)=>cycle!=null?PayRunInputs.List(c,null,cycle.S("id"),kind):(liveOps!=null?liveOps(kind).ToList():Store.List(c,kind));
+        List<JsonObject> Accounts()=>Ops("platform_account").Where(a=>a.S("companyId")==company&&PayPlatforms.For(a.S("platformCode")).App==app).ToList();
+        List<JsonObject> Daily()=>Ops("ninja_daily").Where(d=>d.S("companyId")==company&&d.S("date").StartsWith(period+"-",StringComparison.Ordinal)).ToList();
+        JsonObject? AccountGet(string id)=>cycle!=null?PayRunInputs.Get(c,null,cycle.S("id"),"platform_account",id):Ops("platform_account").FirstOrDefault(a=>a.S("id")==id)??Store.Get(c,id,"platform_account");
         var accounts=Accounts();
         int withAssignment=0,withoutAssignment=0,multiOperator=0;
         var missingCategory=new HashSet<string>(StringComparer.Ordinal);var invalidCategory=new HashSet<string>(StringComparer.Ordinal);var missingRecord=new HashSet<string>(StringComparer.Ordinal);

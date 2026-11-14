@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Common;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -11,16 +12,20 @@ namespace Payroll;
 public static class PayRunInputs
 {
     public const int CapturePageSize=500;
-    /// <summary>TODO 2026-11-13: remove ErpSyncJob / S1–S4 mirror path after first payroll (Ninja 2026-10).</summary>
-    public const string MirrorRemovalTodo="TODO 2026-11-13: remove ErpSyncJob and S1–S4 mirror after first payroll";
+    public const int InsertChunkSize=200;
 
-    public sealed record Row(string CycleId,string Platform,string PeriodFrom,string PeriodTo,string Kind,string DocId,JsonObject Body,string? SourceRowversion,DateTimeOffset CapturedAt,string CapturedBy,string BodyHash);
-    public sealed record CaptureResult(DateTimeOffset CapturedAt,Dictionary<string,int> Counts);
+    /// <summary>Required kinds that must have rows (or an explicit zero-kind reason) before capture succeeds.</summary>
+    public static IReadOnlyList<string> RequiredKinds(string app)=>app switch
+    {
+        "ninja"=>["ninja_daily","platform_account","vehicle_assignment"],
+        "chefz"=>["platform_account","vehicle_assignment"],
+        _=>["platform_account","vehicle_assignment"]
+    };
 
     public static IReadOnlyList<string> KindsForApp(string app)=>app switch
     {
-        "ninja"=>["ninja_daily","ninja_daily_deduction","platform_account","vehicle_assignment","housing_residence","vehicle"],
-        "chefz"=>["chefz_daily","platform_account","vehicle_assignment","housing_residence","vehicle"],
+        "ninja"=>["ninja_daily","platform_account","vehicle_assignment","housing_residence","vehicle"],
+        "chefz"=>["platform_account","vehicle_assignment","housing_residence","vehicle"],
         "keeta" or "hs" or "jahez"=>["platform_account","vehicle_assignment","housing_residence","vehicle"],
         _=>["platform_account","vehicle_assignment","housing_residence","vehicle"]
     };
@@ -34,36 +39,23 @@ public static class PayRunInputs
                 IF OBJECT_ID(N'pay.PayRunInput',N'U') IS NULL
                   CREATE TABLE pay.PayRunInput(
                     CycleId nvarchar(128) NOT NULL,
-                    Platform nvarchar(40) NOT NULL,
-                    PeriodFrom char(10) NOT NULL,
-                    PeriodTo char(10) NOT NULL,
                     Kind nvarchar(64) NOT NULL,
                     DocId nvarchar(128) NOT NULL,
                     Body nvarchar(max) NOT NULL CHECK(ISJSON(Body)=1),
-                    SourceRowversion nvarchar(128) NULL,
                     CapturedAt datetime2 NOT NULL,
                     CapturedBy nvarchar(128) NOT NULL,
-                    BodyHash char(64) NOT NULL,
                     CONSTRAINT PK_PayRunInput PRIMARY KEY(CycleId,Kind,DocId));
-                IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'pay.PayRunInput') AND name=N'IX_PayRunInput_CycleKind')
-                  CREATE INDEX IX_PayRunInput_CycleKind ON pay.PayRunInput(CycleId,Kind);
                 """;
         else
             cmd.CommandText="""
                 CREATE TABLE IF NOT EXISTS pay_run_input(
                   cycle_id TEXT NOT NULL,
-                  platform TEXT NOT NULL,
-                  period_from TEXT NOT NULL,
-                  period_to TEXT NOT NULL,
                   kind TEXT NOT NULL,
                   doc_id TEXT NOT NULL,
                   body TEXT NOT NULL,
-                  source_rowversion TEXT NULL,
                   captured_at TEXT NOT NULL,
                   captured_by TEXT NOT NULL,
-                  body_hash TEXT NOT NULL,
                   PRIMARY KEY(cycle_id,kind,doc_id));
-                CREATE INDEX IF NOT EXISTS ix_pay_run_input_cycle_kind ON pay_run_input(cycle_id,kind);
                 """;
         cmd.ExecuteNonQuery();
     }
@@ -81,11 +73,13 @@ public static class PayRunInputs
         return (cycle["riders"] as JsonArray??[]).OfType<JsonObject>().Any(r=>r.S("salaryApprovedAt")!="");
     }
 
+    /// <summary>A0: capture/recapture only while stage ≤ 1 and not sealed. Later input change = cancel and recreate.</summary>
+    public static bool CaptureAllowed(JsonObject cycle)=>!Sealed(cycle)&&(int)cycle.N("stage")<=1;
+
     public static bool Captured(JsonObject cycle)=>cycle.S("inputsCapturedAt")!="";
 
     public static List<JsonObject> List(DbConnection c,DbTransaction? tx,string cycleId,string kind)
     {
-        Ensure(c,tx);
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
         if(c is SqlConnection)
         {
@@ -108,11 +102,35 @@ public static class PayRunInputs
     }
 
     public static JsonObject? Get(DbConnection c,DbTransaction? tx,string cycleId,string kind,string docId)
-        =>List(c,tx,cycleId,kind).FirstOrDefault(r=>r.S("id")==docId);
-
-    public static CaptureResult Replace(DbConnection c,DbTransaction tx,string cycleId,string platform,string periodFrom,string periodTo,string actor,IEnumerable<(string Kind,string DocId,JsonObject Body,string? Rowversion)> rows,DateTimeOffset? at=null)
     {
-        Ensure(c,tx);
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        if(c is SqlConnection)
+        {
+            cmd.CommandText="SELECT Body FROM pay.PayRunInput WHERE CycleId=@cycle AND Kind=@kind AND DocId=@doc";
+            Add(cmd,"@cycle",cycleId);Add(cmd,"@kind",kind);Add(cmd,"@doc",docId);
+        }
+        else
+        {
+            cmd.CommandText="SELECT body FROM pay_run_input WHERE cycle_id=@cycle AND kind=@kind AND doc_id=@doc";
+            Add(cmd,"@cycle",cycleId);Add(cmd,"@kind",kind);Add(cmd,"@doc",docId);
+        }
+        using var reader=cmd.ExecuteReader();
+        if(!reader.Read())return null;
+        return JsonNode.Parse(reader.GetString(0)) as JsonObject;
+    }
+
+    public static int CountForCycle(DbConnection c,DbTransaction? tx,string cycleId)
+    {
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        if(c is SqlConnection){cmd.CommandText="SELECT COUNT_BIG(*) FROM pay.PayRunInput WHERE CycleId=@cycle";Add(cmd,"@cycle",cycleId);}
+        else{cmd.CommandText="SELECT COUNT(*) FROM pay_run_input WHERE cycle_id=@cycle";Add(cmd,"@cycle",cycleId);}
+        return Convert.ToInt32(cmd.ExecuteScalar()??0,CultureInfo.InvariantCulture);
+    }
+
+    public sealed record CaptureResult(DateTimeOffset CapturedAt,Dictionary<string,int> Counts);
+
+    public static CaptureResult Replace(DbConnection c,DbTransaction tx,string cycleId,string actor,IEnumerable<(string Kind,string DocId,JsonObject Body)> rows,DateTimeOffset? at=null)
+    {
         var capturedAt=at??DateTimeOffset.UtcNow;
         using(var del=c.CreateCommand())
         {
@@ -121,43 +139,52 @@ public static class PayRunInputs
             else{del.CommandText="DELETE FROM pay_run_input WHERE cycle_id=@cycle";Add(del,"@cycle",cycleId);}
             del.ExecuteNonQuery();
         }
+        var material=rows.Select(r=>(r.Kind,r.DocId,Body:r.Body.ToJsonString())).ToList();
         var counts=new Dictionary<string,int>(StringComparer.Ordinal);
-        foreach(var (kind,docId,body,rowversion) in rows)
-        {
-            string hash=HashBody(body);
-            using var ins=c.CreateCommand();ins.Transaction=tx;
-            if(c is SqlConnection)
-            {
-                ins.CommandText="""
-                    INSERT INTO pay.PayRunInput(CycleId,Platform,PeriodFrom,PeriodTo,Kind,DocId,Body,SourceRowversion,CapturedAt,CapturedBy,BodyHash)
-                    VALUES(@cycle,@platform,@from,@to,@kind,@doc,@body,@rv,@at,@by,@hash);
-                    """;
-                Add(ins,"@cycle",cycleId);Add(ins,"@platform",platform);Add(ins,"@from",periodFrom);Add(ins,"@to",periodTo);
-                Add(ins,"@kind",kind);Add(ins,"@doc",docId);Add(ins,"@body",body.ToJsonString());
-                Add(ins,"@rv",(object?)rowversion??DBNull.Value);Add(ins,"@at",capturedAt.UtcDateTime);Add(ins,"@by",actor);Add(ins,"@hash",hash);
-            }
-            else
-            {
-                ins.CommandText="""
-                    INSERT INTO pay_run_input(cycle_id,platform,period_from,period_to,kind,doc_id,body,source_rowversion,captured_at,captured_by,body_hash)
-                    VALUES(@cycle,@platform,@from,@to,@kind,@doc,@body,@rv,@at,@by,@hash);
-                    """;
-                Add(ins,"@cycle",cycleId);Add(ins,"@platform",platform);Add(ins,"@from",periodFrom);Add(ins,"@to",periodTo);
-                Add(ins,"@kind",kind);Add(ins,"@doc",docId);Add(ins,"@body",body.ToJsonString());
-                Add(ins,"@rv",(object?)rowversion??DBNull.Value);Add(ins,"@at",capturedAt.ToString("O",CultureInfo.InvariantCulture));Add(ins,"@by",actor);Add(ins,"@hash",hash);
-            }
-            ins.ExecuteNonQuery();
-            counts[kind]=counts.GetValueOrDefault(kind)+1;
-        }
+        foreach(var g in material.GroupBy(r=>r.Kind,StringComparer.Ordinal))counts[g.Key]=g.Count();
+        if(c is SqlConnection)InsertSqlServer(c,tx,cycleId,actor,capturedAt,material);
+        else InsertSqlite(c,tx,cycleId,actor,capturedAt,material);
         return new(capturedAt,counts);
+    }
+
+    static void InsertSqlServer(DbConnection c,DbTransaction tx,string cycleId,string actor,DateTimeOffset capturedAt,List<(string Kind,string DocId,string Body)> rows)
+    {
+        for(int i=0;i<rows.Count;i+=InsertChunkSize)
+        {
+            var chunk=rows.Skip(i).Take(InsertChunkSize).ToList();
+            var arr=new JsonArray(chunk.Select(r=>(JsonNode?)new JsonObject{["k"]=r.Kind,["d"]=r.DocId,["b"]=r.Body}).ToArray());
+            using var cmd=c.CreateCommand();cmd.Transaction=tx;
+            cmd.CommandText="""
+                INSERT INTO pay.PayRunInput(CycleId,Kind,DocId,Body,CapturedAt,CapturedBy)
+                SELECT @cycle,j.k,j.d,j.b,@at,@by
+                FROM OPENJSON(@rows) WITH(k nvarchar(64) '$.k', d nvarchar(128) '$.d', b nvarchar(max) '$.b') j;
+                """;
+            Add(cmd,"@cycle",cycleId);Add(cmd,"@rows",arr.ToJsonString());
+            Add(cmd,"@at",capturedAt.UtcDateTime);Add(cmd,"@by",actor);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    static void InsertSqlite(DbConnection c,DbTransaction tx,string cycleId,string actor,DateTimeOffset capturedAt,List<(string Kind,string DocId,string Body)> rows)
+    {
+        string at=capturedAt.ToString("O",CultureInfo.InvariantCulture);
+        for(int i=0;i<rows.Count;i+=InsertChunkSize)
+        {
+            var chunk=rows.Skip(i).Take(InsertChunkSize).ToList();
+            using var cmd=c.CreateCommand();cmd.Transaction=tx;
+            var sb=new StringBuilder("INSERT INTO pay_run_input(cycle_id,kind,doc_id,body,captured_at,captured_by) VALUES ");
+            for(int j=0;j<chunk.Count;j++)
+            {
+                if(j>0)sb.Append(',');
+                sb.Append($"(@c{j},@k{j},@d{j},@b{j},@at,@by)");
+                Add(cmd,$"@c{j}",cycleId);Add(cmd,$"@k{j}",chunk[j].Kind);Add(cmd,$"@d{j}",chunk[j].DocId);Add(cmd,$"@b{j}",chunk[j].Body);
+            }
+            Add(cmd,"@at",at);Add(cmd,"@by",actor);
+            cmd.CommandText=sb.ToString();
+            cmd.ExecuteNonQuery();
+        }
     }
 
     static void Add(DbCommand cmd,string name,object value)
     {var p=cmd.CreateParameter();p.ParameterName=name;p.Value=value;cmd.Parameters.Add(p);}
-}
-
-/// <summary>Thin alias used by payroll readers.</summary>
-public static class RunInputs
-{
-    public static List<JsonObject> List(DbConnection c,DbTransaction? tx,string cycleId,string kind)=>PayRunInputs.List(c,tx,cycleId,kind);
 }

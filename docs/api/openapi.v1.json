@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:37623/"
+      "url": "http://127.0.0.1:41151/"
     }
   ],
   "paths": {
@@ -10516,6 +10516,300 @@
         }
       }
     },
+    "/api/pay/cycles/{id}/capture-inputs": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Freeze live ERP (or store) ops inputs for this cycle until approval",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/JsonObject"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "companyId",
+                    "period",
+                    "stage",
+                    "status",
+                    "invoices"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "approvalResult": {
+                      "required": [
+                        "approved",
+                        "skipped",
+                        "skippedRows"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "approved": {
+                          "type": "number"
+                        },
+                        "skipped": {
+                          "type": "number"
+                        },
+                        "skippedRows": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "rider",
+                              "reason"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "rider": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "app": {
+                      "type": "string"
+                    },
+                    "stage": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "debtDeductionStatus": {
+                      "type": "string"
+                    },
+                    "invoices": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "invoiceId",
+                          "app",
+                          "accounts",
+                          "deductions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "invoiceId": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "accounts": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "accountId",
+                                "sourceLineId",
+                                "baseGross",
+                                "incentives",
+                                "orders",
+                                "riders"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "accountId": {
+                                  "type": "string"
+                                },
+                                "sourceLineId": {
+                                  "type": "string"
+                                },
+                                "baseGross": {
+                                  "type": "number"
+                                },
+                                "incentives": {
+                                  "type": "number"
+                                },
+                                "orders": {
+                                  "type": "number"
+                                },
+                                "riders": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "rider",
+                                      "baseGross",
+                                      "orders",
+                                      "deduction",
+                                      "category",
+                                      "days",
+                                      "metrics"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "rider": {
+                                        "type": "string"
+                                      },
+                                      "sourceLineId": {
+                                        "type": "string"
+                                      },
+                                      "operationSourceIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "baseGross": {
+                                        "type": "number"
+                                      },
+                                      "orders": {
+                                        "type": "number"
+                                      },
+                                      "deduction": {
+                                        "type": "number"
+                                      },
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "days": {
+                                        "type": "number"
+                                      },
+                                      "metrics": {
+                                        "type": "object"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "deductions": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "riders": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "rider",
+                          "net",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "rider": {
+                            "type": "string"
+                          },
+                          "net": {
+                            "type": "number"
+                          },
+                          "carried": {
+                            "type": "number"
+                          },
+                          "closing": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "review": {
+                            "type": "string"
+                          },
+                          "salaryNet": {
+                            "type": "number"
+                          },
+                          "carryAmount": {
+                            "type": "number"
+                          },
+                          "carryDebtId": {
+                            "type": "string"
+                          },
+                          "salaryApprovedAt": {
+                            "type": "string"
+                          },
+                          "debtDeductionStatus": {
+                            "type": "string"
+                          },
+                          "blockers": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "deductions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pay/cycles": {
       "get": {
         "tags": [
@@ -11832,7 +12126,800 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "anyOf": [
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "registeredRiderId": {
+                                "type": "string"
+                              },
+                              "reportIdNumber": {
+                                "type": "string"
+                              },
+                              "accountType": {
+                                "type": "string"
+                              },
+                              "vehicleType": {
+                                "type": "number"
+                              },
+                              "dashboardStatus": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "previousTypeCode": {
+                                "type": "string"
+                              },
+                              "accountType": {
+                                "type": "string"
+                              },
+                              "effectiveFrom": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "totalValidOffers": {
+                                "type": "number"
+                              },
+                              "acceptedOffers": {
+                                "type": "number"
+                              },
+                              "declinedOffers": {
+                                "type": "number"
+                              },
+                              "missedOffers": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "orderId": {
+                                "type": "string"
+                              },
+                              "deliveryFees": {
+                                "type": "number"
+                              },
+                              "cashCollected": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "periodFrom": {
+                                "type": "string"
+                              },
+                              "periodTo": {
+                                "type": "string"
+                              },
+                              "gross": {
+                                "type": "number"
+                              },
+                              "companyAmount": {
+                                "type": "number"
+                              },
+                              "riderAmount": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "nameAr": {
+                                "type": "string"
+                              },
+                              "nameEn": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "globalCityId": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "issueNumber": {
+                                "type": "string"
+                              },
+                              "issuedAt": {
+                                "type": "string"
+                              },
+                              "quantity": {
+                                "type": "number"
+                              },
+                              "returnedQuantity": {
+                                "type": "number"
+                              },
+                              "totalCost": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "assignmentId": {
+                                "type": "string"
+                              },
+                              "eventTypeCode": {
+                                "type": "string"
+                              },
+                              "occurredAt": {
+                                "type": "string"
+                              },
+                              "direction": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "nameAr": {
+                                "type": "string"
+                              },
+                              "nameEn": {
+                                "type": "string"
+                              },
+                              "cityId": {
+                                "type": "string"
+                              },
+                              "openedDate": {
+                                "type": "string"
+                              },
+                              "closedDate": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "housingId": {
+                                "type": "string"
+                              },
+                              "roomSourceId": {
+                                "type": "string"
+                              },
+                              "effectiveFrom": {
+                                "type": "string"
+                              },
+                              "effectiveTo": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "from": {
+                                "type": "string"
+                              },
+                              "to": {
+                                "type": "string"
+                              },
+                              "rate": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "count": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "number": {
+                                "type": "string"
+                              },
+                              "personName": {
+                                "type": "string"
+                              },
+                              "personTypeCode": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "partyRoleCode": {
+                                "type": "string"
+                              },
+                              "caseDate": {
+                                "type": "string"
+                              },
+                              "caseTime": {
+                                "type": "string"
+                              },
+                              "details": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "orders": {
+                                "type": "number"
+                              },
+                              "hours": {
+                                "type": "number"
+                              },
+                              "CaptainId": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "collectedAmount": {
+                                "type": "number"
+                              },
+                              "amount": {
+                                "type": "number"
+                              },
+                              "CaptainId": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "frozen": {
+                                "type": "boolean"
+                              },
+                              "policyVersion": {
+                                "type": "string"
+                              },
+                              "inputRevision": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "externalAccountId": {
+                                "type": "string"
+                              },
+                              "platformCode": {
+                                "type": "string"
+                              },
+                              "registeredRiderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "cityId": {
+                                "type": "string"
+                              },
+                              "paymentModelCode": {
+                                "type": "string"
+                              },
+                              "startDate": {
+                                "type": "string"
+                              },
+                              "endDate": {
+                                "type": "string"
+                              },
+                              "assignments": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object"
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "orders": {
+                                "type": "number"
+                              },
+                              "hours": {
+                                "type": "number"
+                              },
+                              "collectedAmount": {
+                                "type": "number"
+                              },
+                              "deductionsAmount": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformCode": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "accountCode": {
+                                "type": "string"
+                              },
+                              "externalAccountId": {
+                                "type": "string"
+                              },
+                              "effectiveFrom": {
+                                "type": "string"
+                              },
+                              "effectiveTo": {
+                                "type": "string"
+                              },
+                              "endReasonCode": {
+                                "type": "string"
+                              },
+                              "endReason": {
+                                "type": "string"
+                              },
+                              "nextRiderId": {
+                                "type": "string"
+                              },
+                              "paymentModelCode": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "sponsorId": {
+                                "type": "string"
+                              },
+                              "effectiveFrom": {
+                                "type": "string"
+                              },
+                              "effectiveTo": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "assetNumber": {
+                                "type": "string"
+                              },
+                              "serialNumber": {
+                                "type": "string"
+                              },
+                              "plateNumberAr": {
+                                "type": "string"
+                              },
+                              "plateNumberEn": {
+                                "type": "string"
+                              },
+                              "vin": {
+                                "type": "string"
+                              },
+                              "chassisNumber": {
+                                "type": "string"
+                              },
+                              "modelYear": {
+                                "type": "number"
+                              },
+                              "vehicleType": {
+                                "type": "number"
+                              },
+                              "fuelType": {
+                                "type": "number"
+                              },
+                              "ownershipType": {
+                                "type": "number"
+                              },
+                              "currentOdometer": {
+                                "type": "number"
+                              },
+                              "currentOperationalStatus": {
+                                "type": "string"
+                              },
+                              "registrationType": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "registeredOwnerCompanyId": {
+                                "type": "string"
+                              },
+                              "cityId": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "vehicleId": {
+                                "type": "string"
+                              },
+                              "startedAt": {
+                                "type": "string"
+                              },
+                              "endedAt": {
+                                "type": "string"
+                              },
+                              "startOdometer": {
+                                "type": "number"
+                              },
+                              "endOdometer": {
+                                "type": "number"
+                              },
+                              "isRealRider": {
+                                "type": "boolean"
+                              },
+                              "permissionStartsOn": {
+                                "type": "string"
+                              },
+                              "permissionEndsOn": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "vehicleId": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "occurredOn": {
+                                "type": "string"
+                              },
+                              "amount": {
+                                "type": "number"
+                              },
+                              "vat": {
+                                "type": "number"
+                              },
+                              "amountBeforeTax": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "vehicleId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "statusCode": {
+                                "type": "string"
+                              },
+                              "effectiveFrom": {
+                                "type": "string"
+                              },
+                              "effectiveTo": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "reasonCode": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object"
+                          }
+                        ]
                       }
                     },
                     "total": {
@@ -11900,7 +12987,800 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "anyOf": [
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "registeredRiderId": {
+                                "type": "string"
+                              },
+                              "reportIdNumber": {
+                                "type": "string"
+                              },
+                              "accountType": {
+                                "type": "string"
+                              },
+                              "vehicleType": {
+                                "type": "number"
+                              },
+                              "dashboardStatus": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "previousTypeCode": {
+                                "type": "string"
+                              },
+                              "accountType": {
+                                "type": "string"
+                              },
+                              "effectiveFrom": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "totalValidOffers": {
+                                "type": "number"
+                              },
+                              "acceptedOffers": {
+                                "type": "number"
+                              },
+                              "declinedOffers": {
+                                "type": "number"
+                              },
+                              "missedOffers": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "orderId": {
+                                "type": "string"
+                              },
+                              "deliveryFees": {
+                                "type": "number"
+                              },
+                              "cashCollected": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "periodFrom": {
+                                "type": "string"
+                              },
+                              "periodTo": {
+                                "type": "string"
+                              },
+                              "gross": {
+                                "type": "number"
+                              },
+                              "companyAmount": {
+                                "type": "number"
+                              },
+                              "riderAmount": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "nameAr": {
+                                "type": "string"
+                              },
+                              "nameEn": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "globalCityId": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "issueNumber": {
+                                "type": "string"
+                              },
+                              "issuedAt": {
+                                "type": "string"
+                              },
+                              "quantity": {
+                                "type": "number"
+                              },
+                              "returnedQuantity": {
+                                "type": "number"
+                              },
+                              "totalCost": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "assignmentId": {
+                                "type": "string"
+                              },
+                              "eventTypeCode": {
+                                "type": "string"
+                              },
+                              "occurredAt": {
+                                "type": "string"
+                              },
+                              "direction": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "nameAr": {
+                                "type": "string"
+                              },
+                              "nameEn": {
+                                "type": "string"
+                              },
+                              "cityId": {
+                                "type": "string"
+                              },
+                              "openedDate": {
+                                "type": "string"
+                              },
+                              "closedDate": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "housingId": {
+                                "type": "string"
+                              },
+                              "roomSourceId": {
+                                "type": "string"
+                              },
+                              "effectiveFrom": {
+                                "type": "string"
+                              },
+                              "effectiveTo": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "from": {
+                                "type": "string"
+                              },
+                              "to": {
+                                "type": "string"
+                              },
+                              "rate": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "count": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "number": {
+                                "type": "string"
+                              },
+                              "personName": {
+                                "type": "string"
+                              },
+                              "personTypeCode": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "partyRoleCode": {
+                                "type": "string"
+                              },
+                              "caseDate": {
+                                "type": "string"
+                              },
+                              "caseTime": {
+                                "type": "string"
+                              },
+                              "details": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "orders": {
+                                "type": "number"
+                              },
+                              "hours": {
+                                "type": "number"
+                              },
+                              "CaptainId": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "collectedAmount": {
+                                "type": "number"
+                              },
+                              "amount": {
+                                "type": "number"
+                              },
+                              "CaptainId": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "frozen": {
+                                "type": "boolean"
+                              },
+                              "policyVersion": {
+                                "type": "string"
+                              },
+                              "inputRevision": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "externalAccountId": {
+                                "type": "string"
+                              },
+                              "platformCode": {
+                                "type": "string"
+                              },
+                              "registeredRiderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "cityId": {
+                                "type": "string"
+                              },
+                              "paymentModelCode": {
+                                "type": "string"
+                              },
+                              "startDate": {
+                                "type": "string"
+                              },
+                              "endDate": {
+                                "type": "string"
+                              },
+                              "assignments": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object"
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              },
+                              "orders": {
+                                "type": "number"
+                              },
+                              "hours": {
+                                "type": "number"
+                              },
+                              "collectedAmount": {
+                                "type": "number"
+                              },
+                              "deductionsAmount": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "platformCode": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "accountCode": {
+                                "type": "string"
+                              },
+                              "externalAccountId": {
+                                "type": "string"
+                              },
+                              "effectiveFrom": {
+                                "type": "string"
+                              },
+                              "effectiveTo": {
+                                "type": "string"
+                              },
+                              "endReasonCode": {
+                                "type": "string"
+                              },
+                              "endReason": {
+                                "type": "string"
+                              },
+                              "nextRiderId": {
+                                "type": "string"
+                              },
+                              "paymentModelCode": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "sponsorId": {
+                                "type": "string"
+                              },
+                              "effectiveFrom": {
+                                "type": "string"
+                              },
+                              "effectiveTo": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "assetNumber": {
+                                "type": "string"
+                              },
+                              "serialNumber": {
+                                "type": "string"
+                              },
+                              "plateNumberAr": {
+                                "type": "string"
+                              },
+                              "plateNumberEn": {
+                                "type": "string"
+                              },
+                              "vin": {
+                                "type": "string"
+                              },
+                              "chassisNumber": {
+                                "type": "string"
+                              },
+                              "modelYear": {
+                                "type": "number"
+                              },
+                              "vehicleType": {
+                                "type": "number"
+                              },
+                              "fuelType": {
+                                "type": "number"
+                              },
+                              "ownershipType": {
+                                "type": "number"
+                              },
+                              "currentOdometer": {
+                                "type": "number"
+                              },
+                              "currentOperationalStatus": {
+                                "type": "string"
+                              },
+                              "registrationType": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "registeredOwnerCompanyId": {
+                                "type": "string"
+                              },
+                              "cityId": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "vehicleId": {
+                                "type": "string"
+                              },
+                              "startedAt": {
+                                "type": "string"
+                              },
+                              "endedAt": {
+                                "type": "string"
+                              },
+                              "startOdometer": {
+                                "type": "number"
+                              },
+                              "endOdometer": {
+                                "type": "number"
+                              },
+                              "isRealRider": {
+                                "type": "boolean"
+                              },
+                              "permissionStartsOn": {
+                                "type": "string"
+                              },
+                              "permissionEndsOn": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "vehicleId": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "occurredOn": {
+                                "type": "string"
+                              },
+                              "amount": {
+                                "type": "number"
+                              },
+                              "vat": {
+                                "type": "number"
+                              },
+                              "amountBeforeTax": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "vehicleId": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "statusCode": {
+                                "type": "string"
+                              },
+                              "effectiveFrom": {
+                                "type": "string"
+                              },
+                              "effectiveTo": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "reasonCode": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object"
+                          }
+                        ]
                       }
                     },
                     "total": {

@@ -15,15 +15,12 @@ public static partial class NinjaInvoices
         {var account=Store.Get(c,id,"platform_account",tx);J.Need(account!=null&&account.S("companyId")==company&&PayPlatforms.For(account.S("platformCode")).App=="ninja","الحساب المختار خارج شركة نينجا.");}
         return selected;
     }
-    // Invoice upload path is pre-cycle (not cycle-bound). Captured pay_run_input is used only when a Ninja cycle already froze accounts.
+    // Invoice upload path is pre-cycle (not cycle-bound). Always store — never silent pay_run_input swap (M4).
     static List<(string Captain,string Account)> CaptainAccounts(DbConnection c,DbTransaction? tx)
     {
         var pulled=Store.List(c,"ninja_account",tx).Select(a=>(Captain:a.S("CaptainId",a.S("captainId")),Account:a.S("platformAccountId")));
-        var cycle=Store.List(c,PayCycles.Kind,tx).FirstOrDefault(p=>p.S("status") is not ("cancelled" or "reversed")&&PayRunInputs.Captured(p)&&(p.S("app")=="ninja"||(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("app")=="ninja")));
-        var accounts=cycle!=null
-            ?PayRunInputs.List(c,tx,cycle.S("id"),"platform_account").Where(a=>PayPlatforms.For(a.S("platformCode")).App=="ninja"&&!a.B("sourceDeleted"))
-            :Store.List(c,"platform_account",tx).Where(a=>PayPlatforms.For(a.S("platformCode")).App=="ninja"&&!a.B("sourceDeleted"));
-        var own=accounts.Select(a=>(Captain:a.S("externalAccountId"),Account:a.S("id")));
+        var own=Store.List(c,"platform_account",tx).Where(a=>PayPlatforms.For(a.S("platformCode")).App=="ninja"&&!a.B("sourceDeleted"))
+            .Select(a=>(Captain:a.S("externalAccountId"),Account:a.S("id")));
         return pulled.Concat(own).Where(a=>a.Captain!=""&&a.Account!="").Distinct().ToList();
     }
     static bool InCycle(DbConnection c,DbTransaction? tx,string id)=>Store.List(c,PayCycles.Kind,tx).Any(p=>p.S("status") is not ("cancelled" or "reversed")&&(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==id));

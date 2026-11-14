@@ -6,6 +6,7 @@ using Microsoft.Data.Sqlite;
 using Payroll;
 
 // Operator-only: no API endpoint. Credentials are supplied by Ghazal's process, never read from a file.
+// L2: pay.PayRunInput / pay_run_input is additive dual-engine (not records JSON). Freeze-row cutover is a follow-up; Ensure creates the empty table on target boot.
 try { Run(args); }
 catch { Console.Error.WriteLine("Store migration refused/failed. No private exception details are printed; retain maintenance and inspect the counts-only plan."); Environment.ExitCode=1; }
 

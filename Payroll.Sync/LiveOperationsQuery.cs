@@ -20,7 +20,8 @@ public static class LiveOperationsQuery
     /// <param name="PeriodFrom">Optional inclusive yyyy-MM-dd for capture filters (empty = no period filter).</param>
     /// <param name="PeriodTo">Optional inclusive yyyy-MM-dd for capture filters.</param>
     /// <param name="PlatformApp">Optional payroll app code (ninja/keeta/…) to limit platform-scoped kinds during capture.</param>
-    public sealed record PageRequest(int Page,int PageSize,string Sort,string Query,int Skip,int Take,string QueryAlt="",string PeriodFrom="",string PeriodTo="",string PlatformApp="");
+    /// <param name="AfterId">Keyset cursor: when set, page uses <c>Id &gt; @after</c> (or &lt; for <c>-id</c>) instead of OFFSET.</param>
+    public sealed record PageRequest(int Page,int PageSize,string Sort,string Query,int Skip,int Take,string QueryAlt="",string PeriodFrom="",string PeriodTo="",string PlatformApp="",string AfterId="");
     /// <param name="PlatformRestricted">True for non-administrators: platform_account rows are limited to <paramref name="PlatformCodes"/> (empty = none).</param>
     public sealed record Scope(bool AllCompanies,IReadOnlyList<string> SponsorCommercialRegs,IReadOnlyList<string> EmployeeIds,IReadOnlyList<string> RiderProfileIds,IReadOnlyList<string> PlatformCodes,string? RiderAccountEmployeeId=null,IReadOnlyList<string>? RiderAccountProfileIds=null,bool PlatformRestricted=false);
     public sealed record PageResult(SourceSnapshot Snapshot,long Total,PageRequest Request,DateTimeOffset AsOf);
@@ -103,8 +104,12 @@ public static class LiveOperationsQuery
         string orderCol=UsesAlias(spec)?"t.[Id]":"[Id]";
         string order=page.Sort=="-id"?$"ORDER BY {orderCol} DESC":$"ORDER BY {orderCol} ASC";
         string count=$"SELECT COUNT_BIG(*) FROM {from}{where}";
-        string pageSql=$"SELECT {select} FROM {from}{where} {order} OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        string keyset=page.Sort=="-id"?$"{orderCol} < @after":$"{orderCol} > @after";
+        string pageSql=page.AfterId.Length>0
+            ?$"SELECT {select} FROM {from}{where}{(where.Length>0?" AND ":" WHERE ")}{keyset} {order} OFFSET 0 ROWS FETCH NEXT @take ROWS ONLY"
+            :$"SELECT {select} FROM {from}{where} {order} OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
         var names=cmd.Parameters.Cast<SqlParameter>().Select(p=>p.ParameterName).Append("@skip").Append("@take").ToList();
+        if(page.AfterId.Length>0)names=names.Append("@after").ToList();
         return (count,pageSql,names);
     }
 
@@ -125,30 +130,47 @@ public static class LiveOperationsQuery
         if(query.TryGetValue("q",out var q1)&&!string.IsNullOrWhiteSpace(q1))q=q1.Trim();
         else if(query.TryGetValue("search",out var q2)&&!string.IsNullOrWhiteSpace(q2))q=q2.Trim();
         int skip=checked((page-1)*pageSize);
-        return new(page,pageSize,sort,q,skip,pageSize);
+        string afterId=query.TryGetValue("afterId",out var after)&&!string.IsNullOrWhiteSpace(after)?after.Trim():"";
+        return new(page,pageSize,sort,q,skip,pageSize,"","","","",afterId);
     }
 
-    public static PageResult Page(DbConnection source,string kind,PageRequest request,Scope scope,IReadOnlyList<ISyncSponsor> sponsors,CancellationToken cancellationToken=default)
+    public static PageResult Page(DbConnection source,string kind,PageRequest request,Scope scope,IReadOnlyList<ISyncSponsor> sponsors,CancellationToken cancellationToken=default,long? knownTotal=null)
     {
         DateTimeOffset asOf=DateTimeOffset.UtcNow;
         if(kind=="sponsorship_period")
             return new(new([],asOf,asOf,"selected_empty","selected"),0,request,asOf);
         if(source is not SqlConnection)throw new ImportFailure("live_ops_requires_sql");
         var spec=SpecFor(kind);
-        using var countCmd=source.CreateCommand();countCmd.CommandTimeout=CommandTimeoutSeconds;
-        using var countCancel=SyncCancellation.Register(countCmd,cancellationToken);
-        var where=BuildWhere(spec,scope,request,countCmd,out var needsSponsors);
-        countCmd.CommandText=$"SELECT COUNT_BIG(*) FROM {FromSql(spec)}{where}";
-        long total=Convert.ToInt64(countCmd.ExecuteScalar()??0,CultureInfo.InvariantCulture);
+        long total;
+        if(knownTotal.HasValue&&request.AfterId.Length>0)total=knownTotal.Value;
+        else
+        {
+            using var countCmd=source.CreateCommand();countCmd.CommandTimeout=CommandTimeoutSeconds;
+            using var countCancel=SyncCancellation.Register(countCmd,cancellationToken);
+            var countWhere=BuildWhere(spec,scope,request,countCmd,out _);
+            countCmd.CommandText=$"SELECT COUNT_BIG(*) FROM {FromSql(spec)}{countWhere}";
+            total=Convert.ToInt64(countCmd.ExecuteScalar()??0,CultureInfo.InvariantCulture);
+        }
 
         using var pageCmd=source.CreateCommand();pageCmd.CommandTimeout=CommandTimeoutSeconds;
         using var pageCancel=SyncCancellation.Register(pageCmd,cancellationToken);
-        where=BuildWhere(spec,scope,request,pageCmd,out _);
-        Add(pageCmd,"@skip",request.Skip);Add(pageCmd,"@take",request.Take);
+        var where=BuildWhere(spec,scope,request,pageCmd,out _);
+        Add(pageCmd,"@take",request.Take);
         bool aliased=UsesAlias(spec);
         string orderCol=aliased?"t.[Id]":"[Id]";
         string order=request.Sort=="-id"?$"ORDER BY {orderCol} DESC":$"ORDER BY {orderCol} ASC";
-        pageCmd.CommandText=$"SELECT {SelectSql(spec)} FROM {FromSql(spec)}{where} {order} OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        if(request.AfterId.Length>0)
+        {
+            Add(pageCmd,"@after",request.AfterId);
+            string keyset=request.Sort=="-id"?$"{orderCol} < @after":$"{orderCol} > @after";
+            string joiner=where.Length>0?" AND ":" WHERE ";
+            pageCmd.CommandText=$"SELECT {SelectSql(spec)} FROM {FromSql(spec)}{where}{joiner}{keyset} {order} OFFSET 0 ROWS FETCH NEXT @take ROWS ONLY";
+        }
+        else
+        {
+            Add(pageCmd,"@skip",request.Skip);
+            pageCmd.CommandText=$"SELECT {SelectSql(spec)} FROM {FromSql(spec)}{where} {order} OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        }
         var pageRows=Read(pageCmd,cancellationToken);
         var tables=new Dictionary<string,List<JsonObject>>(StringComparer.Ordinal){[spec.Table]=pageRows};
 
@@ -287,18 +309,18 @@ public static class LiveOperationsQuery
             }
         }
 
-        // Capture period filters (L2): date kinds use [Date]; assignment/residence use overlap with [periodFrom, periodTo+1day).
+        // Capture period filters (L2): widen by one day on each side for timezone/edge rows.
         if(page.PeriodFrom.Length>0&&page.PeriodTo.Length>0)
         {
             Add(cmd,"@pf",page.PeriodFrom);Add(cmd,"@pt",page.PeriodTo);
             if(spec.Kind is "ninja_daily" or "ninja_daily_deduction" or "chefz_daily" or "chefz_order_row" or "platform_day_usage" or "jahez_daily_order")
-                parts.Add($"{prefix}[Date] >= @pf AND {prefix}[Date] < DATEADD(day,1,CONVERT(date,@pt))");
+                parts.Add($"{prefix}[Date] >= DATEADD(day,-1,CONVERT(date,@pf)) AND {prefix}[Date] < DATEADD(day,2,CONVERT(date,@pt))");
             else if(spec.Kind=="vehicle_assignment")
-                parts.Add($"{prefix}[StartedAt] < DATEADD(day,1,CONVERT(date,@pt)) AND ({prefix}[EndedAt] IS NULL OR {prefix}[EndedAt] > CONVERT(date,@pf))");
+                parts.Add($"{prefix}[StartedAt] < DATEADD(day,2,CONVERT(date,@pt)) AND ({prefix}[EndedAt] IS NULL OR {prefix}[EndedAt] > DATEADD(day,-1,CONVERT(date,@pf)))");
             else if(spec.Kind=="housing_residence")
-                parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,1,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > CONVERT(date,@pf))");
+                parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,2,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > DATEADD(day,-1,CONVERT(date,@pf)))");
             else if(spec.Kind=="rider_work_timeline")
-                parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,1,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > CONVERT(date,@pf))");
+                parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,2,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > DATEADD(day,-1,CONVERT(date,@pf)))");
         }
         if(page.PlatformApp.Length>0&&spec.Kind is "platform_account" or "ninja_daily" or "ninja_daily_deduction" or "chefz_daily" or "rider_work_timeline" or "platform_day_usage")
         {
