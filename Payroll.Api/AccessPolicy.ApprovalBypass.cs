@@ -23,6 +23,13 @@ public static partial class AccessPolicy
             &&DateOnly.TryParseExact(actor.FindFirstValue("approvalBypassUntil")??"","yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var until)
             &&until>=Today();
     }
+    /// <summary>Read-only bypass check for views (allowedActions/blockers): reads the dated grant from the DB, writes no audit.
+    /// Login claims never carry the grant, so views must not rely on <see cref="BypassActive(ClaimsPrincipal,DbConnection?,DbTransaction?)"/> without a connection.</summary>
+    public static bool BypassForView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor)
+        =>actor.Identity?.IsAuthenticated==true&&!string.IsNullOrWhiteSpace(actor.Identity.Name)&&ActiveBypassGrant(c,tx,actor.Identity.Name)!=null;
+    /// <summary>View-time maker-checker: another user, or the actor holds an active bypass grant. The approve action still audits via <c>Independent(...,c,tx,record)</c>.</summary>
+    public static bool IndependentForView(ClaimsPrincipal actor,string maker,bool bypass)
+        =>!string.Equals(actor.Identity?.Name,maker,StringComparison.OrdinalIgnoreCase)||bypass;
     public static JsonObject GrantBypass(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)
     {
         J.Need(Administrator(actor)||Has(actor,"users.manage"),"منح تجاوز الاعتماد لمدير الصلاحيات فقط.",403);

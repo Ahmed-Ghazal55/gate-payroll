@@ -8,6 +8,13 @@
 | Live | `/health` = **0.21.0**, `dataPreservationVerified=true`, `releaseCheckpointPresent=true`, `operationsSource=erp_live`, **`erpReadonlyConfigured=false`** (Ghazal sets `ConnectionStrings__ErpReadonly`) |
 | Deploy | run [43555124388](https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43555124388): FTPS upload OK; first boot failed (500.30); fixed by restart; health step red |
 
+## Fix: invoice view ignores the bypass grant (2026-11-14, Claude)
+- Symptom (Ghazal, live Ninja 2026-10): step 3 «التأكيد» shows no approve button; blockers «أنت من رفع هذه الفاتورة» + «أنت صنّفت 81/121 خصم» even with a §35 grant.
+- Cause: invoice views called `AccessPolicy.Independent(actor,maker,op)` without a connection → only login claims; the login never sets `approvalBypass` claims → always "not independent". The approve action itself (`NinjaInvoices.cs:116,120`) already read the grant.
+- Fix: `AccessPolicy.BypassForView` / `IndependentForView` (`AccessPolicy.ApprovalBypass.cs`): read the dated grant from the DB, no audit on view. Used in `NinjaInvoices.Actions.cs` View (4 checks) and `PlatformInvoiceWorkflow.cs` View (5 checks).
+- Test `BypassGrantShowsApproveToUploaderAndApproves` (`NinjaInvoiceImportTests.cs`): fails before, passes after; viewing writes no bypass audit; approve writes one. Related 129 tests with SQL: 3 green runs (one earlier run had 1 flaky failure that did not repeat).
+- Ghazal: needs an active grant (Admin → تجاوز الاعتماد) for his user; merge = deploy.
+
 ## Deploy 0.21.0 and first-boot incident (2026-11-14, Claude)
 - Ghazal «ادمج» → PR #37 squash `8e1b6e3`; PR #36 closed (included).
 - **Incident (~04:20–04:45 UTC, site down with HTTP 500.30):** `Store` takes the before-upgrade snapshot before `PayRunInputs.Ensure`. The old DB had no `pay.PayRunInput` → snapshot without `pay_run_input`; after Ensure → `pay_run_input:0` → "Startup document preservation verification failed".

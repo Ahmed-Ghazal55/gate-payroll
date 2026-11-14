@@ -82,6 +82,26 @@ public sealed class NinjaInvoiceImportTests
         checker=f.Store.Read(c=>NinjaInvoices.View(c,null,Actor("synthetic-checker"),invoice));
         Assert.IsTrue(checker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));Assert.AreEqual(0,checker["approvalBlockers"]!.AsArray().Count);
     }
+    /// <summary>BR §35: the uploader/classifier with an active dated bypass grant sees "approve" (grant read from the DB, not login claims) and can approve.</summary>
+    [TestMethod]
+    public void BypassGrantShowsApproveToUploaderAndApproves()
+    {
+        using var f=new Fixture();
+        f.Store.Write((c,tx)=>{using(var d=c.CreateCommand()){d.Transaction=tx;d.CommandText="DELETE FROM records WHERE kind='ninja_account'";d.ExecuteNonQuery();}Store.Save(c,"platform_account",new(){["id"]="synthetic-ninja-platform",["platformCode"]="NINJA",["companyId"]=Company,["externalAccountId"]="SYN-A"},tx);return true;});
+        var invoice=f.Commit(Workbook(penalty:300));
+        var line=f.Store.Read(c=>NinjaInvoices.View(c,null,Actor(),invoice))["lines"]!.AsArray()[0]!.AsObject();
+        f.Store.Write((c,tx)=>NinjaInvoices.ClassifyBatch(c,tx,Actor(),invoice.S("id"),new JsonObject{["items"]=new JsonArray(new JsonObject{["lineId"]=line.S("id"),["category"]="penalty",["level"]="account_level"})}));
+        Assert.IsFalse(f.Store.Read(c=>NinjaInvoices.View(c,null,Actor(),invoice))["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"),"no grant yet");
+        string today=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd");
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="synthetic-maker-user",["username"]="synthetic-maker",["role"]="Admin",["department"]="FIN"},tx);AccessPolicy.GrantBypass(c,tx,Actor("synthetic-checker"),new(){["username"]="synthetic-maker",["from"]=today,["to"]=today,["reason"]="Ninja October parallel run"});return true;});
+        var maker=f.Store.Read(c=>NinjaInvoices.View(c,null,Actor(),invoice));
+        Assert.IsTrue(maker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"),string.Join("|",maker["approvalBlockers"]!.AsArray()));
+        Assert.AreEqual(0,maker["approvalBlockers"]!.AsArray().Count);
+        Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"audit").Count(a=>a.S("action")=="approval.bypass_maker_checker")),"viewing writes no bypass audit");
+        var approved=f.Store.Write((c,tx)=>NinjaInvoices.Approve(c,tx,Actor(),invoice.S("id")));
+        Assert.AreEqual("approved",approved.S("approvalStatus"));
+        Assert.IsTrue(f.Store.Read(c=>Store.List(c,"audit").Any(a=>a.S("action")=="approval.bypass_maker_checker")),"approval is audited as a bypass");
+    }
     [TestMethod]
     public void NegativeCaptainFromTheInvoiceIsKept()
     {
