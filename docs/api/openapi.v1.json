@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:35661/"
+      "url": "http://127.0.0.1:43725/"
     }
   ],
   "paths": {
@@ -12775,8 +12775,34 @@
                               "assignments": {
                                 "type": "array",
                                 "items": {
-                                  "type": "object"
+                                  "type": "object",
+                                  "properties": {
+                                    "riderId": {
+                                      "type": "string"
+                                    },
+                                    "RawEffectiveFrom": {
+                                      "type": "string"
+                                    },
+                                    "RawEffectiveTo": {
+                                      "type": "string"
+                                    },
+                                    "EffectiveFrom": {
+                                      "type": "string"
+                                    },
+                                    "EffectiveTo": {
+                                      "type": "string"
+                                    },
+                                    "Status": {
+                                      "type": "string"
+                                    },
+                                    "IsRealRider": {
+                                      "type": "boolean"
+                                    }
+                                  }
                                 }
+                              },
+                              "relationship": {
+                                "type": "string"
                               }
                             }
                           },
@@ -13636,8 +13662,34 @@
                               "assignments": {
                                 "type": "array",
                                 "items": {
-                                  "type": "object"
+                                  "type": "object",
+                                  "properties": {
+                                    "riderId": {
+                                      "type": "string"
+                                    },
+                                    "RawEffectiveFrom": {
+                                      "type": "string"
+                                    },
+                                    "RawEffectiveTo": {
+                                      "type": "string"
+                                    },
+                                    "EffectiveFrom": {
+                                      "type": "string"
+                                    },
+                                    "EffectiveTo": {
+                                      "type": "string"
+                                    },
+                                    "Status": {
+                                      "type": "string"
+                                    },
+                                    "IsRealRider": {
+                                      "type": "boolean"
+                                    }
+                                  }
                                 }
+                              },
+                              "relationship": {
+                                "type": "string"
                               }
                             }
                           },

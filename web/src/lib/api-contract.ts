@@ -7904,7 +7904,16 @@ export interface paths {
                                 paymentModelCode?: string;
                                 startDate?: string;
                                 endDate?: string;
-                                assignments?: Record<string, never>[];
+                                assignments?: {
+                                    riderId?: string;
+                                    RawEffectiveFrom?: string;
+                                    RawEffectiveTo?: string;
+                                    EffectiveFrom?: string;
+                                    EffectiveTo?: string;
+                                    Status?: string;
+                                    IsRealRider?: boolean;
+                                }[];
+                                relationship?: string;
                             } | {
                                 id: string;
                                 riderId?: string;
@@ -8172,7 +8181,16 @@ export interface paths {
                                 paymentModelCode?: string;
                                 startDate?: string;
                                 endDate?: string;
-                                assignments?: Record<string, never>[];
+                                assignments?: {
+                                    riderId?: string;
+                                    RawEffectiveFrom?: string;
+                                    RawEffectiveTo?: string;
+                                    EffectiveFrom?: string;
+                                    EffectiveTo?: string;
+                                    Status?: string;
+                                    IsRealRider?: boolean;
+                                }[];
+                                relationship?: string;
                             } | {
                                 id: string;
                                 riderId?: string;

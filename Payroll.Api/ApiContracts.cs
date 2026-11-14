@@ -24,12 +24,14 @@ public static class ApiContracts
         foreach(var (kind,fields) in Operations.FieldMap.OrderBy(kv=>kv.Key,StringComparer.Ordinal))
         {
             var props=fields.Select(f=>(f,Guess(f))).ToArray();
-            if(kind=="platform_account")props=props.Append(("assignments",A(Free()))).ToArray();
+            if(kind=="platform_account")props=props.Append(("assignments",A(AssignmentRow()))).Append(("relationship",S())).ToArray();
             schemas.Add(OpsRow(props));
         }
         schemas.Add(Free());
         return new(){AnyOf=schemas};
     }
+    /// <summary>Same fields as <c>Operations.Assignment</c>; <c>relationship</c> is set by rider-account reads.</summary>
+    static OpenApiSchema AssignmentRow()=>O(new(){["riderId"]=S(),["RawEffectiveFrom"]=S(),["RawEffectiveTo"]=S(),["EffectiveFrom"]=S(),["EffectiveTo"]=S(),["Status"]=S(),["IsRealRider"]=B()});
     static OpenApiSchema Guess(string field)=>field is "orders" or "hours" or "amount" or "vat" or "modelYear" or "currentOdometer" or "startOdometer" or "endOdometer" or "quantity" or "returnedQuantity" or "totalCost" or "collectedAmount" or "deductionsAmount" or "deliveryFees" or "cashCollected" or "totalValidOffers" or "acceptedOffers" or "declinedOffers" or "missedOffers" or "gross" or "companyAmount" or "riderAmount" or "rate" or "count" or "vehicleType" or "fuelType" or "ownershipType"?N():field is "isRealRider" or "frozen"?B():S();
     static OpenApiSchema OperationsPage()=>O(new(){["items"]=A(OperationsItem()),["total"]=N(),["page"]=N(),["pageSize"]=N(),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","source","asOf","allowedActions");
 

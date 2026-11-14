@@ -3,10 +3,17 @@
 | Field | Value |
 |---|---|
 | Current writer | — |
-| Branch | feat/run-input-snapshots |
-| Updated | 2026-11-14 by Antigravity (U2 cycle capture UI) |
-| Live | `/health` = **0.20.0** (this branch not deployed) |
+| Branch | release/0.21.0 (from feat/run-input-snapshots) |
+| Updated | 2026-11-14 by Claude (release 0.21.0) |
+| Live | `/health` = **0.20.0**; release 0.21.0 waits for Ghazal: setting `ConnectionStrings__ErpReadonly`, then «ادمج» |
 | Tip | `1a2f66a` pushed; CI run [43553059387](https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43553059387) green |
+
+## Release 0.21.0 (2026-11-14, Claude)
+- Version `0.21.0`: `ReleaseSafety.cs:10`, health pin `scripts/monsterasp_ftps.py:184-190` (+ its test), node tests (`tests/enterprise.mjs`, `campaigns.mjs`, `finance-views.mjs`, `rider-statement-simple.mjs`), `docs/api/ENDPOINTS.md` title.
+- Contract: `platform_account.assignments` typed (`ApiContracts.cs` `AssignmentRow()`, same fields as `Operations.Assignment`) + `relationship`; web `RiderAccountAssignment` now derived from the contract (`web/src/lib/api.ts`).
+- Runbook `docs/runbooks/RELEASE-0.21.0.md`; Ninja runbook gets the capture step (`docs/runbooks/NINJA-2026-10.md` §5).
+- Live payroll DB: **0 pay cycles** (read-only count, 2026-11-14), so no in-flight cycle (M10).
+- Next (Ghazal): set `ConnectionStrings__ErpReadonly` (read-only login) on MonsterASP, then «ادمج». Close draft PR #36 after the merge (it is inside this release).
 
 ## U2 cycle capture UI (2026-11-14)
 - `web/src/lib/api.ts:97,109-137,1330-1334`: Added `PayCycleCaptureResponse` and `api.capturePayCycleInputs(id)` from `api-contract.ts`; replaced `Record<string, any>[]` in `OperationsResponse` and `RiderAccountsResponse` with contract-derived `OperationRow`, `RiderAccountRow`, and `RiderAccountAssignment`.
