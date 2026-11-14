@@ -175,13 +175,17 @@ public static class Operations
     {
         bool all=FinancialScopes.AllCompanies(actor);
         var sponsors=FinancialCore.Sponsors.Where(s=>FinancialScopes.Sponsor(actor,s.Id)).ToList();
-        var regs=sponsors.Select(s=>s.CommercialReg).Where(r=>r!="").Distinct(StringComparer.Ordinal).ToList();
+        var regs=sponsors.Select(s=>s.UnifiedNumber).Where(r=>r!="").Distinct(StringComparer.Ordinal).ToList();
         // All-company users need no rider keys (no rider filter in SQL), so skip reading every payroll rider.
         var riders=all?[]:Store.List(payroll,"rider").Where(r=>FinancialScopes.Rider(actor,r)).ToList();
         var employees=riders.Select(r=>r.S("erpSourceId")).Where(id=>id!="").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var profiles=riders.SelectMany(r=>(r["erpRiderProfileIds"] as JsonArray??[]).Select(n=>n?.ToString()??"")).Where(id=>id!="").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        // Scope platform filter uses live ERP ClientPlatforms.Code values (A4), not payroll app codes.
         var platforms=actor.FindAll("finance.platforms").Select(c=>c.Value)
-            .Select(p=>PayPlatforms.Table.FirstOrDefault(a=>a.Platform==p)?.App??p.Trim().ToLowerInvariant())
+            .SelectMany(p=>{
+                var app=PayPlatforms.Table.FirstOrDefault(a=>a.Platform==p)?.App;
+                return app==null?[]:ErpPlatformCode.Accept(app);
+            })
             .Where(p=>p!="").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         return new(all,regs,employees,profiles,platforms,riderAccountEmployeeId,riderAccountProfileIds,PlatformRestricted:!AccessPolicy.Administrator(actor));
     }

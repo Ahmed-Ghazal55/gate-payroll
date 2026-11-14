@@ -47,7 +47,7 @@ public static class HsFactsSource
     public static void AddToPlan(SourceSnapshot source,ImportPlan plan,Dictionary<string,string> companies)
     {
         var wallet=source.Tables.GetValueOrDefault(Table("hs_wallet_event"))??[];var batches=source.Tables.GetValueOrDefault(Table("hs_remittance"))??[];var allocations=source.Tables.GetValueOrDefault(Table("hs_remittance_allocation"))??[];
-        var accounts=plan.Documents.Where(d=>d.Kind=="platform_account"&&new[]{"hungerstation","hs"}.Contains(d.Body.S("platformCode").ToLowerInvariant())).ToDictionary(d=>d.Body.S("erpSourceId"),d=>d.Body.S("companyId"));
+        var accounts=plan.Documents.Where(d=>d.Kind=="platform_account"&&(ErpPlatformCode.AppFromErp(d.Body.S("platformCode"))=="hs"||string.Equals(d.Body.S("platformCode"),"hs",StringComparison.OrdinalIgnoreCase)||string.Equals(d.Body.S("platformCode"),"hungerstation",StringComparison.OrdinalIgnoreCase))).ToDictionary(d=>d.Body.S("erpSourceId"),d=>d.Body.S("companyId"));
         string Company(JsonObject row,HsFactContract contract)
         {
             if(contract.Kind=="hs_wallet_event")return companies.GetValueOrDefault(row.S("SponsorId"))??"";

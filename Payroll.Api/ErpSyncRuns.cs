@@ -43,5 +43,29 @@ public static class ErpSyncRuns
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapGet("/system/erp-sync",(int? limit,HttpContext ctx)=>store.Read(c=>Recent(c,ctx.User,limit??20))).WithTags("Administration").WithSummary("Read administrator-only counts and refusal codes for recent ERP sync runs");
+        // A3: admin-only map of our company code → ERP sponsor match by UnifiedNationalNumber (yes/no; no names).
+        api.MapGet("/system/erp-sponsor-map",(HttpContext ctx,IConfiguration config)=>
+        {
+            if(!AccessPolicy.Administrator(ctx.User))throw new ApiError("خريطة الكفلاء لمسؤول النظام فقط.",403);
+            string sourceConnection=config.GetConnectionString("ErpReadonly")??config["ERP_READONLY_DB"]??"";
+            if(string.IsNullOrWhiteSpace(sourceConnection))throw new ApiError("اتصال مصدر التشغيل غير مضبوط.",503);
+            using var erp=ErpImport.Connections.Source(sourceConnection);erp.Open();ErpImport.SourceReader.VerifyReadOnly(erp);
+            var matched=new HashSet<string>(StringComparer.Ordinal);
+            using(var cmd=erp.CreateCommand())
+            {
+                cmd.CommandTimeout=ErpImport.LiveOperationsQuery.CommandTimeoutSeconds;
+                cmd.CommandText="SELECT [UnifiedNationalNumber] FROM [app].[Sponsors] WHERE [IsDeleted]=0 AND [UnifiedNationalNumber] IS NOT NULL AND [UnifiedNationalNumber]<>''";
+                using var reader=cmd.ExecuteReader();
+                while(reader.Read())
+                {
+                    string? value=reader.IsDBNull(0)?null:reader.GetValue(0)?.ToString();
+                    if(!string.IsNullOrWhiteSpace(value))matched.Add(value.Trim());
+                }
+            }
+            return FinancialCore.Sponsors.Select(s=>new{
+                code=s.Code,
+                matched=!string.IsNullOrWhiteSpace(s.UnifiedNumber)&&matched.Contains(s.UnifiedNumber)
+            }).ToList();
+        }).WithTags("Administration").WithSummary("Administrator-only company-code to ERP-sponsor match flags (no names)");
     }
 }

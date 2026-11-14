@@ -40,11 +40,13 @@ public static partial class PayCycles
         string company=cycle.S("companyId");
         var sponsor=FinancialCore.Sponsors.FirstOrDefault(s=>s.Id==company)
             ??throw new ApiError("شركة الدورة غير معروفة.",400);
-        var regs=string.IsNullOrWhiteSpace(sponsor.CommercialReg)?[]:new[]{sponsor.CommercialReg};
+        if(string.IsNullOrWhiteSpace(sponsor.UnifiedNumber))
+            throw new ApiError("الشركة غير مربوطة بكفيل في نظام الموارد",503);
+        var numbers=new[]{sponsor.UnifiedNumber};
         var riders=Store.List(payroll,"rider").Where(r=>r.S("sponsorId")==company||r.S("companyId")==company).ToList();
         var employees=riders.Select(r=>r.S("erpSourceId")).Where(id=>id!="").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var profiles=riders.SelectMany(r=>(r["erpRiderProfileIds"] as JsonArray??[]).Select(n=>n?.ToString()??"")).Where(id=>id!="").Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        return new(false,regs,employees,profiles,[],null,null,PlatformRestricted:false);
+        return new(false,numbers,employees,profiles,[],null,null,PlatformRestricted:false);
     }
 
     static HashSet<string> CycleRiderIds(DbConnection c,DbTransaction? tx,JsonObject cycle)
@@ -199,6 +201,7 @@ public static partial class PayCycles
         if(string.IsNullOrWhiteSpace(sourceConnection))throw new ApiError("اتصال مصدر التشغيل غير مضبوط.",503);
         using var erp=Connections.Source(sourceConnection);erp.Open();SourceReader.VerifyReadOnly(erp);
         var scope=store.Read(c=>CaptureScope(c,cycle));
+        DemandErpSponsorMatch(erp,scope);
         var kinds=apps.SelectMany(PayRunInputs.KindsForApp).Distinct(StringComparer.Ordinal).Where(k=>k!="vehicle"&&Operations.Kinds.Contains(k)).ToList();
         foreach(string kind in kinds)
         {
@@ -230,6 +233,22 @@ public static partial class PayCycles
             bag["vehicle"]=vehicles;
         }
         return bag;
+    }
+
+    /// <summary>A3: refuse capture when the cycle company's unified number is not present on any ERP sponsor.</summary>
+    static void DemandErpSponsorMatch(DbConnection erp,LiveOperationsQuery.Scope scope)
+    {
+        if(scope.AllCompanies||scope.SponsorUnifiedNumbers.Count==0)return;
+        using var cmd=erp.CreateCommand();
+        cmd.CommandTimeout=LiveOperationsQuery.CommandTimeoutSeconds;
+        var names=new List<string>();
+        for(int i=0;i<scope.SponsorUnifiedNumbers.Count;i++)
+        {
+            string n="@u"+i;var p=cmd.CreateParameter();p.ParameterName=n;p.Value=scope.SponsorUnifiedNumbers[i];cmd.Parameters.Add(p);names.Add(n);
+        }
+        cmd.CommandText=$"SELECT TOP 1 1 FROM [app].[Sponsors] WHERE [UnifiedNationalNumber] IN ({string.Join(',',names)}) AND [IsDeleted]=0";
+        if(cmd.ExecuteScalar() is null)
+            throw new ApiError("الشركة غير مربوطة بكفيل في نظام الموارد",503);
     }
 
     static List<JsonObject> StageKindKeyset(DbConnection erp,string kind,LiveOperationsQuery.Scope scope,string from,string to,string app,CancellationToken ct,int pageCap=10000)

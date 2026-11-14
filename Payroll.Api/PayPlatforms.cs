@@ -13,14 +13,33 @@ public static class PayPlatforms
         new("chefz","Chefz","112807","411103",null),
         new("amazon","Amazon","112808","411105",null)
     ];
-    static string Normalize(string value){string code=value.Trim().ToLowerInvariant().Replace(" ","-").Replace("_","-");return code switch{"hungerstation" or "hunger-station"=>"hs","the-chefz" or "thechefz"=>"chefz",_=>code};}
+    static string Normalize(string value)
+    {
+        string code=value.Trim().ToLowerInvariant().Replace(" ","-").Replace("_","-");
+        // ERP ClientPlatforms.Code (exact): HUNGER, SHIFTZ, NINJA, … — map before the generic pattern check.
+        return code switch
+        {
+            "hungerstation" or "hunger-station" or "hunger"=>"hs",
+            "the-chefz" or "thechefz" or "shiftz"=>"chefz",
+            "chefsz"=>"chefz",
+            _=>code
+        };
+    }
     public static string App(string value)
     {
         string code=Normalize(value);
-        J.Need(Regex.IsMatch(code,"^[a-z][a-z0-9-]{0,39}$"),"رمز التطبيق غير صالح.");return code;
+        J.Need(Regex.IsMatch(code,"^[a-z][a-z0-9-]{0,39}$"),"رمز التطبيق غير صالح.");
+        J.Need(Table.Any(a=>a.App==code)||code is "other","تطبيق غير معروف: "+value);
+        return code;
     }
     public static Accounts For(string app)
-    {string code=Normalize(app);return Table.FirstOrDefault(a=>a.App==code)??new(Regex.IsMatch(code,"^[a-z][a-z0-9-]{0,39}$")?code:"other","Other","112802",null,null);}
+    {
+        string code=Normalize(app);
+        return Table.FirstOrDefault(a=>a.App==code)
+            ??new(Regex.IsMatch(code,"^[a-z][a-z0-9-]{0,39}$")?code:"other","Other","112802",null,null);
+    }
+    /// <summary>ERP ClientPlatforms.Code values accepted for a payroll app (A4).</summary>
+    public static IReadOnlyList<string> ErpCodes(string app)=>ErpImport.ErpPlatformCode.Accept(App(app));
     public static string Active(string account)
     {J.Need(FinanceViews.Accounts.Any(a=>a.S("code")==account&&a.B("posting")&&a.S("status")=="active"),"الحساب غير معتمد للترحيل؛ لا نفعّل حسابًا موقوفًا تلقائيًا.");return account;}
     public static string Revenue(string app,string role)
