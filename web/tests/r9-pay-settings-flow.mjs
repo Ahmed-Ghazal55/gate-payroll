@@ -579,11 +579,22 @@ try {
 
     const createCycleBtn = pageA.locator('button', { hasText: 'إنشاء دورة الرواتب' });
     await createCycleBtn.waitFor({ state: 'visible', timeout: 10000 });
-    await createCycleBtn.click();
+    const [createResponse] = await Promise.all([
+      pageA.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname.endsWith('/api/pay/cycles'), { timeout: 15000 }),
+      createCycleBtn.click(),
+    ]);
+    assert.equal(createResponse.status(), 200, `create cycle must succeed: ${await createResponse.text()}`);
     console.log('✓ Clicked «إنشاء دورة الرواتب» from Review Draft');
 
-    await pageA.waitForTimeout(1000);
-    await pageA.waitForLoadState('networkidle');
+    // L2 (BR §39): inputs must be captured before stage 2. Until U2 adds the button, capture through the API, then reload.
+    const createdCycle = await createResponse.json();
+    const cycleIdForCapture = createdCycle?.id ?? createdCycle?.cycle?.id;
+    assert.ok(cycleIdForCapture, 'Cycle id required before capture-inputs');
+    const captureRes = await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(cycleIdForCapture)}/capture-inputs`, {
+      method: 'POST', headers: { Cookie: cookieA, 'Content-Type': 'application/json' }, body: '{}',
+    });
+    assert.equal(captureRes.status, 200, `capture-inputs must succeed: ${await captureRes.text()}`);
+    await pageA.reload({ waitUntil: 'networkidle' });
 
     // Advance stages with the stepper button until Stage 4 (lines generated)
     for (let stage = 1; stage <= 4; stage++) {
