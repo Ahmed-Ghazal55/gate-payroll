@@ -2,12 +2,16 @@
 
 | Field | Value |
 |---|---|
-| Current writer | — |
-| Branch | `feat/api-for-ui` |
-| Updated | 2026-11-15 by Cursor (M2 complete) |
-| Live | `/health` = **0.22.0** (unchanged; no deploy) |
-| Tip | `133352b` on `feat/api-for-ui` |
-| PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/43 |
+| Current writer | Claude 2026-11-15 19:30 release 0.23.0 |
+| Branch | `release/0.23.0` = main + PR #43 (M1 live ERP reads, M2 API for the screens) + PR #44 (responses: bank and campaign names) |
+| Updated | 2026-11-15 by Claude (release 0.23.0) |
+| Live | `/health` = **0.22.0** until this release merges; `erpReadonlyConfigured=true` since 2026-11-15 (Claude added `ConnectionStrings:ErpReadonly`, read-only login, to the live `wwwroot/appsettings.Local.json`; backup in `~/Private/gate-data/cutover/`) |
+| Next | Claude reviews M3 (`feat/pipeline-screens`, Antigravity) → release 0.24.0 |
+
+## Release 0.23.0 (2026-11-15, Claude; Ghazal asked to merge and deploy)
+- Contents: PR #43 + PR #44. Not included: M3 (`feat/pipeline-screens`), not reviewed yet.
+- Live settings: the live site reads `ConnectionStrings:DefaultConnection` from the hosting environment and `ConnectionStrings:ErpReadonly` from `wwwroot/appsettings.Local.json` (the deploy never overwrites that file).
+- Responses screen (PR #44): `web/src/lib/saudi-banks.ts` `bankLabel` (bank name from the API `bankCode` or the IBAN's bank code); campaign name from the API `title`; campaign filter lists every campaign and form that has responses.
 
 ## Claude review of M2 (2026-11-15): accepted, 3 fixes applied by Claude
 - Merged `origin/main` (`aff86f0`, PR #42 full IBAN in form responses) into this branch on 2026-11-15 (Claude); the earlier note that main was already merged was wrong. Only HANDOFF conflicted.
