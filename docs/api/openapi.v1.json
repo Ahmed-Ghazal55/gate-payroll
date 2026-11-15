@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:38533/"
+      "url": "http://127.0.0.1:43939/"
     }
   ],
   "paths": {
@@ -1026,6 +1026,29 @@
                   "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/JsonObject"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/erp-sponsor-map": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Administrator-only company-code to ERP-sponsor match flags (no names)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnonymousTypeOfstringAndboolean"
                   }
                 }
               }
@@ -13243,6 +13266,15 @@
                               },
                               "paymentModelCode": {
                                 "type": "string"
+                              },
+                              "slot": {
+                                "type": "string"
+                              },
+                              "compensationModel": {
+                                "type": "string"
+                              },
+                              "ninjaRiderTypeCode": {
+                                "type": "string"
                               }
                             }
                           },
@@ -14173,6 +14205,15 @@
                                 "type": "string"
                               },
                               "paymentModelCode": {
+                                "type": "string"
+                              },
+                              "slot": {
+                                "type": "string"
+                              },
+                              "compensationModel": {
+                                "type": "string"
+                              },
+                              "ninjaRiderTypeCode": {
                                 "type": "string"
                               }
                             }
@@ -22079,7 +22120,7 @@
       "AnonymousTypeOfstringAndboolean": {
         "required": [
           "code",
-          "enabled"
+          "matched"
         ],
         "type": "object",
         "properties": {
@@ -22089,7 +22130,7 @@
               "string"
             ]
           },
-          "enabled": {
+          "matched": {
             "type": "boolean"
           }
         }

@@ -1546,6 +1546,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system/erp-sponsor-map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Administrator-only company-code to ERP-sponsor match flags (no names) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnonymousTypeOfstringAndboolean"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/jobs": {
         parameters: {
             query?: never;
@@ -8121,6 +8157,9 @@ export interface paths {
                                 endReason?: string;
                                 nextRiderId?: string;
                                 paymentModelCode?: string;
+                                slot?: string;
+                                compensationModel?: string;
+                                ninjaRiderTypeCode?: string;
                             } | {
                                 id: string;
                                 riderId?: string;
@@ -8411,6 +8450,9 @@ export interface paths {
                                 endReason?: string;
                                 nextRiderId?: string;
                                 paymentModelCode?: string;
+                                slot?: string;
+                                compensationModel?: string;
+                                ninjaRiderTypeCode?: string;
                             } | {
                                 id: string;
                                 riderId?: string;
@@ -15236,7 +15278,7 @@ export interface components {
         };
         AnonymousTypeOfstringAndboolean: {
             code: null | string;
-            enabled: boolean;
+            matched: boolean;
         };
         AnonymousTypeOfstringAndint: {
             rank: null | string;
