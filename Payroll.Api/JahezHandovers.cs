@@ -64,7 +64,7 @@ public static class JahezHandovers
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapPost("/finance/jahez-handover",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Submit(c,tx,input,ctx.User)))).WithTags("Banks and treasury").WithSummary("Submit finance jahez handover");
-        api.MapGet("/finance/jahez-handovers",(HttpContext ctx)=>store.Read(c=>Store.List(c,"jahez_handover").Where(h=>CanRead(ctx.User,h)).Select(h=>View(c,null,ctx.User,h)))).WithTags("Banks and treasury").WithSummary("Read finance jahez handovers");
+        api.MapGet("/finance/jahez-handovers",(HttpContext ctx)=>store.Read(c=>Store.List(c,"jahez_handover").Where(h=>CanRead(ctx.User,h)).Select(h=>View(c,null,ctx.User,h)).ToList())).WithTags("Banks and treasury").WithSummary("Read finance jahez handovers");
         api.MapPost("/finance/jahez-handovers/{id}/confirm",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Decide(c,tx,id,input,ctx.User,true)))).WithTags("Banks and treasury").WithSummary("Submit finance jahez handovers {id} confirm");
         api.MapPost("/finance/jahez-handovers/{id}/reject",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Decide(c,tx,id,input,ctx.User,false)))).WithTags("Banks and treasury").WithSummary("Submit finance jahez handovers {id} reject");
     }

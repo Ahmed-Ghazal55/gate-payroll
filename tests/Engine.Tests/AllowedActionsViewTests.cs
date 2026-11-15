@@ -97,6 +97,18 @@ public sealed class AllowedActionsViewTests
     }
 
     [TestMethod]
+    public void JahezHandoverListMaterializesViewsWhileConnectionOpen()
+    {
+        using var f=new PayFixture();
+        f.Store.Write((c,tx)=>{Store.Save(c,"jahez_handover",new(){["id"]="jh-list",["sponsorId"]=FinancialCore.Sponsors[0].Id,["status"]="pending",["submittedBy"]="synthetic-handover-maker",["sourceRef"]="LIST1"},tx);return true;});
+        var actor=UserAccess.Principal(new JsonObject{["username"]="synthetic-handover-recv",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=3});
+        var listed=f.Store.Read(c=>Store.List(c,"jahez_handover").Select(h=>JahezHandovers.View(c,null,actor,h)).ToList());
+        Assert.IsTrue(listed.Any(h=>h.S("id")=="jh-list"&&h["allowedActions"] is JsonArray));
+        var deferred=f.Store.Read(c=>(IEnumerable<JsonObject>)Store.List(c,"jahez_handover").Select(h=>JahezHandovers.View(c,null,actor,h)));
+        Assert.ThrowsExactly<InvalidOperationException>(()=>deferred.ToList());
+    }
+
+    [TestMethod]
     public void ManualJournalWithActionsHonoursBypassForView()
     {
         using var f=new PayFixture();
