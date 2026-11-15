@@ -29,7 +29,6 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
-import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
@@ -45,15 +44,9 @@ import {
 } from '../../lib/types';
 
 type ApiNinjaInvoice = paths['/api/platforms/ninja/invoices']['get']['responses'][200]['content']['application/json']['items'][number];
-
-const COMPANY_LABELS: Record<string, string> = {
-  BW: 'البوابة الموكلة',
-  EX: 'البوابة إكسبريس',
-  TR: 'البوابة للتجارة',
-  '019c18d5-62e1-7000-8000-000000000041': 'البوابة الموكلة',
-  '019c18d5-62e1-7000-8000-000000000042': 'البوابة إكسبريس',
-  '019c18d5-62e1-7000-8000-000000000040': 'البوابة للتجارة',
-};
+type MultiRiderReport = paths['/api/platforms/ninja/invoices/{id}/multi-rider-deductions']['get']['responses'][200]['content']['application/json'];
+type AllocationDraft = { bearer: 'company' | 'rider'; riderId?: string; expenseAccount?: string; amount: number };
+type BearerMode = 'company' | 'rider' | 'split';
 
 type DeductionGroup = { category: string; lineIds: string[]; amount: number; unclassified: number; companyOnly: boolean };
 
@@ -84,21 +77,10 @@ interface NinjaInvoiceUploadScreenProps {
   platform?: 'ninja' | 'keeta';
 }
 
-const isCompanyMatch = (invoiceCompanyId?: string, target?: string) => {
-  if (!invoiceCompanyId || !target) return false;
-  if (invoiceCompanyId === target) return true;
-  const targetUpper = target.toUpperCase();
-  if (targetUpper === 'BW' && (invoiceCompanyId === '019c18d5-62e1-7000-8000-000000000041' || invoiceCompanyId === 'BW')) return true;
-  if (targetUpper === 'EX' && (invoiceCompanyId === '019c18d5-62e1-7000-8000-000000000042' || invoiceCompanyId === 'EX')) return true;
-  if (targetUpper === 'TR' && (invoiceCompanyId === '019c18d5-62e1-7000-8000-000000000040' || invoiceCompanyId === 'TR')) return true;
-  return false;
-};
-
 export function NinjaInvoiceUploadScreen({
   initialPeriod = '2026-10',
   platform = 'ninja',
 }: NinjaInvoiceUploadScreenProps) {
-  const { user } = useAuth();
   const { toast } = useToast();
   const isKeeta = platform === 'keeta';
   const platformNameAr = isKeeta ? 'كيتا' : 'نينجا';
@@ -117,9 +99,46 @@ export function NinjaInvoiceUploadScreen({
 
   // Upload mode: consolidated (ملف مجمع للكل) or per-account (تخصيص حسابات المنصة)
   const [uploadMode, setUploadMode] = useState<'all' | 'per_account'>('all');
-  const [availableAccounts, setAvailableAccounts] = useState<Array<{ id: string; code: string; name?: string; externalAccountId?: string }>>([]);
+  const [companies, setCompanies] = useState<Array<{ id: string; code: string; nameAr: string }>>([]);
+  const [availableAccounts, setAvailableAccounts] = useState<
+    Array<{
+      id: string;
+      code: string;
+      name?: string;
+      externalAccountId?: string;
+      assignments?: Array<{ riderId?: string; riderName?: string }>;
+    }>
+  >([]);
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [accountSearch, setAccountSearch] = useState<string>('');
+
+  const companyLabels = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of companies) {
+      map[c.id] = c.nameAr || c.code;
+      map[c.code] = c.nameAr || c.code;
+    }
+    return map;
+  }, [companies]);
+
+  const isCompanyMatch = (invoiceCompanyId?: string, target?: string) => {
+    if (!invoiceCompanyId || !target) return false;
+    if (invoiceCompanyId === target) return true;
+    const match = companies.find((c) => c.code === target || c.id === target);
+    if (match) {
+      return invoiceCompanyId === match.id || invoiceCompanyId === match.code;
+    }
+    return false;
+  };
+
+  useEffect(() => {
+    api.getCompanies()
+      .then((res) => {
+        const list = (res || []).map((c) => ({ id: c.id, code: c.code, nameAr: c.nameAr }));
+        setCompanies(list);
+      })
+      .catch(() => {});
+  }, []);
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -133,6 +152,7 @@ export function NinjaInvoiceUploadScreen({
   const [reconcileResult, setReconcileResult] = useState<NinjaReconcileResponse | null>(null);
   const [serverPreview, setServerPreview] = useState<ApiNinjaInvoice | null>(null);
   const [currentInvoice, setCurrentInvoice] = useState<ApiNinjaInvoice | null>(null);
+  const [multiRiderReport, setMultiRiderReport] = useState<MultiRiderReport | null>(null);
   const [savedInvoices, setSavedInvoices] = useState<ApiNinjaInvoice[]>([]);
   const [, setLoadingSavedInvoices] = useState<boolean>(false);
 
@@ -150,6 +170,7 @@ export function NinjaInvoiceUploadScreen({
   const [discardReason, setDiscardReason] = useState('');
   const [classLevel, setClassLevel] = useState<Record<string, 'account_level' | 'company_level' | 'rider_level'>>({});
   const [classAccount, setClassAccount] = useState<Record<string, string>>({});
+  const [rowDrafts, setRowDrafts] = useState<Record<string, { mode: BearerMode; allocations: AllocationDraft[] }>>({});
   const [costAccounts, setCostAccounts] = useState<Array<{ code: string; nameAr?: string; posting?: boolean }>>([]);
 
   // Filters for the captains table
@@ -158,7 +179,15 @@ export function NinjaInvoiceUploadScreen({
 
   // Load platform accounts for the selected company
   useEffect(() => {
-    type OperationAccount = { id: string; code: string; name?: string; externalAccountId?: string; platformCode?: string; companyId?: string };
+    type OperationAccount = {
+      id: string;
+      code: string;
+      name?: string;
+      externalAccountId?: string;
+      platformCode?: string;
+      companyId?: string;
+      assignments?: Array<{ riderId?: string; riderName?: string }>;
+    };
     let cancelled = false;
     (async () => {
       const found: OperationAccount[] = [];
@@ -179,7 +208,21 @@ export function NinjaInvoiceUploadScreen({
     return () => {
       cancelled = true;
     };
-  }, [companyId, platform]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, platform, companies]);
+
+  const loadMultiRiderReport = async (invoiceId?: string) => {
+    if (!invoiceId || isKeeta) {
+      setMultiRiderReport(null);
+      return;
+    }
+    try {
+      const report = await api.getNinjaMultiRiderDeductions(invoiceId);
+      setMultiRiderReport(report);
+    } catch {
+      setMultiRiderReport(null);
+    }
+  };
 
   const selectSavedInvoice = async (inv: ApiNinjaInvoice) => {
     if (isKeeta && inv.id && !Array.isArray(inv.lines)) {
@@ -189,9 +232,17 @@ export function NinjaInvoiceUploadScreen({
       } catch {
         setCurrentInvoice(inv);
       }
+    } else if (!isKeeta && inv.id) {
+      try {
+        const full = await api.getNinjaInvoice(inv.id);
+        setCurrentInvoice(full);
+      } catch {
+        setCurrentInvoice(inv);
+      }
     } else {
       setCurrentInvoice(inv);
     }
+    void loadMultiRiderReport(inv.id);
     if (inv.journalEntryId) setStepperStage(5);
     else if (inv.approvalStatus === 'approved') setStepperStage(4);
     else setStepperStage(3);
@@ -357,20 +408,118 @@ export function NinjaInvoiceUploadScreen({
     setSubmittingAction(`classify:${group.category}`);
     setActionError(null);
     try {
-      const items = group.lineIds.map((lineId) => ({
-        lineId,
-        category: group.category,
-        level,
-        ...(level === 'company_level' ? { expenseAccount } : {}),
-        ...(level === 'rider_level' ? { riderId: classRider[group.category] } : {}),
-      }));
-      const updated = isKeeta
-        ? await api.classifyKeetaInvoiceBatch(currentInvoice.id, items, currentInvoice)
-        : await api.classifyNinjaInvoiceBatch(currentInvoice.id, items);
-      setCurrentInvoice(updated);
-      toast(`تم تصنيف ${group.lineIds.length} خصم`, 'success');
+      if (isKeeta) {
+        const items = group.lineIds.map((lineId) => ({
+          lineId,
+          category: group.category,
+          level,
+          ...(level === 'company_level' ? { expenseAccount } : {}),
+          ...(level === 'rider_level' ? { riderId: classRider[group.category] } : {}),
+        }));
+        const updated = await api.classifyKeetaInvoiceBatch(currentInvoice.id, items, currentInvoice);
+        setCurrentInvoice(updated);
+      } else {
+        const linesById = new Map((currentInvoice.lines || []).map((l) => [l.id, l]));
+        const items = group.lineIds.map((lineId) => {
+          const line = linesById.get(lineId);
+          const deduction = (line?.deductions || []).find((d) => d.category === group.category);
+          const amount = deduction?.amount ?? 0;
+          if (level === 'company_level') {
+            return {
+              lineId,
+              category: group.category,
+              allocations: [{ bearer: 'company' as const, amount, expenseAccount: expenseAccount! }],
+            };
+          }
+          if (level === 'rider_level') {
+            return {
+              lineId,
+              category: group.category,
+              allocations: [{ bearer: 'rider' as const, amount, riderId: classRider[group.category]! }],
+            };
+          }
+          // account_level / proposal shortcut: use API proposal if present, else fallback to account_level
+          const proposal = (deduction?.proposal || []).filter(
+            (p) => (p.bearer === 'company' && p.expenseAccount) || (p.bearer === 'rider' && p.riderId),
+          );
+          if (proposal.length > 0) {
+            return {
+              lineId,
+              category: group.category,
+              allocations: proposal.map((p) => ({
+                bearer: (p.bearer === 'company' ? 'company' : 'rider') as 'company' | 'rider',
+                amount: p.amount,
+                ...(p.expenseAccount ? { expenseAccount: p.expenseAccount } : {}),
+                ...(p.riderId ? { riderId: p.riderId } : {}),
+              })),
+            };
+          }
+          return { lineId, category: group.category, level: 'account_level' as const };
+        });
+        const updated = await api.classifyNinjaInvoiceBatch(currentInvoice.id, items);
+        setCurrentInvoice(updated);
+        void loadMultiRiderReport(currentInvoice.id);
+      }
+      toast(`تم تطبيق التصنيف على ${group.lineIds.length} سطر`, 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'تعذر تصنيف الخصومات';
+      setActionError(msg);
+      toast(msg, 'danger');
+    } finally {
+      setSubmittingAction(null);
+    }
+  };
+
+  const handleSaveRowAllocations = async (lineId: string, category: string, rowAmount: number, allocations: AllocationDraft[]) => {
+    if (!currentInvoice?.id) return;
+    const sum = allocations.reduce((acc, a) => acc + (Number.isFinite(a.amount) ? a.amount : 0), 0);
+    if (Math.abs(sum - rowAmount) > 0.005) {
+      toast('مجموع التوزيع لا يطابق مبلغ الصف', 'warning');
+      return;
+    }
+    for (const a of allocations) {
+      if (a.bearer === 'company' && !a.expenseAccount) {
+        toast('اختر حساب التكلفة لخصم الشركة', 'warning');
+        return;
+      }
+      if (a.bearer === 'rider' && !a.riderId) {
+        toast('اختر المندوب الذي يتحمل الخصم', 'warning');
+        return;
+      }
+    }
+    const rowKey = `${lineId}:${category}`;
+    setSubmittingAction(`row:${rowKey}`);
+    setActionError(null);
+    try {
+      if (isKeeta) {
+        const first = allocations[0];
+        const level = first?.bearer === 'company' ? 'company_level' : 'rider_level';
+        const updated = await api.classifyKeetaInvoiceBatch(
+          currentInvoice.id,
+          [
+            {
+              lineId,
+              category,
+              level,
+              ...(level === 'company_level' ? { expenseAccount: first.expenseAccount } : {}),
+              ...(level === 'rider_level' ? { riderId: first.riderId } : {}),
+            },
+          ],
+          currentInvoice,
+        );
+        setCurrentInvoice(updated);
+      } else {
+        const updated = await api.classifyNinjaInvoice(currentInvoice.id, {
+          lineId,
+          category,
+          allocations,
+        });
+        setCurrentInvoice(updated);
+        void loadMultiRiderReport(currentInvoice.id);
+      }
+      toast('تم حفظ توزيع المتحمّل', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'تعذر حفظ توزيع المتحمّل';
       setActionError(msg);
       toast(msg, 'danger');
     } finally {
@@ -761,85 +910,20 @@ export function NinjaInvoiceUploadScreen({
     { num: 5, title: 'الترحيل', desc: 'قيد الحسابات العامة' },
   ];
 
-  // Use server-supplied allowedActions/approvalBlockers when present (Ninja); compute fallback when omitted (Keeta).
-  const computedView = useMemo(() => {
-    if (!currentInvoice) return { actions: [] as string[], blockers: [] as string[] };
-    if (Array.isArray(currentInvoice.allowedActions)) {
-      return {
-        actions: currentInvoice.allowedActions,
-        blockers: currentInvoice.approvalBlockers || [],
-      };
-    }
-    const actions: string[] = [];
-    const blockers: string[] = [];
-    const username = (user?.username || '').toLowerCase();
-    const createdBy = (currentInvoice.createdBy || '').toLowerCase();
-    const independent = Boolean(username && createdBy && username !== createdBy);
-    const posted = Boolean(currentInvoice.journalEntryId);
-    const status = currentInvoice.approvalStatus || 'pending';
-    type RuntimeDeduction = {
-      category: string;
-      amount: number;
-      level: string;
-      expenseAccount?: string;
-      classifiedBy?: string;
-    };
-    const parts: RuntimeDeduction[] = (currentInvoice.lines || []).flatMap(
-      (l) => (l.deductions || []) as RuntimeDeduction[],
-    );
-    const disputes = currentInvoice.disputes || [];
-
-    if (!posted) {
-      if (status === 'pending' && parts.length > 0) actions.push('classify');
-      const allClassified = parts.every(
-        (d) =>
-          (d.level === 'company_level' || d.level === 'account_level') &&
-          (d.classifiedBy || '').toLowerCase() !== username,
-      );
-      if (status === 'pending' && independent && allClassified) actions.push('approve');
-      actions.push('dispute');
-      if (disputes.some((d) => d.status === 'open' && (d.createdBy || '').toLowerCase() !== username)) {
-        actions.push('resolve');
-      }
-      if (
-        status === 'approved' &&
-        independent &&
-        disputes.every((d) => d.status === 'resolved') &&
-        parts.every((d) => d.level === 'company_level')
-      ) {
-        actions.push('post');
-      }
-    }
-
-    if (!posted && status === 'pending') {
-      if (!independent) {
-        blockers.push('أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر (فصل الصلاحيات).');
-      }
-      const unclassified = parts.filter(
-        (d) => d.level !== 'company_level' && d.level !== 'account_level',
-      ).length;
-      if (unclassified > 0) {
-        blockers.push(`${unclassified} خصم بلا تصنيف؛ صنّفها أولًا (على المندوب اللي اشتغل أو على الشركة).`);
-      }
-      const ownClass = parts.filter(
-        (d) => (d.classifiedBy || '').toLowerCase() === username,
-      ).length;
-      if (ownClass > 0) {
-        blockers.push(`أنت صنّفت ${ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.`);
-      }
-    }
-    return { actions, blockers };
-  }, [currentInvoice, user?.username]);
-
-  const allowedActions = computedView.actions;
-  const approvalBlockers = computedView.blockers;
+  const allowedActions = currentInvoice?.allowedActions || [];
+  const approvalBlockers = currentInvoice?.approvalBlockers || [];
   const deductionGroups: DeductionGroup[] = Object.values(
     (currentInvoice?.lines || []).reduce<Record<string, DeductionGroup>>((groups, line) => {
       for (const d of line.deductions || []) {
         const group = (groups[d.category] ??= { category: d.category, lineIds: [], amount: 0, unclassified: 0, companyOnly: true });
         group.lineIds.push(line.id);
         group.amount += d.amount;
-        if (d.level !== 'account_level' && d.level !== 'company_level') group.unclassified += 1;
+        const isClassified =
+          (Array.isArray(d.allocations) && d.allocations.length > 0 && d.migrationStatus !== 'needs_review') ||
+          d.level === 'account_level' ||
+          d.level === 'company_level' ||
+          d.level === 'rider_level';
+        if (!isClassified) group.unclassified += 1;
         if (line.lineType !== 'company') group.companyOnly = false;
       }
       return groups;
@@ -908,7 +992,7 @@ export function NinjaInvoiceUploadScreen({
     }
     if (selectedFiles.length > 0) {
       return {
-        title: `الملف جاهز لـ ${COMPANY_LABELS[companyId] ?? companyId} وشهر ${period}. ابدأ المطابقة.`,
+        title: `الملف جاهز لـ ${companyLabels[companyId] ?? companyId} وشهر ${period}. ابدأ المطابقة.`,
         action: (
           <button type="button" disabled={loading} onClick={handleRunReconcile} className={primaryButton}>
             بدء المطابقة والمعاينة
@@ -939,18 +1023,17 @@ export function NinjaInvoiceUploadScreen({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
               <Building size={14} className="text-[var(--muted)]" />
               <span className="text-xs text-[var(--muted)]">الشركة:</span>
-              <select
+              <SearchableSelect
+                ariaLabel="الشركة"
+                className="min-w-44"
                 value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-                className="text-xs font-bold bg-[var(--surface)] text-[var(--ink)] border-none focus:outline-hidden cursor-pointer"
-              >
-                <option value="BW">البوابة المقبلة (BW)</option>
-                <option value="EX">إكسبرس جايت (EX)</option>
-                <option value="TR">طريق الرواد (TR)</option>
-              </select>
+                onChange={(v) => v && setCompanyId(v)}
+                placeholder="اختر الشركة..."
+                options={companies.map((c) => ({ value: c.code || c.id, label: `${c.nameAr} (${c.code})` }))}
+              />
             </div>
 
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
@@ -1024,7 +1107,7 @@ export function NinjaInvoiceUploadScreen({
                 currentInvoice?.id === i.id ? 'border-[var(--accent)] font-bold' : 'border-[var(--line)]'
               }`}
             >
-              {COMPANY_LABELS[i.companyId] ?? i.companyId}: {i.approvalStatus === 'approved' ? 'معتمدة' : 'بانتظار الاعتماد'}
+              {companyLabels[i.companyId] ?? i.companyId}: {i.approvalStatus === 'approved' ? 'معتمدة' : 'بانتظار الاعتماد'}
             </button>
           ))}
         </div>
@@ -1356,61 +1439,324 @@ export function NinjaInvoiceUploadScreen({
             </div>
           )}
 
+          {!isKeeta && multiRiderReport && multiRiderReport.multiRiderRows > 0 && (
+            <div id="ninja-multi-rider-alert" className="p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 space-y-2 text-xs text-[var(--ink)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold">يوزرات عليها أكثر من مندوب وتحتاج مراجعة</span>
+                <span className="font-mono text-[var(--muted)]">
+                  {multiRiderReport.multiRiderRows} بند · {multiRiderReport.multiRiderAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س (من إجمالي {multiRiderReport.deductionRows} بند)
+                </span>
+              </div>
+              <ul className="list-disc ps-5 space-y-0.5">
+                {(currentInvoice.lines || []).flatMap((line) => {
+                  const acct = availableAccounts.find((a) => a.id === line.platformAccountId);
+                  const opsCount = new Set((acct?.assignments || []).map((a) => a.riderId).filter(Boolean)).size;
+                  return (line.deductions || [])
+                    .filter((d) => d.migrationStatus === 'needs_review' || (d.level === 'account_level' && (!d.allocations || d.allocations.length === 0) && opsCount > 1))
+                    .map((d) => (
+                      <li key={`${line.id}:${d.category}`} className="font-mono">
+                        {line.captainId || line.platformAccountId} — {DEDUCTION_LABELS[d.category] ?? d.category}: {d.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                      </li>
+                    ));
+                })}
+              </ul>
+            </div>
+          )}
+
           {allowedActions.includes('classify') && deductionGroups.length > 0 && (
-            <div id="ninja-classify-panel" className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/30 space-y-2">
-              <p className="text-xs font-bold text-[var(--ink)]">تصنيف خصومات الفاتورة: على المندوب اللي اشتغل على اليوزر أم على الشركة</p>
-              {deductionGroups.map((group) => {
-                const level = classLevel[group.category] ?? (group.companyOnly ? 'company_level' : 'account_level');
-                return (
-                  <div key={group.category} data-category={group.category} className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink)]">
-                    <span className="font-bold min-w-40">{DEDUCTION_LABELS[group.category] ?? group.category}</span>
-                    <span className="font-mono text-[var(--muted)]">
-                      {group.lineIds.length} سطر · {group.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س · {group.unclassified} بلا تصنيف
-                    </span>
-                    <select
-                      aria-label="جهة تحمل الخصم"
-                      value={level}
-                      onChange={(e) => {
-                        const value = e.target.value as 'account_level' | 'company_level' | 'rider_level';
-                        setClassLevel((prev) => ({ ...prev, [group.category]: value }));
-                        if (value === 'company_level') loadCostAccounts();
-                      }}
-                      onFocus={() => group.companyOnly && loadCostAccounts()}
-                      className="px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
-                    >
-                      <option value="account_level">على المندوب اللي اشتغل على اليوزر</option>
-                      <option value="company_level">على الشركة</option>
-                      <option value="rider_level">على مندوب محدد</option>
-                    </select>
-                    {level === 'rider_level' && (
-                      <RiderPicker
-                        className="min-w-64"
-                        value={classRider[group.category] ?? ''}
-                        onChange={(rider) => setClassRider((prev) => ({ ...prev, [group.category]: rider?.iqama ?? '' }))}
-                      />
-                    )}
-                    {level === 'company_level' && (
+            <div id="ninja-classify-panel" className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/30 space-y-4">
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-[var(--ink)]">اختصار تطبيق على الفئة (يمرر للمحرك مع بقاء كل سطر قابل للتعديل أدناه):</p>
+                {deductionGroups.map((group) => {
+                  const level = classLevel[group.category] ?? (group.companyOnly ? 'company_level' : 'account_level');
+                  return (
+                    <div key={group.category} data-category={group.category} className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink)]">
+                      <span className="font-bold min-w-40">{DEDUCTION_LABELS[group.category] ?? group.category}</span>
+                      <span className="font-mono text-[var(--muted)]">
+                        {group.lineIds.length} سطر · {group.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س · {group.unclassified} بلا تصنيف
+                      </span>
                       <SearchableSelect
-                        ariaLabel="حساب التكلفة"
-                        className="min-w-64"
-                        value={classAccount[group.category] ?? ''}
-                        onFocus={loadCostAccounts}
-                        onChange={(code) => setClassAccount((prev) => ({ ...prev, [group.category]: code }))}
-                        placeholder="اكتب حساب التكلفة..."
-                        options={costAccounts.map((a) => ({ value: a.code, label: `${a.code} ${a.nameAr ?? ''}` }))}
+                        ariaLabel="جهة تحمل الخصم"
+                        className="min-w-56"
+                        value={level}
+                        onFocus={() => group.companyOnly && loadCostAccounts()}
+                        onChange={(val) => {
+                          const value = (val || 'account_level') as 'account_level' | 'company_level' | 'rider_level';
+                          setClassLevel((prev) => ({ ...prev, [group.category]: value }));
+                          if (value === 'company_level') loadCostAccounts();
+                        }}
+                        options={[
+                          { value: 'account_level', label: 'على المندوب (حسب المقترح / اليوزر)' },
+                          { value: 'company_level', label: 'على الشركة' },
+                          { value: 'rider_level', label: 'على مندوب محدد' },
+                        ]}
                       />
-                    )}
-                    <button
-                      type="button"
-                      disabled={submittingAction === `classify:${group.category}`}
-                      onClick={() => handleClassifyCategory(group)}
-                      className="px-3 py-1 rounded-lg bg-[var(--accent)] text-white font-bold disabled:opacity-50 cursor-pointer"
-                    >
-                      تطبيق
-                    </button>
-                  </div>
-                );
-              })}
+                      {level === 'rider_level' && (
+                        <RiderPicker
+                          className="min-w-64"
+                          value={classRider[group.category] ?? ''}
+                          onChange={(rider) => setClassRider((prev) => ({ ...prev, [group.category]: rider?.iqama ?? '' }))}
+                        />
+                      )}
+                      {level === 'company_level' && (
+                        <SearchableSelect
+                          ariaLabel="حساب التكلفة"
+                          className="min-w-64"
+                          value={classAccount[group.category] ?? ''}
+                          onFocus={loadCostAccounts}
+                          onChange={(code) => setClassAccount((prev) => ({ ...prev, [group.category]: code }))}
+                          placeholder="اكتب حساب التكلفة..."
+                          options={costAccounts.map((a) => ({ value: a.code, label: `${a.code} ${a.nameAr ?? ''}` }))}
+                        />
+                      )}
+                      <button
+                        type="button"
+                        disabled={submittingAction === `classify:${group.category}`}
+                        onClick={() => handleClassifyCategory(group)}
+                        className="px-3 py-1 rounded-lg bg-[var(--accent)] text-white font-bold disabled:opacity-50 cursor-pointer"
+                      >
+                        تطبيق على الفئة
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="border-t border-[var(--line)] pt-3 space-y-2">
+                <p className="text-xs font-bold text-[var(--ink)]">تحرير المتحمّل لكل سطر خصم (مع مقترح المحرك):</p>
+                <div className="space-y-2 max-h-96 overflow-y-auto pe-1">
+                  {(currentInvoice.lines || []).flatMap((line) => {
+                    const acct = availableAccounts.find((a) => a.id === line.platformAccountId);
+                    const workedRiders = Array.from(
+                      new Map(
+                        (acct?.assignments || [])
+                          .filter((a) => a.riderId)
+                          .map((a) => [a.riderId!, { iqama: a.riderId!, name: a.riderName || a.riderId! }]),
+                      ).values(),
+                    );
+                    return (line.deductions || []).map((d) => {
+                      const rowKey = `${line.id}:${d.category}`;
+                      const existing = d.allocations && d.allocations.length > 0 ? d.allocations : d.proposal || [];
+                      const defaultMode: BearerMode =
+                        existing.length > 1
+                          ? 'split'
+                          : existing[0]?.bearer === 'company' || (existing.length === 0 && line.lineType === 'company')
+                            ? 'company'
+                            : 'rider';
+                      const defaultAllocations: AllocationDraft[] =
+                        existing.length > 0
+                          ? existing.map((a) => ({
+                              bearer: (a.bearer === 'company' ? 'company' : 'rider') as 'company' | 'rider',
+                              amount: a.amount,
+                              ...(a.expenseAccount ? { expenseAccount: a.expenseAccount } : {}),
+                              ...(a.riderId ? { riderId: a.riderId } : {}),
+                            }))
+                          : defaultMode === 'company'
+                            ? [{ bearer: 'company', amount: d.amount, expenseAccount: d.expenseAccount || '' }]
+                            : [{ bearer: 'rider', amount: d.amount, riderId: d.riderId || workedRiders[0]?.iqama || '' }];
+
+                      const draft = rowDrafts[rowKey] ?? { mode: defaultMode, allocations: defaultAllocations };
+                      const sumAlloc = draft.allocations.reduce((s, a) => s + (Number.isFinite(a.amount) ? a.amount : 0), 0);
+                      const diff = Math.round((d.amount - sumAlloc) * 100) / 100;
+                      const isDiffZero = Math.abs(diff) <= 0.005;
+
+                      const setDraft = (next: { mode: BearerMode; allocations: AllocationDraft[] }) =>
+                        setRowDrafts((prev) => ({ ...prev, [rowKey]: next }));
+
+                      return (
+                        <div
+                          key={rowKey}
+                          data-row-key={rowKey}
+                          className="p-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] flex flex-col gap-2 text-xs text-[var(--ink)]"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono font-bold">{line.captainId || line.platformAccountId || 'الشركة'}</span>
+                              <span className="text-[var(--muted)]">·</span>
+                              <span className="font-bold">{DEDUCTION_LABELS[d.category] ?? d.category}</span>
+                              <span className="font-mono font-bold">{d.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+                              {d.proposal && d.proposal.length > 0 && (
+                                <span className="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-700 dark:text-sky-300 text-[10px]">
+                                  مقترح المحرك جاهز
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {(['company', 'rider', 'split'] as const).map((m) => (
+                                <button
+                                  key={m}
+                                  type="button"
+                                  onClick={() => {
+                                    if (m === 'company') {
+                                      loadCostAccounts();
+                                      setDraft({ mode: 'company', allocations: [{ bearer: 'company', amount: d.amount, expenseAccount: draft.allocations[0]?.expenseAccount || '' }] });
+                                    } else if (m === 'rider') {
+                                      setDraft({ mode: 'rider', allocations: [{ bearer: 'rider', amount: d.amount, riderId: draft.allocations[0]?.riderId || workedRiders[0]?.iqama || '' }] });
+                                    } else {
+                                      const base = draft.allocations.length >= 2 ? draft.allocations : [
+                                        { bearer: 'rider' as const, amount: Math.round((d.amount / 2) * 100) / 100, riderId: workedRiders[0]?.iqama || '' },
+                                        { bearer: 'company' as const, amount: Math.round((d.amount - Math.round((d.amount / 2) * 100) / 100) * 100) / 100, expenseAccount: '' },
+                                      ];
+                                      loadCostAccounts();
+                                      setDraft({ mode: 'split', allocations: base });
+                                    }
+                                  }}
+                                  className={`px-2 py-0.5 rounded border text-[11px] font-bold cursor-pointer ${
+                                    draft.mode === m
+                                      ? 'border-[var(--accent)] bg-[var(--accent)] text-white'
+                                      : 'border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]'
+                                  }`}
+                                >
+                                  {m === 'company' ? 'الشركة' : m === 'rider' ? 'مندوب' : 'تقسيم'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {draft.mode === 'company' && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <SearchableSelect
+                                ariaLabel="حساب التكلفة للسطر"
+                                className="min-w-64"
+                                value={draft.allocations[0]?.expenseAccount ?? ''}
+                                onFocus={loadCostAccounts}
+                                onChange={(code) => setDraft({ mode: 'company', allocations: [{ bearer: 'company', amount: d.amount, expenseAccount: code }] })}
+                                placeholder="اختر حساب التكلفة..."
+                                options={costAccounts.map((a) => ({ value: a.code, label: `${a.code} ${a.nameAr ?? ''}` }))}
+                              />
+                            </div>
+                          )}
+
+                          {draft.mode === 'rider' && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              {workedRiders.length > 0 ? (
+                                <SearchableSelect
+                                  ariaLabel="المندوب الذي اشتغل على الحساب"
+                                  className="min-w-64"
+                                  value={draft.allocations[0]?.riderId ?? ''}
+                                  onChange={(iqama) => setDraft({ mode: 'rider', allocations: [{ bearer: 'rider', amount: d.amount, riderId: iqama }] })}
+                                  placeholder="اختر من مناديب الحساب..."
+                                  options={workedRiders.map((r) => ({ value: r.iqama, label: `${r.name} (${r.iqama})` }))}
+                                />
+                              ) : (
+                                <RiderPicker
+                                  className="min-w-64"
+                                  value={draft.allocations[0]?.riderId ?? ''}
+                                  onChange={(rider) => setDraft({ mode: 'rider', allocations: [{ bearer: 'rider', amount: d.amount, riderId: rider?.iqama ?? '' }] })}
+                                />
+                              )}
+                            </div>
+                          )}
+
+                          {draft.mode === 'split' && (
+                            <div className="space-y-1.5">
+                              {draft.allocations.map((part, idx) => (
+                                <div key={idx} className="flex flex-wrap items-center gap-2">
+                                  <SearchableSelect
+                                    ariaLabel="طرف التقسيم"
+                                    className="min-w-28"
+                                    value={part.bearer}
+                                    onChange={(b) => {
+                                      const nextBearer = (b === 'company' ? 'company' : 'rider') as 'company' | 'rider';
+                                      if (nextBearer === 'company') loadCostAccounts();
+                                      const nextAllocs = draft.allocations.map((x, i) =>
+                                        i === idx ? { bearer: nextBearer, amount: x.amount, ...(nextBearer === 'company' ? { expenseAccount: '' } : { riderId: workedRiders[0]?.iqama || '' }) } : x,
+                                      );
+                                      setDraft({ mode: 'split', allocations: nextAllocs });
+                                    }}
+                                    options={[
+                                      { value: 'rider', label: 'مندوب' },
+                                      { value: 'company', label: 'الشركة' },
+                                    ]}
+                                  />
+                                  {part.bearer === 'company' ? (
+                                    <SearchableSelect
+                                      ariaLabel="حساب تكلفة الطرف"
+                                      className="min-w-56"
+                                      value={part.expenseAccount ?? ''}
+                                      onFocus={loadCostAccounts}
+                                      onChange={(code) => {
+                                        const nextAllocs = draft.allocations.map((x, i) => (i === idx ? { ...x, expenseAccount: code } : x));
+                                        setDraft({ mode: 'split', allocations: nextAllocs });
+                                      }}
+                                      placeholder="حساب التكلفة..."
+                                      options={costAccounts.map((a) => ({ value: a.code, label: `${a.code} ${a.nameAr ?? ''}` }))}
+                                    />
+                                  ) : workedRiders.length > 0 ? (
+                                    <SearchableSelect
+                                      ariaLabel="مندوب الطرف"
+                                      className="min-w-56"
+                                      value={part.riderId ?? ''}
+                                      onChange={(iqama) => {
+                                        const nextAllocs = draft.allocations.map((x, i) => (i === idx ? { ...x, riderId: iqama } : x));
+                                        setDraft({ mode: 'split', allocations: nextAllocs });
+                                      }}
+                                      placeholder="اختر مندوباً..."
+                                      options={workedRiders.map((r) => ({ value: r.iqama, label: `${r.name} (${r.iqama})` }))}
+                                    />
+                                  ) : (
+                                    <RiderPicker
+                                      className="min-w-56"
+                                      value={part.riderId ?? ''}
+                                      onChange={(rider) => {
+                                        const nextAllocs = draft.allocations.map((x, i) => (i === idx ? { ...x, riderId: rider?.iqama ?? '' } : x));
+                                        setDraft({ mode: 'split', allocations: nextAllocs });
+                                      }}
+                                    />
+                                  )}
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    aria-label="مبلغ الطرف"
+                                    value={Number.isFinite(part.amount) ? part.amount : 0}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value);
+                                      const nextAllocs = draft.allocations.map((x, i) => (i === idx ? { ...x, amount: Number.isFinite(val) ? val : 0 } : x));
+                                      setDraft({ mode: 'split', allocations: nextAllocs });
+                                    }}
+                                    className="w-24 px-2 py-1 rounded border border-[var(--line)] bg-[var(--surface)] font-mono"
+                                  />
+                                  {draft.allocations.length > 2 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setDraft({ mode: 'split', allocations: draft.allocations.filter((_, i) => i !== idx) })}
+                                      className="px-2 py-1 rounded border border-[var(--danger)]/40 text-[var(--danger)] cursor-pointer"
+                                    >
+                                      حذف
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => setDraft({ mode: 'split', allocations: [...draft.allocations, { bearer: 'rider', amount: Math.max(0, diff), riderId: workedRiders[0]?.iqama || '' }] })}
+                                className="px-2 py-0.5 rounded border border-[var(--line)] text-[11px] hover:bg-[var(--raised)] cursor-pointer"
+                              >
+                                + إضافة طرف
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--line)]/50">
+                            <span className={`font-mono text-[11px] font-bold ${isDiffZero ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--danger)]'}`}>
+                              الفرق: {diff.toFixed(2)} ر.س
+                            </span>
+                            <button
+                              type="button"
+                              disabled={!isDiffZero || submittingAction === `row:${rowKey}`}
+                              onClick={() => handleSaveRowAllocations(line.id, d.category, d.amount, draft.allocations)}
+                              className="px-3 py-1 rounded-lg bg-[var(--accent)] text-white font-bold disabled:opacity-40 cursor-pointer"
+                            >
+                              حفظ السطر
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1506,30 +1852,21 @@ export function NinjaInvoiceUploadScreen({
           amountExclVat?: number;
           deductionsTotal?: number;
           vat?: number;
-          lines?: Array<{ orders?: number; lineType?: string }>;
+          lines?: Array<{ lineType?: string }>;
         };
         const previewRows = (serverPreview as { rows?: KeetaPreviewRow[] } | null)?.rows;
         const src: KeetaPreviewRow = (currentInvoice as KeetaPreviewRow | null) ?? previewRows?.[0] ?? {};
         const lines = src.lines || [];
-        const accountCount = lines.filter((l) => l.lineType !== 'company').length || lines.length;
-        const orders = lines.reduce((sum, l) => sum + (l.orders || 0), 0);
         const gross = src.amountExclVat ?? 0;
         const deductionsTotal = src.deductionsTotal ?? 0;
         const vat = src.vat ?? 0;
-        const totalPayable = gross - deductionsTotal + vat;
         return (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard
-              label="عدد الحسابات"
-              value={accountCount}
+              label="عدد الأسطر"
+              value={lines.length}
               hint={`فترة ${period}`}
               icon={Layers}
-            />
-            <StatCard
-              label="الطلبات المسلمة"
-              value={orders}
-              hint="إجمالي الطلبات"
-              icon={CheckCircle}
             />
             <StatCard
               label="إجمالي المستحق (Gross)"
@@ -1548,12 +1885,6 @@ export function NinjaInvoiceUploadScreen({
               value={`${vat.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
               hint="ضريبة القيمة المضافة"
               icon={Percent}
-            />
-            <StatCard
-              label="الإجمالي شامل الضريبة"
-              value={`${totalPayable.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
-              hint="المعتمد في الصرف"
-              icon={FileCheck}
             />
           </div>
         );

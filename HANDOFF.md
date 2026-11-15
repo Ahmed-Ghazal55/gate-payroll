@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Current writer | — |
-| Branch | `feat/api-for-ui` |
+| Current writer | Antigravity 2026-11-15 14:01 M3 |
+| Branch | `feat/pipeline-screens` |
 | Updated | 2026-11-15 by Cursor (M2 complete) |
 | Live | `/health` = **0.22.0** (unchanged; no deploy) |
 | Tip | `133352b` on `feat/api-for-ui` |

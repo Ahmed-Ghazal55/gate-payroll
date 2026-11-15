@@ -1667,11 +1667,25 @@ export const api = {
     handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
   postNinjaInvoice: (id: string) =>
     handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/post`, { method: 'POST' }),
-  classifyNinjaInvoice: (id: string, body: Record<string, unknown>) =>
+  classifyNinjaInvoice: (
+    id: string,
+    body: {
+      lineId: string;
+      category: string;
+      allocations?: Array<{ bearer: 'company' | 'rider'; amount: number; expenseAccount?: string; riderId?: string }>;
+      level?: 'account_level' | 'company_level' | 'rider_level';
+      expenseAccount?: string;
+      riderId?: string;
+    },
+  ) =>
     handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/classify`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  getNinjaMultiRiderDeductions: (id: string) =>
+    handleRequest<ApiResp<'/api/platforms/ninja/invoices/{id}/multi-rider-deductions'>>(
+      `/platforms/ninja/invoices/${encodeURIComponent(id)}/multi-rider-deductions`,
+    ),
   discardPlatformInvoice: (platform: 'ninja' | 'keeta', id: string, reason: string) =>
     handleRequest<unknown>(`/platforms/${platform}/invoices/${encodeURIComponent(id)}/discard`, { method: 'POST', body: JSON.stringify({ reason }) }),
   getPostingGate: (code: string) => handleRequest<{ code: string; enabled: boolean }>(`/platforms/${encodeURIComponent(code)}/posting`),
@@ -1688,7 +1702,17 @@ export const api = {
     handleRequest<unknown>('/me/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
   saveRolePermissions: (code: string, permissions: string[], reason: string) =>
     handleRequest<unknown>(`/roles/${encodeURIComponent(code)}/permissions`, { method: 'PUT', body: JSON.stringify({ permissions, reason }) }),
-  classifyNinjaInvoiceBatch: (id: string, items: Array<{ lineId: string; category: string; level: 'account_level' | 'company_level' | 'rider_level'; expenseAccount?: string; riderId?: string }>) =>
+  classifyNinjaInvoiceBatch: (
+    id: string,
+    items: Array<{
+      lineId: string;
+      category: string;
+      allocations?: Array<{ bearer: 'company' | 'rider'; amount: number; expenseAccount?: string; riderId?: string }>;
+      level?: 'account_level' | 'company_level' | 'rider_level';
+      expenseAccount?: string;
+      riderId?: string;
+    }>,
+  ) =>
     handleRequest<NinjaInvoice>(`/platforms/ninja/invoices/${encodeURIComponent(id)}/classify-batch`, {
       method: 'POST',
       body: JSON.stringify({ items }),
