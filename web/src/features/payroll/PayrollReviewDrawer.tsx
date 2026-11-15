@@ -16,8 +16,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { Drawer } from '../../components/ui/Drawer';
-import { api, ApiError } from '../../lib/api';
-import type { PayReviewRow, PayReviewItem, PayReviewEdit } from '../../lib/types';
+import { api, ApiError, getErrorMessage, type PayReviewRow, type PayReviewItem, type PayReviewEdit } from '../../lib/api';
 import { useToast } from '../../components/ui/Toast';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 
@@ -74,8 +73,8 @@ export function PayrollReviewDrawer({
       const updated = await api.reviewPayCycleRider(cycleId, row.rider, row.net < 0 ? { action: 'approve', reason: decisionReason.trim() } : { action: 'approve' });
       toast('تم اعتماد بيانات واستحقاق المندوب بنجاح.', 'success');
       onRowUpdated(updated);
-    } catch (err: any) {
-      toast(err.message || 'تعذر اعتماد المندوب.', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'تعذر اعتماد المندوب.', 'danger');
     } finally {
       setSubmitting(false);
     }
@@ -106,8 +105,8 @@ export function PayrollReviewDrawer({
       setEditAmount('');
       setEditReason('');
       onRowUpdated(updated);
-    } catch (err: any) {
-      toast(err.message || 'تعذر حفظ التعديل.', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'تعذر حفظ التعديل.', 'danger');
     } finally {
       setSubmitting(false);
     }
@@ -137,8 +136,8 @@ export function PayrollReviewDrawer({
       setAdjustAmount('');
       setAdjustReason('');
       onRowUpdated(updated);
-    } catch (err: any) {
-      toast(err.message || 'تعذر إضافة تعديل الراتب.', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'تعذر إضافة تعديل الراتب.', 'danger');
     } finally {
       setSubmitting(false);
     }

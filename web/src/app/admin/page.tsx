@@ -32,7 +32,16 @@ import {
   AlertTriangle,
   ShieldAlert,
 } from 'lucide-react';
-import { api } from '../../lib/api';
+import {
+  api,
+  getErrorMessage,
+  type OrgCatalog,
+  type OrgMembership,
+  type OrgDelegation,
+  type OrgSupervision,
+  type OrgRouting,
+  type OrgResponsibleUser,
+} from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -45,14 +54,6 @@ import { RiderPicker } from '../../components/ui/RiderPicker';
 import { ConfigListsPanel } from '../../features/admin/ConfigListsPanel';
 import { ApprovalBypassPanel } from '../../features/admin/ApprovalBypassPanel';
 import { RolePermissionsEditor, UserAccessDialog, type AccessCatalog, type AccessUser } from '../../features/admin/UserAccessDialog';
-import type {
-  OrgCatalog,
-  OrgMembership,
-  OrgDelegation,
-  OrgSupervision,
-  OrgRouting,
-  OrgResponsibleUser,
-} from '../../lib/types';
 
 function AdminPageInner() {
   const { user, can, isAdmin } = useAuth();
@@ -164,8 +165,8 @@ function AdminPageInner() {
     try {
       const res = await api.getUsers();
       setUsers(Array.isArray(res) ? res : []);
-    } catch (err: any) {
-      setUsersError(err.message || 'تعذر تحميل قائمة المستخدمين');
+    } catch (err: unknown) {
+      setUsersError((err instanceof Error ? err.message : '') || 'تعذر تحميل قائمة المستخدمين');
     } finally {
       setLoadingUsers(false);
     }
@@ -178,8 +179,8 @@ function AdminPageInner() {
     try {
       const res = await api.getAuditLogs();
       setAuditLogs(Array.isArray(res) ? res : []);
-    } catch (err: any) {
-      setAuditError(err.message || 'تعذر تحميل سجل التدقيق');
+    } catch (err: unknown) {
+      setAuditError((err instanceof Error ? err.message : '') || 'تعذر تحميل سجل التدقيق');
     } finally {
       setLoadingAudit(false);
     }
@@ -202,8 +203,8 @@ function AdminPageInner() {
       setDelegations(Array.isArray(delRes) ? delRes : []);
       setSupervisions(Array.isArray(supRes) ? supRes : []);
       setRoutings(Array.isArray(routeRes) ? routeRes : []);
-    } catch (err: any) {
-      setOrgError(err.message || 'تعذر تحميل بيانات سجل التنظيم والرتب');
+    } catch (err: unknown) {
+      setOrgError((err instanceof Error ? err.message : '') || 'تعذر تحميل بيانات سجل التنظيم والرتب');
     } finally {
       setLoadingOrg(false);
     }
@@ -215,8 +216,8 @@ function AdminPageInner() {
     try {
       const res = await api.getOrgResponsible(op.trim());
       setResponsibleUsers(Array.isArray(res) ? res : []);
-    } catch (err: any) {
-      toast(err.message || 'تعذر استعلام المسؤولين عن العملية', 'warning');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'تعذر استعلام المسؤولين عن العملية', 'warning');
       setResponsibleUsers([]);
     } finally {
       setLoadingResponsible(false);
@@ -240,8 +241,8 @@ function AdminPageInner() {
         setFbHasServiceAccountJson(Boolean(cfg.hasServiceAccountJson));
         setFbConfigured(Boolean(cfg.configured));
       }
-    } catch (err: any) {
-      toast(err?.message || 'تعذر تحميل إعدادات Firebase', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'تعذر تحميل إعدادات Firebase', 'danger');
     } finally {
       setFbLoading(false);
     }
@@ -259,8 +260,8 @@ function AdminPageInner() {
       });
       setFbConfigured(Boolean(res?.configured));
       toast('تم حفظ إعدادات الربط بنجاح', 'success');
-    } catch (err: any) {
-      toast(err?.message || 'تعذر حفظ إعدادات الربط', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'تعذر حفظ إعدادات الربط', 'danger');
     } finally {
       setFbSaving(false);
     }
@@ -296,8 +297,8 @@ function AdminPageInner() {
       setNewUsername('');
       setNewPassword('');
       loadUsers();
-    } catch (err: any) {
-      toast(err.message || 'فشل إنشاء المستخدم', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشل إنشاء المستخدم', 'danger');
     } finally {
       setCreatingUser(false);
     }
@@ -322,8 +323,8 @@ function AdminPageInner() {
       setAddMembershipOpen(false);
       setMemUserId('');
       loadOrgData();
-    } catch (err: any) {
-      toast(err.message || 'فشل إضافة العضوية', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشل إضافة العضوية', 'danger');
     } finally {
       setSubmittingMem(false);
     }
@@ -334,8 +335,8 @@ function AdminPageInner() {
       await api.endOrgMembership(id);
       toast('تم إنهاء العضوية وتحديث السجل الزمني', 'success');
       loadOrgData();
-    } catch (err: any) {
-      toast(err.message || 'فشل إنهاء العضوية', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشل إنهاء العضوية', 'danger');
     }
   };
 
@@ -362,8 +363,8 @@ function AdminPageInner() {
       setDelToUser('');
       setDelReason('');
       loadOrgData();
-    } catch (err: any) {
-      toast(err.message || 'فشل تسجيل التفويض', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشل تسجيل التفويض', 'danger');
     } finally {
       setSubmittingDel(false);
     }
@@ -374,8 +375,8 @@ function AdminPageInner() {
       await api.endOrgDelegation(id);
       toast('تم إنهاء التفويض بنجاح', 'success');
       loadOrgData();
-    } catch (err: any) {
-      toast(err.message || 'فشل إنهاء التفويض', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشل إنهاء التفويض', 'danger');
     }
   };
 
@@ -398,8 +399,8 @@ function AdminPageInner() {
       setSupSupervisor('');
       setSupIqama('');
       loadOrgData();
-    } catch (err: any) {
-      toast(err.message || 'فشل تسجيل الإشراف', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشل تسجيل الإشراف', 'danger');
     } finally {
       setSubmittingSup(false);
     }
@@ -410,8 +411,8 @@ function AdminPageInner() {
       await api.endOrgSupervision(id);
       toast('تم إنهاء إشراف المشرف على المندوب', 'success');
       loadOrgData();
-    } catch (err: any) {
-      toast(err.message || 'فشل إنهاء الإشراف', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشل إنهاء الإشراف', 'danger');
     }
   };
 
@@ -440,8 +441,8 @@ function AdminPageInner() {
       setRouteUsers('');
       loadOrgData();
       loadResponsible(routeOperation.trim());
-    } catch (err: any) {
-      toast(err.message || 'فشل تسجيل التوجيه', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشل تسجيل التوجيه', 'danger');
     } finally {
       setSubmittingRoute(false);
     }
@@ -452,8 +453,8 @@ function AdminPageInner() {
       await api.endOrgRouting(id);
       toast('تم إنهاء سجل التوجيه', 'success');
       loadOrgData();
-    } catch (err: any) {
-      toast(err.message || 'فشل إنهاء التوجيه', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشل إنهاء التوجيه', 'danger');
     }
   };
 
@@ -626,8 +627,8 @@ function AdminPageInner() {
                                 try {
                                   await api.updateUser(u.id, { status: u.status === 'suspended' ? 'active' : 'suspended' });
                                   loadUsers();
-                                } catch (err: any) {
-                                  toast(err.message || 'تعذر تغيير الحالة', 'danger');
+                                } catch (err: unknown) {
+                                  toast((err instanceof Error ? err.message : '') || 'تعذر تغيير الحالة', 'danger');
                                 }
                               }}
                               className="rounded-md border border-[var(--line)] px-2 py-1 text-xs font-bold"

@@ -41,7 +41,7 @@ import {
   NinjaReconcileResponse,
   NinjaInvoiceResult,
   NinjaReconciliationLine,
-} from '../../lib/types';
+} from '../../lib/api';
 
 type ApiNinjaInvoice = paths['/api/platforms/ninja/invoices']['get']['responses'][200]['content']['application/json']['items'][number];
 type MultiRiderReport = paths['/api/platforms/ninja/invoices/{id}/multi-rider-deductions']['get']['responses'][200]['content']['application/json'];

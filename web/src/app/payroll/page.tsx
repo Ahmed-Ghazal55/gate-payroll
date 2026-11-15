@@ -107,7 +107,7 @@ import type {
   PayCycleLine,
   LegacyPayrollPreviewRow,
   LegacyPayrollRun,
-} from '../../lib/types';
+} from '../../lib/api';
 
 function getPreviousMonth(period: string): string {
   if (!period || !period.includes('-')) return '2026-09';
@@ -558,8 +558,11 @@ function PayrollPageInner() {
   const [legacyPeriod, setLegacyPeriod] = useState<string>('2026-10');
   const [legacyPreview, setLegacyPreview] = useState<LegacyPayrollPreviewRow[]>([]);
   const [legacyRuns, setLegacyRuns] = useState<LegacyPayrollRun[]>([]);
-  const [ridersList, setRidersList] = useState<any[]>([]);
-  const [financeCatalog, setFinanceCatalog] = useState<{ sponsors: any[]; vaults: any[] } | null>(null);
+  const [ridersList, setRidersList] = useState<Array<{ iqama: string; name?: string; nameAr?: string; sponsorId?: string; financeSponsorId?: string }>>([]);
+  const [financeCatalog, setFinanceCatalog] = useState<{
+    sponsors: Array<{ id: string; name?: string; nameAr?: string }>;
+    vaults: Array<{ code: string; nameAr?: string }>;
+  } | null>(null);
   const [loadingLegacy, setLoadingLegacy] = useState<boolean>(false);
   const [legacyError, setLegacyError] = useState<string | null>(null);
 
@@ -589,7 +592,10 @@ function PayrollPageInner() {
 
   const [ledgerModalOpen, setLedgerModalOpen] = useState<boolean>(false);
   const [ledgerIqama, setLedgerIqama] = useState<string | null>(null);
-  const [ledgerData, setLedgerData] = useState<{ balance: number; rows: any[] } | null>(null);
+  const [ledgerData, setLedgerData] = useState<{
+    balance: number;
+    rows: Array<{ id?: string; date?: string; entryDate?: string; period?: string; kind?: string; ref?: string; sourceRef?: string; description?: string; category?: string; debit?: number; credit?: number; amount?: number; balance?: number }>;
+  } | null>(null);
   const [loadingLedger, setLoadingLedger] = useState<boolean>(false);
 
   // ========================================================
@@ -607,45 +613,43 @@ function PayrollPageInner() {
         api.getHsDisputes({ period: selectedPeriod }),
         api.getHsAllocations({ period: selectedPeriod }),
         api.getHsFacts({ kind: selectedFactKind }),
-        api.getHsProposedJournals({ period: selectedPeriod } as any),
+        api.getHsProposedJournals({}),
       ]);
+
+      const extractItems = <T,>(val: T[] | { items?: T[] } | null | undefined): T[] =>
+        Array.isArray(val) ? val : val?.items || [];
 
       const errs: string[] = [];
       if (invRes.status === 'fulfilled') {
-        const val = invRes.value;
-        setInvoices((val as any)?.items || (Array.isArray(val) ? val : []));
+        setInvoices(extractItems(invRes.value));
       } else {
         errs.push(`فواتير المنصة: ${invRes.reason?.message || 'فشل التحميل'}`);
         setInvoices([]);
       }
 
       if (dispRes.status === 'fulfilled') {
-        const val = dispRes.value;
-        setDisputes((val as any)?.items || (Array.isArray(val) ? val : []));
+        setDisputes(extractItems(dispRes.value));
       } else {
         errs.push(`نزاعات CAR: ${dispRes.reason?.message || 'فشل التحميل'}`);
         setDisputes([]);
       }
 
       if (allocRes.status === 'fulfilled') {
-        const val = allocRes.value;
-        setAllocations((val as any)?.items || (Array.isArray(val) ? val : []));
+        setAllocations(extractItems(allocRes.value));
       } else {
         errs.push(`توزيعات TGA: ${allocRes.reason?.message || 'فشل التحميل'}`);
         setAllocations([]);
       }
 
       if (factRes.status === 'fulfilled') {
-        const val = factRes.value;
-        setFacts((val as any)?.items || (Array.isArray(val) ? val : []));
+        setFacts(extractItems(factRes.value));
       } else {
         errs.push(`وقائع ERP: ${factRes.reason?.message || 'فشل التحميل'}`);
         setFacts([]);
       }
 
       if (propRes.status === 'fulfilled') {
-        const val = propRes.value;
-        setProposedJournals((val as any)?.items || (Array.isArray(val) ? val : []));
+        setProposedJournals(extractItems(propRes.value));
       } else {
         errs.push(`القيود المقترحة: ${propRes.reason?.message || 'فشل التحميل'}`);
         setProposedJournals([]);
@@ -654,8 +658,8 @@ function PayrollPageInner() {
       if (errs.length > 0) {
         setHsSectionError(errs.join(' • '));
       }
-    } catch (err: any) {
-      setHsSectionError(err.message || 'تعذر تحميل بيانات منصة هنقرستيشن');
+    } catch (err: unknown) {
+      setHsSectionError((err instanceof Error ? err.message : '') || 'تعذر تحميل بيانات منصة هنقرستيشن');
     } finally {
       setLoading(false);
     }
@@ -686,8 +690,8 @@ function PayrollPageInner() {
         .getPayTerms(appSlug, prevMonth)
         .then((r) => setPrevTermsList(r?.items || (Array.isArray(r) ? r : [])))
         .catch(() => setPrevTermsList([]));
-    } catch (err: any) {
-      setTermsError(err.message || 'تعذر تحميل شروط المنصة');
+    } catch (err: unknown) {
+      setTermsError((err instanceof Error ? err.message : '') || 'تعذر تحميل شروط المنصة');
       setTermsList([]);
     } finally {
       setLoadingTerms(false);
@@ -706,8 +710,8 @@ function PayrollPageInner() {
         .getPaySchemes(appSlug, prevMonth)
         .then((r) => setPrevSchemesList(r?.items || (Array.isArray(r) ? r : [])))
         .catch(() => setPrevSchemesList([]));
-    } catch (err: any) {
-      setSchemesError(err.message || 'تعذر تحميل الأنظمة الداخلية');
+    } catch (err: unknown) {
+      setSchemesError((err instanceof Error ? err.message : '') || 'تعذر تحميل الأنظمة الداخلية');
       setSchemesList([]);
     } finally {
       setLoadingSchemes(false);
@@ -731,8 +735,8 @@ function PayrollPageInner() {
         .getPayEligibility(appSlug, prevMonth)
         .then((r) => setPrevEligibilityList(r?.items || (Array.isArray(r) ? r : [])))
         .catch(() => setPrevEligibilityList([]));
-    } catch (err: any) {
-      setEligibilityError(err.message || 'تعذر تحميل ضوابط الأهلية');
+    } catch (err: unknown) {
+      setEligibilityError((err instanceof Error ? err.message : '') || 'تعذر تحميل ضوابط الأهلية');
       setEligibilityList([]);
     } finally {
       setLoadingEligibility(false);
@@ -746,8 +750,8 @@ function PayrollPageInner() {
     try {
       const res = await api.getPayAssignments(appSlug, selectedPeriod);
       setAssignmentsList(res?.items || (Array.isArray(res) ? res : []));
-    } catch (err: any) {
-      setAssignmentsError(err.message || 'تعذر تحميل تكليفات المناديب');
+    } catch (err: unknown) {
+      setAssignmentsError((err instanceof Error ? err.message : '') || 'تعذر تحميل تكليفات المناديب');
       setAssignmentsList([]);
     } finally {
       setLoadingAssignments(false);
@@ -767,8 +771,8 @@ function PayrollPageInner() {
       } else {
         setCycleLines([]);
       }
-    } catch (err: any) {
-      setCyclesError(err.message || 'تعذر تحميل دورات الرواتب');
+    } catch (err: unknown) {
+      setCyclesError((err instanceof Error ? err.message : '') || 'تعذر تحميل دورات الرواتب');
       setCyclesList([]);
       setCycleLines([]);
     } finally {
@@ -788,8 +792,8 @@ function PayrollPageInner() {
         companyId: comp,
       });
       setReviewDraft(draft);
-    } catch (err: any) {
-      setDraftError(err.message || 'تعذر تحميل مسودة المراجعة المقترحة لنينجا');
+    } catch (err: unknown) {
+      setDraftError((err instanceof Error ? err.message : '') || 'تعذر تحميل مسودة المراجعة المقترحة لنينجا');
       setReviewDraft(null);
     } finally {
       setLoadingDraft(false);
@@ -818,7 +822,7 @@ function PayrollPageInner() {
         setNinjaCatalog(catRes.value);
       }
     } catch (err: unknown) {
-      setNinjaEligibilityError(err instanceof Error ? err.message : 'تعذر تحميل بيانات الأهلية');
+      setNinjaEligibilityError(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر تحميل بيانات الأهلية');
     } finally {
       setLoadingNinjaEligibility(false);
     }
@@ -844,7 +848,7 @@ function PayrollPageInner() {
       await loadCycles();
       setCycleViewMode('active');
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'تعذر إنشاء دورة الرواتب', 'error');
+      showToast(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر إنشاء دورة الرواتب', 'error');
     } finally {
       setCreatingCycle(false);
     }
@@ -889,7 +893,7 @@ function PayrollPageInner() {
       setNewRuleThreshold('');
       await loadNinjaEligibility();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'تعذر إضافة الشرط', 'error');
+      showToast(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر إضافة الشرط', 'error');
     } finally {
       setSubmittingRuleLifecycle(false);
     }
@@ -911,8 +915,8 @@ function PayrollPageInner() {
       );
       showToast('تم حذف الشرط من المسودة', 'success');
       await loadNinjaEligibility();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر حذف الشرط', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر حذف الشرط', 'error');
     } finally {
       setSubmittingRuleLifecycle(false);
     }
@@ -925,8 +929,8 @@ function PayrollPageInner() {
       await api.approveAppEligibility('ninja', activeNinjaEligibility.id);
       showToast('تم اعتماد شروط الأهلية بنجاح (Maker-Checker)', 'success');
       await loadNinjaEligibility();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر اعتماد شروط الأهلية', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر اعتماد شروط الأهلية', 'error');
     } finally {
       setSubmittingRuleLifecycle(false);
     }
@@ -945,8 +949,8 @@ function PayrollPageInner() {
       setRejectModalOpen(false);
       setRejectionReason('');
       await loadNinjaEligibility();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر رفض المسودة', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر رفض المسودة', 'error');
     } finally {
       setSubmittingRuleLifecycle(false);
     }
@@ -959,8 +963,8 @@ function PayrollPageInner() {
       await api.deletePaySetting('pay_eligibility', 'ninja', activeNinjaEligibility.id);
       showToast('تم حذف المسودة بنجاح', 'success');
       await loadNinjaEligibility();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر حذف المسودة', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر حذف المسودة', 'error');
     } finally {
       setSubmittingRuleLifecycle(false);
     }
@@ -986,7 +990,7 @@ function PayrollPageInner() {
       showToast('تم إنشاء نسخة شروط أهلية جديدة لشهر ' + rulesMonth, 'success');
       await loadNinjaEligibility();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'تعذر إنشاء نسخة شروط الأهلية', 'error');
+      showToast(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر إنشاء نسخة شروط الأهلية', 'error');
     } finally {
       setSubmittingRuleLifecycle(false);
     }
@@ -1110,8 +1114,8 @@ function PayrollPageInner() {
     try {
       const res = await api.getGlobalPaySettings();
       setGlobalSettings(res?.items || (Array.isArray(res) ? res : []));
-    } catch (err: any) {
-      setGlobalSettingsError(err.message || 'تعذر تحميل الإعدادات العامة');
+    } catch (err: unknown) {
+      setGlobalSettingsError((err instanceof Error ? err.message : '') || 'تعذر تحميل الإعدادات العامة');
       setGlobalSettings([]);
     } finally {
       setLoadingGlobalSettings(false);
@@ -1162,8 +1166,8 @@ function PayrollPageInner() {
       if (errs.length > 0) {
         setLegacyError(errs.join(' • '));
       }
-    } catch (err: any) {
-      setLegacyError(err.message || 'تعذر تحميل مسيرات الرواتب القائمة');
+    } catch (err: unknown) {
+      setLegacyError((err instanceof Error ? err.message : '') || 'تعذر تحميل مسيرات الرواتب القائمة');
     } finally {
       setLoadingLegacy(false);
     }
@@ -1261,8 +1265,8 @@ function PayrollPageInner() {
       showToast('تم حفظ مقترح تقسيم TGA بنجاح وفي انتظار اعتماد المدقق المستقل', 'success');
       setSelectedAllocation(null);
       loadData();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر حفظ توزيع TGA', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر حفظ توزيع TGA', 'error');
     } finally {
       setSavingSplit(false);
     }
@@ -1275,7 +1279,7 @@ function PayrollPageInner() {
       showToast('تم اعتماد توزيع TGA بنجاح', 'success');
       loadData();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'تعذر اعتماد توزيع TGA', 'error');
+      showToast(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر اعتماد توزيع TGA', 'error');
     }
   };
 
@@ -1312,8 +1316,8 @@ function PayrollPageInner() {
       setPlatformReference('');
       setResolveReason('');
       loadData();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر فض النزاع', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر فض النزاع', 'error');
     } finally {
       setResolvingDispute(false);
     }
@@ -1333,8 +1337,8 @@ function PayrollPageInner() {
       if (appSubTab === 'internal_schemes') loadSchemes();
       if (appSubTab === 'eligibility') loadEligibility();
       if (mainTab === 'rules') loadGlobalSettings();
-    } catch (err: any) {
-      showToast(err.message || `تعذر نسخ إعدادات شهر ${prevMonth}`, 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || `تعذر نسخ إعدادات شهر ${prevMonth}`, 'error');
     } finally {
       setCopyingMonth(false);
     }
@@ -1358,7 +1362,7 @@ function PayrollPageInner() {
       showToast('تم اعتماد شروط المنصة بنجاح وتثبيتها للقراءة فقط', 'success');
       loadTerms();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'تعذر اعتماد شروط المنصة', 'error');
+      showToast(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر اعتماد شروط المنصة', 'error');
     }
   };
 
@@ -1380,7 +1384,7 @@ function PayrollPageInner() {
       showToast('تم اعتماد النظام الداخلي بنجاح', 'success');
       loadSchemes();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'تعذر اعتماد النظام الداخلي', 'error');
+      showToast(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر اعتماد النظام الداخلي', 'error');
     }
   };
 
@@ -1404,7 +1408,7 @@ function PayrollPageInner() {
       showToast('تم اعتماد ضوابط الأهلية بنجاح', 'success');
       loadEligibility();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'تعذر اعتماد ضوابط الأهلية', 'error');
+      showToast(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر اعتماد ضوابط الأهلية', 'error');
     }
   };
 
@@ -1435,7 +1439,7 @@ function PayrollPageInner() {
       if (rejectSettingKind === 'scheme') await loadSchemes();
       if (rejectSettingKind === 'eligibility') await loadEligibility();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'تعذر رفض الإعداد', 'error');
+      showToast(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر رفض الإعداد', 'error');
     }
   };
 
@@ -1452,7 +1456,7 @@ function PayrollPageInner() {
       if (kind === 'scheme') await loadSchemes();
       if (kind === 'eligibility') await loadEligibility();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'تعذر حذف المسودة', 'error');
+      showToast(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر حذف المسودة', 'error');
     }
   };
 
@@ -1474,8 +1478,8 @@ function PayrollPageInner() {
       const res = await api.previewPayAssignments(appSlug, payload);
       setAssignmentPreviewResult(res);
       showToast(`تمت معاينة خيارات ${res.rows?.length ?? 0} مندوب بنجاح`, 'success');
-    } catch (err: any) {
-      showToast(err.message || 'تعذر معاينة استيراد خيارات المناديب', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر معاينة استيراد خيارات المناديب', 'error');
     } finally {
       setPreviewingAssignments(false);
     }
@@ -1499,8 +1503,8 @@ function PayrollPageInner() {
       setAssignmentsImportModalOpen(false);
       setAssignmentPreviewResult(null);
       loadAssignments();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر تثبيت خيارات المناديب', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر تثبيت خيارات المناديب', 'error');
     } finally {
       setCommittingAssignments(false);
     }
@@ -1519,7 +1523,7 @@ function PayrollPageInner() {
       showToast(`تم تقديم دورة الرواتب بنجاح إلى المرحلة ${nextStage}`, 'success');
       loadCycles();
     } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : `تعذر تقديم دورة الرواتب إلى المرحلة ${nextStage}`, 'error');
+      showToast(err instanceof Error ? (err instanceof Error ? err.message : '') : `تعذر تقديم دورة الرواتب إلى المرحلة ${nextStage}`, 'error');
     } finally {
       setAdvancingCycle(false);
     }
@@ -1542,7 +1546,7 @@ function PayrollPageInner() {
           : typeof err === 'object' && err !== null && 'status' in err && typeof err.status === 'number'
           ? err.status
           : undefined;
-      const msg = err instanceof Error && err.message ? err.message : 'تعذر التقاط مدخلات الدورة';
+      const msg = err instanceof Error && (err instanceof Error ? err.message : '') ? (err instanceof Error ? err.message : '') : 'تعذر التقاط مدخلات الدورة';
       setCaptureError({ status, message: msg });
       showToast(msg, status === 503 ? 'warning' : 'error');
     } finally {
@@ -1559,8 +1563,8 @@ function PayrollPageInner() {
       });
       showToast('تم إنشاء مسودة الإعدادات العامة من القيم الافتراضية بنجاح', 'success');
       loadGlobalSettings();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر إنشاء مسودة الإعدادات العامة', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر إنشاء مسودة الإعدادات العامة', 'error');
     }
   };
 
@@ -1569,8 +1573,8 @@ function PayrollPageInner() {
       await api.approveGlobalPaySettings(settingDoc.id);
       showToast('تم اعتماد الإعدادات العامة بنجاح وتثبيتها للقراءة فقط', 'success');
       loadGlobalSettings();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر اعتماد الإعدادات العامة', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر اعتماد الإعدادات العامة', 'error');
     }
   };
 
@@ -1596,8 +1600,8 @@ function PayrollPageInner() {
       setApprovePreviewRow(null);
       setApproveSponsorId('');
       loadLegacyPayroll();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر اعتماد المسير', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر اعتماد المسير', 'error');
     } finally {
       setApprovingRun(false);
     }
@@ -1625,8 +1629,8 @@ function PayrollPageInner() {
       setAdjSourceRef('');
       setAdjDescription('');
       loadLegacyPayroll();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر تسجيل البند', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر تسجيل البند', 'error');
     } finally {
       setSavingAdj(false);
     }
@@ -1657,8 +1661,8 @@ function PayrollPageInner() {
       setPayOnBehalf(false);
       setPayOnBehalfNote('');
       loadLegacyPayroll();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر تسجيل الدفعة', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر تسجيل الدفعة', 'error');
     } finally {
       setSavingPay(false);
     }
@@ -1671,8 +1675,8 @@ function PayrollPageInner() {
     try {
       const res = await api.getLedger(iqama);
       setLedgerData(res);
-    } catch (err: any) {
-      showToast(err.message || 'تعذر تحميل دفتر حساب المندوب', 'error');
+    } catch (err: unknown) {
+      showToast((err instanceof Error ? err.message : '') || 'تعذر تحميل دفتر حساب المندوب', 'error');
       setLedgerData(null);
     } finally {
       setLoadingLedger(false);
@@ -2029,7 +2033,7 @@ function PayrollPageInner() {
               <button
                 key={sub.id}
                 type="button"
-                onClick={() => setAppSubTab(sub.id as any)}
+                onClick={() => setAppSubTab(sub.id as Parameters<typeof setAppSubTab>[0])}
                 className={`py-2 px-3.5 text-xs sm:text-sm font-semibold border-b-2 transition whitespace-nowrap ${
                   appSubTab === sub.id
                     ? 'border-[var(--accent)] text-[var(--accent)]'
@@ -2150,19 +2154,19 @@ function PayrollPageInner() {
                           <tbody className="divide-y divide-[var(--line)]">
                             {invoices.map((inv) => (
                               <tr key={inv.id} className="hover:bg-[var(--row-hover)] transition">
-                                <td className="p-3 font-mono font-bold text-[var(--ink)]">{(inv as any).invoiceNumber || inv.id}</td>
+                                <td className="p-3 font-mono font-bold text-[var(--ink)]">{inv.id}</td>
                                 <td className="p-3 font-mono">{inv.period}</td>
                                 <td className="p-3 num">
-                                  {((inv as any).amountExclVat || (inv.totalAmount || 0) - (inv.vat || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {((inv.totalAmount || 0) - (inv.vat || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                                 </td>
                                 <td className="p-3 num text-[var(--muted)]">
-                                  {((inv as any).vatAmount || inv.vat || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {(inv.vat || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                                 </td>
                                 <td className="p-3 num font-bold text-[var(--accent)]">
                                   {(inv.totalAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                                 </td>
                                 <td className="p-3 num text-[var(--danger)]">
-                                  {((inv as any).deductionsTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {(0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                                 </td>
                                 <td className="p-3">
                                   <span
@@ -2218,14 +2222,14 @@ function PayrollPageInner() {
                                 <td className="p-3">
                                   <span
                                     className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                                      d.status === 'escalated' || (d.status === 'resolved' && (d.outcome === 'platform_rejected' || (d as any).decision === 'platform_rejected'))
+                                      d.status === 'escalated' || (d.status === 'resolved' && d.outcome === 'platform_rejected')
                                         ? 'bg-[var(--danger)]/15 text-[var(--danger)]'
                                         : d.status === 'resolved'
                                         ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
                                         : 'bg-[var(--warning)]/15 text-[var(--warning)]'
                                     }`}
                                   >
-                                    {d.status === 'escalated' || (d.status === 'resolved' && (d.outcome === 'platform_rejected' || (d as any).decision === 'platform_rejected'))
+                                    {d.status === 'escalated' || (d.status === 'resolved' && d.outcome === 'platform_rejected')
                                       ? 'مرحّل لحساب النزاعات 112803 لحين فض النزاع'
                                       : d.status === 'resolved'
                                       ? 'مردود بإشعار دائن من المنصة'
@@ -4875,7 +4879,7 @@ function PayrollPageInner() {
                         setReleaseReason('');
                         await loadSharedRiders();
                       } catch (err: unknown) {
-                        showToast(err instanceof Error ? err.message : 'تعذر الإفراج عن المندوب', 'error');
+                        showToast(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر الإفراج عن المندوب', 'error');
                       } finally {
                         setReleasingSharedRider(false);
                       }
@@ -5084,8 +5088,8 @@ function PayrollPageInner() {
                                   toast('اعتُمدت السياسة', 'success');
                                   const res = await api.getPolicies();
                                   setPolicies(res || []);
-                                } catch (err: any) {
-                                  toast(err.message || 'تعذر اعتماد السياسة', 'danger');
+                                } catch (err: unknown) {
+                                  toast((err instanceof Error ? err.message : '') || 'تعذر اعتماد السياسة', 'danger');
                                 }
                               }}
                             >
@@ -5487,7 +5491,7 @@ function PayrollPageInner() {
                   <span>موانع الاعتماد:</span>
                 </div>
                 <ul className="list-disc list-inside space-y-0.5 text-[11px]">
-                  {detailPreviewRow.blockers.map((b, i) => (
+                  {detailPreviewRow.blockers.map((b: string, i: number) => (
                     <li key={i}>{b}</li>
                   ))}
                 </ul>
@@ -5519,7 +5523,7 @@ function PayrollPageInner() {
                 value={approveSponsorId}
                 onChange={setApproveSponsorId}
                 placeholder="حدد السجل المالي"
-                options={(financeCatalog?.sponsors ?? []).map((sp: any) => ({ value: sp.id, label: `${sp.nameAr || sp.name} (${sp.id})` }))}
+                options={(financeCatalog?.sponsors ?? []).map((sp) => ({ value: sp.id, label: `${sp.nameAr || sp.name || sp.id} (${sp.id})` }))}
               />
             </div>
 
@@ -5683,7 +5687,7 @@ function PayrollPageInner() {
               value={payVaultCode}
               onChange={setPayVaultCode}
               placeholder="الحساب الافتراضي للسجل"
-              options={(financeCatalog?.vaults ?? []).map((v: any) => ({ value: v.code, label: `${v.nameAr} (${v.code})` }))}
+              options={(financeCatalog?.vaults ?? []).map((v) => ({ value: v.code, label: `${v.nameAr || v.code} (${v.code})` }))}
             />
           </div>
 
@@ -5753,7 +5757,7 @@ function PayrollPageInner() {
                         <td className="p-2">{row.kind}</td>
                         <td
                           className={`p-2 num font-bold ${
-                            row.amount < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'
+                            (row.amount ?? 0) < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'
                           }`}
                         >
                           {(row.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س

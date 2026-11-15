@@ -23,8 +23,7 @@ import { Dialog } from '../../components/ui/Dialog';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { useToast } from '../../components/ui/Toast';
-import { api, type PayCatalog } from '../../lib/api';
-import type { PayConfigDoc } from '../../lib/types';
+import { api, type PayCatalog, type PayConfigDoc } from '../../lib/api';
 import {
   PAY_CATEGORIES_META,
   SCHEME_TYPES_META,
@@ -1444,7 +1443,7 @@ export function PaySettingsEditorModal({
                 <label className="font-bold text-[var(--ink)] block">نمط الوقود (Fuel Mode):</label>
                 <select
                   value={exceptionFuelMode}
-                  onChange={(e) => setExceptionFuelMode(e.target.value as any)}
+                  onChange={(e) => setExceptionFuelMode(e.target.value as 'fuel_card' | 'cash_reimbursement' | 'not_included')}
                   className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
                 >
                   <option value="fuel_card">بطاقة وقود مخصصة (Fuel Card)</option>

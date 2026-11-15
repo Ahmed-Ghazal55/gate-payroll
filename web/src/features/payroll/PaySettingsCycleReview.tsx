@@ -17,7 +17,7 @@ import {
   Clock,
   Sparkles,
 } from 'lucide-react';
-import type { PayConfigDoc } from '../../lib/types';
+import type { PayConfigDoc } from '../../lib/api';
 import { diffPaySettings } from './PaySettingsValidation';
 import type { PaySettingDiffItem } from './PaySettingsValidation';
 

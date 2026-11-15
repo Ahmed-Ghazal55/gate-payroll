@@ -6,7 +6,7 @@ import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState } from '../../components/ui/EmptyState';
-import type { ValidateGapsReport } from '../../lib/types';
+import type { ValidateGapsReport } from '../../lib/api';
 
 const COUNT_LABELS: Record<string, string> = {
   accounts_total: 'إجمالي الحسابات',

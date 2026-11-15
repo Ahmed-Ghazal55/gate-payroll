@@ -22,7 +22,6 @@ import type {
   HsProposedJournal,
   HsImportFile,
   HsImportPreviewResult,
-  FinanceAccount,
   FinanceJournal,
   BankPayrollFilePreview,
   ApprovalBypassGrant,
@@ -41,30 +40,39 @@ import type {
   IncomeStatementResponse,
   AdvanceRequest,
   AdvanceRequestSummary,
-  OrgCatalog,
   OrgMembership,
   OrgDelegation,
   OrgSupervision,
   OrgRouting,
-  OrgResponsibleUser,
   ErpSyncJobStatus,
   ErpSyncRun,
   PayReviewResponse,
   PayReviewRow,
+  PayReviewItem,
+  PayReviewEdit,
   ConfigListGroup,
   ConfigFieldDef,
   ManualJournal,
   NinjaReconcileResponse,
+  NinjaInvoiceResult,
+  NinjaReconciliationLine,
   NinjaTermsSeed,
   PayConfigDoc,
   PayConfigListResponse,
-  PayTermsCreateInput,
-  PaySchemeCreateInput,
+  PayBandItem,
   PayEligibilityCreateInput,
+  PayEligibilityRule,
+  PaySchemeCategoryCell,
+  PaySchemeCreateInput,
+  PayTermsCreateInput,
   PayGlobalCreateInput,
   PayCopyMonthResponse,
   PayAssignment,
   PayAssignmentPreviewResult,
+  PayCycle,
+  PayCycleLine,
+  LegacyPayrollPreviewRow,
+  LegacyPayrollRun,
   ImportCatalogStep,
   ImportPreviewResult,
 } from './types';
@@ -160,6 +168,62 @@ export type RiderAccountRow = Omit<Partial<UnionToIntersection<RawRiderAccountIt
 export type RiderAccountsResponse = Omit<ApiResp<'/api/riders/{iqama}/accounts'>, 'items'> & {
   items: RiderAccountRow[];
 };
+
+export type OrgCatalog = ApiResp<'/api/org/catalog'>;
+export type OrgResponsibleUser = ApiResp<'/api/org/responsible'>[number];
+export type FinanceAccount = ApiResp<'/api/finance/accounts'>[number];
+export type {
+  OrgMembership,
+  OrgDelegation,
+  OrgSupervision,
+  OrgRouting,
+  FinanceJournal,
+  BankPayrollFilePreview,
+  AdvanceRequest,
+  AdvanceRequestSummary,
+  DebtRecord,
+  ApprovalRequest,
+  PromissoryNote,
+  RiderStatement,
+  HsInvoice,
+  HsDispute,
+  HsAllocation,
+  HsFact,
+  HsProposedJournal,
+  HsImportFile,
+  HsImportPreviewResult,
+  PayConfigDoc,
+  PayAssignment,
+  PayAssignmentPreviewResult,
+  PayCycle,
+  PayCycleLine,
+  LegacyPayrollPreviewRow,
+  LegacyPayrollRun,
+  ValidateGapsReport,
+  PayReviewResponse,
+  PayReviewRow,
+  PayReviewItem,
+  PayReviewEdit,
+  NinjaReconcileResponse,
+  NinjaInvoiceResult,
+  NinjaReconciliationLine,
+  NinjaTermsSeed,
+  PayBandItem,
+  PayEligibilityCreateInput,
+  PayEligibilityRule,
+  PaySchemeCategoryCell,
+  PaySchemeCreateInput,
+  PayTermsCreateInput,
+};
+
+export function getErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    const msg = (err as { message?: unknown }).message;
+    if (typeof msg === 'string' && msg.trim()) return msg;
+  }
+  return fallback;
+}
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
 
@@ -1059,7 +1123,7 @@ export const api = {
 
   getFinanceAccounts: (sponsorId?: string) => {
     const qs = sponsorId ? `?sponsorId=${encodeURIComponent(sponsorId)}` : '';
-    return handleRequest<FinanceAccount[]>(`/finance/accounts${qs}`);
+    return handleRequest<ApiResp<'/api/finance/accounts'>>(`/finance/accounts${qs}`);
   },
 
   getFinanceJournals: (params?: { sponsorId?: string; iqama?: string; accountCode?: string }) => {

@@ -10,8 +10,7 @@ import {
   Loader2,
   Eye,
 } from 'lucide-react';
-import { api } from '../../lib/api';
-import type { PayReviewResponse, PayReviewRow } from '../../lib/types';
+import { api, getErrorMessage, type PayReviewResponse, type PayReviewRow } from '../../lib/api';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
 import { Dialog } from '../../components/ui/Dialog';
@@ -45,8 +44,8 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
     try {
       const res = await api.getPayCycleReview(cycleId);
       setData(res);
-    } catch (err: any) {
-      setError(err.message || 'تعذر تحميل بيانات مراجعة المسير.');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : '') || 'تعذر تحميل بيانات مراجعة المسير.');
     } finally {
       setLoading(false);
     }
@@ -71,8 +70,8 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       setBulkDialogOpen(false);
       await fetchReviewData();
       if (onCycleUpdated) onCycleUpdated();
-    } catch (err: any) {
-      toast(err.message || 'تعذر تنفيذ الاعتماد الجماعي.', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'تعذر تنفيذ الاعتماد الجماعي.', 'danger');
     } finally {
       setBulkSubmitting(false);
     }

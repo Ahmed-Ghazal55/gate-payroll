@@ -37,7 +37,18 @@ import {
   CreditCard,
   Wifi,
 } from 'lucide-react';
-import { api, ApiError } from '../../lib/api';
+import {
+  api,
+  ApiError,
+  getErrorMessage,
+  type DebtRecord,
+  type ApprovalRequest,
+  type PromissoryNote,
+  type RiderStatement,
+  type AdvanceRequest,
+  type AdvanceRequestSummary,
+  type OrgSupervision,
+} from '../../lib/api';
 import { RiderAsksCard } from '../../components/debts/RiderAsksCard';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
@@ -50,15 +61,6 @@ import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { DebtActionsPanel } from '../../features/debts/DebtActionsPanel';
-import type {
-  DebtRecord,
-  ApprovalRequest,
-  PromissoryNote,
-  RiderStatement,
-  AdvanceRequest,
-  AdvanceRequestSummary,
-  OrgSupervision,
-} from '../../lib/types';
 
 type TabId = 'debts' | 'actions' | 'advance_requests' | 'statements' | 'approvals' | 'promissory';
 
@@ -216,8 +218,8 @@ function DebtsPageContent() {
       setApprovals(approvalsRes || []);
       setPromissoryNotes(pNotesRes.items || []);
       setPromissoryFeatureEnabled(pNotesRes.featureEnabled || false);
-    } catch (err: any) {
-      const msg = err.message || 'تعذر تحميل بيانات المديونيات';
+    } catch (err: unknown) {
+      const msg = (err instanceof Error ? err.message : '') || 'تعذر تحميل بيانات المديونيات';
       setError(msg);
       toast(msg, 'danger');
     } finally {
@@ -232,8 +234,8 @@ function DebtsPageContent() {
       const role = advancesRoleView;
       const list = await api.getAdvanceRequests({ role });
       setAdvanceRequests(Array.isArray(list) ? list : []);
-    } catch (err: any) {
-      setAdvancesError(err.message || 'تعذر تحميل طلبات السلف');
+    } catch (err: unknown) {
+      setAdvancesError((err instanceof Error ? err.message : '') || 'تعذر تحميل طلبات السلف');
     } finally {
       setLoadingAdvances(false);
     }
@@ -243,9 +245,9 @@ function DebtsPageContent() {
     try {
       const list = await api.getOrgSupervision({ mine: 1 });
       setSupervisedRiders(Array.isArray(list) ? list : []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSupervisedRiders([]);
-      toast(err.message || 'تعذر تحميل المناديب تحت إشرافك', 'danger');
+      toast((err instanceof Error ? err.message : '') || 'تعذر تحميل المناديب تحت إشرافك', 'danger');
     }
   };
 
@@ -307,10 +309,10 @@ function DebtsPageContent() {
       ]);
       setSelectedAdvance(freshReq);
       setAdvanceSummary(summary);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // BR §25: no approval without the summary; the reviewer sees the server message.
       setAdvanceSummary(null);
-      toast(err.message || 'تعذر استرجاع ملخص المندوب المالي', 'danger');
+      toast((err instanceof Error ? err.message : '') || 'تعذر استرجاع ملخص المندوب المالي', 'danger');
     } finally {
       setLoadingAdvanceSummary(false);
     }
@@ -352,8 +354,8 @@ function DebtsPageContent() {
       setNewReqNetwork('');
       setNewReqPackage('');
       loadAdvanceRequests();
-    } catch (err: any) {
-      toast(err.message || 'فشل تقديم طلب السلفة', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشل تقديم طلب السلفة', 'danger');
     } finally {
       setSubmittingNewReq(false);
     }
@@ -399,7 +401,7 @@ function DebtsPageContent() {
 
     setSubmittingReview(true);
     try {
-      const body: any = {
+      const body: Parameters<typeof api.reviewAdvanceRequest>[1] = {
         action: reviewMode,
         note: reviewNote.trim(),
         revision: selectedAdvance.revision,
@@ -409,7 +411,7 @@ function DebtsPageContent() {
         body.coverageReason = reviewCoverageReason.trim();
       } else if (reviewMode === 'propose') {
         body.proposed = {
-          type: proposeType,
+          type: proposeType === 'internet' ? 'bank' : proposeType,
           amount: parseFloat(proposeAmount),
         };
       }
@@ -427,8 +429,8 @@ function DebtsPageContent() {
       setSelectedAdvance(null);
       setAdvanceSummary(null);
       loadAdvanceRequests();
-    } catch (err: any) {
-      toast(err.message || 'فشلت معالجة الطلب', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشلت معالجة الطلب', 'danger');
     } finally {
       setSubmittingReview(false);
     }
@@ -451,8 +453,8 @@ function DebtsPageContent() {
       setProposalReq(null);
       setProposalNote('');
       loadAdvanceRequests();
-    } catch (err: any) {
-      toast(err.message || 'فشل إرسال الرد على الاقتراح', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'فشل إرسال الرد على الاقتراح', 'danger');
     } finally {
       setSubmittingProposal(false);
     }
@@ -481,8 +483,8 @@ function DebtsPageContent() {
         setStatementData(full);
       }
       toast('تم استرجاع كشف الحساب بنجاح', 'success');
-    } catch (err: any) {
-      const msg = err.message || 'تعذر استرجاع كشف حساب المندوب';
+    } catch (err: unknown) {
+      const msg = (err instanceof Error ? err.message : '') || 'تعذر استرجاع كشف حساب المندوب';
       setStatementError(msg);
       toast(msg, 'danger');
       setStatementData(null);
@@ -503,8 +505,8 @@ function DebtsPageContent() {
       setSelectedApproval(null);
       setApprovalNote('');
       loadData();
-    } catch (err: any) {
-      toast(err.message || 'تعذر البت في طلب الاعتماد', 'danger');
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : '') || 'تعذر البت في طلب الاعتماد', 'danger');
     } finally {
       setSubmittingDecision(false);
     }
@@ -554,8 +556,8 @@ function DebtsPageContent() {
       setOpeningDialog(null);
       setOpeningNote('');
       setDebtDrawerOpen(false);
-    } catch (err: any) {
-      toast(`${err.message || 'تعذر تنفيذ القرار'} — تمت معالجة ${processed} قبل التوقف`, 'danger');
+    } catch (err: unknown) {
+      toast(`${(err instanceof Error ? err.message : '') || 'تعذر تنفيذ القرار'} — تمت معالجة ${processed} قبل التوقف`, 'danger');
     } finally {
       setOpeningProgress('');
       loadData();
@@ -1233,7 +1235,7 @@ function DebtsPageContent() {
                 <label className="block text-xs font-semibold text-[var(--muted)] mb-1">نوع الكشف:</label>
                 <select
                   value={statementMode}
-                  onChange={(e) => setStatementMode(e.target.value as any)}
+                  onChange={(e) => setStatementMode(e.target.value as 'detailed' | 'simple')}
                   className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
                 >
                   <option value="detailed">كشف مالي تفصيلي (360)</option>
@@ -1294,10 +1296,10 @@ function DebtsPageContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {(statementData.entries || []).map((e: any, idx: number) => (
+                    {(statementData.entries || []).map((e, idx) => (
                       <tr key={idx} className="hover:bg-[var(--row-hover)]">
                         <td className="p-2.5 font-mono text-[var(--muted)]">{e.date?.split('T')[0] || e.date}</td>
-                        <td className="p-2.5 font-medium">{e.description || e.statement}</td>
+                        <td className="p-2.5 font-medium">{e.description}</td>
                         <td className="p-2.5 num font-bold text-[var(--danger)]">{e.debit > 0 ? `${e.debit} ر.س` : '—'}</td>
                         <td className="p-2.5 num font-bold text-[var(--money-pos)]">{e.credit > 0 ? `${e.credit} ر.س` : '—'}</td>
                         <td className="p-2.5 num font-bold text-[var(--ink)]">{e.balance} ر.س</td>
@@ -1996,7 +1998,7 @@ function DebtsPageContent() {
                         <select
                           id="select-propose-type"
                           value={proposeType}
-                          onChange={(e) => setProposeType(e.target.value as any)}
+                          onChange={(e) => setProposeType(e.target.value as 'cash' | 'bank' | 'internet')}
                           className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
                         >
                           <option value="bank">سلفة بنكية (تحويل)</option>

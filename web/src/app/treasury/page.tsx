@@ -27,7 +27,16 @@ import {
   History,
   Wifi,
 } from 'lucide-react';
-import { api, ApiError, type ApiResp } from '../../lib/api';
+import {
+  api,
+  ApiError,
+  getErrorMessage,
+  type ApiResp,
+  type FinanceAccount,
+  type FinanceJournal,
+  type BankPayrollFilePreview,
+  type AdvanceRequest,
+} from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -35,12 +44,6 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
-import type {
-  FinanceAccount,
-  FinanceJournal,
-  BankPayrollFilePreview,
-  AdvanceRequest,
-} from '../../lib/types';
 import { JahezWorkspace } from '../../features/treasury/JahezWorkspace';
 import { TreasuryExtrasPanel } from '../../features/treasury/TreasuryExtrasPanel';
 
@@ -129,8 +132,8 @@ function TreasuryPageContent() {
       setAccounts(accsRes || []);
       setJournals(jrnlsRes || []);
       setTreasurySummary(summaryRes || null);
-    } catch (err: any) {
-      const msg = err.message || 'تعذر تحميل بيانات الخزينة والحسابات';
+    } catch (err: unknown) {
+      const msg = (err instanceof Error ? err.message : '') || 'تعذر تحميل بيانات الخزينة والحسابات';
       setError(msg);
       toast(msg, 'danger');
     } finally {
@@ -144,8 +147,8 @@ function TreasuryPageContent() {
     try {
       const list = await api.getAdvanceRequests({ role: 'payout', status: 'approved' });
       setAdvancePayouts(Array.isArray(list) ? list : []);
-    } catch (err: any) {
-      setPayoutsError(err.message || 'تعذر استرجاع طابور صرف السلف');
+    } catch (err: unknown) {
+      setPayoutsError((err instanceof Error ? err.message : '') || 'تعذر استرجاع طابور صرف السلف');
     } finally {
       setLoadingPayouts(false);
     }
@@ -159,8 +162,8 @@ function TreasuryPageContent() {
       if (!sp) { setBankFileError('اختر شركة كفيلة لمعاينة ملف البنك'); setBankFilePreview(null); return; }
       const preview = await api.previewBankFile({ period, sponsorId: sp, comparisonOnly: parallel });
       setBankFilePreview(preview);
-    } catch (err: any) {
-      const msg = err.message || 'تعذر تحميل معاينة ملف صرف البنك';
+    } catch (err: unknown) {
+      const msg = (err instanceof Error ? err.message : '') || 'تعذر تحميل معاينة ملف صرف البنك';
       setBankFileError(msg);
       toast(msg, 'danger');
       setBankFilePreview(null);
@@ -226,7 +229,7 @@ function TreasuryPageContent() {
         await loadBankFilePreview(selectedPeriod, selectedSponsor);
       }
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : 'تعذر تصدير ملف البنك', 'danger');
+      toast(err instanceof Error ? (err instanceof Error ? err.message : '') : 'تعذر تصدير ملف البنك', 'danger');
     } finally {
       setExportingBankFile(false);
     }
@@ -261,9 +264,9 @@ function TreasuryPageContent() {
       setPayoutNote('');
       loadAdvancePayouts();
       loadData(); // reload accounts balances
-    } catch (err: any) {
-      setPayoutServerError(err.message || 'تعذر إتمام الصرف');
-      toast(err.message || 'فشل صرف السلفة', 'danger');
+    } catch (err: unknown) {
+      setPayoutServerError((err instanceof Error ? err.message : '') || 'تعذر إتمام الصرف');
+      toast((err instanceof Error ? err.message : '') || 'فشل صرف السلفة', 'danger');
     } finally {
       setSubmittingPayout(false);
     }
@@ -479,10 +482,10 @@ function TreasuryPageContent() {
                             {a.code?.startsWith('111') ? 'حساب بنكي رئيسي' : 'صندوق نقدية تشغيلي'}
                           </span>
                         </td>
-                        <td className="p-3 text-[var(--muted)]">{(a as any).sponsorName || 'عام'}</td>
+                        <td className="p-3 text-[var(--muted)]">{a.defaultSponsorNameAr || a.defaultSponsorId || 'عام'}</td>
                         <td className="p-3 num font-bold text-sm">
-                          <span className={a.netBalance < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'}>
-                            {a.netBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          <span className={Number(a.netBalance) < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'}>
+                            {Number(a.netBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                           </span>
                         </td>
                         <td className="p-3 text-xs text-[var(--muted)]">{a.naturalSideAr}</td>
@@ -880,7 +883,7 @@ function TreasuryPageContent() {
                         <td className="p-3 num font-bold text-[var(--ink)]">
                           {(j.totalDebit ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                         </td>
-                        <td className="p-3 font-mono text-xs text-[var(--muted)]">{(j as any).postedBy || j.createdBy || 'النظام'}</td>
+                        <td className="p-3 font-mono text-xs text-[var(--muted)]">{j.createdBy || 'النظام'}</td>
                         <td className="p-3">
                           <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--money-pos)]/10 text-[var(--money-pos)]">
                             مرحل

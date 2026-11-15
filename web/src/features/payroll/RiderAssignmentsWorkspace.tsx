@@ -17,8 +17,7 @@ import { DataTable } from '../../components/ui/DataTable';
 import type { ColumnDef } from '../../components/ui/DataTable';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
-import { api } from '../../lib/api';
-import type { PayAssignment, PayConfigDoc } from '../../lib/types';
+import { api, type PayAssignment, type PayConfigDoc } from '../../lib/api';
 
 export interface RiderAssignmentRow {
   id: string;

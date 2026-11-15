@@ -1,12 +1,13 @@
 import type {
   NinjaTermsSeed,
   PayBandItem,
+  PayConfigDoc,
   PayEligibilityCreateInput,
   PayEligibilityRule,
   PaySchemeCategoryCell,
   PaySchemeCreateInput,
   PayTermsCreateInput,
-} from '../../lib/types';
+} from '../../lib/api';
 
 export const PAY_CATEGORIES_META: ReadonlyArray<{
   key: string;
@@ -332,10 +333,38 @@ export function createEmptyEligibilityForm(): EligibilityFormState {
   };
 }
 
-export function termsFormFromDoc(doc: any, baseVersionId = ''): TermsFormState {
+type CapabilityConfig = {
+  contractAmount?: number;
+  contractTarget?: number;
+  extraOrderRate?: number;
+  perOrderRate?: number;
+  levels?: Array<{ maxBelow?: number; missingOrderRate?: number }>;
+};
+
+type TermsDocParams = {
+  companyCostAccount?: string;
+  pricePerOrder?: number;
+  perKmRate?: number;
+  includedKm?: number;
+  maxBillableKm?: number;
+  targetOrders?: number;
+  monthlyAmount?: number;
+  extraRate?: number;
+  shortfallPerOrder?: number;
+  prorate?: boolean;
+  metric?: 'orders' | 'amount';
+  bands?: PayBandItem[];
+  monthDays?: 'calendar' | 'standard';
+  capabilities?: { car?: CapabilityConfig; bike?: CapabilityConfig };
+  attendance?: { minRatio?: number; deductionPercent?: number };
+  shortDays?: { deductionPercentOfDailyAmount?: number };
+  vatPercent?: number;
+};
+
+export function termsFormFromDoc(doc: PayConfigDoc, baseVersionId = ''): TermsFormState {
   const empty = createEmptyTermsForm(doc.app || 'hs');
-  const d = doc.data || {};
-  const p = (d.parameters || {}) as Record<string, any>;
+  const d = (doc.data || {}) as { name?: string; billingModel?: TermsFormState['billingModel']; parameters?: TermsDocParams };
+  const p: TermsDocParams = d.parameters || {};
   const car = p.capabilities?.car;
   const bike = p.capabilities?.bike;
 
@@ -357,7 +386,7 @@ export function termsFormFromDoc(doc: any, baseVersionId = ''): TermsFormState {
     metric: p.metric || 'orders',
     bands:
       Array.isArray(p.bands) && p.bands.length > 0
-        ? p.bands.map((b: any) => ({
+        ? p.bands.map((b: PayBandItem) => ({
             min: b.min !== undefined ? String(b.min) : '',
             max: b.max !== undefined ? String(b.max) : '',
             base: b.base !== undefined ? String(b.base) : '',
@@ -375,7 +404,7 @@ export function termsFormFromDoc(doc: any, baseVersionId = ''): TermsFormState {
       perOrderRate: car?.perOrderRate !== undefined ? String(car.perOrderRate) : '',
       levels:
         car?.levels && car.levels.length > 0
-          ? car.levels.map((l: any) => ({
+          ? car.levels.map((l) => ({
               maxBelow: String(l.maxBelow),
               missingOrderRate: String(l.missingOrderRate),
             }))
@@ -388,7 +417,7 @@ export function termsFormFromDoc(doc: any, baseVersionId = ''): TermsFormState {
       perOrderRate: bike?.perOrderRate !== undefined ? String(bike.perOrderRate) : '',
       levels:
         bike?.levels && bike.levels.length > 0
-          ? bike.levels.map((l: any) => ({
+          ? bike.levels.map((l) => ({
               maxBelow: String(l.maxBelow),
               missingOrderRate: String(l.missingOrderRate),
             }))
@@ -402,10 +431,18 @@ export function termsFormFromDoc(doc: any, baseVersionId = ''): TermsFormState {
   };
 }
 
-export function schemeFormFromDoc(doc: any, baseVersionId = ''): SchemeFormState {
-  const d = doc.data || {};
+type StoredCategoryCell = PaySchemeCategoryCell & { enabled?: boolean; bands?: PayBandItem[] };
+
+export function schemeFormFromDoc(doc: PayConfigDoc, baseVersionId = ''): SchemeFormState {
+  const d = (doc.data || {}) as {
+    name?: string;
+    type?: SchemeFormState['type'];
+    accountingRole?: SchemeFormState['accountingRole'];
+    eligibilitySetId?: string;
+    parameters?: { categories?: Record<string, StoredCategoryCell> };
+  };
   const empty = createEmptySchemeForm(doc.app || 'hs');
-  const storedCats = (d.parameters?.categories || {}) as Record<string, any>;
+  const storedCats: Record<string, StoredCategoryCell> = d.parameters?.categories || {};
   const categories: Record<string, CategoryCellFormState> = {};
 
   for (const cat of PAY_CATEGORIES_META) {
@@ -425,7 +462,7 @@ export function schemeFormFromDoc(doc: any, baseVersionId = ''): SchemeFormState
         internet: stored.internet !== undefined ? String(stored.internet) : '',
         bands:
           Array.isArray(stored.bands) && stored.bands.length > 0
-            ? stored.bands.map((b: any) => ({
+            ? stored.bands.map((b: PayBandItem) => ({
                 min: b.min !== undefined ? String(b.min) : '',
                 max: b.max !== undefined ? String(b.max) : '',
                 base: b.base !== undefined ? String(b.base) : '',
@@ -452,20 +489,20 @@ export function schemeFormFromDoc(doc: any, baseVersionId = ''): SchemeFormState
   };
 }
 
-export function eligibilityFormFromDoc(doc: any, baseVersionId = ''): EligibilityFormState {
-  const d = doc.data || {};
-  const rulesStored = Array.isArray(d.rules) ? d.rules : [];
+export function eligibilityFormFromDoc(doc: PayConfigDoc, baseVersionId = ''): EligibilityFormState {
+  const d = (doc.data || {}) as { name?: string; rules?: PayEligibilityRule[] };
+  const rulesStored: PayEligibilityRule[] = Array.isArray(d.rules) ? d.rules : [];
   return {
     code: doc.code || 'default',
     name: d.name || '',
     baseVersionId: baseVersionId || doc.id || '',
     rules:
       rulesStored.length > 0
-        ? rulesStored.map((r: any) => ({
+        ? rulesStored.map((r: PayEligibilityRule) => ({
             metric: r.metric || '',
             operator: r.operator || 'gte',
             threshold: r.threshold !== undefined ? String(r.threshold) : '',
-            effectType: r.effect?.type || 'zero',
+            effectType: (r.effect?.type || 'zero') as 'per_order' | 'zero' | 'next_band',
             included: r.included !== undefined ? Boolean(r.included) : true,
           }))
         : [
