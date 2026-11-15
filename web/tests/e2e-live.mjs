@@ -330,12 +330,13 @@ try {
   await page.goto(`${baseUrl}/app/forms/index.html?tab=responses`);
   await page.waitForLoadState('networkidle');
 
-  // Verify masked IBAN in table list view
+  // Verify the full IBAN in the table list view (grouped by four, no asterisk mask)
   const rowLocator = page.locator(`tr:has-text("${testIqama}")`);
   await rowLocator.waitFor({ timeout: 10000 });
   const rowText = await rowLocator.textContent();
-  assert.ok(rowText.includes('****'), 'IBAN must be masked in the list view');
-  console.log('✓ Masked IBAN verified in list view');
+  assert.ok(!rowText.includes('****'), 'IBAN must be shown in full in the list view');
+  assert.ok(/SA\d{2}( [0-9A-Z]{4}){5}/.test(rowText), 'IBAN must be shown grouped by four');
+  console.log('✓ Full IBAN verified in list view');
 
   // Open review drawer via row options menu
   const menuBtn = rowLocator.locator('button[aria-label="خيارات السجل"]');

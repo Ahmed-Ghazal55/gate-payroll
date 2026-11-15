@@ -10,6 +10,7 @@
 | PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/43 |
 
 ## Claude review of M2 (2026-11-15): accepted, 3 fixes applied by Claude
+- Merged `origin/main` (`aff86f0`, PR #42 full IBAN in form responses) into this branch on 2026-11-15 (Claude); the earlier note that main was already merged was wrong. Only HANDOFF conflicted.
 - **Pipeline (`PayCycles.Pipeline.cs`)**: (1) stage-4 deduction rows were also listed under `4_expenseLines` (operator precedence + missing `affectsNet` key) → now only `company_expense` rows or rows with an explicit `affectsNet=false`; (2) `2_accountShare` was the account *deduction* → now the rider's share of account earnings (Σ sources `baseGross`+`incentive`), `2_penaltiesAllocated` = Σ `platformPenalties`; (3) `8_remainder` was the closing balance (carried + net) → positive net − old-debt instalment, or the confirmed stage-8 net; new `8_confirmed`; `6_net` reads `salaryNet` after confirmation. Lines are loaded once per cycle. Test `PipelineSeparatesStage4FromExpensesAndComputesRemainder` (fails on the old code).
 - **Treasury (`TreasurySummary.cs`)**: `other` was every remaining asset account (receivables, rider advances) and was added to the total → removed; total = cash + bank only. Test extended with a rider-advance line.
 - Checked and fine: `allowedActions` use `IndependentForView`/`BypassForView` (no audit on read); posting gate is admin-only; pipeline and treasury demand `pay.view` / `treasury.view` and the rider/sponsor scope.

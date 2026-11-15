@@ -519,9 +519,9 @@ async function run() {
         console.log(`  ✓ Saved screenshot: ${path.basename(respShot)}`);
       }
 
-      // Check Masked IBAN in responses table
+      // Responses table shows the full IBAN for review (no asterisk mask)
       const pageContent = await page.content();
-      assert.ok(pageContent.includes('****'), 'IBAN must be masked in list view');
+      assert.ok(!/SA\d{2} \*{4}/.test(pageContent), 'IBAN must be shown in full in the responses list');
 
       // Test Table Column Sort
       const tableHeader = page.locator('th:has-text("اسم المندوب") button[aria-label^="ترتيب"]').first();
