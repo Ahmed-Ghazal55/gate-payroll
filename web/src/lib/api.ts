@@ -129,6 +129,7 @@ export type PayCyclePipelineRider = Omit<PayCyclePipelineRaw['riders'][number], 
 export type PayCyclePipelineResponse = Omit<PayCyclePipelineRaw, 'riders'> & {
   riders: PayCyclePipelineRider[];
 };
+export type SharedRiderItem = ApiResp<'/api/pay/shared-riders'>[number];
 export type PayCycleLineItem = PayCycleLinesResponse['items'][number];
 
 export type PayCatalog = ApiResp<'/api/pay/catalog'>;
@@ -1365,6 +1366,15 @@ export const api = {
   },
   getPayCyclePipeline: (id: string) =>
     handleRequest<PayCyclePipelineResponse>(`/pay/cycles/${encodeURIComponent(id)}/pipeline`),
+  getSharedRiders: (period?: string) => {
+    const qs = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<SharedRiderItem[]>(`/pay/shared-riders${qs}`);
+  },
+  releaseSharedRider: (rider: string, period: string, reason: string) =>
+    handleRequest<ApiResp<'/api/pay/shared-riders/{rider}/{period}/release', 'post'>>(
+      `/pay/shared-riders/${encodeURIComponent(rider)}/${encodeURIComponent(period)}/release`,
+      { method: 'POST', body: JSON.stringify({ reason }) },
+    ),
 
   // ==========================================
   // Legacy Production Payroll Run APIs (F2)

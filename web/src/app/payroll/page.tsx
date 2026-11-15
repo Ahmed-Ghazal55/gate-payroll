@@ -56,6 +56,7 @@ import type {
   PayCycleLineItem,
   PayCyclePipelineResponse,
   PayCyclePipelineRider,
+  SharedRiderItem,
 } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
@@ -318,6 +319,12 @@ function PayrollPageInner() {
   const [selectedLineForExplain, setSelectedLineForExplain] = useState<PayCycleLineItem | null>(null);
   const [cyclePipeline, setCyclePipeline] = useState<PayCyclePipelineResponse | null>(null);
   const [selectedPipelineRider, setSelectedPipelineRider] = useState<PayCyclePipelineRider | null>(null);
+  const [sharedRiders, setSharedRiders] = useState<SharedRiderItem[]>([]);
+  const [loadingSharedRiders, setLoadingSharedRiders] = useState<boolean>(false);
+  const [sharedRidersPeriod, setSharedRidersPeriod] = useState<string>('');
+  const [releaseTarget, setReleaseTarget] = useState<SharedRiderItem | null>(null);
+  const [releaseReason, setReleaseReason] = useState<string>('');
+  const [releasingSharedRider, setReleasingSharedRider] = useState<boolean>(false);
 
   const cycleLineColumns: ColumnDef<PayCycleLineItem>[] = useMemo(
     () => [
@@ -1067,6 +1074,18 @@ function PayrollPageInner() {
     [activeNinjaEligibility]
   );
 
+  const loadSharedRiders = async (periodFilter = sharedRidersPeriod) => {
+    setLoadingSharedRiders(true);
+    try {
+      const res = await api.getSharedRiders(periodFilter || undefined);
+      setSharedRiders(Array.isArray(res) ? res : []);
+    } catch (_) {
+      setSharedRiders([]);
+    } finally {
+      setLoadingSharedRiders(false);
+    }
+  };
+
   // Load Cycle Lines & §40 Pipeline
   const loadCycleLines = async (cycleId: string) => {
     setLoadingLines(true);
@@ -1170,8 +1189,10 @@ function PayrollPageInner() {
       loadNinjaEligibility();
     } else if (mainTab === 'current-cycle') {
       loadLegacyPayroll();
+    } else if (mainTab === 'shared_riders') {
+      loadSharedRiders();
     }
-  }, [mainTab, appSubTab, selectedPlatform, selectedPeriod, selectedCompany, legacyPeriod, rulesMonth]);
+  }, [mainTab, appSubTab, selectedPlatform, selectedPeriod, selectedCompany, legacyPeriod, rulesMonth, sharedRidersPeriod]);
 
   // Derived KPI values for HungerStation
   const totalInvoicesAmount = useMemo(() => {
@@ -1690,6 +1711,7 @@ function PayrollPageInner() {
     { id: 'ninja_upload', label: 'رفع فاتورة نينجا', icon: <FileSpreadsheet size={16} /> },
     { id: 'current-cycle', label: 'الدورة الحالية (النظام القائم)', icon: <Layers size={16} />, badge: legacyPreview.length },
     { id: 'cycle', label: 'دورة الرواتب والمسير (0-7)', icon: <RefreshCw size={16} /> },
+    { id: 'shared_riders', label: 'مندوب عمل مشترك', icon: <Users size={16} /> },
     { id: 'rules', label: 'محرر الأنظمة والقواعد', icon: <FileText size={16} /> },
     { id: 'deductions', label: 'الاستقطاعات الشهرية', icon: <DollarSign size={16} /> },
     { id: 'bank', label: 'التحويل والبنوك', icon: <Landmark size={16} /> },
@@ -4710,6 +4732,194 @@ function PayrollPageInner() {
       )}
     </div>
   )}
+
+      {/* ======================================================== */}
+      {/* SECTION 3b: SHARED RIDERS QUEUE (مندوب عمل مشترك)        */}
+      {/* ======================================================== */}
+      {mainTab === 'shared_riders' && (
+        <div id="shared-riders-section" className="space-y-4">
+          <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                طابور المناديب المشتركين (مندوب عمل مشترك)
+              </h3>
+              <p className="text-xs text-[var(--muted)] mt-0.5">
+                مناديب عملوا على أكثر من تطبيق وينتظرون اكتمال بقية التطبيقات أو الإفراج عنهم من المعتمد.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="month"
+                aria-label="فلتر الشهر"
+                value={sharedRidersPeriod}
+                onChange={(e) => setSharedRidersPeriod(e.target.value)}
+                className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono text-[var(--ink)]"
+              />
+              {sharedRidersPeriod && (
+                <button
+                  type="button"
+                  onClick={() => setSharedRidersPeriod('')}
+                  className="px-2.5 py-1.5 rounded-xl border border-[var(--line)] text-xs text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
+                >
+                  كل الأشهر
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => loadSharedRiders()}
+                disabled={loadingSharedRiders}
+                className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold cursor-pointer disabled:opacity-50"
+              >
+                تحديث
+              </button>
+            </div>
+          </div>
+
+          {loadingSharedRiders ? (
+            <Skeleton className="h-40 w-full rounded-2xl" />
+          ) : sharedRiders.length === 0 ? (
+            <EmptyState
+              title="لا يوجد مناديب مشتركين في الطابور"
+              description="كل المناديب المشتركين مكتملون أو مفرج عنهم للفترة المختارة."
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]" tabIndex={0} role="region" aria-label="طابور المناديب المشتركين">
+              <table className="w-full text-xs text-start border-collapse">
+                <thead className="bg-[var(--raised)]/60 text-[var(--muted)] border-b border-[var(--line)]">
+                  <tr>
+                    <th className="p-3 text-start font-bold">المندوب</th>
+                    <th className="p-3 text-start font-mono">الفترة</th>
+                    <th className="p-3 text-start font-bold">الحالة</th>
+                    <th className="p-3 text-start font-bold">التطبيقات الناقصة</th>
+                    <th className="p-3 text-start font-mono">الصافي المجمع</th>
+                    <th className="p-3 text-start font-bold">الإجراء</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--line)]">
+                  {sharedRiders.map((item) => (
+                    <tr key={`${item.rider}:${item.period}`} className="hover:bg-[var(--raised)]/30">
+                      <td className="p-3">
+                        <div className="font-mono font-bold text-[var(--ink)]">{item.rider}</div>
+                        <div className="text-[11px] text-[var(--muted)]">{item.labelAr}</div>
+                      </td>
+                      <td className="p-3 font-mono">{item.period}</td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                            item.released
+                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                              : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                          }`}
+                        >
+                          {item.released ? 'مفرج عنه' : item.status}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        {(item.missingApps || []).length === 0 ? (
+                          <span className="text-[var(--muted)]">لا يوجد</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {(item.missingApps || []).map((app) => (
+                              <span
+                                key={app}
+                                className="px-2 py-0.5 rounded-full bg-[var(--danger)]/10 text-[var(--danger)] font-mono text-[11px] font-bold"
+                              >
+                                {app}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3 font-mono font-bold">
+                        {item.combinedNet.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                      </td>
+                      <td className="p-3">
+                        {!item.released && can('pay.approve') ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReleaseTarget(item);
+                              setReleaseReason('');
+                            }}
+                            className="px-3 py-1 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] font-bold cursor-pointer"
+                          >
+                            إفراج
+                          </button>
+                        ) : (
+                          <span className="text-[var(--muted)]">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <Dialog
+            open={Boolean(releaseTarget)}
+            onClose={() => setReleaseTarget(null)}
+            title="إفراج مندوب عمل مشترك"
+          >
+            {releaseTarget && (
+              <div className="space-y-4 text-xs text-[var(--ink)]">
+                <p>
+                  إفراج المندوب <span className="font-mono font-bold">{releaseTarget.rider}</span> للفترة{' '}
+                  <span className="font-mono font-bold">{releaseTarget.period}</span> قبل اكتمال بقية التطبيقات:
+                  {(releaseTarget.missingApps || []).length > 0 && (
+                    <span className="ms-1 font-mono text-[var(--danger)]">
+                      ({(releaseTarget.missingApps || []).join('، ')})
+                    </span>
+                  )}
+                </p>
+                <div className="space-y-1">
+                  <label htmlFor="shared-rider-release-reason" className="block font-bold">
+                    سبب الإفراج (إلزامي)
+                  </label>
+                  <textarea
+                    id="shared-rider-release-reason"
+                    rows={3}
+                    value={releaseReason}
+                    onChange={(e) => setReleaseReason(e.target.value)}
+                    placeholder="اكتب سبب الإفراج عن المندوب المشترك..."
+                    className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReleaseTarget(null)}
+                    className="px-3 py-1.5 rounded-xl border border-[var(--line)] cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="button"
+                    disabled={releasingSharedRider || releaseReason.trim().length < 3}
+                    onClick={async () => {
+                      setReleasingSharedRider(true);
+                      try {
+                        await api.releaseSharedRider(releaseTarget.rider, releaseTarget.period, releaseReason.trim());
+                        showToast('تم الإفراج عن المندوب المشترك بنجاح', 'success');
+                        setReleaseTarget(null);
+                        setReleaseReason('');
+                        await loadSharedRiders();
+                      } catch (err: unknown) {
+                        showToast(err instanceof Error ? err.message : 'تعذر الإفراج عن المندوب', 'error');
+                      } finally {
+                        setReleasingSharedRider(false);
+                      }
+                    }}
+                    className="px-4 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold disabled:opacity-50 cursor-pointer"
+                  >
+                    {releasingSharedRider ? 'جاري الإفراج...' : 'تأكيد الإفراج'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </Dialog>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* SECTION 4: DEDUCTIONS (Stage 4 from Pipeline)            */}
