@@ -2,12 +2,20 @@
 
 | Field | Value |
 |---|---|
-| Current writer | _(none — M2 done; awaiting Claude M2 review)_ |
+| Current writer | — |
 | Branch | `feat/api-for-ui` |
 | Updated | 2026-11-15 by Cursor (M2 complete) |
 | Live | `/health` = **0.22.0** (unchanged; no deploy) |
 | Tip | `133352b` on `feat/api-for-ui` |
 | PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/43 |
+
+## Claude review of M2 (2026-11-15): accepted, 3 fixes applied by Claude
+- **Pipeline (`PayCycles.Pipeline.cs`)**: (1) stage-4 deduction rows were also listed under `4_expenseLines` (operator precedence + missing `affectsNet` key) → now only `company_expense` rows or rows with an explicit `affectsNet=false`; (2) `2_accountShare` was the account *deduction* → now the rider's share of account earnings (Σ sources `baseGross`+`incentive`), `2_penaltiesAllocated` = Σ `platformPenalties`; (3) `8_remainder` was the closing balance (carried + net) → positive net − old-debt instalment, or the confirmed stage-8 net; new `8_confirmed`; `6_net` reads `salaryNet` after confirmation. Lines are loaded once per cycle. Test `PipelineSeparatesStage4FromExpensesAndComputesRemainder` (fails on the old code).
+- **Treasury (`TreasurySummary.cs`)**: `other` was every remaining asset account (receivables, rider advances) and was added to the total → removed; total = cash + bank only. Test extended with a rider-advance line.
+- Checked and fine: `allowedActions` use `IndependentForView`/`BypassForView` (no audit on read); posting gate is admin-only; pipeline and treasury demand `pay.view` / `treasury.view` and the rider/sponsor scope.
+- Minor, not fixed: `Debts.View` offers `decide` to any `debts.view` holder who is independent; the decide endpoint still enforces department and rank, so the button can appear and then be refused.
+- Engine 614/614 with local SQL, r8 contract 36, api-cleanup 423, `api:check`, `tsc`.
+- **For Antigravity (M3):** stage keys on `GET /pay/cycles/{id}/pipeline` → `1_gross`, `2_accountShare`, `2_penaltiesAllocated`, `3_commission`, `3_afterCommission`, `4_items[]`, `4_expenseLines[]` (not deducted), `5_*`, `6_net`, `8_oldDebtInstallment`, `8_remainder`, `8_confirmed`. Treasury summary has `cash`, `bank`, `total` only.
 
 ## Goal now
 M2 complete on branch. Next: Claude reviews M2, then Antigravity runs `~/.agents/prompts/antigravity-M3-pipeline-screens.md`.

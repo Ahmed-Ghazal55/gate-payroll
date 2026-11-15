@@ -12315,7 +12315,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Cash, bank and other balances per company from posting CoA accounts only */
+        /** Cash and bank balances per company from posting CoA accounts only */
         get: {
             parameters: {
                 query?: {
@@ -12340,13 +12340,11 @@ export interface paths {
                                 nameAr?: string;
                                 cash: number;
                                 bank: number;
-                                other: number;
                                 total: number;
                             }[];
                             totals: {
                                 cash: number;
                                 bank: number;
-                                other: number;
                                 total: number;
                             };
                         };

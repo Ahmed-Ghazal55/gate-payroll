@@ -10,11 +10,12 @@ public static partial class PayCycles
     {
         var cycle=Store.Get(c,id,Kind,tx)??throw new ApiError("الدورة غير موجودة.",404);Scope(actor,cycle,"pay.view");
         var riders=new JsonArray();
+        var allLines=Lines(c,tx,id); // one read for the whole cycle, not one per rider
         foreach(var summary in Rows(cycle["riders"]).OfType<JsonObject>())
         {
             string rider=summary.S("rider");
             var person=Store.Get(c,rider,"rider",tx);if(person!=null)FinancialScopes.DemandRider(actor,person);
-            var lines=Lines(c,tx,id).Where(l=>l.S("rider")==rider).ToList();
+            var lines=allLines.Where(l=>l.S("rider")==rider).ToList();
             var deductions=Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==rider).ToList();
             var stage4=new JsonArray(deductions.Where(d=>d.S("type")=="stage4").Select(d=>(JsonNode)new JsonObject
             {
@@ -22,14 +23,20 @@ public static partial class PayCycles
                 ["labelAr"]=d.S("labelAr"),["amount"]=d.N("amount"),["requestedAmount"]=d.N("requestedAmount"),
                 ["phase"]=d.N("phase"),["accountCode"]=d.S("accountCode")
             }).ToArray());
-            var expenses=new JsonArray(deductions.Where(d=>d.S("type")=="company_expense"||d.B("affectsNet")==false&&d.S("type")!="debt").Select(d=>(JsonNode)new JsonObject
+            var expenses=new JsonArray(deductions.Where(d=>d.S("type")=="company_expense"||d.ContainsKey("affectsNet")&&!d.B("affectsNet")).Select(d=>(JsonNode)new JsonObject
             {
                 ["key"]=DeductionKey(d),["category"]=d.S("category"),["source"]=d.S("source"),
                 ["labelAr"]=d.S("labelAr"),["companyCost"]=d.N("companyCost",-d.N("amount")),["accountCode"]=d.S("accountCode"),["affectsNet"]=false
             }).ToArray());
-            decimal accountShare=J.Money(lines.Sum(l=>l.N("accountDeduction")));
-            decimal penalties=accountShare;
-            decimal oldDebt=J.Money(deductions.Where(d=>d.S("type")=="debt").Sum(d=>-d.N("requestedAmount",-d.N("amount"))));
+            // Stage 2: the rider's share of the accounts' earnings (base + incentives), and the platform penalties allocated to them.
+            decimal accountShare=J.Money(lines.SelectMany(l=>Rows(l["sources"]).OfType<JsonObject>()).Sum(src=>src.N("baseGross")+src.N("incentive")));
+            decimal penalties=J.Money(lines.Sum(l=>l.N("platformPenalties")));
+            // Stage 6: net before the old-debt instalment. After stage-8 confirmation the row's "net" holds the remainder, so read salaryNet.
+            bool confirmed=summary.S("debtDeductionStatus")=="confirmed";
+            decimal net=summary.ContainsKey("salaryNet")?summary.N("salaryNet"):summary.N("net");
+            decimal oldDebt=J.Money(deductions.Where(d=>d.S("type")=="debt").Sum(d=>Math.Abs(confirmed?d.N("amount"):d.N("requestedAmount",d.N("amount")))));
+            // Remainder to transfer: what stage 8 left when confirmed; otherwise positive net minus the requested instalment (never below zero).
+            decimal remainder=confirmed?summary.N("net"):J.Money(Math.Max(0,Math.Max(0,net)-oldDebt));
             riders.Add(new JsonObject
             {
                 ["rider"]=rider,
@@ -47,9 +54,10 @@ public static partial class PayCycles
                     ["5_preliminaryDue"]=summary.N("preliminaryDue"),
                     ["5_phase2"]=summary.N("phase2"),
                     ["5_phase3"]=summary.N("phase3"),
-                    ["6_net"]=summary.N("net"),
+                    ["6_net"]=net,
                     ["8_oldDebtInstallment"]=oldDebt,
-                    ["8_remainder"]=summary.N("closing",summary.N("net"))
+                    ["8_remainder"]=remainder,
+                    ["8_confirmed"]=confirmed
                 },
                 ["lines"]=new JsonArray(lines.Select(l=>(JsonNode)l.Clone()).ToArray())
             });

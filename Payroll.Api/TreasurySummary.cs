@@ -3,7 +3,7 @@ using System.Security.Claims;
 using System.Text.Json.Nodes;
 namespace Payroll;
 
-/// <summary>Cash / bank / other balances per company from target CoA posting accounts only (no parent double-count).</summary>
+/// <summary>Cash and bank balances per company from target CoA posting accounts only (no parent double-count; no receivables).</summary>
 public static class TreasurySummary
 {
     public static JsonObject Build(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string? companyId)
@@ -26,27 +26,25 @@ public static class TreasurySummary
                 var codes=posting.Where(accountFilter).Select(a=>a.S("code")).ToHashSet(StringComparer.Ordinal);
                 return J.Money(sp.Where(l=>codes.Contains(l.S("accountCode"))).Sum(l=>l.N("debit")-l.N("credit")));
             }
-            // Posting accounts only: CoA type cash/bank; remaining debit asset posting accounts → other.
+            // Treasury = money the company holds: posting accounts typed cash or bank in the chart of accounts.
+            // Receivables, rider advances and other assets are NOT treasury and are not added to the total.
             decimal cash=Balance(a=>a.S("type")=="cash");
             decimal bank=Balance(a=>a.S("type")=="bank");
-            decimal assets=Balance(a=>a.S("nature")=="debit"&&a.S("code").StartsWith('1'));
-            decimal other=J.Money(Math.Max(0,assets-cash-bank));
             rows.Add(new JsonObject
             {
                 ["companyId"]=company.Id,["code"]=company.Code,["nameAr"]=company.ShortNameAr,
-                ["cash"]=cash,["bank"]=bank,["other"]=other,["total"]=J.Money(cash+bank+other)
+                ["cash"]=cash,["bank"]=bank,["total"]=J.Money(cash+bank)
             });
         }
         return new(){["companies"]=rows,["totals"]=new JsonObject{
             ["cash"]=J.Money(rows.OfType<JsonObject>().Sum(r=>r.N("cash"))),
             ["bank"]=J.Money(rows.OfType<JsonObject>().Sum(r=>r.N("bank"))),
-            ["other"]=J.Money(rows.OfType<JsonObject>().Sum(r=>r.N("other"))),
             ["total"]=J.Money(rows.OfType<JsonObject>().Sum(r=>r.N("total")))
         }};
     }
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapGet("/finance/treasury/summary",(string? companyId,HttpContext ctx)=>store.Read(c=>Build(c,null,ctx.User,companyId)))
-            .WithTags("Banks and treasury").WithSummary("Cash, bank and other balances per company from posting CoA accounts only");
+            .WithTags("Banks and treasury").WithSummary("Cash and bank balances per company from posting CoA accounts only");
     }
 }

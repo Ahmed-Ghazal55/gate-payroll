@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:41687/"
+      "url": "http://127.0.0.1:40137/"
     }
   ],
   "paths": {
@@ -19330,7 +19330,7 @@
         "tags": [
           "Banks and treasury"
         ],
-        "summary": "Cash, bank and other balances per company from posting CoA accounts only",
+        "summary": "Cash and bank balances per company from posting CoA accounts only",
         "parameters": [
           {
             "name": "companyId",
@@ -19359,7 +19359,6 @@
                           "companyId",
                           "cash",
                           "bank",
-                          "other",
                           "total"
                         ],
                         "type": "object",
@@ -19379,9 +19378,6 @@
                           "bank": {
                             "type": "number"
                           },
-                          "other": {
-                            "type": "number"
-                          },
                           "total": {
                             "type": "number"
                           }
@@ -19392,7 +19388,6 @@
                       "required": [
                         "cash",
                         "bank",
-                        "other",
                         "total"
                       ],
                       "type": "object",
@@ -19401,9 +19396,6 @@
                           "type": "number"
                         },
                         "bank": {
-                          "type": "number"
-                        },
-                        "other": {
                           "type": "number"
                         },
                         "total": {
