@@ -14,6 +14,7 @@ M1 complete on branch. Next: Claude reviews M1 (security + data), then Cursor ru
 ## Done (M2 so far)
 - R1–R3 (M1 leftovers): Ninja RequiredKinds slimmed; rejected server-side only; dual Iqama/unmatched blockers.
 - Item 1: allowedActions/blockers on debts, advances, Jahez handovers, manual journals, config lists, PaySettings blockers, HS invoices/allocations/disputes, cycle confirm_debt_deductions_all, PlatformPosting open_posting.
+- Items 2–3: GET /pay/cycles/{id}/pipeline (§40 stages); GET /finance/treasury/summary (posting CoA cash/bank/other).
 
 
 ## Done (M1)
