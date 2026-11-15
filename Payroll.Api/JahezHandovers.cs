@@ -49,11 +49,23 @@ public static class JahezHandovers
         request["status"]=approve?"approved":"rejected";request["decidedBy"]=actor.Identity.Name;request["decidedAt"]=DateTimeOffset.UtcNow.ToString("O");request["decisionNote"]=input.S("note");request["administrativeSelfOverride"]=same;request["version"]=2;
         Store.Save(c,"jahez_handover",request,tx);Store.Audit(c,tx,approve?"jahez.handover_received":"jahez.handover_rejected",id,actor.Identity.Name!);return request;
     }
+    public static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject request)
+    {
+        var result=request.Clone();var actions=new JsonArray();var blockers=new JsonArray();
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+        if(request.S("status")=="pending")
+        {
+            if(!AccessPolicy.Has(actor,"treasury.jahez.receive"))blockers.Add("صلاحية استلام عهدة جاهز مطلوبة.");
+            else if(!AccessPolicy.IndependentForView(actor,request.S("submittedBy"),bypass))blockers.Add("يلزم مستلم مستقل.");
+            else{actions.Add("approve");actions.Add("reject");}
+        }
+        result["allowedActions"]=actions;result["approvalBlockers"]=blockers;return result;
+    }
     public static void Map(RouteGroupBuilder api,Store store)
     {
-        api.MapPost("/finance/jahez-handover",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Submit(c,tx,input,ctx.User))).WithTags("Banks and treasury").WithSummary("Submit finance jahez handover");
-        api.MapGet("/finance/jahez-handovers",(HttpContext ctx)=>store.Read(c=>Store.List(c,"jahez_handover").Where(h=>CanRead(ctx.User,h)))).WithTags("Banks and treasury").WithSummary("Read finance jahez handovers");
-        api.MapPost("/finance/jahez-handovers/{id}/confirm",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Decide(c,tx,id,input,ctx.User,true))).WithTags("Banks and treasury").WithSummary("Submit finance jahez handovers {id} confirm");
-        api.MapPost("/finance/jahez-handovers/{id}/reject",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Decide(c,tx,id,input,ctx.User,false))).WithTags("Banks and treasury").WithSummary("Submit finance jahez handovers {id} reject");
+        api.MapPost("/finance/jahez-handover",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Submit(c,tx,input,ctx.User)))).WithTags("Banks and treasury").WithSummary("Submit finance jahez handover");
+        api.MapGet("/finance/jahez-handovers",(HttpContext ctx)=>store.Read(c=>Store.List(c,"jahez_handover").Where(h=>CanRead(ctx.User,h)).Select(h=>View(c,null,ctx.User,h)).ToList())).WithTags("Banks and treasury").WithSummary("Read finance jahez handovers");
+        api.MapPost("/finance/jahez-handovers/{id}/confirm",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Decide(c,tx,id,input,ctx.User,true)))).WithTags("Banks and treasury").WithSummary("Submit finance jahez handovers {id} confirm");
+        api.MapPost("/finance/jahez-handovers/{id}/reject",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Decide(c,tx,id,input,ctx.User,false)))).WithTags("Banks and treasury").WithSummary("Submit finance jahez handovers {id} reject");
     }
 }

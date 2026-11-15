@@ -31,7 +31,7 @@ public static class SourceReader
         new("app","RiderVehicleAssignmentEvents","Id RiderVehicleAssignmentId EventType OccurredAtUtc"),
         new("platform","ClientPlatforms","Id Code NameAr NameEn Status"),
         new("app","PlatformRiderAccounts","Id ClientPlatformId Code ExternalAccountId Status AcquisitionDate StartDate EndDate OperatingCityId RegisteredEmployeeId PaymentModel SponsorId IsDeleted"),
-        new("app","RiderClientAssignments","Id RiderProfileId ClientContractId PlatformRiderAccountId EffectiveFrom EffectiveTo Status PaymentModel RiderAccountSlot NinjaRiderType IsDeleted"),
+        new("app","RiderClientAssignments","Id RiderProfileId ClientContractId PlatformRiderAccountId EffectiveFrom EffectiveTo Status PaymentModel RiderAccountSlot NinjaRiderType CompensationModel IsDeleted"),
         new("app","PlatformAccountRegistrations","Id RegisteredEmployeeId RiderProfileId ClientPlatformId ClientContractId SponsorId OperatingCityId RegistrationType Status RequestedAtUtc ActivatedAtUtc PlatformRiderAccountId IsDeleted"),
         new("app","HrLegalCases","Id CaseNumber PersonName PersonType EmployeeId RiderProfileId SponsorId SponsorPartyRole CaseDate CaseTime Status Details IsDeleted"),
         new("app","HrLegalCaseHearings","Id LegalCaseId HearingNumber HearingDate HearingTime Status Details Location IsDeleted"),

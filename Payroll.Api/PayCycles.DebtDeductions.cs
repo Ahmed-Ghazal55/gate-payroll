@@ -74,15 +74,20 @@ public static partial class PayCycles
     public static JsonObject DebtDeductionsView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id)
     {
         var cycle=Store.Get(c,id,Kind,tx)??throw new ApiError("الدورة غير موجودة.",404);Scope(actor,cycle,"pay.view");var rows=new JsonArray();
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor);var root=new JsonArray();int pendingConfirm=0;
         foreach(var row in Rows(cycle["riders"]).OfType<JsonObject>())
         {
             if(Store.Get(c,row.S("rider"),"rider",tx) is {} person)FinancialScopes.DemandRider(actor,person);
             bool approved=row.S("salaryApprovedAt")!="",confirmed=row.S("debtDeductionStatus")=="confirmed";var actions=new JsonArray();
             if(approved&&!confirmed&&cycle.S("status") is "approved" or "partially_approved")
-            {if(AccessPolicy.Has(actor,"pay.manage"))actions.Add("edit");if(AccessPolicy.Has(actor,"pay.approve")&&AccessPolicy.Independent(actor,row.S("debtSelectedBy",cycle.S("createdBy")),"pay.debt_confirm"))actions.Add("confirm");}
+            {
+                if(AccessPolicy.Has(actor,"pay.manage"))actions.Add("edit");
+                if(AccessPolicy.Has(actor,"pay.approve")&&AccessPolicy.IndependentForView(actor,row.S("debtSelectedBy",cycle.S("createdBy")),bypass)){actions.Add("confirm");pendingConfirm++;}
+            }
             rows.Add(new JsonObject{["rider"]=row.S("rider"),["salaryNet"]=row.N("salaryNet",row.N("net")),["status"]=confirmed?"confirmed":approved?"pending":"salary_pending",["items"]=ProposedDebtItems(c,tx,actor,cycle,row),["net"]=row.N("net"),["allowedActions"]=actions});
         }
-        return new(){["cycleId"]=id,["stage"]=cycle.N("stage"),["status"]=cycle.S("debtDeductionStatus","salary_pending"),["rows"]=rows};
+        if(pendingConfirm>0&&AccessPolicy.Has(actor,"pay.approve"))root.Add("confirm_debt_deductions_all");
+        return new(){["cycleId"]=id,["stage"]=cycle.N("stage"),["status"]=cycle.S("debtDeductionStatus","salary_pending"),["allowedActions"]=root,["rows"]=rows};
     }
     public static JsonObject DebtDeductionsAct(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {

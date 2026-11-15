@@ -63,5 +63,7 @@ docs/data/*
 !docs/data/R11-DESIGN.md
 
 !docs/data/debt-sheet-mapping.v1.json
+!docs/data/erp-schema.snapshot.json
 !docs/data/DEBT-SHEET.md
 !docs/data/VPS-SYNC.md
+!docs/data/REPORTING.md

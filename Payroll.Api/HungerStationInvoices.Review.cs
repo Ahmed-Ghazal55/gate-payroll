@@ -38,9 +38,9 @@ public static partial class HungerStationInvoices
     }
     public static void MapReview(RouteGroupBuilder api,Store store)
     {
-        api.MapGet("/platforms/hs/invoices",(HttpContext ctx)=>store.Read(c=>ApiPagination.Apply(Visible(c,ctx.User,"platform_invoice",ctx.Request.Query),ctx.Request.Query,true))).WithTags("Platforms").WithSummary("Review paginated HS invoices within company and platform scope");
-        api.MapGet("/platforms/hs/disputes",(HttpContext ctx)=>store.Read(c=>ApiPagination.Apply(Visible(c,ctx.User,"platform_dispute",ctx.Request.Query),ctx.Request.Query,true))).WithTags("Platforms").WithSummary("Review formal HS disputes within scope");
-        api.MapGet("/platforms/hs/allocations",(HttpContext ctx)=>store.Read(c=>ApiPagination.Apply(Visible(c,ctx.User,"platform_allocation",ctx.Request.Query),ctx.Request.Query,true))).WithTags("Platforms").WithSummary("Review explicit HS TGA allocations and revisions");
+        api.MapGet("/platforms/hs/invoices",(HttpContext ctx)=>store.Read(c=>ApiPagination.Apply(Visible(c,ctx.User,"platform_invoice",ctx.Request.Query).Select(i=>InvoiceView(c,null,ctx.User,i)),ctx.Request.Query,true))).WithTags("Platforms").WithSummary("Review paginated HS invoices within company and platform scope");
+        api.MapGet("/platforms/hs/disputes",(HttpContext ctx)=>store.Read(c=>ApiPagination.Apply(Visible(c,ctx.User,"platform_dispute",ctx.Request.Query).Select(d=>DisputeView(c,null,ctx.User,d)),ctx.Request.Query,true))).WithTags("Platforms").WithSummary("Review formal HS disputes within scope");
+        api.MapGet("/platforms/hs/allocations",(HttpContext ctx)=>store.Read(c=>ApiPagination.Apply(Visible(c,ctx.User,"platform_allocation",ctx.Request.Query).Select(a=>AllocationView(c,null,ctx.User,a)),ctx.Request.Query,true))).WithTags("Platforms").WithSummary("Review explicit HS TGA allocations and revisions");
         api.MapGet("/platforms/hs/facts",(HttpContext ctx)=>store.Read(c=>
         {string kind=ctx.Request.Query["kind"].ToString();J.Need(HungerStationFacts.Kinds.Contains(kind),"حدد نوع وقائع هنقر المعتمد.");return ApiPagination.Apply(Visible(c,ctx.User,kind,ctx.Request.Query),ctx.Request.Query,true);})).WithTags("Platforms").WithSummary("Review paginated immutable approved HS facts by allowlisted kind");
         api.MapGet("/platforms/hs/proposed-journals",(HttpContext ctx)=>store.Read(c=>
@@ -49,10 +49,14 @@ public static partial class HungerStationInvoices
             if(kind!=""){J.Need(HungerStationFacts.Kinds.Contains(kind),"نوع الوقائع غير معروف.");return ApiPagination.Apply(Visible(c,ctx.User,kind,ctx.Request.Query).Select(r=>HungerStationFacts.Proposal(kind,r)),ctx.Request.Query,true);}
             return ApiPagination.Apply(Visible(c,ctx.User,"platform_invoice",ctx.Request.Query).Select(r=>{var proposal=Proposal(c,ctx.User,r.S("id"));proposal["invoiceId"]=r.S("id");return proposal;}),ctx.Request.Query,true);
         })).WithTags("Platforms").WithSummary("Read signed invoice proposals or unpostable CR-002 fact mappings");
-        api.MapPost("/platforms/hs/invoices/{id}/approve",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>input.S("reversalRequestId")!=""?ApproveReversal(c,tx,ctx.User,id,input.S("reversalRequestId")):ApproveInvoice(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Independently approve signed HS facts or an open-period reversal; gated posting");
-        api.MapPost("/platforms/hs/invoices/{id}/dispute",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Dispute(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Raise an audited formal HS line dispute without charging a rider");
-        api.MapPost("/platforms/hs/invoices/{id}/resolve",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Resolve(c,tx,ctx.User,id,input))).WithTags("Platforms").WithSummary("Propose immutable fact correction/reversal or independently record the platform credit or rejection response");
-        api.MapPost("/platforms/hs/allocations/{lineId}",(string lineId,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Split(c,tx,ctx.User,lineId,input))).WithTags("Platforms").WithSummary("Propose an explicit TGA company/rider split; no default");
-        api.MapPost("/platforms/hs/allocations/{id}/approve",(string id,HttpContext ctx)=>store.Write((c,tx)=>ApproveAllocation(c,tx,ctx.User,id))).WithTags("Platforms").WithSummary("Approve latest TGA split with independent finance checker");
+        api.MapPost("/platforms/hs/invoices/{id}/approve",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>InvoiceView(c,tx,ctx.User,input.S("reversalRequestId")!=""?ApproveReversal(c,tx,ctx.User,id,input.S("reversalRequestId")):ApproveInvoice(c,tx,ctx.User,id,input)))).WithTags("Platforms").WithSummary("Independently approve signed HS facts or an open-period reversal; gated posting");
+        api.MapPost("/platforms/hs/invoices/{id}/dispute",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>DisputeView(c,tx,ctx.User,Dispute(c,tx,ctx.User,id,input)))).WithTags("Platforms").WithSummary("Raise an audited formal HS line dispute without charging a rider");
+        api.MapPost("/platforms/hs/invoices/{id}/resolve",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
+        {
+            var result=Resolve(c,tx,ctx.User,id,input);
+            return result.S("invoiceId")!=""&&result.S("lineId")!=""?DisputeView(c,tx,ctx.User,result):result;
+        })).WithTags("Platforms").WithSummary("Propose immutable fact correction/reversal or independently record the platform credit or rejection response");
+        api.MapPost("/platforms/hs/allocations/{lineId}",(string lineId,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>AllocationView(c,tx,ctx.User,Split(c,tx,ctx.User,lineId,input)))).WithTags("Platforms").WithSummary("Propose an explicit TGA company/rider split; no default");
+        api.MapPost("/platforms/hs/allocations/{id}/approve",(string id,HttpContext ctx)=>store.Write((c,tx)=>AllocationView(c,tx,ctx.User,ApproveAllocation(c,tx,ctx.User,id)))).WithTags("Platforms").WithSummary("Approve latest TGA split with independent finance checker");
     }
 }

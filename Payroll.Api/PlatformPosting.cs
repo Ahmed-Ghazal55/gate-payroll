@@ -35,10 +35,18 @@ public static class PlatformPosting
         var doc=FinancialCore.PostJournal(c,tx,"hs_approved_facts",description,period,reference,lines,actor,targetChart:true,reversesJournalId:reversesJournalId);
         Store.Audit(c,tx,"platform.hs.journal_posted",doc.S("id"),actor);return doc;
     }
+    public static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string code)
+    {
+        code=Code(code);bool enabled=Enabled(c,code,tx);var actions=new JsonArray();var blockers=new JsonArray();
+        if(!AccessPolicy.Administrator(actor))blockers.Add("إعداد الترحيل لمسؤول النظام فقط.");
+        else if(enabled)actions.Add("close_posting");
+        else actions.Add("open_posting");
+        return new(){["code"]=code,["enabled"]=enabled,["allowedActions"]=actions,["approvalBlockers"]=blockers};
+    }
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapGet("/platforms/{code}/posting",(string code,HttpContext ctx)=>
-        {if(!AccessPolicy.Administrator(ctx.User))throw new ApiError("إعداد الترحيل لمسؤول النظام فقط.",403);return store.Read(c=>new{code=Code(code),enabled=Enabled(c,code)});}).WithTags("Platforms").WithSummary("Read administrator platform posting gate; absent defaults off");
-        api.MapPost("/platforms/{code}/posting",(string code,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Set(c,tx,ctx.User,code,input))).WithTags("Platforms").WithSummary("Set and audit platform posting gate; administrator only");
+        {if(!AccessPolicy.Administrator(ctx.User))throw new ApiError("إعداد الترحيل لمسؤول النظام فقط.",403);return store.Read(c=>View(c,null,ctx.User,code));}).WithTags("Platforms").WithSummary("Read administrator platform posting gate; absent defaults off");
+        api.MapPost("/platforms/{code}/posting",(string code,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>{Set(c,tx,ctx.User,code,input);return View(c,tx,ctx.User,code);})).WithTags("Platforms").WithSummary("Set and audit platform posting gate; administrator only");
     }
 }

@@ -90,11 +90,17 @@ public static class ManualJournals
     public static JsonObject WithActions(ClaimsPrincipal actor,JsonObject d,DbConnection c,DbTransaction? tx)
     {
         string me=actor.Identity?.Name??"";bool author=string.Equals(me,d.S("createdBy"),StringComparison.OrdinalIgnoreCase),admin=AccessPolicy.Administrator(actor);
-        var actions=new JsonArray();string status=d.S("status");
-        if(status=="draft"&&AccessPolicy.Independent(actor,d.S("createdBy"),"finance.manual_approved")&&AccessPolicy.Has(actor,ApprovePermission)){actions.Add((JsonNode)"approve");actions.Add((JsonNode)"reject");}
+        var actions=new JsonArray();var blockers=new JsonArray();string status=d.S("status");
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor);bool independent=AccessPolicy.IndependentForView(actor,d.S("createdBy"),bypass);
+        if(status=="draft")
+        {
+            if(!AccessPolicy.Has(actor,ApprovePermission))blockers.Add("صلاحية اعتماد القيد اليدوي مطلوبة.");
+            else if(!independent)blockers.Add("اعتماد القيد لمستخدم مستقل عن منشئه.");
+            else{actions.Add((JsonNode)"approve");actions.Add((JsonNode)"reject");}
+        }
         if(status is "draft" or "rejected"&&(author||admin)&&AccessPolicy.Has(actor,CreatePermission))actions.Add((JsonNode)"delete");
         if(status=="approved"&&d.S("reversesJournalId")==""&&AccessPolicy.Has(actor,CreatePermission)&&!Store.List(c,Kind,tx).Any(x=>x.S("reversesManualJournalId")==d.S("id")&&x.S("status")!="rejected"))actions.Add((JsonNode)"reverse");
-        var copy=d.DeepClone().AsObject();copy["allowedActions"]=actions;return copy;
+        var copy=d.DeepClone().AsObject();copy["allowedActions"]=actions;copy["approvalBlockers"]=blockers;return copy;
     }
     public static void Map(RouteGroupBuilder api,Store store)
     {

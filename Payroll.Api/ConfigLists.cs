@@ -49,15 +49,31 @@ public static class ConfigLists
     // Current, approved and active values for one item; null while it has never been approved.
     public static JsonObject? Current(DbConnection c,DbTransaction? tx,string group,string code)
     {var item=Store.Get(c,ItemId(group,code),ItemKind,tx);return item?["current"] is JsonObject cur&&item.B("active")?cur:null;}
-    static JsonObject View(GroupDef def,List<FieldDef> fields,List<JsonObject> items)=>new()
+    static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,GroupDef def,List<FieldDef> fields,List<JsonObject> items)
     {
-        ["group"]=def.Group,["labelAr"]=def.LabelAr,["financial"]=def.Financial,
-        ["fields"]=new JsonArray(fields.Select(f=>(JsonNode)new JsonObject{["key"]=f.Key,["labelAr"]=f.LabelAr,["type"]=f.Type,["required"]=f.Required,["options"]=f.Options==null?null:new JsonArray(f.Options.Select(o=>(JsonNode)o).ToArray())}).ToArray()),
-        ["items"]=new JsonArray(items.Select(i=>(JsonNode)new JsonObject{
-            ["code"]=i.S("code"),["nameAr"]=i["current"].S("nameAr",i["pending"].S("nameAr")),["active"]=i.B("active"),
-            ["values"]=(i["current"]?["values"] ?? i["pending"]?["values"] ?? new JsonObject()).DeepClone(),
-            ["status"]=i["pending"] is JsonObject?"pending_approval":"active",["pending"]=i["pending"]?.DeepClone(),["version"]=i.N("version")}).ToArray())
-    };
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor);bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve");
+        return new()
+        {
+            ["group"]=def.Group,["labelAr"]=def.LabelAr,["financial"]=def.Financial,
+            ["fields"]=new JsonArray(fields.Select(f=>(JsonNode)new JsonObject{["key"]=f.Key,["labelAr"]=f.LabelAr,["type"]=f.Type,["required"]=f.Required,["options"]=f.Options==null?null:new JsonArray(f.Options.Select(o=>(JsonNode)o).ToArray())}).ToArray()),
+            ["items"]=new JsonArray(items.Select(i=>
+            {
+                var actions=new JsonArray();var blockers=new JsonArray();
+                if(manage)actions.Add("propose");
+                if(def.Financial&&i["pending"] is JsonObject pending)
+                {
+                    if(!approve)blockers.Add("صلاحية اعتماد القوائم مطلوبة.");
+                    else if(!AccessPolicy.IndependentForView(actor,pending.S("by"),bypass))blockers.Add("الاعتماد لشخص غير مقدم التعديل.");
+                    else actions.Add("approve");
+                }
+                return (JsonNode)new JsonObject{
+                    ["code"]=i.S("code"),["nameAr"]=i["current"].S("nameAr",i["pending"].S("nameAr")),["active"]=i.B("active"),
+                    ["values"]=(i["current"]?["values"] ?? i["pending"]?["values"] ?? new JsonObject()).DeepClone(),
+                    ["status"]=i["pending"] is JsonObject?"pending_approval":"active",["pending"]=i["pending"]?.DeepClone(),["version"]=i.N("version"),
+                    ["allowedActions"]=actions,["approvalBlockers"]=blockers};
+            }).ToArray())
+        };
+    }
     static JsonObject Values(DbConnection c,DbTransaction tx,string group,List<FieldDef> fields,JsonObject? input)
     {
         input??=new();var values=new JsonObject();
@@ -164,8 +180,8 @@ public static class ConfigLists
     }
     public static void Map(RouteGroupBuilder api,Store store)
     {
-        api.MapGet("/config/lists",(HttpContext ctx)=>store.Read(c=>Groups.Select(g=>View(g,Fields(c,null,g.Group),Items(c,null,g.Group))).ToList())).WithTags("Administration").WithSummary("Read admin lists with fields and item versions");
-        api.MapGet("/config/lists/{group}",(string group)=>store.Read(c=>View(Group(group),Fields(c,null,group),Items(c,null,group)))).WithTags("Administration").WithSummary("Read one admin list");
+        api.MapGet("/config/lists",(HttpContext ctx)=>store.Read(c=>Groups.Select(g=>View(c,null,ctx.User,g,Fields(c,null,g.Group),Items(c,null,g.Group))).ToList())).WithTags("Administration").WithSummary("Read admin lists with fields and item versions");
+        api.MapGet("/config/lists/{group}",(string group,HttpContext ctx)=>store.Read(c=>View(c,null,ctx.User,Group(group),Fields(c,null,group),Items(c,null,group)))).WithTags("Administration").WithSummary("Read one admin list");
         api.MapPost("/config/lists/{group}/items",(string group,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Upsert(c,tx,ctx.User,group,input))).WithTags("Administration").WithSummary("Add or change a list item; financial lists wait for approval");
         api.MapPost("/config/lists/{group}/items/{code}/approve",(string group,string code,HttpContext ctx)=>store.Write((c,tx)=>Approve(c,tx,ctx.User,group,code))).WithTags("Administration").WithSummary("Approve a pending financial list change by another user");
         api.MapPost("/config/lists/{group}/fields",(string group,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>AddField(c,tx,ctx.User,group,input))).WithTags("Administration").WithSummary("Add a custom field to a list");

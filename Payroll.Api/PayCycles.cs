@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using ErpImport;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 namespace Payroll;
@@ -178,9 +179,14 @@ public static partial class PayCycles
             J.Need(company!=""&&period!="","الشركة والشهر مطلوبان.");if(app=="")app="ninja";
             if(config!=null&&env!=null&&Operations.SourceMode(config,env)==Operations.SourceLive)
             {
-                var accounts=StagePreCycleKind(ctx,store,config,"platform_account",company,period,app);
-                var daily=app=="ninja"?StagePreCycleKind(ctx,store,config,"ninja_daily",company,period,app):[];
-                return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app,ValidateGapsLiveOps(accounts,daily)));
+                try
+                {
+                    var accounts=StagePreCycleKind(ctx,store,config,"platform_account",company,period,app);
+                    var daily=app=="ninja"?StagePreCycleKind(ctx,store,config,"ninja_daily",company,period,app):[];
+                    return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app,ValidateGapsLiveOps(accounts,daily)));
+                }
+                catch(Exception ex) when(ex is Microsoft.Data.SqlClient.SqlException or ImportFailure or System.Data.Common.DbException)
+                {throw ErpLiveErrors.Fail(app=="ninja"?"ninja_daily|platform_account":"platform_account",ex);}
             }
             return store.Read(c=>DiagnoseValidateGaps(c,ctx.User,company,period,app));
         }).WithTags("Payroll").WithSummary("Counts-only ValidateRiders gap report (no identities)");
@@ -190,26 +196,31 @@ public static partial class PayCycles
         api.MapPost("/pay/cycles/{id}/capture-inputs",(string id,JsonObject? input,HttpContext ctx)=>
         {
             // Stage live pages outside the document write TX when ERP is live; store mode freezes fixtures inside CaptureInputs.
-            Dictionary<string,List<JsonObject>>? staged=null;
+            LiveCaptureStage? staged=null;
             if(config!=null&&env!=null&&Operations.SourceMode(config,env)==Operations.SourceLive)
             {
                 var meta=store.Read(c=>Store.Get(c,id,Kind)??throw new ApiError("الدورة غير موجودة.",404));
                 Scope(ctx.User,meta,"pay.manage");
                 if(!PayRunInputs.CaptureAllowed(meta))throw new ApiError(PayRunInputs.Sealed(meta)?"لا يمكن التقاط المدخلات بعد الاعتماد.":"لا يمكن إعادة التقاط المدخلات بعد بدء الحساب؛ ألغِ الدورة وأنشئ أخرى.",409);
-                staged=StageLiveCapture(ctx,store,config,meta);
+                try{staged=StageLiveCapture(ctx,store,config,meta);}
+                catch(Exception ex) when(ex is Microsoft.Data.SqlClient.SqlException or ImportFailure or System.Data.Common.DbException)
+                {throw ErpLiveErrors.Fail("capture",ex);}
             }
             return store.Write((c,tx)=>
             {
                 Func<string,IEnumerable<JsonObject>>? live=null;
+                IReadOnlyList<(string Reason,int Count)>? serverRejected=null;
                 if(staged!=null)
                 {
                     live=kind=>
                     {
-                        if(kind!="vehicle"&&!staged.ContainsKey(kind))throw new ApiError("مصدر التقاط ناقص لنوع: "+kind,503);
-                        return staged.TryGetValue(kind,out var rows)?rows:Array.Empty<JsonObject>();
+                        if(kind!="vehicle"&&!staged.Rows.ContainsKey(kind))throw new ApiError("مصدر التقاط ناقص لنوع: "+kind,503);
+                        return staged.Rows.TryGetValue(kind,out var rows)?rows:Array.Empty<JsonObject>();
                     };
+                    serverRejected=staged.Rejected;
                 }
-                var captured=CaptureInputs(c,tx,ctx.User,id,config,env,live,input);
+                // R2: never trust request-body rejected; pass live staging counts as a server argument only.
+                var captured=CaptureInputs(c,tx,ctx.User,id,config,env,live,input,serverRejected);
                 var cycle=Store.Get(c,id,Kind,tx)!;
                 var view=View(c,tx,ctx.User,cycle);
                 view["capture"]=captured;
@@ -220,6 +231,7 @@ public static partial class PayCycles
         api.MapPost("/pay/cycles",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Create(c,tx,ctx.User,input)))).WithTags("Payroll").WithSummary("Review approved invoices and classify company versus account deductions");
         api.MapPost("/pay/cycles/{id}/advance",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>View(c,tx,ctx.User,Advance(c,tx,ctx.User,id,input)))).WithTags("Payroll").WithSummary("Advance one gated stage or independently approve target payroll posting");
         api.MapGet("/pay/cycles/{id}/lines",(string id,HttpContext ctx)=>store.Read(c=>{var cycle=Store.Get(c,id,Kind)??throw new ApiError("الدورة غير موجودة.",404);Scope(ctx.User,cycle,"pay.view");string app=ctx.Request.Query["app"].ToString(),rider=ctx.Request.Query["rider"].ToString();return ApiPagination.Apply(Lines(c,null,id).Where(l=>(app==""||l.S("app")==app)&&(rider==""||l.S("rider")==rider)),ctx.Request.Query,true);})).WithTags("Payroll").WithSummary("Read scoped cycle calculations with formula evidence");
+        api.MapGet("/pay/cycles/{id}/pipeline",(string id,HttpContext ctx)=>store.Read(c=>Pipeline(c,null,ctx.User,id))).WithTags("Payroll").WithSummary("§40 per-rider stage amounts, stage-4 items, and company expense lines");
         api.MapGet("/pay/shared-riders",(string? period,HttpContext ctx)=>store.Read(c=>{AccessPolicy.Demand(ctx.User,"pay.view");if(!string.IsNullOrWhiteSpace(period))J.Period(period!);return Store.List(c,SharedRiderConsolidation.Kind).Where(d=>(period==null||period==""||d.S("period")==period)&&FinancialScopes.Sponsor(ctx.User,d.S("companyId"))).Select(SharedRiderConsolidation.QueueItem).ToList();})).WithTags("Payroll").WithSummary("Queue of shared multi-app riders awaiting consolidation (مندوب عمل مشترك)");
         api.MapPost("/pay/shared-riders/{rider}/{period}/release",(string rider,string period,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>SharedRiderConsolidation.Release(c,tx,ctx.User,rider,period,input.Required("reason")))).WithTags("Payroll").WithSummary("Approver releases a held shared rider with a reason");
     }

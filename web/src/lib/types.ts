@@ -182,6 +182,7 @@ export interface Submission {
   workSystem?: string;
   iban?: string;
   bank?: string;
+  bankCode?: string;
   platforms?: string[];
   status: 'pending' | 'approved' | 'rejected';
   isEdited?: boolean;
