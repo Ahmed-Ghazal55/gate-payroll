@@ -11,6 +11,16 @@ public static partial class PayCycles
         bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve"),mutable=state is "draft" or "review" or "needs_decision";
         if(mutable&&manage&&PayRunInputs.CaptureAllowed(cycle))actions.Add("capture_inputs");
         if(mutable&&manage&&!PayRunInputs.Captured(cycle))blockers.Add(CaptureInputsMissing);
+        // A7/R3: separate invalid Iqama vs unmatched rider counts (do not merge into one message).
+        int invalidIqama=(int)cycle.N("inputsCaptureInvalidIqama");
+        int unmatchedRider=(int)cycle.N("inputsCaptureUnmatchedRider");
+        if(cycle["inputsCaptureRejected"] is JsonArray rej)
+        {
+            if(invalidIqama<=0)invalidIqama=rej.OfType<JsonObject>().Where(r=>r.S("reason")=="invalid_identity").Sum(r=>(int)r.N("count"));
+            if(unmatchedRider<=0)unmatchedRider=rej.OfType<JsonObject>().Where(r=>r.S("reason")=="unmatched_rider").Sum(r=>(int)r.N("count"));
+        }
+        if(invalidIqama>0)blockers.Add($"مناديب برقم إقامة غير صالح في نظام الموارد: {invalidIqama}");
+        if(unmatchedRider>0)blockers.Add($"صفوف بلا مندوب مطابق في نظام الموارد: {unmatchedRider}");
         if(mutable&&manage){actions.Add("cancel");if(stage<6)actions.Add("advance");if(stage==6)actions.Add("review");}
         var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0).ToList();
         if(stage>=6&&(mutable||state=="partially_approved"))
@@ -27,7 +37,14 @@ public static partial class PayCycles
         if(state is "approved" or "partially_approved")
         {
             if(manage)actions.Add("review_debt_deductions");
-            if(approve&&Rows(cycle["riders"]).OfType<JsonObject>().Any(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed"&&AccessPolicy.Independent(actor,r.S("debtSelectedBy",cycle.S("createdBy")),"pay.debt_confirm",c,tx,cycle)))actions.Add("confirm_debt_deductions");
+            bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+            var pendingDebt=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed").ToList();
+            if(approve&&pendingDebt.Any(r=>AccessPolicy.IndependentForView(actor,r.S("debtSelectedBy",cycle.S("createdBy")),bypass)))
+            {
+                actions.Add("confirm_debt_deductions");
+                if(pendingDebt.All(r=>AccessPolicy.IndependentForView(actor,r.S("debtSelectedBy",cycle.S("createdBy")),bypass)))
+                    actions.Add("confirm_debt_deductions_all");
+            }
             if(manage)actions.Add("reversal_request");
         }
         result["allowedActions"]=actions;result["approvalBlockers"]=blockers;return result;

@@ -85,7 +85,10 @@ public sealed class ErpImportTests
         var account=Doc("platform_account");Assert.AreEqual(Identity(1),account.S("registeredRiderId"));Assert.AreEqual(Identity(2),account["assignments"]![0]!.S("riderId"));
         Assert.AreEqual("erp:city:city",Doc("housing").S("cityId"));Assert.AreEqual("erp:housing:housing",Doc("housing_residence").S("housingId"));
         Assert.AreEqual("erp:vehicle:vehicle",Doc("vehicle_assignment").S("vehicleId"));Assert.IsFalse(Doc("vehicle_assignment").B("isRealRider"));
-        Assert.AreEqual(2,plan.Documents.Count(d=>d.Kind=="custody_handover"));Assert.AreEqual(1,plan.Observations["october_custody_handover"]);Assert.AreEqual(1,plan.Observations["october_custody_return"]);
+        // A9b: EventType 5 (PermissionRenewed) is kept with direction permission_renewed, not dropped.
+        Assert.AreEqual(3,plan.Documents.Count(d=>d.Kind=="custody_handover"));
+        Assert.AreEqual(1,plan.Documents.Count(d=>d.Kind=="custody_handover"&&d.Body.S("direction")=="permission_renewed"));
+        Assert.AreEqual(1,plan.Observations["october_custody_handover"]);Assert.AreEqual(1,plan.Observations["october_custody_return"]);
         Assert.AreEqual(1,Doc("legal_case")["hearings"]!.AsArray().Count);Assert.AreEqual("synthetic-company",Doc("company").S("id"));
         Assert.IsFalse(SourceReader.Catalog.Any(t=>t.Fields.Contains("Password",StringComparison.OrdinalIgnoreCase)||t.Fields.Contains("UserName",StringComparison.OrdinalIgnoreCase)));
     }

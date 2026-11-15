@@ -67,14 +67,29 @@ public static class LiveOperationsSource
         return new(tables,DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,"selected_tables_read","selected");
     }
 
+    public sealed record PageProjection(IReadOnlyList<JsonObject> Documents,IReadOnlyList<(string Reason,int Count)> Rejected,string LastSourceId,int SourceRowCount);
+
     public static IReadOnlyList<JsonObject> Documents(SourceSnapshot snapshot,IReadOnlyList<ISyncSponsor> sponsors,string kind)
+        =>Project(snapshot,sponsors,kind).Documents;
+
+    /// <summary>Project one live page: kept docs, rejection counts, and the last source row Id read (A5/A7).</summary>
+    public static PageProjection Project(SourceSnapshot snapshot,IReadOnlyList<ISyncSponsor> sponsors,string kind)
     {
-        if(kind=="sponsorship_period")return [];
+        if(kind=="sponsorship_period")return new([],[],"",0);
+        string table=LiveOperationsQuery.MainTable(kind);
+        var sourceRows=snapshot.Tables.GetValueOrDefault(table)??[];
+        string lastSourceId=sourceRows.Count==0?"":sourceRows[^1].S("Id");
         var plan=ImportPlan.Build(snapshot,sponsors);
         // PullContracts emits fuel_usage_month; operations FieldMap + capture use fuel_usage (B2).
-        if(kind=="fuel_usage")
-            return plan.Documents.Where(d=>d.Kind=="fuel_usage_month").Select(d=>NormalizeFuelUsage(d.Body)).ToList();
-        return plan.Documents.Where(d=>d.Kind==kind).Select(d=>d.Body).ToList();
+        string planKind=kind=="fuel_usage"?"fuel_usage_month":kind;
+        var docs=plan.Documents.Where(d=>d.Kind==planKind).Select(d=>kind=="fuel_usage"?NormalizeFuelUsage(d.Body):d.Body).ToList();
+        var rejected=new List<(string,int)>();
+        if(plan.Rejected.TryGetValue(planKind,out var byReason))
+            foreach(var (reason,count) in byReason.OrderBy(kv=>kv.Key))rejected.Add((reason,count));
+        // Rider identity failures are stored under kind "rider" but drop related ops rows as unmatched_rider.
+        if(plan.Rejected.TryGetValue("rider",out var riderRejects)&&riderRejects.TryGetValue("invalid_identity",out int invalidIqama)&&invalidIqama>0)
+            rejected.Add(("invalid_identity",invalidIqama));
+        return new(docs,rejected,lastSourceId,sourceRows.Count);
     }
     /// <summary>Map ERP ReportMonth / TotalAmount shape onto Operations.FieldMap fuel_usage keys (month = yyyy-MM).</summary>
     static JsonObject NormalizeFuelUsage(JsonObject body)

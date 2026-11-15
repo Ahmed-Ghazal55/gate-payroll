@@ -1,0 +1,50 @@
+using System.Data.Common;
+using System.Security.Claims;
+using System.Text.Json.Nodes;
+namespace Payroll;
+
+/// <summary>Cash and bank balances per company from target CoA posting accounts only (no parent double-count; no receivables).</summary>
+public static class TreasurySummary
+{
+    public static JsonObject Build(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string? companyId)
+    {
+        AccessPolicy.Demand(actor,"treasury.view");
+        var posting=FinanceViews.Accounts.Where(a=>a.B("posting")&&a.S("status")=="active").ToList();
+        var lines=Store.List(c,"journal",tx).Where(FinanceViews.Posted).Where(j=>j.S("chart")=="target"||j.S("chart")=="")
+            .SelectMany(j=>(j["lines"] as JsonArray??[]).OfType<JsonObject>())
+            .Where(l=>FinancialScopes.Line(actor,l)).ToList();
+        var companies=string.IsNullOrWhiteSpace(companyId)
+            ?FinancialCore.Sponsors.Where(s=>FinancialScopes.Sponsor(actor,s.Id)).ToList()
+            :[FinancialCore.ResolveSponsor(companyId!)];
+        if(!string.IsNullOrWhiteSpace(companyId))FinancialScopes.DemandSponsor(actor,companies[0].Id);
+        var rows=new JsonArray();
+        foreach(var company in companies)
+        {
+            var sp=lines.Where(l=>l.S("sponsorId")==company.Id).ToList();
+            decimal Balance(Func<JsonObject,bool> accountFilter)
+            {
+                var codes=posting.Where(accountFilter).Select(a=>a.S("code")).ToHashSet(StringComparer.Ordinal);
+                return J.Money(sp.Where(l=>codes.Contains(l.S("accountCode"))).Sum(l=>l.N("debit")-l.N("credit")));
+            }
+            // Treasury = money the company holds: posting accounts typed cash or bank in the chart of accounts.
+            // Receivables, rider advances and other assets are NOT treasury and are not added to the total.
+            decimal cash=Balance(a=>a.S("type")=="cash");
+            decimal bank=Balance(a=>a.S("type")=="bank");
+            rows.Add(new JsonObject
+            {
+                ["companyId"]=company.Id,["code"]=company.Code,["nameAr"]=company.ShortNameAr,
+                ["cash"]=cash,["bank"]=bank,["total"]=J.Money(cash+bank)
+            });
+        }
+        return new(){["companies"]=rows,["totals"]=new JsonObject{
+            ["cash"]=J.Money(rows.OfType<JsonObject>().Sum(r=>r.N("cash"))),
+            ["bank"]=J.Money(rows.OfType<JsonObject>().Sum(r=>r.N("bank"))),
+            ["total"]=J.Money(rows.OfType<JsonObject>().Sum(r=>r.N("total")))
+        }};
+    }
+    public static void Map(RouteGroupBuilder api,Store store)
+    {
+        api.MapGet("/finance/treasury/summary",(string? companyId,HttpContext ctx)=>store.Read(c=>Build(c,null,ctx.User,companyId)))
+            .WithTags("Banks and treasury").WithSummary("Cash and bank balances per company from posting CoA accounts only");
+    }
+}

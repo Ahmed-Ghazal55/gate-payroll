@@ -248,7 +248,7 @@ public static class PullContracts
                 ["riderId"]=rider,["companyId"]=company,["platformCode"]=platformCode,
                 ["platformAccountId"]=Key("platform_account",account.S("Id")),["accountCode"]=account.S("Code"),["externalAccountId"]=account.S("ExternalAccountId"),
                 ["effectiveFrom"]=row.S("EffectiveFrom"),["effectiveTo"]=row.S("EffectiveTo"),
-                ["paymentModelCode"]=row["PaymentModel"]?.DeepClone(),["slot"]=row["RiderAccountSlot"]?.DeepClone(),["ninjaRiderTypeCode"]=row["NinjaRiderType"]?.DeepClone(),
+                ["paymentModelCode"]=row["PaymentModel"]?.DeepClone(),["slot"]=row["RiderAccountSlot"]?.DeepClone(),["compensationModel"]=row["CompensationModel"]?.DeepClone(),["ninjaRiderTypeCode"]=row["NinjaRiderType"]?.DeepClone(),
                 ["endReasonCode"]=lastEvent?["ToStatus"]?.DeepClone(),["endReason"]=lastEvent?.S("Reason")??"",
                 ["nextRiderId"]=next==null?"":Rider(next),["nextAssignmentSourceId"]=next?.S("Id")??"",
                 ["days"]=days,["cancelledOrders"]=null,["eligibility"]=null

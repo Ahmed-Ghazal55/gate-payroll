@@ -45,9 +45,12 @@ try {
  const draft=await call('/api/pay/review-draft?app=ninja&period=2026-10&companyId='+company);
  const draftSchema=saved.paths['/api/pay/review-draft'].get.responses['200'].content['application/json'].schema;
  const validateDraft=ajv.compile(draftSchema);assert.ok(validateDraft(draft),JSON.stringify(validateDraft.errors));assert.ok(draft.blockers.length>0);assert.equal(draft.canCreate,false);checks++;
- for(const [url,path]of [['/api/pay/cycles/syn-r8-cycle/debt-deductions','/api/pay/cycles/{id}/debt-deductions'],['/api/pay/cycles/syn-r8-cycle/unrecovered-costs','/api/pay/cycles/{id}/unrecovered-costs'],['/api/pay/cycles/syn-r8-cycle/review','/api/pay/cycles/{id}/review'],['/api/finance/statement/rider/2000000001/monthly?period=2026-10','/api/finance/statement/rider/{iqama}/monthly']]){
+ for(const [url,path]of [['/api/pay/cycles/syn-r8-cycle/debt-deductions','/api/pay/cycles/{id}/debt-deductions'],['/api/pay/cycles/syn-r8-cycle/unrecovered-costs','/api/pay/cycles/{id}/unrecovered-costs'],['/api/pay/cycles/syn-r8-cycle/review','/api/pay/cycles/{id}/review'],['/api/pay/cycles/syn-r8-cycle/pipeline','/api/pay/cycles/{id}/pipeline'],['/api/finance/statement/rider/2000000001/monthly?period=2026-10','/api/finance/statement/rider/{iqama}/monthly'],['/api/pay/shared-riders','/api/pay/shared-riders'],['/api/finance/treasury/summary','/api/finance/treasury/summary'],['/api/platforms/ninja/invoices/syn-r8-invoice/multi-rider-deductions','/api/platforms/ninja/invoices/{id}/multi-rider-deductions']]){
   const value=await call(url),schema=saved.paths[path].get.responses['200'].content['application/json'].schema,validate=ajv.compile(schema);assert.ok(validate(value),path+': '+JSON.stringify(validate.errors));checks++;
  }
+ assert.ok(doc.paths['/api/pay/cycles/{id}/pipeline']?.get,'pipeline in OpenAPI');checks++;
+ assert.ok(doc.paths['/api/finance/treasury/summary']?.get,'treasury summary in OpenAPI');checks++;
+ assert.ok(doc.paths['/api/platforms/ninja/invoices/{id}/multi-rider-deductions']?.get?.responses?.['200']?.content?.['application/json']?.schema?.properties?.multiRiderRows,'multi-rider schema is counts not invoice');checks++;
  for(const app of ["ninja","keeta"]){
   const route="/api/platforms/"+app+"/invoices/syn-discard-"+app;const before=await call(route);assert.ok(before.allowedActions.includes("discard"));
   const discarded=await call(route+"/discard",{reason:"Synthetic source replacement"}),schema=saved.paths["/api/platforms/"+app+"/invoices/{id}/discard"].post.responses["200"].content["application/json"].schema;assert.ok(ajv.compile(schema)(discarded));assert.equal(discarded.status,"discarded");assert.deepEqual(discarded.allowedActions,[]);checks++;

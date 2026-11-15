@@ -33,7 +33,8 @@ public sealed class LiveOperationsQueryTests
         var page=new LiveOperationsQuery.PageRequest(1,25,"id","",0,25);
         var vehicle=LiveOperationsQuery.PreviewSql("vehicle",OneCompany,page);
         Assert.IsTrue(vehicle.CountSql.Contains("@cr0",StringComparison.Ordinal));
-        Assert.IsTrue(vehicle.CountSql.Contains("CommercialRegistrationNumber",StringComparison.Ordinal));
+        Assert.IsTrue(vehicle.CountSql.Contains("UnifiedNationalNumber",StringComparison.Ordinal));
+        Assert.IsFalse(vehicle.CountSql.Contains("CommercialRegistrationNumber",StringComparison.Ordinal));
         var residence=LiveOperationsQuery.PreviewSql("housing_residence",OneCompany,page);
         Assert.IsTrue(residence.CountSql.Contains("@e0",StringComparison.Ordinal)||residence.CountSql.Contains("EmployeeId",StringComparison.Ordinal));
         var open=LiveOperationsQuery.PreviewSql("vehicle",All,page);
@@ -70,7 +71,7 @@ public sealed class LiveOperationsQueryTests
     [TestMethod]
     public void PlatformLimitAppliesInSqlToEveryNonAdministrator()
     {
-        var allButLimited=new LiveOperationsQuery.Scope(true,[],[],[],["ninja"],PlatformRestricted:true);
+        var allButLimited=new LiveOperationsQuery.Scope(true,[],[],[],["NINJA"],PlatformRestricted:true);
         StringAssert.Contains(LiveOperationsQuery.PreviewSql("platform_account",allButLimited,Page1).CountSql,"cp.[Code] IN (@pc0)");
         var noPlatforms=new LiveOperationsQuery.Scope(true,[],[],[],[],PlatformRestricted:true);
         StringAssert.Contains(LiveOperationsQuery.PreviewSql("platform_account",noPlatforms,Page1).CountSql,"1=0");

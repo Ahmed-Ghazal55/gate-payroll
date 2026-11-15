@@ -98,6 +98,102 @@ public sealed class PayRunInputTests
     }
 
     [TestMethod]
+    public void NinjaCaptureSucceedsWithZeroOptionalDeductionRows()
+    {
+        // R1: ninja_daily_deduction and platform_day_usage are captured but not required.
+        using var f=new PayFixture();
+        PayCycleTests.ConfigureAdjustments(f);
+        f.Approve("pay_setting","global",f.Global());
+        string company=FinancialCore.Sponsors[0].Id,period="2026-10",rider=Rider(1);
+        f.Approve("pay_terms","ninja",f.Draft("pay_terms","ninja",PayFixture.Terms()));
+        var eligibility=f.Approve("pay_eligibility","ninja",f.Draft("pay_eligibility","ninja",PayFixture.Eligibility()));
+        var schemeData=PayFixture.Scheme("percent_of_gross",eligibility.S("id"));schemeData["accountingRole"]="principal";
+        var scheme=f.Approve("pay_scheme","ninja",f.Draft("pay_scheme","ninja",schemeData,"synthetic"));
+        f.Store.Write((c,tx)=>
+        {
+            Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic ninja rider",["isDeliveryRider"]=true,["sponsorId"]=company,["status"]="Active"},tx);
+            Store.Save(c,"pay_assignment",new(){["id"]="synthetic-ninja-choice",["rider"]=rider,["app"]="ninja",["period"]=period,["status"]="approved",["schemeId"]=scheme.S("id"),["choiceApprovedAt"]="2026-09-29T00:00:00.0000000+00:00"},tx);
+            Store.Save(c,"platform_account",new(){["id"]="syn-ninja-acc",["companyId"]=company,["platformCode"]="ninja",["assignments"]=new JsonArray(new JsonObject{["riderId"]=rider,["RawEffectiveFrom"]="2026-10-01T00:00:00Z"})},tx);
+            Store.Save(c,"platform_invoice",new(){["id"]="syn-ninja-inv",["companyId"]=company,["platform"]=PayPlatforms.For("ninja").Platform,["period"]=period,["approvalStatus"]="approved",["amountExclVat"]=100,["vat"]=15,["deductionsTotal"]=0},tx);
+            Store.Save(c,"platform_invoice_line",new(){["id"]="syn-ninja-line",["invoiceId"]="syn-ninja-inv",["platformAccountId"]="syn-ninja-acc",["lineType"]="rider"},tx);
+            PlatformPosting.Set(c,tx,PayFixture.Maker,"ninja",new(){["enabled"]=true});
+            return true;
+        });
+        var input=new JsonObject
+        {
+            ["period"]=period,["companyId"]=company,
+            ["invoices"]=new JsonArray(new JsonObject
+            {
+                ["app"]="ninja",["invoiceId"]="syn-ninja-inv",
+                ["accounts"]=new JsonArray(new JsonObject{["accountId"]="syn-ninja-acc",["sourceLineId"]="syn-ninja-line",["baseGross"]=100,["incentives"]=0,["orders"]=10,["riders"]=new JsonArray(new JsonObject{["rider"]=rider,["orders"]=10,["baseGross"]=100,["deduction"]=0,["category"]="sponsored_private",["days"]=1,["metrics"]=new JsonObject()})}),
+                ["deductions"]=new JsonArray()
+            })
+        };
+        var cycle=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input));
+        string id=cycle.S("id");
+        var staged=new Dictionary<string,List<JsonObject>>(StringComparer.Ordinal)
+        {
+            ["platform_account"]=[new(){["id"]="syn-ninja-acc",["companyId"]=company,["platformCode"]="ninja",["assignments"]=new JsonArray(new JsonObject{["riderId"]=rider,["RawEffectiveFrom"]="2026-10-01T00:00:00Z"})}],
+            ["ninja_daily"]=[new(){["id"]="nd1",["companyId"]=company,["platformAccountId"]="syn-ninja-acc",["riderId"]=rider,["date"]="2026-10-05",["orders"]=2}],
+            ["ninja_daily_deduction"]=[],
+            ["rider_work_timeline"]=[new(){["id"]="tl1",["riderId"]=rider,["companyId"]=company,["platformCode"]="ninja",["effectiveFrom"]="2026-10-01T00:00:00+03:00",["effectiveTo"]=""}],
+            ["platform_day_usage"]=[],
+            ["vehicle_assignment"]=[new(){["id"]="va1",["riderId"]=rider,["vehicleId"]="v1",["startedAt"]="2026-10-01T00:00:00+03:00",["endedAt"]=""}],
+            ["vehicle"]=[new(){["id"]="v1",["vehicleType"]=1,["ownershipType"]=1}],
+            ["vehicle_expense"]=[],
+            ["housing_residence"]=[],
+            ["fuel_usage"]=[]
+        };
+        Func<string,IEnumerable<JsonObject>> live=kind=>staged.TryGetValue(kind,out var rows)?rows:Array.Empty<JsonObject>();
+        var ok=f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,liveRows:live));
+        Assert.AreEqual(0m,ok["counts"]!.AsObject().N("ninja_daily_deduction"));
+        Assert.AreEqual(0m,ok["counts"]!.AsObject().N("platform_day_usage"));
+        Assert.IsTrue(ok["counts"]!.AsObject().N("ninja_daily")>=1);
+        Assert.IsNull(f.Store.Read(c=>Store.Get(c,id,PayCycles.Kind)!["inputsCaptureGaps"]));
+    }
+
+    [TestMethod]
+    public void CaptureIgnoresClientRejectedAndStoresServerRejected()
+    {
+        // R2: rejected must not travel through the request body.
+        var(f,input,_)=PayCycleTests.Setup(false);using(f)
+        {
+            var cycle=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input));
+            string id=cycle.S("id");
+            var clientRejected=new JsonArray(new JsonObject{["reason"]="invalid_identity",["count"]=99});
+            var capture=f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,
+                input:new(){["rejected"]=clientRejected,["zeroKindReasons"]=new JsonObject{["vehicle_assignment"]="fixture",["rider_work_timeline"]="fixture",["platform_day_usage"]="fixture",["vehicle_expense"]="fixture",["ninja_daily"]="fixture",["ninja_daily_deduction"]="fixture",["fuel_usage"]="fixture"}},
+                rejected:[("invalid_identity",3),("unmatched_rider",2)]));
+            Assert.IsNotNull(capture["rejected"]);
+            Assert.AreEqual(3m,capture["rejected"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("reason")=="invalid_identity").N("count"));
+            Assert.AreEqual(2m,capture["rejected"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("reason")=="unmatched_rider").N("count"));
+            var stored=f.Store.Read(c=>Store.Get(c,id,PayCycles.Kind)!);
+            Assert.AreEqual(3m,stored.N("inputsCaptureInvalidIqama"));
+            Assert.AreEqual(2m,stored.N("inputsCaptureUnmatchedRider"));
+            Assert.IsFalse(stored["inputsCaptureRejected"]!.AsArray().OfType<JsonObject>().Any(r=>(int)r.N("count")==99));
+        }
+    }
+
+    [TestMethod]
+    public void ViewShowsSeparateInvalidIqamaAndUnmatchedRiderBlockers()
+    {
+        // R3: two distinct blocker messages with their own counts.
+        var(f,input,_)=PayCycleTests.Setup(false);using(f)
+        {
+            var cycle=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,input));
+            string id=cycle.S("id");
+            f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,
+                input:new(){["zeroKindReasons"]=new JsonObject{["vehicle_assignment"]="fixture",["rider_work_timeline"]="fixture",["platform_day_usage"]="fixture",["vehicle_expense"]="fixture",["ninja_daily"]="fixture",["ninja_daily_deduction"]="fixture",["fuel_usage"]="fixture"}},
+                rejected:[("invalid_identity",7),("unmatched_rider",4)]));
+            var view=f.Store.Read(c=>PayCycles.View(c,null,PayFixture.Maker,Store.Get(c,id,PayCycles.Kind)!));
+            var blockers=view["approvalBlockers"]!.AsArray().Select(b=>b!.GetValue<string>()).ToList();
+            Assert.IsTrue(blockers.Any(b=>b.Contains("إقامة غير صالح",StringComparison.Ordinal)&&b.Contains("7",StringComparison.Ordinal)),string.Join("|",blockers));
+            Assert.IsTrue(blockers.Any(b=>b.Contains("بلا مندوب مطابق",StringComparison.Ordinal)&&b.Contains("4",StringComparison.Ordinal)),string.Join("|",blockers));
+            Assert.IsFalse(blockers.Any(b=>b.Contains("11",StringComparison.Ordinal)),"counts must not be summed into one message");
+        }
+    }
+
+    [TestMethod]
     public void RequiredKindZeroNeedsReason()
     {
         var(f,input,_)=PayCycleTests.Setup(false);using(f)
@@ -152,12 +248,18 @@ public sealed class PayRunInputTests
                 ["vehicle_assignment"]=[new(){["id"]="va-s",["riderId"]=Rider(1),["vehicleId"]="v1",["startedAt"]="2026-10-01T00:00:00+03:00",["endedAt"]=""}],
                 ["housing_residence"]=[],
                 ["vehicle"]=[new(){["id"]="v1",["vehicleType"]=1,["ownershipType"]=1}],
-                ["fuel_usage"]=[]
+                ["fuel_usage"]=[],
+                ["rider_work_timeline"]=[],
+                ["platform_day_usage"]=[],
+                ["vehicle_expense"]=[],
+                ["ninja_daily"]=[],
+                ["ninja_daily_deduction"]=[]
             };
-            Func<string,IEnumerable<JsonObject>> live=kind=>staged[kind];
-            var a=f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,liveRows:live));
+            Func<string,IEnumerable<JsonObject>> live=kind=>staged.TryGetValue(kind,out var rows)?rows:Array.Empty<JsonObject>();
+            JsonObject Reasons()=>new(){["vehicle_assignment"]="fixture",["rider_work_timeline"]="fixture",["platform_day_usage"]="fixture",["vehicle_expense"]="fixture",["ninja_daily"]="fixture",["ninja_daily_deduction"]="fixture",["fuel_usage"]="fixture"};
+            var a=f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,id,liveRows:live,input:new(){["zeroKindReasons"]=Reasons()}));
             f.Store.Write((c,tx)=>{var cy=Store.Get(c,id,PayCycles.Kind,tx)!;cy.Remove("inputsCapturedAt");cy["stage"]=1;Store.Save(c,PayCycles.Kind,cy,tx);return true;});
-            var b=f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Checker,id,liveRows:live));
+            var b=f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Checker,id,liveRows:live,input:new(){["zeroKindReasons"]=Reasons()}));
             Assert.AreEqual(a["counts"]!.ToJsonString(),b["counts"]!.ToJsonString());
         }
     }

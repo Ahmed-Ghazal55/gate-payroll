@@ -174,7 +174,7 @@ MobileSessions.Map(app, api, store);
 RiderAsks.Map(app, api, store);
 PushNotifications.Map(app, api, store);
 FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
-FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);
+FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);TreasurySummary.Map(api,store);
 TreasuryEntries.Map(api,store);
 ManualJournals.Map(api,store);
 MadaAccounting.Map(api,store);

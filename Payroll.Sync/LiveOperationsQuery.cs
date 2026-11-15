@@ -23,10 +23,12 @@ public static class LiveOperationsQuery
     /// <param name="AfterId">Keyset cursor: when set, page uses <c>Id &gt; @after</c> (or &lt; for <c>-id</c>) instead of OFFSET.</param>
     public sealed record PageRequest(int Page,int PageSize,string Sort,string Query,int Skip,int Take,string QueryAlt="",string PeriodFrom="",string PeriodTo="",string PlatformApp="",string AfterId="");
     /// <param name="PlatformRestricted">True for non-administrators: platform_account rows are limited to <paramref name="PlatformCodes"/> (empty = none).</param>
-    public sealed record Scope(bool AllCompanies,IReadOnlyList<string> SponsorCommercialRegs,IReadOnlyList<string> EmployeeIds,IReadOnlyList<string> RiderProfileIds,IReadOnlyList<string> PlatformCodes,string? RiderAccountEmployeeId=null,IReadOnlyList<string>? RiderAccountProfileIds=null,bool PlatformRestricted=false);
+    public sealed record Scope(bool AllCompanies,IReadOnlyList<string> SponsorUnifiedNumbers,IReadOnlyList<string> EmployeeIds,IReadOnlyList<string> RiderProfileIds,IReadOnlyList<string> PlatformCodes,string? RiderAccountEmployeeId=null,IReadOnlyList<string>? RiderAccountProfileIds=null,bool PlatformRestricted=false);
     public sealed record PageResult(SourceSnapshot Snapshot,long Total,PageRequest Request,DateTimeOffset AsOf);
     public sealed record ParentNeed(string Schema,string Table,string KeyColumn,Func<JsonObject,string> IdFromRow);
-    sealed record KindSpec(string Kind,string Schema,string Table,string[] Columns,string[] SearchColumns,string? CompanyColumn,string? RiderEmployeeColumn,string? RiderProfileColumn,bool ViaVehicleSponsor,bool ViaPlatformAccountSponsor,bool HousingByResidence,bool PlatformCodeJoin,ParentNeed[] Parents);
+    /// <param name="PeriodDateColumn">Inclusive period start column on the kind's table. Required when a period filter is applied — never a guessed name.</param>
+    /// <param name="PeriodEndColumn">Optional period end (open-ended intervals). Compared on the Riyadh calendar day when <paramref name="PeriodOnRiyadhDay"/> is true.</param>
+    sealed record KindSpec(string Kind,string Schema,string Table,string[] Columns,string[] SearchColumns,string? CompanyColumn,string? RiderEmployeeColumn,string? RiderProfileColumn,bool ViaVehicleSponsor,bool ViaPlatformAccountSponsor,bool HousingByResidence,bool PlatformCodeJoin,ParentNeed[] Parents,string? PeriodDateColumn=null,string? PeriodEndColumn=null,bool PeriodOnRiyadhDay=false);
 
     static SourceTable Table(string schema,string name)
     {
@@ -47,11 +49,11 @@ public static class LiveOperationsQuery
         Add(new("housing","app","Housing",Cols("app","Housing"),["Code","NameAr","NameEn"],null,null,null,false,false,true,false,[
             P("app","HousingFloors",r=>r.S("Id")),P("app","HousingRooms",r=>r.S("Id")),P("app","HousingExternalOccupants",r=>r.S("Id")),P("app","HousingResidencePeriods",r=>r.S("Id"))]));
         Add(new("housing_residence","app","HousingResidencePeriods",Cols("app","HousingResidencePeriods"),[],null,"EmployeeId",null,false,false,false,false,[
-            P("app","HousingRooms",r=>r.S("RoomId")),P("app","Housing",r=>"" )]));
+            P("app","HousingRooms",r=>r.S("RoomId")),P("app","Housing",r=>"" )],PeriodDateColumn:"EffectiveFrom",PeriodEndColumn:"EffectiveTo"));
         Add(new("vehicle","app","Vehicles",Cols("app","Vehicles"),["AssetNumber","SerialNumber","PlateNumberAr","PlateNumberEn","Vin","ChassisNumber"],"SponsorId",null,null,false,false,false,false,[
             P("app","VehicleRegistrations",r=>r.S("Id")),P("app","VehicleInsurancePolicies",r=>r.S("Id"))]));
         Add(new("vehicle_assignment","app","RiderVehicleAssignments",Cols("app","RiderVehicleAssignments"),[],null,null,"RiderProfileId",false,false,false,false,[
-            P("app","Vehicles",r=>r.S("VehicleId")),P("app","RealRiders",r=>r.S("Id"))]));
+            P("app","Vehicles",r=>r.S("VehicleId")),P("app","RealRiders",r=>r.S("Id"))],PeriodDateColumn:"StartedAtUtc",PeriodEndColumn:"EndedAtUtc",PeriodOnRiyadhDay:true));
         Add(new("custody_handover","app","RiderVehicleAssignmentEvents",Cols("app","RiderVehicleAssignmentEvents"),[],null,null,null,false,false,false,false,[
             P("app","RiderVehicleAssignments",r=>r.S("RiderVehicleAssignmentId")),P("app","Vehicles",r=>""),P("app","RealRiders",r=>"")]));
         Add(new("legal_case","app","HrLegalCases",Cols("app","HrLegalCases"),["CaseNumber","PersonName","Details"],"SponsorId","EmployeeId","RiderProfileId",false,false,false,false,[
@@ -61,35 +63,35 @@ public static class LiveOperationsQuery
         Add(new("vehicle_operational_status","app","VehicleOperationalStatusPeriods",Cols("app","VehicleOperationalStatusPeriods"),["Status","Reason","ReasonCode"],null,null,null,true,false,false,false,[
             P("app","Vehicles",r=>r.S("VehicleId"))]));
         Add(new("platform_day_usage","app","PlatformAccountDayUsages",Cols("app","PlatformAccountDayUsages"),[],null,null,null,false,true,false,false,[
-            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("app","RiderClientAssignments",r=>r.S("RiderClientAssignmentId")),P("platform","ClientPlatforms",r=>"")]));
+            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("app","RiderClientAssignments",r=>r.S("RiderClientAssignmentId")),P("platform","ClientPlatforms",r=>"")],PeriodDateColumn:"BusinessDate"));
         Add(new("rider_work_timeline","app","RiderClientAssignments",Cols("app","RiderClientAssignments"),[],null,null,"RiderProfileId",false,true,false,true,[
-            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("platform","ClientPlatforms",r=>""),P("app","RiderAssignmentEvents",r=>r.S("Id")),P("app","PlatformAccountDayUsages",r=>r.S("Id"))]));
+            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("platform","ClientPlatforms",r=>""),P("app","RiderAssignmentEvents",r=>r.S("Id")),P("app","PlatformAccountDayUsages",r=>r.S("Id"))],PeriodDateColumn:"EffectiveFrom",PeriodEndColumn:"EffectiveTo"));
         Add(new("custody_equipment","maintenance","RiderInventoryIssues",Cols("maintenance","RiderInventoryIssues"),["IssueNumber"],null,null,"RiderProfileId",false,false,false,false,[
             P("maintenance","RiderInventoryIssueLines",r=>r.S("Id"))]));
         Add(new("vehicle_expense","maintenance","VehicleExpenses",Cols("maintenance","VehicleExpenses"),[],null,null,"RiderProfileId",true,false,false,false,[
             P("app","Vehicles",r=>r.S("VehicleId"))]));
         // §40.4 fuel capture: FuelCardMonthlyUsages + card→rider assignments (scope via RiderProfileId).
         Add(new("fuel_usage","app","FuelCardMonthlyUsages",Cols("app","FuelCardMonthlyUsages"),["FuelType"],null,null,"RiderProfileId",false,false,false,false,[
-            P("app","FuelCards",r=>r.S("FuelCardId")),P("app","FuelCardRiderAssignments",r=>r.S("FuelCardId"))]));
+            P("app","FuelCards",r=>r.S("FuelCardId")),P("app","FuelCardRiderAssignments",r=>r.S("FuelCardId"))],PeriodDateColumn:"ReportMonth"));
         Add(new("chefz_account","chefz","AccountDetails",Cols("chefz","AccountDetails"),["ReportIdNumber","AccountType","VehicleType","DashboardStatus"],null,null,null,false,true,false,false,[
             P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("platform","ClientPlatforms",r=>"")]));
         Add(new("chefz_account_type_change","chefz","AccountTypeChanges",Cols("chefz","AccountTypeChanges"),[],null,null,null,false,true,false,false,[
             P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId"))]));
         Add(new("chefz_daily","chefz","DailyPerformance",Cols("chefz","DailyPerformance"),[],null,null,"RiderProfileId",false,true,false,false,[
-            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("app","RiderClientAssignments",r=>r.S("RiderClientAssignmentId"))]));
+            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("app","RiderClientAssignments",r=>r.S("RiderClientAssignmentId"))],PeriodDateColumn:"ReportDate"));
         Add(new("chefz_settlement","chefz","WalletSettlements",Cols("chefz","WalletSettlements"),[],null,null,"RiderProfileId",false,true,false,false,[
             P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("app","RiderClientAssignments",r=>r.S("RiderClientAssignmentId"))]));
         Add(new("chefz_order_row","chefz","ImportedOrderRows",Cols("chefz","ImportedOrderRows"),["OrderId"],null,null,null,false,true,false,false,[
-            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("app","RiderClientAssignments",r=>r.S("RiderClientAssignmentId"))]));
+            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("app","RiderClientAssignments",r=>r.S("RiderClientAssignmentId"))],PeriodDateColumn:"BusinessDate"));
         Add(new("ninja_daily","ninja","NinjaDailyPerformance",Cols("ninja","NinjaDailyPerformance"),["CaptainId"],null,null,"RiderProfileId",false,true,false,false,[
-            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("app","RiderClientAssignments",r=>r.S("RiderClientAssignmentId"))]));
+            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("app","RiderClientAssignments",r=>r.S("RiderClientAssignmentId"))],PeriodDateColumn:"ReportDate"));
         Add(new("ninja_daily_deduction","ninja","NinjaDailyDeductions",Cols("ninja","NinjaDailyDeductions"),["CaptainId"],null,null,"RiderProfileId",false,true,false,false,[
-            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("app","RiderClientAssignments",r=>r.S("RiderClientAssignmentId"))]));
+            P("app","PlatformRiderAccounts",r=>r.S("PlatformRiderAccountId")),P("app","RiderClientAssignments",r=>r.S("RiderClientAssignmentId"))],PeriodDateColumn:"ReportDate"));
         Add(new("ninja_evaluation_snapshot","ninja","EvaluationSnapshots",Cols("ninja","EvaluationSnapshots"),["Reason"],null,null,null,false,false,false,false,[]));
         Add(new("jahez_commission_policy","jahez_v2","CommissionPolicies",Cols("jahez_v2","CommissionPolicies"),[],null,null,null,false,false,false,false,[
             P("jahez_v2","AccountSessions",r=>r.S("HandoverId")),P("app","PlatformRiderAccounts",r=>"")]));
         Add(new("jahez_daily_order","jahez_v2","DailyOrders",Cols("jahez_v2","DailyOrders"),[],null,null,null,false,false,false,false,[
-            P("jahez_v2","AccountSessions",r=>r.S("HandoverId")),P("app","PlatformRiderAccounts",r=>"")]));
+            P("jahez_v2","AccountSessions",r=>r.S("HandoverId")),P("app","PlatformRiderAccounts",r=>"")],PeriodDateColumn:"Date"));
         return map;
     }
 
@@ -217,23 +219,23 @@ public static class LiveOperationsQuery
 
         if(!scope.AllCompanies)
         {
-            if(scope.SponsorCommercialRegs.Count==0&&spec.Kind is not ("city" or "ninja_evaluation_snapshot"))
+            if(scope.SponsorUnifiedNumbers.Count==0&&spec.Kind is not ("city" or "ninja_evaluation_snapshot"))
                 parts.Add("1=0");
             else if(spec.Kind=="custody_handover")
             {
                 // S1: a handover is visible only through its assignment: vehicle in the user's companies AND rider in scope (as Operations.Visible did).
                 needsSponsors=true;
-                var regs=InList(cmd,"@cr",scope.SponsorCommercialRegs);
+                var regs=InList(cmd,"@cr",scope.SponsorUnifiedNumbers);
                 string riderFilter=scope.RiderProfileIds.Count==0?"1=0":$"a.[RiderProfileId] IN ({InList(cmd,"@rp",scope.RiderProfileIds)})";
-                parts.Add($"EXISTS (SELECT 1 FROM [app].[RiderVehicleAssignments] a INNER JOIN [app].[Vehicles] av ON av.[Id]=a.[VehicleId] WHERE a.[Id]=t.[RiderVehicleAssignmentId] AND av.[SponsorId] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[CommercialRegistrationNumber] IN ({regs})) AND {riderFilter})");
+                parts.Add($"EXISTS (SELECT 1 FROM [app].[RiderVehicleAssignments] a INNER JOIN [app].[Vehicles] av ON av.[Id]=a.[VehicleId] WHERE a.[Id]=t.[RiderVehicleAssignmentId] AND av.[SponsorId] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[UnifiedNationalNumber] IN ({regs})) AND {riderFilter})");
             }
             else if(spec.Kind=="vehicle_assignment")
             {
                 // S1: rider in scope AND the vehicle belongs to one of the user's companies.
                 needsSponsors=true;
-                var regs=InList(cmd,"@cr",scope.SponsorCommercialRegs);
+                var regs=InList(cmd,"@cr",scope.SponsorUnifiedNumbers);
                 string riderFilter=scope.RiderProfileIds.Count==0?"1=0":$"t.[RiderProfileId] IN ({InList(cmd,"@rp",scope.RiderProfileIds)})";
-                parts.Add($"({riderFilter} AND EXISTS (SELECT 1 FROM [app].[Vehicles] av WHERE av.[Id]=t.[VehicleId] AND av.[SponsorId] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[CommercialRegistrationNumber] IN ({regs}))))");
+                parts.Add($"({riderFilter} AND EXISTS (SELECT 1 FROM [app].[Vehicles] av WHERE av.[Id]=t.[VehicleId] AND av.[SponsorId] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[UnifiedNationalNumber] IN ({regs}))))");
             }
             else if(spec.HousingByResidence)
             {
@@ -247,20 +249,20 @@ public static class LiveOperationsQuery
             else if(spec.CompanyColumn!=null)
             {
                 needsSponsors=true;
-                var regs=InList(cmd,"@cr",scope.SponsorCommercialRegs);
-                parts.Add($"{prefix}[{spec.CompanyColumn}] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[CommercialRegistrationNumber] IN ({regs}))");
+                var regs=InList(cmd,"@cr",scope.SponsorUnifiedNumbers);
+                parts.Add($"{prefix}[{spec.CompanyColumn}] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[UnifiedNationalNumber] IN ({regs}))");
             }
             else if(spec.ViaVehicleSponsor)
             {
                 needsSponsors=true;
-                var regs=InList(cmd,"@cr",scope.SponsorCommercialRegs);
-                parts.Add($"v.[SponsorId] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[CommercialRegistrationNumber] IN ({regs}))");
+                var regs=InList(cmd,"@cr",scope.SponsorUnifiedNumbers);
+                parts.Add($"v.[SponsorId] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[UnifiedNationalNumber] IN ({regs}))");
             }
             else if(spec.ViaPlatformAccountSponsor||spec.Kind is "jahez_commission_policy" or "jahez_daily_order")
             {
                 needsSponsors=true;
-                var regs=InList(cmd,"@cr",scope.SponsorCommercialRegs);
-                parts.Add($"pa.[SponsorId] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[CommercialRegistrationNumber] IN ({regs}))");
+                var regs=InList(cmd,"@cr",scope.SponsorUnifiedNumbers);
+                parts.Add($"pa.[SponsorId] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[UnifiedNationalNumber] IN ({regs}))");
             }
             else if(spec.RiderEmployeeColumn!=null||spec.RiderProfileColumn!=null)
             {
@@ -298,7 +300,8 @@ public static class LiveOperationsQuery
                 :new[]{$"{prefix}[{c}] LIKE @q ESCAPE '\\'"}))+")");
         }
 
-        if(spec.Kind=="custody_handover")parts.Add($"{prefix}[EventType] IN (1,2,3,4)");
+        // ERP RiderVehicleAssignmentEventType: Taken=1 Returned=2 SwitchedOut=3 SwitchedIn=4 PermissionRenewed=5 (A9b).
+        if(spec.Kind=="custody_handover")parts.Add($"{prefix}[EventType] IN (1,2,3,4,5)");
 
         if(spec.Kind=="platform_account"&&scope.RiderAccountEmployeeId is {Length:>0} empKey)
         {
@@ -312,35 +315,35 @@ public static class LiveOperationsQuery
             }
         }
 
-        // Capture period filters (L2): widen by one day on each side for timezone/edge rows.
-        if(page.PeriodFrom.Length>0&&page.PeriodTo.Length>0)
+        // Capture period filters: only the kind's declared date column (A1/A2). No guessed [Date]/[StartedAt].
+        // Kinds without a period column ignore the request (e.g. vehicle keyed by assignment ids).
+        if(page.PeriodFrom.Length>0&&page.PeriodTo.Length>0&&spec.PeriodDateColumn is {Length:>0} col)
         {
             Add(cmd,"@pf",page.PeriodFrom);Add(cmd,"@pt",page.PeriodTo);
-            if(spec.Kind is "ninja_daily" or "ninja_daily_deduction" or "chefz_daily" or "chefz_order_row" or "platform_day_usage" or "jahez_daily_order")
-                parts.Add($"{prefix}[Date] >= DATEADD(day,-1,CONVERT(date,@pf)) AND {prefix}[Date] < DATEADD(day,2,CONVERT(date,@pt))");
-            else if(spec.Kind=="vehicle_assignment")
-                parts.Add($"{prefix}[StartedAt] < DATEADD(day,2,CONVERT(date,@pt)) AND ({prefix}[EndedAt] IS NULL OR {prefix}[EndedAt] > DATEADD(day,-1,CONVERT(date,@pf)))");
-            else if(spec.Kind=="housing_residence")
-                parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,2,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > DATEADD(day,-1,CONVERT(date,@pf)))");
-            else if(spec.Kind=="rider_work_timeline")
-                parts.Add($"{prefix}[EffectiveFrom] < DATEADD(day,2,CONVERT(date,@pt)) AND ({prefix}[EffectiveTo] IS NULL OR {prefix}[EffectiveTo] > DATEADD(day,-1,CONVERT(date,@pf)))");
+            string dayExpr(string column)=>spec.PeriodOnRiyadhDay
+                ?$"CAST(DATEADD(hour,3,{prefix}[{column}]) AS date)"
+                :$"{prefix}[{column}]";
+            if(spec.PeriodEndColumn is {Length:>0} endCol)
+            {
+                // Open-ended interval on the calendar day (Riyadh when PeriodOnRiyadhDay).
+                parts.Add($"{dayExpr(col)} < DATEADD(day,1,CONVERT(date,@pt)) AND ({prefix}[{endCol}] IS NULL OR {dayExpr(endCol)} >= CONVERT(date,@pf))");
+            }
             else if(spec.Kind=="fuel_usage")
-                // §40.4 / B2: ReportMonth is a date; keep the cycle month only (no silent all-months pull).
-                parts.Add($"{prefix}[ReportMonth] >= CONVERT(date,@pf) AND {prefix}[ReportMonth] < DATEADD(day,1,CONVERT(date,@pt))");
+                parts.Add($"{dayExpr(col)} >= CONVERT(date,@pf) AND {dayExpr(col)} < DATEADD(day,1,CONVERT(date,@pt))");
+            else
+                // Widen one day each side for timezone/edge rows on plain date columns.
+                parts.Add($"{dayExpr(col)} >= DATEADD(day,-1,CONVERT(date,@pf)) AND {dayExpr(col)} < DATEADD(day,2,CONVERT(date,@pt))");
         }
         if(page.PlatformApp.Length>0&&spec.Kind is "platform_account" or "ninja_daily" or "ninja_daily_deduction" or "chefz_daily" or "rider_work_timeline" or "platform_day_usage")
         {
-            // Map payroll app → ERP ClientPlatforms.Code (Ninja, Keeta, …).
-            string code=page.PlatformApp switch
-            {
-                "ninja"=>"Ninja","keeta"=>"Keeta","hs"=>"HungerStation","chefz"=>"Chefz","jahez"=>"Jahez","amazon"=>"Amazon",
-                _=>page.PlatformApp
-            };
-            Add(cmd,"@pcap",code);
-            if(spec.Kind=="platform_account")
-                parts.Add("cp.[Code]=@pcap");
+            string code=ErpPlatformCode.Primary(page.PlatformApp);
+            var alts=ErpPlatformCode.Accept(page.PlatformApp);
+            if(alts.Count==1){Add(cmd,"@pcap",code);parts.Add(spec.Kind=="platform_account"?"cp.[Code]=@pcap":"EXISTS (SELECT 1 FROM [app].[PlatformRiderAccounts] paf INNER JOIN [platform].[ClientPlatforms] cpf ON cpf.[Id]=paf.[ClientPlatformId] WHERE paf.[Id]=t.[PlatformRiderAccountId] AND cpf.[Code]=@pcap)");}
             else
-                parts.Add("EXISTS (SELECT 1 FROM [app].[PlatformRiderAccounts] paf INNER JOIN [platform].[ClientPlatforms] cpf ON cpf.[Id]=paf.[ClientPlatformId] WHERE paf.[Id]=t.[PlatformRiderAccountId] AND cpf.[Code]=@pcap)");
+            {
+                var names=InList(cmd,"@pcap",alts);
+                parts.Add(spec.Kind=="platform_account"?$"cp.[Code] IN ({names})":$"EXISTS (SELECT 1 FROM [app].[PlatformRiderAccounts] paf INNER JOIN [platform].[ClientPlatforms] cpf ON cpf.[Id]=paf.[ClientPlatformId] WHERE paf.[Id]=t.[PlatformRiderAccountId] AND cpf.[Code] IN ({names}))");
+            }
         }
 
         return parts.Count==0?"":" WHERE "+string.Join(" AND ",parts);
@@ -504,6 +507,12 @@ public static class LiveOperationsQuery
                 LoadByIds(source,"app","PlatformRiderAccounts",accountIds,tables,ct);continue;
             }
             if(parent.Table=="AccountSessions")continue;
+            // A9a: fuel card assignments are keyed by FuelCardId, not assignment Id.
+            if(parent.Table=="FuelCardRiderAssignments")
+            {
+                var cardIds=pageRows.Select(r=>r.S("FuelCardId")).Where(id=>id!="").ToHashSet(StringComparer.OrdinalIgnoreCase);
+                LoadByFilter(source,parent.Schema,parent.Table,"FuelCardId",cardIds,tables,ct);continue;
+            }
 
             var keyIds=pageRows.Select(parent.IdFromRow).Where(id=>id!="").ToHashSet(StringComparer.OrdinalIgnoreCase);
             if(keyIds.Count==0)continue;
