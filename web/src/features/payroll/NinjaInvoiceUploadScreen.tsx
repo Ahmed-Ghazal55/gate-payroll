@@ -290,6 +290,17 @@ export function NinjaInvoiceUploadScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, period, platform]);
 
+  // Re-match saved invoice once companies catalog loads (since companyId may be code while invoice stores id)
+  useEffect(() => {
+    if (!currentInvoice && companies.length > 0 && savedInvoices.length > 0) {
+      const match = savedInvoices.find((i) => isCompanyMatch(i.companyId, companyId) && i.period === period);
+      if (match) {
+        void selectSavedInvoice(match);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companies, savedInvoices]);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     setServerPreview(null);
     setReconcileResult(null);

@@ -382,11 +382,12 @@ try {
     await panel.locator('[data-category="penalty"] button').click();
     await panel.locator('[data-category="penalty"]', { hasText: '0 بلا تصنيف' }).waitFor({ timeout: 8000 });
     const adjustmentRow = panel.locator('[data-category="supplier_adjustment"]');
-    await adjustmentRow.locator('input[role="combobox"]').click();
+    const expenseCombo = adjustmentRow.locator('input[role="combobox"][aria-label="حساب التكلفة"]');
+    await expenseCombo.click();
     await pageA.locator('[role="option"]').first().waitFor({ timeout: 8000 });
-    await adjustmentRow.locator('input[role="combobox"]').fill('5');
+    await expenseCombo.fill('5');
     await pageA.locator('[role="option"]').first().click();
-    await adjustmentRow.locator('button').click();
+    await adjustmentRow.locator('button', { hasText: 'تطبيق على الفئة' }).click();
     await adjustmentRow.filter({ hasText: '0 بلا تصنيف' }).waitFor({ timeout: 8000 });
 
     assert.equal(await pageA.locator('#btn-approve-ninja-invoice').count(), 0, 'User A (maker) must see 0 approve buttons on their own invoice');

@@ -424,14 +424,9 @@ try {
     assert.ok(cardText.includes('بانتظار الاعتماد'), 'Status must be «بانتظار الاعتماد»');
     assert.ok(cardText.includes(userA), `Creator must be @${userA}`);
 
-    // Test Maker ≠ Checker: User A cannot approve their own scheme
+    // Test Maker ≠ Checker: User A cannot approve their own scheme (button hidden when not in allowedActions)
     const approveBtn = schemeCard.locator('button', { hasText: 'اعتماد النظام (Maker-Checker)' });
-    assert.equal(await approveBtn.isDisabled(), true, 'Approve button must be disabled for User A (maker)');
-    const buttonTitle = await approveBtn.getAttribute('title');
-    assert.ok(
-      buttonTitle && buttonTitle.includes('Maker ≠ Checker'),
-      `Tooltip must explain Maker ≠ Checker: ${buttonTitle}`,
-    );
+    assert.equal(await approveBtn.count(), 0, 'Approve button must not be shown for User A (maker)');
     console.log('✓ Maker ≠ Checker enforced: User A cannot approve their own scheme');
 
     await pageA.screenshot({
