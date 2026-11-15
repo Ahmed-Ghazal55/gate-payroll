@@ -54,6 +54,8 @@ import type {
   PayEligibilityItem,
   PayCycleItem,
   PayCycleLineItem,
+  PayCyclePipelineResponse,
+  PayCyclePipelineRider,
 } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
@@ -314,6 +316,8 @@ function PayrollPageInner() {
   const [cycleLines, setCycleLines] = useState<PayCycleLineItem[]>([]);
   const [loadingLines, setLoadingLines] = useState<boolean>(false);
   const [selectedLineForExplain, setSelectedLineForExplain] = useState<PayCycleLineItem | null>(null);
+  const [cyclePipeline, setCyclePipeline] = useState<PayCyclePipelineResponse | null>(null);
+  const [selectedPipelineRider, setSelectedPipelineRider] = useState<PayCyclePipelineRider | null>(null);
 
   const cycleLineColumns: ColumnDef<PayCycleLineItem>[] = useMemo(
     () => [
@@ -1063,14 +1067,19 @@ function PayrollPageInner() {
     [activeNinjaEligibility]
   );
 
-  // Load Cycle Lines
+  // Load Cycle Lines & §40 Pipeline
   const loadCycleLines = async (cycleId: string) => {
     setLoadingLines(true);
     try {
-      const res = await api.getPayCycleLines(cycleId);
-      setCycleLines(res?.items || []);
+      const [linesRes, pipeRes] = await Promise.allSettled([
+        api.getPayCycleLines(cycleId),
+        api.getPayCyclePipeline(cycleId),
+      ]);
+      setCycleLines(linesRes.status === 'fulfilled' ? linesRes.value?.items || [] : []);
+      setCyclePipeline(pipeRes.status === 'fulfilled' ? pipeRes.value : null);
     } catch (_) {
       setCycleLines([]);
+      setCyclePipeline(null);
     } finally {
       setLoadingLines(false);
     }
@@ -4102,6 +4111,167 @@ function PayrollPageInner() {
               showTotals={true}
             />
           </div>
+
+          {/* §40 Six-Stage Pipeline View per Rider */}
+          {cyclePipeline && cyclePipeline.riders.length > 0 && (
+            <div id="cycle-pipeline-section" className="space-y-3 pt-4 border-t border-[var(--line)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                    مسار المراحل الست لكل مندوب (§40 Pipeline)
+                  </h4>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">
+                    مبالغ المراحل 1 إلى 6 ومرحلة 8 (الأقساط والباقي) مباشرة من الخادم.
+                  </p>
+                </div>
+                <span className="text-xs font-mono text-[var(--muted)]">
+                  {cyclePipeline.riders.length} مندوب
+                </span>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]" tabIndex={0} role="region" aria-label="مسار المراحل الست لكل مندوب">
+                <table className="w-full text-xs text-start border-collapse">
+                  <thead className="bg-[var(--raised)]/60 text-[var(--muted)] border-b border-[var(--line)]">
+                    <tr>
+                      <th className="p-2.5 text-start font-bold">المندوب</th>
+                      <th className="p-2.5 text-start font-mono">1. الإجمالي</th>
+                      <th className="p-2.5 text-start font-mono">2. حصة الحساب</th>
+                      <th className="p-2.5 text-start font-mono">2. غرامات موزعة</th>
+                      <th className="p-2.5 text-start font-mono">3. العمولة</th>
+                      <th className="p-2.5 text-start font-mono">3. بعد العمولة</th>
+                      <th className="p-2.5 text-start font-mono">4. بنود / مصاريف</th>
+                      <th className="p-2.5 text-start font-mono">5. المستحق الأولي</th>
+                      <th className="p-2.5 text-start font-mono">6. الصافي</th>
+                      <th className="p-2.5 text-start font-mono">8. قسط الدين / الباقي</th>
+                      <th className="p-2.5 text-start">التفاصيل</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--line)]">
+                    {cyclePipeline.riders.map((r) => {
+                      const s = r.stages || {};
+                      const stage4Items = s['4_items'] || [];
+                      const stage4Expenses = s['4_expenseLines'] || [];
+                      return (
+                        <tr key={r.rider} className="hover:bg-[var(--raised)]/30">
+                          <td className="p-2.5">
+                            <div className="font-bold text-[var(--ink)]">{r.name || r.rider}</div>
+                            <div className="font-mono text-[11px] text-[var(--muted)]">{r.rider}</div>
+                          </td>
+                          <td className="p-2.5 font-mono">{(s['1_gross'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2.5 font-mono">{(s['2_accountShare'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2.5 font-mono">{(s['2_penaltiesAllocated'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2.5 font-mono">{(s['3_commission'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2.5 font-mono">{(s['3_afterCommission'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2.5 font-mono">
+                            <span>{stage4Items.length} بند</span>
+                            {stage4Expenses.length > 0 && (
+                              <span className="ms-1 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-700 dark:text-sky-300 text-[10px]">
+                                +{stage4Expenses.length} مصروف شركة
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2.5 font-mono">{(s['5_preliminaryDue'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2.5 font-mono font-bold text-[var(--ink)]">{(s['6_net'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2.5 font-mono">
+                            <span>{(s['8_oldDebtInstallment'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                            <span className="text-[var(--muted)]"> / </span>
+                            <span className="font-bold">{(s['8_remainder'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                            {s['8_confirmed'] && (
+                              <span className="ms-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">مؤكد</span>
+                            )}
+                          </td>
+                          <td className="p-2.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPipelineRider(r)}
+                              className="px-2.5 py-1 rounded-lg border border-[var(--line)] hover:bg-[var(--raised)] text-[11px] font-bold cursor-pointer"
+                            >
+                              عرض المراحل
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {selectedPipelineRider && (
+                <div className="p-4 rounded-2xl border border-[var(--accent)]/40 bg-[var(--surface)] space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h5 className="font-bold text-sm text-[var(--ink)]">
+                      تفاصيل المراحل للمندوب: {selectedPipelineRider.name || selectedPipelineRider.rider} ({selectedPipelineRider.rider})
+                    </h5>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPipelineRider(null)}
+                      className="px-2.5 py-1 rounded-lg border border-[var(--line)] text-xs cursor-pointer"
+                    >
+                      إغلاق
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div className="p-2 rounded-lg bg-[var(--raised)]/40">
+                      <span className="text-[var(--muted)]">المرحلة 5 (طور 1): </span>
+                      <span className="font-mono font-bold">{(selectedPipelineRider.stages['5_phase1'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-[var(--raised)]/40">
+                      <span className="text-[var(--muted)]">المستحق الأولي: </span>
+                      <span className="font-mono font-bold">{(selectedPipelineRider.stages['5_preliminaryDue'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-[var(--raised)]/40">
+                      <span className="text-[var(--muted)]">المرحلة 5 (طور 2): </span>
+                      <span className="font-mono font-bold">{(selectedPipelineRider.stages['5_phase2'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-[var(--raised)]/40">
+                      <span className="text-[var(--muted)]">المرحلة 5 (طور 3): </span>
+                      <span className="font-mono font-bold">{(selectedPipelineRider.stages['5_phase3'] ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-bold text-[var(--ink)]">بنود المرحلة 4 (الاستقطاعات والبدلات):</p>
+                    {(selectedPipelineRider.stages['4_items'] || []).length === 0 ? (
+                      <p className="text-xs text-[var(--muted)]">لا توجد بنود في المرحلة 4.</p>
+                    ) : (
+                      <ul className="divide-y divide-[var(--line)] rounded-xl border border-[var(--line)] text-xs">
+                        {(selectedPipelineRider.stages['4_items'] || []).map((item, idx) => (
+                          <li key={idx} className="p-2 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <span className="font-bold">{item.labelAr || item.category || '-'}</span>
+                              {item.category && <span className="ms-2 font-mono text-[11px] text-[var(--muted)]">[{item.category}]</span>}
+                              {item.source && <span className="ms-2 font-mono text-[11px] text-[var(--muted)]">المصدر: {item.source}</span>}
+                            </div>
+                            <span className="font-mono font-bold">{(item.amount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {(selectedPipelineRider.stages['4_expenseLines'] || []).length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-bold text-[var(--ink)]">بنود مصاريف الشركة:</p>
+                      <ul className="divide-y divide-[var(--line)] rounded-xl border border-sky-500/30 bg-sky-500/5 text-xs">
+                        {(selectedPipelineRider.stages['4_expenseLines'] || []).map((item, idx) => (
+                          <li key={idx} className="p-2 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold">{item.labelAr || item.category || '-'}</span>
+                              {item.source && <span className="font-mono text-[11px] text-[var(--muted)]">المصدر: {item.source}</span>}
+                              <span className="px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 text-[10px] font-bold">
+                                مصروف على الشركة — لا يُخصم
+                              </span>
+                            </div>
+                            <span className="font-mono font-bold">{(item.amount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -4542,22 +4712,106 @@ function PayrollPageInner() {
   )}
 
       {/* ======================================================== */}
-      {/* SECTION 4: DEDUCTIONS (Stage 2)                         */}
+      {/* SECTION 4: DEDUCTIONS (Stage 4 from Pipeline)            */}
       {/* ======================================================== */}
       {mainTab === 'deductions' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
-            <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-              سجل استقطاعات التشغيل والتحملات (Stage 2 Deductions)
-            </h3>
-            <p className="text-xs text-[var(--muted)] mt-0.5">
-              تطبيق الاستقطاعات مرة واحدة لكل مندوب شهرياً: سلف، مخالفات مرورية، إنترنت، محروقات، محفظة هنقرستيشن، ومداد.
-            </p>
+          <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
+                بنود المرحلة الرابعة (Stage 4 Items &amp; Company Expenses)
+              </h3>
+              <p className="text-xs text-[var(--muted)] mt-0.5">
+                جميع بنود الاستقطاعات والبدلات ومصاريف الشركة للدورة المختارة مباشرة من مسار المحرك.
+              </p>
+            </div>
+            {activeCycle?.id && (
+              <span className="font-mono text-xs text-[var(--muted)]">الدورة: {activeCycle.id}</span>
+            )}
           </div>
 
-          <div className="p-8 text-center bg-[var(--surface)] rounded-2xl border border-[var(--line)] text-xs text-[var(--muted)]">
-            يتم استدعاء استقطاعات المرحلة الثانية وربطها آلياً من موديول المديونيات والسلف وسجلات الفواتير.
-          </div>
+          {!cyclePipeline ? (
+            <EmptyState
+              title="اختر دورة رواتب أولاً"
+              description="انتقل إلى تبويب دورة الرواتب واختر دورة لعرض بنود المرحلة الرابعة."
+            />
+          ) : (() => {
+            const rows = cyclePipeline.riders.flatMap((r) => [
+              ...(r.stages['4_items'] || []).map((item, idx) => ({
+                key: `${r.rider}:item:${idx}`,
+                rider: r.rider,
+                riderName: r.name || r.rider,
+                category: item.category || '-',
+                label: item.labelAr || item.category || '-',
+                source: item.source || '-',
+                app: item.app || '-',
+                amount: item.amount ?? 0,
+                isCompanyExpense: false,
+              })),
+              ...(r.stages['4_expenseLines'] || []).map((item, idx) => ({
+                key: `${r.rider}:exp:${idx}`,
+                rider: r.rider,
+                riderName: r.name || r.rider,
+                category: item.category || '-',
+                label: item.labelAr || item.category || '-',
+                source: item.source || '-',
+                app: item.app || '-',
+                amount: item.amount ?? 0,
+                isCompanyExpense: true,
+              })),
+            ]);
+            if (rows.length === 0) {
+              return (
+                <EmptyState
+                  title="لا توجد بنود في المرحلة الرابعة"
+                  description="لم تُسجّل استقطاعات أو مصاريف مرحلة رابعة لهذه الدورة بعد."
+                />
+              );
+            }
+            return (
+              <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]" tabIndex={0} role="region" aria-label="قائمة بنود المرحلة الرابعة">
+                <table className="w-full text-xs text-start border-collapse">
+                  <thead className="bg-[var(--raised)]/60 text-[var(--muted)] border-b border-[var(--line)]">
+                    <tr>
+                      <th className="p-3 text-start font-bold">المندوب</th>
+                      <th className="p-3 text-start font-bold">الفئة</th>
+                      <th className="p-3 text-start font-bold">البيان</th>
+                      <th className="p-3 text-start font-bold">المصدر</th>
+                      <th className="p-3 text-start font-bold">التطبيق</th>
+                      <th className="p-3 text-start font-mono">المبلغ</th>
+                      <th className="p-3 text-start font-bold">الأثر</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--line)]">
+                    {rows.map((row) => (
+                      <tr key={row.key} className="hover:bg-[var(--raised)]/30">
+                        <td className="p-3">
+                          <div className="font-bold text-[var(--ink)]">{row.riderName}</div>
+                          <div className="font-mono text-[11px] text-[var(--muted)]">{row.rider}</div>
+                        </td>
+                        <td className="p-3 font-mono">{row.category}</td>
+                        <td className="p-3">{row.label}</td>
+                        <td className="p-3 font-mono text-[11px] text-[var(--muted)]">{row.source}</td>
+                        <td className="p-3 font-mono">{row.app}</td>
+                        <td className="p-3 font-mono font-bold">{row.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</td>
+                        <td className="p-3">
+                          {row.isCompanyExpense ? (
+                            <span className="px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 text-[11px] font-bold">
+                              مصروف على الشركة — لا يُخصم
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-[var(--raised)] text-[var(--ink)] text-[11px]">
+                              ضمن المرحلة 4
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </div>
       )}
 

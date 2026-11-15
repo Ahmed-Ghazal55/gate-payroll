@@ -96,6 +96,39 @@ export type PayCycleItem = ApiResp<'/api/pay/cycles'>['items'][number];
 export type PayCyclesResponse = ApiResp<'/api/pay/cycles'>;
 export type PayCycleCaptureResponse = ApiResp<'/api/pay/cycles/{id}/capture-inputs', 'post'>;
 export type PayCycleLinesResponse = ApiResp<'/api/pay/cycles/{id}/lines'>;
+export type PayCyclePipelineStage4Item = {
+  category?: string;
+  source?: string;
+  amount?: number;
+  labelAr?: string;
+  type?: string;
+  app?: string;
+  affectsNet?: boolean;
+};
+export type PayCyclePipelineStages = {
+  '1_gross'?: number;
+  '2_accountShare'?: number;
+  '2_penaltiesAllocated'?: number;
+  '3_commission'?: number;
+  '3_afterCommission'?: number;
+  '4_items'?: PayCyclePipelineStage4Item[];
+  '4_expenseLines'?: PayCyclePipelineStage4Item[];
+  '5_phase1'?: number;
+  '5_preliminaryDue'?: number;
+  '5_phase2'?: number;
+  '5_phase3'?: number;
+  '6_net'?: number;
+  '8_oldDebtInstallment'?: number;
+  '8_remainder'?: number;
+  '8_confirmed'?: boolean;
+};
+export type PayCyclePipelineRaw = ApiResp<'/api/pay/cycles/{id}/pipeline'>;
+export type PayCyclePipelineRider = Omit<PayCyclePipelineRaw['riders'][number], 'stages'> & {
+  stages: PayCyclePipelineStages;
+};
+export type PayCyclePipelineResponse = Omit<PayCyclePipelineRaw, 'riders'> & {
+  riders: PayCyclePipelineRider[];
+};
 export type PayCycleLineItem = PayCycleLinesResponse['items'][number];
 
 export type PayCatalog = ApiResp<'/api/pay/catalog'>;
@@ -1330,6 +1363,8 @@ export const api = {
     const qs = q.toString() ? `?${q.toString()}` : '';
     return handleRequest<PayCycleLinesResponse>(`/pay/cycles/${encodeURIComponent(id)}/lines${qs}`);
   },
+  getPayCyclePipeline: (id: string) =>
+    handleRequest<PayCyclePipelineResponse>(`/pay/cycles/${encodeURIComponent(id)}/pipeline`),
 
   // ==========================================
   // Legacy Production Payroll Run APIs (F2)
