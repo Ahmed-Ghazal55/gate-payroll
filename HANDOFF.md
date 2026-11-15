@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Antigravity 2026-11-15 14:01 M3 |
+| Current writer | none |
 | Branch | `feat/pipeline-screens` |
-| Updated | 2026-11-15 by Cursor (M2 complete) |
+| Updated | 2026-11-15 by Antigravity (M3 complete) |
 | Live | `/health` = **0.22.0** (unchanged; no deploy) |
-| Tip | `133352b` on `feat/api-for-ui` |
+| Tip | `5304242` on `feat/pipeline-screens` |
 | PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/43 |
 
 ## Claude review of M2 (2026-11-15): accepted, 3 fixes applied by Claude
@@ -19,7 +19,21 @@
 - **For Antigravity (M3):** stage keys on `GET /pay/cycles/{id}/pipeline` → `1_gross`, `2_accountShare`, `2_penaltiesAllocated`, `3_commission`, `3_afterCommission`, `4_items[]`, `4_expenseLines[]` (not deducted), `5_*`, `6_net`, `8_oldDebtInstallment`, `8_remainder`, `8_confirmed`. Treasury summary has `cash`, `bank`, `total` only.
 
 ## Goal now
-M2 complete on branch. Next: Claude reviews M2, then Antigravity runs `~/.agents/prompts/antigravity-M3-pipeline-screens.md`.
+M3 complete on `feat/pipeline-screens` (branched from `feat/api-for-ui`). Next: Claude reviews M3, then merge PR #43 / `feat/pipeline-screens` and deploy for M5 (Ninja October live run).
+
+## Done (M3 — Antigravity, 2026-11-15)
+- Item 1 (`b3894d7`): Per-row bearer editor (`Company`/`Rider`/`Split` with diff=0 check) + multi-rider alert in `NinjaInvoiceUploadScreen.tsx`; deleted client `computedView`/Keeta totals; replaced hardcoded companies with `api.getCompanies()` + `SearchableSelect`.
+- Item 2 (`fe0b3d7`): Added `#cycle-pipeline-section` per-rider §40 pipeline table + detail panel (`4_expenseLines` marked «مصروف على الشركة — لا يُخصم») and real stage-4 tab in `payroll/page.tsx`.
+- Item 3 (`985fa2f`): Added `shared_riders` tab («مندوب عمل مشترك») with `missingApps` badges and release `<Dialog>` (`reason >= 3`).
+- Item 4 (`d07183e`): Displayed `bankFilePreview.basis`, added `#btn-bank-mark-sent` confirmation `<Dialog>` (`markSent: true`), updated bank link condition in `payroll/page.tsx`.
+- Item 5 (`0085bc0`): Removed client maker/checker & stage rules across payroll, settings, review grid, debt deductions, Jahez, accounting adjustments, config lists, debts, treasury; gated buttons from `allowedActions` only.
+- Item 6 (`156d385`): Deleted `RuleRecordWorkspace.tsx` & `getPayAppDefaults`; removed `COMPANY_NAME_MAP` (`accounting/page.tsx`) and `OFFICIAL_COMPANIES_PAYLOAD` (`companies/page.tsx`, replaced with JSON upload/paste); wired `admin/page.tsx` Firebase settings to `getFirebaseConfig`/`saveFirebaseConfig`.
+- Item 7 (`afa7a7d`): Replaced prefix-based cash/bank sums in `treasury/page.tsx` with `GET /api/finance/treasury/summary` (`cash`, `bank`, `total`).
+- Item 8 (`b13486c`): Removed `lib/types.ts` imports and `any` on M3 covered screens (`payroll`, `features/payroll`, `treasury`, `debts`, `admin`).
+- Item 9 (`1a75638`): Added `?tab=` deep links on `accounting/page.tsx` and `companies/page.tsx`; added `fuel_usage`, `vehicle_assignment`, `housing_residence`, `ninja_daily` to `operations/page.tsx` and capture labels; replaced native `<select>`s with `SearchableSelect`.
+- Item 10 (`5201aac`): Added debt edit, sponsor transfer (`debts/page.tsx`), and vault transfer (`treasury/page.tsx`) dialogs.
+- Fix (`5304242`): Re-match saved Ninja/Keeta invoice once `companies` loads; updated E2E selectors for `SearchableSelect` & `allowedActions`.
+- Verified: `npm run build`, `npm run api:check`, `npx tsc --noEmit`, `node tests/r8-contract.mjs` (36 passed), `web/tests/r8-ninja-flow.mjs`, `web/tests/r8-keeta-flow.mjs`, `web/tests/r9-pay-settings-flow.mjs`, `web/tests/ops-live-ui.mjs`, and CI run [43711105378](https://github.com/Ahmed-Ghazal55/gate-payroll/actions/runs/43711105378) green.
 
 ## Done (M2)
 - R1–R3 (M1 leftovers): Ninja RequiredKinds slimmed; rejected server-side only; dual Iqama/unmatched blockers.
