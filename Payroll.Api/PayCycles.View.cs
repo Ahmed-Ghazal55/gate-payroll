@@ -37,7 +37,14 @@ public static partial class PayCycles
         if(state is "approved" or "partially_approved")
         {
             if(manage)actions.Add("review_debt_deductions");
-            if(approve&&Rows(cycle["riders"]).OfType<JsonObject>().Any(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed"&&AccessPolicy.Independent(actor,r.S("debtSelectedBy",cycle.S("createdBy")),"pay.debt_confirm",c,tx,cycle)))actions.Add("confirm_debt_deductions");
+            bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+            var pendingDebt=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed").ToList();
+            if(approve&&pendingDebt.Any(r=>AccessPolicy.IndependentForView(actor,r.S("debtSelectedBy",cycle.S("createdBy")),bypass)))
+            {
+                actions.Add("confirm_debt_deductions");
+                if(pendingDebt.All(r=>AccessPolicy.IndependentForView(actor,r.S("debtSelectedBy",cycle.S("createdBy")),bypass)))
+                    actions.Add("confirm_debt_deductions_all");
+            }
             if(manage)actions.Add("reversal_request");
         }
         result["allowedActions"]=actions;result["approvalBlockers"]=blockers;return result;

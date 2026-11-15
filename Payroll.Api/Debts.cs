@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace Payroll;
 
-public static class Debts
+public static partial class Debts
 {
     public static readonly string[] Categories =
     [
@@ -139,8 +139,13 @@ public static class Debts
             if (!string.IsNullOrWhiteSpace(category)) list = list.Where(d => d.S("category") == category).ToList();
             if (!string.IsNullOrWhiteSpace(status)) list = list.Where(d => d.S("status") == status).ToList();
             if (!string.IsNullOrWhiteSpace(iqama)) list = list.Where(d => d.S("iqama") == iqama.Trim()).ToList();
-            return list;
+            return list.Select(d=>View(c,null,ctx.User,d)).ToList();
         })).WithTags("Debts and advances").WithSummary("Read debts");
+        api.MapGet("/debts/{id}", (string id,HttpContext ctx) => store.Read(c =>
+        {
+            var d=Store.Get(c,id,"debt")??throw new ApiError("الدين غير موجود.",404);
+            return View(c,null,ctx.User,d);
+        })).WithTags("Debts and advances").WithSummary("Read one debt with allowedActions");
 
         api.MapGet("/debts/settlements", (string? debtId, string? iqama,HttpContext ctx) => store.Read(c =>
         {
@@ -288,7 +293,7 @@ public static class Debts
             }
 
             Store.Audit(c, tx, "debt.created", d.S("id"), ctx.User.Identity!.Name!);
-            return d;
+            return View(c,tx,ctx.User,d);
         })).WithTags("Debts and advances").WithSummary("Submit debts");
 
         api.MapPut("/debts/{id}", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -318,7 +323,7 @@ public static class Debts
             d["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
             Store.Save(c, "debt", d, tx);
             Store.Audit(c, tx, "debt.rescheduled", id, ctx.User.Identity!.Name!);
-            return d;
+            return View(c,tx,ctx.User,d);
         })).WithTags("Debts and advances").WithSummary("Update debts {id}");
 
         // تحصيل مباشر (نقدي أو بنكي، كلي أو جزئي) + إمكانية إعفاء إداري مشروط لجزء من المديونية + إيداع في صندوق أي سجل
@@ -436,7 +441,7 @@ public static class Debts
             }
 
             Store.Audit(c, tx, "debt.collected", id, ctx.User.Identity!.Name!);
-            return new { debt = d, settlement, journal };
+            return new { debt = View(c,tx,ctx.User,d), settlement, journal };
         })).WithTags("Debts and advances").WithSummary("Submit debts {id} collect");
 
         // شراء المديونية / ترحيل ملكية المديونية مالياً من سجل تجاري إلى سجل تجاري آخر

@@ -64,11 +64,18 @@ public static partial class PaySettings
     }
     public static JsonObject WithActions(ClaimsPrincipal actor,JsonObject doc,DbConnection? c=null)
     {
-        var result=doc.Clone();var actions=new JsonArray();
+        var result=doc.Clone();var actions=new JsonArray();var blockers=new JsonArray();
         // Pass c so §35 ActiveBypassGrant is visible when previewing approve without a write transaction.
-        if(doc.S("status")=="draft"&&AccessPolicy.Has(actor,"pay.approve"))
-        {try{AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new(),"pay.approve",c,null,"pay.settings_approve",doc);actions.Add("approve");}catch(ApiError){}}
-        result["allowedActions"]=actions;return result;
+        if(doc.S("status")=="draft")
+        {
+            if(!AccessPolicy.Has(actor,"pay.approve"))blockers.Add("صلاحية اعتماد إعدادات الرواتب مطلوبة.");
+            else
+            {
+                try{AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new(),"pay.approve",c,null,"pay.settings_approve",doc);actions.Add("approve");}
+                catch(ApiError ex){blockers.Add(ex.Message);}
+            }
+        }
+        result["allowedActions"]=actions;result["approvalBlockers"]=blockers;return result;
     }
     public static void Map(RouteGroupBuilder api,Store store)
     {
