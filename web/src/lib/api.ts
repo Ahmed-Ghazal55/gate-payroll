@@ -1206,6 +1206,18 @@ export const api = {
     return handleRequest<Array<Record<string, unknown>>>(`/debts${qs}`).then((rows) => rows.map(normalizeDebt));
   },
 
+  updateDebt: (id: string, input: { monthlyInstallment?: number; notes?: string; status?: string }) =>
+    handleRequest<ApiResp<'/api/debts/{id}', 'put'>>(`/debts/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+
+  transferDebtSponsor: (id: string, input: { toSponsorId: string; reason: string }) =>
+    handleRequest<ApiResp<'/api/debts/{id}/transfer-sponsor', 'post'>>(`/debts/${encodeURIComponent(id)}/transfer-sponsor`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
   decideOpeningDebts: (input: { ids: string[]; decision: 'approved' | 'rejected'; note?: string }) =>
     handleRequest<{ decision: string; processed: number; skipped: number; total: number }>('/debts/opening/decide', {
       method: 'POST',

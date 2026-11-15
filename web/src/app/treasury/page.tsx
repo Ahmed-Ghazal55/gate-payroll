@@ -117,6 +117,14 @@ function TreasuryPageContent() {
   const [submittingPayout, setSubmittingPayout] = useState<boolean>(false);
   const [payoutServerError, setPayoutServerError] = useState<string | null>(null);
 
+  // Vault Transfer Dialog
+  const [vaultTransferOpen, setVaultTransferOpen] = useState<boolean>(false);
+  const [transferSourceCode, setTransferSourceCode] = useState<string>('');
+  const [transferTargetCode, setTransferTargetCode] = useState<string>('');
+  const [transferAmount, setTransferAmount] = useState<string>('');
+  const [transferDescription, setTransferDescription] = useState<string>('');
+  const [submittingVaultTransfer, setSubmittingVaultTransfer] = useState<boolean>(false);
+
   // Details Drawer for Payout Request
   const [payoutDetailsReq, setPayoutDetailsReq] = useState<AdvanceRequest | null>(null);
 
@@ -435,17 +443,34 @@ function TreasuryPageContent() {
               />
             </div>
 
-            <div className="w-56">
-              <SearchableSelect
-                value={vaultTypeFilter}
-                onChange={(v) => setVaultTypeFilter(v || 'all')}
-                options={[
-                  { value: 'all', label: 'كافة أنواع الخزن' },
-                  { value: 'bank', label: 'حسابات بنكية (1110)' },
-                  { value: 'cash', label: 'صناديق نقدية وعهد (1120-1140)' },
-                ]}
-                placeholder="نوع الخزينة"
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-56">
+                <SearchableSelect
+                  value={vaultTypeFilter}
+                  onChange={(v) => setVaultTypeFilter(v || 'all')}
+                  options={[
+                    { value: 'all', label: 'كافة أنواع الخزن' },
+                    { value: 'bank', label: 'حسابات بنكية (1110)' },
+                    { value: 'cash', label: 'صناديق نقدية وعهد (1120-1140)' },
+                  ]}
+                  placeholder="نوع الخزينة"
+                />
+              </div>
+              <button
+                type="button"
+                id="btn-vault-transfer"
+                onClick={() => {
+                  setTransferSourceCode('');
+                  setTransferTargetCode('');
+                  setTransferAmount('');
+                  setTransferDescription('');
+                  setVaultTransferOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold shadow-xs hover:opacity-95 cursor-pointer"
+              >
+                <ArrowRightLeft size={14} />
+                <span>تحويل بين الخزن</span>
+              </button>
             </div>
           </div>
 
@@ -1101,6 +1126,102 @@ function TreasuryPageContent() {
           </div>
         )}
       </Drawer>
+
+      {/* Vault Transfer Dialog */}
+      <Dialog
+        open={vaultTransferOpen}
+        onClose={() => !submittingVaultTransfer && setVaultTransferOpen(false)}
+        title="تحويل بين الحسابات البنكية والصناديق"
+        description="تسجيل حركة تحويل مالي بين حسابي خزينة مع إنشاء القيد المحاسبي تلقائياً."
+      >
+        <div className="space-y-4 pt-2 text-xs">
+          <div className="space-y-1">
+            <label className="font-bold text-[var(--ink)] block">من حساب / خزينة:</label>
+            <SearchableSelect
+              value={transferSourceCode}
+              onChange={(v) => setTransferSourceCode(v)}
+              options={vaultAccounts
+                .filter((a) => Boolean(a.code))
+                .map((a) => ({ value: a.code || '', label: `${a.code} — ${a.nameAr}` }))}
+              placeholder="اختر الحساب المصدر"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="font-bold text-[var(--ink)] block">إلى حساب / خزينة:</label>
+            <SearchableSelect
+              value={transferTargetCode}
+              onChange={(v) => setTransferTargetCode(v)}
+              options={vaultAccounts
+                .filter((a) => Boolean(a.code) && a.code !== transferSourceCode)
+                .map((a) => ({ value: a.code || '', label: `${a.code} — ${a.nameAr}` }))}
+              placeholder="اختر الحساب المستلم"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="font-bold text-[var(--ink)] block">المبلغ (ر.س):</label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={transferAmount}
+              onChange={(e) => setTransferAmount(e.target.value)}
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] font-mono font-bold text-[var(--ink)] focus:outline-hidden"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="font-bold text-[var(--ink)] block">البيان / الوصف:</label>
+            <input
+              type="text"
+              value={transferDescription}
+              onChange={(e) => setTransferDescription(e.target.value)}
+              placeholder="مثال: تغذية صندوق النقدية من البنك"
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              disabled={submittingVaultTransfer}
+              onClick={() => setVaultTransferOpen(false)}
+              className="px-4 py-2 rounded-xl border border-[var(--line)] font-semibold text-[var(--ink)]"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={
+                submittingVaultTransfer ||
+                !transferSourceCode ||
+                !transferTargetCode ||
+                transferSourceCode === transferTargetCode ||
+                !(parseFloat(transferAmount) > 0) ||
+                transferDescription.trim().length < 2
+              }
+              onClick={async () => {
+                setSubmittingVaultTransfer(true);
+                try {
+                  await api.transferVault({
+                    sourceAccountCode: transferSourceCode,
+                    targetAccountCode: transferTargetCode,
+                    amount: parseFloat(transferAmount),
+                    description: transferDescription.trim(),
+                  });
+                  toast('تم تنفيذ التحويل بين الخزن بنجاح', 'success');
+                  setVaultTransferOpen(false);
+                  loadData();
+                } catch (err: unknown) {
+                  toast((err instanceof Error ? err.message : '') || 'تعذر تنفيذ التحويل', 'danger');
+                } finally {
+                  setSubmittingVaultTransfer(false);
+                }
+              }}
+              className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold disabled:opacity-50"
+            >
+              {submittingVaultTransfer ? 'جاري التحويل...' : 'تأكيد التحويل'}
+            </button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

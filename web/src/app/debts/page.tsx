@@ -152,6 +152,17 @@ function DebtsPageContent() {
   const [selectedDebt, setSelectedDebt] = useState<DebtRecord | null>(null);
   const [debtDrawerOpen, setDebtDrawerOpen] = useState<boolean>(false);
 
+  // Debt Edit & Sponsor Transfer Dialogs
+  const [companiesList, setCompaniesList] = useState<Array<{ id: string; code: string; nameAr: string }>>([]);
+  const [editDebtOpen, setEditDebtOpen] = useState<boolean>(false);
+  const [editInstallment, setEditInstallment] = useState<string>('');
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [savingDebtEdit, setSavingDebtEdit] = useState<boolean>(false);
+  const [transferSponsorOpen, setTransferSponsorOpen] = useState<boolean>(false);
+  const [transferToSponsor, setTransferToSponsor] = useState<string>('');
+  const [transferReason, setTransferReason] = useState<string>('');
+  const [savingTransfer, setSavingTransfer] = useState<boolean>(false);
+
   // ========================================================
   // R5 ADVANCE REQUESTS STATES (BR §25.3)
   // ========================================================
@@ -2288,9 +2299,173 @@ function DebtsPageContent() {
                 </button>
               </div>
             )}
+
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[var(--line)]">
+              <button
+                type="button"
+                id="btn-edit-debt"
+                onClick={() => {
+                  setEditInstallment(String(selectedDebt.monthlyInstallment ?? ''));
+                  setEditNotes(selectedDebt.notes || '');
+                  setEditDebtOpen(true);
+                }}
+                className="flex-1 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--raised)] cursor-pointer"
+              >
+                تعديل المديونية
+              </button>
+              <button
+                type="button"
+                id="btn-transfer-debt-sponsor"
+                onClick={() => {
+                  if (companiesList.length === 0) {
+                    api.getCompanies().then((res) => setCompaniesList(Array.isArray(res) ? res : [])).catch(() => {});
+                  }
+                  setTransferToSponsor('');
+                  setTransferReason('');
+                  setTransferSponsorOpen(true);
+                }}
+                className="flex-1 px-3 py-2 rounded-xl border border-[var(--accent)]/40 bg-[var(--accent)]/10 text-xs font-bold text-[var(--accent)] hover:bg-[var(--accent)]/20 cursor-pointer"
+              >
+                نقل الكفيل الدائن
+              </button>
+            </div>
           </div>
         )}
       </Drawer>
+
+      {/* Edit Debt Dialog */}
+      <Dialog
+        open={editDebtOpen}
+        onClose={() => !savingDebtEdit && setEditDebtOpen(false)}
+        title="تعديل بيانات المديونية"
+        description={selectedDebt ? `إقامة المندوب: ${selectedDebt.iqama}` : undefined}
+      >
+        <div className="space-y-4 pt-2 text-xs">
+          <div className="space-y-1">
+            <label className="font-bold text-[var(--ink)] block">القسط الشهري (ر.س):</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={editInstallment}
+              onChange={(e) => setEditInstallment(e.target.value)}
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] font-mono font-bold text-[var(--ink)] focus:outline-hidden"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="font-bold text-[var(--ink)] block">ملاحظات:</label>
+            <textarea
+              rows={3}
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              disabled={savingDebtEdit}
+              onClick={() => setEditDebtOpen(false)}
+              className="px-4 py-2 rounded-xl border border-[var(--line)] font-semibold text-[var(--ink)]"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={savingDebtEdit}
+              onClick={async () => {
+                if (!selectedDebt) return;
+                setSavingDebtEdit(true);
+                try {
+                  const inst = parseFloat(editInstallment);
+                  await api.updateDebt(selectedDebt.id, {
+                    monthlyInstallment: Number.isFinite(inst) ? inst : undefined,
+                    notes: editNotes.trim(),
+                  });
+                  toast('تم تحديث المديونية بنجاح', 'success');
+                  setEditDebtOpen(false);
+                  setDebtDrawerOpen(false);
+                  setSelectedDebt(null);
+                  loadData();
+                } catch (err: unknown) {
+                  toast((err instanceof Error ? err.message : '') || 'تعذر تحديث المديونية', 'danger');
+                } finally {
+                  setSavingDebtEdit(false);
+                }
+              }}
+              className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold"
+            >
+              {savingDebtEdit ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+            </button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Transfer Debt Sponsor Dialog */}
+      <Dialog
+        open={transferSponsorOpen}
+        onClose={() => !savingTransfer && setTransferSponsorOpen(false)}
+        title="نقل الكفيل الدائن للمديونية"
+        description={selectedDebt ? `إقامة المندوب: ${selectedDebt.iqama}` : undefined}
+      >
+        <div className="space-y-4 pt-2 text-xs">
+          <div className="space-y-1">
+            <label className="font-bold text-[var(--ink)] block">الكفيل الدائن الجديد:</label>
+            <SearchableSelect
+              value={transferToSponsor}
+              onChange={(v) => setTransferToSponsor(v)}
+              options={companiesList.map((c) => ({ value: c.code, label: `${c.nameAr} (${c.code})` }))}
+              placeholder="اختر الشركة الكفيلة الجديدة"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="font-bold text-[var(--ink)] block">سبب النقل:</label>
+            <textarea
+              rows={3}
+              value={transferReason}
+              onChange={(e) => setTransferReason(e.target.value)}
+              placeholder="اذكر سبب نقل الكفيل الدائن..."
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              disabled={savingTransfer}
+              onClick={() => setTransferSponsorOpen(false)}
+              className="px-4 py-2 rounded-xl border border-[var(--line)] font-semibold text-[var(--ink)]"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={savingTransfer || !transferToSponsor || transferReason.trim().length < 3}
+              onClick={async () => {
+                if (!selectedDebt) return;
+                setSavingTransfer(true);
+                try {
+                  await api.transferDebtSponsor(selectedDebt.id, {
+                    toSponsorId: transferToSponsor,
+                    reason: transferReason.trim(),
+                  });
+                  toast('تم نقل الكفيل الدائن بنجاح', 'success');
+                  setTransferSponsorOpen(false);
+                  setDebtDrawerOpen(false);
+                  setSelectedDebt(null);
+                  loadData();
+                } catch (err: unknown) {
+                  toast((err instanceof Error ? err.message : '') || 'تعذر نقل الكفيل الدائن', 'danger');
+                } finally {
+                  setSavingTransfer(false);
+                }
+              }}
+              className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold disabled:opacity-50"
+            >
+              {savingTransfer ? 'جاري التنفيذ...' : 'تأكيد النقل'}
+            </button>
+          </div>
+        </div>
+      </Dialog>
 
       <Dialog
         open={openingDialog !== null}
