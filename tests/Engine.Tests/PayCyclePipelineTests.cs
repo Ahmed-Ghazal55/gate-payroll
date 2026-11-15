@@ -59,4 +59,19 @@ public sealed class PayCyclePipelineTests
             Assert.IsFalse(stages["8_confirmed"]!.GetValue<bool>());
         }
     }
+
+    /// <summary>Live bug 0.23.0: the review draft sends the company code (BW); the capture scope accepted the sponsor id only.</summary>
+    [TestMethod]
+    public void CaptureScopeAcceptsCompanyCodeAndSponsorId()
+    {
+        var(f,_,_)=PayCycleTests.Setup();using(f)
+        {
+            var sponsor=FinancialCore.Sponsors.First(s=>s.Code=="BW");
+            var byCode=f.Store.Read(c=>PayCycles.CaptureScope(c,new System.Text.Json.Nodes.JsonObject{["companyId"]="BW"}));
+            var byId=f.Store.Read(c=>PayCycles.CaptureScope(c,new System.Text.Json.Nodes.JsonObject{["companyId"]=sponsor.Id}));
+            CollectionAssert.AreEqual(byId.SponsorUnifiedNumbers.ToList(),byCode.SponsorUnifiedNumbers.ToList());
+            CollectionAssert.AreEqual(byId.EmployeeIds.ToList(),byCode.EmployeeIds.ToList());
+            Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>PayCycles.CaptureScope(c,new System.Text.Json.Nodes.JsonObject{["companyId"]="nope"})));
+        }
+    }
 }

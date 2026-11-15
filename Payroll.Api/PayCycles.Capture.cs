@@ -37,9 +37,10 @@ public static partial class PayCycles
     /// <summary>Cycle company commercial regs + that company's riders (employee/profile ids). Not actor scope.</summary>
     public static LiveOperationsQuery.Scope CaptureScope(DbConnection payroll,JsonObject cycle)
     {
-        string company=cycle.S("companyId");
-        var sponsor=FinancialCore.Sponsors.FirstOrDefault(s=>s.Id==company)
+        // The screens send the company code (BW/EX/TR); stored cycles hold the sponsor id. Accept both.
+        var sponsor=FinancialCore.FindSponsor(cycle.S("companyId"))
             ??throw new ApiError("شركة الدورة غير معروفة.",400);
+        string company=sponsor.Id;
         if(string.IsNullOrWhiteSpace(sponsor.UnifiedNumber))
             throw new ApiError("الشركة غير مربوطة بكفيل في نظام الموارد",503);
         var numbers=new[]{sponsor.UnifiedNumber};

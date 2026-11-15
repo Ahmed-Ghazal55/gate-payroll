@@ -8,6 +8,10 @@
 | Live | `/health` = **0.22.0** until this release merges; `erpReadonlyConfigured=true` since 2026-11-15 (Claude added `ConnectionStrings:ErpReadonly`, read-only login, to the live `wwwroot/appsettings.Local.json`; backup in `~/Private/gate-data/cutover/`) |
 | Next | Claude reviews M3 (`feat/pipeline-screens`, Antigravity) → release 0.24.0 |
 
+## Hotfix after 0.23.0 (2026-11-15, Claude)
+- Live: `GET /api/pay/review-draft?companyId=BW` returned 400 «شركة الدورة غير معروفة». Cause: `PayCycles.CaptureScope` (`Payroll.Api/PayCycles.Capture.cs:38`) matched the sponsor id only; the screens send the company code. Fix: `FinancialCore.FindSponsor` (id or code). Test `CaptureScopeAcceptsCompanyCodeAndSponsorId`.
+- No version bump (pin stays 0.23.0).
+
 ## Release 0.23.0 (2026-11-15, Claude; Ghazal asked to merge and deploy)
 - Contents: PR #43 + PR #44. Not included: M3 (`feat/pipeline-screens`), not reviewed yet.
 - Live settings: the live site reads `ConnectionStrings:DefaultConnection` from the hosting environment and `ConnectionStrings:ErpReadonly` from `wwwroot/appsettings.Local.json` (the deploy never overwrites that file).
