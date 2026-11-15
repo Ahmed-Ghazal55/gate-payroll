@@ -2,20 +2,47 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Cursor — M2 API for UI (`feat/api-for-ui`) |
+| Current writer | _(none — M2 done; awaiting Claude M2 review)_ |
 | Branch | `feat/api-for-ui` |
-| Updated | 2026-11-15 by Cursor (M2 start) |
+| Updated | 2026-11-15 by Cursor (M2 complete) |
 | Live | `/health` = **0.22.0** (unchanged; no deploy) |
-| Tip | working |
+| Tip | working on `feat/api-for-ui` |
+| PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/43 |
 
 ## Goal now
-M1 complete on branch. Next: Claude reviews M1 (security + data), then Cursor runs `~/.agents/prompts/cursor-M2-api-for-ui.md`.
+M2 complete on branch. Next: Claude reviews M2, then Antigravity runs `~/.agents/prompts/antigravity-M3-pipeline-screens.md`.
 
-## Done (M2 so far)
+## Done (M2)
 - R1–R3 (M1 leftovers): Ninja RequiredKinds slimmed; rejected server-side only; dual Iqama/unmatched blockers.
-- Item 1: allowedActions/blockers on debts, advances, Jahez handovers, manual journals, config lists, PaySettings blockers, HS invoices/allocations/disputes, cycle confirm_debt_deductions_all, PlatformPosting open_posting.
-- Items 2–3: GET /pay/cycles/{id}/pipeline (§40 stages); GET /finance/treasury/summary (posting CoA cash/bank/other).
+- Item 1: `allowedActions` / blockers on debts, advances, Jahez handovers, manual journals, config lists, PaySettings, HS invoices/allocations/disputes, cycle `confirm_debt_deductions_all`, PlatformPosting `open_posting`.
+- Items 2–3: `GET /pay/cycles/{id}/pipeline` (§40 stages); `GET /finance/treasury/summary` (posting CoA cash/bank/other).
+- Items 4–7: ApiContracts + r8 cases; legacy payroll schemas; regenerate OpenAPI / `web` types / `ENDPOINTS.md`; api-cleanup PASS.
 
+### Dead client call (Antigravity — delete)
+- `web/src/lib/api.ts` → `getPayAppDefaults` calls `/pay/apps/{app}/defaults` — **no API route**. Do not add a route. Delete the client helper (and any callers) in M3. Catalog defaults stay on `GET /pay/catalog` (`defaults` + `defaultsAreDraftOnly`).
+
+### Antigravity — `allowedActions` map (use these names; do not invent buttons)
+
+| Record | Where | Action names |
+|---|---|---|
+| Pay cycle | `PayCycles.View` | `capture_inputs`, `cancel`, `advance`, `review`, `approve_salaries`, `review_debt_deductions`, `confirm_debt_deductions`, `confirm_debt_deductions_all`, `reversal_request` |
+| Debt deduction row | `PayCycles.DebtDeductions` | `edit`, `confirm` |
+| Review rider row | `PayCycles.Review` | `adjust`, `edit`, `approve` |
+| Debt | `Debts.View` | `edit`, `collect`, `transfer_sponsor`, `decide` |
+| Advance request | `AdvanceRequests` | `approve`, `reject`, `propose`, `accept`, `reject_proposal`, `payout` |
+| Jahez hand-over | `JahezHandovers` | `approve`, `reject` (reject needs reason) |
+| Manual journal | `ManualJournals` | `approve`, `reject`, `delete`, `reverse` |
+| Config list change | `ConfigLists` | `propose`, `approve` |
+| Pay settings / terms / schemes / eligibility | `PaySettings.WithActions` | `approve` (+ `approvalBlockers`) |
+| HS invoice | `HungerStationInvoices.InvoiceView` | `dispute`, `approve` |
+| HS allocation | `HungerStationInvoices.AllocationView` | `approve` |
+| HS dispute | `HungerStationInvoices.DisputeView` | `resolve` |
+| Platform posting gate | `PlatformPosting` | `open_posting`, `close_posting` (admin) |
+
+### New reads for M3 screens
+- `GET /api/pay/cycles/{id}/pipeline` — per-rider §40 stages 1–6.
+- `GET /api/finance/treasury/summary` — cash / bank / other / total per company (posting accounts only).
+- Cycle `status` may be `partially_approved` (documented in contract).
 
 ## Done (M1)
 - Schema probe + `ErpSchemaContractTests`; snapshot committed.

@@ -3470,9 +3470,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         };
@@ -3556,9 +3569,22 @@ export interface paths {
                                     deductions?: {
                                         category: string;
                                         amount: number;
-                                        level: string;
+                                        level?: string;
                                         expenseAccount?: string;
                                         riderId?: string;
+                                        migrationStatus?: string;
+                                        allocations?: {
+                                            bearer: string;
+                                            riderId?: string;
+                                            amount: number;
+                                            expenseAccount?: string;
+                                        }[];
+                                        proposal?: {
+                                            bearer: string;
+                                            riderId?: string;
+                                            amount: number;
+                                            expenseAccount?: string;
+                                        }[];
                                     }[];
                                 }[];
                             }[];
@@ -3633,9 +3659,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         } | {
@@ -3685,9 +3724,22 @@ export interface paths {
                                     deductions?: {
                                         category: string;
                                         amount: number;
-                                        level: string;
+                                        level?: string;
                                         expenseAccount?: string;
                                         riderId?: string;
+                                        migrationStatus?: string;
+                                        allocations?: {
+                                            bearer: string;
+                                            riderId?: string;
+                                            amount: number;
+                                            expenseAccount?: string;
+                                        }[];
+                                        proposal?: {
+                                            bearer: string;
+                                            riderId?: string;
+                                            amount: number;
+                                            expenseAccount?: string;
+                                        }[];
                                     }[];
                                 }[];
                             }[];
@@ -3781,9 +3833,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         };
@@ -3868,9 +3933,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         };
@@ -3931,9 +4009,22 @@ export interface paths {
                             deductions?: {
                                 category: string;
                                 amount: number;
-                                level: string;
+                                level?: string;
                                 expenseAccount?: string;
                                 riderId?: string;
+                                migrationStatus?: string;
+                                allocations?: {
+                                    bearer: string;
+                                    riderId?: string;
+                                    amount: number;
+                                    expenseAccount?: string;
+                                }[];
+                                proposal?: {
+                                    bearer: string;
+                                    riderId?: string;
+                                    amount: number;
+                                    expenseAccount?: string;
+                                }[];
                             }[];
                         }[];
                     };
@@ -4025,9 +4116,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         };
@@ -4118,9 +4222,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         };
@@ -4160,56 +4277,11 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            id: string;
-                            companyId: string;
-                            platform?: string;
-                            period: string;
-                            reference?: string;
-                            amountExclVat: number;
-                            deductionsTotal: number;
-                            vat: number;
-                            approvalStatus: string;
-                            status: string;
-                            allowedActions: string[];
-                            approvalBlockers?: string[];
-                            journalEntryId?: string;
-                            createdBy?: string;
-                            approvedBy?: string;
-                            accountingStatus?: string;
-                            reversalJournalEntryId?: string;
-                            disputes?: {
-                                id: string;
-                                status: string;
-                                reason: string;
-                                createdBy: string;
-                                resolvedBy?: string;
-                            }[];
-                            accountIds?: null | string[];
-                            lines?: {
-                                id: string;
-                                invoiceId: string;
-                                sourceRow: number;
-                                platformAccountId?: string;
-                                captainId?: string;
-                                lineType?: string;
-                                baseGross: number;
-                                incentives: number;
-                                deductionAmount: number;
-                                orders: number;
-                                vat: number;
-                                expected?: number;
-                                invoiced: number;
-                                difference?: number;
-                                reason?: string;
-                                status: string;
-                                deductions?: {
-                                    category: string;
-                                    amount: number;
-                                    level: string;
-                                    expenseAccount?: string;
-                                    riderId?: string;
-                                }[];
-                            }[];
+                            invoiceId: string;
+                            deductionRows: number;
+                            deductionAmount: number;
+                            multiRiderRows: number;
+                            multiRiderAmount: number;
                         };
                     };
                 };
@@ -4296,9 +4368,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         };
@@ -4389,9 +4474,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         };
@@ -4482,9 +4580,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         };
@@ -4571,9 +4682,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         };
@@ -4657,9 +4781,22 @@ export interface paths {
                                     deductions?: {
                                         category: string;
                                         amount: number;
-                                        level: string;
+                                        level?: string;
                                         expenseAccount?: string;
                                         riderId?: string;
+                                        migrationStatus?: string;
+                                        allocations?: {
+                                            bearer: string;
+                                            riderId?: string;
+                                            amount: number;
+                                            expenseAccount?: string;
+                                        }[];
+                                        proposal?: {
+                                            bearer: string;
+                                            riderId?: string;
+                                            amount: number;
+                                            expenseAccount?: string;
+                                        }[];
                                     }[];
                                 }[];
                             }[];
@@ -4776,9 +4913,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         };
@@ -4863,9 +5013,22 @@ export interface paths {
                                 deductions?: {
                                     category: string;
                                     amount: number;
-                                    level: string;
+                                    level?: string;
                                     expenseAccount?: string;
                                     riderId?: string;
+                                    migrationStatus?: string;
+                                    allocations?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
+                                    proposal?: {
+                                        bearer: string;
+                                        riderId?: string;
+                                        amount: number;
+                                        expenseAccount?: string;
+                                    }[];
                                 }[];
                             }[];
                         };
@@ -4926,9 +5089,22 @@ export interface paths {
                             deductions?: {
                                 category: string;
                                 amount: number;
-                                level: string;
+                                level?: string;
                                 expenseAccount?: string;
                                 riderId?: string;
+                                migrationStatus?: string;
+                                allocations?: {
+                                    bearer: string;
+                                    riderId?: string;
+                                    amount: number;
+                                    expenseAccount?: string;
+                                }[];
+                                proposal?: {
+                                    bearer: string;
+                                    riderId?: string;
+                                    amount: number;
+                                    expenseAccount?: string;
+                                }[];
                             }[];
                         }[];
                     };
@@ -5413,7 +5589,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfstringAndboolean"];
+                        "application/json": components["schemas"]["JsonObject"];
                     };
                 };
             };
@@ -7195,6 +7371,7 @@ export interface paths {
                             cycleId: string;
                             stage: number;
                             status: string;
+                            allowedActions?: string[];
                             rows: {
                                 rider: string;
                                 salaryNet: number;
@@ -7245,6 +7422,7 @@ export interface paths {
                             cycleId: string;
                             stage: number;
                             status: string;
+                            allowedActions?: string[];
                             rows: {
                                 rider: string;
                                 salaryNet: number;
@@ -7770,6 +7948,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pay/cycles/{id}/pipeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** §40 per-rider stage amounts, stage-4 items, and company expense lines */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            cycleId: string;
+                            period: string;
+                            companyId: string;
+                            stage: number;
+                            status: string;
+                            riders: {
+                                rider: string;
+                                name?: string;
+                                stages: Record<string, never>;
+                                lines?: {
+                                    id: string;
+                                    cycleId: string;
+                                    rider: string;
+                                    app: string;
+                                    period?: string;
+                                    status: string;
+                                    platformGross?: number;
+                                    incentives?: number;
+                                    gross: number;
+                                    companyCommission?: number;
+                                    entitlement?: number;
+                                    accountDeduction?: number;
+                                    allocatedVehicleCharge?: number;
+                                    sources: {
+                                        sourceLineId: string;
+                                        accountId: string;
+                                        operationSourceIds?: string[];
+                                        baseGross: number;
+                                        incentive?: number;
+                                        deduction?: number;
+                                    }[];
+                                    lines?: Record<string, never>[];
+                                    blockers?: string[];
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pay/shared-riders": {
         parameters: {
             query?: never;
@@ -7789,13 +8041,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            rider: string;
+                            period: string;
+                            status: string;
+                            labelAr: string;
+                            missingApps?: string[];
+                            apps?: Record<string, never>;
+                            combinedNet: number;
+                            released?: boolean;
+                        }[];
                     };
                 };
             };
@@ -7834,13 +8095,22 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            rider: string;
+                            period: string;
+                            status: string;
+                            labelAr: string;
+                            missingApps?: string[];
+                            apps?: Record<string, never>;
+                            combinedNet: number;
+                            released?: boolean;
+                        };
                     };
                 };
             };
@@ -10193,6 +10463,8 @@ export interface paths {
                             monthlyInstallment?: number;
                             paidAmount?: number;
                             creditorSponsorId?: string;
+                            allowedActions?: string[];
+                            approvalBlockers?: string[];
                         }[] | {
                             items: {
                                 id: string;
@@ -10205,6 +10477,8 @@ export interface paths {
                                 monthlyInstallment?: number;
                                 paidAmount?: number;
                                 creditorSponsorId?: string;
+                                allowedActions?: string[];
+                                approvalBlockers?: string[];
                             }[];
                             total: number;
                             page: number;
@@ -10229,17 +10503,120 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            iqama?: string;
+                            category?: string;
+                            categoryAr?: string;
+                            status: string;
+                            totalAmount: number;
+                            remainingBalance: number;
+                            monthlyInstallment?: number;
+                            paidAmount?: number;
+                            creditorSponsorId?: string;
+                            allowedActions?: string[];
+                            approvalBlockers?: string[];
+                        };
                     };
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one debt with allowedActions */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            iqama?: string;
+                            category?: string;
+                            categoryAr?: string;
+                            status: string;
+                            totalAmount: number;
+                            remainingBalance: number;
+                            monthlyInstallment?: number;
+                            paidAmount?: number;
+                            creditorSponsorId?: string;
+                            allowedActions?: string[];
+                            approvalBlockers?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        /** Update debts {id} */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            iqama?: string;
+                            category?: string;
+                            categoryAr?: string;
+                            status: string;
+                            totalAmount: number;
+                            remainingBalance: number;
+                            monthlyInstallment?: number;
+                            paidAmount?: number;
+                            creditorSponsorId?: string;
+                            allowedActions?: string[];
+                            approvalBlockers?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -10288,48 +10665,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/debts/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update debts {id} */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["JsonObject"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["JsonObject"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/debts/{id}/collect": {
         parameters: {
             query?: never;
@@ -10355,13 +10690,30 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfJsonObjectAndJsonObjectAndJsonObject"];
+                        "application/json": {
+                            debt: {
+                                id: string;
+                                iqama?: string;
+                                category?: string;
+                                categoryAr?: string;
+                                status: string;
+                                totalAmount: number;
+                                remainingBalance: number;
+                                monthlyInstallment?: number;
+                                paidAmount?: number;
+                                creditorSponsorId?: string;
+                                allowedActions?: string[];
+                                approvalBlockers?: string[];
+                            };
+                            settlement?: Record<string, never>;
+                            journal?: Record<string, never>;
+                        };
                     };
                 };
             };
@@ -10397,13 +10749,26 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            iqama?: string;
+                            category?: string;
+                            categoryAr?: string;
+                            status: string;
+                            totalAmount: number;
+                            remainingBalance: number;
+                            monthlyInstallment?: number;
+                            paidAmount?: number;
+                            creditorSponsorId?: string;
+                            allowedActions?: string[];
+                            approvalBlockers?: string[];
+                        };
                     };
                 };
             };
@@ -10991,13 +11356,23 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndintAnddecimalAnddecimalAnddecimalAnddecimal"][];
+                        "application/json": {
+                            id: string;
+                            sponsorId?: string;
+                            code: string;
+                            nameAr?: string;
+                            shortNameAr?: string;
+                            vaultBalance?: number;
+                            mainVaultBalance?: number;
+                            bankBalance?: number;
+                            allowedActions?: string[];
+                        }[];
                     };
                 };
             };
@@ -11147,13 +11522,27 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            status: string;
+                            companyId?: string;
+                            date?: string;
+                            reference?: string;
+                            description?: string;
+                            journalEntryId?: string;
+                            allowedActions?: string[];
+                            lines?: {
+                                accountCode: string;
+                                debit: number;
+                                credit: number;
+                            }[];
+                        };
                     };
                 };
             };
@@ -11842,12 +12231,36 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            sponsorId: string;
+                            from: string;
+                            to: string;
+                            basis: string;
+                            comparisonOnly?: boolean;
+                            doNotSend?: boolean;
+                            doNotSendMark?: string;
+                            rows: {
+                                bank?: string;
+                                iban: string;
+                                amount: number;
+                                notes?: string;
+                                name?: string;
+                                iqama: string;
+                                address?: string;
+                                errors?: string[];
+                            }[];
+                            excludedRows?: Record<string, never>[];
+                            previewToken: string;
+                            expiresInSeconds?: number;
+                            canExport: boolean;
+                        };
+                    };
                 };
             };
         };
@@ -11889,6 +12302,60 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/treasury/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cash, bank and other balances per company from posting CoA accounts only */
+        get: {
+            parameters: {
+                query?: {
+                    companyId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            companies: {
+                                companyId: string;
+                                code?: string;
+                                nameAr?: string;
+                                cash: number;
+                                bank: number;
+                                other: number;
+                                total: number;
+                            }[];
+                            totals: {
+                                cash: number;
+                                bank: number;
+                                other: number;
+                                total: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -14117,13 +14584,13 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": Record<string, never>;
                     };
                 };
             };
@@ -14153,13 +14620,20 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            iqama: string;
+                            period: string;
+                            fingerprint?: string;
+                            gross?: number;
+                            net?: number;
+                            blockers?: string[];
+                        }[];
                     };
                 };
             };
@@ -14189,13 +14663,20 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            iqama: string;
+                            period: string;
+                            approvedAt?: string;
+                            net?: number;
+                            status?: string;
+                        }[];
                     };
                 };
             };
@@ -14345,13 +14826,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfListOfJsonObjectAnddecimal"];
+                        "application/json": {
+                            rows: {
+                                id: string;
+                                iqama: string;
+                                amount: number;
+                                kind?: string;
+                                period?: string;
+                            }[];
+                            balance: number;
+                        };
                     };
                 };
             };
@@ -14387,13 +14877,13 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": Record<string, never>;
                     };
                 };
             };

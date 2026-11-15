@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:43939/"
+      "url": "http://127.0.0.1:41687/"
     }
   ],
   "paths": {
@@ -2902,8 +2902,7 @@
                             "items": {
                               "required": [
                                 "category",
-                                "amount",
-                                "level"
+                                "amount"
                               ],
                               "type": "object",
                               "properties": {
@@ -2921,6 +2920,57 @@
                                 },
                                 "riderId": {
                                   "type": "string"
+                                },
+                                "migrationStatus": {
+                                  "type": "string"
+                                },
+                                "allocations": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "proposal": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -3128,8 +3178,7 @@
                                 "items": {
                                   "required": [
                                     "category",
-                                    "amount",
-                                    "level"
+                                    "amount"
                                   ],
                                   "type": "object",
                                   "properties": {
@@ -3147,6 +3196,57 @@
                                     },
                                     "riderId": {
                                       "type": "string"
+                                    },
+                                    "migrationStatus": {
+                                      "type": "string"
+                                    },
+                                    "allocations": {
+                                      "type": "array",
+                                      "items": {
+                                        "required": [
+                                          "bearer",
+                                          "amount"
+                                        ],
+                                        "type": "object",
+                                        "properties": {
+                                          "bearer": {
+                                            "type": "string"
+                                          },
+                                          "riderId": {
+                                            "type": "string"
+                                          },
+                                          "amount": {
+                                            "type": "number"
+                                          },
+                                          "expenseAccount": {
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "proposal": {
+                                      "type": "array",
+                                      "items": {
+                                        "required": [
+                                          "bearer",
+                                          "amount"
+                                        ],
+                                        "type": "object",
+                                        "properties": {
+                                          "bearer": {
+                                            "type": "string"
+                                          },
+                                          "riderId": {
+                                            "type": "string"
+                                          },
+                                          "amount": {
+                                            "type": "number"
+                                          },
+                                          "expenseAccount": {
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
                                     }
                                   }
                                 }
@@ -3345,8 +3445,7 @@
                                       "items": {
                                         "required": [
                                           "category",
-                                          "amount",
-                                          "level"
+                                          "amount"
                                         ],
                                         "type": "object",
                                         "properties": {
@@ -3364,6 +3463,57 @@
                                           },
                                           "riderId": {
                                             "type": "string"
+                                          },
+                                          "migrationStatus": {
+                                            "type": "string"
+                                          },
+                                          "allocations": {
+                                            "type": "array",
+                                            "items": {
+                                              "required": [
+                                                "bearer",
+                                                "amount"
+                                              ],
+                                              "type": "object",
+                                              "properties": {
+                                                "bearer": {
+                                                  "type": "string"
+                                                },
+                                                "riderId": {
+                                                  "type": "string"
+                                                },
+                                                "amount": {
+                                                  "type": "number"
+                                                },
+                                                "expenseAccount": {
+                                                  "type": "string"
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "proposal": {
+                                            "type": "array",
+                                            "items": {
+                                              "required": [
+                                                "bearer",
+                                                "amount"
+                                              ],
+                                              "type": "object",
+                                              "properties": {
+                                                "bearer": {
+                                                  "type": "string"
+                                                },
+                                                "riderId": {
+                                                  "type": "string"
+                                                },
+                                                "amount": {
+                                                  "type": "number"
+                                                },
+                                                "expenseAccount": {
+                                                  "type": "string"
+                                                }
+                                              }
+                                            }
                                           }
                                         }
                                       }
@@ -3589,8 +3739,7 @@
                                   "items": {
                                     "required": [
                                       "category",
-                                      "amount",
-                                      "level"
+                                      "amount"
                                     ],
                                     "type": "object",
                                     "properties": {
@@ -3608,6 +3757,57 @@
                                       },
                                       "riderId": {
                                         "type": "string"
+                                      },
+                                      "migrationStatus": {
+                                        "type": "string"
+                                      },
+                                      "allocations": {
+                                        "type": "array",
+                                        "items": {
+                                          "required": [
+                                            "bearer",
+                                            "amount"
+                                          ],
+                                          "type": "object",
+                                          "properties": {
+                                            "bearer": {
+                                              "type": "string"
+                                            },
+                                            "riderId": {
+                                              "type": "string"
+                                            },
+                                            "amount": {
+                                              "type": "number"
+                                            },
+                                            "expenseAccount": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "proposal": {
+                                        "type": "array",
+                                        "items": {
+                                          "required": [
+                                            "bearer",
+                                            "amount"
+                                          ],
+                                          "type": "object",
+                                          "properties": {
+                                            "bearer": {
+                                              "type": "string"
+                                            },
+                                            "riderId": {
+                                              "type": "string"
+                                            },
+                                            "amount": {
+                                              "type": "number"
+                                            },
+                                            "expenseAccount": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        }
                                       }
                                     }
                                   }
@@ -3845,8 +4045,7 @@
                             "items": {
                               "required": [
                                 "category",
-                                "amount",
-                                "level"
+                                "amount"
                               ],
                               "type": "object",
                               "properties": {
@@ -3864,6 +4063,57 @@
                                 },
                                 "riderId": {
                                   "type": "string"
+                                },
+                                "migrationStatus": {
+                                  "type": "string"
+                                },
+                                "allocations": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "proposal": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -4079,8 +4329,7 @@
                             "items": {
                               "required": [
                                 "category",
-                                "amount",
-                                "level"
+                                "amount"
                               ],
                               "type": "object",
                               "properties": {
@@ -4098,6 +4347,57 @@
                                 },
                                 "riderId": {
                                   "type": "string"
+                                },
+                                "migrationStatus": {
+                                  "type": "string"
+                                },
+                                "allocations": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "proposal": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -4204,8 +4504,7 @@
                         "items": {
                           "required": [
                             "category",
-                            "amount",
-                            "level"
+                            "amount"
                           ],
                           "type": "object",
                           "properties": {
@@ -4223,6 +4522,57 @@
                             },
                             "riderId": {
                               "type": "string"
+                            },
+                            "migrationStatus": {
+                              "type": "string"
+                            },
+                            "allocations": {
+                              "type": "array",
+                              "items": {
+                                "required": [
+                                  "bearer",
+                                  "amount"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "bearer": {
+                                    "type": "string"
+                                  },
+                                  "riderId": {
+                                    "type": "string"
+                                  },
+                                  "amount": {
+                                    "type": "number"
+                                  },
+                                  "expenseAccount": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "proposal": {
+                              "type": "array",
+                              "items": {
+                                "required": [
+                                  "bearer",
+                                  "amount"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "bearer": {
+                                    "type": "string"
+                                  },
+                                  "riderId": {
+                                    "type": "string"
+                                  },
+                                  "amount": {
+                                    "type": "number"
+                                  },
+                                  "expenseAccount": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
                             }
                           }
                         }
@@ -4446,8 +4796,7 @@
                             "items": {
                               "required": [
                                 "category",
-                                "amount",
-                                "level"
+                                "amount"
                               ],
                               "type": "object",
                               "properties": {
@@ -4465,6 +4814,57 @@
                                 },
                                 "riderId": {
                                   "type": "string"
+                                },
+                                "migrationStatus": {
+                                  "type": "string"
+                                },
+                                "allocations": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "proposal": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -4690,8 +5090,7 @@
                             "items": {
                               "required": [
                                 "category",
-                                "amount",
-                                "level"
+                                "amount"
                               ],
                               "type": "object",
                               "properties": {
@@ -4709,6 +5108,57 @@
                                 },
                                 "riderId": {
                                   "type": "string"
+                                },
+                                "migrationStatus": {
+                                  "type": "string"
+                                },
+                                "allocations": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "proposal": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -4747,208 +5197,28 @@
               "application/json": {
                 "schema": {
                   "required": [
-                    "id",
-                    "companyId",
-                    "period",
-                    "amountExclVat",
-                    "deductionsTotal",
-                    "vat",
-                    "status",
-                    "approvalStatus",
-                    "allowedActions"
+                    "invoiceId",
+                    "deductionRows",
+                    "deductionAmount",
+                    "multiRiderRows",
+                    "multiRiderAmount"
                   ],
                   "type": "object",
                   "properties": {
-                    "id": {
+                    "invoiceId": {
                       "type": "string"
                     },
-                    "companyId": {
-                      "type": "string"
-                    },
-                    "platform": {
-                      "type": "string"
-                    },
-                    "period": {
-                      "type": "string"
-                    },
-                    "reference": {
-                      "type": "string"
-                    },
-                    "amountExclVat": {
+                    "deductionRows": {
                       "type": "number"
                     },
-                    "deductionsTotal": {
+                    "deductionAmount": {
                       "type": "number"
                     },
-                    "vat": {
+                    "multiRiderRows": {
                       "type": "number"
                     },
-                    "approvalStatus": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "allowedActions": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "approvalBlockers": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "journalEntryId": {
-                      "type": "string"
-                    },
-                    "createdBy": {
-                      "type": "string"
-                    },
-                    "approvedBy": {
-                      "type": "string"
-                    },
-                    "accountingStatus": {
-                      "type": "string"
-                    },
-                    "reversalJournalEntryId": {
-                      "type": "string"
-                    },
-                    "disputes": {
-                      "type": "array",
-                      "items": {
-                        "required": [
-                          "id",
-                          "status",
-                          "reason",
-                          "createdBy"
-                        ],
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "status": {
-                            "type": "string"
-                          },
-                          "reason": {
-                            "type": "string"
-                          },
-                          "createdBy": {
-                            "type": "string"
-                          },
-                          "resolvedBy": {
-                            "type": "string"
-                          }
-                        }
-                      }
-                    },
-                    "accountIds": {
-                      "type": [
-                        "null",
-                        "array"
-                      ],
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "lines": {
-                      "type": "array",
-                      "items": {
-                        "required": [
-                          "id",
-                          "invoiceId",
-                          "sourceRow",
-                          "baseGross",
-                          "incentives",
-                          "deductionAmount",
-                          "orders",
-                          "vat",
-                          "invoiced",
-                          "status"
-                        ],
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "invoiceId": {
-                            "type": "string"
-                          },
-                          "sourceRow": {
-                            "type": "number"
-                          },
-                          "platformAccountId": {
-                            "type": "string"
-                          },
-                          "captainId": {
-                            "type": "string"
-                          },
-                          "lineType": {
-                            "type": "string"
-                          },
-                          "baseGross": {
-                            "type": "number"
-                          },
-                          "incentives": {
-                            "type": "number"
-                          },
-                          "deductionAmount": {
-                            "type": "number"
-                          },
-                          "orders": {
-                            "type": "number"
-                          },
-                          "vat": {
-                            "type": "number"
-                          },
-                          "expected": {
-                            "type": "number"
-                          },
-                          "invoiced": {
-                            "type": "number"
-                          },
-                          "difference": {
-                            "type": "number"
-                          },
-                          "reason": {
-                            "type": "string"
-                          },
-                          "status": {
-                            "type": "string"
-                          },
-                          "deductions": {
-                            "type": "array",
-                            "items": {
-                              "required": [
-                                "category",
-                                "amount",
-                                "level"
-                              ],
-                              "type": "object",
-                              "properties": {
-                                "category": {
-                                  "type": "string"
-                                },
-                                "amount": {
-                                  "type": "number"
-                                },
-                                "level": {
-                                  "type": "string"
-                                },
-                                "expenseAccount": {
-                                  "type": "string"
-                                },
-                                "riderId": {
-                                  "type": "string"
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
+                    "multiRiderAmount": {
+                      "type": "number"
                     }
                   }
                 }
@@ -5158,8 +5428,7 @@
                             "items": {
                               "required": [
                                 "category",
-                                "amount",
-                                "level"
+                                "amount"
                               ],
                               "type": "object",
                               "properties": {
@@ -5177,6 +5446,57 @@
                                 },
                                 "riderId": {
                                   "type": "string"
+                                },
+                                "migrationStatus": {
+                                  "type": "string"
+                                },
+                                "allocations": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "proposal": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -5402,8 +5722,7 @@
                             "items": {
                               "required": [
                                 "category",
-                                "amount",
-                                "level"
+                                "amount"
                               ],
                               "type": "object",
                               "properties": {
@@ -5421,6 +5740,57 @@
                                 },
                                 "riderId": {
                                   "type": "string"
+                                },
+                                "migrationStatus": {
+                                  "type": "string"
+                                },
+                                "allocations": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "proposal": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -5646,8 +6016,7 @@
                             "items": {
                               "required": [
                                 "category",
-                                "amount",
-                                "level"
+                                "amount"
                               ],
                               "type": "object",
                               "properties": {
@@ -5665,6 +6034,57 @@
                                 },
                                 "riderId": {
                                   "type": "string"
+                                },
+                                "migrationStatus": {
+                                  "type": "string"
+                                },
+                                "allocations": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "proposal": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -5880,8 +6300,7 @@
                             "items": {
                               "required": [
                                 "category",
-                                "amount",
-                                "level"
+                                "amount"
                               ],
                               "type": "object",
                               "properties": {
@@ -5899,6 +6318,57 @@
                                 },
                                 "riderId": {
                                   "type": "string"
+                                },
+                                "migrationStatus": {
+                                  "type": "string"
+                                },
+                                "allocations": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "proposal": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -6133,8 +6603,7 @@
                                   "items": {
                                     "required": [
                                       "category",
-                                      "amount",
-                                      "level"
+                                      "amount"
                                     ],
                                     "type": "object",
                                     "properties": {
@@ -6152,6 +6621,57 @@
                                       },
                                       "riderId": {
                                         "type": "string"
+                                      },
+                                      "migrationStatus": {
+                                        "type": "string"
+                                      },
+                                      "allocations": {
+                                        "type": "array",
+                                        "items": {
+                                          "required": [
+                                            "bearer",
+                                            "amount"
+                                          ],
+                                          "type": "object",
+                                          "properties": {
+                                            "bearer": {
+                                              "type": "string"
+                                            },
+                                            "riderId": {
+                                              "type": "string"
+                                            },
+                                            "amount": {
+                                              "type": "number"
+                                            },
+                                            "expenseAccount": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "proposal": {
+                                        "type": "array",
+                                        "items": {
+                                          "required": [
+                                            "bearer",
+                                            "amount"
+                                          ],
+                                          "type": "object",
+                                          "properties": {
+                                            "bearer": {
+                                              "type": "string"
+                                            },
+                                            "riderId": {
+                                              "type": "string"
+                                            },
+                                            "amount": {
+                                              "type": "number"
+                                            },
+                                            "expenseAccount": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        }
                                       }
                                     }
                                   }
@@ -6389,8 +6909,7 @@
                             "items": {
                               "required": [
                                 "category",
-                                "amount",
-                                "level"
+                                "amount"
                               ],
                               "type": "object",
                               "properties": {
@@ -6408,6 +6927,57 @@
                                 },
                                 "riderId": {
                                   "type": "string"
+                                },
+                                "migrationStatus": {
+                                  "type": "string"
+                                },
+                                "allocations": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "proposal": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -6623,8 +7193,7 @@
                             "items": {
                               "required": [
                                 "category",
-                                "amount",
-                                "level"
+                                "amount"
                               ],
                               "type": "object",
                               "properties": {
@@ -6642,6 +7211,57 @@
                                 },
                                 "riderId": {
                                   "type": "string"
+                                },
+                                "migrationStatus": {
+                                  "type": "string"
+                                },
+                                "allocations": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "proposal": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "bearer",
+                                      "amount"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "bearer": {
+                                        "type": "string"
+                                      },
+                                      "riderId": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "number"
+                                      },
+                                      "expenseAccount": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -6748,8 +7368,7 @@
                         "items": {
                           "required": [
                             "category",
-                            "amount",
-                            "level"
+                            "amount"
                           ],
                           "type": "object",
                           "properties": {
@@ -6767,6 +7386,57 @@
                             },
                             "riderId": {
                               "type": "string"
+                            },
+                            "migrationStatus": {
+                              "type": "string"
+                            },
+                            "allocations": {
+                              "type": "array",
+                              "items": {
+                                "required": [
+                                  "bearer",
+                                  "amount"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "bearer": {
+                                    "type": "string"
+                                  },
+                                  "riderId": {
+                                    "type": "string"
+                                  },
+                                  "amount": {
+                                    "type": "number"
+                                  },
+                                  "expenseAccount": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "proposal": {
+                              "type": "array",
+                              "items": {
+                                "required": [
+                                  "bearer",
+                                  "amount"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "bearer": {
+                                    "type": "string"
+                                  },
+                                  "riderId": {
+                                    "type": "string"
+                                  },
+                                  "amount": {
+                                    "type": "number"
+                                  },
+                                  "expenseAccount": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
                             }
                           }
                         }
@@ -7190,7 +7860,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfstringAndboolean"
+                  "$ref": "#/components/schemas/JsonObject"
                 }
               }
             }
@@ -10550,6 +11220,12 @@
                     "status": {
                       "type": "string"
                     },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "rows": {
                       "type": "array",
                       "items": {
@@ -10684,6 +11360,12 @@
                     },
                     "status": {
                       "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "rows": {
                       "type": "array",
@@ -12207,6 +12889,184 @@
         }
       }
     },
+    "/api/pay/cycles/{id}/pipeline": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "§40 per-rider stage amounts, stage-4 items, and company expense lines",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "cycleId",
+                    "period",
+                    "companyId",
+                    "stage",
+                    "status",
+                    "riders"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "cycleId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "stage": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "riders": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "rider",
+                          "stages"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "rider": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "stages": {
+                            "type": "object"
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "cycleId",
+                                "rider",
+                                "app",
+                                "status",
+                                "gross",
+                                "sources"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "cycleId": {
+                                  "type": "string"
+                                },
+                                "rider": {
+                                  "type": "string"
+                                },
+                                "app": {
+                                  "type": "string"
+                                },
+                                "period": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "platformGross": {
+                                  "type": "number"
+                                },
+                                "incentives": {
+                                  "type": "number"
+                                },
+                                "gross": {
+                                  "type": "number"
+                                },
+                                "companyCommission": {
+                                  "type": "number"
+                                },
+                                "entitlement": {
+                                  "type": "number"
+                                },
+                                "accountDeduction": {
+                                  "type": "number"
+                                },
+                                "allocatedVehicleCharge": {
+                                  "type": "number"
+                                },
+                                "sources": {
+                                  "type": "array",
+                                  "items": {
+                                    "required": [
+                                      "sourceLineId",
+                                      "accountId",
+                                      "baseGross"
+                                    ],
+                                    "type": "object",
+                                    "properties": {
+                                      "sourceLineId": {
+                                        "type": "string"
+                                      },
+                                      "accountId": {
+                                        "type": "string"
+                                      },
+                                      "operationSourceIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "baseGross": {
+                                        "type": "number"
+                                      },
+                                      "incentive": {
+                                        "type": "number"
+                                      },
+                                      "deduction": {
+                                        "type": "number"
+                                      }
+                                    }
+                                  }
+                                },
+                                "lines": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object"
+                                  }
+                                },
+                                "blockers": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pay/shared-riders": {
       "get": {
         "tags": [
@@ -12224,13 +13084,49 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/JsonObject"
+                    "required": [
+                      "rider",
+                      "period",
+                      "status",
+                      "labelAr",
+                      "combinedNet"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "rider": {
+                        "type": "string"
+                      },
+                      "period": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "labelAr": {
+                        "type": "string"
+                      },
+                      "missingApps": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "apps": {
+                        "type": "object"
+                      },
+                      "combinedNet": {
+                        "type": "number"
+                      },
+                      "released": {
+                        "type": "boolean"
+                      }
+                    }
                   }
                 }
               }
@@ -12275,11 +13171,47 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "rider",
+                    "period",
+                    "status",
+                    "labelAr",
+                    "combinedNet"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "rider": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "labelAr": {
+                      "type": "string"
+                    },
+                    "missingApps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "object"
+                    },
+                    "combinedNet": {
+                      "type": "number"
+                    },
+                    "released": {
+                      "type": "boolean"
+                    }
+                  }
                 }
               }
             }
@@ -16386,6 +17318,18 @@
                           },
                           "creditorSponsorId": {
                             "type": "string"
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "approvalBlockers": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         }
                       }
@@ -16439,6 +17383,18 @@
                               },
                               "creditorSponsorId": {
                                 "type": "string"
+                              },
+                              "allowedActions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "approvalBlockers": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
                               }
                             }
                           }
@@ -16478,11 +17434,229 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "totalAmount",
+                    "remainingBalance",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "categoryAr": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "totalAmount": {
+                      "type": "number"
+                    },
+                    "remainingBalance": {
+                      "type": "number"
+                    },
+                    "monthlyInstallment": {
+                      "type": "number"
+                    },
+                    "paidAmount": {
+                      "type": "number"
+                    },
+                    "creditorSponsorId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/debts/{id}": {
+      "get": {
+        "tags": [
+          "Debts and advances"
+        ],
+        "summary": "Read one debt with allowedActions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "totalAmount",
+                    "remainingBalance",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "categoryAr": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "totalAmount": {
+                      "type": "number"
+                    },
+                    "remainingBalance": {
+                      "type": "number"
+                    },
+                    "monthlyInstallment": {
+                      "type": "number"
+                    },
+                    "paidAmount": {
+                      "type": "number"
+                    },
+                    "creditorSponsorId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Debts and advances"
+        ],
+        "summary": "Update debts {id}",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "totalAmount",
+                    "remainingBalance",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "categoryAr": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "totalAmount": {
+                      "type": "number"
+                    },
+                    "remainingBalance": {
+                      "type": "number"
+                    },
+                    "monthlyInstallment": {
+                      "type": "number"
+                    },
+                    "paidAmount": {
+                      "type": "number"
+                    },
+                    "creditorSponsorId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -16530,46 +17704,6 @@
         "deprecated": true
       }
     },
-    "/api/debts/{id}": {
-      "put": {
-        "tags": [
-          "Debts and advances"
-        ],
-        "summary": "Update debts {id}",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonObject"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/debts/{id}/collect": {
       "post": {
         "tags": [
@@ -16598,11 +17732,75 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfJsonObjectAndJsonObjectAndJsonObject"
+                  "required": [
+                    "debt"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "debt": {
+                      "required": [
+                        "id",
+                        "totalAmount",
+                        "remainingBalance",
+                        "status"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "iqama": {
+                          "type": "string"
+                        },
+                        "category": {
+                          "type": "string"
+                        },
+                        "categoryAr": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "totalAmount": {
+                          "type": "number"
+                        },
+                        "remainingBalance": {
+                          "type": "number"
+                        },
+                        "monthlyInstallment": {
+                          "type": "number"
+                        },
+                        "paidAmount": {
+                          "type": "number"
+                        },
+                        "creditorSponsorId": {
+                          "type": "string"
+                        },
+                        "allowedActions": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "approvalBlockers": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "settlement": {
+                      "type": "object"
+                    },
+                    "journal": {
+                      "type": "object"
+                    }
+                  }
                 }
               }
             }
@@ -16638,11 +17836,61 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "totalAmount",
+                    "remainingBalance",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "categoryAr": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "totalAmount": {
+                      "type": "number"
+                    },
+                    "remainingBalance": {
+                      "type": "number"
+                    },
+                    "monthlyInstallment": {
+                      "type": "number"
+                    },
+                    "paidAmount": {
+                      "type": "number"
+                    },
+                    "creditorSponsorId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "approvalBlockers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -17134,13 +18382,49 @@
         "summary": "Read finance sponsors",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndintAnddecimalAnddecimalAnddecimalAnddecimal"
+                    "required": [
+                      "id",
+                      "code"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "sponsorId": {
+                        "type": "string"
+                      },
+                      "code": {
+                        "type": "string"
+                      },
+                      "nameAr": {
+                        "type": "string"
+                      },
+                      "shortNameAr": {
+                        "type": "string"
+                      },
+                      "vaultBalance": {
+                        "type": "number"
+                      },
+                      "mainVaultBalance": {
+                        "type": "number"
+                      },
+                      "bankBalance": {
+                        "type": "number"
+                      },
+                      "allowedActions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -17265,11 +18549,66 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "date": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "accountCode",
+                          "debit",
+                          "credit"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "accountCode": {
+                            "type": "string"
+                          },
+                          "debit": {
+                            "type": "number"
+                          },
+                          "credit": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -17864,7 +19203,101 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "sponsorId",
+                    "from",
+                    "to",
+                    "basis",
+                    "rows",
+                    "previewToken",
+                    "canExport"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "sponsorId": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "basis": {
+                      "type": "string"
+                    },
+                    "comparisonOnly": {
+                      "type": "boolean"
+                    },
+                    "doNotSend": {
+                      "type": "boolean"
+                    },
+                    "doNotSendMark": {
+                      "type": "string"
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "iban",
+                          "amount",
+                          "iqama"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "bank": {
+                            "type": "string"
+                          },
+                          "iban": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "notes": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "errors": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "excludedRows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "previewToken": {
+                      "type": "string"
+                    },
+                    "expiresInSeconds": {
+                      "type": "number"
+                    },
+                    "canExport": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -17888,6 +19321,100 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/finance/treasury/summary": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Cash, bank and other balances per company from posting CoA accounts only",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "companies",
+                    "totals"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "companies": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "companyId",
+                          "cash",
+                          "bank",
+                          "other",
+                          "total"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          },
+                          "cash": {
+                            "type": "number"
+                          },
+                          "bank": {
+                            "type": "number"
+                          },
+                          "other": {
+                            "type": "number"
+                          },
+                          "total": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "totals": {
+                      "required": [
+                        "cash",
+                        "bank",
+                        "other",
+                        "total"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "cash": {
+                          "type": "number"
+                        },
+                        "bank": {
+                          "type": "number"
+                        },
+                        "other": {
+                          "type": "number"
+                        },
+                        "total": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -20092,11 +21619,11 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "type": "object"
                 }
               }
             }
@@ -20122,13 +21649,40 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/JsonObject"
+                    "required": [
+                      "iqama",
+                      "period"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "iqama": {
+                        "type": "string"
+                      },
+                      "period": {
+                        "type": "string"
+                      },
+                      "fingerprint": {
+                        "type": "string"
+                      },
+                      "gross": {
+                        "type": "number"
+                      },
+                      "net": {
+                        "type": "number"
+                      },
+                      "blockers": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -20145,13 +21699,38 @@
         "summary": "Read payroll runs",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/JsonObject"
+                    "required": [
+                      "id",
+                      "iqama",
+                      "period"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "iqama": {
+                        "type": "string"
+                      },
+                      "period": {
+                        "type": "string"
+                      },
+                      "approvedAt": {
+                        "type": "string"
+                      },
+                      "net": {
+                        "type": "number"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    }
                   }
                 }
               }
@@ -20270,11 +21849,48 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfListOfJsonObjectAnddecimal"
+                  "required": [
+                    "rows",
+                    "balance"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "iqama",
+                          "amount"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "period": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "balance": {
+                      "type": "number"
+                    }
+                  }
                 }
               }
             }
@@ -20300,11 +21916,11 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "type": "object"
                 }
               }
             }
