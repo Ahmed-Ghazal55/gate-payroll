@@ -840,6 +840,8 @@ export const api = {
       return rows.map(({ answers, ...row }) => ({
         ...(answers || {}),
         ...row,
+        // The inbox returns the campaign (or form) name as `title`; the screens read `campaignTitle`.
+        campaignTitle: (row.title as string) || undefined,
         createdAt: (row.submittedAt as string) || (row.createdAt as string),
       })) as unknown as Submission[];
     } catch (err: any) {
