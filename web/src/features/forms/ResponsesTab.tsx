@@ -21,6 +21,7 @@ import { ErrorState } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
+import { bankLabel } from '../../lib/saudi-banks';
 import { ReviewDrawer } from './ReviewDrawer';
 
 export interface ResponsesTabProps {
@@ -57,6 +58,28 @@ export function ResponsesTab({
     const clean = cleanIban(iban);
     return clean ? clean.replace(/(.{4})/g, '$1 ').trim() : '—';
   };
+
+  // Campaign name for the user: the title the API sent, else the title of the loaded campaign.
+  // The internal id is never shown.
+  const campaignTitles = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of campaigns) if (c.title) map.set(c.id, c.title);
+    for (const s of submissions) if (s.campaignTitle) map.set(s.campaignId, s.campaignTitle);
+    return map;
+  }, [campaigns, submissions]);
+  const campaignName = (s: Submission) => s.campaignTitle || campaignTitles.get(s.campaignId) || '—';
+  // Filter choices = every campaign and form that has a title, including custom forms that only appear in the responses.
+  const campaignOptions = useMemo(
+    () =>
+      [...campaignTitles.entries()]
+        .map(([value, label]) => ({ value, label }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'ar')),
+    [campaignTitles]
+  );
+  const workSystemLabel = (s: Submission) =>
+    s.workSystem === 'monthly' ? 'راتب شهري' : s.workSystem === 'per-order' ? 'بالطلب' : s.workSystem || '—';
+  const statusLabel = (s: Submission) =>
+    s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة';
 
   const filteredSubmissions = useMemo(() => {
     return submissions.filter((s) => {
@@ -160,9 +183,9 @@ export function ResponsesTab({
       sanitize(s.iqama),
       // Export the IBAN as one unbroken value so it can be copied into a bank form as is.
       sanitize(s.iban ? cleanIban(s.iban) : s.workSystem || '—'),
-      sanitize(s.bank || '—'),
+      sanitize(s.iban ? bankLabel(s) : '—'),
       sanitize(s.workSystem || '—'),
-      sanitize(s.campaignTitle || s.campaignId),
+      sanitize(campaignName(s)),
       sanitize(s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'),
       sanitize(s.createdAt ? new Date(s.createdAt).toLocaleDateString('ar-SA') : '—'),
     ]);
@@ -228,32 +251,38 @@ export function ResponsesTab({
     {
       key: 'choice',
       header: 'البيان / الآيبان',
+      getValue: (s) => (s.iban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : workSystemLabel(s)),
       render: (s) =>
         s.iban ? (
           <div className="flex flex-col">
             <span className="num font-mono text-xs text-[var(--accent)] font-semibold tracking-wide">
               {formatIban(s.iban)}
             </span>
-            <span className="text-[11px] text-[var(--muted)]">{s.bank || '—'}</span>
+            <span className="text-[11px] text-[var(--muted)]">{bankLabel(s)}</span>
           </div>
         ) : (
           <span className="font-semibold text-xs">
-            {s.workSystem === 'monthly' ? 'راتب شهري' : s.workSystem === 'per-order' ? 'بالطلب' : s.workSystem || '—'}
+            {workSystemLabel(s)}
           </span>
         ),
     },
     {
       key: 'campaign',
       header: 'الحملة',
+      getValue: (s) => campaignName(s),
       render: (s) => (
-        <span className="text-xs text-[var(--muted)] truncate max-w-[150px] inline-block">
-          {s.campaignTitle || s.campaignId}
+        <span
+          className="text-xs text-[var(--muted)] truncate max-w-[220px] inline-block align-bottom"
+          title={campaignName(s)}
+        >
+          {campaignName(s)}
         </span>
       ),
     },
     {
       key: 'status',
       header: 'الحالة',
+      getValue: (s) => statusLabel(s),
       render: (s) => {
         const badges = {
           pending: { label: 'قيد المراجعة', class: 'bg-[var(--warning)]/15 text-[var(--warning)]' },
@@ -323,7 +352,7 @@ export function ResponsesTab({
               className="w-52"
               options={[
                 { value: '', label: 'كل الحملات' },
-                ...campaigns.map((c) => ({ value: c.id, label: c.title })),
+                ...campaignOptions,
               ]}
             />
 

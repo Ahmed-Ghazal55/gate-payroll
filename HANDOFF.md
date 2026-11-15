@@ -8,6 +8,13 @@
 | Live | `/health` = **0.22.0** (PR #41 `f900e8f`); `erpReadonlyConfigured=false` until Ghazal sets the read-only ERP login |
 | Tip | release/0.22.0 — engine 586/586 local SQL, 0 skipped |
 
+## Responses screen: bank name and campaign name (2026-11-15, Claude; Ghazal's report after PR #42)
+- Branch `fix/responses-bank-and-campaign` from main `aff86f0`. Web only.
+- Bank under the IBAN: `web/src/lib/saudi-banks.ts` `bankLabel` = Arabic name + SWIFT from the API `bankCode`, else from the IBAN's bank code (characters 5–6). Unknown code shows the code; never a fixed bank. Used in `ResponsesTab.tsx` (list + export) and `ReviewDrawer.tsx`. Cause: `GET /api/responses` returns `bankCode`, not `bank`.
+- Campaign column: the API returns the campaign or form name as `title`; `web/src/lib/api.ts` `getSubmissions` now maps it to `campaignTitle`. The internal id is never shown («—» when unknown).
+- Campaign filter: choices now include every campaign and custom form that has responses (before: campaigns only, so custom-form responses could not be picked). Column filter and sort work on the name (`getValue` on the campaign, IBAN/bank and status columns).
+- Checks: `npx tsc --noEmit`, `npm run build`, `npm run api:check` green. Not checked in a browser against live data.
+
 ## Full IBAN in form responses (2026-11-15, Claude; Ghazal's request)
 - Master plan and status: `~/.agents/plans/MASTER-2026-11-15.md`.
 - `web/src/features/forms/ResponsesTab.tsx`: the responses list shows the full IBAN grouped by four (`formatIban`); Excel and CSV export carry the full IBAN as one unbroken value (`cleanIban`). The mask was client-side only; the API already returns the full value to users allowed to list responses, so no new access is opened.

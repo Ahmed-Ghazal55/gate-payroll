@@ -6,6 +6,7 @@ import { api, ApiError } from '../../lib/api';
 import type { Submission } from '../../lib/types';
 import { Check, X, Copy, ShieldCheck, AlertCircle, Clock, CheckSquare } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
+import { bankLabel } from '../../lib/saudi-banks';
 
 export interface ReviewDrawerProps {
   submission: Submission | null;
@@ -166,7 +167,7 @@ export function ReviewDrawer({ submission, onClose, onSuccess }: ReviewDrawerPro
             </div>
             <div className="flex items-center justify-between text-xs text-[var(--muted)] pt-0.5">
               <span>البنك المستخرج:</span>
-              <strong className="text-[var(--ink)]">{submission.bank || '—'}</strong>
+              <strong className="text-[var(--ink)]">{bankLabel(submission)}</strong>
             </div>
           </div>
         )}
