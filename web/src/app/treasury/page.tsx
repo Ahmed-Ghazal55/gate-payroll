@@ -27,7 +27,7 @@ import {
   History,
   Wifi,
 } from 'lucide-react';
-import { api, ApiError } from '../../lib/api';
+import { api, ApiError, type ApiResp } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -85,6 +85,7 @@ function TreasuryPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<FinanceAccount[]>([]);
   const [journals, setJournals] = useState<FinanceJournal[]>([]);
+  const [treasurySummary, setTreasurySummary] = useState<ApiResp<'/api/finance/treasury/summary'> | null>(null);
   const [bankFilePreview, setBankFilePreview] = useState<BankPayrollFilePreview | null>(null);
   const [loadingBankFile, setLoadingBankFile] = useState<boolean>(false);
   const [bankFileError, setBankFileError] = useState<string | null>(null);
@@ -120,12 +121,14 @@ function TreasuryPageContent() {
     setLoading(true);
     setError(null);
     try {
-      const [accsRes, jrnlsRes] = await Promise.all([
+      const [accsRes, jrnlsRes, summaryRes] = await Promise.all([
         api.getFinanceAccounts(),
         api.getFinanceJournals(),
+        api.getTreasurySummary(),
       ]);
       setAccounts(accsRes || []);
       setJournals(jrnlsRes || []);
+      setTreasurySummary(summaryRes || null);
     } catch (err: any) {
       const msg = err.message || 'تعذر تحميل بيانات الخزينة والحسابات';
       setError(msg);
@@ -285,18 +288,9 @@ function TreasuryPageContent() {
     });
   }, [accounts, vaultTypeFilter, searchQuery]);
 
-  // Derived balances
-  const totalBankBalance = useMemo(
-    () => accounts.filter((a) => a.code?.startsWith('111')).reduce((s, a) => s + (a.netBalance || 0), 0),
-    [accounts]
-  );
-  const totalCashBalance = useMemo(
-    () =>
-      accounts
-        .filter((a) => a.code?.startsWith('112') || a.code?.startsWith('113') || a.code?.startsWith('114'))
-        .reduce((s, a) => s + (a.netBalance || 0), 0),
-    [accounts]
-  );
+  const totalBankBalance = treasurySummary?.totals?.bank ?? 0;
+  const totalCashBalance = treasurySummary?.totals?.cash ?? 0;
+  const totalTreasuryBalance = treasurySummary?.totals?.total ?? 0;
 
   // Selected account movements
   const selectedAccountJournals = useMemo(() => {
@@ -331,7 +325,7 @@ function TreasuryPageContent() {
         <StatCard
           label="إجمالي الصناديق والخزن"
           value={`${totalCashBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
-          hint="الخزن الرئيسية والفرعية وصناديق العهد"
+          hint={`إجمالي الخزينة الكلي: ${totalTreasuryBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
           icon={Coins}
         />
         <StatCard
@@ -395,6 +389,33 @@ function TreasuryPageContent() {
       {/* ======================================================== */}
       {activeTab === 'vaults' && (
         <div className="space-y-4">
+          {treasurySummary?.companies && treasurySummary.companies.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {treasurySummary.companies.map((c) => (
+                <div key={c.companyId} className="p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-[var(--ink)]">{c.nameAr || c.code || c.companyId}</span>
+                    {c.code && <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--raised)] text-[var(--muted)]">{c.code}</span>}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-[11px] pt-1">
+                    <div>
+                      <span className="block text-[var(--muted)]">نقدي</span>
+                      <span className="num font-semibold text-[var(--ink)]">{c.cash.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[var(--muted)]">بنك</span>
+                      <span className="num font-semibold text-[var(--ink)]">{c.bank.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[var(--muted)]">الإجمالي</span>
+                      <span className="num font-bold text-[var(--accent)]">{c.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
             <div className="flex items-center gap-2 flex-1 max-w-sm">
               <Search size={16} className="text-[var(--muted)] shrink-0" />

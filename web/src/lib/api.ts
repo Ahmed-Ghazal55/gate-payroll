@@ -1052,6 +1052,11 @@ export const api = {
   // ==========================================
   // Treasury & Banks (R3 Part B1)
   // ==========================================
+  getTreasurySummary: (companyId?: string) => {
+    const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+    return handleRequest<ApiResp<'/api/finance/treasury/summary'>>(`/finance/treasury/summary${qs}`);
+  },
+
   getFinanceAccounts: (sponsorId?: string) => {
     const qs = sponsorId ? `?sponsorId=${encodeURIComponent(sponsorId)}` : '';
     return handleRequest<FinanceAccount[]>(`/finance/accounts${qs}`);
