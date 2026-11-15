@@ -97,8 +97,15 @@ function AdminPageInner() {
   const [auditActionFilter, setAuditActionFilter] = useState<string>('all');
 
   // Firebase Config State
-  const [fbProjectId, setFbProjectId] = useState<string>('gate-payroll-app');
-  const [fbClientEmail, setFbClientEmail] = useState<string>('firebase-adminsdk@gate-payroll.iam.gserviceaccount.com');
+  const [fbProjectId, setFbProjectId] = useState<string>('');
+  const [fbSenderId, setFbSenderId] = useState<string>('');
+  const [fbVapidPublicKey, setFbVapidPublicKey] = useState<string>('');
+  const [fbAndroidPackageName, setFbAndroidPackageName] = useState<string>('');
+  const [fbGooglePlayUrl, setFbGooglePlayUrl] = useState<string>('');
+  const [fbHasServiceAccountJson, setFbHasServiceAccountJson] = useState<boolean>(false);
+  const [fbConfigured, setFbConfigured] = useState<boolean>(false);
+  const [fbLoading, setFbLoading] = useState<boolean>(false);
+  const [fbSaving, setFbSaving] = useState<boolean>(false);
 
   // ========================================================
   // R5-3 ORG DIRECTORY STATES (BR §25.1)
@@ -220,12 +227,53 @@ function AdminPageInner() {
     loadUsers();
   }, []);
 
+  const loadFirebaseConfig = async () => {
+    setFbLoading(true);
+    try {
+      const cfg = await api.getFirebaseConfig();
+      if (cfg) {
+        setFbProjectId(cfg.projectId || '');
+        setFbSenderId(cfg.senderId || '');
+        setFbVapidPublicKey(cfg.vapidPublicKey || '');
+        setFbAndroidPackageName(cfg.androidPackageName || '');
+        setFbGooglePlayUrl(cfg.googlePlayUrl || '');
+        setFbHasServiceAccountJson(Boolean(cfg.hasServiceAccountJson));
+        setFbConfigured(Boolean(cfg.configured));
+      }
+    } catch (err: any) {
+      toast(err?.message || 'تعذر تحميل إعدادات Firebase', 'danger');
+    } finally {
+      setFbLoading(false);
+    }
+  };
+
+  const handleSaveFirebaseConfig = async () => {
+    setFbSaving(true);
+    try {
+      const res = await api.saveFirebaseConfig({
+        projectId: fbProjectId.trim(),
+        senderId: fbSenderId.trim(),
+        vapidPublicKey: fbVapidPublicKey.trim(),
+        androidPackageName: fbAndroidPackageName.trim(),
+        googlePlayUrl: fbGooglePlayUrl.trim(),
+      });
+      setFbConfigured(Boolean(res?.configured));
+      toast('تم حفظ إعدادات الربط بنجاح', 'success');
+    } catch (err: any) {
+      toast(err?.message || 'تعذر حفظ إعدادات الربط', 'danger');
+    } finally {
+      setFbSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'audit') {
       loadAudit();
     } else if (activeTab === 'org') {
       loadOrgData();
       loadResponsible(queryOperation);
+    } else if (activeTab === 'settings') {
+      loadFirebaseConfig();
     }
   }, [activeTab]);
 
@@ -1212,34 +1260,94 @@ function AdminPageInner() {
             </p>
 
             <div className="mt-4 pt-4 border-t border-[var(--line)] space-y-4 max-w-xl">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[var(--ink)]">معرف مشروع Firebase (Project ID):</label>
-                <input
-                  type="text"
-                  placeholder="gate-payroll-app"
-                  value={fbProjectId}
-                  onChange={(e) => setFbProjectId(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
-                />
-              </div>
+              {fbLoading ? (
+                <div className="text-xs text-[var(--muted)] py-4">جاري تحميل الإعدادات من الخادم...</div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-semibold text-[var(--muted)]">حالة الربط:</span>
+                    <span className={`px-2 py-0.5 rounded-full font-bold ${fbConfigured ? 'bg-[var(--ok)]/15 text-[var(--ok)]' : 'bg-[var(--warn)]/15 text-[var(--warn)]'}`}>
+                      {fbConfigured ? 'مكتمل ومفعّل' : 'غير مكتمل'}
+                    </span>
+                    <span className="text-[var(--muted)]">
+                      {fbHasServiceAccountJson ? '• ملف حساب الخدمة موجود' : '• ملف حساب الخدمة غير مرفوع'}
+                    </span>
+                  </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[var(--ink)]">البريد الإلكتروني للخدمة (Client Email):</label>
-                <input
-                  type="text"
-                  placeholder="firebase-adminsdk@gate-payroll.iam.gserviceaccount.com"
-                  value={fbClientEmail}
-                  onChange={(e) => setFbClientEmail(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
-                />
-              </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--ink)]">معرف مشروع Firebase (Project ID):</label>
+                    <input
+                      type="text"
+                      value={fbProjectId}
+                      onChange={(e) => setFbProjectId(e.target.value)}
+                      dir="ltr"
+                      className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+                    />
+                  </div>
 
-              <div className="p-3.5 rounded-xl bg-[var(--raised)] border border-[var(--line)] text-xs text-[var(--muted)] flex items-center gap-2">
-                <ShieldCheck size={16} className="text-[var(--accent)] shrink-0" />
-                <span>
-                  مفاتيح الربط الحساسة (Private Keys) محمية بالكامل ومخزنة مشفرة داخل الخادم، ولا يتم عرضها بنصوص صريحة حفاظاً على الأمان.
-                </span>
-              </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--ink)]">معرف المرسل (Sender ID):</label>
+                    <input
+                      type="text"
+                      value={fbSenderId}
+                      onChange={(e) => setFbSenderId(e.target.value)}
+                      dir="ltr"
+                      className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--ink)]">مفتاح VAPID العام:</label>
+                    <input
+                      type="text"
+                      value={fbVapidPublicKey}
+                      onChange={(e) => setFbVapidPublicKey(e.target.value)}
+                      dir="ltr"
+                      className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--ink)]">حزمة أندرويد (Android Package Name):</label>
+                    <input
+                      type="text"
+                      value={fbAndroidPackageName}
+                      onChange={(e) => setFbAndroidPackageName(e.target.value)}
+                      dir="ltr"
+                      className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--ink)]">رابط Google Play:</label>
+                    <input
+                      type="text"
+                      value={fbGooglePlayUrl}
+                      onChange={(e) => setFbGooglePlayUrl(e.target.value)}
+                      dir="ltr"
+                      className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-[var(--raised)] border border-[var(--line)] text-xs text-[var(--muted)] flex items-center gap-2">
+                    <ShieldCheck size={16} className="text-[var(--accent)] shrink-0" />
+                    <span>
+                      مفاتيح الربط الحساسة (Private Keys) محمية بالكامل ومخزنة مشفرة داخل الخادم، ولا يتم عرضها بنصوص صريحة حفاظاً على الأمان.
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveFirebaseConfig}
+                      disabled={fbSaving}
+                      className="h-10 px-5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold shadow-xs hover:opacity-95 disabled:opacity-50 transition cursor-pointer"
+                    >
+                      {fbSaving ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

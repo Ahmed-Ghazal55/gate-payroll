@@ -47,85 +47,6 @@ import type {
   CompanyImportPlan,
 } from '../../lib/types';
 
-// Official signed company certificate baseline from docs/07-companies.md
-const OFFICIAL_COMPANIES_PAYLOAD = [
-  {
-    code: 'BW',
-    nameAr: 'شركة البوابة المقبلة',
-    nameEn: 'Albwaba almoqbla Company',
-    unifiedNumber: '7015658094',
-    crNumber: '4030362130',
-    crType: 'رئيسي',
-    entityType: 'شركة ذات مسؤولية محدودة',
-    characteristic: 'شخص واحد',
-    city: 'جدة',
-    address: 'حي الصفا، وادي الحدره',
-    capitalSar: 14000000,
-    crVersion: 6,
-    issueDate: '2019-07-28',
-    issueDateHijri: '1440-11-25',
-    annualConfirmation: '2027-05-22',
-    annualConfirmationHijri: '1448-12-16',
-    status: 'active',
-    activitiesIncomplete: true,
-    activities: [
-      { isic: '410010', nameAr: 'الإنشاءات العامة للمباني السكنية' },
-      { isic: '433010', nameAr: 'تشطيب المباني' },
-      { isic: '492300', nameAr: 'النقل الثقيل للبضائع' },
-      { isic: '492311', nameAr: 'النقل الخفيف للبضائع' },
-    ],
-  },
-  {
-    code: 'EX',
-    nameAr: 'شركة إكسبرس جايت',
-    nameEn: 'EXPRESS GATE Company',
-    unifiedNumber: '7034861059',
-    crNumber: '4031283351',
-    crType: 'رئيسي',
-    entityType: 'شركة ذات مسؤولية محدودة',
-    characteristic: 'شخص واحد',
-    city: 'جدة',
-    address: 'حي الحمدانية، عبدالله بن عبدالرحمن مرداد',
-    capitalSar: 14000000,
-    crVersion: 5,
-    issueDate: '2023-06-18',
-    issueDateHijri: '1444-11-29',
-    annualConfirmation: '2027-06-18',
-    annualConfirmationHijri: '1449-01-13',
-    status: 'active',
-    activitiesIncomplete: false,
-    activities: [
-      { isic: '492311', nameAr: 'النقل الخفيف للبضائع' },
-      { isic: '522931', nameAr: 'الخدمات اللوجستية' },
-    ],
-  },
-  {
-    code: 'TR',
-    nameAr: 'مؤسسة البوابة المقبلة للتجارة',
-    nameEn: 'Albwaba Almoqbla Trading Est.',
-    unifiedNumber: '7038745530',
-    crNumber: '4030551794',
-    crType: 'رئيسي',
-    entityType: 'مؤسسة فردية',
-    characteristic: 'مؤسسة',
-    city: 'جدة',
-    address: 'حي الصفا، الأمير محمد بن عبدالعزيز الفرعي',
-    capitalSar: 5000,
-    crVersion: 9,
-    issueDate: '2024-04-01',
-    issueDateHijri: '1445-09-22',
-    annualConfirmation: '2027-04-01',
-    annualConfirmationHijri: '1448-10-24',
-    status: 'active',
-    activitiesIncomplete: false,
-    activities: [
-      { isic: '410010', nameAr: 'الإنشاءات العامة للمباني السكنية' },
-      { isic: '452022', nameAr: 'إصلاح ميكانيكا وكهرباء وسمكرة ودهان السيارات' },
-      { isic: '452041', nameAr: 'تبديل الزيوت' },
-      { isic: '492311', nameAr: 'النقل الخفيف للبضائع' },
-    ],
-  },
-];
 
 function getDaysRemaining(dateStr?: string): number | null {
   if (!dateStr) return null;
@@ -199,6 +120,7 @@ export default function CompaniesPage() {
 
   // Import Modal State (Admin only)
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importJsonText, setImportJsonText] = useState('');
   const [importPreviewPlan, setImportPreviewPlan] = useState<CompanyImportPlan | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -281,10 +203,21 @@ export default function CompaniesPage() {
 
   // Admin Import Preview
   const handleRunImportPreview = async () => {
-    setImportLoading(true);
     setImportError(null);
+    let parsed: unknown;
     try {
-      const plan = await api.previewCompanyImport(OFFICIAL_COMPANIES_PAYLOAD);
+      parsed = JSON.parse(importJsonText);
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        setImportError('أدخل مصفوفة JSON صالحة تحتوي على بيانات الشركات.');
+        return;
+      }
+    } catch {
+      setImportError('صيغة JSON غير صالحة. تأكد من لصق أو رفع ملف JSON صحيح.');
+      return;
+    }
+    setImportLoading(true);
+    try {
+      const plan = await api.previewCompanyImport(parsed);
       setImportPreviewPlan(plan);
     } catch (err: any) {
       setImportError(err?.message || 'تعذر استخراج خطة استيراد الشهادات');
@@ -442,8 +375,9 @@ export default function CompaniesPage() {
             ? {
                 label: 'استيراد بيانات الشركات',
                 onClick: () => {
+                  setImportPreviewPlan(null);
+                  setImportError(null);
                   setImportModalOpen(true);
-                  handleRunImportPreview();
                 },
                 icon: <Sparkles size={16} />,
               }
@@ -1196,8 +1130,40 @@ export default function CompaniesPage() {
       >
         <div className="space-y-4 text-xs">
           <p className="text-[var(--muted)] leading-relaxed">
-            استيراد مباشر للشهادات المعتمدة من وزارة التجارة لشركات المجموعة (BW, EX, TR) مع فحص البصمة والتطابق قبل الاعتماد.
+            استيراد بيانات الشركات والسجلات التجارية من ملف JSON مع فحص البصمة والتطابق قبل الاعتماد.
           </p>
+
+          {!importPreviewPlan && !importLoading && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[11px] font-bold text-[var(--ink)]">ملف أو نص JSON للشركات:</label>
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] cursor-pointer font-semibold text-[11px]">
+                  <Upload size={13} />
+                  <span>رفع ملف JSON</span>
+                  <input
+                    type="file"
+                    accept=".json,application/json"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const text = await file.text();
+                      setImportJsonText(text);
+                      setImportError(null);
+                    }}
+                  />
+                </label>
+              </div>
+              <textarea
+                value={importJsonText}
+                onChange={(e) => setImportJsonText(e.target.value)}
+                rows={6}
+                dir="ltr"
+                placeholder='[{"code":"...","nameAr":"..."}]'
+                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] font-mono text-[11px] text-[var(--ink)] focus:outline-hidden"
+              />
+            </div>
+          )}
 
           {importError && (
             <div className="p-3.5 rounded-xl bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[var(--danger)] flex items-start gap-2">

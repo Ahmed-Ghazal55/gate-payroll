@@ -48,19 +48,20 @@ import type {
   FinanceJournalLine,
 } from '../../lib/types';
 
-const COMPANY_NAME_MAP: Record<string, string> = {
-  BW: 'شركة البوابة المقبلة (BW)',
-  EX: 'شركة إكسبرس جايت (EX)',
-  TR: 'مؤسسة النقل والتوزيع (TR)',
-  all: 'كافة المنشآت والسجلات',
-};
-
 function AccountingPageContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'coa' | 'manual_journals' | 'adjustments' | 'journals' | 'trial' | 'income'>('coa');
   const [openNewManualJournal, setOpenNewManualJournal] = useState<boolean>(false);
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
+  const companyNameMap = React.useMemo(() => {
+    const map: Record<string, string> = { all: 'كافة المنشآت والسجلات' };
+    for (const c of companies) {
+      map[c.id] = c.nameAr || c.code;
+      map[c.code] = `${c.nameAr} (${c.code})`;
+    }
+    return map;
+  }, [companies]);
 
   useEffect(() => {
     api.getCompanies().then((res) => setCompanies(res || [])).catch(() => {});
@@ -940,7 +941,7 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companyNameMap[company.companyCode] || companyNameMap[company.sponsorId] || company.companyCode}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
@@ -1193,7 +1194,7 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companyNameMap[company.companyCode] || companyNameMap[company.sponsorId] || company.companyCode}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />

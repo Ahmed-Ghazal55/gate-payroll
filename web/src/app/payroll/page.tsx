@@ -78,7 +78,6 @@ import { ValidateGapsPanel } from '../../features/payroll/ValidateGapsPanel';
 import { PaySettingsEditorModal } from '../../features/payroll/PaySettingsEditorModal';
 import { PaySettingsCycleReview } from '../../features/payroll/PaySettingsCycleReview';
 import { RiderAssignmentsWorkspace } from '../../features/payroll/RiderAssignmentsWorkspace';
-import { RuleRecordWorkspace } from '../../features/payroll/RuleRecordWorkspace';
 import {
   createEmptyTermsForm,
   createEmptySchemeForm,
@@ -443,7 +442,7 @@ function PayrollPageInner() {
   const [captureError, setCaptureError] = useState<{ status?: number; message: string } | null>(null);
 
   // Rules Editor States (A6)
-  const [rulesSection, setRulesSection] = useState<'eligibility' | 'record' | 'global'>('eligibility');
+  const [rulesSection, setRulesSection] = useState<'eligibility' | 'global'>('eligibility');
   const [ninjaEligibilityList, setNinjaEligibilityList] = useState<PayEligibilityItem[]>([]);
   const [loadingNinjaEligibility, setLoadingNinjaEligibility] = useState<boolean>(false);
   const [ninjaEligibilityError, setNinjaEligibilityError] = useState<string | null>(null);
@@ -4330,18 +4329,7 @@ function PayrollPageInner() {
                 )}
               </button>
 
-              <button
-                type="button"
-                onClick={() => setRulesSection('record')}
-                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
-                  rulesSection === 'record'
-                    ? 'bg-[var(--accent)] text-[var(--accent-ink)] shadow-xs'
-                    : 'bg-[var(--raised)] text-[var(--muted)] hover:text-[var(--ink)]'
-                }`}
-              >
-                <Layers size={15} />
-                <span>سجل القواعد وتخصيصات الحسابات (S5)</span>
-              </button>
+
 
               <button
                 type="button"
@@ -4532,22 +4520,7 @@ function PayrollPageInner() {
             </div>
           )}
 
-          {/* SECTION B: RULE RECORD & ACCOUNT EXCEPTIONS (S5) */}
-          {rulesSection === 'record' && (
-            <RuleRecordWorkspace
-              appSlug={appSlug}
-              appNameAr={platformsList.find((p) => p.id === selectedPlatform)?.nameAr || appSlug}
-              period={rulesMonth}
-              onOpenExceptionModal={() => {
-                setEditorKind('account_exception');
-                setEditingDoc(null);
-                setEditorModalOpen(true);
-              }}
-              activeEligibilityDoc={activeNinjaEligibility}
-              activeTermsDoc={termsList.find((t) => t.status === 'approved') || termsList[0] || null}
-              activeSchemeDoc={schemesList.find((s) => s.status === 'approved') || schemesList[0] || null}
-            />
-          )}
+
 
           {/* SECTION C: GLOBAL SETTINGS (Existing F1) */}
           {rulesSection === 'global' && (
