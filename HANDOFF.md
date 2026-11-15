@@ -6,7 +6,7 @@
 | Branch | `feat/api-for-ui` |
 | Updated | 2026-11-15 by Cursor (M2 complete) |
 | Live | `/health` = **0.22.0** (unchanged; no deploy) |
-| Tip | working on `feat/api-for-ui` |
+| Tip | `133352b` on `feat/api-for-ui` |
 | PR | https://github.com/Ahmed-Ghazal55/gate-payroll/pull/43 |
 
 ## Goal now
