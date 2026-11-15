@@ -11,11 +11,16 @@ public static partial class PayCycles
         bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve"),mutable=state is "draft" or "review" or "needs_decision";
         if(mutable&&manage&&PayRunInputs.CaptureAllowed(cycle))actions.Add("capture_inputs");
         if(mutable&&manage&&!PayRunInputs.Captured(cycle))blockers.Add(CaptureInputsMissing);
-        // A7: surface malformed Iqama drops that belonged to this cycle's capture.
+        // A7/R3: separate invalid Iqama vs unmatched rider counts (do not merge into one message).
         int invalidIqama=(int)cycle.N("inputsCaptureInvalidIqama");
-        if(invalidIqama<=0&&cycle["inputsCaptureRejected"] is JsonArray rej)
-            invalidIqama=rej.OfType<JsonObject>().Where(r=>r.S("reason") is "invalid_identity" or "unmatched_rider").Sum(r=>(int)r.N("count"));
+        int unmatchedRider=(int)cycle.N("inputsCaptureUnmatchedRider");
+        if(cycle["inputsCaptureRejected"] is JsonArray rej)
+        {
+            if(invalidIqama<=0)invalidIqama=rej.OfType<JsonObject>().Where(r=>r.S("reason")=="invalid_identity").Sum(r=>(int)r.N("count"));
+            if(unmatchedRider<=0)unmatchedRider=rej.OfType<JsonObject>().Where(r=>r.S("reason")=="unmatched_rider").Sum(r=>(int)r.N("count"));
+        }
         if(invalidIqama>0)blockers.Add($"مناديب برقم إقامة غير صالح في نظام الموارد: {invalidIqama}");
+        if(unmatchedRider>0)blockers.Add($"صفوف بلا مندوب مطابق في نظام الموارد: {unmatchedRider}");
         if(mutable&&manage){actions.Add("cancel");if(stage<6)actions.Add("advance");if(stage==6)actions.Add("review");}
         var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0).ToList();
         if(stage>=6&&(mutable||state=="partially_approved"))

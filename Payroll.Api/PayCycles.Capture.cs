@@ -72,8 +72,9 @@ public static partial class PayCycles
         return cycleApps;
     }
 
-    /// <summary>Copy store/live rows into pay_run_input for this cycle. A0: only while stage ≤ 1.</summary>
-    public static JsonObject CaptureInputs(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,IConfiguration? config=null,IHostEnvironment? env=null,Func<string,IEnumerable<JsonObject>>? liveRows=null,JsonObject? input=null)
+    /// <summary>Copy store/live rows into pay_run_input for this cycle. A0: only while stage ≤ 1.
+    /// Rejected counts are a server-side argument only (R2); any <c>rejected</c> on the request body is ignored.</summary>
+    public static JsonObject CaptureInputs(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,IConfiguration? config=null,IHostEnvironment? env=null,Func<string,IEnumerable<JsonObject>>? liveRows=null,JsonObject? input=null,IReadOnlyList<(string Reason,int Count)>? rejected=null)
     {
         var cycle=Store.Get(c,id,Kind,tx)?.Clone()??throw new ApiError("الدورة غير موجودة.",404);
         Scope(actor,cycle,"pay.manage");
@@ -158,14 +159,17 @@ public static partial class PayCycles
         cycle["inputsCapturedBy"]=actor.Identity!.Name;
         cycle["inputsCaptureCounts"]=new JsonObject(result.Counts.OrderBy(kv=>kv.Key).Select(kv=>KeyValuePair.Create(kv.Key,(JsonNode?)JsonValue.Create(kv.Value))));
         if(gaps.Count>0)cycle["inputsCaptureGaps"]=gaps;else cycle.Remove("inputsCaptureGaps");
-        var rejectedNode=input?["rejected"] as JsonArray;
-        if(rejectedNode!=null&&rejectedNode.Count>0)
+        // R2: ignore client-supplied rejected; only the server-side list is stored.
+        if(rejected!=null&&rejected.Count>0)
         {
-            cycle["inputsCaptureRejected"]=rejectedNode.DeepClone();
-            int invalidIqama=rejectedNode.OfType<JsonObject>().Where(r=>r.S("reason") is "invalid_identity" or "unmatched_rider").Sum(r=>(int)r.N("count"));
+            var rejectedNode=new JsonArray(rejected.Select(r=>(JsonNode?)new JsonObject{["reason"]=r.Reason,["count"]=r.Count}).ToArray());
+            cycle["inputsCaptureRejected"]=rejectedNode;
+            int invalidIqama=rejected.Where(r=>r.Reason=="invalid_identity").Sum(r=>r.Count);
+            int unmatched=rejected.Where(r=>r.Reason=="unmatched_rider").Sum(r=>r.Count);
             if(invalidIqama>0)cycle["inputsCaptureInvalidIqama"]=invalidIqama;else cycle.Remove("inputsCaptureInvalidIqama");
+            if(unmatched>0)cycle["inputsCaptureUnmatchedRider"]=unmatched;else cycle.Remove("inputsCaptureUnmatchedRider");
         }
-        else{cycle.Remove("inputsCaptureRejected");cycle.Remove("inputsCaptureInvalidIqama");}
+        else{cycle.Remove("inputsCaptureRejected");cycle.Remove("inputsCaptureInvalidIqama");cycle.Remove("inputsCaptureUnmatchedRider");}
         // A10: Keeta has accounts but no ERP performance source — record, do not invent rows.
         if(apps.Contains("keeta"))
             cycle["inputsCaptureNotes"]=new JsonArray(new JsonObject{["app"]="keeta",["code"]="no_erp_performance_source",["message"]="لا مصدر أداء في نظام الموارد لكيطا"});

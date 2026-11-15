@@ -17,8 +17,8 @@ public static class PayRunInputs
     /// <summary>Required kinds that must have rows (or an explicit zero-kind reason) before capture succeeds.</summary>
     public static IReadOnlyList<string> RequiredKinds(string app)=>app switch
     {
-        // A10: required kinds with 0 rows stay blockers unless an explicit zero-kind reason is recorded.
-        "ninja"=>["ninja_daily","ninja_daily_deduction","platform_account","vehicle_assignment","rider_work_timeline","platform_day_usage"],
+        // A10/R1: Ninja required kinds; ninja_daily_deduction and platform_day_usage stay captured but optional (ERP often empty).
+        "ninja"=>["ninja_daily","platform_account","vehicle_assignment","rider_work_timeline"],
         "chefz"=>["platform_account","vehicle_assignment","rider_work_timeline"],
         "keeta"=>["platform_account"], // no ERP performance source for Keeta — do not require daily rows
         _=>["platform_account","vehicle_assignment"]

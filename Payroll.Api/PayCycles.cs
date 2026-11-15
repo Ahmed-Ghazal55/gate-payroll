@@ -209,7 +209,7 @@ public static partial class PayCycles
             return store.Write((c,tx)=>
             {
                 Func<string,IEnumerable<JsonObject>>? live=null;
-                JsonObject? captureInput=input;
+                IReadOnlyList<(string Reason,int Count)>? serverRejected=null;
                 if(staged!=null)
                 {
                     live=kind=>
@@ -217,11 +217,10 @@ public static partial class PayCycles
                         if(kind!="vehicle"&&!staged.Rows.ContainsKey(kind))throw new ApiError("مصدر التقاط ناقص لنوع: "+kind,503);
                         return staged.Rows.TryGetValue(kind,out var rows)?rows:Array.Empty<JsonObject>();
                     };
-                    captureInput??=new JsonObject();
-                    if(staged.Rejected.Count>0)
-                        captureInput["rejected"]=new JsonArray(staged.Rejected.Select(r=>(JsonNode?)new JsonObject{["reason"]=r.Reason,["count"]=r.Count}).ToArray());
+                    serverRejected=staged.Rejected;
                 }
-                var captured=CaptureInputs(c,tx,ctx.User,id,config,env,live,captureInput);
+                // R2: never trust request-body rejected; pass live staging counts as a server argument only.
+                var captured=CaptureInputs(c,tx,ctx.User,id,config,env,live,input,serverRejected);
                 var cycle=Store.Get(c,id,Kind,tx)!;
                 var view=View(c,tx,ctx.User,cycle);
                 view["capture"]=captured;

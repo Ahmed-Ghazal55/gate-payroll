@@ -2,14 +2,17 @@
 
 | Field | Value |
 |---|---|
-| Current writer | _(cleared — M1 package complete on branch)_ |
-| Branch | `fix/live-erp-reads` |
-| Updated | 2026-11-15 by Cursor (M1 done) |
+| Current writer | Cursor — M2 API for UI (`feat/api-for-ui`) |
+| Branch | `feat/api-for-ui` |
+| Updated | 2026-11-15 by Cursor (M2 start) |
 | Live | `/health` = **0.22.0** (unchanged; no deploy) |
-| Tip | see latest commit on `fix/live-erp-reads` |
+| Tip | working |
 
 ## Goal now
 M1 complete on branch. Next: Claude reviews M1 (security + data), then Cursor runs `~/.agents/prompts/cursor-M2-api-for-ui.md`.
+
+## Done (M2 so far)
+- R1–R3 (M1 leftovers): Ninja RequiredKinds slimmed; rejected server-side only; dual Iqama/unmatched blockers.
 
 ## Done (M1)
 - Schema probe + `ErpSchemaContractTests`; snapshot committed.
