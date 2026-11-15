@@ -43,6 +43,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { JahezWorkspace } from '../../features/treasury/JahezWorkspace';
 import { TreasuryExtrasPanel } from '../../features/treasury/TreasuryExtrasPanel';
@@ -88,6 +89,7 @@ function TreasuryPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<FinanceAccount[]>([]);
   const [journals, setJournals] = useState<FinanceJournal[]>([]);
+  const [companies, setCompanies] = useState<Array<{ id: string; code: string; nameAr: string }>>([]);
   const [treasurySummary, setTreasurySummary] = useState<ApiResp<'/api/finance/treasury/summary'> | null>(null);
   const [bankFilePreview, setBankFilePreview] = useState<BankPayrollFilePreview | null>(null);
   const [loadingBankFile, setLoadingBankFile] = useState<boolean>(false);
@@ -124,14 +126,16 @@ function TreasuryPageContent() {
     setLoading(true);
     setError(null);
     try {
-      const [accsRes, jrnlsRes, summaryRes] = await Promise.all([
+      const [accsRes, jrnlsRes, summaryRes, companiesRes] = await Promise.all([
         api.getFinanceAccounts(),
         api.getFinanceJournals(),
         api.getTreasurySummary(),
+        api.getCompanies().catch(() => []),
       ]);
       setAccounts(accsRes || []);
       setJournals(jrnlsRes || []);
       setTreasurySummary(summaryRes || null);
+      setCompanies(Array.isArray(companiesRes) ? companiesRes : []);
     } catch (err: unknown) {
       const msg = (err instanceof Error ? err.message : '') || 'تعذر تحميل بيانات الخزينة والحسابات';
       setError(msg);
@@ -431,16 +435,17 @@ function TreasuryPageContent() {
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <select
+            <div className="w-56">
+              <SearchableSelect
                 value={vaultTypeFilter}
-                onChange={(e) => setVaultTypeFilter(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كافة أنواع الخزن</option>
-                <option value="bank">حسابات بنكية (1110)</option>
-                <option value="cash">صناديق نقدية وعهد (1120-1140)</option>
-              </select>
+                onChange={(v) => setVaultTypeFilter(v || 'all')}
+                options={[
+                  { value: 'all', label: 'كافة أنواع الخزن' },
+                  { value: 'bank', label: 'حسابات بنكية (1110)' },
+                  { value: 'cash', label: 'صناديق نقدية وعهد (1120-1140)' },
+                ]}
+                placeholder="نوع الخزينة"
+              />
             </div>
           </div>
 
@@ -646,18 +651,17 @@ function TreasuryPageContent() {
                 />
               </div>
 
-              <div>
+              <div className="w-56">
                 <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">الشركة الكفيلة:</label>
-                <select
+                <SearchableSelect
                   value={selectedSponsor}
-                  onChange={(e) => setSelectedSponsor(e.target.value)}
-                  className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
-                >
-                  <option value="all">كافة الكفلاء والشركات</option>
-                  <option value="BW">بوابات الوطن (BW)</option>
-                  <option value="TR">طريق الرواد (TR)</option>
-                  <option value="WZ">وصول الرواد (WZ)</option>
-                </select>
+                  onChange={(v) => setSelectedSponsor(v || 'all')}
+                  options={[
+                    { value: 'all', label: 'كافة الكفلاء والشركات' },
+                    ...companies.map((c) => ({ value: c.code, label: `${c.nameAr} (${c.code})` })),
+                  ]}
+                  placeholder="اختر الشركة الكفيلة"
+                />
               </div>
               <label className="inline-flex items-center gap-2 text-xs font-bold mt-5 cursor-pointer">
                 <input type="checkbox" checked={comparisonOnly} onChange={(e) => setComparisonOnly(e.target.checked)} />

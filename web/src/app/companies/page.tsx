@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
   Building2,
   FileText,
@@ -62,12 +63,34 @@ function isDueWithinDays(dateStr?: string, days = 60): boolean {
   return rem !== null && rem <= days;
 }
 
-export default function CompaniesPage() {
+function CompaniesPageContent() {
   const { toast } = useToast();
   const { isAdmin } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  type CompaniesTab = 'companies' | 'registrations' | 'documents';
+  const validTabs: CompaniesTab[] = ['companies', 'registrations', 'documents'];
+  const tabParam = searchParams?.get('tab') as CompaniesTab | null;
+  const initialTab: CompaniesTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'companies';
 
   // State
-  const [activeTab, setActiveTab] = useState<'companies' | 'registrations' | 'documents'>('companies');
+  const [activeTab, setActiveTabState] = useState<CompaniesTab>(initialTab);
+  const setActiveTab = (next: CompaniesTab) => {
+    setActiveTabState(next);
+    const sp = new URLSearchParams(searchParams?.toString() || '');
+    if (next === 'companies') sp.delete('tab');
+    else sp.set('tab', next);
+    const qs = sp.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
+
+  useEffect(() => {
+    const t = searchParams?.get('tab') as CompaniesTab | null;
+    if (t && validTabs.includes(t) && t !== activeTab) {
+      setActiveTabState(t);
+    }
+  }, [searchParams]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [expiring, setExpiring] = useState<ExpiringRecord[]>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; actor: string; at: string }>>([]);
@@ -443,27 +466,31 @@ export default function CompaniesPage() {
         extraControls={
           activeTab === 'companies' ? (
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={entityTypeFilter}
-                onChange={(e) => setEntityTypeFilter(e.target.value)}
-                className="h-10 px-3 text-xs font-semibold rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--focus)]"
-                aria-label="تصفية حسب نوع الكيان"
-              >
-                <option value="all">كل أنواع الكيانات</option>
-                <option value="شركة ذات مسؤولية محدودة">شركة ذات مسؤولية محدودة</option>
-                <option value="مؤسسة فردية">مؤسسة فردية</option>
-              </select>
+              <div className="w-48">
+                <SearchableSelect
+                  value={entityTypeFilter}
+                  onChange={(v) => setEntityTypeFilter(v || 'all')}
+                  options={[
+                    { value: 'all', label: 'كل أنواع الكيانات' },
+                    { value: 'شركة ذات مسؤولية محدودة', label: 'شركة ذات مسؤولية محدودة' },
+                    { value: 'مؤسسة فردية', label: 'مؤسسة فردية' },
+                  ]}
+                  placeholder="نوع الكيان"
+                />
+              </div>
 
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-10 px-3 text-xs font-semibold rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--focus)]"
-                aria-label="تصفية حسب الحالة"
-              >
-                <option value="all">كل الحالات</option>
-                <option value="active">نشط</option>
-                <option value="inactive">غير نشط</option>
-              </select>
+              <div className="w-36">
+                <SearchableSelect
+                  value={statusFilter}
+                  onChange={(v) => setStatusFilter(v || 'all')}
+                  options={[
+                    { value: 'all', label: 'كل الحالات' },
+                    { value: 'active', label: 'نشط' },
+                    { value: 'inactive', label: 'غير نشط' },
+                  ]}
+                  placeholder="الحالة"
+                />
+              </div>
 
               <button
                 type="button"
@@ -1245,5 +1272,13 @@ export default function CompaniesPage() {
         </div>
       </Dialog>
     </div>
+  );
+}
+
+export default function CompaniesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-[var(--muted)]">جاري التحميل...</div>}>
+      <CompaniesPageContent />
+    </Suspense>
   );
 }

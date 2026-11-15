@@ -32,11 +32,15 @@ import { SourceBadge, formatRiyadhDateTime } from '../../components/ui/SourceBad
 const KIND_MAP: Record<string, string> = {
   cities: 'city',
   housing: 'housing',
+  housing_residence: 'housing_residence',
   vehicles: 'vehicle',
+  vehicle_assignment: 'vehicle_assignment',
+  fuel_usage: 'fuel_usage',
   custody: 'custody_handover',
   guarantees: 'sponsorship_period',
   cases: 'legal_case',
   accounts: 'platform_account',
+  ninja_daily: 'ninja_daily',
 };
 
 const PAGE_SIZES = [25, 50, 100, 200];
@@ -191,11 +195,15 @@ function OperationsPageInner() {
   const sectionTabs: SectionTabItem[] = [
     { id: 'cities', label: 'المدن والمناطق', icon: <MapPin size={16} /> },
     { id: 'housing', label: 'السكن والإيواء', icon: <Home size={16} /> },
+    { id: 'housing_residence', label: 'إقامة المندوب بالسكن', icon: <Home size={16} /> },
     { id: 'vehicles', label: 'المركبات والتسليمات', icon: <Car size={16} /> },
+    { id: 'vehicle_assignment', label: 'تعيينات المركبات', icon: <Car size={16} /> },
+    { id: 'fuel_usage', label: 'استهلاك الوقود', icon: <Layers size={16} /> },
     { id: 'custody', label: 'العهد الشهرية والأجهزة', icon: <PackageCheck size={16} /> },
     { id: 'guarantees', label: 'الكفالات والضمانات', icon: <ShieldAlert size={16} /> },
     { id: 'cases', label: 'القضايا والمنازعات', icon: <Scale size={16} /> },
     { id: 'accounts', label: 'حسابات المنصات والمعرفات', icon: <Smartphone size={16} /> },
+    { id: 'ninja_daily', label: 'الأداء اليومي لنينجا', icon: <Clock size={16} /> },
   ];
 
   const currentTabInfo = useMemo(() => {
@@ -241,6 +249,34 @@ function OperationsPageInner() {
           shortLabel: 'القضايا والمنازعات',
           desc: 'متابعة البلاغات المرورية، المطالبات القانونية، والنزاعات مع المنصات أو الأطراف الخارجية.',
           icon: Scale,
+        };
+      case 'housing_residence':
+        return {
+          title: 'إقامة المناديب في السكن',
+          shortLabel: 'إقامة السكن',
+          desc: 'سجلات تسكين المناديب في وحدات الإيواء وتواريخ الدخول والخروج.',
+          icon: Home,
+        };
+      case 'vehicle_assignment':
+        return {
+          title: 'تعيينات وتسليم المركبات',
+          shortLabel: 'تعيينات المركبات',
+          desc: 'ربط المركبات بالمناديب وتواريخ الاستلام والتسليم.',
+          icon: Car,
+        };
+      case 'fuel_usage':
+        return {
+          title: 'استهلاك الوقود التشغيلي',
+          shortLabel: 'استهلاك الوقود',
+          desc: 'فواتير وسجلات استهلاك الوقود للمركبات والمناديب.',
+          icon: Layers,
+        };
+      case 'ninja_daily':
+        return {
+          title: 'الأداء اليومي لمنصة نينجا',
+          shortLabel: 'يومي نينجا',
+          desc: 'سجلات الطلبات والحضور اليومي لحسابات منصة نينجا.',
+          icon: Clock,
         };
       case 'accounts':
       default:
@@ -434,6 +470,38 @@ function OperationsPageInner() {
             key: 'details',
             header: 'التفاصيل',
             render: (it: OperationRow) => <span className="text-xs text-[var(--muted)] truncate max-w-xs block">{it.details || '-'}</span>,
+          },
+        ];
+      case 'fuel_usage':
+      case 'vehicle_assignment':
+      case 'housing_residence':
+      case 'ninja_daily':
+        return [
+          {
+            key: 'id',
+            header: 'المعرف',
+            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id || '-'}</span>,
+          },
+          {
+            key: 'rider',
+            header: 'المندوب / الحساب',
+            render: (it: OperationRow) => (
+              <span className="font-mono text-xs">{it.registeredRiderId || it.externalAccountId || '-'}</span>
+            ),
+          },
+          {
+            key: 'details',
+            header: 'التفاصيل',
+            render: (it: OperationRow) => (
+              <span className="text-xs text-[var(--muted)]">{it.nameAr || it.name || it.details || '-'}</span>
+            ),
+          },
+          {
+            key: 'date',
+            header: 'التاريخ / الفترة',
+            render: (it: OperationRow) => (
+              <span className="font-mono text-xs">{it.caseDate || '-'}</span>
+            ),
           },
         ];
       case 'accounts':

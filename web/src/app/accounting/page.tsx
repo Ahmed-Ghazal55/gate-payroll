@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
   FileSpreadsheet,
   Layers,
@@ -31,6 +31,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { ErrorState, EmptyState, Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { api } from '../../lib/api';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
 import { AccountingAdjustmentsPanel } from '../../features/accounting/AccountingAdjustmentsPanel';
@@ -50,8 +51,22 @@ import type {
 
 function AccountingPageContent() {
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'coa' | 'manual_journals' | 'adjustments' | 'journals' | 'trial' | 'income'>('coa');
+  type AccountingTab = 'coa' | 'manual_journals' | 'adjustments' | 'journals' | 'trial' | 'income';
+  const validTabs: AccountingTab[] = ['coa', 'manual_journals', 'adjustments', 'journals', 'trial', 'income'];
+  const tabParam = searchParams?.get('tab') as AccountingTab | null;
+  const initialTab: AccountingTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'coa';
+  const [activeTab, setActiveTabState] = useState<AccountingTab>(initialTab);
+  const setActiveTab = (next: AccountingTab) => {
+    setActiveTabState(next);
+    const sp = new URLSearchParams(searchParams?.toString() || '');
+    if (next === 'coa') sp.delete('tab');
+    else sp.set('tab', next);
+    const qs = sp.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
   const [openNewManualJournal, setOpenNewManualJournal] = useState<boolean>(false);
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
   const companyNameMap = React.useMemo(() => {
@@ -68,9 +83,13 @@ function AccountingPageContent() {
   }, []);
 
   useEffect(() => {
+    const t = searchParams?.get('tab') as AccountingTab | null;
+    if (t && validTabs.includes(t) && t !== activeTab) {
+      setActiveTabState(t);
+    }
     const action = searchParams?.get('action');
     if (action === 'manual_journal') {
-      setActiveTab('manual_journals');
+      setActiveTabState('manual_journals');
       setOpenNewManualJournal(true);
     }
   }, [searchParams]);
@@ -676,29 +695,35 @@ function AccountingPageContent() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={coaTypeFilter}
-                onChange={(e) => setCoaTypeFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل التصنيفات (1-5)</option>
-                <option value="1">1 - الأصول</option>
-                <option value="2">2 - الخصوم</option>
-                <option value="3">3 - حقوق الملكية</option>
-                <option value="4">4 - الإيرادات</option>
-                <option value="5">5 - المصروفات</option>
-              </select>
+              <div className="w-44">
+                <SearchableSelect
+                  value={coaTypeFilter}
+                  onChange={(v) => setCoaTypeFilter(v || 'all')}
+                  options={[
+                    { value: 'all', label: 'كل التصنيفات (1-5)' },
+                    { value: '1', label: '1 - الأصول' },
+                    { value: '2', label: '2 - الخصوم' },
+                    { value: '3', label: '3 - حقوق الملكية' },
+                    { value: '4', label: '4 - الإيرادات' },
+                    { value: '5', label: '5 - المصروفات' },
+                  ]}
+                  placeholder="التصنيف"
+                />
+              </div>
 
-              <select
-                value={coaSourceFilter}
-                onChange={(e) => setCoaSourceFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل المصادر</option>
-                <option value="excel">Excel 2024 ({coaSummary.sourceBreakdown.excel2024})</option>
-                <option value="modified">تعديل مالي ({coaSummary.sourceBreakdown.modified})</option>
-                <option value="new">حسابات جديدة ({coaSummary.sourceBreakdown.newAccounts})</option>
-              </select>
+              <div className="w-48">
+                <SearchableSelect
+                  value={coaSourceFilter}
+                  onChange={(v) => setCoaSourceFilter(v || 'all')}
+                  options={[
+                    { value: 'all', label: 'كل المصادر' },
+                    { value: 'excel', label: `Excel 2024 (${coaSummary.sourceBreakdown.excel2024})` },
+                    { value: 'modified', label: `تعديل مالي (${coaSummary.sourceBreakdown.modified})` },
+                    { value: 'new', label: `حسابات جديدة (${coaSummary.sourceBreakdown.newAccounts})` },
+                  ]}
+                  placeholder="المصدر"
+                />
+              </div>
 
               <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--raised)] border border-[var(--line)] text-xs text-[var(--ink)] cursor-pointer select-none">
                 <input
@@ -867,16 +892,17 @@ function AccountingPageContent() {
                 </button>
               </div>
 
-              <select
-                value={selectedSponsor}
-                onChange={(e) => setSelectedSponsor(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل المنشآت والسجلات</option>
-                <option value="BW">شركة البوابة المقبلة (BW)</option>
-                <option value="EX">المؤسسة Express (EX)</option>
-                <option value="TR">مؤسسة النقل والتوزيع (TR)</option>
-              </select>
+              <div className="w-56">
+                <SearchableSelect
+                  value={selectedSponsor}
+                  onChange={(v) => setSelectedSponsor(v || 'all')}
+                  options={[
+                    { value: 'all', label: 'كل المنشآت والسجلات' },
+                    ...companies.map((c) => ({ value: c.code, label: `${c.nameAr} (${c.code})` })),
+                  ]}
+                  placeholder="المنشأة"
+                />
+              </div>
 
               <input
                 type="month"
@@ -1126,16 +1152,17 @@ function AccountingPageContent() {
           {/* Controls toolbar */}
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={selectedSponsor}
-                onChange={(e) => setSelectedSponsor(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل المنشآت والسجلات</option>
-                <option value="BW">شركة البوابة المقبلة (BW)</option>
-                <option value="EX">المؤسسة Express (EX)</option>
-                <option value="TR">مؤسسة النقل والتوزيع (TR)</option>
-              </select>
+              <div className="w-56">
+                <SearchableSelect
+                  value={selectedSponsor}
+                  onChange={(v) => setSelectedSponsor(v || 'all')}
+                  options={[
+                    { value: 'all', label: 'كل المنشآت والسجلات' },
+                    ...companies.map((c) => ({ value: c.code, label: `${c.nameAr} (${c.code})` })),
+                  ]}
+                  placeholder="المنشأة"
+                />
+              </div>
 
               <input
                 type="month"

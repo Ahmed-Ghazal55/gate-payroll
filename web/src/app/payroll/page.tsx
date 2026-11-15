@@ -128,6 +128,14 @@ const CAPTURE_KIND_LABELS: Record<string, string> = {
   vehicle_assignment: 'تسليم المركبات',
   vehicle: 'المركبات',
   housing_residence: 'السكن',
+  housing: 'السكن',
+  fuel_usage: 'استهلاك الوقود',
+  fuel: 'الوقود',
+  sponsorship_period: 'فترات الكفالة',
+  custody_handover: 'تسليم العهد',
+  operations_daily: 'التشغيل اليومي',
+  sim: 'شرائح الاتصال',
+  internet: 'الإنترنت',
 };
 
 const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
@@ -5119,14 +5127,15 @@ function PayrollPageInner() {
         <div className="space-y-4 pt-2">
           <div className="space-y-1">
             <label className="text-xs font-bold text-[var(--ink)]">نوع المصدر (Source Type):</label>
-            <select
+            <SearchableSelect
               value={assignmentSourceType}
-              onChange={(e) => setAssignmentSourceType(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
-            >
-              <option value="campaign">حملة / استبيان (Campaign)</option>
-              <option value="custom_form">نموذج مخصص (Custom Form)</option>
-            </select>
+              onChange={(v) => setAssignmentSourceType(v || 'campaign')}
+              options={[
+                { value: 'campaign', label: 'حملة / استبيان (Campaign)' },
+                { value: 'custom_form', label: 'نموذج مخصص (Custom Form)' },
+              ]}
+              placeholder="اختر نوع المصدر"
+            />
           </div>
 
           <div className="space-y-1">
@@ -5326,17 +5335,12 @@ function PayrollPageInner() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="font-bold text-[var(--ink)] block">المعامل (Operator):</label>
-              <select
+              <SearchableSelect
                 value={newRuleOperator}
-                onChange={(e) => setNewRuleOperator(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
-              >
-                {Object.entries(OPERATORS_MAP).map(([op, label]) => (
-                  <option key={op} value={op}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setNewRuleOperator(v || 'gte')}
+                options={Object.entries(OPERATORS_MAP).map(([op, label]) => ({ value: op, label }))}
+                placeholder="اختر المعامل"
+              />
             </div>
 
             <div className="space-y-1">
@@ -5354,17 +5358,12 @@ function PayrollPageInner() {
 
           <div className="space-y-1">
             <label className="font-bold text-[var(--ink)] block">الأثر عند عدم التحقق (Effect):</label>
-            <select
+            <SearchableSelect
               value={newRuleEffectType}
-              onChange={(e) => setNewRuleEffectType(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
-            >
-              {Object.entries(EFFECT_TYPES_MAP).map(([eff, label]) => (
-                <option key={eff} value={eff}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setNewRuleEffectType(v || 'zero')}
+              options={Object.entries(EFFECT_TYPES_MAP).map(([eff, label]) => ({ value: eff, label }))}
+              placeholder="اختر الأثر"
+            />
           </div>
 
           <div className="p-3 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)] flex items-center justify-between">
