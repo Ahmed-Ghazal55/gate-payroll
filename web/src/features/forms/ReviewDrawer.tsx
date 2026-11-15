@@ -166,7 +166,7 @@ export function ReviewDrawer({ submission, onClose, onSuccess }: ReviewDrawerPro
             </div>
             <div className="flex items-center justify-between text-xs text-[var(--muted)] pt-0.5">
               <span>البنك المستخرج:</span>
-              <strong className="text-[var(--ink)]">{submission.bank || 'مصرف الراجحي'}</strong>
+              <strong className="text-[var(--ink)]">{submission.bank || '—'}</strong>
             </div>
           </div>
         )}

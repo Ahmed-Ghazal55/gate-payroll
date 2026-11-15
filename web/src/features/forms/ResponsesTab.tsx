@@ -49,14 +49,13 @@ export function ResponsesTab({
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
-  // Helper for IBAN masking in list view: SA** **** **** **** **1234
-  const maskIban = (iban?: string) => {
-    if (!iban) return '—';
-    const clean = iban.replace(/\s+/g, '');
-    if (clean.length < 10) return clean;
-    const prefix = clean.slice(0, 4);
-    const suffix = clean.slice(-4);
-    return `${prefix} **** **** **** ${suffix}`;
+  // Full IBAN for review (Ghazal 2026-11-15): reviewers check the collected IBANs on screen and in the exported sheet.
+  // The API already returns the full value to anyone allowed to list responses; nothing is unmasked for other roles.
+  const cleanIban = (iban?: string) => (iban ? iban.replace(/\s+/g, '').toUpperCase() : '');
+  // Display form: groups of four, e.g. SA04 8000 0000 6080 1016 7519
+  const formatIban = (iban?: string) => {
+    const clean = cleanIban(iban);
+    return clean ? clean.replace(/(.{4})/g, '$1 ').trim() : '—';
   };
 
   const filteredSubmissions = useMemo(() => {
@@ -159,7 +158,8 @@ export function ResponsesTab({
     const rows = targetRows.map((s) => [
       sanitize(s.name),
       sanitize(s.iqama),
-      sanitize(s.iban ? maskIban(s.iban) : s.workSystem || '—'),
+      // Export the IBAN as one unbroken value so it can be copied into a bank form as is.
+      sanitize(s.iban ? cleanIban(s.iban) : s.workSystem || '—'),
       sanitize(s.bank || '—'),
       sanitize(s.workSystem || '—'),
       sanitize(s.campaignTitle || s.campaignId),
@@ -232,9 +232,9 @@ export function ResponsesTab({
         s.iban ? (
           <div className="flex flex-col">
             <span className="num font-mono text-xs text-[var(--accent)] font-semibold tracking-wide">
-              {maskIban(s.iban)}
+              {formatIban(s.iban)}
             </span>
-            <span className="text-[11px] text-[var(--muted)]">{s.bank || 'مصرف الراجحي'}</span>
+            <span className="text-[11px] text-[var(--muted)]">{s.bank || '—'}</span>
           </div>
         ) : (
           <span className="font-semibold text-xs">

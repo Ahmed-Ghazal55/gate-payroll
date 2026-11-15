@@ -2,11 +2,18 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Claude 2026-11-14 (W1 final check + release) |
-| Branch | release/0.22.0 (W1 pipeline + user rename PR #40 + bypass view PR #39) |
-| Updated | 2026-11-14 by Claude (release 0.22.0) |
-| Live | `/health` = **0.21.0** (this branch not deployed) |
+| Current writer | — |
+| Branch | main = `f900e8f`; open: `fix/iban-full-in-responses` (this), `fix/live-erp-reads` (M1, Cursor, waits for review) |
+| Updated | 2026-11-15 by Claude (full IBAN in form responses) |
+| Live | `/health` = **0.22.0** (PR #41 `f900e8f`); `erpReadonlyConfigured=false` until Ghazal sets the read-only ERP login |
 | Tip | release/0.22.0 — engine 586/586 local SQL, 0 skipped |
+
+## Full IBAN in form responses (2026-11-15, Claude; Ghazal's request)
+- Master plan and status: `~/.agents/plans/MASTER-2026-11-15.md`.
+- `web/src/features/forms/ResponsesTab.tsx`: the responses list shows the full IBAN grouped by four (`formatIban`); Excel and CSV export carry the full IBAN as one unbroken value (`cleanIban`). The mask was client-side only; the API already returns the full value to users allowed to list responses, so no new access is opened.
+- Removed the fake bank fallback «مصرف الراجحي» when a response has no bank (`ResponsesTab.tsx`, `ReviewDrawer.tsx`) → «—».
+- Tests updated: `web/tests/e2e.mjs`, `web/tests/e2e-live.mjs` (not in CI) now assert the full IBAN. `tsc` and web build pass.
+- Merge = deploy: waits for Ghazal's «ادمج».
 
 ## Release 0.22.0 (2026-11-14, Claude; Ghazal «ادمج وانشر»)
 - Contents: W1 six-stage pipeline (BR §40) + W1-fix + golden tools; PR #40 safe login rename + stale permission codes; PR #39 invoice views read the bypass grant. Merge conflicts in `NinjaInvoices.Actions.cs` / `PlatformInvoiceWorkflow.cs` resolved: W1 `Classified`/`AllCompany` checks + `IndependentForView(...,bypass)`.
