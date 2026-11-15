@@ -201,11 +201,7 @@ export function PaySettingsCycleReview({
         <div className="space-y-3">
           {cycleItems.map((item) => {
             const isApproved = item.doc.status === 'approved';
-            const isMaker = Boolean(
-              currentUser &&
-                item.doc.createdBy &&
-                item.doc.createdBy.toLowerCase() === currentUser.toLowerCase()
-            );
+            const canApprove = (item.doc.allowedActions || []).includes('approve');
             const hasDiffs = item.diffs.length > 0;
             const isDiffExpanded = expandedDiffId === item.id;
 
@@ -249,16 +245,16 @@ export function PaySettingsCycleReview({
 
                     {!isApproved && (
                       <>
-                        <button
-                          type="button"
-                          disabled={Boolean(isMaker)}
-                          title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد الإعداد'}
-                          onClick={() => onApproveSetting(item.doc, item.kind)}
-                          className="px-3.5 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer inline-flex items-center gap-1 shadow-xs"
-                        >
-                          <Check size={13} />
-                          <span>اعتماد الإعداد</span>
-                        </button>
+                        {canApprove && (
+                          <button
+                            type="button"
+                            onClick={() => onApproveSetting(item.doc, item.kind)}
+                            className="px-3.5 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                          >
+                            <Check size={13} />
+                            <span>اعتماد الإعداد</span>
+                          </button>
+                        )}
 
                         <button
                           type="button"

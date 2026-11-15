@@ -372,7 +372,7 @@ export function ConfigListsPanel() {
 
                         <td className="py-2.5 px-3 text-end">
                           <div className="flex items-center justify-end gap-1.5">
-                            {item.status === 'pending_approval' && canApprove && (
+                            {(item.allowedActions || []).includes('approve') && (
                               <button
                                 type="button"
                                 disabled={approvingCode === item.code}

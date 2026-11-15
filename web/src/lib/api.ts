@@ -1735,7 +1735,7 @@ export const api = {
     ),
   discardPlatformInvoice: (platform: 'ninja' | 'keeta', id: string, reason: string) =>
     handleRequest<unknown>(`/platforms/${platform}/invoices/${encodeURIComponent(id)}/discard`, { method: 'POST', body: JSON.stringify({ reason }) }),
-  getPostingGate: (code: string) => handleRequest<{ code: string; enabled: boolean }>(`/platforms/${encodeURIComponent(code)}/posting`),
+  getPostingGate: (code: string) => handleRequest<{ code: string; enabled: boolean; allowedActions?: string[] }>(`/platforms/${encodeURIComponent(code)}/posting`),
   setPostingGate: (code: string, enabled: boolean, reason: string) =>
     handleRequest<unknown>(`/platforms/${encodeURIComponent(code)}/posting`, { method: 'POST', body: JSON.stringify({ enabled, reason }) }),
   getDebtDeductions: (cycleId: string) => handleRequest<DebtDeductionsView>(`/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`),

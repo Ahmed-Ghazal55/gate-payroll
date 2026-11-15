@@ -574,15 +574,17 @@ function TreasuryPageContent() {
                         </td>
                         <td className="p-3">
                           <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              id={`btn-payout-advance-${req.id}`}
-                              onClick={() => handleOpenPayoutDialog(req)}
-                              className="px-3 py-1.5 rounded-lg bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1"
-                            >
-                              <Check size={13} />
-                              <span>صرف السلفة</span>
-                            </button>
+                            {(req.allowedActions || []).includes('payout') && (
+                              <button
+                                type="button"
+                                id={`btn-payout-advance-${req.id}`}
+                                onClick={() => handleOpenPayoutDialog(req)}
+                                className="px-3 py-1.5 rounded-lg bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <Check size={13} />
+                                <span>صرف السلفة</span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => setPayoutDetailsReq(req)}

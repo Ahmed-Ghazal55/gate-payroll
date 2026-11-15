@@ -146,7 +146,7 @@ export function AccountingAdjustmentsPanel({ companies }: { companies: Array<{ i
                     <td className="p-3 font-mono">{Number(r.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                     <td className="p-3">{status}</td>
                     <td className="p-3">
-                      {canApprove && status === 'draft' && (
+                      {(Array.isArray(r.allowedActions) ? r.allowedActions : []).includes('approve') && (
                         <button type="button" disabled={busy} onClick={() => approve(id)} className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] disabled:opacity-50">
                           <CheckCircle2 size={14} /> اعتماد
                         </button>

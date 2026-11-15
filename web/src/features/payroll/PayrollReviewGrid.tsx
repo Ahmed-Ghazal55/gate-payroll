@@ -79,23 +79,8 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
   };
 
   const handleRowUpdated = (updated: PayReviewRow) => {
-    if (!data) return;
-    const newRows = data.rows.map((r) => (r.rider === updated.rider ? updated : r));
-    const approvedCount = newRows.filter((r) => r.review === 'approved').length;
-    const pendingCount = newRows.filter((r) => r.review !== 'approved').length;
-    const needsDecisionCount = newRows.filter((r) => r.status !== 'ready').length;
-
-    setData({
-      ...data,
-      totals: {
-        ...data.totals,
-        approved: approvedCount,
-        pending: pendingCount,
-        needsDecision: needsDecisionCount,
-      },
-      rows: newRows,
-    });
     setSelectedRow(updated);
+    void fetchReviewData();
     if (onCycleUpdated) onCycleUpdated();
   };
 
@@ -391,15 +376,14 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
             </button>
 
             {/* Bulk Approve Action */}
-            {canManage && totals.pending > 0 && (
+            {canManage && (data?.rows || []).some((r) => (r.allowedActions || []).includes('approve')) && (
               <button
                 type="button"
-                disabled={readyPendingCount === 0}
                 onClick={() => setBulkDialogOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] hover:opacity-90 shadow-xs transition"
               >
                 <CheckCheck size={15} />
-                <span>اعتماد الكل ({readyPendingCount})</span>
+                <span>اعتماد الكل ({(data?.rows || []).filter((r) => (r.allowedActions || []).includes('approve')).length})</span>
               </button>
             )}
           </div>

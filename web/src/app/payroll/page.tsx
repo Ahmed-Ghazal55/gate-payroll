@@ -1269,30 +1269,20 @@ function PayrollPageInner() {
     }
   };
 
-  // Approve TGA Allocation (maker-checker)
+  // Approve TGA Allocation (API enforces maker-checker)
   const handleApproveAllocation = async (alloc: HsAllocation) => {
-    if (alloc.requestedBy && user && alloc.requestedBy.toLowerCase() === user.username.toLowerCase()) {
-      showToast('لا يمكن لمنشئ التوزيع اعتماده بنفسه (قاعدة التدقيق المستقل Maker-Checker)', 'error');
-      return;
-    }
-
     try {
       await api.approveHsAllocation(alloc.id);
       showToast('تم اعتماد توزيع TGA بنجاح', 'success');
       loadData();
-    } catch (err: any) {
-      showToast(err.message || 'تعذر اعتماد توزيع TGA', 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر اعتماد توزيع TGA', 'error');
     }
   };
 
   // Resolve Dispute
   const handleResolveDispute = async () => {
     if (!selectedDispute) return;
-
-    if (selectedDispute.createdBy && user && selectedDispute.createdBy.toLowerCase() === user.username.toLowerCase()) {
-      showToast('لا يمكنك البت في اعتراض أنشأته بنفسك (قاعدة التدقيق المستقل Maker-Checker)', 'error');
-      return;
-    }
 
     if (resolveOutcome === 'platform_credit' && !platformReference.trim()) {
       showToast('يرجى إدخال رقم مرجع إشعار الدائن الصادر من المنصة', 'error');
@@ -1351,9 +1341,6 @@ function PayrollPageInner() {
     }
   };
 
-  const isSelfMaker = (doc: PayConfigDoc) =>
-    Boolean(doc.createdBy && user?.username && doc.createdBy.toLowerCase() === user.username.toLowerCase());
-
   const handleOpenTermsForm = () => {
     setEditorKind('terms');
     setEditingDoc(null);
@@ -1367,10 +1354,6 @@ function PayrollPageInner() {
   };
 
   const handleApproveTerms = async (termsDoc: PayConfigDoc) => {
-    if (isSelfMaker(termsDoc)) {
-      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
-      return;
-    }
     try {
       await api.approvePayTerms(appSlug, termsDoc.id);
       showToast('تم اعتماد شروط المنصة بنجاح وتثبيتها للقراءة فقط', 'success');
@@ -1393,10 +1376,6 @@ function PayrollPageInner() {
   };
 
   const handleApproveScheme = async (schemeDoc: PayConfigDoc) => {
-    if (isSelfMaker(schemeDoc)) {
-      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
-      return;
-    }
     try {
       await api.approvePayScheme(appSlug, schemeDoc.id);
       showToast('تم اعتماد النظام الداخلي بنجاح', 'success');
@@ -1421,10 +1400,6 @@ function PayrollPageInner() {
   };
 
   const handleApproveEligibility = async (elDoc: PayConfigDoc) => {
-    if (isSelfMaker(elDoc)) {
-      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
-      return;
-    }
     try {
       await api.approvePayEligibility(appSlug, elDoc.id);
       showToast('تم اعتماد ضوابط الأهلية بنجاح', 'success');
@@ -1533,8 +1508,8 @@ function PayrollPageInner() {
   };
 
   // Advance Cycle
-  const handleAdvanceCycle = async (cycle: PayCycleItem) => {
-    const nextStage = (cycle.stage || 0) + 1;
+  const handleAdvanceCycle = async (cycle: PayCycleItem, targetStage?: number) => {
+    const nextStage = targetStage ?? (cycle.stage || 0) + 1;
     if (nextStage > 7) {
       showToast('دورة الرواتب مكتملة ومعتمدة بالكامل في المرحلة 7', 'info');
       return;
@@ -1544,8 +1519,8 @@ function PayrollPageInner() {
       await api.advancePayCycle(cycle.id, { stage: nextStage });
       showToast(`تم تقديم دورة الرواتب بنجاح إلى المرحلة ${nextStage}`, 'success');
       loadCycles();
-    } catch (err: any) {
-      showToast(err.message || `تعذر تقديم دورة الرواتب إلى المرحلة ${nextStage}`, 'error');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : `تعذر تقديم دورة الرواتب إلى المرحلة ${nextStage}`, 'error');
     } finally {
       setAdvancingCycle(false);
     }
@@ -2259,7 +2234,7 @@ function PayrollPageInner() {
                                   </span>
                                 </td>
                                 <td className="p-3">
-                                  {d.status === 'open' && (
+                                  {(d.allowedActions || []).includes('resolve') && (
                                     <button
                                       type="button"
                                       onClick={() => setSelectedDispute(d)}
@@ -2305,10 +2280,7 @@ function PayrollPageInner() {
                             </tr>
                           ) : (
                             allocations.map((alloc) => {
-                              const isMaker =
-                                alloc.requestedBy &&
-                                user &&
-                                alloc.requestedBy.toLowerCase() === user.username.toLowerCase();
+                              const canApproveAlloc = (alloc.allowedActions || []).includes('approve');
                               return (
                                 <tr key={alloc.id} className="hover:bg-[var(--row-hover)] transition">
                                   <td className="p-3 font-mono font-bold text-[var(--accent)]">{alloc.id}</td>
@@ -2336,15 +2308,15 @@ function PayrollPageInner() {
                                   <td className="p-3">
                                     {alloc.status === 'pending' || alloc.status === 'pending_allocation' ? (
                                       <div className="flex items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          disabled={Boolean(isMaker)}
-                                          onClick={() => handleApproveAllocation(alloc)}
-                                          title={isMaker ? 'لا يمكن لمنشئ التوزيع اعتماده بنفسه (قاعدة التدقيق المستقل)' : undefined}
-                                          className="px-2.5 py-1 rounded-lg bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                                        >
-                                          اعتماد المدقق
-                                        </button>
+                                        {canApproveAlloc && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleApproveAllocation(alloc)}
+                                            className="px-2.5 py-1 rounded-lg bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer"
+                                          >
+                                            اعتماد المدقق
+                                          </button>
+                                        )}
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -2526,7 +2498,7 @@ function PayrollPageInner() {
                 <div className="space-y-4">
                   {termsList.map((t) => {
                     const isApproved = t.status === 'approved';
-                    const isMaker = isSelfMaker(t);
+                    const canApprove = (t.allowedActions || []).includes('approve');
                     return (
                       <div
                         key={t.id}
@@ -2574,15 +2546,15 @@ function PayrollPageInner() {
 
                             {!isApproved && (
                               <>
-                                <button
-                                  type="button"
-                                  disabled={isMaker}
-                                  title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد العقد'}
-                                  onClick={() => handleApproveTerms(t)}
-                                  className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
-                                >
-                                  اعتماد العقد (Maker-Checker)
-                                </button>
+                                {canApprove && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveTerms(t)}
+                                    className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer shadow-xs"
+                                  >
+                                    اعتماد العقد (Maker-Checker)
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => handleOpenRejectSetting(t, 'terms')}
@@ -2696,7 +2668,7 @@ function PayrollPageInner() {
                 <div className="space-y-4">
                   {schemesList.map((sc) => {
                     const isApproved = sc.status === 'approved';
-                    const isMaker = isSelfMaker(sc);
+                    const canApprove = (sc.allowedActions || []).includes('approve');
                     const categories = sc.data?.parameters?.categories || {};
                     return (
                       <div
@@ -2751,15 +2723,15 @@ function PayrollPageInner() {
 
                             {!isApproved && (
                               <>
-                                <button
-                                  type="button"
-                                  disabled={isMaker}
-                                  title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد النظام'}
-                                  onClick={() => handleApproveScheme(sc)}
-                                  className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
-                                >
-                                  اعتماد النظام (Maker-Checker)
-                                </button>
+                                {canApprove && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveScheme(sc)}
+                                    className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer shadow-xs"
+                                  >
+                                    اعتماد النظام (Maker-Checker)
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => handleOpenRejectSetting(sc, 'scheme')}
@@ -2943,7 +2915,7 @@ function PayrollPageInner() {
                     <div className="space-y-4">
                       {eligibilityList.map((el) => {
                         const isApproved = el.status === 'approved';
-                        const isMaker = isSelfMaker(el);
+                        const canApprove = (el.allowedActions || []).includes('approve');
                         const rules = el.data?.rules || [];
                         return (
                           <div
@@ -2992,15 +2964,15 @@ function PayrollPageInner() {
 
                                 {!isApproved && (
                                   <>
-                                    <button
-                                      type="button"
-                                      disabled={isMaker}
-                                      title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد الأهلية'}
-                                      onClick={() => handleApproveEligibility(el)}
-                                      className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
-                                    >
-                                      اعتماد الأهلية (Maker-Checker)
-                                    </button>
+                                    {canApprove && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApproveEligibility(el)}
+                                        className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer shadow-xs"
+                                      >
+                                        اعتماد الأهلية (Maker-Checker)
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       onClick={() => handleOpenRejectSetting(el, 'eligibility')}
@@ -3503,6 +3475,15 @@ function PayrollPageInner() {
                             راجع جدول «مرحلة 8» تحت. اللي لسه ما اتأكدش ماينزلش في ملف البنك.
                           </p>
                         </>
+                      ) : activeCycle.status === 'partially_approved' ? (
+                        <>
+                          <p className="text-sm font-bold text-[var(--warning)]">
+                            الدورة معتمدة جزئياً — بعض المناديب بانتظار المراجعة أو الاعتماد
+                          </p>
+                          <p className="text-xs text-[var(--muted)]">
+                            يمكن مراجعة المناديب المتبقين واعتماد الرواتب الجاهزة أو تأكيد استقطاع الديون للمعتمدين.
+                          </p>
+                        </>
                       ) : activeCycle.status === 'approved' || activeCycle.stage >= 8 ? (
                         <>
                           <p className="text-sm font-bold text-[var(--ink)]">
@@ -3664,24 +3645,40 @@ function PayrollPageInner() {
                           </button>
                         </>
                       ) : (
-                        <button
-                          type="button"
-                          disabled={advancingCycle}
-                          onClick={() => handleAdvanceCycle(activeCycle)}
-                          className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-xs"
-                        >
-                          {advancingCycle ? (
-                            <>
-                              <RefreshCw size={14} className="animate-spin" />
-                              <span>جاري التقديم...</span>
-                            </>
-                          ) : (
-                            <>
-                              <span>تقديم المرحلة إلى [{activeCycle.stage + 1}: {cycleSteps[activeCycle.stage + 1]?.title}]</span>
-                              <ChevronRight size={16} />
-                            </>
+                        <>
+                          {(activeCycle.allowedActions || []).includes('advance') && (
+                            <button
+                              type="button"
+                              disabled={advancingCycle}
+                              onClick={() => handleAdvanceCycle(activeCycle)}
+                              className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-xs"
+                            >
+                              {advancingCycle ? (
+                                <>
+                                  <RefreshCw size={14} className="animate-spin" />
+                                  <span>جاري التقديم...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>تقديم المرحلة إلى [{activeCycle.stage + 1}: {cycleSteps[activeCycle.stage + 1]?.title}]</span>
+                                  <ChevronRight size={16} />
+                                </>
+                              )}
+                            </button>
                           )}
-                        </button>
+                          {(activeCycle.allowedActions || []).includes('approve_salaries') && (
+                            <button
+                              type="button"
+                              id="btn-approve-salaries-stage7"
+                              disabled={advancingCycle}
+                              onClick={() => handleAdvanceCycle(activeCycle, 7)}
+                              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-xs"
+                            >
+                              <CheckCircle2 size={16} />
+                              <span>اعتماد الرواتب النهائي (المرحلة 7)</span>
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

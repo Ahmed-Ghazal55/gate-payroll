@@ -16,6 +16,7 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [gateEnabled, setGateEnabled] = useState<boolean | null>(null);
+  const [gateActions, setGateActions] = useState<string[]>([]);
   const [gateReason, setGateReason] = useState('');
   const app = cycle.invoices?.[0]?.app ?? 'ninja';
 
@@ -26,9 +27,12 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
       toast(err instanceof Error ? err.message : 'تعذر تحميل مرحلة الديون', 'danger');
     }
     try {
-      setGateEnabled((await api.getPostingGate(app)).enabled);
+      const gate = await api.getPostingGate(app);
+      setGateEnabled(gate.enabled);
+      setGateActions(gate.allowedActions ?? []);
     } catch {
       setGateEnabled(null); // Administrators only; others just don't see the gate.
+      setGateActions([]);
     }
   }, [cycle.id, app, toast]);
   useEffect(() => { void load(); }, [load]);
@@ -49,7 +53,8 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
 
   const rows: Row[] = view?.rows ?? [];
   const pending = rows.filter((r) => r.status === 'pending');
-  const canApproveMore = (cycle.allowedActions ?? []).includes('approve_salaries') && cycle.stage >= 7;
+  const canApproveMore = (cycle.allowedActions ?? []).includes('approve_salaries');
+  const canConfirmAll = (cycle.allowedActions ?? []).includes('confirm_debt_deductions_all');
 
   return (
     <section id="debt-deduction-stage" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 space-y-3">
@@ -66,7 +71,7 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
               اعتماد الصفوف الجاهزة المتبقية
             </button>
           )}
-          {pending.length > 0 && (
+          {canConfirmAll && pending.length > 0 && (
             <button type="button" id="debt-confirm-all" disabled={busy} onClick={() => run(() => api.actDebtDeductions(cycle.id, { action: 'confirm-all' }), 'تم تأكيد استقطاع الديون.')} className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-xs font-bold text-white disabled:opacity-50">
               تأكيد الكل ({pending.length})
             </button>
@@ -74,7 +79,7 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
         </div>
       </div>
 
-      {gateEnabled === false && (
+      {gateEnabled === false && gateActions.includes('open_posting') && (
         <div id="posting-gate" className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-2 text-xs">
           <span className="font-bold text-[var(--ink)]">الترحيل المحاسبي لهذا التطبيق مقفول، والاعتماد النهائي هيتوقف بسببه.</span>
           <input value={gateReason} onChange={(e) => setGateReason(e.target.value)} placeholder="سبب الفتح" className="min-w-48 rounded-md border border-[var(--line)] bg-[var(--surface)] p-1 text-[var(--ink)]" />

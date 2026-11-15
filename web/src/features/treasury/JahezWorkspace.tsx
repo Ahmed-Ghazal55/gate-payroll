@@ -6,6 +6,7 @@ import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
+import { Dialog } from '../../components/ui/Dialog';
 import type { JahezReconciliationDoc } from '../../lib/types';
 
 export function JahezWorkspace() {
@@ -23,6 +24,8 @@ export function JahezWorkspace() {
   const [selected, setSelected] = useState<JahezReconciliationDoc | null>(null);
   const [variance, setVariance] = useState('');
   const [busy, setBusy] = useState(false);
+  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const [companyId, setCompanyId] = useState('BW');
   const [period, setPeriod] = useState('2026-10');
@@ -239,11 +242,21 @@ export function JahezWorkspace() {
                     <div className="text-[var(--muted)]">{status}</div>
                   </div>
                   <div className="flex gap-2">
-                    {(actions.includes('confirm') || status === 'pending') && canWrite && (
-                      <button type="button" disabled={busy} onClick={() => void runOp('أُكّدت العهدة', () => api.confirmJahezHandover(id, {}))} className="px-2 py-1 rounded-lg border border-[var(--line)] font-semibold disabled:opacity-50">تأكيد</button>
+                    {(actions.includes('approve') || actions.includes('confirm')) && (
+                      <button type="button" disabled={busy} onClick={() => void runOp('أُكّدت العهدة', () => api.confirmJahezHandover(id, {}))} className="px-2 py-1 rounded-lg border border-[var(--line)] font-semibold disabled:opacity-50 cursor-pointer">تأكيد</button>
                     )}
-                    {(actions.includes('reject') || status === 'pending') && canWrite && (
-                      <button type="button" disabled={busy} onClick={() => void runOp('رُفضت العهدة', () => api.rejectJahezHandover(id, { reason: 'رفض من الواجهة' }))} className="px-2 py-1 rounded-lg border border-[var(--danger)]/40 text-[var(--danger)] font-semibold disabled:opacity-50">رفض</button>
+                    {actions.includes('reject') && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setRejectTargetId(id);
+                          setRejectReason('');
+                        }}
+                        className="px-2 py-1 rounded-lg border border-[var(--danger)]/40 text-[var(--danger)] font-semibold disabled:opacity-50 cursor-pointer"
+                      >
+                        رفض
+                      </button>
                     )}
                   </div>
                 </li>
@@ -252,6 +265,51 @@ export function JahezWorkspace() {
           </ul>
         </div>
       )}
+
+      <Dialog
+        open={Boolean(rejectTargetId)}
+        onClose={() => setRejectTargetId(null)}
+        title="رفض تسليم عهدة جاهز"
+      >
+        <div className="space-y-4 text-xs text-[var(--ink)]">
+          <div className="space-y-1">
+            <label htmlFor="jahez-reject-reason" className="block font-bold">
+              سبب الرفض (إلزامي)
+            </label>
+            <textarea
+              id="jahez-reject-reason"
+              rows={3}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="اكتب سبب رفض تسليم العهدة..."
+              className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setRejectTargetId(null)}
+              className="px-3 py-1.5 rounded-xl border border-[var(--line)] cursor-pointer"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={busy || rejectReason.trim().length < 3}
+              onClick={async () => {
+                if (!rejectTargetId) return;
+                const id = rejectTargetId;
+                const reason = rejectReason.trim();
+                setRejectTargetId(null);
+                await runOp('رُفضت العهدة', () => api.rejectJahezHandover(id, { reason }));
+              }}
+              className="px-4 py-1.5 rounded-xl bg-[var(--danger)] text-white font-bold disabled:opacity-50 cursor-pointer"
+            >
+              تأكيد الرفض
+            </button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

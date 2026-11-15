@@ -798,7 +798,7 @@ function DebtsPageContent() {
         header: 'الإجراءات',
         render: (req) => (
           <div className="flex items-center gap-1.5">
-            {req.status === 'change_proposed' && req.requestedBy === user?.username && (
+            {((req.allowedActions || []).includes('accept') || (req.allowedActions || []).includes('reject_proposal')) && (
               <button
                 type="button"
                 id={`btn-respond-proposal-${req.id}`}

@@ -250,6 +250,7 @@ export interface HsInvoice {
 
 export interface HsDispute {
   id: string;
+  allowedActions?: string[];
   invoiceId: string;
   lineId: string;
   companyId: string;
@@ -276,6 +277,7 @@ export interface HsAllocationRiderShare {
 
 export interface HsAllocation {
   id: string;
+  allowedActions?: string[];
   invoiceId: string;
   lineId: string;
   companyId: string;
@@ -1248,6 +1250,7 @@ export interface AdvanceRequestDecision {
 
 export interface AdvanceRequest {
   id: string;
+  allowedActions?: string[];
   riderIqama: string;
   riderName: string;
   companyId: string;
@@ -1484,6 +1487,7 @@ export interface ConfigFieldDef {
 
 export interface ConfigListItem {
   code: string;
+  allowedActions?: string[];
   nameAr: string;
   active: boolean;
   values?: Record<string, any>;
