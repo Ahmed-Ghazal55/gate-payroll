@@ -1073,6 +1073,7 @@ export const api = {
     sponsorId?: string;
     comparisonOnly?: boolean;
     doNotSend?: boolean;
+    markSent?: boolean;
     mode?: string;
   }) => {
     const raw = await handleRequest<Record<string, unknown>>('/finance/bank-file/preview', {
@@ -1089,6 +1090,7 @@ export const api = {
     sponsorId?: string;
     comparisonOnly?: boolean;
     doNotSend?: boolean;
+    markSent?: boolean;
     mode?: string;
     previewToken?: string;
     rows?: Array<Record<string, unknown>>;

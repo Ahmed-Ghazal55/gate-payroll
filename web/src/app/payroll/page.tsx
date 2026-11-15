@@ -3622,7 +3622,7 @@ function PayrollPageInner() {
                             );
                           })}
                         </>
-                      ) : activeCycle.status === 'approved' || activeCycle.stage >= 7 ? (
+                      ) : (activeCycle.status === 'approved' || activeCycle.status === 'partially_approved') && !(activeCycle.allowedActions || []).includes('confirm_debt_deductions') ? (
                         <>
                           <Link
                             href="/treasury/?tab=bank_file"

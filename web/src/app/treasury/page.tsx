@@ -89,6 +89,7 @@ function TreasuryPageContent() {
   const [loadingBankFile, setLoadingBankFile] = useState<boolean>(false);
   const [bankFileError, setBankFileError] = useState<string | null>(null);
   const [exportingBankFile, setExportingBankFile] = useState<boolean>(false);
+  const [confirmMarkSentOpen, setConfirmMarkSentOpen] = useState<boolean>(false);
   const [comparisonOnly, setComparisonOnly] = useState<boolean>(false);
 
   // Drawer state for account details
@@ -180,7 +181,7 @@ function TreasuryPageContent() {
     }
   }, [activeTab, selectedPeriod, selectedSponsor, comparisonOnly]);
 
-  const handleExportBankCsv = async () => {
+  const handleExportBankCsv = async (markSent = false) => {
     setExportingBankFile(true);
     try {
       const sp = selectedSponsor === 'all' ? undefined : selectedSponsor;
@@ -199,6 +200,7 @@ function TreasuryPageContent() {
         period: selectedPeriod,
         sponsorId: sp,
         comparisonOnly,
+        markSent: markSent && !comparisonOnly,
         previewToken: bankFilePreview.previewToken,
         rows,
       });
@@ -210,9 +212,18 @@ function TreasuryPageContent() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast('تم تصدير ملف صرف الرواتب البنكي بنجاح', 'success');
-    } catch (err: any) {
-      toast(err.message || 'تعذر تصدير ملف البنك', 'danger');
+      toast(
+        markSent && !comparisonOnly
+          ? 'تم تعليم ملف البنك كمُرسَل وترحيل قيد الصرف بنجاح'
+          : 'تم تصدير ملف صرف الرواتب البنكي بنجاح',
+        'success',
+      );
+      if (markSent && !comparisonOnly) {
+        setConfirmMarkSentOpen(false);
+        await loadBankFilePreview(selectedPeriod, selectedSponsor);
+      }
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'تعذر تصدير ملف البنك', 'danger');
     } finally {
       setExportingBankFile(false);
     }
@@ -628,18 +639,73 @@ function TreasuryPageContent() {
               </label>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {bankFilePreview?.basis && (
+                <span className="px-2.5 py-1 rounded-lg bg-[var(--raised)] text-[11px] font-bold text-[var(--ink)]">
+                  الأساس: {bankFilePreview.basis}
+                </span>
+              )}
               <button
                 type="button"
                 disabled={exportingBankFile || !bankFilePreview || !bankFilePreview.canExport || selectedSponsor === 'all'}
-                onClick={handleExportBankCsv}
+                onClick={() => handleExportBankCsv(false)}
                 className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs inline-flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
               >
                 <Download size={14} />
                 <span>{exportingBankFile ? 'جاري التصدير...' : comparisonOnly ? 'تحميل ملف مقارنة (لا يُرسل)' : 'تحميل ملف البنك (CSV)'}</span>
               </button>
+              {!comparisonOnly && (
+                <button
+                  type="button"
+                  id="btn-bank-mark-sent"
+                  disabled={exportingBankFile || !bankFilePreview || !bankFilePreview.canExport || selectedSponsor === 'all'}
+                  onClick={() => setConfirmMarkSentOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1.5 disabled:opacity-50 transition cursor-pointer"
+                >
+                  <CheckCircle2 size={14} />
+                  <span>تعليم كمُرسَل</span>
+                </button>
+              )}
             </div>
           </div>
+
+          <Dialog
+            open={confirmMarkSentOpen}
+            onClose={() => setConfirmMarkSentOpen(false)}
+            title="تأكيد تعليم ملف البنك كمُرسَل"
+          >
+            <div className="space-y-4 text-xs text-[var(--ink)]">
+              <p className="font-bold text-[var(--warning)]">
+                تنبيه محاسبي: تعليم ملف البنك كمُرسَل سيقوم بترحيل قيد الصرف المحاسبي في الدفتر العام (لا يمكن التراجع عن الترحيل بعد التنفيذ).
+              </p>
+              {bankFilePreview && (
+                <div className="p-3 rounded-xl bg-[var(--raised)]/50 space-y-1 font-mono">
+                  <div>الفترة: {selectedPeriod}</div>
+                  <div>عدد السجلات: {bankFilePreview.validRecordsCount}</div>
+                  <div>الإجمالي: {bankFilePreview.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</div>
+                  {bankFilePreview.basis && <div>الأساس: {bankFilePreview.basis}</div>}
+                </div>
+              )}
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmMarkSentOpen(false)}
+                  className="px-3 py-1.5 rounded-xl border border-[var(--line)] cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  id="btn-confirm-bank-mark-sent"
+                  disabled={exportingBankFile}
+                  onClick={() => handleExportBankCsv(true)}
+                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold disabled:opacity-50 cursor-pointer"
+                >
+                  {exportingBankFile ? 'جاري الترحيل...' : 'تأكيد وترحيل قيد الصرف'}
+                </button>
+              </div>
+            </div>
+          </Dialog>
 
           {comparisonOnly && bankFilePreview?.doNotSendMark && (
             <div className="p-3 rounded-xl border border-[var(--warning)]/40 bg-[var(--warning)]/10 text-xs font-bold text-[var(--warning)]">
