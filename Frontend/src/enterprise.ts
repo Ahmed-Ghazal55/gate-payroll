@@ -73,7 +73,8 @@ function filterVaultsForCategory(vaults:any[],categoryCode:string,operationKind:
  const filtered=(vaults||[]).filter((v:any)=>{
   const vKind=v.vaultKind||(v.code?.startsWith('SUP.')?'JahezCashbox':v.code?.startsWith('BANK.')?'Bank':v.code?.startsWith('PETRO.')?'PetroApp':'MainInternal');
   const vPurpose=v.vaultPurpose||(v.code?.endsWith('.FEE')?'JahezFee':v.code?.endsWith('.DEBT')?'DebtAndHr':'GeneralAndSettlement');
-  const dir=v.allowedDirections||(v.code?.endsWith('.FEE')||v.code?.startsWith('PETRO.')?'InOnly':'Dual');
+  const dir=v.allowedDirections||(v.cod
+e?.endsWith('.FEE')||v.code?.startsWith('PETRO.')?'InOnly':'Dual');
 
   // 1. حسابات رسوم فتح حسابات جاهز (*.FEE) لا تظهر أبداً في السلف أو طلبات HR أو المديونيات
   if(categoryCode==='PlatformTransferredDebt')return operationKind==='collection'&&platform==='Jahez'&&['JahezSettlement','GeneralAndSettlement'].includes(vPurpose);
