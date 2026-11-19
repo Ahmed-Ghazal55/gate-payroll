@@ -335,7 +335,7 @@ function HrCatalogsPageInner() {
           getRowId={(r) =>
             String(
               pickField(r, 'Id', 'id', 'Code', 'code', 'UnifiedNationalNumber', 'NameAr', 'nameAr') ||
-                JSON.stringify(r)
+                Object.values(r).map((v) => String(v ?? '')).join('|')
             )
           }
           searchable

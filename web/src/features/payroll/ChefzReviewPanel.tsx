@@ -6,6 +6,7 @@ import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { formatReadableValue } from '../../lib/formatRecord';
 
 export function ChefzReviewPanel() {
   const { can, isAdmin } = useAuth();
@@ -78,13 +79,21 @@ export function ChefzReviewPanel() {
           {errors.length > 0 && (
             <div className="p-3 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10">
               <p className="font-bold text-[var(--danger)] mb-1">أخطاء ({errors.length})</p>
-              <pre className="whitespace-pre-wrap font-mono text-[11px]">{JSON.stringify(errors, null, 2)}</pre>
+              <ul className="list-disc list-inside space-y-1 text-[11px]">
+                {errors.map((err, idx) => (
+                  <li key={idx}>{formatReadableValue(err)}</li>
+                ))}
+              </ul>
             </div>
           )}
           {notes.length > 0 && (
             <div className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/40">
               <p className="font-bold mb-1">ملاحظات</p>
-              <pre className="whitespace-pre-wrap font-mono text-[11px]">{JSON.stringify(notes, null, 2)}</pre>
+              <ul className="list-disc list-inside space-y-1 text-[11px]">
+                {notes.map((note, idx) => (
+                  <li key={idx}>{formatReadableValue(note)}</li>
+                ))}
+              </ul>
             </div>
           )}
         </div>

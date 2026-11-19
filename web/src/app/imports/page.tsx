@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { formatReadableValue } from '../../lib/formatRecord';
 import {
   Upload,
   FileSpreadsheet,
@@ -819,7 +820,7 @@ function ImportCenter() {
                                   <li key={idx}>
                                     {typeof errItem === 'string'
                                       ? errItem
-                                      : `الصف ${errItem.row ?? '-'}: ${errItem.error || errItem.message || JSON.stringify(errItem)}`}
+                                      : `الصف ${errItem.row ?? '-'}: ${errItem.error || errItem.message || formatReadableValue(errItem)}`}
                                   </li>
                                 ))}
                               </ul>

@@ -232,13 +232,107 @@ function OperationsPageInner() {
   const openCity = async (id: string) => {
     try {
       const detail = await api.getOperationsCity(id);
+      const raw = detail as Record<string, unknown>;
+      const byReg = Array.isArray(detail.byRegistration)
+        ? (detail.byRegistration as Array<Record<string, unknown>>)
+        : [];
+      const byApp = Array.isArray(detail.byApp)
+        ? (detail.byApp as Array<Record<string, unknown>>)
+        : [];
+      const vehiclesTotal =
+        raw.vehiclesTotal ?? byReg.reduce((sum, r) => sum + Number(r.vehicles ?? 0), 0);
+      const ridersTotal =
+        raw.ridersTotal ?? byReg.reduce((sum, r) => sum + Number(r.riders ?? 0), 0);
+      const accountsActive =
+        raw.accountsActive ?? byApp.reduce((sum, r) => sum + Number(r.accountsActive ?? 0), 0);
+      const accountsAssigned =
+        raw.accountsAssigned ?? byApp.reduce((sum, r) => sum + Number(r.accountsAssigned ?? 0), 0);
       setDrawer({
         title: String(detail.nameAr || 'تفاصيل المدينة'),
         body: (
           <div className="space-y-4 text-sm">
-            <pre className="whitespace-pre-wrap break-words bg-[var(--surface-2)] p-3 rounded-lg overflow-auto max-h-[60vh]">
-              {JSON.stringify(detail, null, 2)}
-            </pre>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">الحالة</div>
+                <div className="font-semibold mt-1">{String(detail.status || '—')}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">المركبات</div>
+                <div className="font-semibold mt-1">{String(vehiclesTotal)}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">المناديب</div>
+                <div className="font-semibold mt-1">{String(ridersTotal)}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">الحسابات (نشط/مسند)</div>
+                <div className="font-semibold mt-1">
+                  {String(accountsActive)} / {String(accountsAssigned)}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-2">التوزيع حسب السجل التجاري</h4>
+              {byReg.length === 0 ? (
+                <EmptyState title="لا سجلات" description="لا توجد سجلات مرتبطة بهذه المدينة." />
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
+                  <table className="w-full text-xs text-start">
+                    <thead className="bg-[var(--surface-2)] border-b border-[var(--border)]">
+                      <tr>
+                        <th className="px-3 py-2 text-start">السجل</th>
+                        <th className="px-3 py-2 text-start">الرقم الموحد</th>
+                        <th className="px-3 py-2 text-start">المركبات</th>
+                        <th className="px-3 py-2 text-start">المناديب</th>
+                        <th className="px-3 py-2 text-start">الحسابات</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)]">
+                      {byReg.map((row, idx) => (
+                        <tr key={String(row.id || idx)}>
+                          <td className="px-3 py-2">{String(row.nameAr || '—')}</td>
+                          <td className="px-3 py-2 font-mono"><bdi>{String(row.unifiedNumber || '—')}</bdi></td>
+                          <td className="px-3 py-2">{String(row.vehicles ?? 0)}</td>
+                          <td className="px-3 py-2">{String(row.riders ?? 0)}</td>
+                          <td className="px-3 py-2">{String(row.accounts ?? 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-2">التوزيع حسب التطبيق</h4>
+              {byApp.length === 0 ? (
+                <EmptyState title="لا تطبيقات" description="لا توجد حسابات تطبيقات مسجلة بهذه المدينة." />
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
+                  <table className="w-full text-xs text-start">
+                    <thead className="bg-[var(--surface-2)] border-b border-[var(--border)]">
+                      <tr>
+                        <th className="px-3 py-2 text-start">التطبيق</th>
+                        <th className="px-3 py-2 text-start">الإجمالي</th>
+                        <th className="px-3 py-2 text-start">النشط</th>
+                        <th className="px-3 py-2 text-start">المسند</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)]">
+                      {byApp.map((row, idx) => (
+                        <tr key={String(row.platformCode || idx)}>
+                          <td className="px-3 py-2">{String(row.nameAr || row.platformCode || '—')}</td>
+                          <td className="px-3 py-2">{String(row.accountsTotal ?? 0)}</td>
+                          <td className="px-3 py-2">{String(row.accountsActive ?? 0)}</td>
+                          <td className="px-3 py-2">{String(row.accountsAssigned ?? 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         ),
       });
@@ -293,18 +387,76 @@ function OperationsPageInner() {
   const openVehicle = async (id: string) => {
     try {
       const detail = await api.getOperationsVehicle(id);
+      const rawHistory = Array.isArray(detail.assignmentHistory)
+        ? (detail.assignmentHistory as Array<Record<string, unknown>>)
+        : [];
+      const history = [...rawHistory].sort((a, b) =>
+        String(b.startedAt || '').localeCompare(String(a.startedAt || ''))
+      );
       setDrawer({
         title: String(detail.plateNumberAr || detail.assetNumber || 'تفاصيل المركبة'),
         body: (
-          <div className="space-y-2 text-sm">
-            <div>VIN: <bdi className="font-mono">{String(detail.vin || '')}</bdi></div>
-            <div>الهيكل: {String(detail.chassisNumber || '')}</div>
-            <div>العداد: {String(detail.currentOdometer ?? '')}</div>
-            <div>الكفيل: {String(detail.sponsorNameAr || '')}</div>
-            <div>المدينة: {String(detail.city || '')}</div>
-            <pre className="whitespace-pre-wrap break-words bg-[var(--surface-2)] p-3 rounded-lg overflow-auto max-h-[40vh] text-xs">
-              {JSON.stringify(detail.assignmentHistory || [], null, 2)}
-            </pre>
+          <div className="space-y-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">رقم الهيكل (VIN)</div>
+                <div className="font-mono font-medium mt-0.5"><bdi>{String(detail.vin || '—')}</bdi></div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">الهيكل</div>
+                <div className="font-mono mt-0.5"><bdi>{String(detail.chassisNumber || '—')}</bdi></div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">العداد</div>
+                <div className="font-medium mt-0.5">{String(detail.currentOdometer ?? '—')}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">الكفيل</div>
+                <div className="font-medium mt-0.5">{String(detail.sponsorNameAr || '—')}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">المدينة</div>
+                <div className="font-medium mt-0.5">{String(detail.city || '—')}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">النوع</div>
+                <div className="font-medium mt-0.5">{String(detail.vehicleType || '—')}</div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-2">سجل تعيينات المناديب (الأحدث أولًا)</h4>
+              {history.length === 0 ? (
+                <EmptyState title="لا سجل تعيينات" description="لا توجد تعيينات مسجلة لهذه المركبة." />
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
+                  <table className="w-full text-xs text-start">
+                    <thead className="bg-[var(--surface-2)] border-b border-[var(--border)]">
+                      <tr>
+                        <th className="px-3 py-2 text-start">اسم المندوب</th>
+                        <th className="px-3 py-2 text-start">رقم الإقامة</th>
+                        <th className="px-3 py-2 text-start">من</th>
+                        <th className="px-3 py-2 text-start">إلى</th>
+                        <th className="px-3 py-2 text-start">مندوب فعلي</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)]">
+                      {history.map((row, idx) => (
+                        <tr key={String(row.id || idx)}>
+                          <td className="px-3 py-2 font-medium">{String(row.riderNameAr || '—')}</td>
+                          <td className="px-3 py-2 font-mono"><bdi>{String(row.iqama || '—')}</bdi></td>
+                          <td className="px-3 py-2 font-mono"><bdi>{formatDateShort(row.startedAt)}</bdi></td>
+                          <td className="px-3 py-2 font-mono">
+                            <bdi>{row.endedAt ? formatDateShort(row.endedAt) : 'حتى الآن'}</bdi>
+                          </td>
+                          <td className="px-3 py-2">{row.isRealRider ? 'نعم' : 'لا'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         ),
       });

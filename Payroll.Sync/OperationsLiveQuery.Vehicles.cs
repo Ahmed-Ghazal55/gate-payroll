@@ -148,10 +148,12 @@ public static partial class OperationsLiveQuery
         Add(cmd, "@id", vehicleId);
         cmd.CommandText = """
             SELECT a.[Id], a.[StartedAtUtc], a.[EndedAtUtc], a.[IsRealRider],
-                   e.[FullNameAr] AS RiderNameAr, e.[IqamaNo]
+                   COALESCE(CASE WHEN a.[IsRealRider]=1 THEN e.[FullNameAr] ELSE rr.[Name] END, e.[FullNameAr]) AS RiderNameAr,
+                   COALESCE(CASE WHEN a.[IsRealRider]=1 THEN e.[IqamaNo] ELSE rr.[IqamaNo] END, e.[IqamaNo]) AS IqamaNo
             FROM [app].[RiderVehicleAssignments] a
             LEFT JOIN [app].[RiderProfiles] rp ON rp.[Id]=a.[RiderProfileId] AND rp.[IsDeleted]=0
             LEFT JOIN [app].[Employees] e ON e.[Id]=rp.[EmployeeId] AND e.[IsDeleted]=0
+            LEFT JOIN [app].[RealRiders] rr ON rr.[RiderVehicleAssignmentId]=a.[Id]
             WHERE a.[IsDeleted]=0 AND a.[VehicleId]=@id
             ORDER BY a.[StartedAtUtc] DESC
             """;

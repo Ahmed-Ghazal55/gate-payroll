@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { formatReadableValue, formatRecordEntries } from '../../lib/formatRecord';
 import {
   Calculator,
   Upload,
@@ -2597,9 +2598,18 @@ function PayrollPageInner() {
 
                           <div className="pt-2 border-t border-[var(--line)]">
                             <span className="text-[var(--muted)] block mb-1">المحددات والشرائح:</span>
-                            <pre className="p-2.5 rounded-lg bg-[var(--raised)] font-mono text-[11px] overflow-x-auto text-left" dir="ltr">
-                              {JSON.stringify(t.data?.parameters || {}, null, 2)}
-                            </pre>
+                            <div className="p-2.5 rounded-lg bg-[var(--raised)] text-[11px] space-y-1">
+                              {formatRecordEntries(t.data?.parameters || {}).length === 0 ? (
+                                <span className="text-[var(--muted)]">—</span>
+                              ) : (
+                                formatRecordEntries(t.data?.parameters || {}).map((entry) => (
+                                  <div key={entry.key} className="flex flex-wrap gap-2">
+                                    <span className="font-semibold text-[var(--muted)]">{entry.key}:</span>
+                                    <span>{entry.value}</span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -4850,7 +4860,7 @@ function PayrollPageInner() {
                       )}
                       {l.inputs && (
                         <div className="text-[10px] text-[var(--muted)]">
-                          مدخلات: <span className="font-mono">{JSON.stringify(l.inputs)}</span>
+                          مدخلات: <span>{formatReadableValue(l.inputs)}</span>
                         </div>
                       )}
                     </div>
