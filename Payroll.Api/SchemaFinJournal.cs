@@ -153,7 +153,6 @@ public static class SchemaFinJournal
         }
         else
         {
-            // SQLite cannot FK to a partial unique index; leaf-only posting is enforced on SQL Server + posting service.
             SchemaSql.Exec(c,tx,$"""
                 CREATE TABLE IF NOT EXISTS {t}(
                   id {g} NOT NULL PRIMARY KEY,
@@ -178,6 +177,7 @@ public static class SchemaFinJournal
                   CONSTRAINT CK_fin_journal_line_nonzero CHECK (debit + credit > 0),
                   CONSTRAINT FK_fin_journal_line_journal FOREIGN KEY (journal_id) REFERENCES {journal}(id),
                   CONSTRAINT FK_fin_journal_line_account FOREIGN KEY (account_id) REFERENCES {account}(id),
+                  CONSTRAINT FK_fin_journal_line_posting_account FOREIGN KEY (account_id) REFERENCES {account}(posting_id),
                   CONSTRAINT FK_fin_journal_line_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_journal_line_cc FOREIGN KEY (cost_centre_id) REFERENCES {cc}(id)
                 );

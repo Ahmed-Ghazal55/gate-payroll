@@ -27,8 +27,8 @@ public sealed class SchemaFinAccountTests
         Assert.IsTrue(first>200);
         Assert.AreEqual(SchemaFinAccount.StableId("1").ToString("D").ToLowerInvariant(),
             ((string)SchemaSql.Scalar(c,null,"SELECT lower(id) FROM fin_account WHERE code='1'")!).ToLowerInvariant());
-        Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_posting=1 AND posting_id IS NULL")!));
-        Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_posting=0 AND posting_id IS NOT NULL")!));
+        Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_posting=1 AND posting_id<>id")!));
+        Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_posting=0 AND posting_id=id")!));
         Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_posting=1")!)>0);
     }
 
@@ -37,15 +37,15 @@ public sealed class SchemaFinAccountTests
     {
         using var c=Open();
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
-            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_posting,posting_id,status,is_active,company_scope,level_no,created_at) VALUES(@id,'1','dup',1,1,0,NULL,1,1,0,1,datetime('now'))",
-            ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
+            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_posting,posting_id,status,is_active,company_scope,level_no,created_at) VALUES(@id,'1','dup',1,1,0,@pid,1,1,0,1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",SchemaSql.GuidText(SchemaSql.NewId()))));
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
-            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_posting,posting_id,status,is_active,company_scope,level_no,created_at) VALUES(@id,'9',N'x',1,9,0,NULL,1,1,0,1,datetime('now'))",
-            ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
+            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_posting,posting_id,status,is_active,company_scope,level_no,created_at) VALUES(@id,'9',N'x',1,9,0,@pid,1,1,0,1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",SchemaSql.GuidText(SchemaSql.NewId()))));
         string id=SchemaSql.GuidText(SchemaSql.NewId());
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
-            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_posting,posting_id,status,is_active,company_scope,level_no,created_at) VALUES(@id,'999901',N'bad',1,1,1,NULL,1,1,0,1,datetime('now'))",
-            ("@id",id)));
+            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_posting,posting_id,status,is_active,company_scope,level_no,created_at) VALUES(@id,'999901',N'bad',1,1,1,@other,1,1,0,1,datetime('now'))",
+            ("@id",id),("@other",SchemaSql.GuidText(SchemaSql.NewId()))));
     }
 
     [TestMethod]
@@ -81,8 +81,8 @@ public sealed class SchemaFinAccountTests
             first.Read(c=>{
                 Assert.AreEqual(SchemaFinAccount.ExpectedSeedCount(),Convert.ToInt32(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin.account")!));
                 Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,
-                    "INSERT INTO fin.account(id,code,name_ar,account_type,nature,is_posting,posting_id,status,is_active,company_scope,level_no,created_at) VALUES(@id,'1',N'dup',1,1,0,NULL,1,1,0,1,SYSUTCDATETIME())",
-                    ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
+                    "INSERT INTO fin.account(id,code,name_ar,account_type,nature,is_posting,posting_id,status,is_active,company_scope,level_no,created_at) VALUES(@id,'1',N'dup',1,1,0,@pid,1,1,0,1,SYSUTCDATETIME())",
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",SchemaSql.GuidText(SchemaSql.NewId()))));
                 return true;
             });
         }

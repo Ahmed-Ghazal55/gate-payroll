@@ -80,6 +80,19 @@ public sealed class SchemaFinJournalTests
     }
 
     [TestMethod]
+    public void NonLeafAccountIsRejectedByPostingIdFk()
+    {
+        using var c=Open();
+        var h=SeedHeader(c);
+        string nonLeaf=(string)SchemaSql.Scalar(c,null,"SELECT id FROM fin_account WHERE is_posting=0 ORDER BY code LIMIT 1")!;
+        string cc=SchemaSql.GuidText(SchemaOrgCostCentre.NoneId);
+        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"""
+            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,company_id,cost_centre_id,debit,credit,created_at)
+            VALUES(@id,'2026-11-01',@jid,1,@aid,@cid,@cc,10,0,datetime('now'))
+            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@jid",h.Journal),("@aid",nonLeaf),("@cid",h.Company),("@cc",cc)));
+    }
+
+    [TestMethod]
     public void ReversalLinkAndStoreStartup()
     {
         using var c=Open();
