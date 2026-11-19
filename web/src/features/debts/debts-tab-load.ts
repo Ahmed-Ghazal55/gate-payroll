@@ -31,15 +31,20 @@ export function debtsLoadKindsForTab(tab: DebtsTabId): DebtsLoadKind[] {
   }
 }
 
-/** Default client page size while the debts API still returns a full array. */
-export const DEBTS_CLIENT_PAGE_SIZE = 50;
+/** Default server page size for GET /debts?page=&pageSize= (max 200 on the API). */
+export const DEBTS_PAGE_SIZE = 50;
 
-/**
- * Slice a full list for display. Real server paging needs GET /debts?page=&pageSize=
- * (contract documents a paged shape; the live MapGet still returns the full list).
- */
-export function pageSlice<T>(items: T[], page: number, pageSize = DEBTS_CLIENT_PAGE_SIZE): T[] {
-  const p = Math.max(1, page);
-  const start = (p - 1) * pageSize;
-  return items.slice(start, start + pageSize);
-}
+/** Category filter choices for server-side debts list (not derived from the current page). */
+export const DEBT_CATEGORY_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'all', label: 'كافة الفئات' },
+  { value: 'advance', label: 'سلف (نقدية / بنكية)' },
+  { value: 'CashAdvance', label: 'سلفة نقدية' },
+  { value: 'BankAdvance', label: 'سلفة بنكية' },
+  { value: 'TrafficFine', label: 'مخالفة مرورية' },
+  { value: 'EquipmentLoan', label: 'عهدة ومعدات' },
+  { value: 'WorkPermit', label: 'رخصة عمل' },
+  { value: 'IqamaRenewal', label: 'تجديد إقامة' },
+  { value: 'HousingDeduction', label: 'استقطاع سكن' },
+  { value: 'PlatformTransferredDebt', label: 'مديونية منقولة من منصة' },
+  { value: 'NegativeSalaryCarryover', label: 'ترحيل راتب سالب' },
+];

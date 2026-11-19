@@ -2,8 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   debtsLoadKindsForTab,
-  pageSlice,
-  DEBTS_CLIENT_PAGE_SIZE,
+  DEBTS_PAGE_SIZE,
+  DEBT_CATEGORY_OPTIONS,
 } from '../../src/features/debts/debts-tab-load.ts';
 
 describe('debts tab load (F-D2)', () => {
@@ -25,10 +25,9 @@ describe('debts tab load (F-D2)', () => {
     assert.deepEqual(debtsLoadKindsForTab('promissory'), ['promissory']);
   });
 
-  it('pages a list client-side until the API accepts page params', () => {
-    const items = Array.from({ length: 120 }, (_, i) => i);
-    assert.equal(DEBTS_CLIENT_PAGE_SIZE, 50);
-    assert.deepEqual(pageSlice(items, 1), items.slice(0, 50));
-    assert.deepEqual(pageSlice(items, 3), items.slice(100, 120));
+  it('uses server page size 50 and category options for filters', () => {
+    assert.equal(DEBTS_PAGE_SIZE, 50);
+    assert.ok(DEBT_CATEGORY_OPTIONS.some((o) => o.value === 'all'));
+    assert.ok(DEBT_CATEGORY_OPTIONS.some((o) => o.value === 'advance'));
   });
 });

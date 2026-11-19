@@ -46,14 +46,17 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
-import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { DataTable, ColumnDef, PAGE_SIZES } from '../../components/ui/DataTable';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { DebtActionsPanel } from '../../features/debts/DebtActionsPanel';
 import {
   debtsLoadKindsForTab,
+  DEBT_CATEGORY_OPTIONS,
+  DEBTS_PAGE_SIZE,
   type DebtsTabId,
 } from '../../features/debts/debts-tab-load';
+import type { PaginatedResult } from '../../lib/types';
 import type {
   DebtRecord,
   ApprovalRequest,
@@ -126,12 +129,23 @@ function DebtsPageContent() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
+  const [debtsPage, setDebtsPage] = useState(1);
+  const [debtsPageSize, setDebtsPageSize] = useState(DEBTS_PAGE_SIZE);
+  const [debtsTotal, setDebtsTotal] = useState(0);
 
   // Data states
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [debts, setDebts] = useState<DebtRecord[]>([]);
   const [debtsLoaded, setDebtsLoaded] = useState(false);
+  const [debtsSummary, setDebtsSummary] = useState<{
+    totalCount: number;
+    activeRemainingTotal: number;
+    advanceRemainingTotal: number;
+    pendingOpeningCount: number;
+    pendingOpeningTotal: number;
+  } | null>(null);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [approvalsLoaded, setApprovalsLoaded] = useState(false);
   const [promissoryNotes, setPromissoryNotes] = useState<PromissoryNote[]>([]);
@@ -210,13 +224,41 @@ function DebtsPageContent() {
     }
   }, [user]);
 
-  const loadDebts = async () => {
+  const debtsListParams = (page: number, pageSize: number, search: string) => ({
+    page,
+    pageSize,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    category: selectedCategory !== 'all' ? selectedCategory : undefined,
+    q: search.trim() || undefined,
+  });
+
+  const loadDebtsSummary = async (search = debouncedSearch) => {
+    try {
+      const summary = await api.getDebtsSummary({
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+        q: search.trim() || undefined,
+      });
+      setDebtsSummary(summary);
+    } catch {
+      setDebtsSummary(null);
+    }
+  };
+
+  const loadDebts = async (
+    page = debtsPage,
+    pageSize = debtsPageSize,
+    search = debouncedSearch
+  ) => {
     setLoading(true);
     setError(null);
     try {
-      const debtsRes = await api.getDebts();
-      setDebts(debtsRes || []);
+      const debtsRes = (await api.getDebts(debtsListParams(page, pageSize, search))) as PaginatedResult<DebtRecord>;
+      setDebts(debtsRes.items || []);
+      setDebtsTotal(debtsRes.total ?? 0);
+      setDebtsPage(debtsRes.page ?? page);
+      setDebtsPageSize(debtsRes.pageSize ?? pageSize);
       setDebtsLoaded(true);
+      await loadDebtsSummary(search);
     } catch (err: any) {
       const msg = err.message || 'تعذر تحميل بيانات المديونيات';
       setError(msg);
@@ -224,6 +266,39 @@ function DebtsPageContent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const exportAllDebts = async () => {
+    // Export every filtered row (legacy array without page), not only the current page.
+    const rows = (await api.getDebts({
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      category: selectedCategory !== 'all' ? selectedCategory : undefined,
+      q: debouncedSearch.trim() || undefined,
+    })) as DebtRecord[];
+    const headers = ['رقم الإقامة', 'اسم المندوب', 'فئة البند', 'المبلغ الأصلي', 'المبلغ المتبقي', 'القسط الشهري', 'الحالة'];
+    const excelRows = rows.map((d) => [
+      d.iqama,
+      d.riderName || '',
+      debtCategoryLabel(d),
+      d.originalAmount ?? 0,
+      d.remainingAmount ?? 0,
+      d.monthlyInstallment || d.monthlyDeduction || 0,
+      debtStatusLabel(d.status),
+    ]);
+    const blob = await api.exportExcel({
+      headers,
+      rows: excelRows,
+      numericColumns: [3, 4, 5],
+      filename: 'debts_list.xlsx',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'debts_list.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   };
 
   const loadApprovals = async () => {
@@ -321,17 +396,25 @@ function DebtsPageContent() {
     }
   }, [canReviewAdvances, canRequestAdvances]);
 
-  // F-D2: fetch only the open tab's data (never debts+approvals+promissory together).
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // F-D2: fetch only the open tab's data; debts list is server-paged with filters/search.
   useEffect(() => {
     const kinds = debtsLoadKindsForTab(activeTab);
-    if (kinds.includes('debts')) void loadDebts();
+    if (kinds.includes('debts')) {
+      setDebtsPage(1);
+      void loadDebts(1, debtsPageSize, debouncedSearch);
+    }
     if (kinds.includes('approvals')) void loadApprovals();
     if (kinds.includes('promissory')) void loadPromissory();
     if (kinds.includes('advances')) {
       void loadAdvanceRequests();
       if (canRequestAdvances) void loadSupervisedRiders();
     }
-  }, [activeTab, advancesRoleView]);
+  }, [activeTab, advancesRoleView, selectedCategory, selectedStatus, debouncedSearch]);
 
   const handleOpenReviewDrawer = async (req: AdvanceRequest) => {
     setSelectedAdvance(req);
@@ -554,30 +637,6 @@ function DebtsPageContent() {
     }
   };
 
-  // Filtered debts
-  const filteredDebts = useMemo(() => {
-    return debts.filter((d) => {
-      if (selectedCategory !== 'all' && d.category !== selectedCategory) return false;
-      if (selectedStatus !== 'all' && d.status !== selectedStatus) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchIqama = d.iqama?.toLowerCase().includes(q);
-        const matchName = d.riderName?.toLowerCase().includes(q);
-        if (!matchIqama && !matchName) return false;
-      }
-      return true;
-    });
-  }, [debts, selectedCategory, selectedStatus, searchQuery]);
-
-  const categoryOptions = useMemo(() => {
-    const m = new Map<string, string>();
-    debts.forEach((d) => m.set(d.category, debtCategoryLabel(d)));
-    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], 'ar'));
-  }, [debts]);
-
-  // Opening balances from the debt sheet wait for an admin decision (no approval_request exists).
-  const pendingOpening = useMemo(() => debts.filter(isPendingOpening), [debts]);
-  const pendingOpeningTotal = useMemo(() => pendingOpening.reduce((s, d) => s + (d.remainingAmount || 0), 0), [pendingOpening]);
   const [openingDialog, setOpeningDialog] = useState<null | 'approved' | 'rejected'>(null);
   const [openingNote, setOpeningNote] = useState('');
   const [openingIds, setOpeningIds] = useState<string[]>([]);
@@ -606,12 +665,26 @@ function DebtsPageContent() {
     }
   };
 
-  // Derived statistics
-  const totalRemainingDebts = useMemo(() => debts.filter((d) => d.status === 'active').reduce((s, d) => s + (d.remainingAmount || 0), 0), [debts]);
-  const totalAdvances = useMemo(
-    () => debts.filter((d) => d.category === 'advance' || d.category === 'CashAdvance' || d.category === 'BankAdvance').reduce((s, d) => s + (d.remainingAmount || 0), 0),
-    [debts]
-  );
+  const startOpeningDecision = async (decision: 'approved' | 'rejected') => {
+    try {
+      const all = (await api.getDebts({ status: 'pending_approval' })) as DebtRecord[];
+      const ids = all.filter(isPendingOpening).map((d) => d.id);
+      if (ids.length === 0) {
+        toast('لا توجد أرصدة افتتاحية بانتظار الاعتماد', 'warning');
+        return;
+      }
+      setOpeningIds(ids);
+      setOpeningDialog(decision);
+    } catch (err: any) {
+      toast(err.message || 'تعذر تحميل الأرصدة الافتتاحية', 'danger');
+    }
+  };
+
+  // Derived statistics from summary endpoint (not the current page).
+  const totalRemainingDebts = debtsSummary?.activeRemainingTotal ?? 0;
+  const totalAdvances = debtsSummary?.advanceRemainingTotal ?? 0;
+  const pendingOpeningCount = debtsSummary?.pendingOpeningCount ?? 0;
+  const pendingOpeningTotal = debtsSummary?.pendingOpeningTotal ?? 0;
   const pendingApprovalsCount = useMemo(() => approvals.filter((a) => a.status === 'pending').length, [approvals]);
   const pendingAdvancesCount = useMemo(() => advanceRequests.filter((r) => r.status === 'under_review').length, [advanceRequests]);
 
@@ -953,7 +1026,7 @@ function DebtsPageContent() {
         <StatCard
           label="إجمالي المديونيات القائمة"
           value={
-            debtsLoaded
+            debtsSummary
               ? `${totalRemainingDebts.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`
               : '—'
           }
@@ -965,12 +1038,12 @@ function DebtsPageContent() {
             setSelectedCategory('all');
             setSelectedStatus('all');
           }}
-          loading={loading && !debtsLoaded}
+          loading={loading && !debtsSummary}
         />
         <StatCard
           label="أرصدة السلف المتبقية"
           value={
-            debtsLoaded
+            debtsSummary
               ? `${totalAdvances.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`
               : '—'
           }
@@ -981,7 +1054,7 @@ function DebtsPageContent() {
             handleTabChange('debts');
             setSelectedCategory(selectedCategory === 'advance' ? 'all' : 'advance');
           }}
-          loading={loading && !debtsLoaded}
+          loading={loading && !debtsSummary}
         />
         <StatCard
           label="طلبات السلف بانتظار المراجعة"
@@ -1010,7 +1083,7 @@ function DebtsPageContent() {
             {
               id: 'debts' as TabId,
               label: 'المديونيات والتكاليف',
-              count: debtsLoaded ? filteredDebts.length : undefined,
+              count: debtsLoaded ? debtsTotal : undefined,
             },
             { id: 'actions' as TabId, label: 'تحصيل وإنشاء' },
             {
@@ -1080,10 +1153,7 @@ function DebtsPageContent() {
                 ariaLabel="تصفية حسب الفئة"
                 placeholder="كافة الفئات"
                 className="w-44"
-                options={[
-                  { value: 'all', label: 'كافة الفئات' },
-                  ...categoryOptions.map(([code, label]) => ({ value: code, label })),
-                ]}
+                options={DEBT_CATEGORY_OPTIONS}
               />
 
               <select
@@ -1101,12 +1171,12 @@ function DebtsPageContent() {
             </div>
           </div>
 
-          {isAdmin && pendingOpening.length > 0 && (
+          {isAdmin && pendingOpeningCount > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--warning)]/40 bg-[var(--warning)]/10">
               <div className="text-xs sm:text-sm text-[var(--ink)]">
                 <div className="font-bold">أرصدة افتتاحية بانتظار الاعتماد</div>
                 <div className="text-[var(--muted)] mt-0.5">
-                  <span className="num font-bold">{pendingOpening.length}</span> مديونية بإجمالي{' '}
+                  <span className="num font-bold">{pendingOpeningCount}</span> مديونية بإجمالي{' '}
                   <span className="num font-bold">{pendingOpeningTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> ر.س — من شيت المديونيات بتاريخ 31-10-2026. الاعتماد يرحّل قيد الافتتاح في شهر الرصيد.
                 </div>
               </div>
@@ -1120,10 +1190,7 @@ function DebtsPageContent() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setOpeningIds(pendingOpening.map((d) => d.id));
-                    setOpeningDialog('approved');
-                  }}
+                  onClick={() => void startOpeningDecision('approved')}
                   className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 cursor-pointer"
                 >
                   اعتماد الكل
@@ -1138,12 +1205,28 @@ function DebtsPageContent() {
             <DataTable
               tableId="debts-list"
               columns={debtsColumns}
-              data={filteredDebts}
+              data={debts}
               loading={loading}
               emptyTitle="لا توجد مديونيات مسجلة"
               emptyDescription="لم يتم العثور على أي مديونيات أو سلف تطابق شروط الفلترة الحالية."
               exportFilename="debts_list"
               showTotals={true}
+              searchable={false}
+              serverSide={true}
+              totalCount={debtsTotal}
+              page={debtsPage}
+              pageSize={debtsPageSize}
+              pageSizes={PAGE_SIZES.filter((s) => s <= 200)}
+              onPageChange={(p) => {
+                setDebtsPage(p);
+                void loadDebts(p, debtsPageSize, debouncedSearch);
+              }}
+              onPageSizeChange={(size) => {
+                setDebtsPageSize(size);
+                setDebtsPage(1);
+                void loadDebts(1, size, debouncedSearch);
+              }}
+              onExport={exportAllDebts}
             />
           )}
         </div>
