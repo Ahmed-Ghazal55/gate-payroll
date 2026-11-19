@@ -3,6 +3,12 @@ export interface UserProfile {
   role: string;
   displayNameAr: string;
   permissions?: string[];
+  financialScope?: {
+    sponsorIds?: string[];
+    accountCodes?: string[];
+    platforms?: string[];
+    categoryCodes?: string[];
+  };
 }
 
 export type NotificationCategory = 'general' | 'personal' | 'system' | 'approvals';
