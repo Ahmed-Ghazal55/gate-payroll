@@ -21,10 +21,35 @@ const BANKS: Record<string, { ar: string; swift: string }> = {
   '95': { ar: 'الإمارات دبي الوطني', swift: 'EBIL' },
 };
 
+/** Strip spaces and uppercase; empty string when missing. */
+export const cleanIban = (iban?: string): string =>
+  (iban || '').replace(/\s+/g, '').toUpperCase();
+
+/** Display form: groups of four, e.g. SA00 0000 0000 0000 0000 0000 */
+export const formatIban = (iban?: string): string => {
+  const clean = cleanIban(iban);
+  return clean ? clean.replace(/(.{4})/g, '$1 ').trim() : '—';
+};
+
 /** Bank code of a Saudi IBAN (SAkk BB…), or '' when the value is not a Saudi IBAN. */
 export const bankCodeOfIban = (iban?: string): string => {
-  const clean = (iban || '').replace(/\s+/g, '').toUpperCase();
+  const clean = cleanIban(iban);
   return /^SA\d{4}/.test(clean) ? clean.slice(4, 6) : '';
+};
+
+/**
+ * Saudi IBAN format + mod-97 check (ISO 13616). Fake fixture value
+ * SA0000000000000000000000 fails the checksum and is rejected.
+ */
+export const isValidSaudiIban = (iban?: string): boolean => {
+  const clean = cleanIban(iban);
+  if (!/^SA[0-9]{22}$/.test(clean)) return false;
+  const rearranged = clean.slice(4) + '2810' + clean.slice(2, 4);
+  let remainder = 0;
+  for (const ch of rearranged) {
+    remainder = (remainder * 10 + Number(ch)) % 97;
+  }
+  return remainder === 1;
 };
 
 /**

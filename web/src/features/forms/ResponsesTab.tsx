@@ -21,7 +21,8 @@ import { ErrorState } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
-import { bankLabel } from '../../lib/saudi-banks';
+import { bankLabel, cleanIban } from '../../lib/saudi-banks';
+import { IbanDisplay } from '../../components/ui/IbanDisplay';
 import { ReviewDrawer } from './ReviewDrawer';
 
 export interface ResponsesTabProps {
@@ -52,12 +53,6 @@ export function ResponsesTab({
 
   // Full IBAN for review (Ghazal 2026-11-15): reviewers check the collected IBANs on screen and in the exported sheet.
   // The API already returns the full value to anyone allowed to list responses; nothing is unmasked for other roles.
-  const cleanIban = (iban?: string) => (iban ? iban.replace(/\s+/g, '').toUpperCase() : '');
-  // Display form: groups of four, e.g. SA04 8000 0000 6080 1016 7519
-  const formatIban = (iban?: string) => {
-    const clean = cleanIban(iban);
-    return clean ? clean.replace(/(.{4})/g, '$1 ').trim() : '—';
-  };
 
   // Campaign name for the user: the title the API sent, else the title of the loaded campaign.
   // The internal id is never shown.
@@ -254,12 +249,7 @@ export function ResponsesTab({
       getValue: (s) => (s.iban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : workSystemLabel(s)),
       render: (s) =>
         s.iban ? (
-          <div className="flex flex-col">
-            <span className="num font-mono text-xs text-[var(--accent)] font-semibold tracking-wide">
-              {formatIban(s.iban)}
-            </span>
-            <span className="text-[11px] text-[var(--muted)]">{bankLabel(s)}</span>
-          </div>
+          <IbanDisplay iban={s.iban} bankCode={s.bankCode} bank={s.bank} />
         ) : (
           <span className="font-semibold text-xs">
             {workSystemLabel(s)}
