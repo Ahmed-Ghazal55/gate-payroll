@@ -245,18 +245,28 @@ public static partial class Debts
         return role is "Admin" or "SuperAdmin" or "Accountant" or "FinancialAccountant" or "FinancialManager";
     }
 
+    static readonly HashSet<string> NumericSortFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "remainingBalance", "totalAmount", "monthlyInstallment", "originalAmount", "paidAmount"
+    };
+
     static string OrderBy(DbConnection c, string sort)
     {
         if (string.IsNullOrWhiteSpace(sort))
         {
+            // Match Store.List default: createdAt / at / approvedAt, then id (Store.cs:111).
             return c is SqliteConnection
                 ? " ORDER BY rowid DESC"
-                : " ORDER BY COALESCE(JSON_VALUE(body,'$.createdAt'),JSON_VALUE(body,'$.at'),'') DESC, id DESC";
+                : " ORDER BY COALESCE(JSON_VALUE(body,'$.createdAt'),JSON_VALUE(body,'$.at'),JSON_VALUE(body,'$.approvedAt'),'') DESC, id DESC";
         }
         bool desc = sort.StartsWith('-');
         string field = sort.TrimStart('-');
         if (!Regex.IsMatch(field, "^[A-Za-z][A-Za-z0-9_]*$")) throw new ApiError("حقل الترتيب غير صالح.");
         string expr = RiderDataIndexes.FieldExpr(c, field);
+        if (NumericSortFields.Contains(field))
+            expr = c is SqliteConnection
+                ? $"CAST({expr} AS REAL)"
+                : $"TRY_CAST({expr} AS decimal(18,2))";
         string dir = desc ? " DESC" : " ASC";
         return c is SqliteConnection
             ? $" ORDER BY {expr}{dir}, rowid DESC"
