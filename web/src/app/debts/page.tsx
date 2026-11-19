@@ -937,7 +937,14 @@ function DebtsPageContent() {
         primaryAction={{
           label: 'تحديث البيانات',
           icon: <RefreshCw size={15} />,
-          onClick: activeTab === 'advance_requests' ? loadAdvanceRequests : loadData,
+          onClick:
+            activeTab === 'advance_requests'
+              ? loadAdvanceRequests
+              : activeTab === 'statements'
+                ? () => {
+                    if (statementIqama.trim()) void handleFetchStatement();
+                  }
+                : loadData,
         }}
       />
 
