@@ -268,6 +268,72 @@ public static class FinancialCore
     public static string AuthenticatedMobileRider(DbConnection c, HttpContext ctx)
         => MobileSessions.Validate(c, ctx).S("iqama");
 
+    private static (string Ar, string En, string Ur) DebtCategoryLabels(string category, string fallbackAr)
+    {
+        return category.Trim() switch
+        {
+            "WorkPermit" => ("رخصة عمل", "Work Permit", "ورک پرمٹ"),
+            "IqamaRenewal" => ("تجديد إقامة", "Iqama Renewal", "اقامہ تجدید"),
+            "SponsorshipTransfer" => ("نقل كفالة", "Sponsorship Transfer", "کفالت کی منتقلی"),
+            "ExitReEntryVisa" => ("تأشيرة خروج وعودة", "Exit & Re-Entry Visa", "خروج و عودہ ویزا"),
+            "MedicalInsurance" => ("تأمين طبي", "Medical Insurance", "طبی انشورنس"),
+            "DriverLicense" => ("رخصة قيادة", "Driving Licence", "ڈرائیونگ لائسنس"),
+            "DriverCard" => ("بطاقة سائق", "Driver Card", "ڈرائیور کارڈ"),
+            "Advance" or "CashAdvance" => ("سلفة نقدية", "Cash Advance", "نقد ایڈوانس"),
+            "BankAdvance" => ("سلفة بنكية", "Bank Advance", "بینک ایڈوانس"),
+            "InternetAdvance" => ("سلفة إنترنت", "Internet Advance", "انٹرنیٹ ایڈوانس"),
+            "HsWalletTopUp" => ("شحن محفظة", "Wallet Top-Up", "والٹ ٹاپ اپ"),
+            "HousingDeduction" => ("استقطاع سكن", "Housing Deduction", "رہائش کی کٹوتی"),
+            "TrafficFine" => ("مخالفة مرورية", "Traffic Fine", "ٹریفک جرمانہ"),
+            "AccidentDamage" => ("تلفيات حادث", "Accident Damage", "حادثے کا نقصان"),
+            "VehicleInstallment" => ("قسط مركبة", "Vehicle Instalment", "گاڑی کی قسط"),
+            "FuelOverage" => ("تجاوز وقود", "Fuel Overage", "اضافی پیٹرول"),
+            "EquipmentLoan" => ("عهدة معدات", "Equipment Custody", "سامان کی تحویل"),
+            "AdministrativeDeduction" => ("خصم إداري", "Administrative Deduction", "انتظامی کٹوتی"),
+            "PlatformTransferredDebt" => ("مديونية منصة", "Platform Debt", "پلیٹ فارم کا قرض"),
+            "NegativeSalaryCarryover" => ("عجز راتب مرحّل", "Carried Salary Deficit", "منتقل شدہ تنخواہ کا خسارہ"),
+            _ => (string.IsNullOrWhiteSpace(fallbackAr) ? "مديونية مسجلة" : fallbackAr, "Recorded Debt", "درج شدہ قرض")
+        };
+    }
+
+    private static JsonObject ProjectRiderBroadcast(JsonObject b, string iqama)
+    {
+        string category = b.S("category", "operational");
+        bool individualOnly = PushNotifications.IsIndividualOnlyNotice(category) || b.S("kind") == "individual_notice";
+        var (defAr, defEn, defUr) = PushNotifications.DefaultNoticeTitles(category);
+        string titleAr = b.S("titleAr", defAr);
+        string titleEn = b.S("titleEn") is { Length: > 0 } te ? te : defEn;
+        string titleUr = b.S("titleUr") is { Length: > 0 } tu ? tu : defUr;
+        string bodyAr = b.S("bodyAr");
+        string bodyEn = b.S("bodyEn") is { Length: > 0 } be ? be : bodyAr;
+        string bodyUr = b.S("bodyUr") is { Length: > 0 } bu ? bu : bodyAr;
+        bool acked = (b["acknowledgedBy"] as JsonArray)?.Any(x => x?.GetValue<string>() == iqama) ?? false;
+        var receipt = (b["readReceipts"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(r => r.S("iqama") == iqama);
+        string readAt = receipt?.S("readAt") ?? (acked ? b.S("createdAt") : "");
+        string ackAt = receipt?.S("acknowledgedAt") ?? "";
+        bool read = !string.IsNullOrEmpty(readAt) || acked;
+        return new JsonObject
+        {
+            ["id"] = b.S("id"),
+            ["kind"] = individualOnly ? "individual_notice" : (b.S("kind") != "" ? b.S("kind") : (b.S("targetIqama") == "ALL" ? "broadcast" : "targeted")),
+            ["category"] = category,
+            ["titleAr"] = titleAr,
+            ["titleEn"] = titleEn,
+            ["titleUr"] = titleUr,
+            ["bodyAr"] = bodyAr,
+            ["bodyEn"] = bodyEn,
+            ["bodyUr"] = bodyUr,
+            ["targetIqama"] = b.S("targetIqama"),
+            ["actionUrl"] = b.S("actionUrl"),
+            ["requiresAck"] = individualOnly || b.B("requiresAck"),
+            ["read"] = read,
+            ["readAt"] = readAt,
+            ["acknowledged"] = acked,
+            ["acknowledgedAt"] = ackAt,
+            ["createdAt"] = b.S("createdAt")
+        };
+    }
+
     public static AccountDef ResolveAccount(string code) =>
         ChartOfAccounts.FirstOrDefault(a => string.Equals(a.Code, code, StringComparison.OrdinalIgnoreCase))
         ?? throw new ApiError("رمز الحساب المالي أو الصندوق غير صالح: " + code);
@@ -791,61 +857,87 @@ public static class FinancialCore
         {
             var msg = store.Write((c, tx) =>
             {
-                string category = input.S("category", "operational"); // financial | operational | administrative | form_link
-                string titleAr = input.Required("titleAr");
-                string bodyAr = input.Required("bodyAr");
-                string targetIqama = input.S("iqama", "ALL");
+                string category = input.S("category", "operational").Trim();
+                string titleAr = input.Required("titleAr").Trim();
+                string bodyAr = input.Required("bodyAr").Trim();
+                string targetIqama = input.S("iqama", "ALL").Trim();
+                bool individualOnly = PushNotifications.IsIndividualOnlyNotice(category);
+                if (individualOnly)
+                {
+                    J.Need(!string.IsNullOrWhiteSpace(targetIqama) && !targetIqama.Equals("ALL", StringComparison.OrdinalIgnoreCase),
+                        "هذا النوع من الإشعارات فردي ولا يجوز إرساله كتعميم عام؛ حدد إقامة مندوب واحد.");
+                }
                 if (targetIqama == "ALL")
                 {
                     if (!FinancialScopes.AllCompanies(ctx.User)) throw new ApiError("النشر العام يحتاج نطاقًا على جميع السجلات.", 403);
                 }
                 else
                 {
-                    FinancialScopes.DemandRider(ctx.User, Store.Get(c, J.Iqama(targetIqama), "rider", tx) ?? throw new ApiError("المندوب غير موجود.", 404));
+                    targetIqama = J.Iqama(targetIqama);
+                    FinancialScopes.DemandRider(ctx.User, Store.Get(c, targetIqama, "rider", tx) ?? throw new ApiError("المندوب غير موجود.", 404));
                 }
-                string actionUrl = input.S("actionUrl");
+                string actionUrl = input.S("actionUrl").Trim();
                 J.Need(string.IsNullOrWhiteSpace(actionUrl) || (Uri.TryCreate(actionUrl, UriKind.Absolute, out var action) && action.Scheme == "https") || (actionUrl.StartsWith("/") && !actionUrl.StartsWith("//")), "رابط الإشعار غير صالح.");
-                bool requiresAck = input.B("requiresAck");
+                bool requiresAck = individualOnly || input.B("requiresAck");
+                var (defAr, defEn, defUr) = PushNotifications.DefaultNoticeTitles(category);
+                string titleEn = input.S("titleEn").Trim() is { Length: > 0 } te ? te : defEn;
+                string titleUr = input.S("titleUr").Trim() is { Length: > 0 } tu ? tu : defUr;
+                string bodyEn = input.S("bodyEn").Trim() is { Length: > 0 } be ? be : bodyAr;
+                string bodyUr = input.S("bodyUr").Trim() is { Length: > 0 } bu ? bu : bodyAr;
 
                 var m = new JsonObject
                 {
                     ["id"] = Guid.NewGuid().ToString("N"),
+                    ["kind"] = individualOnly ? "individual_notice" : (targetIqama == "ALL" ? "broadcast" : "targeted"),
                     ["category"] = category,
                     ["titleAr"] = titleAr,
+                    ["titleEn"] = titleEn,
+                    ["titleUr"] = titleUr,
                     ["bodyAr"] = bodyAr,
+                    ["bodyEn"] = bodyEn,
+                    ["bodyUr"] = bodyUr,
                     ["targetIqama"] = targetIqama,
                     ["actionUrl"] = actionUrl,
                     ["requiresAck"] = requiresAck,
                     ["deliveryChannel"] = "in_app",
                     ["deliveryStatus"] = "stored",
                     ["acknowledgedBy"] = new JsonArray(),
+                    ["readReceipts"] = new JsonArray(),
                     ["sentBy"] = ctx.User.Identity!.Name!,
                     ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
                 };
                 Store.Save(c, "mobile_broadcast", m, tx);
-                Store.Audit(c, tx, "mobile.broadcast", m.S("id"), ctx.User.Identity!.Name!);
-                PushNotifications.EnqueueBroadcast(c, tx, m.S("id"), targetIqama, titleAr, bodyAr, actionUrl);
+                Store.Audit(c, tx, individualOnly ? "mobile.individual_notice" : "mobile.broadcast", m.S("id"), ctx.User.Identity!.Name!);
+                PushNotifications.EnqueueBroadcast(c, tx, m.S("id"), targetIqama, titleAr, bodyAr, actionUrl, titleEn, titleUr, bodyEn, bodyUr);
                 return m;
             });
             PushNotifications.FlushOutbox(store);
             return msg;
-        }).WithTags("Riders").WithSummary("Submit rider mobile broadcast");
+        }).WithTags("Riders").WithSummary("Submit rider mobile broadcast or individual notice");
 
         // This shared read supports the existing staff cookie and the rider's bearer session.
         app.MapGet("/api/rider-mobile/broadcasts", (HttpContext ctx) =>
         {
             if (!string.IsNullOrEmpty(ctx.Request.Headers.Authorization))
             {
-                MobileSessions.Authenticate(store, ctx);
+                PushNotifications.AuthenticateAndRateLimit(store, ctx, write: false);
                 return store.Read(c =>
                 {
                     string iqama = AuthenticatedMobileRider(c, ctx);
-                    return Store.List(c, "mobile_broadcast").Where(b => b.S("targetIqama") == "ALL" || b.S("targetIqama") == iqama).ToList();
+                    var items = Store.ListBroadcastsForRider(c, iqama, PushNotifications.MaxRiderListItems)
+                        .Select(b => ProjectRiderBroadcast(b, iqama))
+                        .ToList();
+                    return ApiPagination.Apply(items, ctx.Request.Query);
                 });
             }
             if (ctx.User.Identity?.IsAuthenticated != true) throw new ApiError("سجل الدخول.", 401);
             AccessPolicy.Demand(ctx.User, "mobile.broadcast");
-            return store.Read(c => Store.List(c, "mobile_broadcast").Where(b => b.S("targetIqama") == "ALL" || Store.Get(c, b.S("targetIqama"), "rider") is {} rider && FinancialScopes.Rider(ctx.User, rider) || AccessPolicy.Administrator(ctx.User)).ToList());
+            return store.Read(c => ApiPagination.Apply(
+                Store.List(c, "mobile_broadcast")
+                    .Where(b => b.S("targetIqama") == "ALL" || Store.Get(c, b.S("targetIqama"), "rider") is { } rider && FinancialScopes.Rider(ctx.User, rider) || AccessPolicy.Administrator(ctx.User))
+                    .OrderByDescending(b => b.S("createdAt"))
+                    .ToList(),
+                ctx.Request.Query));
         }).WithTags("Riders").WithSummary("Read scoped broadcasts with a staff cookie or active rider bearer token");
 
         // إعدادات ربط Firebase Cloud Messaging (FCM) وتطبيق Google Play
@@ -902,70 +994,154 @@ public static class FinancialCore
         // واجهة بيانات تطبيق المندوب (يستدعيها تطبيق الجوال بعد تسجيل الدخول بـ rmob_ token)
         app.MapGet("/api/rider-mobile/portal/{iqama}", (string iqama, HttpContext ctx) =>
         {
-            MobileSessions.Authenticate(store, ctx, iqama);
+            var session = PushNotifications.AuthenticateAndRateLimit(store, ctx, write: false, iqama);
             return store.Read(c =>
         {
             J.Iqama(iqama);
             MobileSession(c, ctx, iqama);
 
             var rider = Store.Get(c, iqama, "rider") ?? throw new ApiError("المندوب غير موجود.", 404);
-            var debts = Store.List(c, "debt").Where(d => d.S("iqama") == iqama).Select(d => new
-            {
-                id = d.S("id"),
-                category = d.S("category"),
-                categoryAr = d.S("categoryAr", d.S("category")),
-                creditorSponsorNameAr = d.S("creditorSponsorNameAr", "شركة البوابة"),
-                totalAmount = d.N("totalAmount"),
-                paidAmount = d.N("paidAmount"),
-                waivedAmount = d.N("waivedAmount"),
-                remainingBalance = d.N("remainingBalance"),
-                monthlyInstallment = d.N("monthlyInstallment"),
-                status = d.S("status"),
-                effectiveFrom = d.S("effectiveFrom")
-            }).ToList();
-
-            var broadcasts = Store.List(c, "mobile_broadcast")
-                .Where(b => b.S("targetIqama") == "ALL" || b.S("targetIqama") == iqama)
-                .OrderByDescending(b => b.S("createdAt"))
-                .Select(b => new
+            var allDebts = Store.ListWhere(c, "debt", null, null, ("iqama", iqama));
+            var debts = allDebts
+                .OrderByDescending(d => d.S("createdAt"))
+                .Take(PushNotifications.MaxPortalDebts)
+                .Select(d =>
                 {
-                    id = b.S("id"),
-                    category = b.S("category"),
-                    titleAr = b.S("titleAr"),
-                    bodyAr = b.S("bodyAr"),
-                    actionUrl = b.S("actionUrl"),
-                    requiresAck = b.B("requiresAck"),
-                    acknowledged = (b["acknowledgedBy"] as JsonArray)?.Any(x => x?.GetValue<string>() == iqama) ?? false,
-                    createdAt = b.S("createdAt")
+                    var (cAr, cEn, cUr) = DebtCategoryLabels(d.S("category"), d.S("categoryAr", d.S("category")));
+                    decimal rem = d.N("remainingBalance");
+                    return new
+                    {
+                        id = d.S("id"),
+                        category = d.S("category"),
+                        categoryAr = cAr,
+                        categoryEn = cEn,
+                        categoryUr = cUr,
+                        totalAmount = d.N("totalAmount"),
+                        paidAmount = d.N("paidAmount"),
+                        waivedAmount = d.N("waivedAmount"),
+                        remainingBalance = rem,
+                        monthlyInstallment = d.N("monthlyInstallment"),
+                        direction = rem > 0 ? "debit" : "neutral",
+                        markerAr = rem > 0 ? "عليك" : "مسدد",
+                        markerEn = rem > 0 ? "On you (عليك)" : "Settled",
+                        markerUr = rem > 0 ? "آپ کے ذمے (عليك)" : "ادا شدہ",
+                        status = d.S("status"),
+                        effectiveFrom = d.S("effectiveFrom")
+                    };
                 }).ToList();
+
+            var broadcasts = Store.ListBroadcastsForRider(c, iqama, PushNotifications.MaxPortalBroadcasts)
+                .Select(b => ProjectRiderBroadcast(b, iqama))
+                .ToList();
+
+            var riderView = UserAccess.RiderView(rider);
+            riderView.Remove("sponsor");
+            riderView.Remove("sponsorId");
+            riderView.Remove("financeSponsorId");
+            riderView["language"] = session.S("language", "ar");
 
             return new
             {
-                rider = UserAccess.RiderView(rider),
-                totalRemainingDebt = J.Money(debts.Where(d => d.status is "active" or "paused").Sum(d => d.remainingBalance)),
-                totalPaidDebt = J.Money(debts.Sum(d => d.paidAmount)),
-                totalWaivedDebt = J.Money(debts.Sum(d => d.waivedAmount)),
+                rider = riderView,
+                language = session.S("language", "ar"),
+                latestApprovedStatement = PayStatements.LatestApprovedSummary(c, iqama),
+                totalRemainingDebt = J.Money(allDebts.Where(d => d.S("status") is "active" or "paused").Sum(d => d.N("remainingBalance"))),
+                totalPaidDebt = J.Money(allDebts.Sum(d => d.N("paidAmount"))),
+                totalWaivedDebt = J.Money(allDebts.Sum(d => d.N("waivedAmount"))),
                 debts,
-                broadcasts
+                broadcasts,
+                loadLimits = new
+                {
+                    maxBroadcasts = PushNotifications.MaxPortalBroadcasts,
+                    maxDebts = PushNotifications.MaxPortalDebts,
+                    readRateLimitPerMin = PushNotifications.DefaultReadLimitPerMinute,
+                    writeRateLimitPerMin = PushNotifications.DefaultWriteLimitPerMinute
+                }
             };
         });
         }).WithTags("Riders").WithSummary("Read rider mobile portal {iqama}");
 
-        app.MapPost("/api/rider-mobile/broadcasts/{id}/ack", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
+        app.MapPost("/api/rider-mobile/broadcasts/{id}/read", (string id, HttpContext ctx) =>
         {
-            string iqama = J.Iqama(input.Required("iqama"));
-            MobileSession(c, ctx, iqama, tx);
-            var b = Store.Get(c, id, "mobile_broadcast", tx) ?? throw new ApiError("الإشعار غير موجود.", 404);
-            J.Need(b.S("targetIqama") == "ALL" || b.S("targetIqama") == iqama, "الإشعار غير متاح لهذا المندوب.");
-            var acks = b["acknowledgedBy"] as JsonArray ?? new JsonArray();
-            if (!acks.Any(x => x?.GetValue<string>() == iqama))
+            PushNotifications.AuthenticateAndRateLimit(store, ctx, write: true);
+            return store.Write((c, tx) =>
             {
-                acks.Add(iqama);
-                b["acknowledgedBy"] = acks;
+                var session = MobileSessions.Validate(c, ctx, tx: tx);
+                string iqama = session.S("iqama");
+                var b = Store.Get(c, id, "mobile_broadcast", tx) ?? throw new ApiError("الإشعار غير موجود.", 404);
+                J.Need(b.S("targetIqama") == "ALL" || b.S("targetIqama") == iqama, "الإشعار غير متاح لهذا المندوب.");
+                string now = DateTimeOffset.UtcNow.ToString("O");
+                var receipts = b["readReceipts"] as JsonArray ?? new JsonArray();
+                var existing = receipts.OfType<JsonObject>().FirstOrDefault(r => r.S("iqama") == iqama);
+                if (existing == null)
+                {
+                    receipts.Add(new JsonObject
+                    {
+                        ["iqama"] = iqama,
+                        ["readAt"] = now,
+                        ["acknowledgedAt"] = "",
+                        ["sessionId"] = MobileSessions.PublicId(session)
+                    });
+                    b["readReceipts"] = receipts;
+                    Store.Save(c, "mobile_broadcast", b, tx);
+                    Store.Audit(c, tx, "mobile.notice_read", id, "rider:" + iqama);
+                }
+                return new { ok = true, id, read = true, readAt = existing?.S("readAt") ?? now };
+            });
+        }).WithTags("Riders").WithSummary("Record rider read receipt for a broadcast or individual notice");
+
+        app.MapPost("/api/rider-mobile/broadcasts/{id}/ack", (string id, JsonObject input, HttpContext ctx) =>
+        {
+            string requestedIqama = input.S("iqama");
+            PushNotifications.AuthenticateAndRateLimit(store, ctx, write: true, string.IsNullOrWhiteSpace(requestedIqama) ? null : J.Iqama(requestedIqama));
+            return store.Write((c, tx) =>
+            {
+                var session = string.IsNullOrWhiteSpace(requestedIqama)
+                    ? MobileSessions.Validate(c, ctx, tx: tx)
+                    : MobileSessions.Validate(c, ctx, J.Iqama(requestedIqama), tx);
+                string iqama = session.S("iqama");
+                var b = Store.Get(c, id, "mobile_broadcast", tx) ?? throw new ApiError("الإشعار غير موجود.", 404);
+                J.Need(b.S("targetIqama") == "ALL" || b.S("targetIqama") == iqama, "الإشعار غير متاح لهذا المندوب.");
+                string now = DateTimeOffset.UtcNow.ToString("O");
+                var acks = b["acknowledgedBy"] as JsonArray ?? new JsonArray();
+                if (!acks.Any(x => x?.GetValue<string>() == iqama))
+                {
+                    acks.Add(iqama);
+                    b["acknowledgedBy"] = acks;
+                }
+                var receipts = b["readReceipts"] as JsonArray ?? new JsonArray();
+                var existing = receipts.OfType<JsonObject>().FirstOrDefault(r => r.S("iqama") == iqama);
+                if (existing == null)
+                {
+                    existing = new JsonObject
+                    {
+                        ["iqama"] = iqama,
+                        ["readAt"] = now,
+                        ["acknowledgedAt"] = now,
+                        ["sessionId"] = MobileSessions.PublicId(session)
+                    };
+                    receipts.Add(existing);
+                }
+                else
+                {
+                    if (string.IsNullOrEmpty(existing.S("readAt"))) existing["readAt"] = now;
+                    if (string.IsNullOrEmpty(existing.S("acknowledgedAt"))) existing["acknowledgedAt"] = now;
+                    existing["sessionId"] = MobileSessions.PublicId(session);
+                }
+                b["readReceipts"] = receipts;
                 Store.Save(c, "mobile_broadcast", b, tx);
-            }
-            return new { ok = true, id, acknowledgedCount = acks.Count };
-        })).WithTags("Riders").WithSummary("Submit rider mobile broadcasts {id} ack");
+                Store.Audit(c, tx, "mobile.notice_acknowledged", id, "rider:" + iqama);
+                return new
+                {
+                    ok = true,
+                    id,
+                    acknowledged = true,
+                    readAt = existing.S("readAt"),
+                    acknowledgedAt = existing.S("acknowledgedAt"),
+                    acknowledgedCount = acks.Count
+                };
+            });
+        }).WithTags("Riders").WithSummary("Submit rider mobile broadcasts {id} ack");
 
         app.MapGet("/rider-app", () => Results.Text(RiderAppHtml, "text/html; charset=utf-8")).WithTags("Riders").WithSummary("Read  rider app");
         app.MapGet("/rider-app.js", () => Results.Text(RiderAppJs, "text/javascript; charset=utf-8")).WithTags("Riders").WithSummary("Read  rider app.js");
@@ -1033,7 +1209,7 @@ public static class FinancialCore
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>تطبيق مندوب البوابة — الكشوف والمديونيات والإشعارات</title>
+  <title>بوابة المندوب — الكشوف والمديونيات والإشعارات</title>
   <link rel="stylesheet" href="/app.css">
   <style>
     body { background: var(--bg); color: var(--ink); font-family: inherit; margin: 0; padding: 16px; }
@@ -1099,7 +1275,7 @@ public static class FinancialCore
             <select name="language">
               <option value="ar">العربية (Arabic)</option>
               <option value="en">English</option>
-              <option value="bn">বাংলা (Bengali)</option>
+              <option value="ur">اردو (Urdu)</option>
             </select>
           </label>
           <button class="full good">التحقق والدخول إلى حسابي</button>
@@ -1153,7 +1329,7 @@ public static class FinancialCore
       <div class="mob-head">
         <div>
           <strong>${esc(r.name || session.iqama)}</strong>
-          <div class="muted small number">${esc(r.iqama)} · ${esc(r.sponsor || 'شركة البوابة')}</div>
+          <div class="muted small number">${esc(r.iqama)}</div>
         </div>
         <button class="secondary small" id="mob-logout">خروج</button>
       </div>
@@ -1287,7 +1463,7 @@ public static class FinancialCore
               <strong>${esc(d.categoryAr)}</strong>
               <span class="tag ${d.status === 'settled' ? 'good' : 'warn'}">${esc(d.status === 'settled' ? 'مسدد' : 'نشط')}</span>
             </div>
-            <div class="small muted">السجل الدائن: ${esc(d.creditorSponsorNameAr)} · بداية الاستقطاع: ${esc(d.effectiveFrom)}</div>
+            <div class="small muted">بداية الاستقطاع: ${esc(d.effectiveFrom)} · ${Number(d.remainingBalance) > 0 ? 'عليك' : 'مسدد'}</div>
             <div class="small number" style="margin-top:4px">
               الإجمالي: <b>${money(d.totalAmount)}</b> · المسدد: <b class="money-positive">${money(d.paidAmount)}</b> · الإعفاء: <b>${money(d.waivedAmount)}</b> · المتبقي: <b class="money-negative">${money(d.remainingBalance)} ر.س</b> (القسط: ${money(d.monthlyInstallment)})
             </div>

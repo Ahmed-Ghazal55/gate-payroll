@@ -27,3 +27,6 @@ npm --prefix web run build
 ## Open for Ghazal
 - Drop live `hangfire` schema/tables? (code already gone)
 - Later: delete `/api/imports/*` free-upload with old Frontend
+
+## Release 0.25.0 (2026-11-19, Claude planner)
+- Rider app v2 (`feat/rider-app-v2`): 3-language short statement, notices with read receipts, two-way requests, annual leave form, push in rider language, rate limits. Rider indexes on live are created ONLY by the admin job `POST /api/system/maintenance/rider-indexes` (run off-hours). Ops: grant the 3 new permissions to two different reviewers (`docs/rider-app/RELEASE-NOTES-OPS.md`).

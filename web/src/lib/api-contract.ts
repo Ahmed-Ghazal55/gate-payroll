@@ -473,14 +473,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/rider-mobile/requests": {
+    "/api/rider-mobile/forms": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Read own advance asks and their stage using the rider bearer session */
+        /** Read unified form schemas and active campaigns for the authenticated rider app */
         get: {
             parameters: {
                 query?: never;
@@ -496,13 +496,89 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": components["schemas"]["JsonObject"];
                     };
                 };
             };
         };
         put?: never;
-        /** Rider asks the current supervisor for a cash or bank advance */
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/forms/{token}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit an open form or campaign from inside the rider app using the authenticated session identity */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read own advance asks and two-way service requests with status timeline and replies */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Rider submits an advance ask or a service request (annual leave, IBAN update, data update, statement, complaint, appointment) */
         post: {
             parameters: {
                 query?: never;
@@ -542,7 +618,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Rider cancels an open advance ask */
+        /** Rider cancels an open advance ask or service request */
         post: {
             parameters: {
                 query?: never;
@@ -553,6 +629,48 @@ export interface paths {
                 cookie?: never;
             };
             requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/requests/{id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rider sends a reply on an existing request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -601,6 +719,46 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["AnonymousTypeOfbooleanAndboolean"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/language": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Switch rider mobile session language (ar, en, ur) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnonymousTypeOfbooleanAndstring"];
                     };
                 };
             };
@@ -672,7 +830,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": unknown;
                     };
                 };
             };
@@ -710,13 +868,51 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring"];
+                        "application/json": components["schemas"]["AnonymousTypeOfJsonObjectAndstringAndJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstringAndListOfJsonObjectAndAnonymousTypeOfintAndintAndintAndint"];
                     };
                 };
             };
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/broadcasts/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record rider read receipt for a broadcast or individual notice */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnonymousTypeOfbooleanAndstringAndbooleanAndstring"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -754,7 +950,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfbooleanAndstringAndint"];
+                        "application/json": components["schemas"]["AnonymousTypeOfbooleanAndstringAndbooleanAndstringAndstringAndint"];
                     };
                 };
             };
@@ -9336,7 +9532,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
+                        "application/json": components["schemas"]["AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
                     };
                 };
             };
@@ -10905,6 +11101,154 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rider-mobile/service-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List rider service requests within caller scope, hiding confidential complaints from unauthorized staff */
+        get: {
+            parameters: {
+                query?: {
+                    requestType?: string;
+                    status?: string;
+                    iqama?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Admin or staff sends a two-way service request to a rider */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/service-requests/{id}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve (with second-approver enforcement for IBAN/data), reject, or request info on a rider service request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/service-requests/{id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff replies to a rider service request and notifies the rider via FCM */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/advance-requests/rider-asks": {
         parameters: {
             query?: never;
@@ -11002,6 +11346,46 @@ export interface paths {
                 path: {
                     id: string;
                 };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/statements/notify-period": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enqueue batched statement-ready notifications for riders with approved statements in a period */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
                 cookie?: never;
             };
             requestBody: {
@@ -11134,7 +11518,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndPermissionDef[]Andboolean"];
+                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean"];
                     };
                 };
             };
@@ -11554,7 +11938,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit rider mobile broadcast */
+        /** Submit rider mobile broadcast or individual notice */
         post: {
             parameters: {
                 query?: never;
@@ -11778,6 +12162,62 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/maintenance/rider-indexes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read rider index maintenance status with allowedActions */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Start rider index maintenance one index at a time */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -15260,9 +15700,18 @@ export interface components {
             needsSetup: boolean;
             environment: null | string;
         };
-        AnonymousTypeOfbooleanAndstringAndint: {
+        AnonymousTypeOfbooleanAndstringAndbooleanAndstring: {
             ok: boolean;
             id: null | string;
+            read: boolean;
+            readAt: null | string;
+        };
+        AnonymousTypeOfbooleanAndstringAndbooleanAndstringAndstringAndint: {
+            ok: boolean;
+            id: null | string;
+            acknowledged: boolean;
+            readAt: null | string;
+            acknowledgedAt: null | string;
             /** Format: int32 */
             acknowledgedCount: number | string;
         };
@@ -15290,7 +15739,7 @@ export interface components {
             /** Format: int32 */
             rowCount: number | string;
         };
-        "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndPermissionDef[]Andboolean": {
+        "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean": {
             sponsors: null | components["schemas"]["SponsorDef"][];
             /** Format: int32 */
             unassignedDebtCount: number | string;
@@ -15353,6 +15802,16 @@ export interface components {
             /** Format: int32 */
             totalRidersNow: number | string;
         };
+        AnonymousTypeOfintAndintAndintAndint: {
+            /** Format: int32 */
+            maxBroadcasts: number | string;
+            /** Format: int32 */
+            maxDebts: number | string;
+            /** Format: int32 */
+            readRateLimitPerMin: number | string;
+            /** Format: int32 */
+            writeRateLimitPerMin: number | string;
+        };
         AnonymousTypeOfintAndintAndintAndintAnddecimalAndIEnumerableOfJsonObject: {
             /** Format: int32 */
             riders: number | string;
@@ -15396,17 +15855,6 @@ export interface components {
             fingerprint: null | string;
             message: null | string;
         };
-        AnonymousTypeOfJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring: {
-            rider: components["schemas"]["JsonObject"];
-            /** Format: double */
-            totalRemainingDebt: number | string;
-            /** Format: double */
-            totalPaidDebt: number | string;
-            /** Format: double */
-            totalWaivedDebt: number | string;
-            debts: null | components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstring"][];
-            broadcasts: null | components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring"][];
-        };
         AnonymousTypeOfJsonObjectAndJsonObject: {
             debt: components["schemas"]["JsonObject"];
             reconciliation: components["schemas"]["JsonObject"];
@@ -15431,12 +15879,26 @@ export interface components {
             totalOrders: number | string;
             submissions: null | components["schemas"]["JsonObject"][];
         };
+        AnonymousTypeOfJsonObjectAndstringAndJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstringAndListOfJsonObjectAndAnonymousTypeOfintAndintAndintAndint: {
+            rider: components["schemas"]["JsonObject"];
+            language: null | string;
+            latestApprovedStatement: components["schemas"]["JsonObject"];
+            /** Format: double */
+            totalRemainingDebt: number | string;
+            /** Format: double */
+            totalPaidDebt: number | string;
+            /** Format: double */
+            totalWaivedDebt: number | string;
+            debts: null | components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstring"][];
+            broadcasts: null | components["schemas"]["JsonObject"][];
+            loadLimits: components["schemas"]["AnonymousTypeOfintAndintAndintAndint"];
+        };
         AnonymousTypeOfListOfJsonObjectAnddecimal: {
             rows: null | components["schemas"]["JsonObject"][];
             /** Format: double */
             balance: number | string;
         };
-        "AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
+        "AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
             roles: null | components["schemas"]["RoleDef"][];
             permissions: null | components["schemas"]["PermissionDef"][];
             departments: components["schemas"]["JsonArray"];
@@ -15547,24 +16009,6 @@ export interface components {
             /** Format: int32 */
             orphanDebts: number | string;
         };
-        AnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstring: {
-            id: null | string;
-            category: null | string;
-            categoryAr: null | string;
-            creditorSponsorNameAr: null | string;
-            /** Format: double */
-            totalAmount: number | string;
-            /** Format: double */
-            paidAmount: number | string;
-            /** Format: double */
-            waivedAmount: number | string;
-            /** Format: double */
-            remainingBalance: number | string;
-            /** Format: double */
-            monthlyInstallment: number | string;
-            status: null | string;
-            effectiveFrom: null | string;
-        };
         AnonymousTypeOfstringAndstringAndstringAndstringAndstring: {
             iqama: null | string;
             scope: null | string;
@@ -15595,15 +16039,28 @@ export interface components {
             outboxPendingCount: number | string;
             updatedAt: null | string;
         };
-        AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring: {
+        AnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstring: {
             id: null | string;
             category: null | string;
-            titleAr: null | string;
-            bodyAr: null | string;
-            actionUrl: null | string;
-            requiresAck: boolean;
-            acknowledged: boolean;
-            createdAt: null | string;
+            categoryAr: null | string;
+            categoryEn: null | string;
+            categoryUr: null | string;
+            /** Format: double */
+            totalAmount: number | string;
+            /** Format: double */
+            paidAmount: number | string;
+            /** Format: double */
+            waivedAmount: number | string;
+            /** Format: double */
+            remainingBalance: number | string;
+            /** Format: double */
+            monthlyInstallment: number | string;
+            direction: null | string;
+            markerAr: null | string;
+            markerEn: null | string;
+            markerUr: null | string;
+            status: null | string;
+            effectiveFrom: null | string;
         };
         "AnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]Andstring": {
             code: null | string;
@@ -15758,18 +16215,6 @@ export interface components {
             row: number | string;
             data: components["schemas"]["JsonObject"];
         };
-        JobView: {
-            id: string;
-            enabled: boolean;
-            status: string;
-            cron?: null | string;
-            timeZone?: null | string;
-            /** Format: date-time */
-            lastRun?: null | string;
-            /** Format: date-time */
-            nextRun?: null | string;
-            lastStatus?: null | string;
-        };
         JsonArray: unknown[];
         JsonElement: unknown;
         JsonNode: unknown;
@@ -15780,6 +16225,8 @@ export interface components {
             moduleAr: string;
             nameAr: string;
             descriptionAr: string;
+            /** @default false */
+            deprecated: boolean;
         };
         Preview: {
             rows: components["schemas"]["WorkLine"][];

@@ -47,7 +47,11 @@ builder.Services.AddMemoryCache(o => o.SizeLimit = 10000);
 builder.Services.AddSingleton<InquiryLimits>();
 builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
+var riderIpLimitWarnings = PushNotifications.ConfigureIpLimits(builder.Configuration);
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
+PayStatements.Logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PayStatements");
+foreach (string warning in riderIpLimitWarnings)
+    app.Logger.LogWarning("{Warning}", warning);
 CampaignLinks.Migrate(store);
 Companies.Seed(store);
 ConfigLists.Seed(store);
@@ -171,6 +175,7 @@ MobileSessions.Map(app, api, store);
 RiderAsks.Map(app, api, store);
 PushNotifications.Map(app, api, store);
 FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
+RiderIndexMaintenance.Map(api, store, app.Configuration, app.Services.GetRequiredService<ILoggerFactory>());
 FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);TreasurySummary.Map(api,store);
 TreasuryEntries.Map(api,store);
 ManualJournals.Map(api,store);
@@ -308,6 +313,7 @@ api.MapPost("/campaigns", (JsonObject input, HttpContext ctx) => store.Write((c,
     J.Need(input.S("kind") is "" or "work-choice" or IbanChoices.Kind, "نوع الحملة غير صحيح.");
     if(input.S("kind")==IbanChoices.Kind){J.Need(!input.ContainsKey("fields"),"حقول نموذج الآيبان ثابتة.");doc["kind"]=IbanChoices.Kind;if(input.ContainsKey("cities"))doc["cities"]=IbanChoices.ValidateCities(input["cities"]);}
     else{J.Need(!input.ContainsKey("cities"),"قائمة المدن لنموذج الآيبان فقط.");if(input.ContainsKey("fields"))doc["fields"]=CampaignOperations.ValidateFields(input["fields"]);}
+    FormTargeting.ApplyAndValidate(input, doc);
     Store.Save(c, "campaign", doc, tx); Store.Audit(c, tx, "form.publish", doc.S("id"), Actor(ctx)); return new { id=doc.S("id"), path="/forms/"+token, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+token, qrCodeUrl="/api/campaigns/"+doc.S("id")+"/qr.svg", expiresAt=doc.S("expiresAt") };
 })).WithTags("Forms and responses").WithSummary("Submit campaigns");
 api.MapPost("/campaigns/{id}/close", (string id, HttpContext ctx) => store.Write((c, tx) => { var d = Store.Get(c, id, "campaign", tx) ?? throw new ApiError("النموذج غير موجود.", 404); d["status"] = "closed"; Store.Save(c, "campaign", d, tx); Store.Audit(c, tx, "form.close", id, Actor(ctx)); return new { ok = true }; })).WithTags("Forms and responses").WithSummary("Submit campaigns {id} close");
