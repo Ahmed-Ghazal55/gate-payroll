@@ -30,3 +30,6 @@ npm --prefix web run build
 
 ## Release 0.25.0 (2026-11-19, Claude planner)
 - Rider app v2 (`feat/rider-app-v2`): 3-language short statement, notices with read receipts, two-way requests, annual leave form, push in rider language, rate limits. Rider indexes on live are created ONLY by the admin job `POST /api/system/maintenance/rider-indexes` (run off-hours). Ops: grant the 3 new permissions to two different reviewers (`docs/rider-app/RELEASE-NOTES-OPS.md`).
+
+## Release 0.26.0 (2026-11-19, Claude pro2 deputy)
+- People section (`feat/people-workforce`, H1–H35 + P1F/P1G): full iqama, live workforce list (filters, cards, one-query export), reduced 360, HR catalogs; document upload checklist removed. Ops: grant `riders.iban.view`, `riders.saudi_salary.view`, `riders.legal_cases.view`, `riders.unified_number.view` to the right roles (`docs/runbooks/RELEASE-0.26.0.md`).

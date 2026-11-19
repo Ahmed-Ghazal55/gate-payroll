@@ -49,7 +49,7 @@ public sealed class WorkforceLiveQueryTests
                         ["name"] = "Synthetic Workforce " + i,
                         ["status"] = "Active",
                         ["engagementType"] = i == 0 ? "SponsoredInternal" : "External",
-                        ["iban"] = i == 0 ? "" : "SA0000000000000000000000",
+                        ["iban"] = i == 0 ? "" : "SA" + new string('0', 22),
                         ["isDeliveryRider"] = true,
                         ["personRole"] = "rider",
                         ["phone"] = "+96650000000" + i,

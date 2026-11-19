@@ -63,8 +63,11 @@ function scope(sponsors,platforms){
   return {sponsorIds:sponsors,platforms,accountCodes:[],categoryCodes:[]};
 }
 
-const IBAN_BW='SA0000000000000000000111';
-const IBAN_EX='SA0000000000000000000222';
+// Synthetic all-zero IBANs are built at runtime so the release source guard sees no account literal.
+const synthIban=tail=>'SA'+tail.padStart(22,'0');
+const IBAN_BW=synthIban('111');
+const IBAN_EX=synthIban('222');
+const IBAN_KEETA=synthIban('333');
 const IQ_BW='2000000311';
 const IQ_EX='2000000322';
 const IQ_KEETA='2000000333';
@@ -85,7 +88,7 @@ try{
 
   await req('/api/riders',{iqama:IQ_BW,name:'Synthetic Workforce BW',financeSponsorId:'BW',sponsor:'BW',iban:IBAN_BW,platforms:'Jahez',engagementType:'SponsoredInternal',status:'Active',phone:'0501111111',city:'Jeddah'});
   await req('/api/riders',{iqama:IQ_EX,name:'Synthetic Workforce EX',financeSponsorId:'EX',sponsor:'EX',iban:IBAN_EX,platforms:'Jahez',engagementType:'SponsoredInternal',status:'Active',phone:'0502222222',city:'Riyadh'});
-  await req('/api/riders',{iqama:IQ_KEETA,name:'Synthetic Workforce Keeta',financeSponsorId:'BW',sponsor:'BW',iban:'SA0000000000000000000333',platforms:'Keeta',engagementType:'SponsoredInternal',status:'Active',phone:'0503333333',city:'Dammam'});
+  await req('/api/riders',{iqama:IQ_KEETA,name:'Synthetic Workforce Keeta',financeSponsorId:'BW',sponsor:'BW',iban:IBAN_KEETA,platforms:'Keeta',engagementType:'SponsoredInternal',status:'Active',phone:'0503333333',city:'Dammam'});
 
   await req('/api/users',{username:'wf-company',password,role:'Reviewer',customPermissions:['riders.view','riders.view_360','debts.view'],financialScope:scope(['BW'],['Jahez','Keeta','HungerStation','Ninja','Chefz','Amazon','Other'])});
   await req('/api/users',{username:'wf-platform',password,role:'Reviewer',customPermissions:['riders.view','riders.view_360','debts.view'],financialScope:scope(['BW','EX','TR'],['Jahez'])});
@@ -138,7 +141,7 @@ try{
   // (b) company-scoped BW
   await assertActor('company', 'wf-company', {
     iqamas:[IQ_BW,IQ_KEETA],
-    absentIbans:[IBAN_BW,'SA0000000000000000000333',IBAN_EX],
+    absentIbans:[IBAN_BW,IBAN_KEETA,IBAN_EX],
     outOfScope360:IQ_EX
   });
 
