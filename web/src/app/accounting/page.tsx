@@ -888,9 +888,12 @@ function AccountingPageContent() {
                 className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
               >
                 <option value="all">كل المنشآت والسجلات</option>
-                <option value="BW">شركة البوابة المقبلة (BW)</option>
-                <option value="EX">المؤسسة Express (EX)</option>
-                <option value="TR">مؤسسة النقل والتوزيع (TR)</option>
+                {companies.map((c) => (
+                  <option key={c.code || c.id} value={c.code || c.id}>
+                    {c.nameAr || c.shortNameAr || c.code || c.id}
+                    {c.code ? ` (${c.code})` : ''}
+                  </option>
+                ))}
               </select>
 
               <input
@@ -1147,9 +1150,12 @@ function AccountingPageContent() {
                 className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
               >
                 <option value="all">كل المنشآت والسجلات</option>
-                <option value="BW">شركة البوابة المقبلة (BW)</option>
-                <option value="EX">المؤسسة Express (EX)</option>
-                <option value="TR">مؤسسة النقل والتوزيع (TR)</option>
+                {companies.map((c) => (
+                  <option key={c.code || c.id} value={c.code || c.id}>
+                    {c.nameAr || c.shortNameAr || c.code || c.id}
+                    {c.code ? ` (${c.code})` : ''}
+                  </option>
+                ))}
               </select>
 
               <input
