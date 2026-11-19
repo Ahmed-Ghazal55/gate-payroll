@@ -22,7 +22,7 @@ public sealed class SchemaFinPeriodBalanceTests
         SchemaSql.Exec(c,null,"INSERT INTO hr_company(id,code,unified_number,name_ar,status,created_at) VALUES(@id,'B1','UB1','n',1,datetime('now'))",("@id",company));
         string period=SchemaSql.GuidText(SchemaSql.NewId());
         SchemaSql.Exec(c,null,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-11-01',1,datetime('now'))",("@id",period),("@cid",company));
-        string account=(string)SchemaSql.Scalar(c,null,"SELECT id FROM fin_account WHERE is_posting=1 ORDER BY code LIMIT 1")!;
+        string account=(string)SchemaSql.Scalar(c,null,"SELECT id FROM fin_account WHERE is_postable=1 ORDER BY code LIMIT 1")!;
         return (company,period,account);
     }
 
@@ -90,7 +90,7 @@ public sealed class SchemaFinPeriodBalanceTests
                 SchemaSql.Exec(c,null,"INSERT INTO hr.company(id,code,unified_number,name_ar,status,created_at) VALUES(@id,'B1','UB1',N'n',1,SYSUTCDATETIME())",("@id",company));
                 string period=SchemaSql.GuidText(SchemaSql.NewId());
                 SchemaSql.Exec(c,null,"INSERT INTO fin.accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-11-01',1,SYSUTCDATETIME())",("@id",period),("@cid",company));
-                string account=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CONVERT(varchar(36),id) FROM fin.account WHERE is_posting=1 ORDER BY code")!;
+                string account=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CONVERT(varchar(36),id) FROM fin.account WHERE is_postable=1 ORDER BY code")!;
                 byte[] dim=Enumerable.Range(1,32).Select(i=>(byte)i).ToArray();
                 string cc=SchemaSql.GuidText(SchemaOrgCostCentre.NoneId);
                 SchemaSql.Exec(c,null,"""

@@ -29,7 +29,7 @@ public sealed class SchemaFinJournalTests
             INSERT INTO fin_journal(id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,run_mode,payout_blocked,currency_code,created_at)
             VALUES(@id,'V-1',@pid,'2026-11-01','2026-11-15','manual',@sid,@cid,'manual',1,0,0,'SAR',datetime('now'))
             """,("@id",journal),("@pid",period),("@sid",source),("@cid",company));
-        string posting=(string)SchemaSql.Scalar(c,null,"SELECT id FROM fin_account WHERE is_posting=1 AND is_active=1 ORDER BY code LIMIT 1")!;
+        string posting=(string)SchemaSql.Scalar(c,null,"SELECT id FROM fin_account WHERE is_postable=1 AND is_active=1 ORDER BY code LIMIT 1")!;
         return (company,period,journal,posting);
     }
 
@@ -50,20 +50,20 @@ public sealed class SchemaFinJournalTests
         var h=SeedHeader(c);
         string cc=SchemaSql.GuidText(SchemaOrgCostCentre.NoneId);
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"""
-            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,company_id,cost_centre_id,debit,credit,created_at)
-            VALUES(@id,'2026-11-01',@jid,1,@aid,@cid,@cc,10,5,datetime('now'))
+            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
+            VALUES(@id,'2026-11-01',@jid,1,@aid,1,@cid,@cc,10,5,datetime('now'))
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@jid",h.Journal),("@aid",h.PostingAccount),("@cid",h.Company),("@cc",cc)));
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"""
-            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,company_id,cost_centre_id,debit,credit,created_at)
-            VALUES(@id,'2026-11-01',@jid,1,@aid,@cid,@cc,-1,0,datetime('now'))
+            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
+            VALUES(@id,'2026-11-01',@jid,1,@aid,1,@cid,@cc,-1,0,datetime('now'))
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@jid",h.Journal),("@aid",h.PostingAccount),("@cid",h.Company),("@cc",cc)));
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"""
-            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,company_id,cost_centre_id,debit,credit,created_at)
-            VALUES(@id,'2026-11-01',@jid,1,@aid,@cid,@cc,0,0,datetime('now'))
+            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
+            VALUES(@id,'2026-11-01',@jid,1,@aid,1,@cid,@cc,0,0,datetime('now'))
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@jid",h.Journal),("@aid",h.PostingAccount),("@cid",h.Company),("@cc",cc)));
         SchemaSql.Exec(c,null,"""
-            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,company_id,cost_centre_id,debit,credit,created_at)
-            VALUES(@id,'2026-11-01',@jid,1,@aid,@cid,@cc,10,0,datetime('now'))
+            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
+            VALUES(@id,'2026-11-01',@jid,1,@aid,1,@cid,@cc,10,0,datetime('now'))
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@jid",h.Journal),("@aid",h.PostingAccount),("@cid",h.Company),("@cc",cc));
     }
 
@@ -80,15 +80,21 @@ public sealed class SchemaFinJournalTests
     }
 
     [TestMethod]
-    public void NonLeafAccountIsRejectedByPostingIdFk()
+    public void NonLeafAccountIsRejectedByCompositePostableFk()
     {
         using var c=Open();
         var h=SeedHeader(c);
-        string nonLeaf=(string)SchemaSql.Scalar(c,null,"SELECT id FROM fin_account WHERE is_posting=0 ORDER BY code LIMIT 1")!;
+        string nonLeaf=(string)SchemaSql.Scalar(c,null,"SELECT id FROM fin_account WHERE is_postable=0 ORDER BY code LIMIT 1")!;
         string cc=SchemaSql.GuidText(SchemaOrgCostCentre.NoneId);
+        // is_postable=1 on the line cannot match a non-leaf account (is_postable=0) via composite FK.
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"""
-            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,company_id,cost_centre_id,debit,credit,created_at)
-            VALUES(@id,'2026-11-01',@jid,1,@aid,@cid,@cc,10,0,datetime('now'))
+            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
+            VALUES(@id,'2026-11-01',@jid,1,@aid,1,@cid,@cc,10,0,datetime('now'))
+            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@jid",h.Journal),("@aid",nonLeaf),("@cid",h.Company),("@cc",cc)));
+        // is_postable=0 on the line is rejected by CHECK even before FK.
+        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"""
+            INSERT INTO fin_journal_line(id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
+            VALUES(@id,'2026-11-01',@jid,1,@aid,0,@cid,@cc,10,0,datetime('now'))
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@jid",h.Journal),("@aid",nonLeaf),("@cid",h.Company),("@cc",cc)));
     }
 
@@ -141,20 +147,20 @@ public sealed class SchemaFinJournalTests
                     INSERT INTO fin.journal(id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,currency_code,created_at)
                     VALUES(@id,'V-2',@pid,'2026-11-01','2026-11-15','manual',@sid,@cid,'manual',1,'SAR',SYSUTCDATETIME())
                     """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@sid",source),("@cid",company)));
-                string posting=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CONVERT(varchar(36),id) FROM fin.account WHERE is_posting=1 AND is_active=1 ORDER BY code")!;
-                string nonLeaf=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CONVERT(varchar(36),id) FROM fin.account WHERE is_posting=0 ORDER BY code")!;
+                string posting=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CONVERT(varchar(36),id) FROM fin.account WHERE is_postable=1 AND is_active=1 ORDER BY code")!;
+                string nonLeaf=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CONVERT(varchar(36),id) FROM fin.account WHERE is_postable=0 ORDER BY code")!;
                 string cc=SchemaSql.GuidText(SchemaOrgCostCentre.NoneId);
                 Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,"""
-                    INSERT INTO fin.journal_line(id,period_month,journal_id,line_no,account_id,company_id,cost_centre_id,debit,credit,created_at)
-                    VALUES(@id,'2026-11-01',@jid,1,@aid,@cid,@cc,5,5,SYSUTCDATETIME())
+                    INSERT INTO fin.journal_line(id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
+                    VALUES(@id,'2026-11-01',@jid,1,@aid,1,@cid,@cc,5,5,SYSUTCDATETIME())
                     """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@jid",journal),("@aid",posting),("@cid",company),("@cc",cc)));
                 Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,"""
-                    INSERT INTO fin.journal_line(id,period_month,journal_id,line_no,account_id,company_id,cost_centre_id,debit,credit,created_at)
-                    VALUES(@id,'2026-11-01',@jid,1,@aid,@cid,@cc,10,0,SYSUTCDATETIME())
+                    INSERT INTO fin.journal_line(id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
+                    VALUES(@id,'2026-11-01',@jid,1,@aid,1,@cid,@cc,10,0,SYSUTCDATETIME())
                     """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@jid",journal),("@aid",nonLeaf),("@cid",company),("@cc",cc)));
                 SchemaSql.Exec(c,null,"""
-                    INSERT INTO fin.journal_line(id,period_month,journal_id,line_no,account_id,company_id,cost_centre_id,debit,credit,created_at)
-                    VALUES(@id,'2026-11-01',@jid,1,@aid,@cid,@cc,10,0,SYSUTCDATETIME())
+                    INSERT INTO fin.journal_line(id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
+                    VALUES(@id,'2026-11-01',@jid,1,@aid,1,@cid,@cc,10,0,SYSUTCDATETIME())
                     """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@jid",journal),("@aid",posting),("@cid",company),("@cc",cc));
                 return true;
             });

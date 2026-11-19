@@ -11,6 +11,7 @@ public static class SchemaFinAccount
     // nature: 1 debit-normal, 2 credit-normal
     // account_type: 1 asset, 2 liability, 3 equity, 4 revenue, 5 expense, 6 contra
     // company_scope: 0 all, 1 by_setting, 2 all_except_own_books
+    // is_postable: leaf-only posting (activation is separate via is_active/status)
     public static void Ensure(DbConnection c,DbTransaction? tx=null)
     {
         SchemaSql.EnsureSchema(c,tx,"fin");
@@ -42,8 +43,7 @@ public static class SchemaFinAccount
                   name_ar nvarchar(200) NOT NULL,
                   account_type {SchemaSql.Tiny(c)} NOT NULL,
                   nature {SchemaSql.Tiny(c)} NOT NULL,
-                  is_posting {SchemaSql.Bit(c)} NOT NULL,
-                  posting_id {g} NOT NULL,
+                  is_postable {SchemaSql.Bit(c)} NOT NULL,
                   status {SchemaSql.Tiny(c)} NOT NULL CONSTRAINT DF_fin_account_status DEFAULT(1),
                   is_active {SchemaSql.Bit(c)} NOT NULL CONSTRAINT DF_fin_account_active DEFAULT(1),
                   company_scope {SchemaSql.Tiny(c)} NOT NULL CONSTRAINT DF_fin_account_scope DEFAULT(0),
@@ -51,14 +51,12 @@ public static class SchemaFinAccount
                   {SchemaSql.AuditCols(c)},
                   CONSTRAINT PK_fin_account PRIMARY KEY NONCLUSTERED (id),
                   CONSTRAINT UQ_fin_account_code UNIQUE (code),
-                  CONSTRAINT UQ_fin_account_posting_id UNIQUE (posting_id),
+                  CONSTRAINT UQ_fin_account_id_postable UNIQUE (id, is_postable),
                   CONSTRAINT CK_fin_account_nature CHECK (nature IN (1,2)),
                   CONSTRAINT CK_fin_account_type CHECK (account_type BETWEEN 1 AND 6),
                   CONSTRAINT CK_fin_account_status CHECK (status IN (1,2,3,4)),
                   CONSTRAINT CK_fin_account_scope CHECK (company_scope IN (0,1,2)),
-                  CONSTRAINT CK_fin_account_posting_id CHECK (
-                    (is_posting=1 AND posting_id=id) OR (is_posting=0 AND posting_id<>id)
-                  ),
+                  CONSTRAINT CK_fin_account_postable CHECK (is_postable IN (0,1)),
                   CONSTRAINT FK_fin_account_parent FOREIGN KEY (parent_id) REFERENCES {t}(id)
                 );
                 """);
@@ -74,22 +72,19 @@ public static class SchemaFinAccount
                   name_ar TEXT NOT NULL,
                   account_type INTEGER NOT NULL,
                   nature INTEGER NOT NULL,
-                  is_posting INTEGER NOT NULL,
-                  posting_id {g} NOT NULL,
+                  is_postable INTEGER NOT NULL,
                   status INTEGER NOT NULL DEFAULT 1,
                   is_active INTEGER NOT NULL DEFAULT 1,
                   company_scope INTEGER NOT NULL DEFAULT 0,
                   level_no INTEGER NOT NULL DEFAULT 1,
                   created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
                   CONSTRAINT UQ_fin_account_code UNIQUE (code),
-                  CONSTRAINT UQ_fin_account_posting_id UNIQUE (posting_id),
+                  CONSTRAINT UQ_fin_account_id_postable UNIQUE (id, is_postable),
                   CONSTRAINT CK_fin_account_nature CHECK (nature IN (1,2)),
                   CONSTRAINT CK_fin_account_type CHECK (account_type BETWEEN 1 AND 6),
                   CONSTRAINT CK_fin_account_status CHECK (status IN (1,2,3,4)),
                   CONSTRAINT CK_fin_account_scope CHECK (company_scope IN (0,1,2)),
-                  CONSTRAINT CK_fin_account_posting_id CHECK (
-                    (is_posting=1 AND posting_id=id) OR (is_posting=0 AND posting_id<>id)
-                  ),
+                  CONSTRAINT CK_fin_account_postable CHECK (is_postable IN (0,1)),
                   CONSTRAINT FK_fin_account_parent FOREIGN KEY (parent_id) REFERENCES {t}(id)
                 );
                 """);
@@ -124,8 +119,6 @@ public static class SchemaFinAccount
             else
             {
                 id=StableId(a.Code);
-                // Non-posting rows get a distinct posting_id so journal_line can FK to posting_id (leaf-only) on both providers.
-                Guid postingId=a.Posting?id:StableId("!post:"+a.Code);
                 byte nature=a.Nature=="credit"?(byte)2:(byte)1;
                 byte type=DeriveAccountType(a.Code,nature);
                 byte status=MapStatus(a.Status);
@@ -133,11 +126,11 @@ public static class SchemaFinAccount
                 byte scope=MapCompanyScope(a.Company);
                 object? parentId=string.IsNullOrWhiteSpace(a.Parent)?DBNull.Value:(object)SchemaSql.GuidText(byCode.TryGetValue(a.Parent,out var pid)?pid:StableId(a.Parent));
                 SchemaSql.Exec(c,tx,$"""
-                    INSERT INTO {t}(id,code,parent_id,name_ar,account_type,nature,is_posting,posting_id,status,is_active,company_scope,level_no,created_at)
-                    VALUES(@id,@code,@parent,@name,@type,@nature,@posting,@posting_id,@status,@active,@scope,@level,{now})
+                    INSERT INTO {t}(id,code,parent_id,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at)
+                    VALUES(@id,@code,@parent,@name,@type,@nature,@postable,@status,@active,@scope,@level,{now})
                     """,
                     ("@id",SchemaSql.GuidText(id)),("@code",a.Code),("@parent",parentId),("@name",a.NameAr),
-                    ("@type",type),("@nature",nature),("@posting",a.Posting?1:0),("@posting_id",SchemaSql.GuidText(postingId)),
+                    ("@type",type),("@nature",nature),("@postable",a.Posting?1:0),
                     ("@status",status),("@active",active),("@scope",scope),("@level",a.Level));
             }
             byCode[a.Code]=id;

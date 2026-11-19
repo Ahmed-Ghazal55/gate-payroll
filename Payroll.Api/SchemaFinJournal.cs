@@ -109,7 +109,8 @@ public static class SchemaFinJournal
         string money=SchemaSql.Decimal(c);
         if(SchemaSql.IsSql(c))
         {
-            // Leaf-only posting: second FK targets filtered unique index on fin.account(posting_id) WHERE posting_id IS NOT NULL.
+            // Leaf-only posting: composite FK (account_id, is_postable) → account(id, is_postable) with line CHECK is_postable=1.
+            // Activation (is_active/status) stays separate from postability.
             SchemaSql.Exec(c,tx,$"""
                 IF OBJECT_ID(N'fin.journal_line',N'U') IS NULL
                 CREATE TABLE {t}(
@@ -118,6 +119,7 @@ public static class SchemaFinJournal
                   journal_id {g} NOT NULL,
                   line_no {SchemaSql.Int(c)} NOT NULL,
                   account_id {g} NOT NULL,
+                  is_postable {SchemaSql.Bit(c)} NOT NULL CONSTRAINT DF_fin_jl_postable DEFAULT(1),
                   company_id {g} NOT NULL,
                   cost_centre_id {g} NOT NULL,
                   app_code varchar(20) NULL,
@@ -134,9 +136,9 @@ public static class SchemaFinJournal
                   CONSTRAINT CK_fin_journal_line_credit CHECK (credit >= 0),
                   CONSTRAINT CK_fin_journal_line_one_side CHECK (debit = 0 OR credit = 0),
                   CONSTRAINT CK_fin_journal_line_nonzero CHECK (debit + credit > 0),
+                  CONSTRAINT CK_fin_journal_line_postable CHECK (is_postable = 1),
                   CONSTRAINT FK_fin_journal_line_journal FOREIGN KEY (journal_id) REFERENCES {journal}(id),
-                  CONSTRAINT FK_fin_journal_line_account FOREIGN KEY (account_id) REFERENCES {account}(id),
-                  CONSTRAINT FK_fin_journal_line_posting_account FOREIGN KEY (account_id) REFERENCES {account}(posting_id),
+                  CONSTRAINT FK_fin_journal_line_account_postable FOREIGN KEY (account_id, is_postable) REFERENCES {account}(id, is_postable),
                   CONSTRAINT FK_fin_journal_line_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_journal_line_cc FOREIGN KEY (cost_centre_id) REFERENCES {cc}(id)
                 );
@@ -160,6 +162,7 @@ public static class SchemaFinJournal
                   journal_id {g} NOT NULL,
                   line_no INTEGER NOT NULL,
                   account_id {g} NOT NULL,
+                  is_postable INTEGER NOT NULL DEFAULT 1,
                   company_id {g} NOT NULL,
                   cost_centre_id {g} NOT NULL,
                   app_code TEXT NULL,
@@ -175,9 +178,9 @@ public static class SchemaFinJournal
                   CONSTRAINT CK_fin_journal_line_credit CHECK (credit >= 0),
                   CONSTRAINT CK_fin_journal_line_one_side CHECK (debit = 0 OR credit = 0),
                   CONSTRAINT CK_fin_journal_line_nonzero CHECK (debit + credit > 0),
+                  CONSTRAINT CK_fin_journal_line_postable CHECK (is_postable = 1),
                   CONSTRAINT FK_fin_journal_line_journal FOREIGN KEY (journal_id) REFERENCES {journal}(id),
-                  CONSTRAINT FK_fin_journal_line_account FOREIGN KEY (account_id) REFERENCES {account}(id),
-                  CONSTRAINT FK_fin_journal_line_posting_account FOREIGN KEY (account_id) REFERENCES {account}(posting_id),
+                  CONSTRAINT FK_fin_journal_line_account_postable FOREIGN KEY (account_id, is_postable) REFERENCES {account}(id, is_postable),
                   CONSTRAINT FK_fin_journal_line_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_journal_line_cc FOREIGN KEY (cost_centre_id) REFERENCES {cc}(id)
                 );
