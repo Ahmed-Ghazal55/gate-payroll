@@ -131,12 +131,6 @@ function RiderStatementPageInner() {
     );
   }, [statement]);
 
-  // Mask Iqama
-  const maskIqama = (val: string) => {
-    if (!val || val.length < 8) return val;
-    return `${val.slice(0, 2)}****${val.slice(-4)}`;
-  };
-
   // Print handler
   const handlePrint = () => {
     if (typeof window !== 'undefined') {

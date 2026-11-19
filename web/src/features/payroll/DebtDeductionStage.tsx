@@ -95,7 +95,7 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
             <tbody className="divide-y divide-[var(--line)]">
               {rows.map((row) => (
                 <tr key={row.rider} data-rider-row>
-                  <td className="p-2 font-mono">{row.rider.slice(0, 4)}****{row.rider.slice(-2)}</td>
+                  <td className="p-2 font-mono" dir="ltr">{row.rider}</td>
                   <td className="p-2 font-mono">{row.salaryNet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td className="p-2 space-y-1">
                     {row.items.length === 0 && <span className="text-[var(--muted)]">لا توجد</span>}

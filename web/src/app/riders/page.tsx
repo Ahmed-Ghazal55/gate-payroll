@@ -267,8 +267,8 @@ function RidersPageInner() {
         header: 'رقم الإقامة',
         filterable: true,
         render: (r) => (
-          <span className="font-mono font-bold text-[var(--ink)]">
-            {maskIqama(r.iqama || r.id)}
+          <span className="font-mono font-bold text-[var(--ink)]" dir="ltr">
+            {r.iqama || r.id}
           </span>
         ),
       },
@@ -394,12 +394,6 @@ function RidersPageInner() {
     { id: '360', label: 'ملف المندوب 360°', icon: <UserCheck size={16} /> },
     { id: 'quality', label: 'جودة واكتمال البيانات', icon: <Sparkles size={16} />, badge: qualityData?.needsReviewCount },
   ];
-
-  // Helper for masking Iqama
-  const maskIqama = (iqama: string) => {
-    if (!iqama || iqama.length < 8) return iqama;
-    return `${iqama.slice(0, 2)}****${iqama.slice(-4)}`;
-  };
 
   return (
     <div className="space-y-6">
