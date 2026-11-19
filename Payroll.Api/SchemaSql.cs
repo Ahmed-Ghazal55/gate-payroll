@@ -58,6 +58,33 @@ public static class SchemaSql
     /// <summary>Store GUID parameters as D-format text so SQLite reopen matches (blob Guid params do not).</summary>
     public static string GuidText(Guid id)=>id.ToString("D");
     public static string GuidType(DbConnection c)=>IsSql(c)?"uniqueidentifier":"TEXT";
+    public static string PrimaryKey(DbConnection c)=>IsSql(c)?"PRIMARY KEY NONCLUSTERED":"PRIMARY KEY";
+    public static string RowVersion(DbConnection c)=>IsSql(c)?"rowversion NOT NULL":"BLOB NOT NULL DEFAULT (randomblob(8)) CHECK (length(row_version)=8)";
+    public static string MoneyAuditCols(DbConnection c)=>
+        $"created_by {Text(c,128)} NULL, created_at {DateTime(c)} NOT NULL DEFAULT ({NowLiteral(c)}), updated_by {Text(c,128)} NULL, updated_at {DateTime(c)} NULL, row_version {RowVersion(c)}, generation {Varchar(c,10)} NOT NULL DEFAULT 'new' CHECK (generation IN ('new','legacy'))";
+    public static string MonthCheck(DbConnection c,string column="period_month")=>IsSql(c)
+        ?$"{column} = DATEFROMPARTS(YEAR({column}), MONTH({column}), 1)"
+        :$"length({column})=10 AND date({column}) IS NOT NULL AND {column}=date({column}) AND strftime('%d',{column})='01'";
+    /// <summary>DDL identifiers and definitions are code constants, never request input.</summary>
+    public static void EnsureTable(DbConnection c,DbTransaction? tx,string schema,string table,string columns)
+    {
+        EnsureSchema(c,tx,schema);
+        string create=$"CREATE TABLE {Q(c,schema,table)} ({columns});";
+        Exec(c,tx,IsSql(c)?$"IF OBJECT_ID(N'{schema}.{table}',N'U') IS NULL {create}":create.Replace("CREATE TABLE ","CREATE TABLE IF NOT EXISTS "));
+    }
+    public static void EnsureMonthIndex(DbConnection c,DbTransaction? tx,string schema,string table)
+    {
+        string name=$"CX_{schema}_{table}";
+        if(IsSql(c))Exec(c,tx,$"IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'{schema}.{table}') AND name=N'{name}') CREATE CLUSTERED INDEX [{name}] ON {Q(c,schema,table)}(period_month,id);");
+        else CreateIndexIfMissing(c,tx,schema,table,name,"period_month,id");
+    }
+    /// <summary>SQLite test equivalent of a native SQL Server rowversion. Writers compare the previous token in their UPDATE predicate.</summary>
+    public static void EnsureRowVersion(DbConnection c,DbTransaction? tx,string schema,string table)
+    {
+        if(IsSql(c))return;
+        string t=Q(c,schema,table);
+        Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_{schema}_{table}_version AFTER UPDATE ON {t} WHEN NEW.row_version=OLD.row_version BEGIN UPDATE {t} SET row_version=randomblob(8) WHERE id=NEW.id; END;");
+    }
     public static string Text(DbConnection c,int n)=>IsSql(c)?$"nvarchar({n})":"TEXT";
     public static string Varchar(DbConnection c,int n)=>IsSql(c)?$"varchar({n})":"TEXT";
     public static string DateTime(DbConnection c)=>IsSql(c)?"datetime2":"TEXT";
