@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:40211/"
+      "url": "http://127.0.0.1:36039/"
     }
   ],
   "paths": {
@@ -556,10 +556,167 @@
         "summary": "Read scoped broadcasts with a staff cookie or active rider bearer token",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "titleAr",
+                          "createdAt"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": "string"
+                          },
+                          "titleAr": {
+                            "type": "string"
+                          },
+                          "titleEn": {
+                            "type": "string"
+                          },
+                          "titleUr": {
+                            "type": "string"
+                          },
+                          "bodyAr": {
+                            "type": "string"
+                          },
+                          "bodyEn": {
+                            "type": "string"
+                          },
+                          "bodyUr": {
+                            "type": "string"
+                          },
+                          "targetIqama": {
+                            "type": "string"
+                          },
+                          "actionUrl": {
+                            "type": "string"
+                          },
+                          "requiresAck": {
+                            "type": "boolean"
+                          },
+                          "deliveryChannel": {
+                            "type": "string"
+                          },
+                          "deliveryStatus": {
+                            "type": "string"
+                          },
+                          "sentBy": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "ackCount": {
+                            "type": "number"
+                          },
+                          "readCount": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "pageSize"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "id",
+                              "titleAr",
+                              "createdAt"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "category": {
+                                "type": "string"
+                              },
+                              "titleAr": {
+                                "type": "string"
+                              },
+                              "titleEn": {
+                                "type": "string"
+                              },
+                              "titleUr": {
+                                "type": "string"
+                              },
+                              "bodyAr": {
+                                "type": "string"
+                              },
+                              "bodyEn": {
+                                "type": "string"
+                              },
+                              "bodyUr": {
+                                "type": "string"
+                              },
+                              "targetIqama": {
+                                "type": "string"
+                              },
+                              "actionUrl": {
+                                "type": "string"
+                              },
+                              "requiresAck": {
+                                "type": "boolean"
+                              },
+                              "deliveryChannel": {
+                                "type": "string"
+                              },
+                              "deliveryStatus": {
+                                "type": "string"
+                              },
+                              "sentBy": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "ackCount": {
+                                "type": "number"
+                              },
+                              "readCount": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "number"
+                        },
+                        "page": {
+                          "type": "number"
+                        },
+                        "pageSize": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
@@ -18934,10 +19091,311 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "requestType",
+                          "riderIqama",
+                          "status",
+                          "createdAt"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "requestType": {
+                            "type": "string"
+                          },
+                          "direction": {
+                            "type": "string"
+                          },
+                          "riderIqama": {
+                            "type": "string"
+                          },
+                          "riderName": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "titleAr": {
+                            "type": "string"
+                          },
+                          "titleEn": {
+                            "type": "string"
+                          },
+                          "titleUr": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "approvalStage": {
+                            "type": "string"
+                          },
+                          "requiresSecondApprover": {
+                            "type": "boolean"
+                          },
+                          "confidential": {
+                            "type": "boolean"
+                          },
+                          "payload": {
+                            "type": "object"
+                          },
+                          "timeline": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "at",
+                                "status"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "at": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "labelAr": {
+                                  "type": "string"
+                                },
+                                "note": {
+                                  "type": "string"
+                                },
+                                "byRole": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "replies": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "senderRole",
+                                "message"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "senderRole": {
+                                  "type": "string"
+                                },
+                                "senderName": {
+                                  "type": "string"
+                                },
+                                "message": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "decidedBy": {
+                            "type": "string"
+                          },
+                          "decidedAt": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "pageSize"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "id",
+                              "requestType",
+                              "riderIqama",
+                              "status",
+                              "createdAt"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "requestType": {
+                                "type": "string"
+                              },
+                              "direction": {
+                                "type": "string"
+                              },
+                              "riderIqama": {
+                                "type": "string"
+                              },
+                              "riderName": {
+                                "type": "string"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "titleAr": {
+                                "type": "string"
+                              },
+                              "titleEn": {
+                                "type": "string"
+                              },
+                              "titleUr": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "approvalStage": {
+                                "type": "string"
+                              },
+                              "requiresSecondApprover": {
+                                "type": "boolean"
+                              },
+                              "confidential": {
+                                "type": "boolean"
+                              },
+                              "payload": {
+                                "type": "object"
+                              },
+                              "timeline": {
+                                "type": "array",
+                                "items": {
+                                  "required": [
+                                    "at",
+                                    "status"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "at": {
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "type": "string"
+                                    },
+                                    "labelAr": {
+                                      "type": "string"
+                                    },
+                                    "note": {
+                                      "type": "string"
+                                    },
+                                    "byRole": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              "replies": {
+                                "type": "array",
+                                "items": {
+                                  "required": [
+                                    "id",
+                                    "senderRole",
+                                    "message"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "senderRole": {
+                                      "type": "string"
+                                    },
+                                    "senderName": {
+                                      "type": "string"
+                                    },
+                                    "message": {
+                                      "type": "string"
+                                    },
+                                    "createdAt": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              "note": {
+                                "type": "string"
+                              },
+                              "createdBy": {
+                                "type": "string"
+                              },
+                              "decidedBy": {
+                                "type": "string"
+                              },
+                              "decidedAt": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "updatedAt": {
+                                "type": "string"
+                              },
+                              "allowedActions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "number"
+                        },
+                        "page": {
+                          "type": "number"
+                        },
+                        "pageSize": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
@@ -18960,11 +19418,188 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "requestType",
+                    "riderIqama",
+                    "status",
+                    "createdAt"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "requestType": {
+                      "type": "string"
+                    },
+                    "direction": {
+                      "type": "string"
+                    },
+                    "riderIqama": {
+                      "type": "string"
+                    },
+                    "riderName": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "titleAr": {
+                      "type": "string"
+                    },
+                    "titleEn": {
+                      "type": "string"
+                    },
+                    "titleUr": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "approvalStage": {
+                      "type": "string"
+                    },
+                    "requiresSecondApprover": {
+                      "type": "boolean"
+                    },
+                    "confidential": {
+                      "type": "boolean"
+                    },
+                    "payload": {
+                      "type": "object"
+                    },
+                    "timeline": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "at",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "at": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "byRole": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "replies": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "senderRole",
+                          "message"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "senderRole": {
+                            "type": "string"
+                          },
+                          "senderName": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "decidedBy": {
+                      "type": "string"
+                    },
+                    "decidedAt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/service-requests/summary": {
+      "get": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Counts for the rider-app requests tab within caller scope",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "open",
+                    "annualLeaveOpen",
+                    "appointmentsOpen",
+                    "doneThisMonth",
+                    "total"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "open": {
+                      "type": "number"
+                    },
+                    "annualLeaveOpen": {
+                      "type": "number"
+                    },
+                    "appointmentsOpen": {
+                      "type": "number"
+                    },
+                    "doneThisMonth": {
+                      "type": "number"
+                    },
+                    "total": {
+                      "type": "number"
+                    }
+                  }
                 }
               }
             }
@@ -19000,11 +19635,144 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "requestType",
+                    "riderIqama",
+                    "status",
+                    "createdAt"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "requestType": {
+                      "type": "string"
+                    },
+                    "direction": {
+                      "type": "string"
+                    },
+                    "riderIqama": {
+                      "type": "string"
+                    },
+                    "riderName": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "titleAr": {
+                      "type": "string"
+                    },
+                    "titleEn": {
+                      "type": "string"
+                    },
+                    "titleUr": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "approvalStage": {
+                      "type": "string"
+                    },
+                    "requiresSecondApprover": {
+                      "type": "boolean"
+                    },
+                    "confidential": {
+                      "type": "boolean"
+                    },
+                    "payload": {
+                      "type": "object"
+                    },
+                    "timeline": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "at",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "at": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "byRole": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "replies": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "senderRole",
+                          "message"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "senderRole": {
+                            "type": "string"
+                          },
+                          "senderName": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "decidedBy": {
+                      "type": "string"
+                    },
+                    "decidedAt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -19040,11 +19808,144 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "requestType",
+                    "riderIqama",
+                    "status",
+                    "createdAt"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "requestType": {
+                      "type": "string"
+                    },
+                    "direction": {
+                      "type": "string"
+                    },
+                    "riderIqama": {
+                      "type": "string"
+                    },
+                    "riderName": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "titleAr": {
+                      "type": "string"
+                    },
+                    "titleEn": {
+                      "type": "string"
+                    },
+                    "titleUr": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "approvalStage": {
+                      "type": "string"
+                    },
+                    "requiresSecondApprover": {
+                      "type": "boolean"
+                    },
+                    "confidential": {
+                      "type": "boolean"
+                    },
+                    "payload": {
+                      "type": "object"
+                    },
+                    "timeline": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "at",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "at": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "byRole": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "replies": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "senderRole",
+                          "message"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "senderRole": {
+                            "type": "string"
+                          },
+                          "senderName": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "decidedBy": {
+                      "type": "string"
+                    },
+                    "decidedAt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -19182,11 +20083,11 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "type": "object"
                 }
               }
             }
@@ -19747,11 +20648,72 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "titleAr",
+                    "createdAt"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "titleAr": {
+                      "type": "string"
+                    },
+                    "titleEn": {
+                      "type": "string"
+                    },
+                    "titleUr": {
+                      "type": "string"
+                    },
+                    "bodyAr": {
+                      "type": "string"
+                    },
+                    "bodyEn": {
+                      "type": "string"
+                    },
+                    "bodyUr": {
+                      "type": "string"
+                    },
+                    "targetIqama": {
+                      "type": "string"
+                    },
+                    "actionUrl": {
+                      "type": "string"
+                    },
+                    "requiresAck": {
+                      "type": "boolean"
+                    },
+                    "deliveryChannel": {
+                      "type": "string"
+                    },
+                    "deliveryStatus": {
+                      "type": "string"
+                    },
+                    "sentBy": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "ackCount": {
+                      "type": "number"
+                    },
+                    "readCount": {
+                      "type": "number"
+                    }
+                  }
                 }
               }
             }
@@ -19767,11 +20729,67 @@
         "summary": "Read rider mobile firebase config",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndbooleanAndstringAndstringAndintAndintAndintAndintAndintAndstring"
+                  "required": [
+                    "configured",
+                    "hasServiceAccountJson",
+                    "activeSessionsCount",
+                    "fcmRegisteredDevicesCount",
+                    "outboxSentCount",
+                    "outboxFailedCount",
+                    "outboxPendingCount"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "senderId": {
+                      "type": "string"
+                    },
+                    "androidPackageName": {
+                      "type": "string"
+                    },
+                    "googlePlayUrl": {
+                      "type": "string"
+                    },
+                    "hasServiceAccountJson": {
+                      "type": "boolean"
+                    },
+                    "legacyStoredKey": {
+                      "type": "boolean"
+                    },
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "webMobilePortalUrl": {
+                      "type": "string"
+                    },
+                    "inquiryPortalUrl": {
+                      "type": "string"
+                    },
+                    "activeSessionsCount": {
+                      "type": "number"
+                    },
+                    "fcmRegisteredDevicesCount": {
+                      "type": "number"
+                    },
+                    "outboxSentCount": {
+                      "type": "number"
+                    },
+                    "outboxFailedCount": {
+                      "type": "number"
+                    },
+                    "outboxPendingCount": {
+                      "type": "number"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -21900,11 +22918,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndstringAndstringAndstring"
+                  "required": [
+                    "iqama",
+                    "scope",
+                    "code",
+                    "expiresAt",
+                    "url"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }

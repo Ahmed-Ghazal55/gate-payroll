@@ -824,13 +824,56 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            category?: string;
+                            titleAr: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            bodyAr?: string;
+                            bodyEn?: string;
+                            bodyUr?: string;
+                            targetIqama?: string;
+                            actionUrl?: string;
+                            requiresAck?: boolean;
+                            deliveryChannel?: string;
+                            deliveryStatus?: string;
+                            sentBy?: string;
+                            createdAt: string;
+                            ackCount?: number;
+                            readCount?: number;
+                        }[] | {
+                            items: {
+                                id: string;
+                                kind?: string;
+                                category?: string;
+                                titleAr: string;
+                                titleEn?: string;
+                                titleUr?: string;
+                                bodyAr?: string;
+                                bodyEn?: string;
+                                bodyUr?: string;
+                                targetIqama?: string;
+                                actionUrl?: string;
+                                requiresAck?: boolean;
+                                deliveryChannel?: string;
+                                deliveryStatus?: string;
+                                sentBy?: string;
+                                createdAt: string;
+                                ackCount?: number;
+                                readCount?: number;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -11555,13 +11598,92 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            id: string;
+                            requestType: string;
+                            direction?: string;
+                            riderIqama: string;
+                            riderName?: string;
+                            companyId?: string;
+                            titleAr?: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            reason?: string;
+                            status: string;
+                            approvalStage?: string;
+                            requiresSecondApprover?: boolean;
+                            confidential?: boolean;
+                            payload?: Record<string, never>;
+                            timeline?: {
+                                at: string;
+                                status: string;
+                                labelAr?: string;
+                                note?: string;
+                                byRole?: string;
+                            }[];
+                            replies?: {
+                                id: string;
+                                senderRole: string;
+                                senderName?: string;
+                                message: string;
+                                createdAt?: string;
+                            }[];
+                            note?: string;
+                            createdBy?: string;
+                            decidedBy?: string;
+                            decidedAt?: string;
+                            createdAt: string;
+                            updatedAt?: string;
+                            allowedActions?: string[];
+                        }[] | {
+                            items: {
+                                id: string;
+                                requestType: string;
+                                direction?: string;
+                                riderIqama: string;
+                                riderName?: string;
+                                companyId?: string;
+                                titleAr?: string;
+                                titleEn?: string;
+                                titleUr?: string;
+                                reason?: string;
+                                status: string;
+                                approvalStage?: string;
+                                requiresSecondApprover?: boolean;
+                                confidential?: boolean;
+                                payload?: Record<string, never>;
+                                timeline?: {
+                                    at: string;
+                                    status: string;
+                                    labelAr?: string;
+                                    note?: string;
+                                    byRole?: string;
+                                }[];
+                                replies?: {
+                                    id: string;
+                                    senderRole: string;
+                                    senderName?: string;
+                                    message: string;
+                                    createdAt?: string;
+                                }[];
+                                note?: string;
+                                createdBy?: string;
+                                decidedBy?: string;
+                                decidedAt?: string;
+                                createdAt: string;
+                                updatedAt?: string;
+                                allowedActions?: string[];
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -11581,17 +11703,96 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            requestType: string;
+                            direction?: string;
+                            riderIqama: string;
+                            riderName?: string;
+                            companyId?: string;
+                            titleAr?: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            reason?: string;
+                            status: string;
+                            approvalStage?: string;
+                            requiresSecondApprover?: boolean;
+                            confidential?: boolean;
+                            payload?: Record<string, never>;
+                            timeline?: {
+                                at: string;
+                                status: string;
+                                labelAr?: string;
+                                note?: string;
+                                byRole?: string;
+                            }[];
+                            replies?: {
+                                id: string;
+                                senderRole: string;
+                                senderName?: string;
+                                message: string;
+                                createdAt?: string;
+                            }[];
+                            note?: string;
+                            createdBy?: string;
+                            decidedBy?: string;
+                            decidedAt?: string;
+                            createdAt: string;
+                            updatedAt?: string;
+                            allowedActions?: string[];
+                        };
                     };
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/service-requests/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Counts for the rider-app requests tab within caller scope */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            open: number;
+                            annualLeaveOpen: number;
+                            appointmentsOpen: number;
+                            doneThisMonth: number;
+                            total: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -11623,13 +11824,50 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            requestType: string;
+                            direction?: string;
+                            riderIqama: string;
+                            riderName?: string;
+                            companyId?: string;
+                            titleAr?: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            reason?: string;
+                            status: string;
+                            approvalStage?: string;
+                            requiresSecondApprover?: boolean;
+                            confidential?: boolean;
+                            payload?: Record<string, never>;
+                            timeline?: {
+                                at: string;
+                                status: string;
+                                labelAr?: string;
+                                note?: string;
+                                byRole?: string;
+                            }[];
+                            replies?: {
+                                id: string;
+                                senderRole: string;
+                                senderName?: string;
+                                message: string;
+                                createdAt?: string;
+                            }[];
+                            note?: string;
+                            createdBy?: string;
+                            decidedBy?: string;
+                            decidedAt?: string;
+                            createdAt: string;
+                            updatedAt?: string;
+                            allowedActions?: string[];
+                        };
                     };
                 };
             };
@@ -11665,13 +11903,50 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            requestType: string;
+                            direction?: string;
+                            riderIqama: string;
+                            riderName?: string;
+                            companyId?: string;
+                            titleAr?: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            reason?: string;
+                            status: string;
+                            approvalStage?: string;
+                            requiresSecondApprover?: boolean;
+                            confidential?: boolean;
+                            payload?: Record<string, never>;
+                            timeline?: {
+                                at: string;
+                                status: string;
+                                labelAr?: string;
+                                note?: string;
+                                byRole?: string;
+                            }[];
+                            replies?: {
+                                id: string;
+                                senderRole: string;
+                                senderName?: string;
+                                message: string;
+                                createdAt?: string;
+                            }[];
+                            note?: string;
+                            createdBy?: string;
+                            decidedBy?: string;
+                            decidedAt?: string;
+                            createdAt: string;
+                            updatedAt?: string;
+                            allowedActions?: string[];
+                        };
                     };
                 };
             };
@@ -11827,13 +12102,13 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": Record<string, never>;
                     };
                 };
             };
@@ -12385,13 +12660,32 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            category?: string;
+                            titleAr: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            bodyAr?: string;
+                            bodyEn?: string;
+                            bodyUr?: string;
+                            targetIqama?: string;
+                            actionUrl?: string;
+                            requiresAck?: boolean;
+                            deliveryChannel?: string;
+                            deliveryStatus?: string;
+                            sentBy?: string;
+                            createdAt: string;
+                            ackCount?: number;
+                            readCount?: number;
+                        };
                     };
                 };
             };
@@ -12419,13 +12713,29 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndbooleanAndstringAndstringAndintAndintAndintAndintAndintAndstring"];
+                        "application/json": {
+                            projectId?: string;
+                            senderId?: string;
+                            androidPackageName?: string;
+                            googlePlayUrl?: string;
+                            hasServiceAccountJson: boolean;
+                            legacyStoredKey?: boolean;
+                            configured: boolean;
+                            webMobilePortalUrl?: string;
+                            inquiryPortalUrl?: string;
+                            activeSessionsCount: number;
+                            fcmRegisteredDevicesCount: number;
+                            outboxSentCount: number;
+                            outboxFailedCount: number;
+                            outboxPendingCount: number;
+                            updatedAt?: string;
+                        };
                     };
                 };
             };
@@ -14591,13 +14901,19 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstring"];
+                        "application/json": {
+                            iqama: string;
+                            scope: string;
+                            code: string;
+                            expiresAt: string;
+                            url: string;
+                        };
                     };
                 };
             };
