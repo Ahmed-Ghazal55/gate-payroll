@@ -1,4 +1,6 @@
 using System.Data.Common;
+using System.Security.Cryptography;
+using System.Text;
 namespace Payroll;
 
 /// <summary>U-W1-10: fin.period_balance with non-null dimension_key grain. Design §7.1 N4 / §16. No backfill; balances filled by posting service later.</summary>
@@ -10,6 +12,17 @@ public static class SchemaFinPeriodBalance
         EnsureBalance(c,tx);
     }
 
+    /// <summary>Canonical dimension string: company_id|account_id|cost_centre_id|app_code (lowercase D-format GUIDs, app sentinel 'none').</summary>
+    public static string CanonicalDimensionString(Guid companyId,Guid accountId,Guid costCentreId,string appCode)
+        =>$"{companyId:D}|{accountId:D}|{costCentreId:D}|{appCode}";
+
+    /// <summary>SHA-256 of the canonical dimension string — always 32 bytes; identical on every runtime.</summary>
+    public static byte[] ComputeDimensionKey(Guid companyId,Guid accountId,Guid costCentreId,string appCode)
+    {
+        string canon=CanonicalDimensionString(companyId,accountId,costCentreId,appCode);
+        return SHA256.HashData(Encoding.UTF8.GetBytes(canon));
+    }
+
     static void EnsureBalance(DbConnection c,DbTransaction? tx)
     {
         string t=SchemaSql.Q(c,"fin","period_balance");string g=SchemaSql.GuidType(c);
@@ -18,7 +31,8 @@ public static class SchemaFinPeriodBalance
         string company=SchemaSql.Q(c,"hr","company");
         string cc=SchemaSql.Q(c,"org","cost_centre");
         string money=SchemaSql.Decimal(c);
-        string dim=SchemaSql.Binary(c,32);
+        string dim=SchemaSql.IsSql(c)?"binary(32)":"BLOB";
+        string lenCheck=SchemaSql.IsSql(c)?"DATALENGTH(dimension_key) = 32":"length(dimension_key) = 32";
         if(SchemaSql.IsSql(c))
         {
             SchemaSql.Exec(c,tx,$"""
@@ -39,7 +53,9 @@ public static class SchemaFinPeriodBalance
                   {SchemaSql.AuditCols(c)},
                   CONSTRAINT PK_fin_period_balance PRIMARY KEY NONCLUSTERED (id),
                   CONSTRAINT UQ_fin_period_balance_grain UNIQUE (period_id, dimension_key),
+                  CONSTRAINT UQ_fin_period_balance_dims UNIQUE (period_id, company_id, account_id, cost_centre_id, app_code),
                   CONSTRAINT CK_fin_period_balance_app CHECK (app_code <> ''),
+                  CONSTRAINT CK_fin_period_balance_dim_len CHECK ({lenCheck}),
                   CONSTRAINT FK_fin_pb_period FOREIGN KEY (period_id) REFERENCES {period}(id),
                   CONSTRAINT FK_fin_pb_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_pb_account FOREIGN KEY (account_id) REFERENCES {account}(id),
@@ -73,7 +89,9 @@ public static class SchemaFinPeriodBalance
                   closing REAL NOT NULL DEFAULT 0,
                   created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
                   CONSTRAINT UQ_fin_period_balance_grain UNIQUE (period_id, dimension_key),
+                  CONSTRAINT UQ_fin_period_balance_dims UNIQUE (period_id, company_id, account_id, cost_centre_id, app_code),
                   CONSTRAINT CK_fin_period_balance_app CHECK (app_code <> ''),
+                  CONSTRAINT CK_fin_period_balance_dim_len CHECK ({lenCheck}),
                   CONSTRAINT FK_fin_pb_period FOREIGN KEY (period_id) REFERENCES {period}(id),
                   CONSTRAINT FK_fin_pb_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_pb_account FOREIGN KEY (account_id) REFERENCES {account}(id),
