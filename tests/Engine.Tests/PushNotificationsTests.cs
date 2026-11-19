@@ -1051,4 +1051,58 @@ public sealed class PushNotificationsTests
             Assert.AreEqual(("اردو عنوان", "اردو پیغام", "ur"), sentPayloads["fcm-tok-ur"]);
         });
     }
+
+    [TestMethod]
+    public void FilteredRiderQueriesFilterByIqamaAndPeriodAndUseSqliteIndexes()
+    {
+        WithSqlStore(store =>
+        {
+            const string riderA = "2000000921";
+            const string riderB = "2000000922";
+            store.Write((c, tx) =>
+            {
+                Store.Save(c, PayCycles.LineKind, new() { ["id"] = "pl-1", ["cycleId"] = "cyc-1", ["rider"] = riderA, ["period"] = "2026-10" }, tx);
+                Store.Save(c, PayCycles.LineKind, new() { ["id"] = "pl-2", ["cycleId"] = "cyc-2", ["rider"] = riderA, ["period"] = "2026-09" }, tx);
+                Store.Save(c, PayCycles.LineKind, new() { ["id"] = "pl-3", ["cycleId"] = "cyc-1", ["rider"] = riderB, ["period"] = "2026-10" }, tx);
+                Store.Save(c, "mobile_broadcast", new() { ["id"] = "stmt_notice:2026-10:" + riderA, ["targetIqama"] = riderA, ["createdAt"] = "2026-11-01T10:00:00Z" }, tx);
+                Store.Save(c, "mobile_broadcast", new() { ["id"] = "stmt_notice:2026-09:" + riderA, ["targetIqama"] = riderA, ["createdAt"] = "2026-10-01T10:00:00Z" }, tx);
+                Store.Save(c, "mobile_broadcast", new() { ["id"] = "bcast-all", ["targetIqama"] = "ALL", ["createdAt"] = "2026-11-02T10:00:00Z" }, tx);
+                Store.Save(c, "mobile_broadcast", new() { ["id"] = "bcast-other", ["targetIqama"] = riderB, ["createdAt"] = "2026-11-03T10:00:00Z" }, tx);
+                Store.Save(c, RiderAsks.ServiceKind, new() { ["id"] = "sreq:a1", ["riderIqama"] = riderA, ["createdAt"] = "2026-11-01T10:00:00Z" }, tx);
+                Store.Save(c, RiderAsks.ServiceKind, new() { ["id"] = "sreq:b1", ["riderIqama"] = riderB, ["createdAt"] = "2026-11-01T10:00:00Z" }, tx);
+                return true;
+            });
+
+            store.Read(c =>
+            {
+                var lines = Store.ListWhere(c, PayCycles.LineKind, null, null, ("rider", riderA), ("period", "2026-10"));
+                Assert.AreEqual(1, lines.Count);
+                Assert.AreEqual("pl-1", lines[0].S("id"));
+
+                var bcasts = Store.ListBroadcastsForRider(c, riderA, 2);
+                Assert.AreEqual(2, bcasts.Count);
+                Assert.AreEqual("bcast-all", bcasts[0].S("id"));
+                Assert.AreEqual("stmt_notice:2026-10:" + riderA, bcasts[1].S("id"));
+
+                var octNoticeIds = Store.ListIdsByPrefix(c, "mobile_broadcast", "stmt_notice:2026-10:");
+                Assert.AreEqual(1, octNoticeIds.Count);
+                Assert.IsTrue(octNoticeIds.Contains("stmt_notice:2026-10:" + riderA));
+
+                var sreqs = Store.ListWhere(c, RiderAsks.ServiceKind, null, 10, ("riderIqama", riderA));
+                Assert.AreEqual(1, sreqs.Count);
+                Assert.AreEqual("sreq:a1", sreqs[0].S("id"));
+
+                if (c is SqliteConnection)
+                {
+                    using var planCmd = Store.Command(c, null, "EXPLAIN QUERY PLAN SELECT body FROM records WHERE kind='pay_cycle_line' AND json_extract(body,'$.rider')=@r AND json_extract(body,'$.period')=@p", ("@r", riderA), ("@p", "2026-10"));
+                    using var reader = planCmd.ExecuteReader();
+                    var planLines = new List<string>();
+                    while (reader.Read()) planLines.Add(reader.GetString(3));
+                    Assert.IsTrue(planLines.Any(l => l.Contains("ix_pay_cycle_line_rider_period", StringComparison.Ordinal)),
+                        "Expected SQLite index ix_pay_cycle_line_rider_period in query plan: " + string.Join("; ", planLines));
+                }
+                return true;
+            });
+        });
+    }
 }

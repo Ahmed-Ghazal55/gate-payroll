@@ -262,12 +262,11 @@ public static class PushNotifications
             {
                 var nowIso = DateTimeOffset.UtcNow.ToString("O");
                 var pendingBatch = store.Read(c =>
-                    Store.List(c, Kind)
-                        .Where(x => x.S("status") == "pending" &&
-                                    x.N("attempts") < 3 &&
+                    Store.ListWhere(c, Kind, null, null, ("status", "pending"))
+                        .Where(x => x.N("attempts") < 3 &&
                                     (string.IsNullOrEmpty(x.S("nextAttemptAt")) || string.CompareOrdinal(x.S("nextAttemptAt"), nowIso) <= 0))
                         .OrderBy(x => x.S("createdAt"))
-                        .Take(50)
+                        .Take(OutboxBatchSize)
                         .ToList());
 
                 if (pendingBatch.Count == 0) break;
@@ -329,8 +328,8 @@ public static class PushNotifications
         // Find active device token and session language for the rider
         var (token, sessionId, language) = store.Read<(string?, string?, string)>(c =>
         {
-            var sessions = Store.List(c, MobileSessions.Kind)
-                .Where(s => s.S("iqama") == iqama && MobileSessions.Status(s) == "active" && !string.IsNullOrWhiteSpace(s.S("fcmDeviceToken")))
+            var sessions = Store.ListWhere(c, MobileSessions.Kind, null, null, ("iqama", iqama))
+                .Where(s => MobileSessions.Status(s) == "active" && !string.IsNullOrWhiteSpace(s.S("fcmDeviceToken")))
                 .OrderByDescending(s => s.S("lastSeenAt"))
                 .ToList();
             if (sessions.Count == 0) return (null, null, "ar");
@@ -581,13 +580,12 @@ public static class PushNotifications
     {
         AccessPolicy.Demand(actor, "mobile.broadcast");
         period = J.Period(period);
-        var lineRiders = Store.List(c, PayCycles.LineKind, tx)
-            .Where(l => l.S("period") == period)
+        var lineRiders = Store.ListWhere(c, PayCycles.LineKind, tx, null, ("period", period))
             .GroupBy(l => l.S("cycleId"))
             .ToDictionary(g => g.Key, g => g.Select(x => x.S("rider")).ToHashSet(StringComparer.Ordinal));
 
-        var cycleRiders = Store.List(c, PayCycles.Kind, tx)
-            .Where(d => d.S("period") == period && d.S("status") is not ("cancelled" or "reversed") && PayCycles.Visible(actor, d))
+        var cycleRiders = Store.ListWhere(c, PayCycles.Kind, tx, null, ("period", period))
+            .Where(d => d.S("status") is not ("cancelled" or "reversed") && PayCycles.Visible(actor, d))
             .SelectMany(d =>
             {
                 if (!lineRiders.TryGetValue(d.S("id"), out var rSet)) return Enumerable.Empty<string>();
@@ -601,8 +599,8 @@ public static class PushNotifications
                 return Enumerable.Empty<string>();
             });
 
-        var legacyRiders = Store.List(c, "run", tx)
-            .Where(r => r.S("period") == period && r.S("approvedAt") != "" && FinancialScopes.Ledger(actor, r))
+        var legacyRiders = Store.ListWhere(c, "run", tx, null, ("period", period))
+            .Where(r => r.S("approvedAt") != "" && FinancialScopes.Ledger(actor, r))
             .Select(r => r.S("iqama"));
 
         var targetRiders = cycleRiders.Concat(legacyRiders)
@@ -611,9 +609,7 @@ public static class PushNotifications
             .OrderBy(iq => iq, StringComparer.Ordinal)
             .ToList();
 
-        var existingBroadcastIds = Store.List(c, "mobile_broadcast", tx)
-            .Select(b => b.S("id"))
-            .ToHashSet(StringComparer.Ordinal);
+        var existingBroadcastIds = Store.ListIdsByPrefix(c, "mobile_broadcast", $"stmt_notice:{period}:", tx);
 
         int notifiedCount = 0;
         int enqueuedCount = 0;

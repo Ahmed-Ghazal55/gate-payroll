@@ -16,8 +16,11 @@ public static class PayStatements
     {
         rider=J.Iqama(rider);period=J.Period(period);var person=Store.Get(c,rider,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);
         if(actor!=null){AccessPolicy.Demand(actor,"pay.view");AccessPolicy.Demand(actor,"payroll.view");AccessPolicy.Demand(actor,"debts.view");}
-        var allLines=Store.List(c,PayCycles.LineKind,tx).Where(l=>l.S("rider")==rider&&l.S("period")==period).ToList();
-        var candidates=Store.List(c,PayCycles.Kind,tx).Where(d=>d.S("period")==period&&d.S("status") is not ("cancelled" or "reversed")&&(!approvedOnly||d.S("status")=="approved"||d.S("status")=="partially_approved"&&(d["riders"] as JsonArray??[]).OfType<JsonObject>().Any(r=>r.S("rider")==rider&&r.S("salaryApprovedAt")!=""))&&allLines.Any(l=>l.S("cycleId")==d.S("id"))).ToList();
+        var allLines=Store.ListWhere(c,PayCycles.LineKind,tx,null,("rider",rider),("period",period));
+        var lineCycleIds=allLines.Select(l=>l.S("cycleId")).Where(id=>id!="").Distinct(StringComparer.Ordinal).ToList();
+        var candidates=lineCycleIds.Count==0
+            ?new List<JsonObject>()
+            :Store.ListByIds(c,PayCycles.Kind,lineCycleIds,tx).Where(d=>d.S("period")==period&&d.S("status") is not ("cancelled" or "reversed")&&(!approvedOnly||d.S("status")=="approved"||d.S("status")=="partially_approved"&&(d["riders"] as JsonArray??[]).OfType<JsonObject>().Any(r=>r.S("rider")==rider&&r.S("salaryApprovedAt")!=""))).ToList();
         var cycles=candidates.Where(d=>actor==null||PayCycles.Visible(actor,d)).ToList();if(candidates.Count>0&&cycles.Count==0)throw new ApiError("الكشف الشهري خارج نطاق الشركة أو التطبيقات.",403);
         var cards=new List<JsonObject>();var deductions=new List<JsonObject>();var refs=new List<JsonObject>();decimal net=0,carried=0,closing=0;string source="none",status="no_approved_cycle";var phases=new JsonObject();
         if(cycles.Count>0)
@@ -46,7 +49,7 @@ public static class PayStatements
         }
         else
         {
-            var allRuns=Store.List(c,"run",tx).Where(r=>r.S("iqama")==rider&&r.S("period")==period&&r.S("approvedAt")!="").ToList();var runs=allRuns.Where(r=>actor==null||RunVisible(actor,r)).ToList();if(allRuns.Count>0&&runs.Count==0)throw new ApiError("المسير القديم خارج النطاق المالي.",403);
+            var allRuns=Store.ListWhere(c,"run",tx,null,("iqama",rider),("period",period)).Where(r=>r.S("approvedAt")!="").ToList();var runs=allRuns.Where(r=>actor==null||RunVisible(actor,r)).ToList();if(allRuns.Count>0&&runs.Count==0)throw new ApiError("المسير القديم خارج النطاق المالي.",403);
             if(runs.Count>0){source="legacy_run";status="approved";}
             foreach(var run in runs)
             {
@@ -201,11 +204,13 @@ public static class PayStatements
     public static JsonObject LatestApprovedSummary(DbConnection c,string rider)
     {
         rider=J.Iqama(rider);
-        var lineCycles=Store.List(c,PayCycles.LineKind).Where(l=>l.S("rider")==rider).Select(l=>l.S("cycleId")).ToHashSet(StringComparer.Ordinal);
-        var cyclePeriods=Store.List(c,PayCycles.Kind)
-            .Where(d=>lineCycles.Contains(d.S("id"))&&d.S("status") is not ("cancelled" or "reversed")&&(d.S("status")=="approved"||d.S("status")=="partially_approved"&&(d["riders"] as JsonArray??[]).OfType<JsonObject>().Any(r=>r.S("rider")==rider&&r.S("salaryApprovedAt")!="")))
-            .Select(d=>d.S("period"));
-        var runPeriods=Store.List(c,"run").Where(r=>r.S("iqama")==rider&&r.S("approvedAt")!="").Select(r=>r.S("period"));
+        var lineCycles=Store.ListWhere(c,PayCycles.LineKind,null,null,("rider",rider)).Select(l=>l.S("cycleId")).Where(id=>id!="").Distinct(StringComparer.Ordinal).ToList();
+        var cyclePeriods=lineCycles.Count==0
+            ?Enumerable.Empty<string>()
+            :Store.ListByIds(c,PayCycles.Kind,lineCycles)
+                .Where(d=>d.S("status") is not ("cancelled" or "reversed")&&(d.S("status")=="approved"||d.S("status")=="partially_approved"&&(d["riders"] as JsonArray??[]).OfType<JsonObject>().Any(r=>r.S("rider")==rider&&r.S("salaryApprovedAt")!="")))
+                .Select(d=>d.S("period"));
+        var runPeriods=Store.ListWhere(c,"run",null,null,("iqama",rider)).Where(r=>r.S("approvedAt")!="").Select(r=>r.S("period"));
         string? latest=cyclePeriods.Concat(runPeriods).Where(p=>p.Length==7).OrderByDescending(p=>p,StringComparer.Ordinal).FirstOrDefault();
         if(string.IsNullOrEmpty(latest))return new JsonObject{["available"]=false};
         var built=Build(c,rider,latest,null,true);

@@ -924,10 +924,7 @@ public static class FinancialCore
                 return store.Read(c =>
                 {
                     string iqama = AuthenticatedMobileRider(c, ctx);
-                    var items = Store.List(c, "mobile_broadcast")
-                        .Where(b => b.S("targetIqama") == "ALL" || b.S("targetIqama") == iqama)
-                        .OrderByDescending(b => b.S("createdAt"))
-                        .Take(PushNotifications.MaxRiderListItems)
+                    var items = Store.ListBroadcastsForRider(c, iqama, PushNotifications.MaxRiderListItems)
                         .Select(b => ProjectRiderBroadcast(b, iqama))
                         .ToList();
                     return ApiPagination.Apply(items, ctx.Request.Query);
@@ -1004,7 +1001,7 @@ public static class FinancialCore
             MobileSession(c, ctx, iqama);
 
             var rider = Store.Get(c, iqama, "rider") ?? throw new ApiError("المندوب غير موجود.", 404);
-            var allDebts = Store.List(c, "debt").Where(d => d.S("iqama") == iqama).ToList();
+            var allDebts = Store.ListWhere(c, "debt", null, null, ("iqama", iqama));
             var debts = allDebts
                 .OrderByDescending(d => d.S("createdAt"))
                 .Take(PushNotifications.MaxPortalDebts)
@@ -1033,10 +1030,7 @@ public static class FinancialCore
                     };
                 }).ToList();
 
-            var broadcasts = Store.List(c, "mobile_broadcast")
-                .Where(b => b.S("targetIqama") == "ALL" || b.S("targetIqama") == iqama)
-                .OrderByDescending(b => b.S("createdAt"))
-                .Take(PushNotifications.MaxPortalBroadcasts)
+            var broadcasts = Store.ListBroadcastsForRider(c, iqama, PushNotifications.MaxPortalBroadcasts)
                 .Select(b => ProjectRiderBroadcast(b, iqama))
                 .ToList();
 

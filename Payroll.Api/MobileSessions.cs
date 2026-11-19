@@ -78,7 +78,7 @@ public static class MobileSessions
     {
         string iqama = Validate(c, ctx).S("iqama");
         var rider = Store.Get(c, iqama, "rider")!;
-        return Store.List(c, Kind).Where(s => s.S("iqama") == iqama).OrderByDescending(s => s.S("createdAt")).Select(s => View(s, rider)).ToList();
+        return Store.ListWhere(c, Kind, null, null, ("iqama", iqama)).OrderByDescending(s => s.S("createdAt")).Select(s => View(s, rider)).ToList();
     }
 
     static string Reason(JsonObject input)

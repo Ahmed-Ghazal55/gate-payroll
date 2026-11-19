@@ -171,8 +171,8 @@ public static class RiderAsks
         J.Need(reason.Length is > 2 and <= 500, "اكتب سبب الطلب.");
         var supervisors = OrgDirectory.SupervisorsOf(c, tx, iqama);
         J.Need(supervisors.Count > 0, "لا يوجد مشرف مسجل لك حاليًا؛ تواصل مع الإدارة.", 409);
-        J.Need(!Store.List(c, Kind, tx).Any(a => a.S("riderIqama") == iqama && Open.Contains(a.S("status"))), "لديك طلب مفتوح بالفعل.", 409);
-        J.Need(!Store.List(c, AdvanceRequests.Kind, tx).Any(r => r.S("riderIqama") == iqama && r.S("status") is not ("rejected" or "cancelled" or "paid")), "لديك طلب سلفة قيد المراجعة بالفعل.", 409);
+        J.Need(!Store.ListWhere(c, Kind, tx, null, ("riderIqama", iqama)).Any(a => Open.Contains(a.S("status"))), "لديك طلب مفتوح بالفعل.", 409);
+        J.Need(!Store.ListWhere(c, AdvanceRequests.Kind, tx, null, ("riderIqama", iqama)).Any(r => r.S("status") is not ("rejected" or "cancelled" or "paid")), "لديك طلب سلفة قيد المراجعة بالفعل.", 409);
         var a = new JsonObject
         {
             ["id"] = "ask:" + Guid.NewGuid().ToString("N"),
@@ -834,7 +834,7 @@ public static class RiderAsks
             }
         };
 
-        var submissions = Store.List(c, "submission").Where(s => s.S("iqama") == iqama).ToDictionary(s => s.S("campaignId"), s => s);
+        var submissions = Store.ListWhere(c, "submission", null, null, ("iqama", iqama)).ToDictionary(s => s.S("campaignId"), s => s);
         var activeCampaigns = new JsonArray();
         foreach (var camp in Store.List(c, "campaign").Where(x => x.S("status") == "open" && DateTimeOffset.TryParse(x.S("expiresAt"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var exp) && exp > DateTimeOffset.UtcNow))
         {
@@ -949,7 +949,7 @@ public static class RiderAsks
                 ["bankCode"] = payload.S("bankCode"),
                 ["platforms"] = (payload["platforms"] as JsonArray)?.DeepClone() ?? new JsonArray("keeta")
             };
-            bool existing = store.Read(c => Store.List(c, "submission").Any(s => s.S("campaignId") == campaign.S("id") && s.S("iqama") == iqama));
+            bool existing = store.Read(c => Store.ListWhere(c, "submission", null, 1, ("campaignId", campaign.S("id")), ("iqama", iqama)).Count > 0);
             return existing ? IbanChoices.Edit(store, campaign, cleanIban) : IbanChoices.Create(store, campaign, cleanIban);
         }
 
@@ -1068,11 +1068,9 @@ public static class RiderAsks
             return store.Read(c =>
             {
                 string iqama = MobileSessions.Validate(c, ctx).S("iqama");
-                var asks = Store.List(c, Kind)
-                    .Where(a => a.S("riderIqama") == iqama)
+                var asks = Store.ListWhere(c, Kind, null, PushNotifications.MaxRiderListItems, ("riderIqama", iqama))
                     .Select(a => RiderView(c, a));
-                var serviceReqs = Store.List(c, ServiceKind)
-                    .Where(r => r.S("riderIqama") == iqama)
+                var serviceReqs = Store.ListWhere(c, ServiceKind, null, PushNotifications.MaxRiderListItems, ("riderIqama", iqama))
                     .Select(ServiceRiderView);
                 var combined = asks.Concat(serviceReqs)
                     .OrderByDescending(x => x.S("createdAt"))
