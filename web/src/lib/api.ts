@@ -112,6 +112,11 @@ export type OperationRow = Omit<Partial<UnionToIntersection<RawOperationItem>>, 
   rooms?: Record<string, unknown>[];
   assignments?: RiderAccountAssignment[];
 };
+export type WorkforceListResponse = ApiResp<'/api/workforce'>;
+export type WorkforcePerson = WorkforceListResponse['items'][number];
+export type WorkforceSummary = NonNullable<WorkforceListResponse['summary']>;
+export type Workforce360Response = ApiResp<'/api/workforce/{id}/360'>;
+
 export type OperationsResponse = Omit<ApiResp<'/api/operations/{kind}'>, 'items'> & {
   items: OperationRow[];
 };
@@ -1234,6 +1239,7 @@ export const api = {
     city?: string;
     missingIban?: boolean;
     sort?: string;
+    signal?: AbortSignal;
   }) => {
     const q = new URLSearchParams();
     q.set('page', String(params?.page ?? 1));
@@ -1247,14 +1253,18 @@ export const api = {
     if (params?.city) q.set('city', params.city);
     if (params?.missingIban) q.set('missingIban', 'true');
     if (params?.sort) q.set('sort', params.sort);
-    return handleRequest<import('./types').WorkforceListResponse>(`/workforce?${q.toString()}`);
+    return handleRequest<WorkforceListResponse>(`/workforce?${q.toString()}`, {
+      signal: params?.signal,
+    });
   },
 
   getWorkforce360: (id: string) =>
-    handleRequest<import('./types').Workforce360Response>(`/workforce/${encodeURIComponent(id)}/360`),
+    handleRequest<Workforce360Response>(`/workforce/${encodeURIComponent(id)}/360`),
 
   getWorkforceSaudi: () =>
-    handleRequest<{ items: any[]; total: number; source?: string }>(`/workforce/saudi-payroll-employees`),
+    handleRequest<{ items: any[]; total: number; source?: string; allowedActions?: string[] }>(
+      `/workforce/saudi-payroll-employees`
+    ),
 
   getWorkforceTerminated: () =>
     handleRequest<{ items: any[]; total: number; source?: string }>(`/workforce/terminated`),
@@ -1262,8 +1272,42 @@ export const api = {
   getWorkforceAbsenceCases: () =>
     handleRequest<{ items: any[]; total: number; source?: string }>(`/workforce/absence-cases`),
 
-  getWorkforceDataQuality: () =>
-    handleRequest<{ items: any[]; total: number; source?: string }>(`/workforce/data-quality`),
+  getWorkforceLegalCases: () =>
+    handleRequest<{ items: any[]; total: number; source?: string; message?: string }>(
+      `/workforce/legal-cases`
+    ),
+
+  exportWorkforce: (params?: {
+    q?: string;
+    sponsorship?: string;
+    workType?: string;
+    status?: string;
+    sponsorUnified?: string;
+    platform?: string;
+    city?: string;
+    missingIban?: boolean;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.q) q.set('q', params.q);
+    if (params?.sponsorship) q.set('sponsorship', params.sponsorship);
+    if (params?.workType) q.set('workType', params.workType);
+    if (params?.status) q.set('status', params.status);
+    if (params?.sponsorUnified) q.set('sponsorUnified', params.sponsorUnified);
+    if (params?.platform) q.set('platform', params.platform);
+    if (params?.city) q.set('city', params.city);
+    if (params?.missingIban) q.set('missingIban', 'true');
+    const qs = q.toString();
+    return fetch(`/api/workforce/export${qs ? `?${qs}` : ''}`, { credentials: 'include' });
+  },
+
+  getWorkforceDataQuality: (params?: { page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    q.set('page', String(params?.page ?? 1));
+    q.set('pageSize', String(params?.pageSize ?? 50));
+    return handleRequest<{ items: any[]; total: number; source?: string }>(
+      `/workforce/data-quality?${q.toString()}`
+    );
+  },
 
   getHrCatalog: (kind: string) =>
     handleRequest<{ items: any[]; total: number; kind?: string; source?: string; message?: string }>(

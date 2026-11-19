@@ -30,11 +30,12 @@ import { SourceBadge } from '../../components/ui/SourceBadge';
 import { IbanDisplay } from '../../components/ui/IbanDisplay';
 import { inApp } from '../../lib/paths';
 import type {
-  RiderRecord,
   WorkforceListResponse,
   Workforce360Response,
   WorkforceSummary,
-} from '../../lib/types';
+  WorkforcePerson,
+} from '../../lib/api';
+import type { RiderRecord } from '../../lib/types';
 
 const PAGE_SIZES = [25, 50, 100, 200];
 
@@ -43,6 +44,9 @@ type ListFilters = {
   workType: string;
   missingIban: boolean;
   status: string;
+  sponsorUnified: string;
+  platform: string;
+  city: string;
 };
 
 const EMPTY_FILTERS: ListFilters = {
@@ -50,7 +54,46 @@ const EMPTY_FILTERS: ListFilters = {
   workType: '',
   missingIban: false,
   status: '',
+  sponsorUnified: '',
+  platform: '',
+  city: '',
 };
+
+const STATUS_LABELS: Record<string, string> = {
+  Draft: 'مسودة',
+  Onboarding: 'قيد التهيئة',
+  Active: 'نشط',
+  Suspended: 'موقوف',
+  OnLeave: 'في إجازة',
+  Terminated: 'منتهي الخدمة',
+  Archived: 'مؤرشف',
+  Fleeing: 'هروب / انقطاع',
+  Accident: 'حادث',
+  Sick: 'إجازة مرضية',
+  NeedsReview: 'بانتظار المراجعة',
+  Inactive: 'غير نشط',
+};
+
+const ISSUE_LABELS: Record<string, string> = {
+  missing_iban_sponsored: 'آيبان مفقود للمكفول',
+  no_active_platform: 'بدون منصة نشطة',
+  missing_phone: 'جوال مفقود',
+  missing_city: 'مدينة مفقودة',
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  erp_live: 'قراءة مباشرة',
+  erp_file: 'ملف من نظام عمر',
+  store: 'المخزن المحلي',
+  mudad: 'مدد',
+  erp: 'نظام عمر',
+  forms: 'النماذج',
+};
+
+function statusLabel(value?: string): string {
+  if (!value) return '—';
+  return STATUS_LABELS[value] || value;
+}
 
 function cellText(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
@@ -68,12 +111,12 @@ function StackedCell({
 }) {
   return (
     <div className="flex flex-col gap-0.5 min-w-0 py-0.5">
-      <div className="font-semibold text-[var(--ink)] leading-snug break-words">{primary || '—'}</div>
+      <div className="font-semibold text-[var(--ink)] leading-snug whitespace-nowrap">{primary || '—'}</div>
       {secondary != null && secondary !== '' ? (
-        <div className="text-[11px] text-[var(--muted)] leading-snug break-words">{secondary}</div>
+        <div className="text-[11px] text-[var(--muted)] leading-snug whitespace-nowrap">{secondary}</div>
       ) : null}
       {tertiary != null && tertiary !== '' ? (
-        <div className="text-[11px] text-[var(--muted)] leading-snug break-words">{tertiary}</div>
+        <div className="text-[11px] text-[var(--muted)] leading-snug whitespace-nowrap">{tertiary}</div>
       ) : null}
     </div>
   );
@@ -91,15 +134,16 @@ function workTypeLabel(value?: string): string {
   return value || '—';
 }
 
-function vehicleLabel(row: RiderRecord): string {
+function vehicleLabel(row: WorkforcePerson | RiderRecord): string {
   if (row.hasCompanyVehicle) {
     const type = row.companyVehicleType;
     if (type === 'Car' || type === '2') return 'مركبة شركة · سيارة';
     if (type === 'Motorcycle' || type === '1') return 'مركبة شركة · دباب';
     return type ? `مركبة شركة · ${type}` : 'مركبة شركة';
   }
-  if (row.operationalRole === 'Car') return 'سيارة (تشغيل)';
-  if (row.operationalRole === 'Motorcycle' || row.operationalRole === 'Bike') return 'دباب (تشغيل)';
+  const role = 'operationalRole' in row ? row.operationalRole : undefined;
+  if (role === 'Car') return 'سيارة (تشغيل)';
+  if (role === 'Motorcycle' || role === 'Bike') return 'دباب (تشغيل)';
   return '—';
 }
 
@@ -132,7 +176,7 @@ function WorkforcePageInner() {
   const [debouncedQuery, setDebouncedQuery] = useState(qFromUrl);
   const [filters, setFilters] = useState<ListFilters>(EMPTY_FILTERS);
 
-  const [items, setItems] = useState<RiderRecord[]>([]);
+  const [items, setItems] = useState<WorkforcePerson[]>([]);
   const [total, setTotal] = useState(0);
   const [summary, setSummary] = useState<WorkforceSummary | null>(null);
   const [source, setSource] = useState('');
@@ -160,6 +204,9 @@ function WorkforcePageInner() {
   const [casesSource, setCasesSource] = useState('');
   const [loadingCases, setLoadingCases] = useState(false);
   const [casesError, setCasesError] = useState<string | null>(null);
+  const [legalItems, setLegalItems] = useState<Record<string, unknown>[]>([]);
+  const [allowedActions, setAllowedActions] = useState<string[]>([]);
+  const directoryAbort = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (tabFromUrl && tabFromUrl !== activeTab) {
@@ -217,6 +264,9 @@ function WorkforcePageInner() {
       targetQuery: string,
       targetFilters: ListFilters
     ) => {
+      directoryAbort.current?.abort();
+      const ac = new AbortController();
+      directoryAbort.current = ac;
       setLoading(true);
       setErrorMsg(null);
       try {
@@ -227,8 +277,13 @@ function WorkforcePageInner() {
           sponsorship: targetFilters.sponsorship || undefined,
           workType: targetFilters.workType || undefined,
           status: targetFilters.status || undefined,
+          sponsorUnified: targetFilters.sponsorUnified || undefined,
+          platform: targetFilters.platform || undefined,
+          city: targetFilters.city || undefined,
           missingIban: targetFilters.missingIban || undefined,
+          signal: ac.signal,
         });
+        if (ac.signal.aborted) return;
         const rows = res?.items || [];
         setItems(rows);
         setTotal(res?.total ?? rows.length);
@@ -237,7 +292,9 @@ function WorkforcePageInner() {
         setAsOf(res?.asOf || '');
         setPage(res?.page ?? targetPage);
         setPageSize(res?.pageSize ?? targetPageSize);
+        setAllowedActions(res?.allowedActions || []);
       } catch (err: unknown) {
+        if (ac.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return;
         const msg =
           err instanceof ApiError
             ? err.message
@@ -359,6 +416,29 @@ function WorkforcePageInner() {
     }
   }, [toast]);
 
+  const loadLegal = useCallback(async () => {
+    setLoadingCases(true);
+    setCasesError(null);
+    try {
+      const res = await api.getWorkforceLegalCases();
+      setLegalItems((res?.items as Record<string, unknown>[]) || []);
+      setCasesSource(res?.source || '');
+      if (res?.message) setCasesError(res.message);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : 'تعذر تحميل القضايا القانونية';
+      setCasesError(msg);
+      setLegalItems([]);
+      toast(msg, 'danger');
+    } finally {
+      setLoadingCases(false);
+    }
+  }, [toast]);
+
   const isFirstMount = useRef(true);
 
   useEffect(() => {
@@ -378,6 +458,7 @@ function WorkforcePageInner() {
     if (activeTab === 'quality') loadQuality();
     if (activeTab === 'saudi') loadSaudi();
     if (activeTab === 'cases') loadCases();
+    if (activeTab === 'legal') loadLegal();
     if (activeTab === '360' && iqamaFromUrl && !profileData && !loadingProfile) {
       loadProfile360(iqamaFromUrl);
     }
@@ -416,7 +497,7 @@ function WorkforcePageInner() {
     updateUrl({ tab: tabId, page: 1 });
   };
 
-  const open360 = (row: RiderRecord) => {
+  const open360 = (row: WorkforcePerson) => {
     const key = row.id || row.iqama;
     setProfileKey(key);
     setActiveTab('360');
@@ -429,10 +510,13 @@ function WorkforcePageInner() {
     { id: '360', label: 'الملف 360', icon: <UserCheck size={16} /> },
     { id: 'quality', label: 'جودة البيانات', icon: <Sparkles size={16} /> },
     { id: 'saudi', label: 'رواتب سعودية', icon: <Flag size={16} /> },
-    { id: 'cases', label: 'حالات', icon: <AlertTriangle size={16} /> },
+    { id: 'cases', label: 'الإنهاء والغياب', icon: <AlertTriangle size={16} /> },
+    ...(allowedActions.includes('view_legal_cases')
+      ? [{ id: 'legal', label: 'القضايا', icon: <ShieldAlert size={16} /> } as SectionTabItem]
+      : []),
   ];
 
-  const directoryColumns: ColumnDef<RiderRecord>[] = useMemo(
+  const directoryColumns: ColumnDef<WorkforcePerson>[] = useMemo(
     () => [
       {
         key: 'person',
@@ -485,7 +569,16 @@ function WorkforcePageInner() {
               primary={r.platform || r.platforms || '—'}
               secondary={r.platformWorkId ? <span className="font-mono" dir="ltr">{r.platformWorkId}</span> : undefined}
             />
-            <IbanDisplay iban={r.iban} masked={false} />
+            {allowedActions.includes('view_iban') ? (
+              <IbanDisplay iban={r.iban} masked={false} />
+            ) : (
+              <span className="text-[11px] text-[var(--muted)]">مخفي</span>
+            )}
+            {r.ibanAlert ? (
+              <span className="text-[11px] text-[var(--warning)] font-semibold whitespace-nowrap">
+                {String(r.ibanAlert)}
+              </span>
+            ) : null}
           </div>
         ),
       },
@@ -495,7 +588,7 @@ function WorkforcePageInner() {
         getValue: (r) => `${r.mudadSalary || ''} ${vehicleLabel(r)}`,
         render: (r) => (
           <StackedCell
-            primary={<span className="whitespace-pre-wrap">{r.mudadSalary || '—'}</span>}
+            primary={<span className="whitespace-nowrap">{r.mudadSalary || '—'}</span>}
             secondary={
               <span className="inline-flex items-center gap-1">
                 {r.hasCompanyVehicle || r.operationalRole === 'Car' ? (
@@ -525,7 +618,7 @@ function WorkforcePageInner() {
                     : 'bg-[var(--muted)]/15 text-[var(--muted)]'
                 }`}
               >
-                {r.status || '—'}
+                {statusLabel(r.status)}
               </span>
             }
             secondary={
@@ -549,7 +642,7 @@ function WorkforcePageInner() {
         ),
       },
     ],
-    []
+    [allowedActions]
   );
 
   const qualityColumns: ColumnDef<Record<string, unknown>>[] = useMemo(
@@ -571,17 +664,27 @@ function WorkforcePageInner() {
       {
         key: 'issueKind',
         header: 'نوع المشكلة',
-        render: (r) => <span>{cellText(r.issueKind)}</span>,
+        render: (r) => (
+          <span className="whitespace-nowrap">
+            {ISSUE_LABELS[String(r.issueKind || '')] || cellText(r.issueKind)}
+          </span>
+        ),
       },
       {
         key: 'suggestedAction',
         header: 'الإجراء المقترح',
-        render: (r) => <span className="text-[var(--muted)]">{cellText(r.suggestedAction)}</span>,
+        render: (r) => (
+          <span className="text-[var(--muted)] whitespace-nowrap">{cellText(r.suggestedAction)}</span>
+        ),
       },
       {
         key: 'source',
         header: 'المصدر',
-        render: (r) => <span className="text-xs">{cellText(r.source)}</span>,
+        render: (r) => (
+          <span className="text-xs whitespace-nowrap">
+            {SOURCE_LABELS[String(r.source || '')] || cellText(r.source)}
+          </span>
+        ),
       },
     ],
     []
@@ -611,25 +714,51 @@ function WorkforcePageInner() {
       {
         key: 'sponsorNameAr',
         header: 'الكفيل',
-        render: (r) => <span>{cellText(r.sponsorNameAr)}</span>,
+        render: (r) => <span className="whitespace-nowrap">{cellText(r.sponsorNameAr)}</span>,
+      },
+      {
+        key: 'country',
+        header: 'الدولة',
+        render: (r) => <span className="whitespace-nowrap">{cellText(r.country)}</span>,
+      },
+      {
+        key: 'joiningDate',
+        header: 'تاريخ الالتحاق',
+        render: (r) => (
+          <span className="font-mono text-xs whitespace-nowrap">{cellText(r.joiningDate)}</span>
+        ),
+      },
+      {
+        key: 'unifiedNationalNumber',
+        header: 'الرقم الموحّد',
+        render: (r) => (
+          <span className="font-mono text-xs whitespace-nowrap" dir="ltr">
+            {cellText(r.unifiedNationalNumber)}
+          </span>
+        ),
       },
       {
         key: 'salary',
         header: 'الراتب',
-        render: (r) => <span className="num">{cellText(r.salary)}</span>,
+        render: (r) => <span className="num whitespace-nowrap">{cellText(r.salary) || '—'}</span>,
       },
       {
         key: 'personalIban',
         header: 'الآيبان',
-        render: (r) => <IbanDisplay iban={String(r.personalIban || '')} masked={false} />,
+        render: (r) =>
+          allowedActions.includes('view_iban') ? (
+            <IbanDisplay iban={String(r.personalIban || '')} masked={false} />
+          ) : (
+            <span className="text-[11px] text-[var(--muted)]">مخفي</span>
+          ),
       },
       {
         key: 'status',
         header: 'الحالة',
-        render: (r) => <span>{cellText(r.status)}</span>,
+        render: (r) => <span className="whitespace-nowrap">{statusLabel(String(r.status || ''))}</span>,
       },
     ],
-    []
+    [allowedActions]
   );
 
   const terminatedColumns: ColumnDef<Record<string, unknown>>[] = useMemo(
@@ -651,12 +780,14 @@ function WorkforcePageInner() {
       {
         key: 'status',
         header: 'الحالة',
-        render: (r) => <span>{cellText(r.status)}</span>,
+        render: (r) => <span className="whitespace-nowrap">{statusLabel(String(r.status || ''))}</span>,
       },
       {
         key: 'terminationDate',
         header: 'تاريخ الإنهاء',
-        render: (r) => <span className="font-mono text-xs">{cellText(r.terminationDate)}</span>,
+        render: (r) => (
+          <span className="font-mono text-xs whitespace-nowrap">{cellText(r.terminationDate)}</span>
+        ),
       },
       {
         key: 'statusReason',
@@ -854,11 +985,111 @@ function WorkforcePageInner() {
                   { value: 'admin', label: 'إداري' },
                 ]}
               />
+              <SearchableSelect
+                id="wf-status"
+                value={filters.status || 'all'}
+                onChange={(v) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    status: v === 'all' ? '' : v,
+                  }))
+                }
+                ariaLabel="تصفية الحالة"
+                placeholder="كل الحالات"
+                className="w-44"
+                options={[
+                  { value: 'all', label: 'كل الحالات' },
+                  ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
+                ]}
+              />
+              <SearchableSelect
+                id="wf-company"
+                value={filters.sponsorUnified || 'all'}
+                onChange={(v) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    sponsorUnified: v === 'all' ? '' : v,
+                  }))
+                }
+                ariaLabel="تصفية الشركة"
+                placeholder="كل الشركات"
+                className="w-48"
+                options={[
+                  { value: 'all', label: 'كل الشركات' },
+                  ...((summary?.byCompany || [])
+                    .filter((c) => c.sponsorUnified)
+                    .map((c) => ({
+                      value: String(c.sponsorUnified),
+                      label: String(c.sponsorNameAr || c.sponsorUnified),
+                    })) || []),
+                ]}
+              />
+              <SearchableSelect
+                id="wf-platform"
+                value={filters.platform || 'all'}
+                onChange={(v) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    platform: v === 'all' ? '' : v,
+                  }))
+                }
+                ariaLabel="تصفية المنصة"
+                placeholder="كل المنصات"
+                className="w-40"
+                options={[
+                  { value: 'all', label: 'كل المنصات' },
+                  ...Array.from(
+                    new Set(items.map((r) => r.platform || r.platforms).filter(Boolean) as string[])
+                  ).map((p) => ({ value: p, label: p })),
+                ]}
+              />
+              <SearchableSelect
+                id="wf-city"
+                value={filters.city || 'all'}
+                onChange={(v) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    city: v === 'all' ? '' : v,
+                  }))
+                }
+                ariaLabel="تصفية المدينة"
+                placeholder="كل المدن"
+                className="w-40"
+                options={[
+                  { value: 'all', label: 'كل المدن' },
+                  ...Array.from(new Set(items.map((r) => r.city).filter(Boolean) as string[])).map(
+                    (c) => ({ value: c, label: c })
+                  ),
+                ]}
+              />
             </div>
             <span className="text-xs text-[var(--muted)]">
               الصفحة {page} من {totalPages} · {total} سجل · حجم {pageSize}
             </span>
           </div>
+
+          {(summary?.byCompany?.length ?? 0) > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {summary!.byCompany!.map((card) => (
+                <StatCard
+                  key={card.sponsorUnified || card.sponsorNameAr}
+                  label={card.sponsorNameAr || card.sponsorUnified || 'شركة'}
+                  value={card.totalCount ?? 0}
+                  hint="حسب الشركة"
+                  icon={Building2}
+                  active={filters.sponsorUnified === card.sponsorUnified}
+                  onClick={() =>
+                    applyKpiFilter({
+                      sponsorUnified:
+                        filters.sponsorUnified === card.sponsorUnified
+                          ? ''
+                          : String(card.sponsorUnified || ''),
+                    })
+                  }
+                />
+              ))}
+            </div>
+          ) : null}
 
           {errorMsg ? (
             <ErrorState
@@ -885,6 +1116,26 @@ function WorkforcePageInner() {
               searchable={false}
               syncUrl={false}
               getRowId={(r) => r.id || r.iqama}
+              onExport={async () => {
+                const res = await api.exportWorkforce({
+                  q: debouncedQuery.trim() || undefined,
+                  sponsorship: filters.sponsorship || undefined,
+                  workType: filters.workType || undefined,
+                  status: filters.status || undefined,
+                  sponsorUnified: filters.sponsorUnified || undefined,
+                  platform: filters.platform || undefined,
+                  city: filters.city || undefined,
+                  missingIban: filters.missingIban || undefined,
+                });
+                if (!res.ok) throw new Error('تعذر تصدير الملف');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'workforce-export.xlsx';
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
             />
           )}
         </div>
@@ -1072,7 +1323,7 @@ function WorkforcePageInner() {
                   <div className="p-3 rounded-xl bg-[var(--raised)]/50">
                     <div className="text-[11px] text-[var(--muted)]">إجمالي المتبقي</div>
                     <div className="text-base font-bold num text-[var(--danger)] mt-0.5">
-                      {(profileData.financialPosition?.totalRemainingDebt ?? 0).toLocaleString('en-US', {
+                      {Number(profileData.financialPosition?.totalRemainingDebt ?? 0).toLocaleString('en-US', {
                         minimumFractionDigits: 2,
                       })}{' '}
                       ر.س
@@ -1211,6 +1462,65 @@ function WorkforcePageInner() {
                 />
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'legal' && (
+        <div className="space-y-4">
+          {casesError ? (
+            <ErrorState title="تعذر تحميل القضايا" message={casesError} onRetry={loadLegal} />
+          ) : (
+            <DataTable
+              tableId="workforce-legal"
+              columns={[
+                {
+                  key: 'caseNumber',
+                  header: 'رقم القضية',
+                  render: (r) => (
+                    <span className="font-mono font-bold whitespace-nowrap">
+                      {cellText(r.caseNumber)}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'personName',
+                  header: 'الشخص',
+                  render: (r) => (
+                    <span className="font-semibold whitespace-nowrap">{cellText(r.personName)}</span>
+                  ),
+                },
+                {
+                  key: 'iqama',
+                  header: 'الإقامة',
+                  render: (r) => (
+                    <span className="font-mono whitespace-nowrap" dir="ltr">
+                      {cellText(r.iqama)}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'sponsorNameAr',
+                  header: 'الكفيل',
+                  render: (r) => (
+                    <span className="whitespace-nowrap">{cellText(r.sponsorNameAr)}</span>
+                  ),
+                },
+                {
+                  key: 'status',
+                  header: 'الحالة',
+                  render: (r) => <span className="whitespace-nowrap">{cellText(r.status)}</span>,
+                },
+              ]}
+              data={legalItems}
+              loading={loadingCases}
+              emptyTitle="لا توجد قضايا"
+              emptyDescription="لا توجد قضايا قانونية في المصدر الحالي، أو لا يوجد مصدر بعد."
+              exportFilename="workforce_legal"
+              getRowId={(r) => String(r.id || r.caseNumber)}
+              searchable
+              syncUrl={false}
+            />
           )}
         </div>
       )}
