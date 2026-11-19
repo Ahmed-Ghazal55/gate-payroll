@@ -78,16 +78,14 @@ function SidebarInner({
       ],
     },
     {
-      id: 'riders',
-      label: 'المناديب',
+      id: 'workforce',
+      label: 'القوى العاملة',
       icon: <Users size={18} />,
-      defaultHref: '/riders/',
+      defaultHref: '/workforce/',
       permission: 'riders.view',
       items: [
-        { id: 'riders-list', href: '/riders/?tab=directory', label: 'دليل المناديب' },
-        { id: 'riders-360', href: '/riders/?tab=360', label: 'ملف المندوب 360' },
-        { id: 'riders-statement', href: '/riders/statement/', label: 'كشف حساب المندوب', isNew: true },
-        { id: 'riders-quality', href: '/riders/?tab=quality', label: 'جودة البيانات' },
+        { id: 'wf-directory', href: '/workforce/', label: 'القوى العاملة' },
+        { id: 'wf-statement', href: '/riders/statement/', label: 'كشف حساب المندوب', isNew: true },
       ],
     },
     {
@@ -100,6 +98,7 @@ function SidebarInner({
         { id: 'companies-sponsors', href: '/companies/?tab=companies', label: 'الشركات والكفلاء' },
         { id: 'companies-cr', href: '/companies/?tab=cr', label: 'السجلات التجارية' },
         { id: 'companies-docs', href: '/companies/?tab=expiring', label: 'الوثائق والانتهاءات' },
+        { id: 'hr-catalogs', href: '/hr/catalogs/', label: 'كتالوجات الموارد البشرية', isNew: true },
       ],
     },
     {
@@ -224,6 +223,11 @@ function SidebarInner({
   const getActiveGroupId = () => {
     if (pathname === '/') return 'dashboard';
     const clean = pathname.replace(/\/$/, '');
+    if (clean === '/hr' || clean.startsWith('/hr/')) return 'companies';
+    if (clean === '/riders' || clean.startsWith('/riders/')) {
+      if (clean.startsWith('/riders/statement')) return 'workforce';
+      return 'workforce';
+    }
     const found = navGroups.find((g) => {
       const gPath = g.defaultHref.replace(/\/$/, '');
       if (gPath === '') return clean === '';

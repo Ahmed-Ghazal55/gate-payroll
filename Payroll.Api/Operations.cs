@@ -174,7 +174,7 @@ public static class Operations
         catch(ImportFailure ex) when(ex.Code=="invalid_page"){throw new ApiError("رقم الصفحة وحجمها يجب أن يكونا عددين صحيحين موجبين.");}
         catch(ImportFailure ex) when(ex.Code=="invalid_live_sort"){throw new ApiError("حقل الترتيب غير صالح.");}
     }
-    static LiveOperationsQuery.Scope LiveScope(DbConnection payroll,ClaimsPrincipal actor,string? riderAccountEmployeeId=null,IReadOnlyList<string>? riderAccountProfileIds=null)
+    public static LiveOperationsQuery.Scope LiveScope(DbConnection payroll,ClaimsPrincipal actor,string? riderAccountEmployeeId=null,IReadOnlyList<string>? riderAccountProfileIds=null)
     {
         bool all=FinancialScopes.AllCompanies(actor);
         var sponsors=FinancialCore.Sponsors.Where(s=>FinancialScopes.Sponsor(actor,s.Id)).ToList();

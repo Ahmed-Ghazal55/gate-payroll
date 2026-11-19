@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:41353/"
+      "url": "http://127.0.0.1:40211/"
     }
   ],
   "paths": {
@@ -15300,6 +15300,827 @@
         }
       }
     },
+    "/api/workforce": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "Paged workforce directory (live ERP when configured)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "iqama",
+                          "name"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "phone": {
+                            "type": "string"
+                          },
+                          "nationality": {
+                            "type": "string"
+                          },
+                          "iban": {
+                            "type": "string"
+                          },
+                          "ibanAlert": {
+                            "type": "string"
+                          },
+                          "ibanSource": {
+                            "type": "string"
+                          },
+                          "engagementType": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "sponsorNameAr": {
+                            "type": "string"
+                          },
+                          "sponsor": {
+                            "type": "string"
+                          },
+                          "platform": {
+                            "type": "string"
+                          },
+                          "platforms": {
+                            "type": "string"
+                          },
+                          "platformWorkId": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "string"
+                          },
+                          "workType": {
+                            "type": "string"
+                          },
+                          "mudadSalary": {
+                            "type": "string"
+                          },
+                          "jobTitle": {
+                            "type": "string"
+                          },
+                          "hasCompanyVehicle": {
+                            "type": "boolean"
+                          },
+                          "companyVehicleType": {
+                            "type": "string"
+                          },
+                          "operationalRole": {
+                            "type": "string"
+                          },
+                          "housing": {
+                            "type": "string"
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "summary": {
+                      "required": [
+                        "totalCount",
+                        "sponsoredCount",
+                        "sponsoredRiders",
+                        "sponsoredAdmins",
+                        "sponsoredMissingIban"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "totalCount": {
+                          "type": "number"
+                        },
+                        "sponsoredCount": {
+                          "type": "number"
+                        },
+                        "sponsoredRiders": {
+                          "type": "number"
+                        },
+                        "sponsoredAdmins": {
+                          "type": "number"
+                        },
+                        "sponsoredMissingIban": {
+                          "type": "number"
+                        },
+                        "byCompany": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "sponsorUnified",
+                              "sponsorNameAr",
+                              "totalCount"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "sponsorUnified": {
+                                "type": "string"
+                              },
+                              "sponsorNameAr": {
+                                "type": "string"
+                              },
+                              "totalCount": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workforce/summary": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "KPI counts for workforce filter cards",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "summary",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "summary": {
+                      "required": [
+                        "totalCount",
+                        "sponsoredCount",
+                        "sponsoredRiders",
+                        "sponsoredAdmins",
+                        "sponsoredMissingIban"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "totalCount": {
+                          "type": "number"
+                        },
+                        "sponsoredCount": {
+                          "type": "number"
+                        },
+                        "sponsoredRiders": {
+                          "type": "number"
+                        },
+                        "sponsoredAdmins": {
+                          "type": "number"
+                        },
+                        "sponsoredMissingIban": {
+                          "type": "number"
+                        },
+                        "byCompany": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "sponsorUnified",
+                              "sponsorNameAr",
+                              "totalCount"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "sponsorUnified": {
+                                "type": "string"
+                              },
+                              "sponsorNameAr": {
+                                "type": "string"
+                              },
+                              "totalCount": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workforce/export": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "Server-side Excel export of workforce rows (H21)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workforce/{id}/360": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "Reduced workforce 360 (H6)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "person",
+                    "workRecord3Months",
+                    "financialEvaluation",
+                    "iqamaImage",
+                    "promissoryNotes",
+                    "platformAccounts",
+                    "financialPosition",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "person": {
+                      "required": [
+                        "id",
+                        "iqama",
+                        "name"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "iqama": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "phone": {
+                          "type": "string"
+                        },
+                        "nationality": {
+                          "type": "string"
+                        },
+                        "iban": {
+                          "type": "string"
+                        },
+                        "ibanAlert": {
+                          "type": "string"
+                        },
+                        "ibanSource": {
+                          "type": "string"
+                        },
+                        "engagementType": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "sponsorNameAr": {
+                          "type": "string"
+                        },
+                        "sponsor": {
+                          "type": "string"
+                        },
+                        "platform": {
+                          "type": "string"
+                        },
+                        "platforms": {
+                          "type": "string"
+                        },
+                        "platformWorkId": {
+                          "type": "string"
+                        },
+                        "city": {
+                          "type": "string"
+                        },
+                        "workType": {
+                          "type": "string"
+                        },
+                        "mudadSalary": {
+                          "type": "string"
+                        },
+                        "jobTitle": {
+                          "type": "string"
+                        },
+                        "hasCompanyVehicle": {
+                          "type": "boolean"
+                        },
+                        "companyVehicleType": {
+                          "type": "string"
+                        },
+                        "operationalRole": {
+                          "type": "string"
+                        },
+                        "housing": {
+                          "type": "string"
+                        },
+                        "allowedActions": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "workRecord3Months": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "financialEvaluation": {
+                      "type": "object"
+                    },
+                    "iqamaImage": {
+                      "type": "object"
+                    },
+                    "ibanImage": {
+                      "type": "object"
+                    },
+                    "promissoryNotes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "platformAccounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "legalCases": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "financialPosition": {
+                      "type": "object"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workforce/saudi-payroll-employees": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "Omar GOSI payroll employees (H10)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workforce/terminated": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "Terminated and fleeing people (H11)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workforce/absence-cases": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "Absence compliance cases (H11)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workforce/legal-cases": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "HR legal cases (H11/H20)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workforce/data-quality": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "Workforce data-quality issues from live or store",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hr-catalogs/{kind}": {
+      "get": {
+        "tags": [
+          "HR Catalogs"
+        ],
+        "summary": "Live HR catalogs from Omar ERP (H9)",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/finance/statement/rider/{iqama}/monthly": {
       "get": {
         "tags": [
@@ -16991,26 +17812,6 @@
         }
       }
     },
-    "/api/riders/enrich-missing": {
-      "post": {
-        "tags": [
-          "Riders"
-        ],
-        "summary": "Submit riders enrich missing",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfintAndintAndint"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/riders/data-quality": {
       "get": {
         "tags": [
@@ -17036,7 +17837,7 @@
         "tags": [
           "Riders"
         ],
-        "summary": "Read riders {iqama} profile 360",
+        "summary": "Read reduced riders {iqama} profile 360 (H6)",
         "parameters": [
           {
             "name": "iqama",
@@ -17053,81 +17854,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfJsonObjectAndListOfAnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAndintAndintAndListOfJsonObject"
+                  "$ref": "#/components/schemas/AnonymousTypeOfJsonObjectAndJsonObjectAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndintAndstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndObject[]AndObject[]AndAnonymousTypeOfintAnddecimalAndstringAndstringAndObject[]AndintAndintAnddecimalAndintAndintAndObject[]AndString[]"
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/riders/{iqama}/documents": {
-      "post": {
-        "tags": [
-          "Riders"
-        ],
-        "summary": "Submit riders {iqama} documents",
-        "parameters": [
-          {
-            "name": "iqama",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonObject"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/riders/{iqama}/documents/{id}/download": {
-      "get": {
-        "tags": [
-          "Riders"
-        ],
-        "summary": "Read riders {iqama} documents {id} download",
-        "parameters": [
-          {
-            "name": "iqama",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
           }
         }
       }
@@ -23267,6 +23997,45 @@
           }
         }
       },
+      "AnonymousTypeOfintAnddecimalAndstringAndstring": {
+        "required": [
+          "activeDebtsCount",
+          "totalRemainingDebt",
+          "statementPath",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "activeDebtsCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalRemainingDebt": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "statementPath": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "message": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "AnonymousTypeOfintAndintAnddecimalAnddecimal": {
         "required": [
           "importedCount",
@@ -23354,40 +24123,6 @@
           },
           "settlements": {
             "$ref": "#/components/schemas/JsonArray"
-          }
-        }
-      },
-      "AnonymousTypeOfintAndintAndint": {
-        "required": [
-          "enrichedExisting",
-          "addedFromSources",
-          "totalRidersNow"
-        ],
-        "type": "object",
-        "properties": {
-          "enrichedExisting": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "addedFromSources": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "totalRidersNow": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
           }
         }
       },
@@ -23661,49 +24396,72 @@
           }
         }
       },
-      "AnonymousTypeOfJsonObjectAndJsonObjectAndJsonObject": {
+      "AnonymousTypeOfJsonObjectAndJsonObjectAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndintAndstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndObject[]AndObject[]AndAnonymousTypeOfintAnddecimalAndstringAndstringAndObject[]AndintAndintAnddecimalAndintAndintAndObject[]AndString[]": {
         "required": [
-          "debt",
-          "settlement",
-          "journal"
-        ],
-        "type": "object",
-        "properties": {
-          "debt": {
-            "$ref": "#/components/schemas/JsonObject"
-          },
-          "settlement": {
-            "$ref": "#/components/schemas/JsonObject"
-          },
-          "journal": {
-            "$ref": "#/components/schemas/JsonObject"
-          }
-        }
-      },
-      "AnonymousTypeOfJsonObjectAndListOfAnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAndintAndintAndListOfJsonObject": {
-        "required": [
+          "person",
           "rider",
+          "workRecord3Months",
+          "financialEvaluation",
+          "iqamaImage",
+          "ibanImage",
+          "promissoryNotes",
+          "platformAccounts",
+          "financialPosition",
           "documentChecklist",
           "documentsCount",
           "activeDebtsCount",
           "totalRemainingDebt",
           "workRecordsCount",
           "totalOrders",
-          "submissions"
+          "submissions",
+          "allowedActions"
         ],
         "type": "object",
         "properties": {
+          "person": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
           "rider": {
             "$ref": "#/components/schemas/JsonObject"
           },
-          "documentChecklist": {
+          "workRecord3Months": {
             "type": [
               "null",
               "array"
             ],
             "items": {
-              "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstring"
+              "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndstringAndintAndstringAndstring"
             }
+          },
+          "financialEvaluation": {
+            "$ref": "#/components/schemas/AnonymousTypeOfstringAndstring"
+          },
+          "iqamaImage": {
+            "$ref": "#/components/schemas/AnonymousTypeOfstringAndstring"
+          },
+          "ibanImage": {
+            "$ref": "#/components/schemas/AnonymousTypeOfstringAndstring"
+          },
+          "promissoryNotes": {
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "platformAccounts": {
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "financialPosition": {
+            "$ref": "#/components/schemas/AnonymousTypeOfintAnddecimalAndstringAndstring"
+          },
+          "documentChecklist": {
+            "type": [
+              "null",
+              "array"
+            ]
           },
           "documentsCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -23749,10 +24507,35 @@
             "type": [
               "null",
               "array"
+            ]
+          },
+          "allowedActions": {
+            "type": [
+              "null",
+              "array"
             ],
             "items": {
-              "$ref": "#/components/schemas/JsonObject"
+              "type": "string"
             }
+          }
+        }
+      },
+      "AnonymousTypeOfJsonObjectAndJsonObjectAndJsonObject": {
+        "required": [
+          "debt",
+          "settlement",
+          "journal"
+        ],
+        "type": "object",
+        "properties": {
+          "debt": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "settlement": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "journal": {
+            "$ref": "#/components/schemas/JsonObject"
           }
         }
       },
@@ -24078,6 +24861,27 @@
           }
         }
       },
+      "AnonymousTypeOfstringAndstring": {
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "message": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "AnonymousTypeOfstringAndstringAndIEnumerableOfAnonymousTypeOfstringAndintAndint": {
         "required": [
           "id",
@@ -24305,78 +25109,44 @@
           }
         }
       },
-      "AnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstring": {
+      "AnonymousTypeOfstringAndstringAndstringAndintAndstringAndstring": {
         "required": [
-          "documentTypeId",
-          "code",
-          "nameAr",
-          "requiresExpiry",
-          "isUploaded",
-          "documentId",
-          "documentNumber",
-          "issueDate",
-          "expiryDate",
-          "fileName",
-          "storagePath",
+          "month",
+          "platform",
+          "workDays",
+          "orders",
+          "netDue",
           "status"
         ],
         "type": "object",
         "properties": {
-          "documentTypeId": {
+          "month": {
             "type": [
               "null",
               "string"
             ]
           },
-          "code": {
+          "platform": {
             "type": [
               "null",
               "string"
             ]
           },
-          "nameAr": {
+          "workDays": {
             "type": [
               "null",
               "string"
             ]
           },
-          "requiresExpiry": {
-            "type": "boolean"
-          },
-          "isUploaded": {
-            "type": "boolean"
-          },
-          "documentId": {
+          "orders": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
-              "null",
+              "integer",
               "string"
-            ]
+            ],
+            "format": "int32"
           },
-          "documentNumber": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "issueDate": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "expiryDate": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "fileName": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "storagePath": {
+          "netDue": {
             "type": [
               "null",
               "string"
@@ -25789,6 +26559,12 @@
     },
     {
       "name": "Operations"
+    },
+    {
+      "name": "Workforce"
+    },
+    {
+      "name": "HR Catalogs"
     },
     {
       "name": "Banks and treasury"

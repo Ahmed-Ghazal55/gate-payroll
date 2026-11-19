@@ -128,14 +128,14 @@ try{
  await req(`/api/rider-mobile/broadcasts/${bcast.id}/ack`,{iqama:iq},401,false);
  await req(`/api/rider-mobile/broadcasts/${bcast.id}/ack`,{iqama:iq},200,false,{Authorization:`Bearer ${mobLogin.accessToken}`});
 
- // 7. Rider Data Quality, Missing Data Recovery & 360° Document Checklist (7 ERP Document Types)
+ // 7. Rider data quality + reduced 360 (H6: no document checklist / upload)
  const dq=await req('/api/riders/data-quality');
  assert.equal(dq.totalRiders,1);
- await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',documentNumber:iq,issueDate:'2026-01-01',expiryDate:'2027-01-01',fileName:'iqama.pdf'});
  const p360=await req(`/api/riders/${iq}/profile-360`);
- assert.equal(p360.documentChecklist.length,7);
- assert.equal(p360.documentChecklist.find(d=>d.code==='ResidencyPermit').isUploaded,true);
- assert.equal(p360.documentChecklist.find(d=>d.code==='ResidencyPermit').documentTypeId,'019c18d5-62e1-7000-8000-000000000030');
+ assert.equal(p360.documentChecklist.length,0);
+ assert.equal(p360.iqamaImage.status,'pending_permission');
+ assert.ok(p360.financialPosition.statementPath.includes(iq));
+ await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',fileName:'iqama.pdf'},404);
 
  // 8. Opening Balance Debt Import Sheet (Preview Statement + Commit) & Rider Mobile Portal (/rider-app)
  const obCsv='iqama,riderName,debtorType,category,creditorSponsor,entryMode,allocationMode,totalAmount,priorPaidAmount,companyShareAmount,monthlyInstallment,effectiveFrom,contraAccountCode,sourceRef,notes\r\n2491234567,Opening Balance Rider,Rider,Advance,BW,OpeningBalance,RiderFull,3500,500,0,500,2026-10,3101,OB-TEST-01,Opening balance advance\r\n';
@@ -158,17 +158,13 @@ try{
  await req('/rider-app',undefined,200,false);
  await req(`/api/rider-mobile/portal/${iq}`,undefined,401,false);
  await req(`/api/rider-mobile/portal/2000000002`,undefined,401,false,{Authorization:`Bearer ${mobLogin.accessToken}`});
- const attachment=Buffer.from('%PDF-1.4\nSynthetic private attachment');
- const uploaded=await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',fileName:'rider.pdf',dataBase64:attachment.toString('base64')});
- await req(uploaded.storagePath,undefined,401,false);
- const download=await fetch(base+uploaded.storagePath,{headers:{Cookie:adminCookie}});assert.equal(download.status,200);assert.deepEqual(Buffer.from(await download.arrayBuffer()),attachment);checks++;
- const editedDocument=await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',fileName:'rider.pdf',expiryDate:'2028-01-01'});assert.equal(editedDocument.hasBinary,true);assert.equal(editedDocument.history.length,2);
  const privateResult=await req('/api/system/release-check');assert.equal(privateResult.version,'0.25.2');
  const grantAgain=await req('/api/inquiry-access',{iqama:iq,scope:'mobile',identityReviewed:true});assert.ok(grantAgain.url.includes('#access_code='));
  // New financial surfaces retain original staff-role isolation.
  await req('/api/auth/login',{username:'test-reviewer',password});
- for(const route of ['/api/finance/journals','/api/debts',`/api/riders/${iq}/profile-360`,uploaded.storagePath,'/api/system/release-check'])await req(route,undefined,403);
+ for(const route of ['/api/finance/journals','/api/debts',`/api/riders/${iq}/profile-360`,'/api/system/release-check'])await req(route,undefined,403);
  cookie=adminCookie;
+ checks++;
 
  // 9. Treasury & Chart of Accounts Hierarchy + Jahez Box Financial Isolation + Operation-Specific Account Filtering
  // 9.a: Reject using Jahez Cashbox (SUP.*), Jahez Fee Account (*.FEE), or PetroApp (PETRO.*) in HR Requests or Advances

@@ -74,10 +74,17 @@ public static partial class AccessPolicy
         }
         if(path=="/api/dashboard")return method=="GET"&&Has("payroll.view");
         if(path.StartsWith("/api/system/",StringComparison.Ordinal))return false;
-        if(path=="/api/riders/enrich-missing")return false;
         if(path=="/api/riders/lookup")return method=="GET"; // RiderLookup.Allowed re-checks the picker permissions in the handler.
         if(path=="/api/riders/data-quality"||path=="/api/riders")return method=="GET"?Has("riders.view"):method=="POST"&&Has("riders.edit");
-        if(path.StartsWith("/api/riders/",StringComparison.Ordinal))return path.EndsWith("/profile-360",StringComparison.Ordinal)?method=="GET"&&Has("riders.view_360")&&Has("debts.view"):method=="GET"?Has("riders.view_360"):method=="POST"&&path.EndsWith("/documents",StringComparison.Ordinal)&&Has("riders.edit");
+        if(path=="/api/workforce"||path=="/api/workforce/summary"||path=="/api/workforce/export"||path=="/api/workforce/data-quality"||path=="/api/workforce/saudi-payroll-employees"||path=="/api/workforce/terminated"||path=="/api/workforce/absence-cases")return method=="GET"&&Has("riders.view");
+        if(path=="/api/workforce/legal-cases")return method=="GET"&&Has("riders.legal_cases.view");
+        if(path.StartsWith("/api/workforce/",StringComparison.Ordinal)&&path.EndsWith("/360",StringComparison.Ordinal))return method=="GET"&&Has("riders.view_360")&&Has("debts.view");
+        if(path.StartsWith("/api/hr-catalogs/",StringComparison.Ordinal))return method=="GET"&&Has("riders.view");
+        if(path.StartsWith("/api/riders/",StringComparison.Ordinal))
+        {
+            if(path.EndsWith("/profile-360",StringComparison.Ordinal))return method=="GET"&&Has("riders.view_360")&&Has("debts.view");
+            return method=="GET"&&Has("riders.view_360");
+        }
         if(path.StartsWith("/api/debts",StringComparison.Ordinal))
         {
             if(path.Contains("/reconcile-opening/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");

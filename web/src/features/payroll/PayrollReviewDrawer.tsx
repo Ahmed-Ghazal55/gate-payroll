@@ -59,11 +59,6 @@ export function PayrollReviewDrawer({
 
   if (!row) return null;
 
-  const maskIqama = (iqama: string) => {
-    if (!iqama || iqama.length < 6) return iqama;
-    return `${iqama.slice(0, 4)}****${iqama.slice(-2)}`;
-  };
-
   const handleApprove = async () => {
     setSubmitting(true);
     try {
@@ -153,7 +148,7 @@ export function PayrollReviewDrawer({
       open={open}
       onClose={onClose}
       title={row.name || 'مراجعة استحقاق المندوب'}
-      subtitle={`رقم الهوية / الإقامة: ${maskIqama(row.rider)}`}
+      subtitle={`رقم الهوية / الإقامة: ${row.rider}`}
       width="max-w-md sm:max-w-2xl"
       footer={
         <div className="flex items-center justify-between w-full">

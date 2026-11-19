@@ -58,11 +58,6 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
     }
   }, [cycleId, fetchReviewData]);
 
-  const maskIqama = (iqama: string) => {
-    if (!iqama || iqama.length < 6) return iqama;
-    return `${iqama.slice(0, 4)}****${iqama.slice(-2)}`;
-  };
-
   const handleBulkApprove = async () => {
     setBulkSubmitting(true);
     try {
@@ -121,7 +116,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
             className="cursor-pointer hover:underline"
           >
             <div className="font-bold text-[var(--ink)]">{row.name || '—'}</div>
-            <div className="font-mono text-[10px] text-[var(--muted)]">{maskIqama(row.rider)}</div>
+            <div className="font-mono text-[10px] text-[var(--muted)]" dir="ltr">{row.rider}</div>
           </div>
         ),
       },

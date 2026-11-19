@@ -24,6 +24,8 @@ public sealed class HttpContractTests
     [DataRow("submissions.mjs",true)]
     [DataRow("integration.mjs",true)]
     [DataRow("enterprise.mjs",true)]
+    [DataRow("workforce.mjs",false)]
+    [DataRow("workforce.mjs",true)]
     public async Task HttpContractsRunUnderDotnetTest(string script,bool sqlServer)
     {
         string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));

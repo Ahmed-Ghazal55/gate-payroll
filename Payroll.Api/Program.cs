@@ -159,6 +159,7 @@ PayAssignments.Map(api,store);
 PayCycles.Map(api,store,builder.Configuration,app.Environment);
 PayReviewDraft.Map(api,store,app.Configuration,app.Environment);
 Operations.Map(api,store,app.Configuration,app.Environment);
+WorkforceApi.Map(api,store,app.Configuration,app.Environment);
 PayStatements.Map(app,api,store);
 HungerStationInvoices.MapImports(api,store);
 HungerStationInvoices.MapReview(api,store);
