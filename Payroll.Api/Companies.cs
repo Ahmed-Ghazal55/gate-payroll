@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 namespace Payroll;
 
 // Additive documents. The existing sponsor key remains the legal-entity key.
-public static class Companies
+public static partial class Companies
 {
     static string Actor(ClaimsPrincipal user)=>user.Identity?.Name??"system";
     public static void Seed(Store store)=>store.Write((c,tx)=>
@@ -93,9 +93,10 @@ public static class Companies
         AccessPolicy.Demand(user,"companies.manage");var doc=kind=="company"?Get(c,tx,id,user):Child(c,tx,companyId,id,kind,user);doc["status"]="archived";
         Store.Save(c,kind,doc,tx);Store.Audit(c,tx,kind+".archived",id,Actor(user));return new{ok=true}; // Retain financial references and original attachments.
     }
-    public static void Map(RouteGroupBuilder api,Store store)
+    public static void Map(RouteGroupBuilder api,Store store,IConfiguration? config=null,IHostEnvironment? env=null)
     {
         api.MapGet("/companies",(HttpContext ctx)=>store.Read(c=>ApiPagination.Apply(List(c,ctx.User),ctx.Request.Query))).WithTags("Companies and registrations").WithSummary("List companies within the current legal-entity scope");
+        api.MapGet("/companies/stats",(HttpContext ctx)=>Stats(store,config,env,ctx)).WithTags("Companies and registrations").WithSummary("Live sponsorships and platform-account counts per company within scope");
         api.MapGet("/companies/expiring",(int? days,HttpContext ctx)=>store.Read(c=>
         {
             int window=days??60;J.Need(window is >=0 and <=3650,"عدد الأيام غير صالح.");var end=DateOnly.FromDateTime(DateTime.UtcNow).AddDays(window);

@@ -46,7 +46,7 @@ public static class WorkforceLiveQuery
         string sponsorship = Get(query, "sponsorship");
         string workType = Get(query, "workType");
         string status = Get(query, "status");
-        string sponsor = Get(query, "sponsorUnified", Get(query, "companyId"));
+        string sponsor = Get(query, "sponsorUnified", Get(query, "companyId", Get(query, "company")));
         string platform = Get(query, "platform");
         string city = Get(query, "city");
         bool missingIban = query.TryGetValue("missingIban", out var mi) && (mi == "1" || mi.Equals("true", StringComparison.OrdinalIgnoreCase));
