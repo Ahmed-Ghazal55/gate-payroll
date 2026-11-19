@@ -31,4 +31,37 @@ public sealed class PayStatementTests
     {
         using var f=new PayFixture();f.Store.Write((c,tx)=>{Store.Save(c,"rider",new(){["id"]=Rider(1),["status"]="Active"},tx);return true;});var valid=Session(f,Rider(1));valid.Request.QueryString=new("?period=2026-10&iqama="+Rider(2));Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>PayStatements.Mobile(c,valid,"2026-10")));var expired=Session(f,Rider(1),DateTimeOffset.UtcNow.AddMinutes(-1).ToString("O"));Assert.AreEqual(401,Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>PayStatements.Mobile(c,expired,"2026-10"))).Status);Assert.AreEqual(401,Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>PayStatements.Mobile(c,new DefaultHttpContext(),"2026-10"))).Status);var active=Session(f,Rider(1));f.Store.Write((c,tx)=>{var person=Store.Get(c,Rider(1),"rider",tx)!;person["status"]="Suspended";Store.Save(c,"rider",person,tx);return true;});Assert.AreEqual(401,Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>PayStatements.Mobile(c,active,"2026-10"))).Status);
     }
+    [TestMethod]
+    public void ShortStatementLinesPreserveStoredSignForCreditAdjustmentsAndRefunds()
+    {
+        using var f=new PayFixture();string id=Rider(9);
+        f.Store.Write((c,tx)=>
+        {
+            Store.Save(c,"rider",new(){["id"]=id,["iqama"]=id,["status"]="Active",["sponsorId"]=FinancialCore.Sponsors[0].Id,["name"]="Synthetic Sign Rider"},tx);
+            Store.Save(c,PayCycles.Kind,new()
+            {
+                ["id"]="syn-cycle-sign",["companyId"]=FinancialCore.Sponsors[0].Id,["period"]="2026-10",["status"]="approved",["stage"]=8,["approvedAt"]="2026-11-01T00:00:00Z",
+                ["deductions"]=new JsonArray(
+                    new JsonObject{["rider"]=id,["category"]="debt_installment",["amount"]=-150m,["labelAr"]="قسط مديونية"},
+                    new JsonObject{["rider"]=id,["category"]="adjustment",["amount"]=75m,["labelAr"]="رد مبلغ إضافي"}
+                ),
+                ["riders"]=new JsonArray(new JsonObject{["rider"]=id,["net"]=925m,["carried"]=0m,["closing"]=925m,["salaryApprovedAt"]="2026-11-01T00:00:00Z"})
+            },tx);
+            Store.Save(c,PayCycles.LineKind,new()
+            {
+                ["id"]="syn-line-sign",["cycleId"]="syn-cycle-sign",["companyId"]=FinancialCore.Sponsors[0].Id,["rider"]=id,["period"]="2026-10",
+                ["app"]="keeta",["platformGross"]=1200m,["incentives"]=0m,["gross"]=1000m,["companyCommission"]=200m,["entitlement"]=1000m,["vehicleCharge"]=0m,["accountDeduction"]=0m,["status"]="ready"
+            },tx);
+            return true;
+        });
+        var mobile=Session(f,id);
+        var stmt=f.Store.Read(c=>PayStatements.Mobile(c,mobile,"2026-10"));
+        var shortLines=stmt["shortLines"]!.AsArray().OfType<JsonObject>().ToList();
+        var refundLine=shortLines.Single(l=>l.S("key").Contains("adjustment"));
+        Assert.AreEqual(75m,refundLine.N("amount"));
+        Assert.AreEqual("credit",refundLine.S("direction"));
+        Assert.AreEqual("لك",refundLine.S("markerAr"));
+        Assert.AreEqual(925m,shortLines.Last().N("runningBalance"));
+        Assert.AreEqual(stmt.N("closing"),shortLines.Last().N("runningBalance"));
+    }
 }

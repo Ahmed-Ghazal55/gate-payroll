@@ -157,8 +157,7 @@ public static class PayStatements
             dedIdx++;
             string cat=d.S("category");
             var (dAr,dEn,dUr)=DeductionLabels(cat,d.S("labelAr",d.S("description")));
-            decimal raw=d.N("amount");
-            decimal signed=raw<=0m?raw:-raw;
+            decimal signed=d.N("amount");
             AddLine($"ded_{dedIdx}_{cat}",dAr,dEn,dUr,signed);
         }
         return items;
