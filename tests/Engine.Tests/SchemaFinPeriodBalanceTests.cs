@@ -63,7 +63,7 @@ public sealed class SchemaFinPeriodBalanceTests
             VALUES(@id,@pid,@pm,@cid,@aid,@cc,'none',@dim2,0,2,0,2,datetime('now'))
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",k.Period),("@pm","2026-11-01"),("@cid",k.Company),("@aid",k.Account),("@cc",cc),("@dim2",otherHash)),
             "UQ_fin_period_balance_dims",sqliteToken:"fin_period_balance.period_id, fin_period_balance.company_id, fin_period_balance.account_id, fin_period_balance.cost_centre_id, fin_period_balance.app_code");
-        // Short hash rejected by length CHECK
+        // Short hash rejected by length CHECK (SQLite stores caller BLOB; SQL Server never accepts a supplied key)
         SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
             INSERT INTO fin_period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
             VALUES(@id,@pid,@pm,@cid,@aid,@cc,'ninja',@short,0,0,0,0,datetime('now'))
@@ -125,26 +125,45 @@ public sealed class SchemaFinPeriodBalanceTests
         string accTable=sql?"fin.account":"fin_account";
         string balTable=sql?"fin.period_balance":"fin_period_balance";
         string now=sql?"SYSUTCDATETIME()":"datetime('now')";
-        // Ensure FKs: company, period, and a synthetic postable account matching the fixed GUID when possible.
         SchemaSql.Exec(c,null,$"INSERT INTO {coTable}(id,code,unified_number,name_ar,status,created_at) VALUES(@id,@code,@un,'n',1,{now})",
             ("@id",SchemaSql.GuidText(company)),("@code","H"+Guid.NewGuid().ToString("N")[..6]),("@un","U"+Guid.NewGuid().ToString("N")[..6]));
         string period=SchemaSql.GuidText(SchemaSql.NewId());
         SchemaSql.Exec(c,null,$"INSERT INTO {perTable}(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-11-01',1,{now})",
             ("@id",period),("@cid",SchemaSql.GuidText(company)));
-        // Use an existing postable account id from seed for FK; hash still uses the fixed account GUID only when inserting with that id.
-        // For the cross-provider proof we insert with the fixed GUIDs as the dimension inputs via ComputeDimensionKey,
-        // and store a row whose raw dims match those GUIDs — so create a dedicated postable account with that id.
         SchemaSql.Exec(c,null,$"""
             INSERT INTO {accTable}(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at)
             VALUES(@id,@code,'hash-probe',5,1,1,1,1,0,1,{now})
             """,("@id",SchemaSql.GuidText(account)),("@code","9"+Guid.NewGuid().ToString("N")[..7]));
         byte[] dim=SchemaFinPeriodBalance.ComputeDimensionKey(company,account,cc,"none");
         CollectionAssert.AreEqual(expected,dim);
-        SchemaSql.Exec(c,null,$"""
-            INSERT INTO {balTable}(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
-            VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'none',@dim,0,0,0,0,{now})
-            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@cid",SchemaSql.GuidText(company)),
-            ("@aid",SchemaSql.GuidText(account)),("@cc",SchemaSql.GuidText(cc)),("@dim",dim));
+        if(sql)
+        {
+            // SQL Server: dimension_key is PERSISTED — omit from INSERT; caller-supplied values are impossible.
+            SchemaSql.Exec(c,null,$"""
+                INSERT INTO {balTable}(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,opening,debit,credit,closing,created_at)
+                VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'none',0,0,0,0,{now})
+                """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@cid",SchemaSql.GuidText(company)),
+                ("@aid",SchemaSql.GuidText(account)),("@cc",SchemaSql.GuidText(cc)));
+            // Explicit dimension_key column in INSERT is rejected (computed column)
+            try
+            {
+                SchemaSql.Exec(c,null,$"""
+                    INSERT INTO {balTable}(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
+                    VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'ninja',@dim,0,0,0,0,{now})
+                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@cid",SchemaSql.GuidText(company)),
+                    ("@aid",SchemaSql.GuidText(account)),("@cc",SchemaSql.GuidText(cc)),("@dim",dim));
+                Assert.Fail("Expected SQL Server to reject insert into computed dimension_key.");
+            }
+            catch(SqlException){/* computed column — caller cannot supply */}
+        }
+        else
+        {
+            SchemaSql.Exec(c,null,$"""
+                INSERT INTO {balTable}(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
+                VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'none',@dim,0,0,0,0,{now})
+                """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@cid",SchemaSql.GuidText(company)),
+                ("@aid",SchemaSql.GuidText(account)),("@cc",SchemaSql.GuidText(cc)),("@dim",dim));
+        }
         object? raw=SchemaSql.Scalar(c,null,$"SELECT dimension_key FROM {balTable} WHERE company_id=@cid AND account_id=@aid",
             ("@cid",SchemaSql.GuidText(company)),("@aid",SchemaSql.GuidText(account)));
         byte[] stored=raw switch
@@ -194,15 +213,19 @@ public sealed class SchemaFinPeriodBalanceTests
                 Guid accountG=Guid.Parse(account);
                 Guid ccG=SchemaOrgCostCentre.NoneId;
                 string cc=SchemaSql.GuidText(ccG);
-                byte[] dim=SchemaFinPeriodBalance.ComputeDimensionKey(companyG,accountG,ccG,"none");
+                byte[] expected=SchemaFinPeriodBalance.ComputeDimensionKey(companyG,accountG,ccG,"none");
                 SchemaSql.Exec(c,null,"""
-                    INSERT INTO fin.period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
-                    VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'none',@dim,0,0,0,0,SYSUTCDATETIME())
-                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@cid",company),("@aid",account),("@cc",cc),("@dim",dim));
-                Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,"""
-                    INSERT INTO fin.period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
-                    VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'none',@dim,0,1,0,1,SYSUTCDATETIME())
-                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@cid",company),("@aid",account),("@cc",cc),("@dim",dim)));
+                    INSERT INTO fin.period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,opening,debit,credit,closing,created_at)
+                    VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'none',0,0,0,0,SYSUTCDATETIME())
+                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@cid",company),("@aid",account),("@cc",cc));
+                object? raw=SchemaSql.Scalar(c,null,"SELECT dimension_key FROM fin.period_balance WHERE company_id=@cid AND account_id=@aid",
+                    ("@cid",company),("@aid",account));
+                CollectionAssert.AreEqual(expected,(byte[])raw!);
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
+                    INSERT INTO fin.period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,opening,debit,credit,closing,created_at)
+                    VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'none',0,1,0,1,SYSUTCDATETIME())
+                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@cid",company),("@aid",account),("@cc",cc)),
+                    "UQ_fin_period_balance_grain");
                 return true;
             });
         }

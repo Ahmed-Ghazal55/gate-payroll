@@ -3,7 +3,8 @@ using System.Security.Cryptography;
 using System.Text;
 namespace Payroll;
 
-/// <summary>U-W1-10: fin.period_balance with non-null dimension_key grain. Design §7.1 N4 / §16. No backfill; balances filled by posting service later.</summary>
+/// <summary>U-W1-10: fin.period_balance with non-null dimension_key grain. Design §7.1 N4 / §16. No backfill; balances filled by posting service later.
+/// dimension_key is never caller-supplied on SQL Server (PERSISTED HASHBYTES). On SQLite the shared C# helper computes the 32-byte BLOB and CHECK enforces length.</summary>
 public static class SchemaFinPeriodBalance
 {
     public static void Ensure(DbConnection c,DbTransaction? tx=null)
@@ -16,12 +17,16 @@ public static class SchemaFinPeriodBalance
     public static string CanonicalDimensionString(Guid companyId,Guid accountId,Guid costCentreId,string appCode)
         =>$"{companyId:D}|{accountId:D}|{costCentreId:D}|{appCode}";
 
-    /// <summary>SHA-256 of the canonical dimension string — always 32 bytes; identical on every runtime.</summary>
+    /// <summary>SHA-256 of the canonical dimension string — always 32 bytes; identical on every runtime. Shared by SQLite inserts and SQL Server HASHBYTES expression.</summary>
     public static byte[] ComputeDimensionKey(Guid companyId,Guid accountId,Guid costCentreId,string appCode)
     {
         string canon=CanonicalDimensionString(companyId,accountId,costCentreId,appCode);
         return SHA256.HashData(Encoding.UTF8.GetBytes(canon));
     }
+
+    /// <summary>SQL Server PERSISTED expression — must match <see cref="CanonicalDimensionString"/> byte-for-byte (ASCII/UTF-8 for these chars).</summary>
+    public static string SqlServerDimensionKeyExpression =>
+        "CAST(HASHBYTES('SHA2_256', LOWER(CONVERT(varchar(36), company_id)) + '|' + LOWER(CONVERT(varchar(36), account_id)) + '|' + LOWER(CONVERT(varchar(36), cost_centre_id)) + '|' + CONVERT(varchar(20), app_code)) AS binary(32))";
 
     static void EnsureBalance(DbConnection c,DbTransaction? tx)
     {
@@ -31,8 +36,6 @@ public static class SchemaFinPeriodBalance
         string company=SchemaSql.Q(c,"hr","company");
         string cc=SchemaSql.Q(c,"org","cost_centre");
         string money=SchemaSql.Decimal(c);
-        string dim=SchemaSql.IsSql(c)?"binary(32)":"BLOB";
-        string lenCheck=SchemaSql.IsSql(c)?"DATALENGTH(dimension_key) = 32":"length(dimension_key) = 32";
         if(SchemaSql.IsSql(c))
         {
             SchemaSql.Exec(c,tx,$"""
@@ -45,7 +48,7 @@ public static class SchemaFinPeriodBalance
                   account_id {g} NOT NULL,
                   cost_centre_id {g} NOT NULL,
                   app_code varchar(20) NOT NULL,
-                  dimension_key {dim} NOT NULL,
+                  dimension_key AS ({SqlServerDimensionKeyExpression}) PERSISTED,
                   opening {money} NOT NULL CONSTRAINT DF_fin_pb_opening DEFAULT(0),
                   debit {money} NOT NULL CONSTRAINT DF_fin_pb_debit DEFAULT(0),
                   credit {money} NOT NULL CONSTRAINT DF_fin_pb_credit DEFAULT(0),
@@ -55,7 +58,6 @@ public static class SchemaFinPeriodBalance
                   CONSTRAINT UQ_fin_period_balance_grain UNIQUE (period_id, dimension_key),
                   CONSTRAINT UQ_fin_period_balance_dims UNIQUE (period_id, company_id, account_id, cost_centre_id, app_code),
                   CONSTRAINT CK_fin_period_balance_app CHECK (app_code <> ''),
-                  CONSTRAINT CK_fin_period_balance_dim_len CHECK ({lenCheck}),
                   CONSTRAINT FK_fin_pb_period_company FOREIGN KEY (company_id, period_id) REFERENCES {period}(company_id, id),
                   CONSTRAINT FK_fin_pb_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_pb_account FOREIGN KEY (account_id) REFERENCES {account}(id),
@@ -91,7 +93,7 @@ public static class SchemaFinPeriodBalance
                   CONSTRAINT UQ_fin_period_balance_grain UNIQUE (period_id, dimension_key),
                   CONSTRAINT UQ_fin_period_balance_dims UNIQUE (period_id, company_id, account_id, cost_centre_id, app_code),
                   CONSTRAINT CK_fin_period_balance_app CHECK (app_code <> ''),
-                  CONSTRAINT CK_fin_period_balance_dim_len CHECK ({lenCheck}),
+                  CONSTRAINT CK_fin_period_balance_dim_len CHECK (length(dimension_key) = 32),
                   CONSTRAINT FK_fin_pb_period_company FOREIGN KEY (company_id, period_id) REFERENCES {period}(company_id, id),
                   CONSTRAINT FK_fin_pb_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_pb_account FOREIGN KEY (account_id) REFERENCES {account}(id),
