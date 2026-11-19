@@ -1218,7 +1218,7 @@ public static class FinancialCore
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>تطبيق مندوب البوابة — الكشوف والمديونيات والإشعارات</title>
+  <title>بوابة المندوب — الكشوف والمديونيات والإشعارات</title>
   <link rel="stylesheet" href="/app.css">
   <style>
     body { background: var(--bg); color: var(--ink); font-family: inherit; margin: 0; padding: 16px; }
@@ -1284,7 +1284,7 @@ public static class FinancialCore
             <select name="language">
               <option value="ar">العربية (Arabic)</option>
               <option value="en">English</option>
-              <option value="bn">বাংলা (Bengali)</option>
+              <option value="ur">اردو (Urdu)</option>
             </select>
           </label>
           <button class="full good">التحقق والدخول إلى حسابي</button>
@@ -1338,7 +1338,7 @@ public static class FinancialCore
       <div class="mob-head">
         <div>
           <strong>${esc(r.name || session.iqama)}</strong>
-          <div class="muted small number">${esc(r.iqama)} · ${esc(r.sponsor || 'شركة البوابة')}</div>
+          <div class="muted small number">${esc(r.iqama)}</div>
         </div>
         <button class="secondary small" id="mob-logout">خروج</button>
       </div>
@@ -1472,7 +1472,7 @@ public static class FinancialCore
               <strong>${esc(d.categoryAr)}</strong>
               <span class="tag ${d.status === 'settled' ? 'good' : 'warn'}">${esc(d.status === 'settled' ? 'مسدد' : 'نشط')}</span>
             </div>
-            <div class="small muted">السجل الدائن: ${esc(d.creditorSponsorNameAr)} · بداية الاستقطاع: ${esc(d.effectiveFrom)}</div>
+            <div class="small muted">بداية الاستقطاع: ${esc(d.effectiveFrom)} · ${Number(d.remainingBalance) > 0 ? 'عليك' : 'مسدد'}</div>
             <div class="small number" style="margin-top:4px">
               الإجمالي: <b>${money(d.totalAmount)}</b> · المسدد: <b class="money-positive">${money(d.paidAmount)}</b> · الإعفاء: <b>${money(d.waivedAmount)}</b> · المتبقي: <b class="money-negative">${money(d.remainingBalance)} ر.س</b> (القسط: ${money(d.monthlyInstallment)})
             </div>
