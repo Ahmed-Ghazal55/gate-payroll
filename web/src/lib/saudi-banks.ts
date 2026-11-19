@@ -52,6 +52,12 @@ export const isValidSaudiIban = (iban?: string): boolean => {
   return remainder === 1;
 };
 
+/** Short bank code (SWIFT prefix, about 4 capital letters) of a Saudi IBAN, or '' when unknown. */
+export const bankShortCodeOfIban = (iban?: string): string => BANKS[bankCodeOfIban(iban)]?.swift ?? '';
+
+/** Arabic bank name of a Saudi IBAN, or '' when unknown. */
+export const bankNameOfIban = (iban?: string): string => BANKS[bankCodeOfIban(iban)]?.ar ?? '';
+
 /**
  * The bank name shown to the user: Arabic name plus the short SWIFT code.
  * Order: the API's bank code, then the code inside the IBAN, then the API's own bank text.

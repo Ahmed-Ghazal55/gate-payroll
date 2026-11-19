@@ -133,7 +133,7 @@ export default function DashboardPage() {
                 isPositive: data.pendingResponses === 0,
               }}
               onClick={() => {
-                window.location.href = '/app/forms/?tab=responses';
+                window.location.href = '/app/rider-app/?tab=responses';
               }}
             />
 
@@ -249,7 +249,7 @@ export default function DashboardPage() {
 
                 <div className="flex flex-col gap-2">
                   <Link
-                    href={inApp('/forms/?tab=campaigns')}
+                    href={inApp('/rider-app/?tab=campaigns')}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:opacity-90 transition shadow-xs"
                   >
                     <span>إنشاء حملة نماذج جديدة</span>
@@ -257,7 +257,7 @@ export default function DashboardPage() {
                   </Link>
 
                   <Link
-                    href={inApp('/forms/?tab=responses')}
+                    href={inApp('/rider-app/?tab=responses')}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] rounded-lg border border-[var(--line)] transition"
                   >
                     <span>صندوق مراجعة الردود</span>

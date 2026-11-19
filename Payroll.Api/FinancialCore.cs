@@ -932,12 +932,31 @@ public static class FinancialCore
             }
             if (ctx.User.Identity?.IsAuthenticated != true) throw new ApiError("سجل الدخول.", 401);
             AccessPolicy.Demand(ctx.User, "mobile.broadcast");
-            return store.Read(c => ApiPagination.Apply(
-                Store.List(c, "mobile_broadcast")
-                    .Where(b => b.S("targetIqama") == "ALL" || Store.Get(c, b.S("targetIqama"), "rider") is { } rider && FinancialScopes.Rider(ctx.User, rider) || AccessPolicy.Administrator(ctx.User))
-                    .OrderByDescending(b => b.S("createdAt"))
-                    .ToList(),
-                ctx.Request.Query));
+            return store.Read(c =>
+            {
+                // R7 history tab: kind/category filters run in SQL; targeted rows stay inside the caller's rider scope.
+                var filters = new List<(string, string)>();
+                string kindFilter = ctx.Request.Query["kind"].ToString().Trim(), categoryFilter = ctx.Request.Query["category"].ToString().Trim();
+                if (kindFilter.Length > 0) filters.Add(("kind", kindFilter));
+                if (categoryFilter.Length > 0) filters.Add(("category", categoryFilter));
+                var rows = Store.ListWhere(c, "mobile_broadcast", null, null, filters.ToArray());
+                bool wide = AccessPolicy.Administrator(ctx.User) || FinancialScopes.AllCompanies(ctx.User);
+                var riders = wide ? new Dictionary<string, JsonObject>(StringComparer.Ordinal)
+                    : Store.ListByIds(c, "rider", rows.Select(b => b.S("targetIqama")).Where(t => t != "ALL").ToList())
+                        .GroupBy(r => r.S("id"), StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+                var visible = rows
+                    .Where(b => wide || b.S("targetIqama") == "ALL" || riders.TryGetValue(b.S("targetIqama"), out var rider) && FinancialScopes.Rider(ctx.User, rider))
+                    .OrderByDescending(b => b.S("createdAt"), StringComparer.Ordinal)
+                    .Select(b =>
+                    {
+                        var v = b.Clone();
+                        v["ackCount"] = (b["acknowledgedBy"] as JsonArray)?.Count ?? 0;
+                        v["readCount"] = (b["readReceipts"] as JsonArray)?.Count ?? 0;
+                        return v;
+                    })
+                    .ToList();
+                return ApiPagination.Apply(visible, ctx.Request.Query);
+            });
         }).WithTags("Riders").WithSummary("Read scoped broadcasts with a staff cookie or active rider bearer token");
 
         // إعدادات ربط Firebase Cloud Messaging (FCM) وتطبيق Google Play

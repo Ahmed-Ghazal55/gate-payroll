@@ -22,6 +22,7 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
 import { bankLabel, cleanIban } from '../../lib/saudi-banks';
+import { splitForExport } from '../../lib/export-split';
 import { IbanDisplay } from '../../components/ui/IbanDisplay';
 import { ReviewDrawer } from './ReviewDrawer';
 
@@ -165,7 +166,8 @@ export function ResponsesTab({
   const handleExport = async (format: 'excel-all' | 'excel-filtered' | 'csv-filtered') => {
     setExportLoading(true);
     const targetRows = format === 'excel-all' ? submissions : filteredSubmissions;
-    const headers = ['اسم المندوب', 'الإقامة', 'البيان/الآيبان', 'البنك', 'النظام', 'الحملة', 'الحالة', 'التاريخ'];
+    // R1: IBAN and work system are separate columns; api.exportExcel adds bank code and bank name after the IBAN.
+    const headers = ['اسم المندوب', 'الإقامة', 'الآيبان', 'النظام', 'الحملة', 'الحالة', 'التاريخ'];
 
     // Formula injection guard matching Frontend/src/table-tools.ts:86
     const sanitize = (val: string) => {
@@ -177,9 +179,8 @@ export function ResponsesTab({
       sanitize(s.name),
       sanitize(s.iqama),
       // Export the IBAN as one unbroken value so it can be copied into a bank form as is.
-      sanitize(s.iban ? cleanIban(s.iban) : s.workSystem || '—'),
-      sanitize(s.iban ? bankLabel(s) : '—'),
-      sanitize(s.workSystem || '—'),
+      s.iban ? cleanIban(s.iban) : '',
+      sanitize(s.workSystem || ''),
       sanitize(campaignName(s)),
       sanitize(s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'),
       sanitize(s.createdAt ? new Date(s.createdAt).toLocaleDateString('ar-SA') : '—'),
@@ -187,11 +188,12 @@ export function ResponsesTab({
 
     try {
       if (format === 'csv-filtered') {
-        // Client-side CSV generation with UTF-8 BOM and formula guard
+        // Client-side CSV generation with UTF-8 BOM and formula guard; same column split as Excel.
+        const table = splitForExport(headers, rows);
         const quote = (v: any) => `"${String(v).replace(/"/g, '""')}"`;
         const csvContent =
           '\uFEFF' +
-          [headers.map(quote).join(','), ...rows.map((r) => r.map(quote).join(','))].join('\r\n');
+          [table.headers.map(quote).join(','), ...table.rows.map((r) => r.map(quote).join(','))].join('\r\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -205,7 +207,7 @@ export function ResponsesTab({
         const blob = await api.exportExcel({
           headers,
           rows,
-          numericColumns: [1], // iqama column
+          numericColumns: [], // iqama and IBAN stay text
           filename: `responses-${format}.xlsx`,
         });
         const url = URL.createObjectURL(blob);
@@ -247,6 +249,10 @@ export function ResponsesTab({
       key: 'choice',
       header: 'البيان / الآيبان',
       getValue: (s) => (s.iban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : workSystemLabel(s)),
+      exportColumns: [
+        { header: 'الآيبان', value: (s) => (s.iban ? cleanIban(s.iban) : '') },
+        { header: 'نظام العمل', value: (s) => (s.iban ? '' : workSystemLabel(s)) },
+      ],
       render: (s) =>
         s.iban ? (
           <IbanDisplay iban={s.iban} bankCode={s.bankCode} bank={s.bank} />

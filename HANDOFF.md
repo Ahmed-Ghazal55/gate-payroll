@@ -31,6 +31,9 @@ npm --prefix web run build
 ## Release 0.25.0 (2026-11-19, Claude planner)
 - Rider app v2 (`feat/rider-app-v2`): 3-language short statement, notices with read receipts, two-way requests, annual leave form, push in rider language, rate limits. Rider indexes on live are created ONLY by the admin job `POST /api/system/maintenance/rider-indexes` (run off-hours). Ops: grant the 3 new permissions to two different reviewers (`docs/rider-app/RELEASE-NOTES-OPS.md`).
 
+## Release 0.28.0 (2026-11-19, Claude pro2 deputy)
+- Forms + rider-app admin as one section «تطبيق المناديب والنماذج» (`feat/forms-app-admin`, R1–R4, R7 notices, U-W3-16/17, X12): 8 sidebar entries, Excel IBAN split, individual-only notices, requests queue, statements notify (`docs/runbooks/RELEASE-0.28.0.md`). Built by Claude (Cursor CLI was not permitted in that session). Bank/Mudad files and request-approval policy wait for Ghazal.
+
 ## Release 0.27.0 (2026-11-19, Claude pro2 deputy)
 - Operations and fleet (`feat/ops-fleet`, O1–O7 + O1F): live view-only cities, housing, vehicles period report, oil, purchases, fuel; custody / guarantees / cases / accounts tabs removed with redirects (`docs/runbooks/RELEASE-0.27.0.md`). Money items (payments, rents, fuel wallets) wait for Ghazal.
 
