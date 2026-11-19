@@ -157,11 +157,6 @@ function startStaticServer(port = 39821) {
         }));
         return;
       }
-      if (reqPath === '/api/riders/sync-baseline') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ matched: 294, newFromBaseline: 5, changed: 2, conflicts: 0 }));
-        return;
-      }
       if (reqPath.match(/\/api\/riders\/[^/]+\/profile-360/)) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({

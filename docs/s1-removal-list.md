@@ -68,8 +68,9 @@ Branch: `chore/s1-remove-sync-hangfire`. Decisions: M-0577, M-0590, Ledger H2 (M
 | Item | Action | Why |
 |---|---|---|
 | `NinjaInvoices*`, `KeetaInvoices*`, `HungerStationInvoices*`, `OperationsImports.cs`, `BankPayrollFiles.cs`, `PayAssignments` import, `FinancialImports` (non-ERP) | **keep** | Pay pipeline file imports |
-| `CompanyRegistryImport.cs`, `ImportCatalog.cs`, free-form `/api/imports/*` | **keep (API)** for now; **remove UI** | Unsure if still needed outside centre — keep API, list in report |
+| `CompanyRegistryImport.cs`, `ImportCatalog.cs`, free-form `/api/imports/*` | **keep (API)** | Old `Frontend/` + test scripts (`tests/integration.mjs`, `enterprise.mjs`, `finance-views*.mjs`, `r6c-imports.mjs`) still call `/api/imports/*`. Catalog page restored in S1F uses `/imports/catalog` + platform/debt/finance upload URLs. Remove free-upload later with the old Frontend. |
 | Permission `imports.view` / `imports.commit` | **keep** | Still gates excel/work imports |
+| Permission alias `erp.sync.run` | **keep alias, hide in editor** | Stored users may still list it; role editor catalog omits it (Deprecated) |
 
 ## Docs / config / scripts
 
@@ -84,6 +85,6 @@ Branch: `chore/s1-remove-sync-hangfire`. Decisions: M-0577, M-0590, Ledger H2 (M
 
 ## Doubt (record, do not block)
 
-1. Whether `ImportCatalog` + `/api/imports/*` free upload should be deleted in a later pass once no caller remains.
+1. Whether `/api/imports/*` free upload should be deleted later with the old `Frontend/` once test scripts move to platform import endpoints (kept for now; see keep table).
 2. Whether `ContentHash` / `HsFactsSource` can shrink after sync executor is gone (keep unless build proves unused).
 3. `RiderIdentityRepair` still builds a full `ImportPlan` for identity repair — kept as a tool, not a Hangfire job.
