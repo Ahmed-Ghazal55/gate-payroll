@@ -679,6 +679,85 @@ public static class RiderAsks
         return req;
     }
 
+    public static bool IsFormTargetedToRider(JsonObject form, JsonObject? rider, string iqama)
+    {
+        if (rider == null) return false;
+
+        string target = form.S("target", form.S("targetAudience")).Trim();
+        if (!string.IsNullOrEmpty(target) &&
+            !target.Equals("ALL", StringComparison.OrdinalIgnoreCase) &&
+            !target.Equals("rider", StringComparison.OrdinalIgnoreCase) &&
+            !target.Equals("riders", StringComparison.OrdinalIgnoreCase))
+        {
+            if (target.Length == 10 && target.All(char.IsAsciiDigit))
+            {
+                if (!string.Equals(target, iqama, StringComparison.Ordinal)) return false;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        string targetIqama = form.S("targetIqama").Trim();
+        if (!string.IsNullOrEmpty(targetIqama) &&
+            !targetIqama.Equals("ALL", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(targetIqama, iqama, StringComparison.Ordinal))
+            return false;
+
+        if (form["targetIqamas"] is JsonArray targetIqamas && targetIqamas.Count > 0)
+        {
+            var allowedIqamas = targetIqamas.Select(x => x?.ToString()?.Trim() ?? "").Where(x => x != "").ToList();
+            if (allowedIqamas.Count > 0 &&
+                !allowedIqamas.Any(x => x.Equals("ALL", StringComparison.OrdinalIgnoreCase)) &&
+                !allowedIqamas.Any(x => string.Equals(x, iqama, StringComparison.Ordinal)))
+                return false;
+        }
+
+        var riderCompanies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string key in new[] { "financeSponsorId", "sponsorId", "companyId" })
+        {
+            string val = rider.S(key).Trim();
+            if (string.IsNullOrEmpty(val)) continue;
+            riderCompanies.Add(val);
+            var sp = FinancialCore.Sponsors.FirstOrDefault(s =>
+                string.Equals(s.Id, val, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s.Code, val, StringComparison.OrdinalIgnoreCase));
+            if (sp != null)
+            {
+                riderCompanies.Add(sp.Id);
+                riderCompanies.Add(sp.Code);
+            }
+        }
+
+        foreach (string key in new[] { "companyId", "sponsorId", "targetCompanyId", "targetSponsorId" })
+        {
+            string requiredCompany = form.S(key).Trim();
+            if (string.IsNullOrEmpty(requiredCompany) || requiredCompany.Equals("ALL", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!riderCompanies.Contains(requiredCompany)) return false;
+        }
+
+        foreach (string key in new[] { "companyIds", "sponsorIds", "targetCompanyIds" })
+        {
+            if (form[key] is JsonArray arr && arr.Count > 0)
+            {
+                var allowed = arr.Select(x => x?.ToString()?.Trim() ?? "").Where(x => x != "").ToList();
+                if (allowed.Count > 0 &&
+                    !allowed.Any(x => x.Equals("ALL", StringComparison.OrdinalIgnoreCase)) &&
+                    !allowed.Any(riderCompanies.Contains))
+                    return false;
+            }
+        }
+
+        string targetCity = form.S("targetCity").Trim();
+        if (!string.IsNullOrEmpty(targetCity) &&
+            !targetCity.Equals("ALL", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(targetCity, rider.S("city").Trim(), StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return true;
+    }
+
     public static JsonObject FormSchemasCatalog(DbConnection c, string iqama)
     {
         var rider = Store.Get(c, iqama, "rider");
@@ -838,7 +917,11 @@ public static class RiderAsks
 
         var submissions = Store.ListWhere(c, "submission", null, null, ("iqama", iqama)).ToDictionary(s => s.S("campaignId"), s => s);
         var activeCampaigns = new JsonArray();
-        foreach (var camp in Store.List(c, "campaign").Where(x => x.S("status") == "open" && DateTimeOffset.TryParse(x.S("expiresAt"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var exp) && exp > DateTimeOffset.UtcNow))
+        foreach (var camp in Store.List(c, "campaign").Where(x =>
+                     x.S("status") == "open" &&
+                     DateTimeOffset.TryParse(x.S("expiresAt"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var exp) &&
+                     exp > DateTimeOffset.UtcNow &&
+                     IsFormTargetedToRider(x, rider, iqama)))
         {
             submissions.TryGetValue(camp.S("id"), out var sub);
             activeCampaigns.Add(new JsonObject
@@ -856,7 +939,11 @@ public static class RiderAsks
                 ["version"] = sub != null ? SubmissionChoices.Version(sub) : 1
             });
         }
-        foreach (var qf in Store.List(c, "custom_form").Where(x => x.S("status") == "open" && DateTimeOffset.TryParse(x.S("expiresAt"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var exp) && exp > DateTimeOffset.UtcNow))
+        foreach (var qf in Store.List(c, "custom_form").Where(x =>
+                     x.S("status") == "open" &&
+                     DateTimeOffset.TryParse(x.S("expiresAt"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var exp) &&
+                     exp > DateTimeOffset.UtcNow &&
+                     IsFormTargetedToRider(x, rider, iqama)))
         {
             activeCampaigns.Add(new JsonObject
             {
@@ -905,6 +992,7 @@ public static class RiderAsks
         var customForm = store.Read(c => Store.List(c, "custom_form").FirstOrDefault(x => x.S("sharingToken") == token));
         if (customForm != null)
         {
+            J.Need(IsFormTargetedToRider(customForm, rider, iqama), "النموذج غير موجود أو غير متاح لهذا المندوب.", 404);
             return store.Write<IResult>((c, tx) =>
             {
                 J.Need(customForm.S("status") == "open" && DateTimeOffset.Parse(customForm.S("expiresAt"), CultureInfo.InvariantCulture) > DateTimeOffset.UtcNow, "النموذج مغلق.");
@@ -936,6 +1024,7 @@ public static class RiderAsks
 
         var campaign = store.Read(c => Store.List(c, "campaign").FirstOrDefault(d => d.S("sharingToken") == token))
             ?? throw new ApiError("النموذج غير موجود أو انتهت صلاحيته.", 404);
+        J.Need(IsFormTargetedToRider(campaign, rider, iqama), "النموذج غير موجود أو غير متاح لهذا المندوب.", 404);
 
         if (IbanChoices.Is(campaign))
         {

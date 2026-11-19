@@ -1283,4 +1283,58 @@ public sealed class PushNotificationsTests
                 store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, Admin, reqId, new() { ["action"] = "approve" }))).Status);
         });
     }
+
+    [TestMethod]
+    public void FormsCatalogAndSubmitFilterByCompanyAndTarget()
+    {
+        WithSqlStore(store =>
+        {
+            const string riderBw = "2000000961";
+            const string riderEx = "2000000962";
+            const string tokEx = "rmob_" + "7777777777777777777777777777777777777777777777777777777777777777";
+            const string bwCampTok = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+            const string openCampTok = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+            const string staffFormTok = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+            const string iqamaFormTok = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+            string bwId = FinancialCore.ResolveSponsor("BW").Id;
+            string exId = FinancialCore.Sponsors.First(s => s.Id != bwId).Id;
+
+            store.Write((c, tx) =>
+            {
+                Store.Save(c, "rider", new() { ["id"] = riderBw, ["iqama"] = riderBw, ["name"] = "مندوب البوابة", ["status"] = "Active", ["financeSponsorId"] = bwId }, tx);
+                Store.Save(c, "rider", new() { ["id"] = riderEx, ["iqama"] = riderEx, ["name"] = "مندوب شركة أخرى", ["status"] = "Active", ["financeSponsorId"] = exId }, tx);
+                Store.Save(c, MobileSessions.Kind, new()
+                {
+                    ["id"] = "mobile:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(tokEx))),
+                    ["iqama"] = riderEx,
+                    ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"),
+                    ["expiresAtUtc"] = DateTimeOffset.UtcNow.AddHours(8).ToString("O")
+                }, tx);
+                string exp = DateTimeOffset.UtcNow.AddDays(7).ToString("O");
+                Store.Save(c, "campaign", new() { ["id"] = "camp-bw-only", ["title"] = "حملة شركة البوابة", ["status"] = "open", ["sharingToken"] = bwCampTok, ["expiresAt"] = exp, ["companyId"] = bwId }, tx);
+                Store.Save(c, "campaign", new() { ["id"] = "camp-all", ["title"] = "حملة عامة", ["status"] = "open", ["sharingToken"] = openCampTok, ["expiresAt"] = exp }, tx);
+                Store.Save(c, "custom_form", new() { ["id"] = "qf-staff", ["titleAr"] = "نموذج موظفين", ["status"] = "open", ["sharingToken"] = staffFormTok, ["expiresAt"] = exp, ["target"] = "staff", ["fields"] = new JsonArray() }, tx);
+                Store.Save(c, "custom_form", new() { ["id"] = "qf-bw-rider", ["titleAr"] = "نموذج فردي", ["status"] = "open", ["sharingToken"] = iqamaFormTok, ["expiresAt"] = exp, ["targetIqama"] = riderBw, ["fields"] = new JsonArray() }, tx);
+                return true;
+            });
+
+            var bwForms = store.Read(c => RiderAsks.FormSchemasCatalog(c, riderBw))["activeCampaigns"]!.AsArray().OfType<JsonObject>().Select(x => x.S("id")).ToHashSet();
+            Assert.IsTrue(bwForms.Contains("camp-bw-only"));
+            Assert.IsTrue(bwForms.Contains("camp-all"));
+            Assert.IsTrue(bwForms.Contains("qf-bw-rider"));
+            Assert.IsFalse(bwForms.Contains("qf-staff"));
+
+            var exForms = store.Read(c => RiderAsks.FormSchemasCatalog(c, riderEx))["activeCampaigns"]!.AsArray().OfType<JsonObject>().Select(x => x.S("id")).ToHashSet();
+            Assert.IsFalse(exForms.Contains("camp-bw-only"));
+            Assert.IsTrue(exForms.Contains("camp-all"));
+            Assert.IsFalse(exForms.Contains("qf-bw-rider"));
+            Assert.IsFalse(exForms.Contains("qf-staff"));
+
+            // Rider from another company cannot submit a company-targeted campaign by token
+            var ctxEx = new DefaultHttpContext();
+            ctxEx.Request.Headers.Authorization = "Bearer " + tokEx;
+            Assert.AreEqual(404, Assert.ThrowsExactly<ApiError>(() =>
+                RiderAsks.SubmitInAppForm(store, ctxEx, bwCampTok, new() { ["workSystem"] = "tiers" })).Status);
+        });
+    }
 }
