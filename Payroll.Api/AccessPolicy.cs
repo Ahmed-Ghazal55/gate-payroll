@@ -137,6 +137,9 @@ public static partial class AccessPolicy
         if(path=="/api/rider-mobile/sessions"||path.StartsWith("/api/rider-mobile/sessions/",StringComparison.Ordinal))
             return Has("mobile.sessions")&&(method=="GET"&&path=="/api/rider-mobile/sessions"||method=="POST"&&(path=="/api/rider-mobile/sessions/revoke-all"||path.EndsWith("/revoke",StringComparison.Ordinal)));
         if(path.StartsWith("/api/rider-mobile/firebase-config",StringComparison.Ordinal))return false;
+        if(path=="/api/rider-mobile/service-requests"||path.StartsWith("/api/rider-mobile/service-requests/",StringComparison.Ordinal))
+            return method=="GET"?(Has("mobile.broadcast")||Has("forms.view")||Has("forms.review")||Has("mobile.complaints.confidential")):method=="POST"&&(Has("mobile.broadcast")||Has("forms.review")||Has("mobile.complaints.confidential"));
+        if(path=="/api/rider-mobile/statements/notify-period")return method=="POST"&&Has("mobile.broadcast");
         if(path.StartsWith("/api/rider-mobile/",StringComparison.Ordinal))return method=="GET"?Has("mobile.broadcast"):method=="POST"&&path=="/api/rider-mobile/broadcast"&&Has("mobile.broadcast");
         if(path.StartsWith("/api/promissory-notes",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
         if(path.StartsWith("/api/payroll",StringComparison.Ordinal))return method=="GET"?Has("payroll.view"):method=="POST"&&path=="/api/payroll/approve"&&Has("payroll.approve");
