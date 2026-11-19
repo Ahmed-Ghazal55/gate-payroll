@@ -18,7 +18,7 @@ public static class PayStatements
     public static JsonObject Build(DbConnection c,string rider,string period,ClaimsPrincipal? actor,bool approvedOnly=false,DbTransaction? tx=null)
     {
         rider=J.Iqama(rider);period=J.Period(period);var person=Store.Get(c,rider,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);
-        if(actor!=null){AccessPolicy.Demand(actor,"pay.view");AccessPolicy.Demand(actor,"payroll.view");AccessPolicy.Demand(actor,"debts.view");}
+        if(actor!=null)AccessPolicy.DemandRiderMonthlyStatement(actor,approvedOnly);
         var allLines=Store.ListWhere(c,PayCycles.LineKind,tx,null,("rider",rider),("period",period));
         var lineCycleIds=allLines.Select(l=>l.S("cycleId")).Where(id=>id!="").Distinct(StringComparer.Ordinal).ToList();
         var candidates=lineCycleIds.Count==0

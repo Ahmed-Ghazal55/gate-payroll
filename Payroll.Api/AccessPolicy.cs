@@ -18,6 +18,17 @@ public static partial class AccessPolicy
     };
     public static bool Has(ClaimsPrincipal user,string permission)=>user.Identity?.IsAuthenticated==true&&(Administrator(user)||user.HasClaim("permission",permission));
     public static void Demand(ClaimsPrincipal user,string permission){if(!Has(user,permission))throw new ApiError("ليست لديك صلاحية لهذه العملية: "+permission,403);}
+    // One mapping for the statements tab / preview: sidebar, AccessPolicy.Allowed, and PayStatements.Build.
+    public static bool CanAccessRiderMonthlyStatement(ClaimsPrincipal user)=>
+        Administrator(user)||Has(user,"mobile.broadcast")||(Has(user,"pay.view")&&Has(user,"payroll.view")&&Has(user,"debts.view"));
+    // Broadcast-only users may read approved-only previews; full finance viewers may also read drafts.
+    public static void DemandRiderMonthlyStatement(ClaimsPrincipal user,bool approvedOnly)
+    {
+        if(Administrator(user))return;
+        if(Has(user,"pay.view")&&Has(user,"payroll.view")&&Has(user,"debts.view"))return;
+        if(approvedOnly&&Has(user,"mobile.broadcast"))return;
+        throw new ApiError("ليست لديك صلاحية لهذه العملية: pay.view",403);
+    }
     public static string CategoryPermission(string category)=>category switch {
         "WorkPermit" or "IqamaRenewal" or "SponsorshipTransfer" or "ExitReEntryVisa" or "MedicalInsurance" or "ProfessionChange" or "DriverLicense" or "DriverCard" or "OtherHrService"=>"debts.create.hr",
         "Advance" or "CashAdvance" or "BankAdvance" or "InternetAdvance" or "HsWalletTopUp" or "CashCustody"=>"debts.create.advance",
@@ -103,7 +114,7 @@ public static partial class AccessPolicy
         if(path=="/api/finance/journals/manual"||path.StartsWith("/api/finance/journals/manual/",StringComparison.Ordinal))
             return method=="GET"?(Has("finance.journal.create")||Has("finance.journal.approve")):method=="DELETE"?Has("finance.journal.create")&&path.Count(ch=>ch=='/')==5:method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
         // Preview for «إرسال كشوف الحساب» (mobile.broadcast) or full finance viewers.
-        if(path.StartsWith("/api/finance/statement/rider/",StringComparison.Ordinal)&&path.EndsWith("/monthly",StringComparison.Ordinal))return method=="GET"&&(Has("mobile.broadcast")||(Has("pay.view")&&Has("payroll.view")&&Has("debts.view")));
+        if(path.StartsWith("/api/finance/statement/rider/",StringComparison.Ordinal)&&path.EndsWith("/monthly",StringComparison.Ordinal))return method=="GET"&&CanAccessRiderMonthlyStatement(user);
         if(path.StartsWith("/api/finance/statement/",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
         if(path is "/api/finance/bank-file/preview" or "/api/finance/bank-file/export")return method=="POST"&&Has("finance.bankfile.export")&&Has("payroll.view");
         if(path is "/api/finance/trial-balance" or "/api/finance/income-statement")return method=="GET"&&Has("treasury.journals");

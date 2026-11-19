@@ -171,6 +171,7 @@ public sealed class RiderAppAdminTests
         Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "POST", "/api/rider-mobile/broadcast"));
         Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "POST", "/api/rider-mobile/statements/notify-period"));
         Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "GET", "/api/finance/statement/rider/2000000991/monthly"));
+        Assert.IsTrue(AccessPolicy.CanAccessRiderMonthlyStatement(broadcaster));
         Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "POST", "/api/excel/export"));
         Assert.IsTrue(RiderLookup.Allowed(broadcaster));
         Assert.IsTrue(RiderLookup.Allowed(sessions));
@@ -178,6 +179,18 @@ public sealed class RiderAppAdminTests
         Assert.IsFalse(AccessPolicy.Allowed(broadcaster, "GET", "/api/rider-mobile/firebase-config"), "settings stay Admin only");
         Assert.IsFalse(AccessPolicy.Allowed(forms, "POST", "/api/inquiry-access"));
         Assert.IsTrue(AccessPolicy.Allowed(sessions, "POST", "/api/inquiry-access"));
+    }
+
+    [TestMethod]
+    public void BroadcastOnlyMayReadApprovedMonthlyPreviewButNotDraft()
+    {
+        string bw = FinancialCore.ResolveSponsor("BW").Id;
+        var broadcaster = Staff("syn-b-stmt", bw, "mobile.broadcast");
+        AccessPolicy.DemandRiderMonthlyStatement(broadcaster, approvedOnly: true);
+        Assert.AreEqual(403, Assert.ThrowsExactly<ApiError>(() =>
+            AccessPolicy.DemandRiderMonthlyStatement(broadcaster, approvedOnly: false)).Status);
+        var finance = Staff("syn-fin-stmt", bw, "pay.view", "payroll.view", "debts.view");
+        AccessPolicy.DemandRiderMonthlyStatement(finance, approvedOnly: false);
     }
 
     [TestMethod]

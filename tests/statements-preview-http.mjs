@@ -25,10 +25,16 @@ try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
  await req('/api/auth/setup',{username:'stmt-admin',password});
  const scope=(ids)=>({sponsorIds:ids,platforms:['Jahez','Keeta','HungerStation','Ninja','Chefz','Amazon','Other'],categoryCodes:[],accountCodes:[]});
+ await req('/api/users',{username:'stmt-bcast',password,role:'HousingSupervisor',customPermissions:['mobile.broadcast'],financialScope:scope(['BW'])});
  await req('/api/riders',{iqama,name:'Synthetic Preview',financeSponsorId:'BW',status:'Active',phone:'0500002901'});
  await req('/api/auth/login',{username:'stmt-admin',password});
  const adminPreview=await req(previewPath);
  assert.equal(adminPreview.approvedOnly,true);
  assert.equal(adminPreview.header?.rider,iqama);
- console.log(`PASS ${checks} statements preview HTTP: approvedOnly=1 binds and returns 200.`);
+ // H3: broadcast-only user (same permission as the statements tab) gets 200 on the web preview URL.
+ await req('/api/auth/login',{username:'stmt-bcast',password});
+ const bcastPreview=await req(previewPath);
+ assert.equal(bcastPreview.approvedOnly,true);
+ assert.equal(bcastPreview.header?.rider,iqama);
+ console.log(`PASS ${checks} statements preview HTTP: approvedOnly=1 binds; admin and broadcast-only get 200.`);
 }catch(e){console.error(logs.slice(-5000));throw e;}finally{if(proc.exitCode===null&&!spawnError){const stopped=new Promise(r=>proc.once('exit',r));proc.kill();await Promise.race([stopped,new Promise(r=>setTimeout(r,5000))]);}rmSync(data,{recursive:true,force:true});}
