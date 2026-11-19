@@ -45,7 +45,9 @@ builder.Services.AddOpenApi(options=>options.AddOperationTransformer((operation,
 }));
 builder.Services.AddMemoryCache(o => o.SizeLimit = 10000);
 builder.Services.AddSingleton<InquiryLimits>();
-builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
+// Development raises the public-forms ceiling so full HTTP suites (editToken negatives + races) fit in one window.
+int formsLimit = builder.Environment.IsDevelopment() ? 200 : 30;
+builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = formsLimit, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
 var riderIpLimitWarnings = PushNotifications.ConfigureIpLimits(builder.Configuration);
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
@@ -319,11 +321,12 @@ api.MapPost("/campaigns", (JsonObject input, HttpContext ctx) => store.Write((c,
     Store.Save(c, "campaign", doc, tx); Store.Audit(c, tx, "form.publish", doc.S("id"), Actor(ctx)); return new { id=doc.S("id"), path="/forms/"+token, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+token, qrCodeUrl="/api/campaigns/"+doc.S("id")+"/qr.svg", expiresAt=doc.S("expiresAt") };
 })).WithTags("Forms and responses").WithSummary("Submit campaigns");
 api.MapPost("/campaigns/{id}/close", (string id, HttpContext ctx) => store.Write((c, tx) => { var d = Store.Get(c, id, "campaign", tx) ?? throw new ApiError("النموذج غير موجود.", 404); d["status"] = "closed"; Store.Save(c, "campaign", d, tx); Store.Audit(c, tx, "form.close", id, Actor(ctx)); return new { ok = true }; })).WithTags("Forms and responses").WithSummary("Submit campaigns {id} close");
-api.MapGet("/submissions", () => store.Read(c => Store.List(c, "submission").Select(SubmissionChoices.PublicAdmin))).WithTags("Forms and responses").WithSummary("Read submissions");
+api.MapGet("/submissions", (HttpContext ctx) => store.Read(c => Store.List(c, "submission").Where(d => SubmissionChoices.InRiderScope(c, ctx.User, d.S("iqama"))).Select(d => SubmissionChoices.PublicAdmin(d, ctx.User)).ToList())).WithTags("Forms and responses").WithSummary("Read submissions");
 api.MapPost("/submissions/{id}/review", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var d=Store.Get(c,id,"submission",tx)??throw new ApiError("الرد غير موجود.",404);
-    CampaignOperations.Review(c,tx,d,input,Actor(ctx));return SubmissionChoices.PublicAdmin(d);
+    SubmissionChoices.DemandInScope(c, ctx.User, d, tx);
+    CampaignOperations.Review(c,tx,d,input,Actor(ctx));return SubmissionChoices.PublicAdmin(d, ctx.User);
 })).WithTags("Forms and responses").WithSummary("Submit submissions {id} review");
 api.MapGet("/audit", () => store.Read(c => Store.List(c, "audit"))).WithTags("Administration").WithSummary("Read audit");
 app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = IbanChoices.Is(d) ? IbanChoices.Schema : "work-choice-v1", fields=CampaignOperations.Fields(d), cities=IbanChoices.Is(d) ? IbanChoices.Cities(d) : null }); }).WithTags("Forms and responses").WithSummary("Read public forms {token}").RequireRateLimiting("sensitive");

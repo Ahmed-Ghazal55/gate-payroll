@@ -473,14 +473,29 @@ public static class RiderAsks
             .Where(r => confidentialOk || !(r.B("confidential") || r.S("requestType") == "complaint"))
             .Where(r => riders.TryGetValue(r.S("riderIqama"), out var rider) && (allCompanies || FinancialScopes.Rider(user, rider)))
             .OrderByDescending(r => r.S("createdAt"), StringComparer.Ordinal)
-            .Select(r =>
-            {
-                var v = r.Clone();
-                if (!ibanOk && v["payload"] is JsonObject p && p.S("iban") is { Length: > 4 } iban) p["iban"] = "••••" + iban[^4..];
-                v["allowedActions"] = StaffActions(user, r);
-                return v;
-            })
+            .Select(r => StaffView(user, r, ibanOk))
             .ToList();
+    }
+
+    /// <summary>Staff projection: mask payload.iban unless IBAN-ok, and attach allowedActions from the stored row.</summary>
+    public static JsonObject StaffView(ClaimsPrincipal user, JsonObject req, bool? ibanOk = null)
+    {
+        bool showIban = ibanOk ?? (AccessPolicy.Has(user, WorkforceApi.PermIban) || AccessPolicy.Has(user, IbanDataApproveFirstPermission) || AccessPolicy.Has(user, IbanDataApproveSecondPermission));
+        var v = req.Clone();
+        if (!showIban && v["payload"] is JsonObject p && p.S("iban") is { Length: > 4 } iban) p["iban"] = "••••" + iban[^4..];
+        v["allowedActions"] = StaffActions(user, req);
+        return v;
+    }
+
+    /// <summary>True when the caller may decide a non-two-step request of this type (leave/appointment vs complaint).</summary>
+    public static bool CanDecideType(ClaimsPrincipal user, JsonObject req)
+    {
+        if (AccessPolicy.Administrator(user)) return true;
+        bool twoStep = req.B("requiresSecondApprover") || req.S("requestType") is "iban_update" or "data_update";
+        if (twoStep) return AccessPolicy.Has(user, IbanDataApproveFirstPermission) || AccessPolicy.Has(user, IbanDataApproveSecondPermission);
+        if (req.B("confidential") || req.S("requestType") == "complaint")
+            return AccessPolicy.Has(user, "mobile.complaints.confidential");
+        return AccessPolicy.Has(user, "forms.review") || AccessPolicy.Has(user, "mobile.broadcast");
     }
 
     /// <summary>Buttons the caller may use on one service request; the decide/reply handlers keep the same checks.</summary>
@@ -492,12 +507,19 @@ public static class RiderAsks
         bool twoStep = req.B("requiresSecondApprover") || req.S("requestType") is "iban_update" or "data_update";
         bool first = AccessPolicy.Has(user, IbanDataApproveFirstPermission), second = AccessPolicy.Has(user, IbanDataApproveSecondPermission);
         bool post = AccessPolicy.Allowed(user, "POST", "/api/rider-mobile/service-requests/x/decide");
-        if (open && post)
+        bool canDecide = CanDecideType(user, req);
+        if (open && post && canDecide)
         {
             if (twoStep)
             {
                 if (status != "first_approved" && first) actions.Add("first_approve");
-                if (status == "first_approved" && second) actions.Add("second_approve");
+                if (status == "first_approved" && second)
+                {
+                    string actorUserId = ActorUserId(user);
+                    bool self = (!string.IsNullOrEmpty(req.S("firstApprovedById")) && string.Equals(req.S("firstApprovedById"), actorUserId, StringComparison.OrdinalIgnoreCase))
+                        || AccessPolicy.SamePerson(user, req.S("firstApprovedBy"));
+                    if (!self) actions.Add("second_approve");
+                }
                 if (first || second) { actions.Add("reject"); actions.Add("need_info"); }
             }
             else
@@ -574,7 +596,7 @@ public static class RiderAsks
         string reasonEn = input.S("reasonEn").Trim() is { Length: > 0 } re ? re : reason;
         string reasonUr = input.S("reasonUr").Trim() is { Length: > 0 } ru ? ru : reason;
         PushNotifications.Enqueue(c, tx, iqama, titleAr, reason, "/rider-app/requests", titleEn, titleUr, reasonEn, reasonUr);
-        return doc;
+        return StaffView(actor, doc);
     }
 
     public const string IbanDataApproveFirstPermission = "riders.iban_data.approve_first";
@@ -599,6 +621,8 @@ public static class RiderAsks
         string actorName = actor.Identity?.Name ?? "administrator";
         string now = DateTimeOffset.UtcNow.ToString("O");
         bool twoStep = req.B("requiresSecondApprover") || req.S("requestType") is "iban_update" or "data_update";
+        // mobile.broadcast / confidential / IBAN-approver alone must not approve leave or appointments.
+        J.Need(CanDecideType(actor, req), "ليست لديك صلاحية البت في هذا النوع من الطلبات.", 403);
         var tl = req["timeline"] as JsonArray ?? new JsonArray();
 
         if (action is "reject" or "decline")
@@ -720,13 +744,14 @@ public static class RiderAsks
         req["updatedAt"] = now;
         Store.Save(c, ServiceKind, req, tx);
         Store.Audit(c, tx, $"rider_service_request.{action}", id, actorName);
-        return req;
+        return StaffView(actor, req);
     }
 
     public static JsonObject StaffReplyServiceRequest(DbConnection c, DbTransaction tx, ClaimsPrincipal actor, string id, JsonObject input)
     {
         var req = Store.Get(c, id, ServiceKind, tx)?.Clone() ?? throw new ApiError("الطلب غير موجود.", 404);
         J.Need(CanStaffSeeServiceRequest(c, actor, req, tx), "الطلب غير موجود.", 404);
+        J.Need(req.S("status") is not ("approved" or "rejected" or "cancelled"), "لا يمكن الرد على طلب مغلق.", 409);
         string message = input.Required("message").Trim();
         J.Need(message.Length is >= 2 and <= 1000, "اكتب نص الرد (2–1000 حرف).");
         string now = DateTimeOffset.UtcNow.ToString("O");
@@ -752,7 +777,7 @@ public static class RiderAsks
             $"رد جديد على {req.S("titleAr")}", message, "/rider-app/requests",
             $"New reply on {req.S("titleEn", req.S("titleAr"))}", $"{req.S("titleUr", req.S("titleAr"))} پر نیا جواب",
             message, message);
-        return req;
+        return StaffView(actor, req);
     }
 
     public static HashSet<string> RiderCompanyKeys(JsonObject? rider)

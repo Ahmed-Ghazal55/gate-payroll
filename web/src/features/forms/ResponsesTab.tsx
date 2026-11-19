@@ -42,7 +42,8 @@ export function ResponsesTab({
   onRefresh,
 }: ResponsesTabProps) {
   const { toast } = useToast();
-  const { canReview, isAdmin } = useAuth();
+  const { can, canReview, isAdmin } = useAuth();
+  const canViewIban = isAdmin || can('riders.iban.view');
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [campaignFilter, setCampaignFilter] = useState<string>('');
@@ -73,7 +74,15 @@ export function ResponsesTab({
     [campaignTitles]
   );
   const workSystemLabel = (s: Submission) =>
-    s.workSystem === 'monthly' ? 'راتب شهري' : s.workSystem === 'per-order' ? 'بالطلب' : s.workSystem || '—';
+    s.workSystem === 'tiers'
+      ? 'نظام الراتب الجديد'
+      : s.workSystem === 'commission'
+        ? 'نظام العمولة السابق'
+        : s.workSystem === 'monthly'
+          ? 'راتب شهري'
+          : s.workSystem === 'per-order'
+            ? 'بالطلب'
+            : s.workSystem || '—';
   const statusLabel = (s: Submission) =>
     s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة';
 
@@ -166,8 +175,10 @@ export function ResponsesTab({
   const handleExport = async (format: 'excel-all' | 'excel-filtered' | 'csv-filtered') => {
     setExportLoading(true);
     const targetRows = format === 'excel-all' ? submissions : filteredSubmissions;
-    // R1: IBAN and work system are separate columns; api.exportExcel adds bank code and bank name after the IBAN.
-    const headers = ['اسم المندوب', 'الإقامة', 'الآيبان', 'النظام', 'الحملة', 'الحالة', 'التاريخ'];
+    // R1 / H20: IBAN column only when the caller has riders.iban.view; otherwise omit it entirely.
+    const headers = canViewIban
+      ? ['اسم المندوب', 'الإقامة', 'الجوال', 'المدينة', 'الآيبان', 'النظام', 'المنصات', 'الحملة', 'الحالة', 'ملاحظة المراجعة', 'النسخة', 'التاريخ']
+      : ['اسم المندوب', 'الإقامة', 'الجوال', 'المدينة', 'النظام', 'المنصات', 'الحملة', 'الحالة', 'ملاحظة المراجعة', 'النسخة', 'التاريخ'];
 
     // Formula injection guard matching Frontend/src/table-tools.ts:86
     const sanitize = (val: string) => {
@@ -175,16 +186,25 @@ export function ResponsesTab({
       return val;
     };
 
-    const rows = targetRows.map((s) => [
-      sanitize(s.name),
-      sanitize(s.iqama),
-      // Export the IBAN as one unbroken value so it can be copied into a bank form as is.
-      s.iban ? cleanIban(s.iban) : '',
-      sanitize(s.workSystem || ''),
-      sanitize(campaignName(s)),
-      sanitize(s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'),
-      sanitize(s.createdAt ? new Date(s.createdAt).toLocaleDateString('ar-SA') : '—'),
-    ]);
+    const rows = targetRows.map((s) => {
+      const base = [
+        sanitize(s.name),
+        sanitize(s.iqama),
+        sanitize(s.phone || ''),
+        sanitize(s.city || ''),
+      ];
+      if (canViewIban) base.push(sanitize(s.iban ? cleanIban(s.iban) : ''));
+      base.push(
+        sanitize(workSystemLabel(s)),
+        sanitize((s.platforms || []).join('، ')),
+        sanitize(campaignName(s)),
+        sanitize(s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'),
+        sanitize(s.reviewNote || ''),
+        sanitize(String(s.version || 1)),
+        sanitize(s.createdAt ? new Date(s.createdAt).toLocaleDateString('ar-SA') : '—'),
+      );
+      return base;
+    });
 
     try {
       if (format === 'csv-filtered') {
@@ -201,7 +221,7 @@ export function ResponsesTab({
         a.download = `responses-filtered.csv`;
         a.click();
         URL.revokeObjectURL(url);
-        toast('تم تنزيل ملف CSV المفلتر بنجاح', 'success');
+        toast('تم تنزيل الملف النصي المفلتر بنجاح', 'success');
       } else {
         // Excel Export via backend
         const blob = await api.exportExcel({
@@ -216,7 +236,7 @@ export function ResponsesTab({
         a.download = `responses-${format}.xlsx`;
         a.click();
         URL.revokeObjectURL(url);
-        toast('تم تنزيل ملف Excel بنجاح', 'success');
+        toast('تم تنزيل جدول البيانات بنجاح', 'success');
       }
     } catch (err: any) {
       toast(err?.message || 'تعذر تصدير الملف', 'danger');
@@ -248,14 +268,20 @@ export function ResponsesTab({
     {
       key: 'choice',
       header: 'البيان / الآيبان',
-      getValue: (s) => (s.iban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : workSystemLabel(s)),
-      exportColumns: [
-        { header: 'الآيبان', value: (s) => (s.iban ? cleanIban(s.iban) : '') },
-        { header: 'نظام العمل', value: (s) => (s.iban ? '' : workSystemLabel(s)) },
-      ],
+      getValue: (s) => (s.iban ? (canViewIban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : `••••${cleanIban(s.iban).slice(-4)}`) : workSystemLabel(s)),
+      exportColumns: canViewIban
+        ? [
+            { header: 'الآيبان', value: (s) => (s.iban ? cleanIban(s.iban) : '') },
+            { header: 'نظام العمل', value: (s) => (s.iban ? '' : workSystemLabel(s)) },
+          ]
+        : [{ header: 'نظام العمل', value: (s) => (s.iban ? '' : workSystemLabel(s)) }],
       render: (s) =>
         s.iban ? (
+          canViewIban ? (
           <IbanDisplay iban={s.iban} bankCode={s.bankCode} bank={s.bank} />
+          ) : (
+            <span className="font-mono text-xs" dir="ltr">••••{cleanIban(s.iban).slice(-4)}</span>
+          )
         ) : (
           <span className="font-semibold text-xs">
             {workSystemLabel(s)}
@@ -393,10 +419,10 @@ export function ResponsesTab({
 
       {error ? (
         <ErrorState
-          title={error.includes('404') ? 'خدمة مراجعة الردود قيد التجهيز في الـ API' : 'تعذر تحميل الردود'}
+          title={error.includes('404') ? 'خدمة مراجعة الردود قيد التجهيز' : 'تعذر تحميل الردود'}
           message={
             error.includes('404')
-              ? 'المسار البرمجي الموحد (/api/responses) قيد الإطلاق من الخادم. يمكنك الاستمرار في مراجعة الردود عبر الواجهة السابقة.'
+              ? 'خدمة مراجعة الردود قيد الإطلاق من الخادم. يمكنك الاستمرار في مراجعة الردود عبر الواجهة السابقة.'
               : error
           }
           onRetry={onRefresh}

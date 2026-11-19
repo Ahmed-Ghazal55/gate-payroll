@@ -7,7 +7,7 @@ namespace Payroll;
 public static class RiderLookup
 {
     public static bool Allowed(ClaimsPrincipal user) =>
-        new[] { "riders.view", "advances.request", "advances.review", "debts.view", "treasury.journals", "treasury.disburse" }.Any(p => AccessPolicy.Has(user, p))
+        new[] { "riders.view", "advances.request", "advances.review", "debts.view", "treasury.journals", "treasury.disburse", "mobile.broadcast", "mobile.sessions", "inquiry.issue" }.Any(p => AccessPolicy.Has(user, p))
         || AccessPolicy.Administrator(user);
 
     static readonly Dictionary<string, string> StatusAr = new()

@@ -19,7 +19,7 @@ async function put(route,body,expected=200){const r=await fetch(base+route,{meth
 async function removeForm(route,body,expected=200,auth=true){const r=await fetch(base+route,{method:'DELETE',headers:{'Content-Type':'application/json',...(auth?{Cookie:cookie}:{})},body:JSON.stringify(body)});const raw=await r.text();assert.equal(r.status,expected,raw);checks++;return JSON.parse(raw);}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
- assert.equal((await req('/health',undefined,200,false)).version,'0.29.0');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.29.1');
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
  for(const [username,role] of [['test-reviewer','Reviewer'],['test-accountant','Accountant']])await req('/api/users',{username,password,role});
  const campaign=await req('/api/campaigns',{title:'Editable campaign',days:2}),other=await req('/api/campaigns',{title:'Separate campaign',days:2});
@@ -36,10 +36,11 @@ try{
  await req(pub,first,400,false);await req(pub,{...first,city:'Riyadh',phone:'bad'},400,false);
  const a=await req(pub,{...first,city:'Riyadh',phone:'+966500000001'},200,false),b=await req(pub,{...second,city:'Jeddah',phone:'+966500000002'},200,false);
  const untouched=await req(otherPub,first,200,false);
- const prior=await req(pub+'/lookup',{iqama:first.iqama},200,false);assert.equal(prior.city,'Riyadh');assert.equal(prior.phone,'+966500000001');
+ // Lookup never returns phone/IBAN (H20); city may still be present for resume UX.
+ const prior=await req(pub+'/lookup',{iqama:first.iqama},200,false);assert.equal(prior.city,'Riyadh');assert.equal(prior.phone,undefined);
  await req('/api/riders',{iqama:first.iqama,name:first.name,city:'Directory City',engagementType:'SponsoredInternal'});
  await req('/api/riders',{iqama:second.iqama,name:second.name,engagementType:'External'});
- await req(pub+'/edit',{...first,city:'Dammam',phone:'+966500000001',version:1},200,false);
+ await req(pub+'/edit',{...first,city:'Dammam',phone:'+966500000001',version:1,editToken:a.editToken,receipt:a.receipt},200,false);
  const changed=(await req('/api/submissions')).find(r=>r.id===a.receipt);assert.equal(changed.history[0].city,'Riyadh');assert.equal(changed.history[0].phone,'+966500000001');assert.equal(changed.version,2);assert.equal(changed.status,'pending');
  let analytics=await req('/api/campaigns/'+campaign.id+'/analytics');assert.equal(analytics.totalResponses,2);assert.equal(analytics.pending,2);assert.equal(analytics.edited,1);assert.equal(analytics.engagementType.find(x=>x.value==='External').percentage,50);assert.equal(analytics.city.find(x=>x.value==='Dammam').count,1);assert.equal(analytics.workSystem.find(x=>x.value==='tiers').count,1);assert.equal(analytics.recent.length,2);
  await req('/api/campaigns/'+campaign.id+'/analytics',undefined,401,false);
@@ -81,7 +82,7 @@ try{
  const custom=await req('/api/forms/builder',schema),draft=await req('/api/forms/builder',{...schema,titleAr:'Empty draft'});
  const publishedCustom=await req('/api/forms/builder/'+custom.id+'/publish',{});const customPub='/api/public/questionnaires/'+publishedCustom.publicUrl.split('/').at(-1);const customReply=await req(customPub,{choice:'yes'},200,false);
  let customDelete=await req('/api/forms/builder/'+custom.id+'/delete-preview');assert.equal(customDelete.responseCount,1);await removeForm('/api/forms/builder/'+custom.id,{confirm:true,fingerprint:customDelete.fingerprint});
- await req(customPub,undefined,404,false);await req(customPub,{choice:'yes'},404,false);assert.deepEqual(await req('/api/forms/responses/'+custom.id),[]);assert.ok(!(await req('/api/forms/catalog')).some(f=>f.id===custom.id));
+ await req(customPub,undefined,404,false);await req(customPub,{choice:'yes'},404,false);await req('/api/forms/responses/'+custom.id,undefined,404);assert.ok(!(await req('/api/forms/catalog')).some(f=>f.id===custom.id));
  customDelete=await req('/api/forms/builder/'+draft.id+'/delete-preview');assert.equal(customDelete.responseCount,0);await removeForm('/api/forms/builder/'+draft.id,{confirm:true,fingerprint:customDelete.fingerprint});
  const deletionAudit=await req('/api/audit');assert.ok(deletionAudit.some(a=>a.action==='campaign.deleted'&&a.entityId===campaign.id&&a.actor==='test-admin'));assert.ok(deletionAudit.some(a=>a.action==='builder.deleted'&&a.entityId===custom.id));assert.ok(deletionAudit.some(a=>a.action==='builder.response_deleted'&&a.entityId===customReply.receipt));assert.ok(deletionAudit.some(a=>a.action==='builder.response_received'&&a.entityId===customReply.receipt));
  console.log(`PASS ${checks} v0.5.4 HTTP checks: hard deletion and reset, campaign-scoped atomic bulk actions and RBAC, optional fields/history, campaign link retention and analytics.`);

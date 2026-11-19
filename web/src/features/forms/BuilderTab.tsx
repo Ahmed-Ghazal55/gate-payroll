@@ -59,6 +59,22 @@ export function BuilderTab({
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
+  const formTitle = (form: CustomForm) => form.titleAr || form.title || 'نموذج بدون عنوان';
+  const formFieldCount = (form: CustomForm) =>
+    Array.isArray(form.fields) ? form.fields.length : (form.questions?.length ?? 0);
+  const isPublished = (form: CustomForm) => form.status === 'open' || form.status === 'published';
+  const isDraft = (form: CustomForm) => form.status === 'draft';
+
+  const handleClose = async (id: string) => {
+    try {
+      await api.closeCustomForm(id);
+      toast('تم إغلاق النموذج', 'success');
+      onRefresh();
+    } catch (err: any) {
+      toast(err?.message || 'تعذر إغلاق النموذج', 'danger');
+    }
+  };
+
   useEffect(() => {
     api
       .getCompanies()
@@ -175,23 +191,29 @@ export function BuilderTab({
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                      form.status === 'published'
+                      form.status === 'open' || form.status === 'published'
                         ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                        : 'bg-[var(--warning)]/15 text-[var(--warning)]'
+                        : form.status === 'closed'
+                          ? 'bg-[var(--muted)]/15 text-[var(--muted)]'
+                          : 'bg-[var(--warning)]/15 text-[var(--warning)]'
                     }`}
                   >
-                    {form.status === 'published' ? 'منشور ونشط' : 'مسودة'}
+                    {form.status === 'open' || form.status === 'published'
+                      ? 'منشور ونشط'
+                      : form.status === 'closed'
+                        ? 'مغلق'
+                        : 'مسودة'}
                   </span>
                   <span className="num text-xs text-[var(--muted)]">
-                    {form.questions.length} أسئلة
+                    {formFieldCount(form)} أسئلة
                   </span>
                 </div>
 
                 <h3 className="text-base font-bold text-[var(--ink)] mb-1">
-                  {form.title}
+                  {form.titleAr || form.title || '—'}
                 </h3>
                 <p className="text-xs text-[var(--muted)] mb-4">
-                  إجمالي الردود المستلمة: <strong className="num text-[var(--ink)]">{form.responsesCount}</strong>
+                  {form.expiresAt ? `ينتهي: ${new Date(form.expiresAt).toLocaleDateString('ar-SA')}` : 'بدون تاريخ انتهاء'}
                 </p>
               </div>
 
@@ -209,11 +231,31 @@ export function BuilderTab({
                   ) : (
                     <span className="text-xs text-[var(--muted)]">مسودة قيد الإعداد</span>
                   )
+                ) : form.status === 'open' || form.status === 'published' ? (
+                  canManageForms ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await api.closeCustomForm(form.id);
+                          toast('تم إغلاق النموذج', 'success');
+                          onRefresh();
+                        } catch (err: any) {
+                          toast(err?.message || 'تعذر إغلاق النموذج', 'danger');
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--line)] text-[var(--ink)] hover:bg-[var(--raised)]"
+                    >
+                      إغلاق
+                    </button>
+                  ) : (
+                    <span className="text-xs text-[var(--money-pos)] font-semibold flex items-center gap-1">
+                      <CheckCircle2 size={14} />
+                      جاهز للاستقبال
+                    </span>
+                  )
                 ) : (
-                  <span className="text-xs text-[var(--money-pos)] font-semibold flex items-center gap-1">
-                    <CheckCircle2 size={14} />
-                    جاهز للاستقبال
-                  </span>
+                  <span className="text-xs text-[var(--muted)]">مغلق</span>
                 )}
 
                 <div className="flex items-center gap-1">
@@ -221,8 +263,8 @@ export function BuilderTab({
                     type="button"
                     onClick={() =>
                       copyToClipboard(
-                        (form as { publicUrl?: string }).publicUrl || '',
-                        form.title
+                        form.publicUrl || '',
+                        form.titleAr || form.title || form.id
                       )
                     }
                     className="p-1.5 rounded-lg border border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)]"
@@ -237,7 +279,7 @@ export function BuilderTab({
                       onClick={() =>
                         setDeleteTarget({
                           id: form.id,
-                          title: form.title,
+                          title: form.titleAr || form.title || form.id,
                           kind: 'custom_form',
                         })
                       }

@@ -46,7 +46,7 @@ public static class IbanChoices
     }
     public static IbanAnswer Validate(JsonObject input, JsonObject campaign, bool edit = false)
     {
-        J.Need(input.All(p => Keys.Contains(p.Key) || (edit && p.Key is "version" or "receipt")), "حقول نموذج الآيبان غير صحيحة.");
+        J.Need(input.All(p => Keys.Contains(p.Key) || (edit && p.Key is "version" or "receipt" or "editToken")), "حقول نموذج الآيبان غير صحيحة.");
         var identity = WorkChoices.Identity(input);
         string phone = RiderDirectory.Phone(input.Required("phone"));
         string city = input.Required("city").Trim();
@@ -79,11 +79,16 @@ public static class IbanChoices
         ["alreadySubmitted"] = true, ["iqama"] = d.S("iqama"), ["name"] = d.S("name"), ["city"] = d.S("city"), ["bankCode"] = d.S("bankCode"),
         ["platforms"] = PlatformsOf(d), ["ibanLast4"] = Last4(d), ["version"] = SubmissionChoices.Version(d), ["schema"] = Schema
     };
-    static JsonObject Receipt(JsonObject d) => new()
+    static JsonObject Receipt(JsonObject d, string? editToken = null)
     {
-        ["receipt"] = d.S("id"), ["iqama"] = d.S("iqama"), ["name"] = d.S("name"), ["ibanLast4"] = Last4(d), ["bankCode"] = d.S("bankCode"), ["platforms"] = PlatformsOf(d),
-        ["isEdited"] = d.B("isEdited"), ["version"] = SubmissionChoices.Version(d), ["status"] = d.S("status"), ["submittedAt"] = d.S("updatedAt", d.S("createdAt")), ["schema"] = Schema
-    };
+        var result = new JsonObject
+        {
+            ["receipt"] = d.S("id"), ["iqama"] = d.S("iqama"), ["name"] = d.S("name"), ["ibanLast4"] = Last4(d), ["bankCode"] = d.S("bankCode"), ["platforms"] = PlatformsOf(d),
+            ["isEdited"] = d.B("isEdited"), ["version"] = SubmissionChoices.Version(d), ["status"] = d.S("status"), ["submittedAt"] = d.S("updatedAt", d.S("createdAt")), ["schema"] = Schema
+        };
+        if (editToken != null) result["editToken"] = editToken;
+        return result;
+    }
     public static IResult Create(Store store, JsonObject campaign, JsonObject input)
     {
         var answer = Validate(input, campaign);
@@ -92,7 +97,8 @@ public static class IbanChoices
             campaign = SubmissionChoices.Open(c, tx, campaign); var existing = SubmissionChoices.Find(c, tx, campaign, answer.Iqama);
             if (existing != null) return Results.Json(ApiErrors.Duplicate(View(existing)), statusCode: 409);
             var d = new JsonObject { ["id"] = Guid.NewGuid().ToString("N"), ["campaignId"] = campaign.S("id"), ["schema"] = Schema, ["iqama"] = answer.Iqama, ["status"] = "pending", ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"), ["version"] = 1, ["isEdited"] = false, ["history"] = new JsonArray() };
-            Apply(d, answer); Store.Save(c, "submission", d, tx); Store.Audit(c, tx, "submission.received", d.S("id"), "public-form"); return Results.Ok(Receipt(d));
+            Apply(d, answer); string editToken = SubmissionChoices.IssueEditToken(d);
+            Store.Save(c, "submission", d, tx); Store.Audit(c, tx, "submission.received", d.S("id"), "public-form"); return Results.Ok(Receipt(d, editToken));
         });
     }
     public static IResult Edit(Store store, JsonObject campaign, JsonObject input)
@@ -100,7 +106,8 @@ public static class IbanChoices
         var answer = Validate(input, campaign, edit: true);
         return store.Write<IResult>((c, tx) =>
         {
-            campaign = SubmissionChoices.Open(c, tx, campaign); var d = SubmissionChoices.Find(c, tx, campaign, answer.Iqama) ?? throw new ApiError("لم يتم العثور على رد سابق لتعديله.", 404);
+            campaign = SubmissionChoices.Open(c, tx, campaign); var d = SubmissionChoices.Find(c, tx, campaign, answer.Iqama) ?? throw new ApiError("الرد غير موجود.", 404);
+            SubmissionChoices.RequireEditToken(d, input.S("editToken"));
             J.Need(input.S("receipt") == "" || input.S("receipt") == d.S("id"), "رقم الإيصال لا يطابق الإقامة والحملة."); SubmissionChoices.CheckVersion(d, input);
             if (!Same(d, answer))
             {
@@ -112,7 +119,7 @@ public static class IbanChoices
                 foreach (string field in new[] { "reviewNote", "reviewedAt", "reviewedBy" }) d.Remove(field);
                 Store.Audit(c, tx, "submission.edited", d.S("id"), "public-form"); Store.Save(c, "submission", d, tx);
             }
-            return Results.Ok(Receipt(d));
+            return Results.Ok(Receipt(d, input.S("editToken")));
         });
     }
     public static object[] Distribution(List<JsonObject> rows, Func<JsonObject, IEnumerable<string>> keys) =>

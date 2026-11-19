@@ -96,6 +96,7 @@ try{
  const duplicate=await req(`/api/public/forms/${token}`,answer,'POST',409);assert.equal(duplicate.code,'already_submitted');assert.equal(duplicate.alreadySubmitted,true);assert.equal(duplicate.iqama,answer.iqama);
  const responsePage=await req(`/api/responses?source=campaign&status=pending&campaignId=${campaign.id}&page=1`);assert.equal(responsePage.total,1);assert.equal(responsePage.items[0].source,'campaign');assert.ok(responsePage.items[0].reviewUrl.endsWith('/review'));
  await req('/api/responses?source=invalid',undefined,'GET',400);
- let limited=false;for(let i=0;i<35;i++){const r=await fetch(base+'/api/public/forms/missing');if(r.status===429){assert.equal((await r.json()).code,'rate_limited');limited=true;break;}}assert.ok(limited);checks++;
+ // Development raises the public-forms ceiling to 200; loop past it to prove the limiter.
+ let limited=false;for(let i=0;i<220;i++){const r=await fetch(base+'/api/public/forms/missing');if(r.status===429){assert.equal((await r.json()).code,'rate_limited');limited=true;break;}}assert.ok(limited);checks++;
  console.log(`PASS API cleanup: ${checks} checks`);
 }finally{proc.kill();await new Promise(resolve=>{if(proc.exitCode!==null||proc.signalCode!==null)resolve();else proc.once('exit',resolve);});rmSync(data,{recursive:true,force:true});}

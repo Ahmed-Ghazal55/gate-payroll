@@ -21,10 +21,17 @@ const TAB_PERMISSIONS: Record<RiderAppTab, string[]> = {
   campaigns: ['forms.view'],
   responses: ['forms.view'],
   builder: ['forms.view'],
-  accounts: ['mobile.sessions'],
+  accounts: ['mobile.sessions', 'inquiry.issue'],
   broadcasts: ['mobile.broadcast'],
   statements: ['mobile.broadcast'],
-  requests: ['mobile.broadcast', 'forms.view', 'forms.review'],
+  requests: [
+    'mobile.broadcast',
+    'forms.view',
+    'forms.review',
+    'mobile.complaints.confidential',
+    'riders.iban_data.approve_first',
+    'riders.iban_data.approve_second',
+  ],
   settings: [],
 };
 

@@ -91,7 +91,7 @@ export function RiderSessionsPanel() {
   };
 
   if (!allowed) {
-    return <EmptyState title="لا تملك صلاحية جلسات المناديب" description="تحتاج صلاحية mobile.sessions لعرض الجلسات وإلغائها." />;
+    return <EmptyState title="لا تملك صلاحية جلسات المناديب" description="تحتاج صلاحية جلسات التطبيق لعرض الجلسات وإلغائها." />;
   }
 
   const activeForIqama = iqama.trim() ? rows.filter((r) => r.iqama === iqama.trim() && r.status !== 'revoked') : [];
@@ -168,9 +168,11 @@ export function RiderSessionsPanel() {
                   </td>
                   <td className="p-3 font-mono text-xs">
                     {s.deviceFingerprint || '—'}
-                    {s.fcmRegistered && <span className="ms-1 text-[var(--muted)]">(FCM)</span>}
+                    {s.fcmRegistered && <span className="ms-1 text-[var(--muted)]">(إشعارات الجهاز)</span>}
                   </td>
-                  <td className="p-3 text-xs">{s.language}</td>
+                  <td className="p-3 text-xs">
+                    {s.language === 'ar' ? 'العربية' : s.language === 'en' ? 'الإنجليزية' : s.language === 'ur' ? 'الأردية' : s.language || '—'}
+                  </td>
                   <td className="p-3 num text-xs whitespace-nowrap">{when(s.createdAt)}</td>
                   <td className="p-3 num text-xs whitespace-nowrap">{when(s.lastSeenAt)}</td>
                   <td className="p-3 num text-xs whitespace-nowrap">{when(s.expiresAtUtc)}</td>
