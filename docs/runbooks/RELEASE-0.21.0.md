@@ -30,7 +30,7 @@ PR #36 (draft) is fully inside this release. Close it when this release merges.
 ## 1. Hosting setting (Ghazal, MonsterASP panel; names only)
 - `ConnectionStrings__ErpReadonly` = the **read-only** ERP login for `db67927`. Required: Production always reads live.
   Without it, `/health` shows `erpReadonlyConfigured=false`, and the operations screens and the capture button return 503 «مصدر التشغيل غير متاح» (no silent fallback, BR §39.1).
-- Keep `Jobs__ErpSync__Enabled=false` (no mirror sync, BR §39.1).
+- Mirror sync / Hangfire jobs were removed in S1; ignore old `Jobs__*` keys on host unless Ghazal cleans them.
 - No other setting changes.
 
 ## 2. Merge and deploy (Ghazal)

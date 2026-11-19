@@ -20,7 +20,7 @@ Evidence base (Part A, 2026-11-10): hosted schema read-only; local SQL `db77738`
 | `npm --prefix web run api:check` | PASS |
 | Rollback checkpoint | previous live release `0.19.0` + private `release-backups` under App_Data |
 
-MonsterASP setting **names only** (Ghazal sets values): `Jobs__Enabled`, `Jobs__ErpSync__Enabled`, `Jobs__ErpSync__DailyEnabled`, `Jobs__ErpSync__CatchUpEnabled`, `ConnectionStrings__DefaultConnection`, `ConnectionStrings__Jobs`, `ConnectionStrings__ErpReadonly` (or `ERP_READONLY_DB`), `Vouchers__Secret`.
+MonsterASP setting **names only** (historical for this release): `Jobs__Enabled`, `Jobs__ErpSync__Enabled`, `Jobs__ErpSync__DailyEnabled`, `Jobs__ErpSync__CatchUpEnabled`, `ConnectionStrings__DefaultConnection`, `ConnectionStrings__Jobs`, `ConnectionStrings__ErpReadonly` (or `ERP_READONLY_DB`), `Vouchers__Secret`. **S1 later removed Hangfire/sync code;** those `Jobs__*` keys are unused by current builds (do not drop live Hangfire tables until Ghazal says yes).
 
 ---
 
