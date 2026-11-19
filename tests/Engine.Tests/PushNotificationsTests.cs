@@ -1182,4 +1182,68 @@ public sealed class PushNotificationsTests
             Assert.AreEqual("جدة", saved.S("city"));
         });
     }
+
+    [TestMethod]
+    public void InAppFormSubmissionAlwaysUsesNameFromRiderRecord()
+    {
+        WithSqlStore(store =>
+        {
+            const string riderTwoWords = "2000000941";
+            const string riderOneWord = "2000000942";
+            const string tokTwo = "rmob_" + "5555555555555555555555555555555555555555555555555555555555555555";
+            const string tokOne = "rmob_" + "6666666666666666666666666666666666666666666666666666666666666666";
+            const string campToken = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+            store.Write((c, tx) =>
+            {
+                Store.Save(c, "rider", new() { ["id"] = riderTwoWords, ["iqama"] = riderTwoWords, ["name"] = "الاسم الرسمي", ["status"] = "Active" }, tx);
+                Store.Save(c, "rider", new() { ["id"] = riderOneWord, ["iqama"] = riderOneWord, ["name"] = "اسمواحد", ["status"] = "Active" }, tx);
+                Store.Save(c, MobileSessions.Kind, new()
+                {
+                    ["id"] = "mobile:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(tokTwo))),
+                    ["iqama"] = riderTwoWords,
+                    ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"),
+                    ["expiresAtUtc"] = DateTimeOffset.UtcNow.AddHours(8).ToString("O")
+                }, tx);
+                Store.Save(c, MobileSessions.Kind, new()
+                {
+                    ["id"] = "mobile:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(tokOne))),
+                    ["iqama"] = riderOneWord,
+                    ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"),
+                    ["expiresAtUtc"] = DateTimeOffset.UtcNow.AddHours(8).ToString("O")
+                }, tx);
+                Store.Save(c, "campaign", new()
+                {
+                    ["id"] = "camp-name-test",
+                    ["kind"] = "work-choice",
+                    ["title"] = "حملة نظام العمل",
+                    ["status"] = "open",
+                    ["sharingToken"] = campToken,
+                    ["expiresAt"] = DateTimeOffset.UtcNow.AddDays(7).ToString("O")
+                }, tx);
+                return true;
+            });
+
+            // 1. Client tries to spoof name -> ignored, stored rider name is saved
+            var ctxTwo = new DefaultHttpContext();
+            ctxTwo.Request.Headers.Authorization = "Bearer " + tokTwo;
+            RiderAsks.SubmitInAppForm(store, ctxTwo, campToken, new()
+            {
+                ["name"] = "اسم مزور من العميل",
+                ["workSystem"] = "tiers"
+            });
+            var saved = store.Read(c => Store.ListWhere(c, "submission", null, null, ("iqama", riderTwoWords)).Single());
+            Assert.AreEqual("الاسم الرسمي", saved.S("name"));
+
+            // 2. Stored rider name has < 2 words -> client-supplied name is NOT used (rejected by WorkChoices.Identity)
+            var ctxOne = new DefaultHttpContext();
+            ctxOne.Request.Headers.Authorization = "Bearer " + tokOne;
+            Assert.AreEqual(400, Assert.ThrowsExactly<ApiError>(() =>
+                RiderAsks.SubmitInAppForm(store, ctxOne, campToken, new()
+                {
+                    ["name"] = "اسم بديل من العميل",
+                    ["workSystem"] = "tiers"
+                })).Status);
+        });
+    }
 }

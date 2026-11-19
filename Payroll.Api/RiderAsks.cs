@@ -892,15 +892,13 @@ public static class RiderAsks
         var session = PushNotifications.AuthenticateAndRateLimit(store, ctx, write: true);
         string iqama = session.S("iqama");
         var rider = store.Read(c => Store.Get(c, iqama, "rider")) ?? throw new ApiError("المندوب غير موجود.", 404);
-        string riderName = rider.S("name");
-        if (string.IsNullOrWhiteSpace(riderName) || riderName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 2)
-            riderName = input.S("name") != "" ? input.S("name") : "مندوب مسجل";
+        string riderName = rider.S("name").Trim();
+        J.Need(!string.IsNullOrWhiteSpace(riderName), "اسم المندوب غير مسجل في الدليل؛ تواصل مع الإدارة.", 409);
 
-        // Auto-inject iqama and name from the authenticated rider session so the rider never re-types them!
+        // Always take iqama and name strictly from the authenticated rider record — never from client input.
         var payload = input.Clone();
         payload["iqama"] = iqama;
-        if (!payload.ContainsKey("name") || string.IsNullOrWhiteSpace(payload.S("name")))
-            payload["name"] = riderName;
+        payload["name"] = riderName;
 
         var customForm = store.Read(c => Store.List(c, "custom_form").FirstOrDefault(x => x.S("sharingToken") == token));
         if (customForm != null)
