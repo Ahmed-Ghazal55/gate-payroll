@@ -48,9 +48,9 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { SourceBadge } from '../../components/ui/SourceBadge';
 import {
   BALANCES_PLACEHOLDER_AR,
-  CANONICAL_PLATFORMS,
   buildCompanyStatsExport,
   buildWorkforceCompanyUrl,
+  getPlatformColumns,
   normalizeCompaniesTab,
   platformCountFor,
   platformLabelAr,
@@ -467,6 +467,11 @@ function CompaniesPageContent() {
         item.commercialReg.includes(q)
     );
   }, [stats, searchQuery]);
+
+  const statsPlatformColumns = useMemo(
+    () => getPlatformColumns(filteredStatsItems, stats?.totals.byPlatform),
+    [filteredStatsItems, stats]
+  );
 
   // Registrations list derived from companies
   const allRegistrations = useMemo(() => {
@@ -1005,7 +1010,7 @@ function CompaniesPageContent() {
                         <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">إداريون</th>
                         <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">نشطون</th>
                         <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">إجمالي الحسابات</th>
-                        {CANONICAL_PLATFORMS.map((plat) => (
+                        {statsPlatformColumns.map((plat) => (
                           <th key={plat.code} scope="col" className="py-3 px-3 text-start whitespace-nowrap">
                             {plat.labelAr}
                           </th>
@@ -1042,7 +1047,7 @@ function CompaniesPageContent() {
                             <td className="py-3 px-3 font-mono font-bold num text-[var(--accent)]">
                               {formatNumber(item.platformAccounts.total)}
                             </td>
-                            {CANONICAL_PLATFORMS.map((plat) => {
+                            {statsPlatformColumns.map((plat) => {
                               const count = platformCountFor(item.platformAccounts.byPlatform, plat.code);
                               return (
                                 <td key={plat.code} className="py-3 px-3 font-mono num">
@@ -1099,7 +1104,7 @@ function CompaniesPageContent() {
                         <td className="py-3 px-3 font-mono num text-[var(--accent)]">
                           {formatNumber(stats.totals.platformAccountsTotal)}
                         </td>
-                        {CANONICAL_PLATFORMS.map((plat) => (
+                        {statsPlatformColumns.map((plat) => (
                           <td key={plat.code} className="py-3 px-3 font-mono num">
                             {formatNumber(platformCountFor(stats.totals.byPlatform, plat.code))}
                           </td>

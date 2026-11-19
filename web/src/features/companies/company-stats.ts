@@ -53,13 +53,47 @@ export function buildWorkforceCompanyUrl(companyKey: string, platformCode?: stri
   return qs ? `/workforce/?${qs}` : '/workforce/';
 }
 
+export interface PlatformColumn {
+  code: string;
+  labelAr: string;
+}
+
+export function getPlatformColumns(
+  items: ReadonlyArray<Pick<CompanyStatsItem, 'platformAccounts'>>,
+  extraByPlatform?: ReadonlyArray<Pick<CompanyStatsPlatformCount, 'code' | 'nameAr'>>
+): PlatformColumn[] {
+  const columns: PlatformColumn[] = CANONICAL_PLATFORMS.map((p) => ({ ...p }));
+  const seen = new Set(columns.map((c) => c.code));
+
+  const append = (entry: Pick<CompanyStatsPlatformCount, 'code' | 'nameAr'>) => {
+    const code = normalizePlatformCode(entry.code) || 'OTHER';
+    if (seen.has(code)) return;
+    seen.add(code);
+    columns.push({ code, labelAr: platformLabelAr(code, entry.nameAr) });
+  };
+
+  for (const item of items) {
+    for (const entry of item.platformAccounts.byPlatform) {
+      append(entry);
+    }
+  }
+  if (extraByPlatform) {
+    for (const entry of extraByPlatform) {
+      append(entry);
+    }
+  }
+
+  return columns;
+}
+
 export function platformCountFor(
   byPlatform: ReadonlyArray<Pick<CompanyStatsPlatformCount, 'code' | 'total'>>,
   targetCode: string
 ): number {
-  const want = normalizePlatformCode(targetCode);
+  const want = normalizePlatformCode(targetCode) || 'OTHER';
   return byPlatform.reduce((sum, entry) => {
-    return normalizePlatformCode(entry.code) === want ? sum + (Number(entry.total) || 0) : sum;
+    const code = normalizePlatformCode(entry.code) || 'OTHER';
+    return code === want ? sum + (Number(entry.total) || 0) : sum;
   }, 0);
 }
 
@@ -68,6 +102,7 @@ export function buildCompanyStatsExport(items: ReadonlyArray<CompanyStatsItem>):
   rows: Array<Array<string | number>>;
   numericColumns: number[];
 } {
+  const platformColumns = getPlatformColumns(items);
   const headers = [
     'اسم المنشأة',
     'الرقم الموحد',
@@ -81,7 +116,7 @@ export function buildCompanyStatsExport(items: ReadonlyArray<CompanyStatsItem>):
     'إجمالي حسابات المنصات',
     'الحسابات النشطة',
     'الحسابات المسندة',
-    ...CANONICAL_PLATFORMS.map((p) => `حسابات ${p.labelAr}`),
+    ...platformColumns.map((p) => `حسابات ${p.labelAr}`),
   ];
 
   const rows = items.map((item) => [
@@ -97,12 +132,13 @@ export function buildCompanyStatsExport(items: ReadonlyArray<CompanyStatsItem>):
     item.platformAccounts.total,
     item.platformAccounts.active,
     item.platformAccounts.assigned,
-    ...CANONICAL_PLATFORMS.map((p) => platformCountFor(item.platformAccounts.byPlatform, p.code)),
+    ...platformColumns.map((p) => platformCountFor(item.platformAccounts.byPlatform, p.code)),
   ]);
 
+  const numericColumns = Array.from({ length: headers.length - 4 }, (_, idx) => idx + 4);
   return {
     headers,
     rows,
-    numericColumns: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+    numericColumns,
   };
 }
