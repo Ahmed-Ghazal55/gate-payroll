@@ -168,7 +168,7 @@ public static class WorkforceApi
                 catch { throw new ApiError("معرّف الموظف غير صالح.", 400); }
                 var rider = Store.List(c, "rider").FirstOrDefault(r => r.S("iqama") == iqama || r.S("id") == iqama);
                 if (rider == null) throw new ApiError("الموظف غير موجود.", 404);
-                FinancialScopes.DemandRider(ctx.User, rider);
+                DemandRiderOrNotFound(ctx.User, rider);
                 string linked = rider.S("erpSourceId");
                 return linked == "" ? "" : linked;
             });
@@ -368,6 +368,14 @@ public static class WorkforceApi
         return false;
     }
 
+    static void DemandRiderOrNotFound(ClaimsPrincipal user, JsonObject rider)
+    {
+        if (!FinancialScopes.Rider(user, rider) && !FinancialScopes.AllCompanies(user))
+            throw new ApiError("الموظف غير موجود.", 404);
+        if (!StorePlatformInScope(user, rider))
+            throw new ApiError("الموظف غير موجود.", 404);
+    }
+
     static int ExportTimeoutSeconds(IConfiguration config)
     {
         string raw = config["Workforce:ExportTimeoutSeconds"] ?? config["WORKFORCE_EXPORT_TIMEOUT_SECONDS"] ?? "";
@@ -473,8 +481,8 @@ public static class WorkforceApi
         try { iqama = J.Iqama(key); } catch { /* may be erp guid — fall through */ }
         var rider = Store.Get(c, iqama, "rider")
             ?? Store.List(c, "rider").FirstOrDefault(r => r.S("erpSourceId") == key)
-            ?? throw new ApiError("المندوب غير موجود.", 404);
-        FinancialScopes.DemandRider(actor, rider);
+            ?? throw new ApiError("الموظف غير موجود.", 404);
+        DemandRiderOrNotFound(actor, rider);
         var person = StorePerson(rider);
         var debts = Store.List(c, "debt").Where(d => d.S("iqama") == rider.S("iqama") && FinancialScopes.Debt(actor, d)).ToList();
         var works = Store.List(c, "work").Where(w => w.S("iqama") == rider.S("iqama")).ToList();
