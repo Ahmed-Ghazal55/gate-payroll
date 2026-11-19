@@ -13,6 +13,17 @@ import { useToast } from '../../components/ui/Toast';
 
 const money = (n?: number | null) => (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+function platformLabelAr(raw?: string | null): string {
+  const key = (raw || '').trim().toLowerCase();
+  if (key === 'keeta') return 'كيتا';
+  if (key === 'hungerstation' || key === 'hs') return 'هنقرستيشن';
+  if (key === 'ninja') return 'نينجا';
+  if (key === 'jahez') return 'جاهز';
+  if (key === 'chefz' || key === 'thechefz') return 'ذا شفز';
+  if (key === 'amazon') return 'أمازون';
+  return raw || '—';
+}
+
 function previousMonth(): string {
   const d = new Date();
   d.setUTCDate(1);
@@ -117,32 +128,61 @@ export function StatementsPanel({ canSend }: { canSend: boolean }) {
         <p className="text-xs text-[var(--danger)] p-4">{error}</p>
       ) : statement ? (
         <div className="w-[360px] max-w-full mx-auto border-4 border-[var(--ink)] rounded-3xl p-4 bg-[var(--surface)] space-y-3" data-testid="statement-phone-preview">
+          {(() => {
+            const s = statement as RiderMonthlyStatement & {
+              shortLines?: Array<{ labelAr?: string; label?: string; key?: string; amount?: number }>;
+              closingMarkerAr?: string;
+              disclaimerAr?: string;
+              deductions?: Array<{ labelAr?: string; label?: string; category?: string; amount?: number }>;
+            };
+            return (
+              <>
           <div className="p-3 rounded-2xl bg-[var(--accent)] text-[var(--accent-ink)] text-center space-y-1">
-            <div className="text-[11px]">{statement.header?.period || period}</div>
-            <div className="text-xl font-black num">{money(statement.closing)} ر.س</div>
+            <div className="text-[11px]">{s.header?.period || period}</div>
+            <div className="text-xl font-black num">{money(s.closing)} ر.س</div>
             {/* Same marker as PayStatements.MarkerAr on the server. */}
-            <div className="text-[10px]">{statement.closing > 0 ? 'لك' : statement.closing < 0 ? 'عليك' : 'متوازن'}</div>
+            <div className="text-[10px]">{s.closingMarkerAr || (s.closing > 0 ? 'لك' : s.closing < 0 ? 'عليك' : 'متوازن')}</div>
           </div>
-          {statement.approvedOnly === false || statement.status !== 'approved' ? (
+          {s.status !== 'approved' ? (
             <p className="text-[11px] text-[var(--warning)] text-center">لا يوجد كشف معتمد لهذه الفترة بعد؛ لن يصل المندوب إشعار له.</p>
           ) : null}
           <div className="space-y-1.5 text-xs">
-            {statement.cards.map((c, i) => (
-              <div key={i} className="flex justify-between p-2 rounded-xl bg-[var(--raised)]">
-                <span>{c.platform || c.app}</span>
-                <span className="num font-bold">{money(c.gross)}</span>
+            {(s.shortLines?.length
+              ? s.shortLines.map((line, i) => (
+                  <div key={i} className="flex justify-between p-2 rounded-xl bg-[var(--raised)]">
+                    <span>{line.labelAr || line.label || line.key}</span>
+                    <span className="num font-bold">{money(line.amount)}</span>
+                  </div>
+                ))
+              : s.cards.map((c, i) => (
+                  <div key={i} className="flex justify-between p-2 rounded-xl bg-[var(--raised)]">
+                    <span>{platformLabelAr(c.platform || c.app)}</span>
+                    <span className="num font-bold">{money(c.gross)}</span>
+                  </div>
+                ))}
+            {(s.deductions || []).map((d, i) => (
+              <div key={`d-${i}`} className="flex justify-between p-2 rounded-xl bg-[var(--raised)] text-[var(--danger)]">
+                <span>{d.labelAr || d.label || d.category || 'خصم'}</span>
+                <span className="num font-bold">{money(d.amount)}</span>
               </div>
             ))}
             <div className="flex justify-between py-1 border-t border-[var(--line)]">
               <span className="text-[var(--muted)]">الرصيد المرحل</span>
-              <span className="num">{money(statement.carried)}</span>
+              <span className="num">{money(s.carried)}</span>
             </div>
             <div className="flex justify-between py-1">
               <span className="text-[var(--muted)]">صافي الشهر</span>
-              <span className="num font-bold">{money(statement.net)}</span>
+              <span className="num font-bold">{money(s.net)}</span>
+            </div>
+            <div className="flex justify-between py-1 font-bold">
+              <span>{s.closingMarkerAr || (s.closing > 0 ? 'لك' : s.closing < 0 ? 'عليك' : 'متوازن')}</span>
+              <span className="num">{money(s.closing)}</span>
             </div>
           </div>
-          <p className="text-[10px] text-[var(--muted)] text-center">للاطلاع فقط — ليست مستندًا قانونيًا</p>
+          <p className="text-[10px] text-[var(--muted)] text-center">{s.disclaimerAr || 'للاطلاع فقط — ليست مستندًا قانونيًا'}</p>
+              </>
+            );
+          })()}
         </div>
       ) : null}
 

@@ -1486,7 +1486,7 @@ export const api = {
 
   // Contract-typed read used by the rider-app statements panel (same endpoint as getRiderMonthlyStatement).
   getRiderStatementPreview: (iqama: string, period: string) =>
-    handleRequest<RiderMonthlyStatement>(`/finance/statement/rider/${encodeURIComponent(iqama)}/monthly?period=${encodeURIComponent(period)}`),
+    handleRequest<RiderMonthlyStatement>(`/finance/statement/rider/${encodeURIComponent(iqama)}/monthly?period=${encodeURIComponent(period)}&approvedOnly=1`),
   getRiderMonthlyStatement: (iqama: string, period: string) =>
     handleRequest<any>(`/finance/statement/rider/${encodeURIComponent(iqama)}/monthly?period=${encodeURIComponent(period)}`),
 
