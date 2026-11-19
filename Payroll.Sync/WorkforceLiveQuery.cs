@@ -46,7 +46,7 @@ public static class WorkforceLiveQuery
         string sponsorship = Get(query, "sponsorship");
         string workType = Get(query, "workType");
         string status = Get(query, "status");
-        string sponsor = Get(query, "sponsorUnified", Get(query, "companyId"));
+        string sponsor = Get(query, "sponsorUnified", Get(query, "companyId", Get(query, "company")));
         string platform = Get(query, "platform");
         string city = Get(query, "city");
         bool missingIban = query.TryGetValue("missingIban", out var mi) && (mi == "1" || mi.Equals("true", StringComparison.OrdinalIgnoreCase));
@@ -663,8 +663,17 @@ public static class WorkforceLiveQuery
         }
         if (request.Platform.Length > 0)
         {
-            Add(cmd, "@platform", request.Platform);
-            parts.Add("plat.[PlatformCode]=@platform");
+            var accepted = ErpPlatformCode.AcceptOrSelf(request.Platform);
+            if (accepted.Count == 1)
+            {
+                Add(cmd, "@platform", accepted[0]);
+                parts.Add("plat.[PlatformCode]=@platform");
+            }
+            else if (accepted.Count > 1)
+            {
+                string codes = InList(cmd, "@pf", accepted);
+                parts.Add($"plat.[PlatformCode] IN ({codes})");
+            }
         }
         if (request.CityCode.Length > 0)
         {

@@ -63,7 +63,7 @@ public static partial class AccessPolicy
         }
         if(path.StartsWith("/api/companies/import/",StringComparison.Ordinal))return false; // administrators returned above
         if(path=="/api/companies"||path.StartsWith("/api/companies/",StringComparison.Ordinal))return method=="GET"?Has("companies.view"):method is "POST" or "PUT" or "DELETE"&&Has("companies.manage");
-        if(path=="/api/excel/export")return method=="POST"&&Has("riders.view");
+        if(path=="/api/excel/export")return method=="POST"&&(Has("riders.view")||Has("companies.view"));
         if(path.StartsWith("/api/excel/",StringComparison.Ordinal))
         {
             var parts=path.Split('/');if(parts.Length!=5)return false;

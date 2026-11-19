@@ -129,6 +129,17 @@ export type WorkforcePerson = WorkforceListResponse['items'][number];
 export type WorkforceSummary = NonNullable<WorkforceListResponse['summary']>;
 export type Workforce360Response = ApiResp<'/api/workforce/{id}/360'>;
 
+export type CompaniesStatsResponse = ApiResp<'/api/companies/stats'>;
+export type CompanySingleStatsResponse = ApiResp<'/api/companies/{id}/stats'>;
+export type CompanyStatsItem = CompaniesStatsResponse['items'][number];
+export type CompanyStatsPlatformCount = CompanyStatsItem['platformAccounts']['byPlatform'][number];
+export type CompaniesStatsTotals = CompaniesStatsResponse['totals'];
+export type CompanyContract = ApiResp<'/api/companies/{id}'>;
+export type CompanyRegistrationContract = ApiResp<'/api/companies/{id}/registrations'>[number];
+export type CompanyDocumentContract = ApiResp<'/api/companies/{id}/documents'>[number];
+export type CompanyExpiringContract = ApiResp<'/api/companies/expiring'>[number];
+export type CompanyImportPlanContract = ApiResp<'/api/companies/import/preview', 'post'>;
+
 export type OperationsResponse = Omit<ApiResp<'/api/operations/{kind}'>, 'items'> & {
   items: OperationRow[];
 };
@@ -821,20 +832,34 @@ export const api = {
   search: (query: string) => handleRequest<SearchResult[]>(`/search?q=${encodeURIComponent(query)}`),
   getCompanies: () => handleRequest<CompanySponsor[]>('/companies'),
 
-  // Companies & Registrations (Track L2 / M1.2)
-  getCompaniesList: () => handleRequest<Company[]>('/companies'),
-  getExpiringCompanies: (days = 60) => handleRequest<ExpiringRecord[]>(`/companies/expiring?days=${days}`),
-  getCompany: (id: string) => handleRequest<Company>(`/companies/${id}`),
-  getCompanyRegistrations: (id: string) => handleRequest<CommercialRegistration[]>(`/companies/${id}/registrations`),
-  getCompanyDocuments: (id: string) => handleRequest<CompanyDocument[]>(`/companies/${id}/documents`),
+  // Companies & Registrations (Track L2 / M1.2 / U-W2-06)
+  getCompaniesList: () => handleRequest<CompanyContract[]>('/companies'),
+  getCompaniesStats: (signal?: AbortSignal) => handleRequest<CompaniesStatsResponse>('/companies/stats', { signal }),
+  getCompanyStats: (id: string, signal?: AbortSignal) => handleRequest<CompanySingleStatsResponse>(`/companies/${encodeURIComponent(id)}/stats`, { signal }),
+  getExpiringCompanies: (days = 60) => handleRequest<CompanyExpiringContract[]>(`/companies/expiring?days=${days}`),
+  getCompany: (id: string) => handleRequest<CompanyContract>(`/companies/${encodeURIComponent(id)}`),
+  createCompany: (payload: Record<string, unknown>) =>
+    handleRequest<CompanyContract>('/companies', { method: 'POST', body: JSON.stringify(payload) }),
+  updateCompany: (id: string, payload: Record<string, unknown>) =>
+    handleRequest<CompanyContract>(`/companies/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  archiveCompany: (id: string) =>
+    handleRequest<{ ok: boolean }>(`/companies/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getCompanyRegistrations: (id: string) => handleRequest<CompanyRegistrationContract[]>(`/companies/${encodeURIComponent(id)}/registrations`),
+  createCompanyRegistration: (companyId: string, payload: Record<string, unknown>) =>
+    handleRequest<CompanyRegistrationContract>(`/companies/${encodeURIComponent(companyId)}/registrations`, { method: 'POST', body: JSON.stringify(payload) }),
+  updateCompanyRegistration: (companyId: string, registrationId: string, payload: Record<string, unknown>) =>
+    handleRequest<CompanyRegistrationContract>(`/companies/${encodeURIComponent(companyId)}/registrations/${encodeURIComponent(registrationId)}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  archiveCompanyRegistration: (companyId: string, registrationId: string) =>
+    handleRequest<{ ok: boolean }>(`/companies/${encodeURIComponent(companyId)}/registrations/${encodeURIComponent(registrationId)}`, { method: 'DELETE' }),
+  getCompanyDocuments: (id: string) => handleRequest<CompanyDocumentContract[]>(`/companies/${encodeURIComponent(id)}/documents`),
   uploadCompanyDocument: (companyId: string, doc: { type: string; number?: string; expiryDate?: string; fileName: string; dataBase64: string }) =>
-    handleRequest<CompanyDocument>(`/companies/${companyId}/documents`, { method: 'POST', body: JSON.stringify(doc) }),
+    handleRequest<CompanyDocumentContract>(`/companies/${companyId}/documents`, { method: 'POST', body: JSON.stringify(doc) }),
   deleteCompanyDocument: (companyId: string, documentId: string) =>
     handleRequest<{ ok: boolean }>(`/companies/${companyId}/documents/${documentId}`, { method: 'DELETE' }),
-  previewCompanyImport: (companies: any[]) =>
-    handleRequest<CompanyImportPlan>('/companies/import/preview', { method: 'POST', body: JSON.stringify({ companies }) }),
-  commitCompanyImport: (payload: { rows: any[]; fingerprint: string; confirm: boolean }) =>
-    handleRequest<{ counts: any }>('/companies/import/commit', { method: 'POST', body: JSON.stringify(payload) }),
+  previewCompanyImport: (companies: Record<string, unknown>[]) =>
+    handleRequest<CompanyImportPlanContract>('/companies/import/preview', { method: 'POST', body: JSON.stringify({ companies }) }),
+  commitCompanyImport: (payload: { rows: Record<string, unknown>[]; fingerprint: string; confirm: boolean }) =>
+    handleRequest<{ counts: Record<string, unknown> }>('/companies/import/commit', { method: 'POST', body: JSON.stringify(payload) }),
   getAuditLogs: () => handleRequest<Array<{ id: string; action: string; actor: string; at: string }>>('/audit'),
 
   // Campaigns
