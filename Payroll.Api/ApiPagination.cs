@@ -18,10 +18,15 @@ public static class ApiPagination
             ?? throw new InvalidOperationException("A paginated list must return an array.");
         return Apply(rows.OfType<JsonObject>(), request.Query);
     }
-    public static object Apply(IEnumerable<JsonObject> source, IQueryCollection query, bool always = false)
+    public static object Apply(IEnumerable<JsonObject> source, IQueryCollection query, bool always = false, IReadOnlySet<string>? whitelist = null)
     {
         var rows=source.ToList();
-        if(!always && !query.ContainsKey("page"))return rows;
+        if(!always && !query.ContainsKey("page"))
+        {
+            if(TableFilterContract.HasContractParams(query))
+                rows=TableFilterContract.Apply(rows,query,whitelist);
+            return rows;
+        }
         int Positive(string key,int fallback)
         {
             if(!query.ContainsKey(key))return fallback;
@@ -30,15 +35,10 @@ public static class ApiPagination
         }
         int page=Positive("page",1),pageSize=Math.Min(Positive("pageSize",50),200);
         // `search` is the older UI name for `q`; both use the shared Arabic/digit normaliser.
-        string q=(query.ContainsKey("q")?query["q"]:query["search"]).ToString().Trim(),sort=query["sort"].ToString();
+        string q=(query.ContainsKey("q")?query["q"]:query["search"]).ToString().Trim();
         if(q.Length>0)rows=rows.Where(r=>TextSearch.Matches(q,Text(r))).ToList();
-        if(sort.Length>0)
-        {
-            string field=sort.TrimStart('-');
-            if(!Regex.IsMatch(field,"^[A-Za-z][A-Za-z0-9_]*$"))throw new ApiError("حقل الترتيب غير صالح.");
-            var comparer=Comparer<JsonNode?>.Create((a,b)=>a?.GetValueKind()==JsonValueKind.Number&&b?.GetValueKind()==JsonValueKind.Number&&decimal.TryParse(a.ToJsonString(),NumberStyles.Number,CultureInfo.InvariantCulture,out var an)&&decimal.TryParse(b.ToJsonString(),NumberStyles.Number,CultureInfo.InvariantCulture,out var bn)?an.CompareTo(bn):StringComparer.OrdinalIgnoreCase.Compare(a?.ToString(),b?.ToString()));
-            rows=(sort.StartsWith('-')?rows.OrderByDescending(r=>r[field],comparer):rows.OrderBy(r=>r[field],comparer)).ToList();
-        }
+        if(query.ContainsKey("filters")||query.ContainsKey("sort"))
+            rows=TableFilterContract.Apply(rows,query,whitelist);
         long offset=((long)page-1)*pageSize;
         return new { items=offset>=rows.Count?new List<JsonObject>():rows.Skip((int)offset).Take(pageSize).ToList(), total=rows.Count, page, pageSize };
     }

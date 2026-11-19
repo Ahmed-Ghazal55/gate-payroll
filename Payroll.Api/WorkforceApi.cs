@@ -43,16 +43,43 @@ public static class WorkforceApi
             .WithTags("HR Catalogs").WithSummary("Live HR catalogs from Omar ERP (H9)");
     }
 
+    static readonly HashSet<string> WorkforceAllowedColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id", "erpEmployeeId", "name", "iqama", "phone", "nationality",
+        "status", "statusCode", "engagementType", "workType", "workTypeNameAr", "operationalRole",
+        "sponsorNameAr", "sponsor", "sponsorId", "sponsorUnified",
+        "platform", "platforms", "platformWorkId", "city", "cityCode", "housing",
+        "jobTitle", "paymentModel", "hasCompanyVehicle", "companyVehicleType", "drivingLicense",
+        "iban", "ibanSource", "ibanAlert", "mudadSalary",
+        "issueKind", "source", "suggestedAction"
+    };
+
+    static readonly Dictionary<string, string> WorkforceColumnAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["platforms"] = "platform",
+        ["sponsor"] = "sponsorNameAr"
+    };
+
     static object List(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "riders.view");
         var request = ParseList(ctx);
+        bool hasContract = TableFilterContract.HasContractParams(ctx.Request.Query);
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
             return store.Read(c =>
             {
-                var page = StoreList(c, ctx.User, request);
-                var items = page.Items.Select(r => StripSensitive(r, ctx.User)).ToList();
-                return Envelope(new { items, total = page.Total, page = request.Page, pageSize = request.PageSize, summary = page.Summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                if (!hasContract)
+                {
+                    var page = StoreList(c, ctx.User, request);
+                    var items = page.Items.Select(r => StripSensitive(r, ctx.User)).ToList();
+                    return Envelope(new { items, total = page.Total, page = request.Page, pageSize = request.PageSize, summary = page.Summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                }
+                var full = StoreList(c, ctx.User, request with { Page = 1, PageSize = 50_000, Skip = 0, Take = 50_000 });
+                var all = full.Items.Select(r => StripSensitive(r, ctx.User)).ToList();
+                var filtered = TableFilterContract.Apply(all, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
+                long total = filtered.Count;
+                var paged = filtered.Skip(request.Skip).Take(request.Take).ToList();
+                return Envelope(new { items = paged, total, page = request.Page, pageSize = request.PageSize, summary = full.Summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
             });
         return LiveRead(ctx, token =>
         {
@@ -60,9 +87,19 @@ public static class WorkforceApi
             return store.Read(c =>
             {
                 var scope = Operations.LiveScope(c, ctx.User);
-                var page = WorkforceLiveQuery.Page(erp, request with { QueryAlt = request.Query.Length == 0 ? "" : TextSearch.Normalize(request.Query) }, scope, token);
+                var liveReq = hasContract
+                    ? request with { Page = 1, PageSize = WorkforceLiveQuery.MaxPageSize, Skip = 0, Take = WorkforceLiveQuery.MaxPageSize, QueryAlt = request.Query.Length == 0 ? "" : TextSearch.Normalize(request.Query) }
+                    : request with { QueryAlt = request.Query.Length == 0 ? "" : TextSearch.Normalize(request.Query) };
+                var page = WorkforceLiveQuery.Page(erp, liveReq, scope, token);
                 var items = page.Items.Select(r => StripSensitive(ApplyIbanAlert(r), ctx.User)).ToList();
-                return Envelope(new { items, total = page.Total, page = request.Page, pageSize = request.PageSize, summary = page.Summary }, Operations.SourceLive, page.AsOf, Actions(ctx.User));
+                long total = page.Total;
+                if (hasContract)
+                {
+                    items = TableFilterContract.Apply(items, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
+                    total = items.Count;
+                    items = items.Skip(request.Skip).Take(request.Take).ToList();
+                }
+                return Envelope(new { items, total, page = request.Page, pageSize = request.PageSize, summary = page.Summary }, Operations.SourceLive, page.AsOf, Actions(ctx.User));
             });
         }, "workforce");
     }
@@ -89,23 +126,18 @@ public static class WorkforceApi
         }, "workforce");
     }
 
-    static readonly HashSet<string> WorkforceDistinctColumns = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "status", "city", "sponsorNameAr", "sponsor", "platform", "platforms",
-        "workType", "engagementType", "nationality", "jobTitle", "companyVehicleType", "housing"
-    };
-
     static object DistinctValues(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "riders.view");
+        _ = TableFilterContract.ParseFilters(ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
         string column = (ctx.Request.Query["column"].ToString() ?? "").Trim();
-        if (!WorkforceDistinctColumns.Contains(column))
-            return new JsonObject { ["column"] = column, ["values"] = new JsonArray() };
+        if (!WorkforceAllowedColumns.Contains(column))
+            return new JsonObject { ["column"] = column, ["values"] = new JsonArray(), ["counts"] = new JsonObject() };
         var request = ParseList(ctx) with { Page = 1, PageSize = WorkforceLiveQuery.MaxPageSize, Skip = 0, Take = WorkforceLiveQuery.MaxPageSize };
         List<JsonObject> rows;
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
         {
-            rows = store.Read(c => StoreList(c, ctx.User, request with { Page = 1, PageSize = 5_000, Skip = 0, Take = 5_000 }).Items.ToList());
+            rows = store.Read(c => StoreList(c, ctx.User, request with { Page = 1, PageSize = 5_000, Skip = 0, Take = 5_000 }).Items.Select(r => StripSensitive(r, ctx.User)).ToList());
         }
         else
         {
@@ -115,19 +147,11 @@ public static class WorkforceApi
                 return store.Read(c =>
                 {
                     var scope = Operations.LiveScope(c, ctx.User);
-                    return WorkforceLiveQuery.Page(erp, request with { QueryAlt = "" }, scope, token).Items.ToList();
+                    return WorkforceLiveQuery.Page(erp, request with { QueryAlt = "" }, scope, token).Items.Select(r => StripSensitive(ApplyIbanAlert(r), ctx.User)).ToList();
                 });
             }, "workforce-distinct");
         }
-        var values = rows
-            .Select(r => r.S(column).Trim())
-            .Where(v => v.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(v => v, StringComparer.OrdinalIgnoreCase)
-            .Take(500)
-            .Select(v => (JsonNode?)v)
-            .ToArray();
-        return new JsonObject { ["column"] = column, ["values"] = new JsonArray(values) };
+        return TableFilterContract.BuildDistinct(rows, column, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
     }
 
     static IResult Export(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
@@ -166,6 +190,8 @@ public static class WorkforceApi
                 });
             }, "workforce-export", TimeSpan.FromSeconds(exportTimeout));
         }
+        if (TableFilterContract.HasContractParams(ctx.Request.Query))
+            all = TableFilterContract.Apply(all, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
         bool showIban = AccessPolicy.Has(ctx.User, PermIban);
         // R1: IBAN, bank short code and bank name are three separate columns in the export.
         var headers = new[] { "الاسم", "رقم الإقامة", "الجوال", "الجنسية", "الحالة", "نوع العلاقة", "نوع العمل", "الكفيل", "المنصة", "معرف المنصة", "المدينة", "السكن", "المسمى", "نموذج الدفع", "مركبة الشركة", "الرخصة", showIban ? "الآيبان" : "الآيبان (مخفي)", "كود البنك", "اسم البنك", "تنبيه الآيبان", "راتب مدد" };
@@ -329,6 +355,7 @@ public static class WorkforceApi
     {
         AccessPolicy.Demand(ctx.User, "riders.view");
         var request = ParseList(ctx);
+        bool hasContract = TableFilterContract.HasContractParams(ctx.Request.Query);
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
             return store.Read(c =>
             {
@@ -336,6 +363,8 @@ public static class WorkforceApi
                     .Where(r => FinancialScopes.Rider(ctx.User, r) || FinancialScopes.AllCompanies(ctx.User))
                     .Where(r => StorePlatformInScope(ctx.User, r)).ToList();
                 var issues = people.SelectMany(QualityIssues).ToList();
+                if (hasContract)
+                    issues = TableFilterContract.Apply(issues, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
                 long total = issues.Count;
                 var page = issues.Skip(request.Skip).Take(request.Take).ToList();
                 return Envelope(new { items = page, total, page = request.Page, pageSize = request.PageSize }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
@@ -347,7 +376,13 @@ public static class WorkforceApi
             {
                 var scope = Operations.LiveScope(c, ctx.User);
                 var (items, total) = WorkforceLiveQuery.DataQualityPage(erp, request with { QueryAlt = "" }, scope, token);
-                return Envelope(new { items, total, page = request.Page, pageSize = request.PageSize }, Operations.SourceLive, DateTimeOffset.UtcNow, Actions(ctx.User));
+                var list = items.ToList();
+                if (hasContract)
+                {
+                    list = TableFilterContract.Apply(list, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
+                    total = list.Count;
+                }
+                return Envelope(new { items = list, total, page = request.Page, pageSize = request.PageSize }, Operations.SourceLive, DateTimeOffset.UtcNow, Actions(ctx.User));
             });
         }, "data-quality");
     }
@@ -372,19 +407,34 @@ public static class WorkforceApi
         }, "hr-catalogs");
     }
 
+    static readonly HashSet<string> NativeWorkforceSorts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "name", "-name", "status", "-status", "iqama", "-iqama", "id", "-id"
+    };
+
     static WorkforceLiveQuery.ListRequest ParseList(HttpContext ctx)
     {
+        _ = TableFilterContract.ParseFilters(ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
+        var sorts = TableFilterContract.ParseSort(ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
         try
         {
             var dict = ctx.Request.Query.Keys.ToDictionary(k => k, k => ctx.Request.Query[k].ToString(), StringComparer.OrdinalIgnoreCase);
+            if (sorts.Count > 0)
+            {
+                var primary = sorts[0];
+                string candidate = string.Equals(primary.Dir, "desc", StringComparison.OrdinalIgnoreCase)
+                    ? "-" + primary.Col
+                    : primary.Col;
+                dict["sort"] = NativeWorkforceSorts.Contains(candidate) ? candidate : "name";
+            }
             var req = WorkforceLiveQuery.ParseRequest(dict);
             if (req.SponsorUnified.Length > 0 && FinancialCore.FindSponsor(req.SponsorUnified) is { } sponsor && !string.IsNullOrWhiteSpace(sponsor.UnifiedNumber))
                 req = req with { SponsorUnified = sponsor.UnifiedNumber };
             return req;
         }
         catch (ImportFailure ex) when (ex.Code == "invalid_page") { throw new ApiError("رقم الصفحة وحجمها يجب أن يكونا عددين صحيحين موجبين."); }
-        catch (ImportFailure ex) when (ex.Code == "invalid_live_sort") { throw new ApiError("حقل الترتيب غير صالح."); }
-        catch (ImportFailure ex) when (ex.Code == "invalid_live_status") { throw new ApiError("حالة غير معروفة."); }
+        catch (ImportFailure ex) when (ex.Code == "invalid_live_sort") { throw new ApiError("حقل الترتيب غير صالح.", 400); }
+        catch (ImportFailure ex) when (ex.Code == "invalid_live_status") { throw new ApiError("حالة غير معروفة.", 400); }
     }
 
     sealed record StorePage(IReadOnlyList<JsonObject> Items, long Total, JsonObject Summary);

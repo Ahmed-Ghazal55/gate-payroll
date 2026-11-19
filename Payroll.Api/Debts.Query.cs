@@ -15,12 +15,31 @@ public static partial class Debts
         "Advance", "CashAdvance", "BankAdvance"
     };
 
+    static readonly HashSet<string> AllowedDebtColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id", "riderName", "iqama", "creditorSponsorId", "originSponsorId",
+        "companyId", "company", "category", "categoryAr", "platform",
+        "originalAmount", "totalAmount", "paidAmount", "remainingBalance", "monthlyInstallment",
+        "status", "source", "entryMode", "createdAt", "approvedAt", "at", "notes", "reference", "description"
+    };
+
+    static readonly Dictionary<string, string> DebtColumnAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["companyId"] = "creditorSponsorId",
+        ["company"] = "creditorSponsorId"
+    };
+
     /// <summary>
-    /// List debts with optional SQL filters. Without <c>page</c>, returns the legacy JSON array
-    /// (backward compatible). With <c>page</c>, returns <c>{items,total,page,pageSize}</c>.
+    /// List debts with optional SQL filters and generic Excel-style filter/sort contract (FL2).
+    /// Without <c>page</c>, returns the legacy JSON array (backward compatible).
+    /// With <c>page</c>, returns <c>{items,total,page,pageSize}</c>.
     /// </summary>
     public static object ListPaged(DbConnection c, ClaimsPrincipal actor, IQueryCollection query)
     {
+        // Validate generic filter/sort contract against whitelist first
+        _ = TableFilterContract.ParseFilters(query, AllowedDebtColumns, DebtColumnAliases);
+        _ = TableFilterContract.ParseSort(query, AllowedDebtColumns, DebtColumnAliases);
+
         var filter = ParseFilter(query);
         bool paged = query.ContainsKey("page");
         int page = 1, pageSize = 50;
@@ -29,8 +48,24 @@ public static partial class Debts
             page = Positive(query, "page", 1);
             pageSize = Math.Min(Positive(query, "pageSize", 50), 200);
         }
-        string sort = query["sort"].ToString();
         var (where, parms) = BuildWhere(c, actor, filter);
+
+        if (TableFilterContract.HasContractParams(query))
+        {
+            var allViews = ReadBodies(c, where, parms, OrderBy(c, ""), null, null)
+                .Select(d => View(c, null, actor, d))
+                .ToList();
+            var filtered = TableFilterContract.Apply(allViews, query, AllowedDebtColumns, DebtColumnAliases);
+            if (!paged) return filtered;
+            long filteredTotal = filtered.Count;
+            long filteredOffset = ((long)page - 1) * pageSize;
+            var pageItems = filteredOffset >= filteredTotal
+                ? new List<JsonObject>()
+                : filtered.Skip((int)filteredOffset).Take(pageSize).ToList();
+            return new { items = pageItems, total = filteredTotal, page, pageSize };
+        }
+
+        string sort = query["sort"].ToString();
         long total = Count(c, where, parms);
         if (!paged)
         {
@@ -55,22 +90,34 @@ public static partial class Debts
         ["company"] = "creditorSponsorId",
         ["platform"] = "platform",
         ["source"] = "source",
-        ["entryMode"] = "entryMode"
+        ["entryMode"] = "entryMode",
+        ["iqama"] = "iqama",
+        ["riderName"] = "riderName"
     };
 
-    /// <summary>Light scoped distinct values for DataTable column list filters.</summary>
+    /// <summary>Light scoped distinct values (with counts) for DataTable column filters.</summary>
     public static JsonObject Distinct(DbConnection c, ClaimsPrincipal actor, IQueryCollection query)
     {
+        _ = TableFilterContract.ParseFilters(query, AllowedDebtColumns, DebtColumnAliases);
         string rawCol = (query["column"].ToString() ?? "").Trim();
-        if (!DistinctColumnMap.TryGetValue(rawCol, out string? field))
-            return new JsonObject { ["column"] = rawCol, ["values"] = new JsonArray() };
+        if (!AllowedDebtColumns.Contains(rawCol))
+            return new JsonObject { ["column"] = rawCol, ["values"] = new JsonArray(), ["counts"] = new JsonObject() };
+
         var filter = ParseFilter(query) with { Status = null, Category = null, Search = null };
         var (where, parms) = BuildWhere(c, actor, filter);
+
+        if (TableFilterContract.HasContractParams(query) || !DistinctColumnMap.TryGetValue(rawCol, out string? field))
+        {
+            var allViews = ReadBodies(c, where, parms, OrderBy(c, ""), null, null)
+                .Select(d => View(c, null, actor, d));
+            return TableFilterContract.BuildDistinct(allViews, rawCol, query, AllowedDebtColumns, DebtColumnAliases);
+        }
+
         string expr = RiderDataIndexes.FieldExpr(c, field);
         bool sqlite = c is SqliteConnection;
         string sql = sqlite
-            ? $"SELECT DISTINCT {expr} AS v FROM records WHERE {where} AND {expr} IS NOT NULL AND {expr} <> '' ORDER BY v LIMIT 500"
-            : $"SELECT DISTINCT TOP 500 {expr} AS v FROM records WHERE {where} AND {expr} IS NOT NULL AND {expr} <> '' ORDER BY v";
+            ? $"SELECT {expr} AS v, COUNT(*) AS cnt FROM records WHERE {where} AND {expr} IS NOT NULL AND {expr} <> '' GROUP BY {expr} ORDER BY v LIMIT 500"
+            : $"SELECT TOP 500 {expr} AS v, COUNT(*) AS cnt FROM records WHERE {where} AND {expr} IS NOT NULL AND {expr} <> '' GROUP BY {expr} ORDER BY v";
         using var cmd = c.CreateCommand();
         cmd.CommandText = sql;
         foreach (var (k, v) in parms)
@@ -80,19 +127,23 @@ public static partial class Debts
             p.Value = v ?? DBNull.Value;
             cmd.Parameters.Add(p);
         }
-        var set = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var counts = new SortedDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
             if (reader.IsDBNull(0)) continue;
             string v = Convert.ToString(reader.GetValue(0), CultureInfo.InvariantCulture)?.Trim() ?? "";
             if (v.Length == 0) continue;
-            set.Add(v);
+            int cnt = reader.IsDBNull(1) ? 1 : Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture);
+            counts[v] = counts.TryGetValue(v, out int prev) ? prev + cnt : cnt;
         }
+        var countsObj = new JsonObject();
+        foreach (var (k, cnt) in counts) countsObj[k] = cnt;
         return new JsonObject
         {
             ["column"] = rawCol,
-            ["values"] = new JsonArray(set.Select(v => (JsonNode?)v).ToArray())
+            ["values"] = new JsonArray(counts.Keys.Select(v => (JsonNode?)v).ToArray()),
+            ["counts"] = countsObj
         };
     }
 
