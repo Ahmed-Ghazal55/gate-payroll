@@ -308,11 +308,60 @@ public static partial class OperationsLiveQuery
         }
     }
 
+    static string BuildPurchaseInvoicesSql(DbCommand cmd, DateOnly from, DateOnly to, int skip, int take, string search, string? receiptId)
+    {
+        var parts = new List<string> { "ISNULL(pr.[IsDeleted],0)=0" };
+        if (receiptId is { Length: > 0 })
+        {
+            if (!Guid.TryParse(receiptId, out _)) throw new ImportFailure("purchase_not_found");
+            Add(cmd, "@receiptId", receiptId);
+            parts.Add("pr.[Id]=@receiptId");
+        }
+        else
+        {
+            Add(cmd, "@from", from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            Add(cmd, "@to", to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            // Match either supplier bill date (InvoiceDate) or Riyadh receiving date (ReceivedAtUtc).
+            // Omar's receipts screen orders by ReceivedAtUtc without filtering on InvoiceDate, so a receipt
+            // recorded in November with an October supplier bill date must still appear in November.
+            parts.Add("""
+                (
+                    (pr.[InvoiceDate] IS NOT NULL AND CONVERT(date, pr.[InvoiceDate]) >= CONVERT(date, @from) AND CONVERT(date, pr.[InvoiceDate]) <= CONVERT(date, @to))
+                    OR (pr.[ReceivedAtUtc] IS NOT NULL AND CONVERT(date, SWITCHOFFSET(pr.[ReceivedAtUtc], '+03:00')) >= CONVERT(date, @from) AND CONVERT(date, SWITCHOFFSET(pr.[ReceivedAtUtc], '+03:00')) <= CONVERT(date, @to))
+                )
+                """);
+        }
+        if (search.Length > 0)
+        {
+            Add(cmd, "@q", "%" + EscapeLike(search) + "%");
+            parts.Add("(pr.[ReceiptNumber] LIKE @q OR pr.[SupplierInvoiceNumber] LIKE @q OR sp.[LegalNameAr] LIKE @q)");
+        }
+        string where = " WHERE " + string.Join(" AND ", parts);
+        Add(cmd, "@skip", skip);
+        Add(cmd, "@take", take);
+        return $"""
+            WITH filtered AS (
+                SELECT pr.[Id], pr.[ReceiptNumber], pr.[SupplierInvoiceNumber], pr.[InvoiceDate], pr.[ReceivedAtUtc],
+                       pr.[Subtotal], pr.[TaxAmount], pr.[TotalAmount], pr.[Status],
+                       sp.[LegalNameAr] AS SupplierNameAr
+                FROM [maintenance].[PurchaseReceipts] pr
+                LEFT JOIN [maintenance].[Suppliers] sp ON sp.[Id]=pr.[SupplierId] AND ISNULL(sp.[IsDeleted],0)=0
+                {where}
+            ),
+            agg AS (SELECT COUNT_BIG(*) AS TotalCount, ISNULL(SUM(TotalAmount),0) AS TotalAmountSum FROM filtered)
+            SELECT f.*, a.TotalCount, a.TotalAmountSum
+            FROM filtered f CROSS JOIN agg a
+            ORDER BY COALESCE(CONVERT(date, SWITCHOFFSET(f.ReceivedAtUtc, '+03:00')), CONVERT(date, f.InvoiceDate)) DESC,
+                     f.InvoiceDate DESC, f.ReceiptNumber DESC
+            OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY
+            """;
+    }
+
     public static PageResult PurchaseInvoices(DbConnection source, DateOnly from, DateOnly to, int page, int pageSize,
         string search, LiveOperationsQuery.Scope scope, string? receiptId, CancellationToken ct = default)
     {
         EnsureSql(source);
-        if (to < from) throw new ImportFailure("invalid_period");
+        if (receiptId is not { Length: > 0 } && to < from) throw new ImportFailure("invalid_period");
         pageSize = Math.Min(Math.Max(1, pageSize), MaxPageSize);
         page = Math.Max(1, page);
         int skip = checked((page - 1) * pageSize);
@@ -327,43 +376,7 @@ public static partial class OperationsLiveQuery
                 if (receiptId is { Length: > 0 }) throw new ImportFailure("purchase_not_found");
                 return new([], 0, new JsonObject { ["invoicesTotal"] = 0, ["totalAmount"] = 0, ["message"] = "فواتير المشتريات بلا عمود شركة — مخفية لنطاق شركة" }, DateTimeOffset.UtcNow);
             }
-            Add(cmd, "@from", from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
-            Add(cmd, "@to", to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
-            var parts = new List<string>
-            {
-                "pr.[IsDeleted]=0",
-                "CONVERT(date, pr.[InvoiceDate]) >= CONVERT(date, @from)",
-                "CONVERT(date, pr.[InvoiceDate]) <= CONVERT(date, @to)"
-            };
-            if (receiptId is { Length: > 0 })
-            {
-                if (!Guid.TryParse(receiptId, out _)) throw new ImportFailure("purchase_not_found");
-                Add(cmd, "@receiptId", receiptId);
-                parts.Add("pr.[Id]=@receiptId");
-            }
-            if (search.Length > 0)
-            {
-                Add(cmd, "@q", "%" + EscapeLike(search) + "%");
-                parts.Add("(pr.[ReceiptNumber] LIKE @q OR pr.[SupplierInvoiceNumber] LIKE @q OR sp.[LegalNameAr] LIKE @q)");
-            }
-            string where = " WHERE " + string.Join(" AND ", parts);
-            Add(cmd, "@skip", skip);
-            Add(cmd, "@take", pageSize);
-            cmd.CommandText = $"""
-                WITH filtered AS (
-                    SELECT pr.[Id], pr.[ReceiptNumber], pr.[SupplierInvoiceNumber], pr.[InvoiceDate], pr.[ReceivedAtUtc],
-                           pr.[Subtotal], pr.[TaxAmount], pr.[TotalAmount], pr.[Status],
-                           sp.[LegalNameAr] AS SupplierNameAr
-                    FROM [maintenance].[PurchaseReceipts] pr
-                    LEFT JOIN [maintenance].[Suppliers] sp ON sp.[Id]=pr.[SupplierId] AND sp.[IsDeleted]=0
-                    {where}
-                ),
-                agg AS (SELECT COUNT_BIG(*) AS TotalCount, ISNULL(SUM(TotalAmount),0) AS TotalAmountSum FROM filtered)
-                SELECT f.*, a.TotalCount, a.TotalAmountSum
-                FROM filtered f CROSS JOIN agg a
-                ORDER BY f.InvoiceDate DESC, f.ReceiptNumber
-                OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY
-                """;
+            cmd.CommandText = BuildPurchaseInvoicesSql(cmd, from, to, skip, pageSize, search, receiptId);
             long total = 0;
             decimal totalAmount = 0;
             var items = new List<JsonObject>();
@@ -387,7 +400,7 @@ public static partial class OperationsLiveQuery
                         ["subtotal"] = Decimal(reader, "Subtotal"),
                         ["taxAmount"] = Decimal(reader, "TaxAmount"),
                         ["totalAmount"] = Decimal(reader, "TotalAmount"),
-                        ["status"] = Str(reader, "Status"),
+                        ["status"] = PurchaseStatusLabel(Str(reader, "Status")),
                         ["supplierNameAr"] = Str(reader, "SupplierNameAr")
                     };
                     items.Add(row);
@@ -396,6 +409,10 @@ public static partial class OperationsLiveQuery
             if (receiptId is { Length: > 0 } && items.Count == 0) throw new ImportFailure("purchase_not_found");
             if (receiptId is { Length: > 0 } && items.Count == 1)
                 items[0]["lines"] = PurchaseLines(source, items[0].S("id"), ct);
+            if (receiptId is not { Length: > 0 } && items.Count == 0 && page > 1)
+            {
+                (total, totalAmount) = PurchaseSummaryOnly(source, from, to, search, ct);
+            }
             var summary = new JsonObject { ["invoicesTotal"] = total, ["totalAmount"] = totalAmount };
             return new(items, total, summary, DateTimeOffset.UtcNow);
         }
@@ -404,6 +421,17 @@ public static partial class OperationsLiveQuery
             if (receiptId is { Length: > 0 }) throw new ImportFailure("purchase_not_found");
             return new([], 0, new JsonObject { ["invoicesTotal"] = 0, ["totalAmount"] = 0, ["message"] = NoSourceYet }, DateTimeOffset.UtcNow);
         }
+    }
+
+    static (long Total, decimal TotalAmount) PurchaseSummaryOnly(DbConnection source, DateOnly from, DateOnly to, string search, CancellationToken ct)
+    {
+        using var cmd = source.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        using var cancel = SyncCancellation.Register(cmd, ct);
+        cmd.CommandText = BuildPurchaseInvoicesSql(cmd, from, to, 0, 1, search, null);
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read()) return (0L, 0m);
+        return (Long(reader, "TotalCount"), Decimal(reader, "TotalAmountSum"));
     }
 
     static JsonArray PurchaseLines(DbConnection source, string receiptId, CancellationToken ct)

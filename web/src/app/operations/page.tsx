@@ -28,6 +28,21 @@ const MAIN_TABS = new Set(['cities', 'housing', 'vehicles', 'fuel']);
 const NO_SOURCE = 'لا يوجد مصدر بعد';
 const cell = (v: unknown) => (v === null || v === undefined || v === '' ? NO_SOURCE : String(v));
 
+function formatDateShort(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—';
+  const s = String(v).trim();
+  if (!s) return '—';
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : s;
+}
+
+function formatPurchaseStatus(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (s === '1' || s.toLowerCase() === 'posted') return 'مرحّل';
+  if (s === '2' || s.toLowerCase() === 'reversed') return 'معكوس';
+  return s || '—';
+}
+
 function monthBounds(d = new Date()) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -330,6 +345,12 @@ function OperationsPageInner() {
       ];
     }
     if (tab === 'vehicles') {
+      if (view === 'invoices') {
+        return [
+          { label: 'عدد الفواتير', value: summary.invoicesTotal },
+          { label: 'إجمالي المبالغ', value: summary.totalAmount },
+        ];
+      }
       return [
         { label: 'المركبات العاملة', value: summary.vehiclesOperating ?? summary.invoicesTotal },
         { label: 'إجمالي أيام التشغيل', value: summary.totalOperatingDays },
@@ -345,7 +366,7 @@ function OperationsPageInner() {
       { label: 'الإجمالي شامل الضريبة', value: summary.totalInclVat },
       { label: 'تجاوز السقف', value: summary.capExceeded ?? NO_SOURCE },
     ];
-  }, [tab, summary]);
+  }, [tab, view, summary]);
 
   const columns: ColumnDef<OpsRow>[] = useMemo(() => {
     if (tab === 'cities') {
@@ -412,10 +433,12 @@ function OperationsPageInner() {
     if (view === 'invoices') {
       return [
         { key: 'num', header: 'رقم الاستلام', render: (r) => String(r.receiptNumber || '') },
-        { key: 'sup', header: 'المورد', render: (r) => String(r.supplierNameAr || '') },
-        { key: 'date', header: 'تاريخ الفاتورة', render: (r) => String(r.invoiceDate || '') },
+        { key: 'supInv', header: 'فاتورة المورد', render: (r) => String(r.supplierInvoiceNumber || '—') },
+        { key: 'sup', header: 'المورد', render: (r) => String(r.supplierNameAr || '—') },
+        { key: 'date', header: 'تاريخ الفاتورة', render: (r) => formatDateShort(r.invoiceDate) },
+        { key: 'receivedAt', header: 'تاريخ الاستلام', render: (r) => formatDateShort(r.receivedAt) },
         { key: 'total', header: 'الإجمالي', render: (r) => String(r.totalAmount ?? '') },
-        { key: 'status', header: 'الحالة', render: (r) => String(r.status || '') },
+        { key: 'status', header: 'الحالة', render: (r) => formatPurchaseStatus(r.status) },
       ];
     }
     if (view === 'oil') {

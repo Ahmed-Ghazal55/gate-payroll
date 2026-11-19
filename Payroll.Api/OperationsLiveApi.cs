@@ -259,7 +259,7 @@ public static class OperationsLiveApi
         var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
         var (page, pageSize, _, _, search) = ParsePage(ctx);
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
-            return Envelope(new { items = Array.Empty<object>(), total = 0L, page, pageSize, summary = new { invoicesTotal = 0, totalAmount = 0, message = OperationsLiveQuery.NoSourceYet } }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+            return store.Read(c => Envelope(BuildStorePurchases(c, ctx.User, from, to, page, pageSize, search), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
         return LiveRead(ctx, token =>
         {
             using var erp = OpenErp(config);
@@ -279,7 +279,13 @@ public static class OperationsLiveApi
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
-            throw new ApiError("فاتورة المشتريات غير موجودة.", 404);
+            return store.Read(c =>
+            {
+                if (!FinancialScopes.AllCompanies(ctx.User)) throw new ApiError("فاتورة المشتريات غير موجودة.", 404);
+                var hit = Store.Get(c, id, "purchase_invoice") ?? throw new ApiError("فاتورة المشتريات غير موجودة.", 404);
+                if (hit["isDeleted"]?.GetValue<bool>() == true) throw new ApiError("فاتورة المشتريات غير موجودة.", 404);
+                return Envelope(MapStorePurchaseRow(hit), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+            });
         DateOnly from = new(2020, 1, 1);
         DateOnly to = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(3));
         return LiveRead(ctx, token =>
@@ -561,6 +567,54 @@ public static class OperationsLiveApi
         };
         return new { items, total = rows.Count, page, pageSize, summary, month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture) };
     }
+
+    static object BuildStorePurchases(DbConnection c, ClaimsPrincipal user, DateOnly from, DateOnly to, int page, int pageSize, string search)
+    {
+        if (!FinancialScopes.AllCompanies(user))
+            return new { items = Array.Empty<object>(), total = 0L, page, pageSize, summary = new JsonObject { ["invoicesTotal"] = 0, ["totalAmount"] = 0, ["message"] = "فواتير المشتريات بلا عمود شركة — مخفية لنطاق شركة" } };
+        var stored = Store.List(c, "purchase_invoice").ToList();
+        if (stored.Count == 0)
+            return new { items = Array.Empty<object>(), total = 0L, page, pageSize, summary = new JsonObject { ["invoicesTotal"] = 0, ["totalAmount"] = 0, ["message"] = OperationsLiveQuery.NoSourceYet } };
+        var matched = stored
+            .Where(r => r["isDeleted"]?.GetValue<bool>() != true)
+            .Where(r =>
+            {
+                DateOnly? invDate = DateOnly.TryParse(r.S("invoiceDate"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+                DateTimeOffset? recAt = DateTimeOffset.TryParse(r.S("receivedAt"), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt) ? dt : null;
+                return OperationsLiveQuery.PurchaseInvoiceInPeriod(invDate, recAt, from, to);
+            })
+            .Select(MapStorePurchaseRow)
+            .Where(r => search.Length == 0
+                || r.S("receiptNumber").Contains(search, StringComparison.OrdinalIgnoreCase)
+                || r.S("supplierInvoiceNumber").Contains(search, StringComparison.OrdinalIgnoreCase)
+                || r.S("supplierNameAr").Contains(search, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(r => r.S("receivedAt"))
+            .ThenByDescending(r => r.S("invoiceDate"))
+            .ThenByDescending(r => r.S("receiptNumber"))
+            .ToList();
+        int skip = (page - 1) * pageSize;
+        var items = matched.Skip(skip).Take(pageSize).ToList();
+        var summary = new JsonObject
+        {
+            ["invoicesTotal"] = matched.Count,
+            ["totalAmount"] = matched.Sum(r => r.N("totalAmount"))
+        };
+        return new { items, total = (long)matched.Count, page, pageSize, summary };
+    }
+
+    static JsonObject MapStorePurchaseRow(JsonObject r) => new()
+    {
+        ["id"] = r.S("id"),
+        ["receiptNumber"] = r.S("receiptNumber"),
+        ["supplierInvoiceNumber"] = r.S("supplierInvoiceNumber"),
+        ["invoiceDate"] = r.S("invoiceDate"),
+        ["receivedAt"] = r.S("receivedAt"),
+        ["subtotal"] = r.N("subtotal"),
+        ["taxAmount"] = r.N("taxAmount"),
+        ["totalAmount"] = r.N("totalAmount"),
+        ["status"] = OperationsLiveQuery.PurchaseStatusLabel(r.S("status")),
+        ["supplierNameAr"] = r.S("supplierNameAr")
+    };
 
     static void AssertNoVin(IEnumerable<JsonObject> items)
     {
