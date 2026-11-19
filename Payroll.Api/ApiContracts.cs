@@ -34,6 +34,8 @@ public static class ApiContracts
     static OpenApiSchema AssignmentRow()=>O(new(){["riderId"]=S(),["RawEffectiveFrom"]=S(),["RawEffectiveTo"]=S(),["EffectiveFrom"]=S(),["EffectiveTo"]=S(),["Status"]=S(),["IsRealRider"]=B()});
     static OpenApiSchema Guess(string field)=>field is "orders" or "hours" or "amount" or "vat" or "modelYear" or "currentOdometer" or "startOdometer" or "endOdometer" or "quantity" or "returnedQuantity" or "totalCost" or "collectedAmount" or "deductionsAmount" or "deliveryFees" or "cashCollected" or "totalValidOffers" or "acceptedOffers" or "declinedOffers" or "missedOffers" or "gross" or "companyAmount" or "riderAmount" or "rate" or "count" or "vehicleType" or "fuelType" or "ownershipType"?N():field is "isRealRider" or "frozen"?B():S();
     static OpenApiSchema OperationsPage()=>O(new(){["items"]=A(OperationsItem()),["total"]=N(),["page"]=N(),["pageSize"]=N(),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","source","asOf","allowedActions");
+    static OpenApiSchema OperationsFleetPage()=>O(new(){["items"]=A(Free()),["total"]=N(),["page"]=N(),["pageSize"]=N(),["summary"]=Free(),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S()),["mode"]=S(),["from"]=S(),["to"]=S(),["month"]=S()},"items","total","source","asOf","allowedActions");
+    static OpenApiSchema OperationsFleetDetail()=>O(new(){["id"]=S(),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S()),["items"]=A(Free()),["rooms"]=A(Free()),["byRegistration"]=A(Free()),["byApp"]=A(Free()),["lines"]=A(Free()),["assignmentHistory"]=A(Free()),["summary"]=Free()},"source","asOf","allowedActions");
     static OpenApiSchema WorkforcePerson()=>O(new(){["id"]=S(),["iqama"]=S(),["name"]=S(),["phone"]=S(),["nationality"]=S(),["iban"]=S(),["ibanAlert"]=S(),["ibanSource"]=S(),["engagementType"]=S(),["status"]=S(),["sponsorNameAr"]=S(),["sponsor"]=S(),["platform"]=S(),["platforms"]=S(),["platformWorkId"]=S(),["city"]=S(),["workType"]=S(),["mudadSalary"]=S(),["jobTitle"]=S(),["hasCompanyVehicle"]=B(),["companyVehicleType"]=S(),["operationalRole"]=S(),["housing"]=S(),["allowedActions"]=A(S())},"id","iqama","name");
     static OpenApiSchema WorkforceCompanyCard()=>O(new(){["sponsorUnified"]=S(),["sponsorNameAr"]=S(),["totalCount"]=N()},"sponsorUnified","sponsorNameAr","totalCount");
     static OpenApiSchema WorkforceSummaryBody()=>O(new(){["totalCount"]=N(),["sponsoredCount"]=N(),["sponsoredRiders"]=N(),["sponsoredAdmins"]=N(),["sponsoredMissingIban"]=N(),["byCompany"]=A(WorkforceCompanyCard())},"totalCount","sponsoredCount","sponsoredRiders","sponsoredAdmins","sponsoredMissingIban");
@@ -99,6 +101,11 @@ public static class ApiContracts
         if(path=="/api/workforce/export"&&get)return Free();
         if(path=="/api/hr-catalogs/{kind}"&&get)return WorkforceListEnvelope();
         if(path=="/api/operations/{kind}"&&get)return OperationsPage();
+        if(get&&path is "/api/operations/cities-summary" or "/api/operations/housing" or "/api/operations/vehicles/period-report" or "/api/operations/fuel-cards" or "/api/operations/fuel-cards/assignments" or "/api/operations/vehicles/purchase-invoices")
+            return OperationsFleetPage();
+        if(get&&path is "/api/operations/cities/{id}" or "/api/operations/housing/{id}/rooms" or "/api/operations/vehicles/{id}" or "/api/operations/vehicles/{id}/oil-changes" or "/api/operations/vehicles/purchase-invoices/{id}")
+            return OperationsFleetDetail();
+        if(get&&path.StartsWith("/api/operations/",StringComparison.Ordinal)&&path.EndsWith("/export",StringComparison.Ordinal))return Free();
         if(path=="/api/riders/{iqama}/accounts"&&get)return OperationsPage();
         if(path=="/api/riders/lookup"&&get)return A(Rider());
         if(path is "/api/campaigns" or "/api/campaigns/{id}")return get&&path=="/api/campaigns"?new(){OneOf=[A(Campaign()),Page(Campaign())]}:Campaign();
