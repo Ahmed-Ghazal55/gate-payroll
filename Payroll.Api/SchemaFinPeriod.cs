@@ -16,6 +16,10 @@ public static class SchemaFinPeriod
     {
         string t=SchemaSql.Q(c,"fin","accounting_period");string g=SchemaSql.GuidType(c);
         string company=SchemaSql.Q(c,"hr","company");
+        // period_month is the period start (design §7.1); must be first day of month on both providers.
+        string firstOfMonth=SchemaSql.IsSql(c)
+            ?"period_month = DATEFROMPARTS(YEAR(period_month), MONTH(period_month), 1)"
+            :"strftime('%d', period_month) = '01'";
         if(SchemaSql.IsSql(c))
         {
             SchemaSql.Exec(c,tx,$"""
@@ -34,6 +38,7 @@ public static class SchemaFinPeriod
                   CONSTRAINT UQ_fin_accounting_period UNIQUE (company_id, period_month),
                   CONSTRAINT UQ_fin_accounting_period_company_id UNIQUE (company_id, id),
                   CONSTRAINT CK_fin_accounting_period_state CHECK (state IN (1,2)),
+                  CONSTRAINT CK_fin_accounting_period_start CHECK ({firstOfMonth}),
                   CONSTRAINT FK_fin_period_company FOREIGN KEY (company_id) REFERENCES {company}(id)
                 );
                 """);
@@ -56,6 +61,7 @@ public static class SchemaFinPeriod
                   CONSTRAINT UQ_fin_accounting_period UNIQUE (company_id, period_month),
                   CONSTRAINT UQ_fin_accounting_period_company_id UNIQUE (company_id, id),
                   CONSTRAINT CK_fin_accounting_period_state CHECK (state IN (1,2)),
+                  CONSTRAINT CK_fin_accounting_period_start CHECK ({firstOfMonth}),
                   CONSTRAINT FK_fin_period_company FOREIGN KEY (company_id) REFERENCES {company}(id)
                 );
                 """);

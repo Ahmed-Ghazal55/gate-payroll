@@ -33,7 +33,7 @@ public sealed class SchemaFinPeriodTests
     }
 
     [TestMethod]
-    public void StateCheckUniqueAndCompanyFkRejectBadRows()
+    public void StateCheckUniqueFirstOfMonthAndCompanyFkRejectBadRows()
     {
         using var c=Open();
         string company=InsertCompany(c);
@@ -42,6 +42,10 @@ public sealed class SchemaFinPeriodTests
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-11-01',1,datetime('now'))",
             ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company)));
+        // Mid-month is not a valid period_start (must be first day) — closes the same-month duplicate loophole.
+        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,@m,1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company),("@m","2026-11-15")));
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-12-01',9,datetime('now'))",
             ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company)));
@@ -84,6 +88,9 @@ public sealed class SchemaFinPeriodTests
                 Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,
                     "INSERT INTO fin.accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-12-01',3,SYSUTCDATETIME())",
                     ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company)));
+                Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,
+                    "INSERT INTO fin.accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,@m,1,SYSUTCDATETIME())",
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company),("@m","2026-11-15")));
                 return true;
             });
         }
