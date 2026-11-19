@@ -40,6 +40,16 @@ public sealed partial class Store
             CREATE INDEX IF NOT EXISTS ix_journal_sponsor ON records(json_extract(body,'$.creditorSponsorId'),json_extract(body,'$.period')) WHERE kind='journal';
             CREATE INDEX IF NOT EXISTS ix_company_children ON records(kind,json_extract(body,'$.companyId')) WHERE kind IN ('commercial_registration','company_document');
             CREATE INDEX IF NOT EXISTS ix_rider_doc_iqama ON records(json_extract(body,'$.iqama')) WHERE kind='rider_document';
+            CREATE INDEX IF NOT EXISTS ix_pay_cycle_line_rider_period ON records(json_extract(body,'$.rider'),json_extract(body,'$.period')) WHERE kind='pay_cycle_line';
+            CREATE INDEX IF NOT EXISTS ix_pay_cycle_line_period ON records(json_extract(body,'$.period')) WHERE kind='pay_cycle_line';
+            CREATE INDEX IF NOT EXISTS ix_pay_cycle_period ON records(json_extract(body,'$.period')) WHERE kind='pay_cycle';
+            CREATE INDEX IF NOT EXISTS ix_mobile_broadcast_target ON records(json_extract(body,'$.targetIqama'),json_extract(body,'$.createdAt')) WHERE kind='mobile_broadcast';
+            CREATE INDEX IF NOT EXISTS ix_rider_ask_iqama ON records(json_extract(body,'$.riderIqama')) WHERE kind='rider_ask';
+            CREATE INDEX IF NOT EXISTS ix_rider_sreq_iqama ON records(json_extract(body,'$.riderIqama')) WHERE kind='rider_service_request';
+            CREATE INDEX IF NOT EXISTS ix_mobile_session_iqama ON records(json_extract(body,'$.iqama')) WHERE kind='mobile_session';
+            CREATE INDEX IF NOT EXISTS ix_submission_iqama ON records(json_extract(body,'$.iqama')) WHERE kind='submission';
+            CREATE INDEX IF NOT EXISTS ix_advance_req_iqama ON records(json_extract(body,'$.riderIqama')) WHERE kind='advance_request';
+            CREATE INDEX IF NOT EXISTS ix_push_outbox_status ON records(json_extract(body,'$.status'),json_extract(body,'$.createdAt')) WHERE kind='push_outbox';
             """ : """
             IF OBJECT_ID(N'dbo.records', N'U') IS NULL
               CREATE TABLE dbo.records(id nvarchar(128) NOT NULL PRIMARY KEY, kind nvarchar(40) NOT NULL, body nvarchar(max) NOT NULL CHECK(ISJSON(body)=1));
@@ -48,6 +58,7 @@ public sealed partial class Store
             """;
         cmd.ExecuteNonQuery();
         ErpDataIndexes.Ensure(c);
+        // Rider SQL Server indexes/columns are applied only by the admin maintenance job (not startup).
         PayRunInputs.Ensure(c);
         // M9: captured cycle must have freeze rows (in-flight cycles cannot deploy without U2 + rows).
         foreach(var cycle in List(c,PayCycles.Kind).Where(PayRunInputs.Captured))
@@ -65,6 +76,8 @@ public sealed partial class Store
     }
     // WAL allows independent reads while a write transaction is open.
     public T Read<T>(Func<DbConnection, T> action) { using var c = Open(); return action(c); }
+    /// <summary>Holds one open connection for the callback (session locks / multi-statement DDL).</summary>
+    public void WithConnection(Action<DbConnection> action) { using var c = Open(); action(c); }
     public const string DocumentLock="GatePayroll.DocumentWrite",ErpMirrorLock="GatePayroll.ErpMirrorWrite";
     public T Write<T>(Func<DbConnection, DbTransaction, T> action, bool invalidateSummaries = true,CancellationToken cancellationToken=default,string? lockResource=null)
     {
@@ -98,6 +111,124 @@ public sealed partial class Store
         using var cmd = Command(c, tx, c is SqliteConnection ? "SELECT body FROM records WHERE kind=@kind ORDER BY rowid DESC" : "SELECT body FROM records WHERE kind=@kind ORDER BY COALESCE(JSON_VALUE(body,'$.createdAt'),JSON_VALUE(body,'$.at'),JSON_VALUE(body,'$.approvedAt'),'') DESC,id DESC", ("@kind",kind));
         using var r = cmd.ExecuteReader(); var rows = new List<JsonObject>();
         while (r.Read()) rows.Add(JsonNode.Parse(r.GetString(0))!.AsObject()); return rows;
+    }
+    static string JsonFieldExpr(DbConnection c, string jsonField) => RiderDataIndexes.FieldExpr(c, jsonField);
+    public static List<JsonObject> ListWhere(DbConnection c, string kind, DbTransaction? tx = null, int? limit = null, params (string JsonField, string Value)[] equals)
+    {
+        bool sqlite = c is SqliteConnection;
+        string kindPred = RiderDataIndexes.KindSql(c, kind, "@kind", out bool kindLiteral);
+        var sql = new System.Text.StringBuilder();
+        sql.Append(sqlite ? "SELECT body FROM records WHERE " + kindPred : (limit.HasValue ? $"SELECT TOP ({Math.Max(1, limit.Value)}) body FROM records WHERE {kindPred}" : "SELECT body FROM records WHERE " + kindPred));
+        var parameters = new List<(string Name, object Value)>();
+        if (!kindLiteral) parameters.Add(("@kind", kind));
+        for (int i = 0; i < equals.Length; i++)
+        {
+            sql.Append(" AND ").Append(JsonFieldExpr(c, equals[i].JsonField)).Append($"=@v{i}");
+            parameters.Add(($"@v{i}", equals[i].Value));
+        }
+        sql.Append(sqlite
+            ? " ORDER BY rowid DESC" + (limit.HasValue ? $" LIMIT {Math.Max(1, limit.Value)}" : "")
+            : " ORDER BY COALESCE(JSON_VALUE(body,'$.createdAt'),JSON_VALUE(body,'$.at'),JSON_VALUE(body,'$.approvedAt'),'') DESC,id DESC");
+        using var cmd = Command(c, tx, sql.ToString(), parameters.ToArray());
+        using var r = cmd.ExecuteReader(); var rows = new List<JsonObject>();
+        while (r.Read()) rows.Add(JsonNode.Parse(r.GetString(0))!.AsObject());
+        return rows;
+    }
+    public static List<JsonObject> ListByIds(DbConnection c, string kind, IReadOnlyCollection<string> ids, DbTransaction? tx = null)
+    {
+        if (ids.Count == 0) return [];
+        var unique = ids.Where(x => !string.IsNullOrEmpty(x)).Distinct(StringComparer.Ordinal).ToList();
+        if (unique.Count == 0) return [];
+        var rows = new List<JsonObject>();
+        const int chunkSize = 400;
+        for (int offset = 0; offset < unique.Count; offset += chunkSize)
+        {
+            var chunk = unique.Skip(offset).Take(chunkSize).ToList();
+            var parameters = new List<(string Name, object Value)> { ("@kind", kind) };
+            var placeholders = new string[chunk.Count];
+            for (int i = 0; i < chunk.Count; i++)
+            {
+                string pName = $"@id{i}";
+                placeholders[i] = pName;
+                parameters.Add((pName, chunk[i]));
+            }
+            string sql = $"SELECT body FROM records WHERE kind=@kind AND id IN ({string.Join(",", placeholders)})";
+            using var cmd = Command(c, tx, sql, parameters.ToArray());
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) rows.Add(JsonNode.Parse(r.GetString(0))!.AsObject());
+        }
+        return rows;
+    }
+    public static List<JsonObject> ListBroadcastsForRider(DbConnection c, string iqama, int limit, DbTransaction? tx = null)
+    {
+        int bounded = Math.Max(1, limit);
+        string targetIqama = RiderDataIndexes.FieldExpr(c, "targetIqama");
+        string createdAt = RiderDataIndexes.CreatedAtExpr(c);
+        string sql = c is SqliteConnection
+            ? $"SELECT body FROM records WHERE kind='mobile_broadcast' AND {targetIqama} IN ('ALL', @iqama) ORDER BY COALESCE({createdAt}, '') DESC, rowid DESC LIMIT {bounded}"
+            : $"SELECT TOP ({bounded}) body FROM records WHERE kind='mobile_broadcast' AND {targetIqama} IN ('ALL', @iqama) ORDER BY COALESCE({createdAt}, '') DESC, id DESC";
+        using var cmd = Command(c, tx, sql, ("@iqama", iqama));
+        using var r = cmd.ExecuteReader(); var rows = new List<JsonObject>();
+        while (r.Read()) rows.Add(JsonNode.Parse(r.GetString(0))!.AsObject());
+        return rows;
+    }
+    public static HashSet<string> ListIdsByPrefix(DbConnection c, string kind, string idPrefix, DbTransaction? tx = null)
+    {
+        if (string.IsNullOrEmpty(idPrefix)) return [];
+        char last = idPrefix[^1];
+        string endExclusive = idPrefix[..^1] + (char)(last + 1);
+        using var cmd = Command(c, tx, "SELECT id FROM records WHERE kind=@kind AND id >= @start AND id < @end", ("@kind", kind), ("@start", idPrefix), ("@end", endExclusive));
+        using var r = cmd.ExecuteReader(); var ids = new HashSet<string>(StringComparer.Ordinal);
+        while (r.Read()) ids.Add(r.GetString(0));
+        return ids;
+    }
+    /// <summary>Open campaign/custom_form rows for a rider, filtered in SQL by status, expiry, target and company scalars.</summary>
+    public static List<JsonObject> ListOpenFormsForRider(DbConnection c, string kind, string iqama, IReadOnlyCollection<string> companyKeys, string nowIso, DbTransaction? tx = null)
+    {
+        if (kind is not ("campaign" or "custom_form")) throw new ArgumentException("kind must be campaign or custom_form.", nameof(kind));
+        bool sqlite = c is SqliteConnection;
+        var companies = companyKeys.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Take(32).ToList();
+        var sql = new System.Text.StringBuilder();
+        // kind is allow-listed above; embed as SQL literal so filtered indexes stay eligible.
+        sql.Append("SELECT body FROM records WHERE kind='").Append(kind).Append("' AND ");
+        sql.Append(RiderDataIndexes.StatusExpr(c));
+        sql.Append("='open' AND ");
+        sql.Append(RiderDataIndexes.ExpiresAtExpr(c));
+        sql.Append(" > @now AND (");
+        sql.Append(RiderDataIndexes.TargetExpr(c)).Append(" IN ('','ALL','rider','riders',@iqama)");
+        sql.Append(')');
+        sql.Append(" AND (").Append(RiderDataIndexes.TargetIqamaExpr(c)).Append(" IN ('','ALL',@iqama))");
+        string[] companyFields = ["companyId", "sponsorId", "targetCompanyId", "targetSponsorId"];
+        sql.Append(" AND (");
+        for (int i = 0; i < companyFields.Length; i++)
+        {
+            if (i > 0) sql.Append(" AND ");
+            string expr = JsonFieldExpr(c, companyFields[i]);
+            sql.Append('(').Append("COALESCE(").Append(expr).Append(",'') IN ('','ALL')");
+            if (companies.Count > 0)
+            {
+                sql.Append(" OR ").Append(expr).Append(" IN (");
+                for (int j = 0; j < companies.Count; j++)
+                {
+                    if (j > 0) sql.Append(',');
+                    sql.Append("@c").Append(i).Append('_').Append(j);
+                }
+                sql.Append(')');
+            }
+            sql.Append(')');
+        }
+        sql.Append(')');
+        sql.Append(sqlite
+            ? " ORDER BY rowid DESC"
+            : " ORDER BY COALESCE(" + RiderDataIndexes.CreatedAtExpr(c) + ",'') DESC,id DESC");
+        var parameters = new List<(string Name, object Value)> { ("@iqama", iqama), ("@now", nowIso) };
+        for (int i = 0; i < companyFields.Length; i++)
+            for (int j = 0; j < companies.Count; j++)
+                parameters.Add(($"@c{i}_{j}", companies[j]));
+        using var cmd = Command(c, tx, sql.ToString(), parameters.ToArray());
+        using var r = cmd.ExecuteReader(); var rows = new List<JsonObject>();
+        while (r.Read()) rows.Add(JsonNode.Parse(r.GetString(0))!.AsObject());
+        return rows;
     }
     public static JsonObject? Get(DbConnection c, string id, string kind, DbTransaction? tx = null)
     {

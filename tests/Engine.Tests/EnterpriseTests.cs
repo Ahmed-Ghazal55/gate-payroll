@@ -61,6 +61,19 @@ public sealed class EnterpriseTests
         Assert.ThrowsExactly<ApiError>(()=>FormSchemas.Answers(schema,new(){["identity"]="2000000001",["choice"]="other"}));
         var invalid=Schema();((JsonArray)invalid["fields"]!)[1]!["id"]="identity";Assert.ThrowsExactly<ApiError>(()=>FormSchemas.Validate(invalid));
     }
+    [TestMethod] public void FormTargetingRejectsUnknownTargetAndCompany()
+    {
+        var ok=Schema();ok["target"]="rider";ok["targetCompanyId"]=FinancialCore.Sponsors[0].Id;
+        var saved=FormSchemas.Validate(ok);Assert.AreEqual("rider",saved.S("target"));Assert.AreEqual(FinancialCore.Sponsors[0].Id,saved.S("targetCompanyId"));
+        var badTarget=Schema();badTarget["target"]="typo-audience";
+        Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>FormSchemas.Validate(badTarget)).Status);
+        var badCompany=Schema();badCompany["targetCompanyId"]="not-a-real-company";
+        Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>FormSchemas.Validate(badCompany)).Status);
+        var doc=new JsonObject();
+        Assert.ThrowsExactly<ApiError>(()=>FormTargeting.ApplyAndValidate(new(){["target"]="ghost"},doc));
+        FormTargeting.ApplyAndValidate(new(){["target"]="staff",["companyId"]="BW"},doc);
+        Assert.AreEqual("staff",doc.S("target"));Assert.AreEqual("BW",doc.S("companyId"));
+    }
     [TestMethod] public void DirectoryPreservesStateAndNormalizesRelationship()
     {
         var r=RiderDirectory.Normalize(new(){["iqama"]="2000000001",["name"]="Synthetic Rider",["engagement_type"]="OutsideRider",["status"]="في إجازة",["phone"]="0501234567"});

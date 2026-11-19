@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Plus,
   Copy,
@@ -11,7 +11,7 @@ import {
   CalendarClock,
 } from 'lucide-react';
 import { api } from '../../lib/api';
-import type { Campaign } from '../../lib/types';
+import type { Campaign, CompanySponsor } from '../../lib/types';
 import { Toolbar } from '../../components/ui/Toolbar';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { Dialog } from '../../components/ui/Dialog';
@@ -20,6 +20,12 @@ import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
 import { DeletePreviewDialog, DeleteTarget } from './DeletePreviewDialog';
 import { campaignLink, shortCampaignLinkLabel } from './campaign-link';
+
+const TARGET_OPTIONS = [
+  { value: 'rider', label: 'المناديب فقط' },
+  { value: 'staff', label: 'الموظفون فقط' },
+  { value: 'ALL', label: 'الجميع' },
+] as const;
 
 // The public link also checks expiry (Program.cs Campaign()), so an "open" campaign past its date is expired.
 function campaignState(c: Campaign): 'open' | 'expired' | 'closed' {
@@ -47,7 +53,17 @@ export function CampaignsTab({
   const [newTitle, setNewTitle] = useState('');
   const [newKind, setNewKind] = useState<'work-choice' | 'iban'>('iban');
   const [newDays, setNewDays] = useState(14);
+  const [newTarget, setNewTarget] = useState<(typeof TARGET_OPTIONS)[number]['value']>('rider');
+  const [newCompanyId, setNewCompanyId] = useState('ALL');
+  const [companies, setCompanies] = useState<CompanySponsor[]>([]);
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    api
+      .getCompanies()
+      .then((rows) => setCompanies(Array.isArray(rows) ? rows : []))
+      .catch(() => setCompanies([]));
+  }, []);
 
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [qrTarget, setQrTarget] = useState<Campaign | null>(null);
@@ -81,10 +97,16 @@ export function CampaignsTab({
         title: newTitle.trim(),
         kind: newKind,
         days: newDays,
+        target: newTarget,
+        ...(newCompanyId && newCompanyId !== 'ALL'
+          ? { targetCompanyId: newCompanyId, companyId: newCompanyId }
+          : {}),
       });
       toast('تم إنشاء الحملة بنجاح', 'success');
       setCreateOpen(false);
       setNewTitle('');
+      setNewTarget('rider');
+      setNewCompanyId('ALL');
       onRefresh();
     } catch (err: any) {
       toast(err?.message || 'تعذر إنشاء الحملة', 'danger');
@@ -378,6 +400,44 @@ export function CampaignsTab({
               onChange={(e) => setNewDays(Number(e.target.value))}
               className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] num"
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-[var(--ink)] mb-1">
+                نوع الجمهور المستهدف
+              </label>
+              <select
+                value={newTarget}
+                onChange={(e) =>
+                  setNewTarget(e.target.value as (typeof TARGET_OPTIONS)[number]['value'])
+                }
+                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              >
+                {TARGET_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-[var(--ink)] mb-1">
+                الشركة المستهدفة
+              </label>
+              <select
+                value={newCompanyId}
+                onChange={(e) => setNewCompanyId(e.target.value)}
+                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              >
+                <option value="ALL">كل الشركات</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.shortNameAr || c.nameAr} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </form>
       </Dialog>

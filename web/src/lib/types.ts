@@ -158,6 +158,10 @@ export interface Campaign {
   qrCodeUrl?: string;
   responseCount: number;
   cities?: Array<{ ar: string; en: string }>;
+  /** Audience target: ALL | rider | riders | staff (or a 10-digit iqama). */
+  target?: string;
+  companyId?: string;
+  targetCompanyId?: string;
 }
 
 export interface SubmissionHistory {
@@ -204,10 +208,16 @@ export interface CustomFormQuestion {
 export interface CustomForm {
   id: string;
   title: string;
+  titleAr?: string;
   status: 'draft' | 'published' | 'closed';
   questions: CustomFormQuestion[];
   responsesCount: number;
   createdAt: string;
+  expiresAt?: string;
+  fields?: unknown;
+  target?: string;
+  companyId?: string;
+  targetCompanyId?: string;
 }
 
 export interface PaginatedResult<T> {

@@ -2,7 +2,8 @@ import './styles/app.css';
 import { loadSession } from './state';
 import { renderLogin } from './screens/login';
 import { PortalController } from './screens/portal';
-import { initPushNotifications, routeNotificationLink } from './push';
+import { initPushNotifications, routeNotificationLink, extractNotificationPeriod } from './push';
+import { applyDirection, getLanguage, t } from './i18n';
 
 const root = document.getElementById('app') as HTMLElement;
 
@@ -13,8 +14,8 @@ function initOfflineBanner(onRetry: () => void) {
     banner.id = 'mob-offline-banner';
     banner.className = 'mob-offline-bar hidden';
     banner.innerHTML = `
-      <span>⚠️ لا يوجد اتصال بالإنترنت</span>
-      <button class="secondary small" id="mob-offline-retry" style="margin:0; padding:4px 10px; font-size:12px;">إعادة المحاولة ↻</button>
+      <span>${t('offlineWarning')}</span>
+      <button type="button" class="secondary small" id="mob-offline-retry" style="margin:0; padding:4px 10px; font-size:12px;">${t('retry')}</button>
     `;
     root.parentElement?.insertBefore(banner, root);
     document.getElementById('mob-offline-retry')?.addEventListener('click', () => {
@@ -42,6 +43,7 @@ function initOfflineBanner(onRetry: () => void) {
 }
 
 async function startApp() {
+  applyDirection(getLanguage());
   const session = await loadSession();
   const portal = new PortalController(root, (msg?: string) => {
     renderLogin(root, () => portal.render(), msg);
@@ -53,11 +55,12 @@ async function startApp() {
     }
   });
 
-  // Handle incoming push notification click
+  // Handle incoming push notification click with deep-link routing
   window.addEventListener('gate-notification-click', (e: any) => {
     const link = e?.detail?.notification?.data?.link || '';
     const targetTab = routeNotificationLink(link);
-    portal.setTab(targetTab);
+    const targetPeriod = extractNotificationPeriod(link);
+    portal.setTab(targetTab, targetPeriod);
   });
 
   // Handle 401 unauthorized
