@@ -270,4 +270,83 @@ public sealed class DebtsPagingTests
     {
         "Advance", "CashAdvance", "BankAdvance"
     };
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void PlatformScope_EmptyAllowed_FreeTextOnlyForAdmin(bool sqlServer)
+    {
+        OnProvider(sqlServer, store =>
+        {
+            Seed(store,
+                DebtFull("empty-plat", "active", "CashAdvance", 10m, Bw, ""),
+                DebtFull("jahez", "active", "CashAdvance", 11m, Bw, "Jahez"),
+                DebtFull("free", "active", "CashAdvance", 12m, Bw, "SheetPlatformX"));
+            var scoped = ScopedBwAccountant(); // platforms: Jahez, Ninja
+            var adminIds = SqlIds(store, Admin);
+            var scopedIds = SqlIds(store, scoped);
+            Assert.IsTrue(adminIds.Contains("empty-plat") && adminIds.Contains("jahez") && adminIds.Contains("free"));
+            Assert.IsTrue(scopedIds.Contains("empty-plat") && scopedIds.Contains("jahez"));
+            Assert.IsFalse(scopedIds.Contains("free"));
+            CollectionAssert.AreEqual(LegacyIds(store, Admin), adminIds);
+            CollectionAssert.AreEqual(LegacyIds(store, scoped), scopedIds);
+        });
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void EmptySponsor_AllowedForFinanceWithAllCompanies(bool sqlServer)
+    {
+        OnProvider(sqlServer, store =>
+        {
+            Seed(store,
+                DebtFull("no-sp", "active", "CashAdvance", 10m, "", ""),
+                DebtFull("bw", "active", "CashAdvance", 11m, Bw, ""));
+            // Admin / all-companies finance role sees empty creditorSponsorId (FinancialScopes.Debt empty-sponsor rule).
+            Assert.IsTrue(SqlIds(store, Admin).Contains("no-sp"));
+            CollectionAssert.AreEqual(LegacyIds(store, Admin), SqlIds(store, Admin));
+
+            var scoped = ScopedBwAccountant();
+            Assert.IsFalse(SqlIds(store, scoped).Contains("no-sp"));
+            CollectionAssert.AreEqual(LegacyIds(store, scoped), SqlIds(store, scoped));
+        });
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void AdminBypass_SeesLegacyCategoryAndUnlinkedSponsor(bool sqlServer)
+    {
+        OnProvider(sqlServer, store =>
+        {
+            Seed(store,
+                DebtFull("legacy", "active", "hr_cost", 10m, Bw, ""),
+                DebtFull("orphan", "active", "CashAdvance", 11m, "not-a-real-sponsor", ""));
+            var ids = SqlIds(store, Admin);
+            Assert.IsTrue(ids.Contains("legacy"));
+            Assert.IsTrue(ids.Contains("orphan"));
+            CollectionAssert.AreEqual(LegacyIds(store, Admin), ids);
+        });
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void CategoryScope_ScopedUserLimitedToAssignedCodes(bool sqlServer)
+    {
+        OnProvider(sqlServer, store =>
+        {
+            Seed(store,
+                DebtFull("cash", "active", "CashAdvance", 10m, Bw, ""),
+                DebtFull("internet", "active", "InternetAdvance", 11m, Bw, ""),
+                DebtFull("admin-ded", "active", "AdministrativeDeduction", 12m, Bw, ""));
+            var scoped = ScopedBwAccountant(); // CashAdvance + InternetAdvance, not AdministrativeDeduction
+            var ids = SqlIds(store, scoped);
+            Assert.IsTrue(ids.Contains("cash") && ids.Contains("internet"));
+            Assert.IsFalse(ids.Contains("admin-ded"));
+            CollectionAssert.AreEqual(LegacyIds(store, scoped), ids);
+            Assert.IsTrue(SqlIds(store, Admin).Contains("admin-ded"));
+        });
+    }
 }
