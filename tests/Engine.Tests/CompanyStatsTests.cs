@@ -267,6 +267,21 @@ public sealed class CompanyStatsTests
             var noPlatStats = store.Read(c => Companies.StoreStats(c, noPlatUser));
             Assert.AreEqual(0m, noPlatStats["totals"]!.N("platformAccountsTotal"));
 
+            // Single-company stats endpoint respects scope and balances permission
+            var singleCtx = new DefaultHttpContext { User = bwOnly };
+            var singleBw = Companies.SingleCompanyStats(store, null, null, bw, singleCtx);
+            Assert.AreEqual("BW", singleBw["item"]!.S("code"));
+            Assert.AreEqual(3m, singleBw["item"]!["sponsorships"]!.N("total"));
+            var singleActions = singleBw["allowedActions"]!.AsArray().Select(n => n!.ToString()).ToList();
+            CollectionAssert.DoesNotContain(singleActions, "view_balances");
+            var exCtx = new DefaultHttpContext { User = bwOnly };
+            var notFound = Assert.ThrowsExactly<ApiError>(() => Companies.SingleCompanyStats(store, null, null, ex, exCtx));
+            Assert.AreEqual(404, notFound.Status);
+
+            var balancesUser = Principal("syn-bal", "Reviewer", ["companies.view", "companies.balances.view"], sponsors: [bw]);
+            var balStats = Companies.SingleCompanyStats(store, null, null, bw, new DefaultHttpContext { User = balancesUser });
+            CollectionAssert.Contains(balStats["allowedActions"]!.AsArray().Select(n => n!.ToString()).ToList(), "view_balances");
+
             // Empty sponsor scope -> 0 companies, 0 totals
             var emptyUser = Principal("syn-empty", "Reviewer", ["companies.view"], sponsors: []);
             var emptyStats = store.Read(c => Companies.StoreStats(c, emptyUser));

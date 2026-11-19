@@ -2494,6 +2494,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/companies/{id}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live sponsorships and platform-account counts for one company within scope */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            item: {
+                                companyId: string;
+                                code: string;
+                                nameAr: string;
+                                shortNameAr: string;
+                                unifiedNumber: string;
+                                commercialReg: string;
+                                status: string;
+                                erpLinked: boolean;
+                                sponsorships: {
+                                    total: number;
+                                    riders: number;
+                                    admins: number;
+                                    active: number;
+                                    onLeave: number;
+                                };
+                                platformAccounts: {
+                                    total: number;
+                                    active: number;
+                                    assigned: number;
+                                    byPlatform: {
+                                        code: string;
+                                        nameAr: string;
+                                        total: number;
+                                        active: number;
+                                        assigned: number;
+                                    }[];
+                                };
+                            };
+                            source: string;
+                            asOf: string;
+                            balancesAvailable: boolean;
+                            balancesNote: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/companies/{id}/registrations": {
         parameters: {
             query?: never;

@@ -33,9 +33,68 @@ public static partial class Companies
         }, "company-stats");
     }
 
-    public static JsonObject StoreStats(DbConnection c, ClaimsPrincipal user)
+    public static JsonObject SingleCompanyStats(Store store, IConfiguration? config, IHostEnvironment? env, string id, HttpContext ctx)
     {
-        var companies = ActiveCompanies(c, user);
+        AccessPolicy.Demand(ctx.User, "companies.view");
+        JsonObject? one = null;
+        LiveOperationsQuery.Scope? scope = null;
+        string mode = config == null || env == null ? Operations.SourceStore : Operations.SourceMode(config, env);
+
+        if (mode == Operations.SourceStore)
+        {
+            return store.Read(c =>
+            {
+                one = Get(c, null, id, ctx.User);
+                var payload = StoreStatsFor(c, [one], ctx.User);
+                var item = (payload["items"] as JsonArray)?.FirstOrDefault()?.AsObject()?.Clone() ?? new JsonObject();
+                return BuildSingleStatsEnvelope(item, payload);
+            });
+        }
+
+        (one, scope) = store.Read(c =>
+        {
+            var comp = Get(c, null, id, ctx.User);
+            var list = new List<JsonObject> { comp };
+            var baseScope = Operations.LiveScope(c, ctx.User);
+            var unified = comp.S("unifiedNumber");
+            var singleScope = unified == ""
+                ? baseScope with { AllCompanies = false, SponsorUnifiedNumbers = Array.Empty<string>() }
+                : baseScope with { AllCompanies = false, SponsorUnifiedNumbers = [unified] };
+            return (comp, singleScope);
+        });
+
+        if (scope.SponsorUnifiedNumbers.Count == 0)
+        {
+            var emptyPayload = BuildStatsPayload([one], Array.Empty<JsonObject>(), Operations.SourceLive, DateTimeOffset.UtcNow, ctx.User);
+            var emptyItem = (emptyPayload["items"] as JsonArray)?.FirstOrDefault()?.AsObject()?.Clone() ?? new JsonObject();
+            return BuildSingleStatsEnvelope(emptyItem, emptyPayload);
+        }
+
+        return Operations.LiveRead(ctx, token =>
+        {
+            using var erp = Operations.OpenErp(config!);
+            var live = CompanyStatsLiveQuery.Read(erp, scope, token);
+            var payload = BuildStatsPayload([one], live.Rows, Operations.SourceLive, live.AsOf, ctx.User);
+            var item = (payload["items"] as JsonArray)?.FirstOrDefault()?.AsObject()?.Clone() ?? new JsonObject();
+            return BuildSingleStatsEnvelope(item, payload);
+        }, "company-stats");
+    }
+
+    static JsonObject BuildSingleStatsEnvelope(JsonObject item, JsonObject payload) => new()
+    {
+        ["item"] = item,
+        ["source"] = payload.S("source"),
+        ["asOf"] = payload.S("asOf"),
+        ["balancesAvailable"] = payload.B("balancesAvailable"),
+        ["balancesNote"] = payload.S("balancesNote"),
+        ["allowedActions"] = payload["allowedActions"]?.DeepClone() ?? new JsonArray()
+    };
+
+    public static JsonObject StoreStats(DbConnection c, ClaimsPrincipal user)
+        => StoreStatsFor(c, ActiveCompanies(c, user), user);
+
+    static JsonObject StoreStatsFor(DbConnection c, List<JsonObject> companies, ClaimsPrincipal user)
+    {
         var byId = companies.ToDictionary(x => x.S("id"), StringComparer.Ordinal);
         var byCode = companies.Where(x => x.S("code") != "").GroupBy(x => x.S("code"), StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
@@ -293,6 +352,7 @@ public static partial class Companies
             actions.Add("export");
         }
         if (AccessPolicy.Has(user, "companies.manage")) actions.Add("manage");
+        if (AccessPolicy.Has(user, "companies.balances.view")) actions.Add("view_balances");
         if (AccessPolicy.Has(user, "riders.view")) actions.Add("filter_workforce");
         return actions;
     }

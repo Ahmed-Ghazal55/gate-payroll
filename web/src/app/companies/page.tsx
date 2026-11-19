@@ -7,7 +7,6 @@ import {
   Building2,
   FileText,
   AlertTriangle,
-  Coins,
   Download,
   Plus,
   AlertCircle,
@@ -23,6 +22,9 @@ import {
   Wallet,
   CheckCircle2,
   UserCheck,
+  Pencil,
+  Trash2,
+  Lock,
 } from 'lucide-react';
 import {
   api,
@@ -212,9 +214,37 @@ function CompaniesPageContent() {
   // Drawer state
   const [selectedCompany, setSelectedCompany] = useState<CompanyContract | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<'details' | 'activities' | 'documents' | 'stats' | 'audit'>('details');
+  const [drawerTab, setDrawerTab] = useState<'details' | 'registrations' | 'activities' | 'documents' | 'stats' | 'audit'>('details');
   const [companyDocs, setCompanyDocs] = useState<CompanyDocumentContract[]>([]);
+  const [companyRegs, setCompanyRegs] = useState<CompanyRegistrationContract[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+
+  // Company Create/Edit Modal state
+  const [companyModalOpen, setCompanyModalOpen] = useState(false);
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [companyForm, setCompanyForm] = useState({
+    code: '',
+    nameAr: '',
+    shortNameAr: '',
+    unifiedNumber: '',
+    commercialReg: '',
+    city: '',
+    status: 'active',
+  });
+  const [savingCompany, setSavingCompany] = useState(false);
+
+  // CR Create/Edit Modal state
+  const [crModalOpen, setCrModalOpen] = useState(false);
+  const [crCompanyId, setCrCompanyId] = useState<string>('');
+  const [editingCrId, setEditingCrId] = useState<string | null>(null);
+  const [crForm, setCrForm] = useState({
+    number: '',
+    city: '',
+    issueDate: '',
+    expiryDate: '',
+    status: 'active',
+  });
+  const [savingCr, setSavingCr] = useState(false);
 
   // Document upload state (company documents remain our uploads per H32)
   const [uploadDocModalOpen, setUploadDocModalOpen] = useState(false);
@@ -350,19 +380,164 @@ function CompaniesPageContent() {
     [activeTab, canExportStats, isAdmin, can]
   );
 
-  // Open drawer and load company documents
+  const canViewBalances = useMemo(
+    () =>
+      isAdmin ||
+      can('companies.balances.view') ||
+      (stats?.allowedActions || []).includes('view_balances'),
+    [isAdmin, can, stats]
+  );
+
+  // Open drawer and load company documents + registrations
   const handleOpenDrawer = async (comp: CompanyContract) => {
     setSelectedCompany(comp);
     setDrawerTab('details');
     setDrawerOpen(true);
     setLoadingDocs(true);
     try {
-      const docs = await api.getCompanyDocuments(comp.id);
+      const [docs, regs] = await Promise.all([
+        api.getCompanyDocuments(comp.id).catch(() => [] as CompanyDocumentContract[]),
+        api.getCompanyRegistrations(comp.id).catch(() => [] as CompanyRegistrationContract[]),
+      ]);
       setCompanyDocs(Array.isArray(docs) ? docs : []);
-    } catch {
-      setCompanyDocs([]);
+      setCompanyRegs(Array.isArray(regs) ? regs : []);
     } finally {
       setLoadingDocs(false);
+    }
+  };
+
+  const openCreateCompanyModal = () => {
+    setEditingCompanyId(null);
+    setCompanyForm({
+      code: '',
+      nameAr: '',
+      shortNameAr: '',
+      unifiedNumber: '',
+      commercialReg: '',
+      city: '',
+      status: 'active',
+    });
+    setCompanyModalOpen(true);
+  };
+
+  const openEditCompanyModal = (comp: CompanyContract) => {
+    setEditingCompanyId(comp.id);
+    setCompanyForm({
+      code: comp.code || '',
+      nameAr: comp.nameAr || '',
+      shortNameAr: comp.shortNameAr || '',
+      unifiedNumber: comp.unifiedNumber || '',
+      commercialReg: comp.crNumber || comp.commercialReg || '',
+      city: comp.city || '',
+      status: comp.status || 'active',
+    });
+    setCompanyModalOpen(true);
+  };
+
+  const handleSaveCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (savingCompany || !companyForm.nameAr.trim()) return;
+    setSavingCompany(true);
+    try {
+      if (editingCompanyId) {
+        await api.updateCompany(editingCompanyId, companyForm);
+        toast('تم تحديث بيانات الشركة بنجاح', 'success');
+      } else {
+        await api.createCompany(companyForm);
+        toast('تمت إضافة الشركة بنجاح', 'success');
+      }
+      setCompanyModalOpen(false);
+      await Promise.all([fetchData(), fetchStats()]);
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'تعذر حفظ بيانات الشركة';
+      toast(message, 'danger');
+    } finally {
+      setSavingCompany(false);
+    }
+  };
+
+  const handleArchiveCompany = async (comp: CompanyContract) => {
+    if (!canManage) return;
+    if (typeof window !== 'undefined' && !window.confirm(`أرشفة الشركة "${comp.nameAr}" مع الاحتفاظ بسجلاتها المالية؟`)) {
+      return;
+    }
+    try {
+      await api.archiveCompany(comp.id);
+      toast('تمت أرشفة الشركة بنجاح', 'success');
+      if (selectedCompany?.id === comp.id) setDrawerOpen(false);
+      await Promise.all([fetchData(), fetchStats()]);
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'تعذر أرشفة الشركة';
+      toast(message, 'danger');
+    }
+  };
+
+  const openCreateCrModal = (companyId: string) => {
+    setCrCompanyId(companyId);
+    setEditingCrId(null);
+    setCrForm({ number: '', city: '', issueDate: '', expiryDate: '', status: 'active' });
+    setCrModalOpen(true);
+  };
+
+  const openEditCrModal = (reg: CompanyRegistrationContract) => {
+    setCrCompanyId(reg.companyId);
+    setEditingCrId(reg.id);
+    setCrForm({
+      number: reg.number || '',
+      city: reg.city || '',
+      issueDate: reg.issueDate || '',
+      expiryDate: reg.expiryDate || reg.annualConfirmation || '',
+      status: reg.status || 'active',
+    });
+    setCrModalOpen(true);
+  };
+
+  const handleSaveCr = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (savingCr || !crCompanyId || !crForm.number.trim()) return;
+    setSavingCr(true);
+    try {
+      if (editingCrId) {
+        await api.updateCompanyRegistration(crCompanyId, editingCrId, crForm);
+        toast('تم تحديث السجل التجاري بنجاح', 'success');
+      } else {
+        await api.createCompanyRegistration(crCompanyId, crForm);
+        toast('تمت إضافة السجل التجاري بنجاح', 'success');
+      }
+      setCrModalOpen(false);
+      await fetchData();
+      if (selectedCompany?.id === crCompanyId) {
+        const updatedRegs = await api.getCompanyRegistrations(crCompanyId).catch(() => [] as CompanyRegistrationContract[]);
+        setCompanyRegs(Array.isArray(updatedRegs) ? updatedRegs : []);
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'تعذر حفظ السجل التجاري';
+      toast(message, 'danger');
+    } finally {
+      setSavingCr(false);
+    }
+  };
+
+  const handleArchiveCr = async (companyId: string, registrationId: string, number: string) => {
+    if (!canManage) return;
+    if (typeof window !== 'undefined' && !window.confirm(`أرشفة السجل التجاري رقم "${number}"؟`)) {
+      return;
+    }
+    try {
+      await api.archiveCompanyRegistration(companyId, registrationId);
+      toast('تمت أرشفة السجل التجاري بنجاح', 'success');
+      await fetchData();
+      if (selectedCompany?.id === companyId) {
+        const updatedRegs = await api.getCompanyRegistrations(companyId).catch(() => [] as CompanyRegistrationContract[]);
+        setCompanyRegs(Array.isArray(updatedRegs) ? updatedRegs : []);
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'تعذر أرشفة السجل التجاري';
+      toast(message, 'danger');
     }
   };
 
@@ -766,6 +941,16 @@ function CompaniesPageContent() {
             : undefined
         }
       >
+        {canManage && (
+          <button
+            type="button"
+            onClick={openCreateCompanyModal}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-95 active:scale-[0.98] transition shadow-xs"
+          >
+            <Plus size={15} aria-hidden="true" />
+            <span>إضافة شركة</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={toggleShowBalances}
@@ -887,27 +1072,29 @@ function CompaniesPageContent() {
         extraControls={
           activeTab === 'companies' ? (
             <div className="flex flex-wrap items-center gap-2">
-              <select
+              <SearchableSelect
                 value={entityTypeFilter}
-                onChange={(e) => setEntityTypeFilter(e.target.value)}
-                className="h-10 px-3 text-xs font-semibold rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--focus)]"
-                aria-label="تصفية حسب نوع الكيان"
-              >
-                <option value="all">كل أنواع الكيانات</option>
-                <option value="شركة ذات مسؤولية محدودة">شركة ذات مسؤولية محدودة</option>
-                <option value="مؤسسة فردية">مؤسسة فردية</option>
-              </select>
+                onChange={setEntityTypeFilter}
+                ariaLabel="تصفية حسب نوع الكيان"
+                className="w-48"
+                options={[
+                  { value: 'all', label: 'كل أنواع الكيانات' },
+                  { value: 'شركة ذات مسؤولية محدودة', label: 'شركة ذات مسؤولية محدودة' },
+                  { value: 'مؤسسة فردية', label: 'مؤسسة فردية' },
+                ]}
+              />
 
-              <select
+              <SearchableSelect
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-10 px-3 text-xs font-semibold rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--focus)]"
-                aria-label="تصفية حسب الحالة"
-              >
-                <option value="all">كل الحالات</option>
-                <option value="active">نشط</option>
-                <option value="inactive">غير نشط</option>
-              </select>
+                onChange={setStatusFilter}
+                ariaLabel="تصفية حسب الحالة"
+                className="w-36"
+                options={[
+                  { value: 'all', label: 'كل الحالات' },
+                  { value: 'active', label: 'نشط' },
+                  { value: 'inactive', label: 'غير نشط' },
+                ]}
+              />
 
               <button
                 type="button"
@@ -922,6 +1109,15 @@ function CompaniesPageContent() {
                 <span>استحقاق أقل من 60 يومًا</span>
               </button>
             </div>
+          ) : activeTab === 'cr' && canManage && companies.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => openCreateCrModal(companies[0].id)}
+              className="h-10 px-3 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold inline-flex items-center gap-1.5 hover:opacity-95 transition"
+            >
+              <Plus size={14} aria-hidden="true" />
+              <span>إضافة سجل تجاري</span>
+            </button>
           ) : activeTab === 'stats' ? (
             <div className="flex flex-wrap items-center gap-2">
               <SourceBadge source={stats?.source} asOf={stats?.asOf} />
@@ -1207,19 +1403,15 @@ function CompaniesPageContent() {
                   <table className="w-full text-start text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-bold">
-                        <th scope="col" className="py-3 px-4 text-start whitespace-nowrap">الشركة / السجل</th>
-                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">إجمالي المكفولين</th>
-                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">مناديب</th>
-                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">إداريون</th>
-                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">نشطون</th>
-                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">إجمالي الحسابات</th>
+                        <th scope="col" className="py-2.5 px-3 text-start">الشركة / السجل</th>
+                        <th scope="col" className="py-2.5 px-2.5 text-start whitespace-nowrap">المكفولون</th>
+                        <th scope="col" className="py-2.5 px-2.5 text-start whitespace-nowrap">الحسابات</th>
                         {statsPlatformColumns.map((plat) => (
-                          <th key={plat.code} scope="col" className="py-3 px-3 text-start whitespace-nowrap">
+                          <th key={plat.code} scope="col" className="py-2.5 px-2 text-center whitespace-nowrap">
                             {plat.labelAr}
                           </th>
                         ))}
-                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">نشط / مسند</th>
-                        <th scope="col" className="py-3 px-3 text-center whitespace-nowrap">القوى العاملة</th>
+                        <th scope="col" className="py-2.5 px-2.5 text-center whitespace-nowrap">القوى العاملة</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--line)]/60">
@@ -1227,7 +1419,7 @@ function CompaniesPageContent() {
                         const companyKey = item.unifiedNumber || item.companyId;
                         return (
                           <tr key={item.companyId} className="hover:bg-[var(--row-hover)] transition">
-                            <td className="py-3 px-4 whitespace-nowrap">
+                            <td className="py-2.5 px-3">
                               <div className="font-bold text-[var(--ink)]">{item.nameAr}</div>
                               <div className="text-[11px] text-[var(--muted)]">
                                 <bdi dir="ltr" className="font-mono num">
@@ -1235,25 +1427,34 @@ function CompaniesPageContent() {
                                 </bdi>
                               </div>
                             </td>
-                            <td className="py-3 px-3 font-mono font-bold num text-[var(--ink)]">
-                              {formatNumber(item.sponsorships.total)}
+                            <td className="py-2.5 px-2.5 whitespace-nowrap">
+                              <div className="font-mono font-bold num text-[var(--ink)]">
+                                {formatNumber(item.sponsorships.total)}
+                              </div>
+                              <div className="text-[10px] text-[var(--muted)]">
+                                مناديب {formatNumber(item.sponsorships.riders)} · إداريون{' '}
+                                {formatNumber(item.sponsorships.admins)} · نشط{' '}
+                                <span className="text-[var(--money-pos)] font-semibold">
+                                  {formatNumber(item.sponsorships.active)}
+                                </span>
+                              </div>
                             </td>
-                            <td className="py-3 px-3 font-mono num text-[var(--ink)]">
-                              {formatNumber(item.sponsorships.riders)}
-                            </td>
-                            <td className="py-3 px-3 font-mono num text-[var(--ink)]">
-                              {formatNumber(item.sponsorships.admins)}
-                            </td>
-                            <td className="py-3 px-3 font-mono num text-[var(--money-pos)] font-semibold">
-                              {formatNumber(item.sponsorships.active)}
-                            </td>
-                            <td className="py-3 px-3 font-mono font-bold num text-[var(--accent)]">
-                              {formatNumber(item.platformAccounts.total)}
+                            <td className="py-2.5 px-2.5 whitespace-nowrap">
+                              <div className="font-mono font-bold num text-[var(--accent)]">
+                                {formatNumber(item.platformAccounts.total)}
+                              </div>
+                              <div className="text-[10px] text-[var(--muted)]">
+                                نشط{' '}
+                                <span className="text-[var(--money-pos)] font-semibold">
+                                  {formatNumber(item.platformAccounts.active)}
+                                </span>{' '}
+                                · مسند {formatNumber(item.platformAccounts.assigned)}
+                              </div>
                             </td>
                             {statsPlatformColumns.map((plat) => {
                               const count = platformCountFor(item.platformAccounts.byPlatform, plat.code);
                               return (
-                                <td key={plat.code} className="py-3 px-3 font-mono num">
+                                <td key={plat.code} className="py-2.5 px-2 text-center font-mono num">
                                   {count > 0 && canFilterWorkforce ? (
                                     <Link
                                       href={inApp(buildWorkforceCompanyUrl(companyKey, plat.code))}
@@ -1269,16 +1470,7 @@ function CompaniesPageContent() {
                                 </td>
                               );
                             })}
-                            <td className="py-3 px-3 font-mono num whitespace-nowrap">
-                              <span className="text-[var(--money-pos)] font-semibold">
-                                {formatNumber(item.platformAccounts.active)}
-                              </span>
-                              <span className="text-[var(--muted)] mx-1">/</span>
-                              <span className="text-[var(--ink)] font-semibold">
-                                {formatNumber(item.platformAccounts.assigned)}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-center whitespace-nowrap">
+                            <td className="py-2.5 px-2.5 text-center whitespace-nowrap">
                               {canFilterWorkforce ? (
                                 <Link
                                   href={inApp(buildWorkforceCompanyUrl(companyKey))}
@@ -1297,35 +1489,39 @@ function CompaniesPageContent() {
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-[var(--line)] bg-[var(--raised)]/60 font-bold text-[var(--ink)]">
-                        <td className="py-3 px-4 whitespace-nowrap">
+                        <td className="py-2.5 px-3 whitespace-nowrap">
                           {isStatsFiltered ? 'إجمالي الشركات المفلترة' : 'الإجمالي العام'}
                         </td>
-                        <td className="py-3 px-3 font-mono num">{formatNumber(filteredStatsTotals.sponsoredTotal)}</td>
-                        <td className="py-3 px-3 font-mono num">{formatNumber(filteredStatsTotals.sponsoredRiders)}</td>
-                        <td className="py-3 px-3 font-mono num">{formatNumber(filteredStatsTotals.sponsoredAdmins)}</td>
-                        <td className="py-3 px-3 font-mono num text-[var(--money-pos)]">
-                          {formatNumber(filteredStatsTotals.sponsoredActive)}
+                        <td className="py-2.5 px-2.5 whitespace-nowrap">
+                          <div className="font-mono num">{formatNumber(filteredStatsTotals.sponsoredTotal)}</div>
+                          <div className="text-[10px] font-normal text-[var(--muted)]">
+                            مناديب {formatNumber(filteredStatsTotals.sponsoredRiders)} · إداريون{' '}
+                            {formatNumber(filteredStatsTotals.sponsoredAdmins)} · نشط{' '}
+                            {formatNumber(filteredStatsTotals.sponsoredActive)}
+                          </div>
                         </td>
-                        <td className="py-3 px-3 font-mono num text-[var(--accent)]">
-                          {formatNumber(filteredStatsTotals.platformAccountsTotal)}
+                        <td className="py-2.5 px-2.5 whitespace-nowrap">
+                          <div className="font-mono num text-[var(--accent)]">
+                            {formatNumber(filteredStatsTotals.platformAccountsTotal)}
+                          </div>
+                          <div className="text-[10px] font-normal text-[var(--muted)]">
+                            نشط {formatNumber(filteredStatsTotals.platformAccountsActive)} · مسند{' '}
+                            {formatNumber(filteredStatsTotals.platformAccountsAssigned)}
+                          </div>
                         </td>
                         {statsPlatformColumns.map((plat) => (
-                          <td key={plat.code} className="py-3 px-3 font-mono num">
+                          <td key={plat.code} className="py-2.5 px-2 text-center font-mono num">
                             {formatNumber(platformCountFor(filteredStatsTotals.byPlatform, plat.code))}
                           </td>
                         ))}
-                        <td className="py-3 px-3 font-mono num whitespace-nowrap">
-                          {formatNumber(filteredStatsTotals.platformAccountsActive)} /{' '}
-                          {formatNumber(filteredStatsTotals.platformAccountsAssigned)}
-                        </td>
-                        <td className="py-3 px-3 text-center">—</td>
+                        <td className="py-2.5 px-2.5 text-center">—</td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
               </section>
 
-              {/* Company Financial Balances Placeholder (deferred until accounting tables) */}
+              {/* Company Financial Balances Placeholder (deferred until accounting tables; gated by companies.balances.view per U-W3-03) */}
               <section
                 aria-label="الأرصدة المالية للشركات"
                 data-testid="company-balances-placeholder"
@@ -1333,20 +1529,32 @@ function CompaniesPageContent() {
               >
                 <div className="flex items-start gap-3">
                   <div className="h-10 w-10 rounded-xl bg-[var(--surface)] border border-[var(--line)] flex items-center justify-center text-[var(--accent)] shrink-0">
-                    <Wallet size={20} aria-hidden="true" />
+                    {canViewBalances ? (
+                      <Wallet size={20} aria-hidden="true" />
+                    ) : (
+                      <Lock size={20} aria-hidden="true" />
+                    )}
                   </div>
                   <div className="space-y-1">
                     <h3 className="text-sm font-bold text-[var(--ink)]">الأرصدة المالية لكل شركة</h3>
-                    <p className="text-xs font-semibold text-[var(--accent)]">
-                      {stats.balancesNote || BALANCES_PLACEHOLDER_AR}
-                    </p>
-                    <p className="text-xs text-[var(--muted)]">
-                      ستظهر هنا أرصدة البنوك والخزن والذمم والمديونيات وأصول المركبات لكل شركة فور ربط جداول المحاسبة.
-                    </p>
+                    {canViewBalances ? (
+                      <>
+                        <p className="text-xs font-semibold text-[var(--accent)]">
+                          {stats.balancesNote || BALANCES_PLACEHOLDER_AR}
+                        </p>
+                        <p className="text-xs text-[var(--muted)]">
+                          ستظهر هنا أرصدة البنوك والخزن والذمم والمديونيات وأصول المركبات لكل شركة فور ربط جداول المحاسبة.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs font-semibold text-[var(--warning)]">
+                        عرض الأرصدة المالية يتطلب صلاحية أرصدة الشركات
+                      </p>
+                    )}
                   </div>
                 </div>
                 <span className="shrink-0 inline-flex items-center px-3 py-1 rounded-full bg-[var(--surface)] border border-[var(--line)] text-xs font-bold text-[var(--muted)]">
-                  {BALANCES_PLACEHOLDER_AR}
+                  {canViewBalances ? BALANCES_PLACEHOLDER_AR : 'يتطلب صلاحية'}
                 </span>
               </section>
             </>
@@ -1494,17 +1702,47 @@ function CompaniesPageContent() {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenDrawer(c);
-                            }}
-                            className="h-8 px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-xs font-semibold inline-flex items-center gap-1 transition"
-                          >
-                            <Eye size={13} aria-hidden="true" />
-                            <span>التفاصيل</span>
-                          </button>
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenDrawer(c);
+                              }}
+                              className="h-8 px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-xs font-semibold inline-flex items-center gap-1 transition"
+                            >
+                              <Eye size={13} aria-hidden="true" />
+                              <span>التفاصيل</span>
+                            </button>
+                            {canManage && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEditCompanyModal(c);
+                                  }}
+                                  className="h-8 px-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-xs font-semibold inline-flex items-center gap-1 transition"
+                                  title="تعديل الشركة"
+                                  aria-label={`تعديل ${c.nameAr}`}
+                                >
+                                  <Pencil size={13} aria-hidden="true" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleArchiveCompany(c);
+                                  }}
+                                  className="h-8 px-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--danger)]/10 hover:text-[var(--danger)] text-xs font-semibold inline-flex items-center gap-1 transition"
+                                  title="أرشفة الشركة"
+                                  aria-label={`أرشفة ${c.nameAr}`}
+                                >
+                                  <Trash2 size={13} aria-hidden="true" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1754,7 +1992,21 @@ function CompaniesPageContent() {
                     : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
                 }`}
               >
-                بيانات المنشأة
+                البيانات الأساسية
+              </button>
+              <button
+                type="button"
+                onClick={() => setDrawerTab('registrations')}
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
+                  drawerTab === 'registrations'
+                    ? 'border-[var(--accent)] text-[var(--accent)]'
+                    : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <span>السجلات</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-[var(--raised)] text-[var(--muted)]">
+                  {companyRegs.length}
+                </span>
               </button>
               <button
                 type="button"
@@ -1878,6 +2130,84 @@ function CompaniesPageContent() {
                   <div className="p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)]">
                     <span className="font-bold text-[var(--ink)] block mb-1">العنوان الوطني المعتمد:</span>
                     <span>{selectedCompany.address}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Drawer Sub-tab: السجلات التجارية */}
+            {drawerTab === 'registrations' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-[var(--ink)]">السجلات التجارية التابعة للمنشأة</h4>
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => openCreateCrModal(selectedCompany.id)}
+                      className="h-8 px-3 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs hover:opacity-95 transition"
+                    >
+                      <Plus size={14} aria-hidden="true" />
+                      <span>إضافة سجل تجاري</span>
+                    </button>
+                  )}
+                </div>
+
+                {loadingDocs ? (
+                  <Skeleton className="h-24 rounded-xl" rows={2} />
+                ) : companyRegs.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-[var(--muted)] border border-dashed border-[var(--line)] rounded-xl">
+                    لا توجد سجلات تجارية فرعية مضافة بعد؛ الرقم المعتمد على المنشأة:{' '}
+                    <bdi dir="ltr" className="font-mono font-bold text-[var(--ink)]">
+                      {selectedCompany.crNumber || selectedCompany.commercialReg || '—'}
+                    </bdi>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[var(--line)] border border-[var(--line)] rounded-xl bg-[var(--surface)] overflow-hidden">
+                    {companyRegs.map((reg) => (
+                      <div key={reg.id} className="p-3 text-xs flex items-center justify-between gap-2">
+                        <div>
+                          <strong className="font-mono num text-[var(--ink)] block">
+                            <bdi dir="ltr">{reg.number}</bdi>
+                          </strong>
+                          <span className="text-[11px] text-[var(--muted)]">
+                            {reg.city || '—'} · الانتهاء: {reg.annualConfirmation || reg.expiryDate || '—'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              reg.status === 'active'
+                                ? 'bg-[var(--money-pos)]/10 text-[var(--money-pos)]'
+                                : reg.status === 'expired'
+                                ? 'bg-[var(--danger)]/15 text-[var(--danger)]'
+                                : 'bg-[var(--raised)] text-[var(--muted)]'
+                            }`}
+                          >
+                            {reg.status === 'active' ? 'نشط' : reg.status === 'expired' ? 'منتهي' : 'غير نشط'}
+                          </span>
+                          {canManage && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openEditCrModal(reg)}
+                                className="h-7 px-2 rounded bg-[var(--raised)] hover:bg-[var(--line)] text-[11px] font-semibold inline-flex items-center gap-1 transition"
+                                title="تعديل السجل"
+                              >
+                                <Pencil size={12} aria-hidden="true" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleArchiveCr(reg.companyId, reg.id, reg.number)}
+                                className="h-7 px-2 rounded bg-[var(--raised)] hover:bg-[var(--danger)]/15 hover:text-[var(--danger)] text-[11px] font-semibold inline-flex items-center gap-1 transition"
+                                title="أرشفة السجل"
+                              >
+                                <Trash2 size={12} aria-hidden="true" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -2082,6 +2412,190 @@ function CompaniesPageContent() {
           </div>
         )}
       </Drawer>
+
+      {/* Modal: إضافة / تعديل شركة */}
+      <Dialog
+        open={companyModalOpen}
+        onClose={() => setCompanyModalOpen(false)}
+        title={editingCompanyId ? 'تعديل بيانات الشركة' : 'إضافة شركة جديدة'}
+      >
+        <form onSubmit={handleSaveCompany} className="space-y-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-[var(--ink)] mb-1">اسم الشركة بالعربية</label>
+              <input
+                type="text"
+                required
+                value={companyForm.nameAr}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, nameAr: e.target.value }))}
+                className="w-full h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[var(--ink)] mb-1">الرمز المختصر</label>
+              <input
+                type="text"
+                value={companyForm.code}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, code: e.target.value }))}
+                className="w-full h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[var(--ink)] mb-1">الاسم المختصر</label>
+              <input
+                type="text"
+                value={companyForm.shortNameAr}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, shortNameAr: e.target.value }))}
+                className="w-full h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[var(--ink)] mb-1">الرقم الوطني الموحد</label>
+              <input
+                type="text"
+                value={companyForm.unifiedNumber}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, unifiedNumber: e.target.value }))}
+                className="w-full h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[var(--ink)] mb-1">رقم السجل التجاري</label>
+              <input
+                type="text"
+                value={companyForm.commercialReg}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, commercialReg: e.target.value }))}
+                className="w-full h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[var(--ink)] mb-1">المدينة</label>
+              <input
+                type="text"
+                value={companyForm.city}
+                onChange={(e) => setCompanyForm((p) => ({ ...p, city: e.target.value }))}
+                className="w-full h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block font-semibold text-[var(--ink)] mb-1">الحالة</label>
+            <SearchableSelect
+              value={companyForm.status}
+              onChange={(val) => setCompanyForm((p) => ({ ...p, status: val }))}
+              ariaLabel="حالة الشركة"
+              options={[
+                { value: 'active', label: 'نشط' },
+                { value: 'inactive', label: 'غير نشط' },
+              ]}
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setCompanyModalOpen(false)}
+              className="h-10 px-4 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] font-semibold"
+            >
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={savingCompany}
+              className="h-10 px-5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold disabled:opacity-50"
+            >
+              {savingCompany ? 'جاري الحفظ...' : 'حفظ'}
+            </button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* Modal: إضافة / تعديل سجل تجاري */}
+      <Dialog
+        open={crModalOpen}
+        onClose={() => setCrModalOpen(false)}
+        title={editingCrId ? 'تعديل سجل تجاري' : 'إضافة سجل تجاري'}
+      >
+        <form onSubmit={handleSaveCr} className="space-y-3 text-xs">
+          {!editingCrId && (
+            <div>
+              <label className="block font-semibold text-[var(--ink)] mb-1">الشركة التابعة</label>
+              <SearchableSelect
+                value={crCompanyId}
+                onChange={setCrCompanyId}
+                ariaLabel="الشركة التابعة"
+                options={companies.map((c) => ({ value: c.id, label: c.nameAr }))}
+              />
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-[var(--ink)] mb-1">رقم السجل التجاري</label>
+              <input
+                type="text"
+                required
+                value={crForm.number}
+                onChange={(e) => setCrForm((p) => ({ ...p, number: e.target.value }))}
+                className="w-full h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[var(--ink)] mb-1">المدينة</label>
+              <input
+                type="text"
+                value={crForm.city}
+                onChange={(e) => setCrForm((p) => ({ ...p, city: e.target.value }))}
+                className="w-full h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[var(--ink)] mb-1">تاريخ الإصدار</label>
+              <input
+                type="date"
+                value={crForm.issueDate}
+                onChange={(e) => setCrForm((p) => ({ ...p, issueDate: e.target.value }))}
+                className="w-full h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[var(--ink)] mb-1">تاريخ الانتهاء / التأكيد السنوي</label>
+              <input
+                type="date"
+                value={crForm.expiryDate}
+                onChange={(e) => setCrForm((p) => ({ ...p, expiryDate: e.target.value }))}
+                className="w-full h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block font-semibold text-[var(--ink)] mb-1">الحالة</label>
+            <SearchableSelect
+              value={crForm.status}
+              onChange={(val) => setCrForm((p) => ({ ...p, status: val }))}
+              ariaLabel="حالة السجل"
+              options={[
+                { value: 'active', label: 'نشط' },
+                { value: 'inactive', label: 'غير نشط' },
+                { value: 'expired', label: 'منتهي' },
+              ]}
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setCrModalOpen(false)}
+              className="h-10 px-4 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] font-semibold"
+            >
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={savingCr}
+              className="h-10 px-5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold disabled:opacity-50"
+            >
+              {savingCr ? 'جاري الحفظ...' : 'حفظ السجل'}
+            </button>
+          </div>
+        </form>
+      </Dialog>
 
       {/* Modal: رفع وثيقة جديدة */}
       <Dialog

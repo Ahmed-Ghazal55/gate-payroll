@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:37925/"
+      "url": "http://127.0.0.1:37835/"
     }
   ],
   "paths": {
@@ -2536,6 +2536,182 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/companies/{id}/stats": {
+      "get": {
+        "tags": [
+          "Companies and registrations"
+        ],
+        "summary": "Live sponsorships and platform-account counts for one company within scope",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "item",
+                    "source",
+                    "asOf",
+                    "balancesAvailable",
+                    "balancesNote",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "required": [
+                        "companyId",
+                        "code",
+                        "nameAr",
+                        "shortNameAr",
+                        "unifiedNumber",
+                        "commercialReg",
+                        "status",
+                        "erpLinked",
+                        "sponsorships",
+                        "platformAccounts"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "companyId": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "nameAr": {
+                          "type": "string"
+                        },
+                        "shortNameAr": {
+                          "type": "string"
+                        },
+                        "unifiedNumber": {
+                          "type": "string"
+                        },
+                        "commercialReg": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "erpLinked": {
+                          "type": "boolean"
+                        },
+                        "sponsorships": {
+                          "required": [
+                            "total",
+                            "riders",
+                            "admins",
+                            "active",
+                            "onLeave"
+                          ],
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "number"
+                            },
+                            "riders": {
+                              "type": "number"
+                            },
+                            "admins": {
+                              "type": "number"
+                            },
+                            "active": {
+                              "type": "number"
+                            },
+                            "onLeave": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "platformAccounts": {
+                          "required": [
+                            "total",
+                            "active",
+                            "assigned",
+                            "byPlatform"
+                          ],
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "number"
+                            },
+                            "active": {
+                              "type": "number"
+                            },
+                            "assigned": {
+                              "type": "number"
+                            },
+                            "byPlatform": {
+                              "type": "array",
+                              "items": {
+                                "required": [
+                                  "code",
+                                  "nameAr",
+                                  "total",
+                                  "active",
+                                  "assigned"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "nameAr": {
+                                    "type": "string"
+                                  },
+                                  "total": {
+                                    "type": "number"
+                                  },
+                                  "active": {
+                                    "type": "number"
+                                  },
+                                  "assigned": {
+                                    "type": "number"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "balancesAvailable": {
+                      "type": "boolean"
+                    },
+                    "balancesNote": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
               }
             }
           }
