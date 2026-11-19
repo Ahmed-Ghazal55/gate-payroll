@@ -170,6 +170,29 @@ public sealed class RiderAppAdminTests
     }
 
     [TestMethod]
+    public void ReplyMasksIbanAndRejectsClosedRequestsAndDecideIsTypeScoped()
+    {
+        WithStore(store =>
+        {
+            Seed(store, out string bw, out _);
+            var reviewer = Staff("syn-forms-rev", bw, "forms.review", "mobile.broadcast");
+            var replied = store.Write((c, tx) => RiderAsks.StaffReplyServiceRequest(c, tx, reviewer, "sreq:iban-bw", new() { ["message"] = "نحتاج صورة الآيبان" }));
+            Assert.AreEqual("••••7519", replied["payload"]!.AsObject().S("iban"), "reply must not leak full IBAN without IBAN permission");
+            Assert.AreEqual("SA0380000000608010167519", store.Read(c => Store.Get(c, "sreq:iban-bw", RiderAsks.ServiceKind))!["payload"]!.AsObject().S("iban"));
+
+            Assert.AreEqual(409, Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.StaffReplyServiceRequest(c, tx, reviewer, "sreq:done-bw", new() { ["message"] = "رد متأخر" }))).Status);
+
+            var confidentialOnly = Staff("syn-conf-only", bw, "mobile.complaints.confidential");
+            Assert.AreEqual(403, Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, confidentialOnly, "sreq:leave-bw", new() { ["action"] = "approve" }))).Status,
+                "confidential alone must not approve annual leave");
+            Assert.IsFalse(RiderAsks.CanDecideType(confidentialOnly, new() { ["requestType"] = "annual_leave" }));
+            Assert.IsTrue(RiderAsks.CanDecideType(reviewer, new() { ["requestType"] = "annual_leave" }));
+        });
+    }
+
+    [TestMethod]
     public void ExportBankSplitsSaudiIbanOnly()
     {
         Assert.AreEqual(("RJHI", "مصرف الراجحي"), BankPayrollFiles.ExportBank("SA03 8000 0000 6080 1016 7519"));
