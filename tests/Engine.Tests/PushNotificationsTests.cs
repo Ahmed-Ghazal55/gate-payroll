@@ -957,4 +957,67 @@ public sealed class PushNotificationsTests
             PushNotifications.ResetCache();
         }
     }
+
+    [TestMethod]
+    public void PushNotificationsDeliverTitleAndBodyInRiderSessionLanguage()
+    {
+        var (_, saJson) = CreateSyntheticServiceAccount();
+        var sentPayloads = new Dictionary<string, (string Title, string Body, string Lang)>();
+
+        WithSqlStore(store =>
+        {
+            PushNotifications.ResetCache();
+            PushNotifications.ServiceAccountJsonOverride = saJson;
+            PushNotifications.TestHttpMessageHandler = new DelegatingTestHandler(async (req, _) =>
+            {
+                if (req.RequestUri!.AbsoluteUri.Contains("oauth2.googleapis.com"))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent("""{"access_token":"syn-tok","expires_in":3600}""", Encoding.UTF8, "application/json")
+                    };
+                }
+                string json = await req.Content!.ReadAsStringAsync();
+                var doc = JsonNode.Parse(json)!.AsObject();
+                var msg = doc["message"]!.AsObject();
+                string tok = msg.S("token");
+                var notif = msg["notification"]!.AsObject();
+                var data = msg["data"]!.AsObject();
+                sentPayloads[tok] = (notif.S("title"), notif.S("body"), data.S("language"));
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"name":"projects/synthetic/messages/1"}""", Encoding.UTF8, "application/json")
+                };
+            });
+
+            var riders = new[] { ("2000000911", "ar", "fcm-tok-ar"), ("2000000912", "en", "fcm-tok-en"), ("2000000913", "ur", "fcm-tok-ur") };
+            store.Write((c, tx) =>
+            {
+                foreach (var (iq, lang, fcm) in riders)
+                {
+                    Store.Save(c, "rider", new() { ["id"] = iq, ["iqama"] = iq, ["name"] = "Rider " + lang, ["status"] = "Active" }, tx);
+                    Store.Save(c, MobileSessions.Kind, new()
+                    {
+                        ["id"] = "mobile:lang_" + lang,
+                        ["iqama"] = iq,
+                        ["language"] = lang,
+                        ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"),
+                        ["lastSeenAt"] = DateTimeOffset.UtcNow.ToString("O"),
+                        ["expiresAtUtc"] = DateTimeOffset.UtcNow.AddHours(8).ToString("O"),
+                        ["fcmDeviceToken"] = fcm
+                    }, tx);
+                }
+                PushNotifications.EnqueueBroadcast(c, tx, "bcast-lang", "ALL",
+                    "عنوان عربي", "نص عربي", "/rider-app/notifications",
+                    "English Title", "اردو عنوان", "English Body", "اردو پیغام");
+                return true;
+            });
+
+            int processed = PushNotifications.FlushOutboxAsync(store).GetAwaiter().GetResult();
+            Assert.AreEqual(3, processed);
+            Assert.AreEqual(("عنوان عربي", "نص عربي", "ar"), sentPayloads["fcm-tok-ar"]);
+            Assert.AreEqual(("English Title", "English Body", "en"), sentPayloads["fcm-tok-en"]);
+            Assert.AreEqual(("اردو عنوان", "اردو پیغام", "ur"), sentPayloads["fcm-tok-ur"]);
+        });
+    }
 }

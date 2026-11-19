@@ -908,7 +908,7 @@ public static class FinancialCore
                 };
                 Store.Save(c, "mobile_broadcast", m, tx);
                 Store.Audit(c, tx, individualOnly ? "mobile.individual_notice" : "mobile.broadcast", m.S("id"), ctx.User.Identity!.Name!);
-                PushNotifications.EnqueueBroadcast(c, tx, m.S("id"), targetIqama, titleAr, bodyAr, actionUrl);
+                PushNotifications.EnqueueBroadcast(c, tx, m.S("id"), targetIqama, titleAr, bodyAr, actionUrl, titleEn, titleUr, bodyEn, bodyUr);
                 return m;
             });
             PushNotifications.FlushOutbox(store);

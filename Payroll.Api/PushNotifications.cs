@@ -120,7 +120,26 @@ public static class PushNotifications
         return ServiceAccountJsonOverride ?? Environment.GetEnvironmentVariable("Firebase__ServiceAccountJson");
     }
 
-    public static JsonObject Enqueue(DbConnection c, DbTransaction tx, string iqama, string title, string body, string? link = null)
+    public static (string Title, string Body) ResolveLocalizedText(JsonObject item, string? language)
+    {
+        string lang = (language ?? "ar").Trim().ToLowerInvariant();
+        string title = lang switch
+        {
+            "en" => item.S("titleEn").Trim() is { Length: > 0 } te ? te : item.S("titleAr", item.S("title")),
+            "ur" => item.S("titleUr").Trim() is { Length: > 0 } tu ? tu : item.S("titleAr", item.S("title")),
+            _ => item.S("titleAr", item.S("title"))
+        };
+        string body = lang switch
+        {
+            "en" => item.S("bodyEn").Trim() is { Length: > 0 } be ? be : item.S("bodyAr", item.S("body")),
+            "ur" => item.S("bodyUr").Trim() is { Length: > 0 } bu ? bu : item.S("bodyAr", item.S("body")),
+            _ => item.S("bodyAr", item.S("body"))
+        };
+        return (title, body);
+    }
+
+    public static JsonObject Enqueue(DbConnection c, DbTransaction tx, string iqama, string title, string body, string? link = null,
+        string? titleEn = null, string? titleUr = null, string? bodyEn = null, string? bodyUr = null)
     {
         J.Iqama(iqama);
         var item = new JsonObject
@@ -128,7 +147,13 @@ public static class PushNotifications
             ["id"] = "pout_" + Guid.NewGuid().ToString("N"),
             ["iqama"] = iqama,
             ["title"] = title,
+            ["titleAr"] = title,
+            ["titleEn"] = string.IsNullOrWhiteSpace(titleEn) ? title : titleEn,
+            ["titleUr"] = string.IsNullOrWhiteSpace(titleUr) ? title : titleUr,
             ["body"] = body,
+            ["bodyAr"] = body,
+            ["bodyEn"] = string.IsNullOrWhiteSpace(bodyEn) ? body : bodyEn,
+            ["bodyUr"] = string.IsNullOrWhiteSpace(bodyUr) ? body : bodyUr,
             ["link"] = link ?? "",
             ["status"] = "pending",
             ["attempts"] = 0,
@@ -141,7 +166,8 @@ public static class PushNotifications
         return item;
     }
 
-    public static List<JsonObject> EnqueueBroadcast(DbConnection c, DbTransaction tx, string broadcastId, string targetIqama, string title, string body, string? link = null)
+    public static List<JsonObject> EnqueueBroadcast(DbConnection c, DbTransaction tx, string broadcastId, string targetIqama, string title, string body, string? link = null,
+        string? titleEn = null, string? titleUr = null, string? bodyEn = null, string? bodyUr = null)
     {
         var enqueued = new List<JsonObject>();
         if (targetIqama == "ALL")
@@ -156,7 +182,7 @@ public static class PushNotifications
 
             foreach (var iqama in activeRidersWithToken)
             {
-                var item = Enqueue(c, tx, iqama, title, body, link);
+                var item = Enqueue(c, tx, iqama, title, body, link, titleEn, titleUr, bodyEn, bodyUr);
                 item["broadcastId"] = broadcastId;
                 Store.Save(c, Kind, item, tx);
                 enqueued.Add(item);
@@ -164,7 +190,7 @@ public static class PushNotifications
         }
         else
         {
-            var item = Enqueue(c, tx, J.Iqama(targetIqama), title, body, link);
+            var item = Enqueue(c, tx, J.Iqama(targetIqama), title, body, link, titleEn, titleUr, bodyEn, bodyUr);
             item["broadcastId"] = broadcastId;
             Store.Save(c, Kind, item, tx);
             enqueued.Add(item);
@@ -250,15 +276,17 @@ public static class PushNotifications
             return;
         }
 
-        // Find active device token for the rider
-        var (token, sessionId) = store.Read<(string?, string?)>(c =>
+        // Find active device token and session language for the rider
+        var (token, sessionId, language) = store.Read<(string?, string?, string)>(c =>
         {
             var sessions = Store.List(c, MobileSessions.Kind)
                 .Where(s => s.S("iqama") == iqama && MobileSessions.Status(s) == "active" && !string.IsNullOrWhiteSpace(s.S("fcmDeviceToken")))
                 .OrderByDescending(s => s.S("lastSeenAt"))
                 .ToList();
-            if (sessions.Count == 0) return (null, null);
-            return (sessions[0].S("fcmDeviceToken"), sessions[0].S("id"));
+            if (sessions.Count == 0) return (null, null, "ar");
+            string lang = sessions[0].S("language", "ar").Trim().ToLowerInvariant();
+            if (lang is not ("ar" or "en" or "ur")) lang = "ar";
+            return (sessions[0].S("fcmDeviceToken"), sessions[0].S("id"), lang);
         });
 
         if (string.IsNullOrWhiteSpace(token))
@@ -290,6 +318,7 @@ public static class PushNotifications
 
             string accessToken = await GetAccessTokenAsync(client, sa!);
 
+            var (localizedTitle, localizedBody) = ResolveLocalizedText(item, language);
             var fcmMessage = new JsonObject
             {
                 ["message"] = new JsonObject
@@ -297,13 +326,14 @@ public static class PushNotifications
                     ["token"] = token,
                     ["notification"] = new JsonObject
                     {
-                        ["title"] = item.S("title"),
-                        ["body"] = item.S("body")
+                        ["title"] = localizedTitle,
+                        ["body"] = localizedBody
                     },
                     ["data"] = new JsonObject
                     {
                         ["link"] = item.S("link"),
-                        ["id"] = id
+                        ["id"] = id,
+                        ["language"] = language
                     },
                     ["android"] = new JsonObject
                     {
@@ -334,6 +364,7 @@ public static class PushNotifications
                     if (row == null) return false;
                     row["status"] = "sent";
                     row["attempts"] = attempts;
+                    row["sentLanguage"] = language;
                     row["nextAttemptAt"] = "";
                     row["sentAt"] = DateTimeOffset.UtcNow.ToString("O");
                     row["updatedAt"] = DateTimeOffset.UtcNow.ToString("O");
@@ -578,7 +609,7 @@ public static class PushNotifications
                 ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
             };
             Store.Save(c, "mobile_broadcast", notice, tx);
-            var enqueued = EnqueueBroadcast(c, tx, noticeId, iqama, titleAr, bodyAr, link);
+            var enqueued = EnqueueBroadcast(c, tx, noticeId, iqama, titleAr, bodyAr, link, titleEn, titleUr, bodyEn, bodyUr);
             notifiedCount++;
             enqueuedCount += enqueued.Count;
         }

@@ -493,7 +493,9 @@ public static class RiderAsks
         };
         Store.Save(c, ServiceKind, doc, tx);
         Store.Audit(c, tx, "rider_service_request.admin_created", doc.S("id"), actorName);
-        PushNotifications.Enqueue(c, tx, iqama, titleAr, reason, "/rider-app/requests");
+        string reasonEn = input.S("reasonEn").Trim() is { Length: > 0 } re ? re : reason;
+        string reasonUr = input.S("reasonUr").Trim() is { Length: > 0 } ru ? ru : reason;
+        PushNotifications.Enqueue(c, tx, iqama, titleAr, reason, "/rider-app/requests", titleEn, titleUr, reasonEn, reasonUr);
         return doc;
     }
 
@@ -535,7 +537,10 @@ public static class RiderAsks
             req["decidedBy"] = actorName;
             req["decidedAt"] = now;
             tl.Add(TimelineEntry(now, "rejected", "تم رفض الطلب", "Request rejected", "درخواست مسترد کر دی گئی", note, "admin"));
-            PushNotifications.Enqueue(c, tx, req.S("riderIqama"), $"تحديث على {req.S("titleAr")}", $"تم رفض الطلب: {note}", "/rider-app/requests");
+            PushNotifications.Enqueue(c, tx, req.S("riderIqama"),
+                $"تحديث على {req.S("titleAr")}", $"تم رفض الطلب: {note}", "/rider-app/requests",
+                $"Update on {req.S("titleEn", req.S("titleAr"))}", $"{req.S("titleUr", req.S("titleAr"))} پر تازہ کاری",
+                $"Request rejected: {note}", $"درخواست مسترد کر دی گئی: {note}");
         }
         else if (action == "need_info")
         {
@@ -557,7 +562,10 @@ public static class RiderAsks
             });
             req["replies"] = replies;
             tl.Add(TimelineEntry(now, "need_info", "طلبت الإدارة توضيحاً من المندوب", "Administration requested clarification", "انتظامیہ نے وضاحت طلب کی ہے", note, "admin"));
-            PushNotifications.Enqueue(c, tx, req.S("riderIqama"), $"استفسار حول {req.S("titleAr")}", note, "/rider-app/requests");
+            PushNotifications.Enqueue(c, tx, req.S("riderIqama"),
+                $"استفسار حول {req.S("titleAr")}", note, "/rider-app/requests",
+                $"Clarification requested on {req.S("titleEn", req.S("titleAr"))}", $"{req.S("titleUr", req.S("titleAr"))} کے بارے میں وضاحت",
+                note, note);
         }
         else if (action is "approve" or "first_approve" or "second_approve")
         {
@@ -573,7 +581,10 @@ public static class RiderAsks
                 req["firstApprovedAt"] = now;
                 if (!string.IsNullOrEmpty(note)) req["note"] = note;
                 tl.Add(TimelineEntry(now, "first_approved", "تم الاعتماد الأول — بانتظار المعتمد الثاني المستقل", "First approval complete — awaiting independent second approver", "پہلی منظوری مکمل — دوسری خود مختار منظوری کا انتظار", note, "admin"));
-                PushNotifications.Enqueue(c, tx, req.S("riderIqama"), $"تحديث على {req.S("titleAr")}", "تم الاعتماد الأول لطلبك وبانتظار الاعتماد النهائي.", "/rider-app/requests");
+                PushNotifications.Enqueue(c, tx, req.S("riderIqama"),
+                    $"تحديث على {req.S("titleAr")}", "تم الاعتماد الأول لطلبك وبانتظار الاعتماد النهائي.", "/rider-app/requests",
+                    $"Update on {req.S("titleEn", req.S("titleAr"))}", $"{req.S("titleUr", req.S("titleAr"))} پر تازہ کاری",
+                    "First approval is complete; awaiting final approval.", "آپ کی درخواست کی پہلی منظوری مکمل ہو گئی ہے اور حتمی منظوری کا انتظار ہے۔");
             }
             else
             {
@@ -615,7 +626,11 @@ public static class RiderAsks
                         Store.Save(c, "rider", rider, tx);
                     }
                 }
-                PushNotifications.Enqueue(c, tx, req.S("riderIqama"), $"تم اعتماد {req.S("titleAr")}", string.IsNullOrEmpty(note) ? "تم اعتماد طلبك بنجاح." : note, "/rider-app/requests");
+                PushNotifications.Enqueue(c, tx, req.S("riderIqama"),
+                    $"تم اعتماد {req.S("titleAr")}", string.IsNullOrEmpty(note) ? "تم اعتماد طلبك بنجاح." : note, "/rider-app/requests",
+                    $"Approved: {req.S("titleEn", req.S("titleAr"))}", $"منظور شدہ: {req.S("titleUr", req.S("titleAr"))}",
+                    string.IsNullOrEmpty(note) ? "Your request has been approved." : note,
+                    string.IsNullOrEmpty(note) ? "آپ کی درخواست منظور ہو گئی ہے۔" : note);
             }
         }
         else
@@ -655,7 +670,10 @@ public static class RiderAsks
         req["updatedAt"] = now;
         Store.Save(c, ServiceKind, req, tx);
         Store.Audit(c, tx, "rider_service_request.admin_replied", id, actorName);
-        PushNotifications.Enqueue(c, tx, req.S("riderIqama"), $"رد جديد على {req.S("titleAr")}", message, "/rider-app/requests");
+        PushNotifications.Enqueue(c, tx, req.S("riderIqama"),
+            $"رد جديد على {req.S("titleAr")}", message, "/rider-app/requests",
+            $"New reply on {req.S("titleEn", req.S("titleAr"))}", $"{req.S("titleUr", req.S("titleAr"))} پر نیا جواب",
+            message, message);
         return req;
     }
 
@@ -1002,7 +1020,11 @@ public static class RiderAsks
         Store.Save(c, Kind, a, tx);
         Store.Audit(c, tx, "rider_ask.converted", id, actor.Identity!.Name!);
         Notifications.CloseTasks(c, tx, Kind, id, actor.Identity!.Name!);
-        PushNotifications.Enqueue(c, tx, a.S("riderIqama"), "تحديث طلب السلفة", $"تم رفع طلب السلفة برقم {request.S("id")} إلى الإدارة المالية.", "/rider-app");
+        PushNotifications.Enqueue(c, tx, a.S("riderIqama"),
+            "تحديث طلب السلفة", $"تم رفع طلب السلفة برقم {request.S("id")} إلى الإدارة المالية.", "/rider-app/requests",
+            "Advance Request Update", "ایڈوانس درخواست کی تازہ کاری",
+            $"Advance request {request.S("id")} has been forwarded to accounting.",
+            $"ایڈوانس درخواست نمبر {request.S("id")} اکاؤنٹس کو بھیج دی گئی ہے۔");
         return new() { ["ask"] = a, ["advanceRequest"] = request };
     }
 
@@ -1019,7 +1041,11 @@ public static class RiderAsks
         Store.Save(c, Kind, a, tx);
         Store.Audit(c, tx, "rider_ask.declined", id, actor.Identity!.Name!);
         Notifications.CloseTasks(c, tx, Kind, id, actor.Identity!.Name!);
-        PushNotifications.Enqueue(c, tx, a.S("riderIqama"), "تحديث طلب السلفة", $"تم رفض طلب السلفة: {note}", "/rider-app");
+        PushNotifications.Enqueue(c, tx, a.S("riderIqama"),
+            "تحديث طلب السلفة", $"تم رفض طلب السلفة: {note}", "/rider-app/requests",
+            "Advance Request Update", "ایڈوانس درخواست کی تازہ کاری",
+            $"Advance request declined: {note}",
+            $"ایڈوانس درخواست مسترد کر دی گئی: {note}");
         return a;
     }
 
