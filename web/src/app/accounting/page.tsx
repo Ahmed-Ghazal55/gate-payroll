@@ -48,13 +48,6 @@ import type {
   FinanceJournalLine,
 } from '../../lib/types';
 
-const COMPANY_NAME_MAP: Record<string, string> = {
-  BW: 'شركة البوابة المقبلة (BW)',
-  EX: 'شركة إكسبرس جايت (EX)',
-  TR: 'مؤسسة النقل والتوزيع (TR)',
-  all: 'كافة المنشآت والسجلات',
-};
-
 function AccountingPageContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -65,6 +58,13 @@ function AccountingPageContent() {
   useEffect(() => {
     api.getCompanies().then((res) => setCompanies(res || [])).catch(() => {});
   }, []);
+
+  // Company labels come from GET /companies only — never a fixed code map.
+  const companyName = (codeOrId?: string) => {
+    if (!codeOrId || codeOrId === 'all') return 'كافة المنشآت والسجلات';
+    const match = companies.find((c) => c.code === codeOrId || c.id === codeOrId);
+    return match?.nameAr || match?.shortNameAr || codeOrId;
+  };
 
   useEffect(() => {
     const action = searchParams?.get('action');
@@ -956,7 +956,7 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companyName(company.companyCode || company.sponsorId)}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
@@ -1209,7 +1209,7 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companyName(company.companyCode || company.sponsorId)}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
