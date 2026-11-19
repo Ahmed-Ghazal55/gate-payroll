@@ -1,14 +1,6 @@
 import { api, esc, money } from '../api';
 import { t, pickLang } from '../i18n';
 
-export const LABELS: Record<string, string> = {
-  debt_installment: 'قسط مديونية',
-  vehicle_charge: 'إيجار المركبة',
-  account_deduction: 'خصم الحساب',
-  penalty: 'غرامة',
-  adjustment: 'تسوية'
-};
-
 function markerBadge(amount: number): string {
   if (amount > 0) {
     return `<span class="tag good statement-marker" data-marker="for_you">+ ${esc(t('forYou'))}</span>`;
@@ -59,39 +51,6 @@ function renderHomeSummaryBanner(latestSummary: any, currentPeriod: string): str
   `;
 }
 
-function buildFallbackShortLines(cards: any[], ded: any[], carried: number): any[] {
-  const lines: any[] = [];
-  let running = 0;
-  const push = (labelAr: string, labelEn: string, labelUr: string, signed: number) => {
-    const amt = Number(signed || 0);
-    if (!amt) return;
-    running += amt;
-    lines.push({
-      labelAr,
-      labelEn,
-      labelUr,
-      amount: amt,
-      absAmount: Math.abs(amt),
-      runningBalance: running
-    });
-  };
-  if (carried) {
-    push('رصيد مرحّل', 'Carried balance', 'منتقل شدہ بیلنس', carried);
-  }
-  for (const c of cards) {
-    const p = c.platform || c.app || '';
-    if (Number(c.gross)) push(`مستحقات التوصيل — ${p}`, `Delivery earnings — ${p}`, `ڈیلیوری کی آمدنی — ${p}`, Number(c.gross));
-    if (Number(c.companyCommission)) push(`عمولة التشغيل — ${p}`, `Operating commission — ${p}`, `آپریٹنگ کمیشن — ${p}`, -Math.abs(Number(c.companyCommission)));
-    if (Number(c.vehicleCharge)) push('إيجار المركبة', 'Vehicle charge', 'گاڑی کا کرایہ', -Math.abs(Number(c.vehicleCharge)));
-    if (Number(c.accountDeduction)) push('خصم الحساب', 'Account deduction', 'اکاؤنٹ کٹوتی', -Math.abs(Number(c.accountDeduction)));
-  }
-  for (const d of ded) {
-    const label = d.labelAr || d.description || LABELS[d.category] || d.category || 'استقطاع';
-    push(label, d.category || 'Deduction', label, -Math.abs(Number(d.amount)));
-  }
-  return lines;
-}
-
 export async function renderStatementHtml(period: string, latestSummary?: any): Promise<string> {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const homeBanner = renderHomeSummaryBanner(latestSummary, period);
@@ -115,41 +74,19 @@ export async function renderStatementHtml(period: string, latestSummary?: any): 
 
   const cards: any[] = s.cards || [];
   const ded: any[] = s.deductions || [];
-  if (!cards.length && !ded.length) {
+  const shortLines: any[] = Array.isArray(s.shortLines) ? s.shortLines : [];
+  if (s.source === 'none' || (!cards.length && !ded.length && !shortLines.length)) {
     return picker + `<div class="mob-card muted" id="mob-statement-empty">${esc(t('statementEmpty'))}</div>`;
   }
 
   const netMonthVal = Number(s.net ?? 0);
   const carriedVal = Number(s.carried ?? 0);
   const closingVal = Number(s.closing ?? s.net ?? 0);
-  const shortLines: any[] =
-    Array.isArray(s.shortLines) && s.shortLines.length > 0
-      ? s.shortLines
-      : buildFallbackShortLines(cards, ded, carriedVal);
-
   const disclaimer = pickLang(s, 'disclaimer') || t('nonLegalDisclaimer');
 
-  return (
-    picker +
-    `
-    <div class="mob-kpis" id="mob-statement">
-      <div class="mob-kpi">
-        <div class="muted small">${esc(t('netMonth'))}</div>
-        <strong class="number ${netMonthVal < 0 ? 'money-negative' : 'money-positive'}">${money(Math.abs(netMonthVal))}</strong>
-        <div style="margin-top:4px">${markerBadge(netMonthVal)}</div>
-      </div>
-      <div class="mob-kpi">
-        <div class="muted small">${esc(t('carriedBalance'))}</div>
-        <strong class="number">${money(Math.abs(carriedVal))}</strong>
-        <div style="margin-top:4px">${markerBadge(carriedVal)}</div>
-      </div>
-      <div class="mob-kpi">
-        <div class="muted small">${esc(t('closingBalance'))}</div>
-        <strong class="number ${closingVal < 0 ? 'money-negative' : 'money-positive'}">${money(Math.abs(closingVal))}</strong>
-        <div style="margin-top:4px">${markerBadge(closingVal)}</div>
-      </div>
-    </div>
-
+  const linesCard =
+    shortLines.length > 0
+      ? `
     <div class="mob-card" id="mob-statement-lines">
       <h3 style="margin-top:0">📋 ${esc(t('statementItemsTitle'))}</h3>
       ${shortLines
@@ -179,6 +116,35 @@ export async function renderStatementHtml(period: string, latestSummary?: any): 
         })
         .join('')}
     </div>
+  `
+      : `
+    <div class="mob-card muted" id="mob-statement-not-available">
+      ${esc(t('statementItemsNotAvailable'))}
+    </div>
+  `;
+
+  return (
+    picker +
+    `
+    <div class="mob-kpis" id="mob-statement">
+      <div class="mob-kpi">
+        <div class="muted small">${esc(t('netMonth'))}</div>
+        <strong class="number ${netMonthVal < 0 ? 'money-negative' : 'money-positive'}">${money(Math.abs(netMonthVal))}</strong>
+        <div style="margin-top:4px">${markerBadge(netMonthVal)}</div>
+      </div>
+      <div class="mob-kpi">
+        <div class="muted small">${esc(t('carriedBalance'))}</div>
+        <strong class="number">${money(Math.abs(carriedVal))}</strong>
+        <div style="margin-top:4px">${markerBadge(carriedVal)}</div>
+      </div>
+      <div class="mob-kpi">
+        <div class="muted small">${esc(t('closingBalance'))}</div>
+        <strong class="number ${closingVal < 0 ? 'money-negative' : 'money-positive'}">${money(Math.abs(closingVal))}</strong>
+        <div style="margin-top:4px">${markerBadge(closingVal)}</div>
+      </div>
+    </div>
+
+    ${linesCard}
 
     <div class="mob-card small muted" style="text-align:center" id="mob-statement-disclaimer">
       <div>✓ ${esc(s.status === 'approved' || s.approvedOnly ? t('approvedBadge') : s.status || '')}</div>
