@@ -71,7 +71,9 @@ public sealed class RiderAppAdminTests
             Store.Save(c, "rider", new() { ["id"] = "2000000992", ["iqama"] = "2000000992", ["name"] = "مندوب تجريبي ب", ["status"] = "Active", ["financeSponsorId"] = other }, tx);
             Store.Save(c, RiderAsks.ServiceKind, Request("sreq:leave-bw", "annual_leave", "2000000991", "open", "2026-11-10T08:00:00Z"), tx);
             Store.Save(c, RiderAsks.ServiceKind, Request("sreq:appt-bw", "appointment", "2000000991", "open", "2026-11-11T08:00:00Z"), tx);
-            Store.Save(c, RiderAsks.ServiceKind, Request("sreq:iban-bw", "iban_update", "2000000991", "open", "2026-11-12T08:00:00Z", twoStep: true), tx);
+            var iban = Request("sreq:iban-bw", "iban_update", "2000000991", "open", "2026-11-12T08:00:00Z", twoStep: true);
+            iban["payload"] = new JsonObject { ["iban"] = "SA0380000000608010167519", ["ibanLast4"] = "7519" };
+            Store.Save(c, RiderAsks.ServiceKind, iban, tx);
             Store.Save(c, RiderAsks.ServiceKind, Request("sreq:complaint-bw", "complaint", "2000000991", "open", "2026-11-13T08:00:00Z", confidential: true), tx);
             Store.Save(c, RiderAsks.ServiceKind, Request("sreq:done-bw", "annual_leave", "2000000991", "approved", "2026-11-01T08:00:00Z", decidedAt: now), tx);
             Store.Save(c, RiderAsks.ServiceKind, Request("sreq:leave-other", "annual_leave", "2000000992", "open", "2026-11-14T08:00:00Z"), tx);
@@ -91,6 +93,12 @@ public sealed class RiderAppAdminTests
             CollectionAssert.AreEquivalent(new[] { "sreq:leave-bw", "sreq:appt-bw", "sreq:iban-bw", "sreq:done-bw" }, rows.Select(r => r.S("id")).ToArray(),
                 "other company's request and the confidential complaint stay hidden");
             Assert.AreEqual("sreq:iban-bw", rows[0].S("id"), "newest first");
+            Assert.AreEqual("••••7519", rows[0]["payload"]!.AsObject().S("iban"), "full new IBAN hidden without IBAN permission");
+            var ibanViewer = Staff("syn-iban-view", bw, "forms.view", "riders.iban.view");
+            Assert.AreEqual("SA0380000000608010167519",
+                store.Read(c => RiderAsks.StaffServiceRequests(c, ibanViewer, "iban_update", null, null)).Single()["payload"]!.AsObject().S("iban"));
+            // The stored request is unchanged (masking is on the read copy only).
+            Assert.AreEqual("SA0380000000608010167519", store.Read(c => Store.Get(c, "sreq:iban-bw", RiderAsks.ServiceKind))!["payload"]!.AsObject().S("iban"));
 
             var leaves = store.Read(c => RiderAsks.StaffServiceRequests(c, reviewer, "annual_leave", "open", null));
             CollectionAssert.AreEqual(new[] { "sreq:leave-bw" }, leaves.Select(r => r.S("id")).ToArray());

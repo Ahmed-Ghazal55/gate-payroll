@@ -465,13 +465,21 @@ public static class RiderAsks
         bool admin = AccessPolicy.Administrator(user);
         bool confidentialOk = admin || AccessPolicy.Has(user, "mobile.complaints.confidential");
         bool allCompanies = FinancialScopes.AllCompanies(user);
+        // The full new IBAN of an IBAN-change request is for IBAN viewers and its approvers only (others see the last 4).
+        bool ibanOk = AccessPolicy.Has(user, WorkforceApi.PermIban) || AccessPolicy.Has(user, IbanDataApproveFirstPermission) || AccessPolicy.Has(user, IbanDataApproveSecondPermission);
         var riders = Store.ListByIds(c, "rider", rows.Select(r => r.S("riderIqama")).ToList())
             .GroupBy(r => r.S("id"), StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         return rows
             .Where(r => confidentialOk || !(r.B("confidential") || r.S("requestType") == "complaint"))
             .Where(r => riders.TryGetValue(r.S("riderIqama"), out var rider) && (allCompanies || FinancialScopes.Rider(user, rider)))
             .OrderByDescending(r => r.S("createdAt"), StringComparer.Ordinal)
-            .Select(r => { var v = r.Clone(); v["allowedActions"] = StaffActions(user, r); return v; })
+            .Select(r =>
+            {
+                var v = r.Clone();
+                if (!ibanOk && v["payload"] is JsonObject p && p.S("iban") is { Length: > 4 } iban) p["iban"] = "••••" + iban[^4..];
+                v["allowedActions"] = StaffActions(user, r);
+                return v;
+            })
             .ToList();
     }
 
