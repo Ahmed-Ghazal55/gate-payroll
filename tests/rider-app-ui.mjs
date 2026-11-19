@@ -30,6 +30,19 @@ try{
  await req('/api/riders',{iqama,name:'Synthetic App Rider',phone:'0501234567',financeSponsorId:'BW',status:'Active'});
  await req('/api/debts',{iqama,category:'WorkPermit',entryMode:'Accrual',totalAmount:500,monthlyInstallment:100,creditorSponsorId:'BW',sourceRef:'syn-app-debt',agreementReviewed:true});
  await req('/api/rider-mobile/broadcast',{iqama,category:'operational',titleAr:'إشعار تجريبي',bodyAr:'نص تجريبي للمندوب',requiresAck:true});
+ // R7: individual-only notices can never go to ALL; they go to one rider and need acknowledgement.
+ for(const category of ['summons','dismissal_warning','administrative_deduction','appointment_alert','administrative_warning'])
+  await req('/api/rider-mobile/broadcast',{category,titleAr:'إشعار فردي تجريبي',bodyAr:'نص تجريبي'},400);
+ // The summons goes to a second synthetic rider so the app checks below still see one unread notice.
+ const other='2000000742';
+ await req('/api/riders',{iqama:other,name:'Synthetic Second Rider',phone:'0501234568',financeSponsorId:'BW',status:'Active'});
+ const notice=await req('/api/rider-mobile/broadcast',{iqama:other,category:'summons',titleAr:'استدعاء تجريبي',bodyAr:'نص تجريبي'});
+ assert.equal(notice.kind,'individual_notice');assert.equal(notice.requiresAck,true);
+ // History tab: server paging + kind filter + counts.
+ const history=await req('/api/rider-mobile/broadcasts?page=1&pageSize=1&kind=individual_notice');
+ assert.equal(history.total,1);assert.equal(history.items[0].targetIqama,other);assert.equal(history.items[0].ackCount,0);
+ assert.equal((await req('/api/rider-mobile/broadcasts?page=1&pageSize=50')).total,2);
+ const counts=await req('/api/rider-mobile/service-requests/summary');assert.equal(counts.open,0);
  const grant=await req('/api/inquiry-access',{iqama,scope:'mobile',identityReviewed:true});
  browser=await chromium.launch();const page=await (await browser.newContext({viewport:{width:360,height:780}})).newPage();
  const csp=[];page.on('console',m=>{if(/Content Security Policy/i.test(m.text()))csp.push(m.text());});
