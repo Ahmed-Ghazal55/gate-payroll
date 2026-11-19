@@ -120,7 +120,13 @@ public sealed class SchemaFinJournalTests
             VALUES(@id,@vno,@pid,@pm,@jd,'manual',@sid,@cid,'manual',1,'SAR',datetime('now'))
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@vno","V-X"),("@pid",periodB),("@pm","2026-11-01"),("@jd","2026-11-10"),("@sid",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",companyA)),
             "FK_fin_journal_period_company",sqliteToken:"FOREIGN KEY");
-        // date outside period_month month rejected by CK_fin_journal_date_in_period
+        // November period id + December period_month rejected by composite FK (period_month bound to period row)
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
+            INSERT INTO fin_journal(id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,currency_code,created_at)
+            VALUES(@id,@vno,@pid,@pm,@jd,'manual',@sid,@cid,'manual',1,'SAR',datetime('now'))
+            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@vno","V-MX"),("@pid",periodA),("@pm","2026-12-01"),("@jd","2026-12-15"),("@sid",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",companyA)),
+            "FK_fin_journal_period_company",sqliteToken:"FOREIGN KEY");
+        // November period_month + December journal_date rejected by CK_fin_journal_date_in_period
         SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
             INSERT INTO fin_journal(id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,currency_code,created_at)
             VALUES(@id,@vno,@pid,@pm,@jd,'manual',@sid,@cid,'manual',1,'SAR',datetime('now'))
@@ -138,6 +144,12 @@ public sealed class SchemaFinJournalTests
             INSERT INTO fin_journal_line(id,period_id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
             VALUES(@id,@pid,@pm,@jid,1,@aid,1,@cid,@cc,10,0,datetime('now'))
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",periodB),("@pm","2026-11-01"),("@jid",journal),("@aid",posting),("@cid",companyA),("@cc",cc)),
+            "FK_fin_journal_line_journal_scope",sqliteToken:"FOREIGN KEY");
+        // line with December month against November journal rejected
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
+            INSERT INTO fin_journal_line(id,period_id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
+            VALUES(@id,@pid,@pm,@jid,1,@aid,1,@cid,@cc,10,0,datetime('now'))
+            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",periodA),("@pm","2026-12-01"),("@jid",journal),("@aid",posting),("@cid",companyA),("@cc",cc)),
             "FK_fin_journal_line_journal_scope",sqliteToken:"FOREIGN KEY");
     }
 

@@ -58,7 +58,7 @@ public static class SchemaFinPeriodBalance
                   CONSTRAINT UQ_fin_period_balance_grain UNIQUE (period_id, dimension_key),
                   CONSTRAINT UQ_fin_period_balance_dims UNIQUE (period_id, company_id, account_id, cost_centre_id, app_code),
                   CONSTRAINT CK_fin_period_balance_app CHECK (app_code <> ''),
-                  CONSTRAINT FK_fin_pb_period_company FOREIGN KEY (company_id, period_id) REFERENCES {period}(company_id, id),
+                  CONSTRAINT FK_fin_pb_period_company FOREIGN KEY (company_id, period_id, period_month) REFERENCES {period}(company_id, id, period_month),
                   CONSTRAINT FK_fin_pb_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_pb_account FOREIGN KEY (account_id) REFERENCES {account}(id),
                   CONSTRAINT FK_fin_pb_cc FOREIGN KEY (cost_centre_id) REFERENCES {cc}(id)
@@ -94,7 +94,7 @@ public static class SchemaFinPeriodBalance
                   CONSTRAINT UQ_fin_period_balance_dims UNIQUE (period_id, company_id, account_id, cost_centre_id, app_code),
                   CONSTRAINT CK_fin_period_balance_app CHECK (app_code <> ''),
                   CONSTRAINT CK_fin_period_balance_dim_len CHECK (length(dimension_key) = 32),
-                  CONSTRAINT FK_fin_pb_period_company FOREIGN KEY (company_id, period_id) REFERENCES {period}(company_id, id),
+                  CONSTRAINT FK_fin_pb_period_company FOREIGN KEY (company_id, period_id, period_month) REFERENCES {period}(company_id, id, period_month),
                   CONSTRAINT FK_fin_pb_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_pb_account FOREIGN KEY (account_id) REFERENCES {account}(id),
                   CONSTRAINT FK_fin_pb_cc FOREIGN KEY (cost_centre_id) REFERENCES {cc}(id)

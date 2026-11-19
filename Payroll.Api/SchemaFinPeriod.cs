@@ -1,7 +1,8 @@
 using System.Data.Common;
 namespace Payroll;
 
-/// <summary>U-W1-09 (period half): fin.accounting_period open/closed states. Design §7.1 / BR §17 م11. Transitions beyond allowed state values are enforced by the posting service (admin+2nd reopen).</summary>
+/// <summary>U-W1-09 (period half): fin.accounting_period open/closed states. Design §7.1 / BR §17 م11. Transitions beyond allowed state values are enforced by the posting service (admin+2nd reopen).
+/// Unique (company_id, id, period_month) lets journals and balances FK the period start into the same row.</summary>
 public static class SchemaFinPeriod
 {
     // state: 1=open, 2=closed
@@ -37,6 +38,7 @@ public static class SchemaFinPeriod
                   CONSTRAINT PK_fin_accounting_period PRIMARY KEY NONCLUSTERED (id),
                   CONSTRAINT UQ_fin_accounting_period UNIQUE (company_id, period_month),
                   CONSTRAINT UQ_fin_accounting_period_company_id UNIQUE (company_id, id),
+                  CONSTRAINT UQ_fin_accounting_period_company_id_start UNIQUE (company_id, id, period_month),
                   CONSTRAINT CK_fin_accounting_period_state CHECK (state IN (1,2)),
                   CONSTRAINT CK_fin_accounting_period_start CHECK ({firstOfMonth}),
                   CONSTRAINT FK_fin_period_company FOREIGN KEY (company_id) REFERENCES {company}(id)
@@ -60,6 +62,7 @@ public static class SchemaFinPeriod
                   created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
                   CONSTRAINT UQ_fin_accounting_period UNIQUE (company_id, period_month),
                   CONSTRAINT UQ_fin_accounting_period_company_id UNIQUE (company_id, id),
+                  CONSTRAINT UQ_fin_accounting_period_company_id_start UNIQUE (company_id, id, period_month),
                   CONSTRAINT CK_fin_accounting_period_state CHECK (state IN (1,2)),
                   CONSTRAINT CK_fin_accounting_period_start CHECK ({firstOfMonth}),
                   CONSTRAINT FK_fin_period_company FOREIGN KEY (company_id) REFERENCES {company}(id)
