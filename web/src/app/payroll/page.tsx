@@ -137,7 +137,7 @@ const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
   review_invoice_account: { label: 'مراجعة حسابات الفاتورة', href: '/app/operations?tab=accounts' },
   link_account: { label: 'ربط حساب المنصة بالسجل', href: '/app/operations?tab=accounts' },
   link_actual_operator: { label: 'ربط المشغل الفعلي للحساب', href: '/app/operations?tab=accounts' },
-  import_operations: { label: 'مراجعة التشغيل والمناديب', href: '/app/operations' },
+  import_operations: { label: 'استيراد التشغيل والمناديب', href: '/app/imports' },
   import_scheme_choices: { label: 'خيارات الأنظمة', href: '/app/payroll?tab=rules' },
   review_operations: { label: 'مراجعة بيانات التشغيل اليومي', href: '/app/operations' },
   sync_riders: { label: 'مراجعة سجل المندوب', href: '/app/riders' },

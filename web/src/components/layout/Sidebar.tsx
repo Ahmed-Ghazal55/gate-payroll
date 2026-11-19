@@ -117,6 +117,7 @@ function SidebarInner({
         { id: 'ops-guarantees', href: '/operations/?tab=guarantees', label: 'الكفالات' },
         { id: 'ops-cases', href: '/operations/?tab=cases', label: 'القضايا والمنازعات' },
         { id: 'ops-accounts', href: '/operations/?tab=accounts', label: 'حسابات المنصات' },
+        { id: 'ops-imports', href: '/imports/', label: 'استيراد الملفات', permission: 'imports.view', isNew: true },
       ],
     },
     {
