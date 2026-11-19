@@ -112,18 +112,15 @@ public sealed partial class Store
         using var r = cmd.ExecuteReader(); var rows = new List<JsonObject>();
         while (r.Read()) rows.Add(JsonNode.Parse(r.GetString(0))!.AsObject()); return rows;
     }
-    static string JsonFieldExpr(DbConnection c, string jsonField)
-    {
-        if (string.IsNullOrEmpty(jsonField) || !char.IsAsciiLetter(jsonField[0]) || !jsonField.All(ch => char.IsAsciiLetterOrDigit(ch) || ch == '_'))
-            throw new ArgumentException("Invalid JSON field name.", nameof(jsonField));
-        return c is SqliteConnection ? $"json_extract(body,'$.{jsonField}')" : $"JSON_VALUE(body,'$.{jsonField}')";
-    }
+    static string JsonFieldExpr(DbConnection c, string jsonField) => RiderDataIndexes.FieldExpr(c, jsonField);
     public static List<JsonObject> ListWhere(DbConnection c, string kind, DbTransaction? tx = null, int? limit = null, params (string JsonField, string Value)[] equals)
     {
         bool sqlite = c is SqliteConnection;
+        string kindPred = RiderDataIndexes.KindSql(c, kind, "@kind", out bool kindLiteral);
         var sql = new System.Text.StringBuilder();
-        sql.Append(sqlite ? "SELECT body FROM records WHERE kind=@kind" : (limit.HasValue ? $"SELECT TOP ({Math.Max(1, limit.Value)}) body FROM records WHERE kind=@kind" : "SELECT body FROM records WHERE kind=@kind"));
-        var parameters = new List<(string Name, object Value)> { ("@kind", kind) };
+        sql.Append(sqlite ? "SELECT body FROM records WHERE " + kindPred : (limit.HasValue ? $"SELECT TOP ({Math.Max(1, limit.Value)}) body FROM records WHERE {kindPred}" : "SELECT body FROM records WHERE " + kindPred));
+        var parameters = new List<(string Name, object Value)>();
+        if (!kindLiteral) parameters.Add(("@kind", kind));
         for (int i = 0; i < equals.Length; i++)
         {
             sql.Append(" AND ").Append(JsonFieldExpr(c, equals[i].JsonField)).Append($"=@v{i}");
@@ -165,9 +162,11 @@ public sealed partial class Store
     public static List<JsonObject> ListBroadcastsForRider(DbConnection c, string iqama, int limit, DbTransaction? tx = null)
     {
         int bounded = Math.Max(1, limit);
+        string targetIqama = RiderDataIndexes.FieldExpr(c, "targetIqama");
+        string createdAt = RiderDataIndexes.CreatedAtExpr(c);
         string sql = c is SqliteConnection
-            ? $"SELECT body FROM records WHERE kind='mobile_broadcast' AND json_extract(body,'$.targetIqama') IN ('ALL', @iqama) ORDER BY COALESCE(json_extract(body,'$.createdAt'), '') DESC, rowid DESC LIMIT {bounded}"
-            : $"SELECT TOP ({bounded}) body FROM records WHERE kind='mobile_broadcast' AND JSON_VALUE(body,'$.targetIqama') IN ('ALL', @iqama) ORDER BY COALESCE(JSON_VALUE(body,'$.createdAt'), '') DESC, id DESC";
+            ? $"SELECT body FROM records WHERE kind='mobile_broadcast' AND {targetIqama} IN ('ALL', @iqama) ORDER BY COALESCE({createdAt}, '') DESC, rowid DESC LIMIT {bounded}"
+            : $"SELECT TOP ({bounded}) body FROM records WHERE kind='mobile_broadcast' AND {targetIqama} IN ('ALL', @iqama) ORDER BY COALESCE({createdAt}, '') DESC, id DESC";
         using var cmd = Command(c, tx, sql, ("@iqama", iqama));
         using var r = cmd.ExecuteReader(); var rows = new List<JsonObject>();
         while (r.Read()) rows.Add(JsonNode.Parse(r.GetString(0))!.AsObject());
@@ -190,18 +189,15 @@ public sealed partial class Store
         bool sqlite = c is SqliteConnection;
         var companies = companyKeys.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Take(32).ToList();
         var sql = new System.Text.StringBuilder();
-        sql.Append("SELECT body FROM records WHERE kind=@kind AND ");
-        sql.Append(sqlite ? "json_extract(body,'$.status')" : "JSON_VALUE(body,'$.status')");
+        // kind is allow-listed above; embed as SQL literal so filtered indexes stay eligible.
+        sql.Append("SELECT body FROM records WHERE kind='").Append(kind).Append("' AND ");
+        sql.Append(RiderDataIndexes.StatusExpr(c));
         sql.Append("='open' AND ");
-        sql.Append(sqlite ? "json_extract(body,'$.expiresAt')" : "JSON_VALUE(body,'$.expiresAt')");
+        sql.Append(RiderDataIndexes.ExpiresAtExpr(c));
         sql.Append(" > @now AND (");
-        string targetExpr = sqlite
-            ? "COALESCE(json_extract(body,'$.target'),json_extract(body,'$.targetAudience'),'')"
-            : "COALESCE(JSON_VALUE(body,'$.target'),JSON_VALUE(body,'$.targetAudience'),'')";
-        sql.Append(targetExpr).Append(" IN ('','ALL','rider','riders',@iqama)");
+        sql.Append(RiderDataIndexes.TargetExpr(c)).Append(" IN ('','ALL','rider','riders',@iqama)");
         sql.Append(')');
-        string targetIqamaExpr = sqlite ? "COALESCE(json_extract(body,'$.targetIqama'),'')" : "COALESCE(JSON_VALUE(body,'$.targetIqama'),'')";
-        sql.Append(" AND (").Append(targetIqamaExpr).Append(" IN ('','ALL',@iqama))");
+        sql.Append(" AND (").Append(RiderDataIndexes.TargetIqamaExpr(c)).Append(" IN ('','ALL',@iqama))");
         string[] companyFields = ["companyId", "sponsorId", "targetCompanyId", "targetSponsorId"];
         sql.Append(" AND (");
         for (int i = 0; i < companyFields.Length; i++)
@@ -224,8 +220,8 @@ public sealed partial class Store
         sql.Append(')');
         sql.Append(sqlite
             ? " ORDER BY rowid DESC"
-            : " ORDER BY COALESCE(JSON_VALUE(body,'$.createdAt'),'') DESC,id DESC");
-        var parameters = new List<(string Name, object Value)> { ("@kind", kind), ("@iqama", iqama), ("@now", nowIso) };
+            : " ORDER BY COALESCE(" + RiderDataIndexes.CreatedAtExpr(c) + ",'') DESC,id DESC");
+        var parameters = new List<(string Name, object Value)> { ("@iqama", iqama), ("@now", nowIso) };
         for (int i = 0; i < companyFields.Length; i++)
             for (int j = 0; j < companies.Count; j++)
                 parameters.Add(($"@c{i}_{j}", companies[j]));
