@@ -1,52 +1,61 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   Building2,
   FileText,
-  Calendar,
   AlertTriangle,
   Coins,
-  Search,
-  Filter,
   Download,
-  Upload,
   Plus,
-  ExternalLink,
-  CheckCircle2,
   AlertCircle,
   Clock,
-  ShieldCheck,
-  ChevronRight,
   Eye,
   EyeOff,
-  FileSpreadsheet,
-  X,
   Sparkles,
-  Layers,
-  History,
-  Tag,
   Users,
+  BarChart3,
+  Layers,
+  RefreshCw,
+  ArrowUpLeft,
+  Wallet,
+  CheckCircle2,
+  UserCheck,
 } from 'lucide-react';
-import { api, ApiError } from '../../lib/api';
+import {
+  api,
+  ApiError,
+  type CompanyContract,
+  type CompanyDocumentContract,
+  type CompanyExpiringContract,
+  type CompanyImportPlanContract,
+  type CompaniesStatsResponse,
+  type CompanyStatsItem,
+} from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
+import { inApp } from '../../lib/paths';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
-import { Tabs } from '../../components/ui/Tabs';
+import { SectionTabs } from '../../components/ui/SectionTabs';
 import { Toolbar } from '../../components/ui/Toolbar';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
-import type {
-  Company,
-  CommercialRegistration,
-  CompanyDocument,
-  ExpiringRecord,
-  CompanyImportPlan,
-} from '../../lib/types';
+import { SourceBadge } from '../../components/ui/SourceBadge';
+import {
+  BALANCES_PLACEHOLDER_AR,
+  CANONICAL_PLATFORMS,
+  buildCompanyStatsExport,
+  buildWorkforceCompanyUrl,
+  normalizeCompaniesTab,
+  platformCountFor,
+  platformLabelAr,
+  type CompaniesTabId,
+} from '../../features/companies/company-stats';
 
 // Official signed company certificate baseline from docs/07-companies.md
 const OFFICIAL_COMPANIES_PAYLOAD = [
@@ -142,33 +151,35 @@ function isDueWithinDays(dateStr?: string, days = 60): boolean {
   return rem !== null && rem <= days;
 }
 
+function formatNumber(n: number | undefined): string {
+  return (Number(n) || 0).toLocaleString('en-US');
+}
+
 function CompaniesPageContent() {
   const { toast } = useToast();
-  const { isAdmin } = useAuth();
+  const { isAdmin, can } = useAuth();
   const searchParams = useSearchParams();
+  const canManage = isAdmin || can('companies.manage');
 
-  // State
-  const [activeTab, setActiveTab] = useState<'companies' | 'registrations' | 'documents'>('companies');
+  const tabFromUrl = normalizeCompaniesTab(searchParams?.get('tab'));
+  const [activeTab, setActiveTab] = useState<CompaniesTabId>(tabFromUrl);
 
-  // Sidebar ids (?tab=companies|cr|expiring) map to the page's internal tab ids.
   useEffect(() => {
-    const tab = searchParams?.get('tab');
-    if (!tab) return;
-    const tabMap: Record<string, typeof activeTab> = {
-      companies: 'companies',
-      cr: 'registrations',
-      registrations: 'registrations',
-      expiring: 'documents',
-      documents: 'documents',
-    };
-    const mapped = tabMap[tab];
-    if (mapped) setActiveTab(mapped);
+    setActiveTab(normalizeCompaniesTab(searchParams?.get('tab')));
   }, [searchParams]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [expiring, setExpiring] = useState<ExpiringRecord[]>([]);
+
+  // Core company tables (our DB)
+  const [companies, setCompanies] = useState<CompanyContract[]>([]);
+  const [expiring, setExpiring] = useState<CompanyExpiringContract[]>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; actor: string; at: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Live company statistics (Omar's ERP read-only via GET /api/companies/stats)
+  const [stats, setStats] = useState<CompaniesStatsResponse | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const statsAbort = useRef<AbortController | null>(null);
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -177,13 +188,13 @@ function CompaniesPageContent() {
   const [expiringOnly, setExpiringOnly] = useState(false);
 
   // Drawer state
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyContract | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<'details' | 'activities' | 'documents' | 'audit'>('details');
-  const [companyDocs, setCompanyDocs] = useState<CompanyDocument[]>([]);
+  const [drawerTab, setDrawerTab] = useState<'details' | 'activities' | 'documents' | 'stats' | 'audit'>('details');
+  const [companyDocs, setCompanyDocs] = useState<CompanyDocumentContract[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
 
-  // Document upload state
+  // Document upload state (company documents remain our uploads per H32)
   const [uploadDocModalOpen, setUploadDocModalOpen] = useState(false);
   const [docType, setDocType] = useState('شهادة السجل التجاري');
   const [docNumber, setDocNumber] = useState('');
@@ -191,7 +202,7 @@ function CompaniesPageContent() {
   const [docFile, setDocFile] = useState<File | null>(null);
   const [uploadingDoc, setUploadingDoc] = useState(false);
 
-  // User balance visibility preference (per user, localStorage, try/catch)
+  // User balance visibility preference (per user, localStorage)
   const [showBalances, setShowBalances] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
     try {
@@ -208,7 +219,7 @@ function CompaniesPageContent() {
       try {
         localStorage.setItem('gate_show_balances', String(next));
       } catch {
-        // ignore
+        // ignore storage errors
       }
       return next;
     });
@@ -216,51 +227,114 @@ function CompaniesPageContent() {
 
   // Import Modal State (Admin only)
   const [importModalOpen, setImportModalOpen] = useState(false);
-  const [importPreviewPlan, setImportPreviewPlan] = useState<CompanyImportPlan | null>(null);
+  const [importPreviewPlan, setImportPreviewPlan] = useState<CompanyImportPlanContract | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
-  // Load data
-  const fetchData = async () => {
+  // Load local company data
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [compList, expList, logs] = await Promise.all([
+      const [compList, expList] = await Promise.all([
         api.getCompaniesList(),
         api.getExpiringCompanies(60),
-        api.getAuditLogs(),
       ]);
-      setCompanies(compList);
-      setExpiring(expList);
-      setAuditLogs(logs);
-    } catch (err: any) {
-      setError(err?.message || 'تعذر تحميل بيانات الشركات والسجلات.');
+      setCompanies(Array.isArray(compList) ? compList : []);
+      setExpiring(Array.isArray(expList) ? expList : []);
+      if (isAdmin) {
+        try {
+          const logs = await api.getAuditLogs();
+          setAuditLogs(Array.isArray(logs) ? logs : []);
+        } catch {
+          setAuditLogs([]);
+        }
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : 'تعذر تحميل بيانات الشركات والسجلات.';
+      setError(message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin]);
+
+  // Load live company stats independently so ERP outages do not block tabs 1-3
+  const fetchStats = useCallback(async () => {
+    statsAbort.current?.abort();
+    const ac = new AbortController();
+    statsAbort.current = ac;
+    setStatsLoading(true);
+    setStatsError(null);
+    try {
+      const res = await api.getCompaniesStats(ac.signal);
+      if (ac.signal.aborted) return;
+      setStats(res);
+    } catch (err: unknown) {
+      if (ac.signal.aborted || (err instanceof Error && err.name === 'AbortError')) return;
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : 'تعذر تحميل إحصائيات الشركات من نظام الموارد.';
+      setStatsError(message);
+      setStats(null);
+    } finally {
+      if (!ac.signal.aborted) setStatsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
+
+  useEffect(() => {
+    fetchStats();
+    return () => {
+      statsAbort.current?.abort();
+    };
+  }, [fetchStats]);
+
+  const statsByCompanyId = useMemo(() => {
+    const map = new Map<string, CompanyStatsItem>();
+    for (const item of stats?.items || []) {
+      map.set(item.companyId, item);
+    }
+    return map;
+  }, [stats]);
+
+  const canFilterWorkforce = useMemo(
+    () => (stats?.allowedActions || []).includes('filter_workforce'),
+    [stats]
+  );
+
+  const canExportStats = useMemo(
+    () => (stats?.allowedActions || []).includes('export'),
+    [stats]
+  );
 
   // Open drawer and load company documents
-  const handleOpenDrawer = async (comp: Company) => {
+  const handleOpenDrawer = async (comp: CompanyContract) => {
     setSelectedCompany(comp);
     setDrawerTab('details');
     setDrawerOpen(true);
     setLoadingDocs(true);
     try {
       const docs = await api.getCompanyDocuments(comp.id);
-      setCompanyDocs(docs);
-    } catch (_) {
+      setCompanyDocs(Array.isArray(docs) ? docs : []);
+    } catch {
       setCompanyDocs([]);
     } finally {
       setLoadingDocs(false);
     }
   };
 
-  // Upload document
+  // Upload document (stays as our uploads per H32)
   const handleUploadDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCompany || !docFile || uploadingDoc) return;
@@ -289,8 +363,10 @@ function CompaniesPageContent() {
       setDocFile(null);
       setDocNumber('');
       setDocExpiryDate('');
-    } catch (err: any) {
-      toast(err?.message || 'تعذر رفع المستند', 'danger');
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'تعذر رفع المستند';
+      toast(message, 'danger');
     } finally {
       setUploadingDoc(false);
     }
@@ -303,8 +379,14 @@ function CompaniesPageContent() {
     try {
       const plan = await api.previewCompanyImport(OFFICIAL_COMPANIES_PAYLOAD);
       setImportPreviewPlan(plan);
-    } catch (err: any) {
-      setImportError(err?.message || 'تعذر استخراج خطة استيراد الشهادات');
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : 'تعذر استخراج خطة استيراد الشهادات';
+      setImportError(message);
     } finally {
       setImportLoading(false);
     }
@@ -317,16 +399,22 @@ function CompaniesPageContent() {
     setImportError(null);
     try {
       await api.commitCompanyImport({
-        rows: importPreviewPlan.rows,
+        rows: importPreviewPlan.rows as Record<string, unknown>[],
         fingerprint: importPreviewPlan.fingerprint,
         confirm: true,
       });
       toast('تم اعتماد وتحديث شهادات الشركات بنجاح', 'success');
       setImportModalOpen(false);
       setImportPreviewPlan(null);
-      await fetchData();
-    } catch (err: any) {
-      setImportError(err?.message || 'فشل اعتماد استيراد بيانات الشركات');
+      await Promise.all([fetchData(), fetchStats()]);
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : 'فشل اعتماد استيراد بيانات الشركات';
+      setImportError(message);
     } finally {
       setImportLoading(false);
     }
@@ -360,14 +448,30 @@ function CompaniesPageContent() {
     });
   }, [companies, searchQuery, entityTypeFilter, statusFilter, expiringOnly]);
 
+  // Filtered stats items (honors search query on stats tab too)
+  const filteredStatsItems = useMemo(() => {
+    const list = stats?.items || [];
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase().trim();
+    return list.filter(
+      (item) =>
+        item.nameAr.toLowerCase().includes(q) ||
+        item.shortNameAr.toLowerCase().includes(q) ||
+        item.code.toLowerCase().includes(q) ||
+        item.unifiedNumber.includes(q) ||
+        item.commercialReg.includes(q)
+    );
+  }, [stats, searchQuery]);
+
   // Registrations list derived from companies
-  const allRegistrations: CommercialRegistration[] = useMemo(() => {
+  const allRegistrations = useMemo(() => {
     return companies
       .filter((c) => c.commercialReg || c.crNumber)
       .map((c) => ({
         id: `cr-${c.id}`,
         companyId: c.id,
-        company: `${c.nameAr} (${c.code})`,
+        companyNameAr: c.nameAr,
+        companyCode: c.code,
         number: c.crNumber || c.commercialReg || '—',
         city: c.city || 'جدة',
         issueDate: c.issueDate,
@@ -375,12 +479,11 @@ function CompaniesPageContent() {
         annualConfirmation: c.annualConfirmation,
         annualConfirmationHijri: c.annualConfirmationHijri,
         crVersion: c.crVersion || 1,
-        status: (c.status as any) || 'active',
-        createdAt: c.createdAt,
+        status: c.status || 'active',
       }));
   }, [companies]);
 
-  // Stats calculation
+  // Summary metrics
   const totalCapital = useMemo(() => {
     return companies.reduce((acc, c) => acc + (Number(c.capitalSar) || 0), 0);
   }, [companies]);
@@ -392,15 +495,50 @@ function CompaniesPageContent() {
   // Export Excel / CSV
   const handleExport = async (type: 'all' | 'filtered' | 'csv') => {
     try {
+      if (activeTab === 'stats' && stats) {
+        const exportSource = type === 'all' ? stats.items : filteredStatsItems;
+        const { headers, rows, numericColumns } = buildCompanyStatsExport(exportSource);
+        if (type === 'csv') {
+          const csvContent = [
+            headers.join(','),
+            ...rows.map((r) => r.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(',')),
+          ].join('\n');
+          const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `companies_stats_${new Date().toISOString().slice(0, 10)}.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+          toast('تم تصدير ملف إحصائيات الشركات بنجاح', 'success');
+          return;
+        }
+        const blob = await api.exportExcel({
+          headers,
+          rows,
+          numericColumns,
+          filename: 'companies_stats.xlsx',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `companies_stats_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast('تم تصدير ملف إحصائيات الشركات بنجاح', 'success');
+        return;
+      }
+
       const rowsToExport = type === 'all' ? companies : filteredCompanies;
       const headers = [
-        'كود الشركة',
+        'رمز الشركة',
         'اسم المنشأة',
-        'الرقم الموحد (700)',
+        'الرقم الموحد',
         'رقم السجل التجاري',
         'نوع الكيان',
         'المدينة',
-        'رأس المال (ر.س)',
+        'رأس المال بالريال',
+        'المكفولون',
         'التأكيد السنوي القادم',
         'الحالة',
       ];
@@ -412,12 +550,16 @@ function CompaniesPageContent() {
         c.entityType || '',
         c.city || '',
         Number(c.capitalSar || 0),
+        statsByCompanyId.get(c.id)?.sponsorships.total ?? Number(c.sponsoredRidersCount || 0),
         c.annualConfirmation ? `${c.annualConfirmationHijri || ''} (${c.annualConfirmation})` : '',
         c.status === 'active' ? 'نشط' : 'غير نشط',
       ]);
 
       if (type === 'csv') {
-        const csvContent = [headers.join(','), ...rows.map((r) => r.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
+        const csvContent = [
+          headers.join(','),
+          ...rows.map((r) => r.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(',')),
+        ].join('\n');
         const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -425,14 +567,14 @@ function CompaniesPageContent() {
         a.download = `companies_${new Date().toISOString().slice(0, 10)}.csv`;
         a.click();
         URL.revokeObjectURL(url);
-        toast('تم تصدير ملف CSV بنجاح', 'success');
+        toast('تم تصدير الملف النصي بنجاح', 'success');
         return;
       }
 
       const blob = await api.exportExcel({
         headers,
         rows,
-        numericColumns: [2, 3, 6],
+        numericColumns: [6, 7],
         filename: 'companies_registry.xlsx',
       });
       const url = URL.createObjectURL(blob);
@@ -441,11 +583,15 @@ function CompaniesPageContent() {
       a.download = `companies_${new Date().toISOString().slice(0, 10)}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-      toast('تم تصدير ملف Excel بنجاح', 'success');
-    } catch (err: any) {
-      toast(err?.message || 'تعذر تصدير الملف', 'danger');
+      toast('تم تصدير جدول البيانات بنجاح', 'success');
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'تعذر تصدير الملف';
+      toast(message, 'danger');
     }
   };
+
+  const selectedCompanyStats = selectedCompany ? statsByCompanyId.get(selectedCompany.id) ?? null : null;
 
   return (
     <div className="space-y-6">
@@ -453,7 +599,7 @@ function CompaniesPageContent() {
       <PageHeader
         title="الشركات والسجلات التجارية"
         eyebrow="الكيانات القانونية والشهادات الرسمية"
-        description="إدارة الكيانات القانونية الثلاثة (BW, EX, TR) والسجلات والشهادات الصادرة من وزارة التجارة وتنبيهات التأكيد السنوي."
+        description="إدارة الكيانات القانونية والسجلات والشهادات الصادرة من وزارة التجارة وتنبيهات التأكيد السنوي وإحصائيات الكفالات وحسابات المنصات."
         primaryAction={
           isAdmin
             ? {
@@ -478,49 +624,61 @@ function CompaniesPageContent() {
         </button>
       </PageHeader>
 
-      {/* Stat Cards */}
+      {/* Top Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="الشركات والمنشآت"
-          value={companies.length}
+          value={formatNumber(companies.length)}
           hint="كيانات قانونية رئيسية مسجلة"
           icon={Building2}
         />
         <StatCard
           label="السجلات التجارية النشطة"
-          value={allRegistrations.length}
+          value={formatNumber(allRegistrations.length)}
           hint="سجلات مركزية معتمدة"
           icon={FileText}
         />
         <StatCard
-          label="استحقاقات التأكيد خلال 60 يوم"
-          value={expiringCount}
+          label="استحقاقات التأكيد خلال 60 يومًا"
+          value={formatNumber(expiringCount)}
           hint="تنبيه قبل الاستحقاق السنوي"
           icon={AlertTriangle}
           className={expiringCount > 0 ? 'border-[var(--warning)]/50' : undefined}
         />
         <StatCard
           label="إجمالي رأس المال المثبت"
-          value={showBalances ? totalCapital.toLocaleString('en-US') + ' ر.س' : '••••••••'}
+          value={showBalances ? `${formatNumber(totalCapital)} ر.س` : '••••••••'}
           hint="رأس المال الكلي في السجلات"
           icon={Coins}
         />
       </div>
 
-      {/* Tabs */}
-      <Tabs
+      {/* Horizontal Inner Tabs (?tab=companies|cr|expiring|stats) */}
+      <SectionTabs
+        ariaLabel="أقسام الشركات والسجلات"
         tabs={[
-          { id: 'companies', label: 'الشركات والمنشآت' },
-          { id: 'registrations', label: 'السجلات التجارية', badge: allRegistrations.length },
-          { id: 'documents', label: 'الوثائق والانتهاءات', badge: expiring.length > 0 ? expiring.length : undefined },
+          { id: 'companies', label: 'الشركات والكفلاء', icon: <Building2 size={15} /> },
+          { id: 'cr', label: 'السجلات التجارية', icon: <FileText size={15} />, badge: allRegistrations.length },
+          {
+            id: 'expiring',
+            label: 'الوثائق والانتهاءات',
+            icon: <Clock size={15} />,
+            badge: expiring.length > 0 ? expiring.length : undefined,
+          },
+          {
+            id: 'stats',
+            label: 'الإحصائيات',
+            icon: <BarChart3 size={15} />,
+            badge: stats ? stats.totals.sponsoredTotal : undefined,
+          },
         ]}
         activeTab={activeTab}
-        onChange={(tab) => setActiveTab(tab as any)}
+        onChange={(tab) => setActiveTab(normalizeCompaniesTab(tab))}
       />
 
       {/* Toolbar */}
       <Toolbar
-        searchPlaceholder="بحث باسم الشركة، الكود (BW/EX/TR)، السجل التجاري، الرقم الموحد أو المدينة..."
+        searchPlaceholder="بحث باسم الشركة أو الرمز أو السجل التجاري أو الرقم الموحد أو المدينة..."
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         extraControls={
@@ -558,20 +716,428 @@ function CompaniesPageContent() {
                 }`}
               >
                 <Clock size={14} />
-                <span>استحقاق &lt; 60 يوم</span>
+                <span>استحقاق أقل من 60 يومًا</span>
+              </button>
+            </div>
+          ) : activeTab === 'stats' ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <SourceBadge source={stats?.source} asOf={stats?.asOf} />
+              <button
+                type="button"
+                onClick={fetchStats}
+                disabled={statsLoading}
+                className="h-10 px-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] disabled:opacity-50 inline-flex items-center gap-1.5 transition"
+              >
+                <RefreshCw size={14} className={statsLoading ? 'animate-spin' : undefined} />
+                <span>تحديث الإحصائيات</span>
               </button>
             </div>
           ) : undefined
         }
-        onExport={(format) => {
-          if (format === 'excel-all') handleExport('all');
-          else if (format === 'excel-filtered') handleExport('filtered');
-          else if (format === 'csv-filtered') handleExport('csv');
-        }}
+        onExport={
+          activeTab !== 'stats' || canExportStats
+            ? (format) => {
+                if (format === 'excel-all') handleExport('all');
+                else if (format === 'excel-filtered') handleExport('filtered');
+                else if (format === 'csv-filtered') handleExport('csv');
+              }
+            : undefined
+        }
       />
 
-      {/* Main Content Areas */}
-      {error ? (
+      {/* Main Tab Panels */}
+      {activeTab === 'stats' ? (
+        /* Sub-tab 4: الإحصائيات (U-W3-03 / H32) */
+        <div
+          id="tabpanel-stats"
+          role="tabpanel"
+          aria-labelledby="tab-stats"
+          className="space-y-6"
+        >
+          {statsError ? (
+            <ErrorState
+              title="تعذر تحميل إحصائيات الشركات"
+              message={statsError}
+              onRetry={fetchStats}
+            />
+          ) : statsLoading && !stats ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Skeleton className="h-28 rounded-xl" rows={1} />
+                <Skeleton className="h-28 rounded-xl" rows={1} />
+                <Skeleton className="h-28 rounded-xl" rows={1} />
+                <Skeleton className="h-28 rounded-xl" rows={1} />
+              </div>
+              <Skeleton className="h-48 rounded-2xl" rows={2} />
+            </div>
+          ) : !stats || stats.items.length === 0 ? (
+            <EmptyState
+              icon={<BarChart3 size={28} />}
+              title="لا توجد شركات ضمن نطاقك لعرض إحصائياتها"
+              description="تحقق من صلاحيات النطاق المالي للشركات المسندة لحسابك."
+            />
+          ) : (
+            <>
+              {/* Live KPI Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard
+                  label="الشركات ضمن النطاق"
+                  value={formatNumber(stats.totals.companiesCount)}
+                  hint="الكيانات المرتبطة بنظام الموارد"
+                  icon={Building2}
+                />
+                <StatCard
+                  label="إجمالي المكفولين"
+                  value={formatNumber(stats.totals.sponsoredTotal)}
+                  hint={`مناديب: ${formatNumber(stats.totals.sponsoredRiders)} · إداريون: ${formatNumber(stats.totals.sponsoredAdmins)}`}
+                  icon={Users}
+                />
+                <StatCard
+                  label="المكفولون النشطون"
+                  value={formatNumber(stats.totals.sponsoredActive)}
+                  hint={`في إجازة: ${formatNumber(stats.totals.sponsoredOnLeave)}`}
+                  icon={UserCheck}
+                />
+                <StatCard
+                  label="حسابات المنصات المسجلة"
+                  value={formatNumber(stats.totals.platformAccountsTotal)}
+                  hint={`نشط: ${formatNumber(stats.totals.platformAccountsActive)} · مسند: ${formatNumber(stats.totals.platformAccountsAssigned)}`}
+                  icon={Layers}
+                />
+              </div>
+
+              {/* Filter Cards Per Company/Record -> /workforce/?company=... */}
+              <section aria-label="بطاقات إحصائيات الشركات والسجلات" className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-bold text-[var(--ink)]">
+                      توزيع الكفالات وحسابات المنصات حسب الشركة والسجل
+                    </h2>
+                    <p className="text-xs text-[var(--muted)]">
+                      اختر أي بطاقة شركة أو منصة للانتقال مباشرة إلى صفحة القوى العاملة مفلترة عليها.
+                    </p>
+                  </div>
+                </div>
+
+                {filteredStatsItems.length === 0 ? (
+                  <EmptyState
+                    icon={<Building2 size={28} />}
+                    title="لا توجد شركات مطابقة للبحث"
+                    description="جرّب مسح نص البحث لعرض جميع الشركات ضمن نطاقك."
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {filteredStatsItems.map((item) => {
+                      const companyKey = item.unifiedNumber || item.companyId;
+                      const workforceHref = inApp(buildWorkforceCompanyUrl(companyKey));
+                      return (
+                        <article
+                          key={item.companyId}
+                          data-testid={`company-stats-card-${item.code || item.companyId}`}
+                          className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-xs hover:border-[var(--accent)]/60 transition flex flex-col justify-between gap-4"
+                        >
+                          <div className="space-y-4">
+                            {/* Card Header */}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h3 className="text-sm font-bold text-[var(--ink)] leading-snug">
+                                    {item.nameAr}
+                                  </h3>
+                                  {item.shortNameAr && item.shortNameAr !== item.nameAr && (
+                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--raised)] text-[var(--muted)]">
+                                      {item.shortNameAr}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--muted)]">
+                                  <span>
+                                    الرقم الموحد:{' '}
+                                    <bdi dir="ltr" className="font-mono num font-semibold text-[var(--ink)]">
+                                      {item.unifiedNumber || '—'}
+                                    </bdi>
+                                  </span>
+                                  <span>
+                                    السجل:{' '}
+                                    <bdi dir="ltr" className="font-mono num font-semibold text-[var(--ink)]">
+                                      {item.commercialReg || '—'}
+                                    </bdi>
+                                  </span>
+                                </div>
+                              </div>
+                              <span
+                                className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  item.erpLinked
+                                    ? 'bg-[var(--money-pos)]/10 text-[var(--money-pos)]'
+                                    : 'bg-[var(--warning)]/15 text-[var(--warning)]'
+                                }`}
+                              >
+                                <CheckCircle2 size={11} aria-hidden="true" />
+                                <span>{item.erpLinked ? 'مرتبط بنظام الموارد' : 'غير مرتبط'}</span>
+                              </span>
+                            </div>
+
+                            {/* Sponsorships Counters */}
+                            <div className="grid grid-cols-2 gap-2.5">
+                              <div className="rounded-xl bg-[var(--raised)]/60 border border-[var(--line)] p-3">
+                                <span className="text-[11px] text-[var(--muted)] block">إجمالي المكفولين</span>
+                                <strong className="num text-xl font-bold text-[var(--ink)] block mt-0.5">
+                                  {formatNumber(item.sponsorships.total)}
+                                </strong>
+                                <span className="text-[11px] text-[var(--muted)] block mt-1">
+                                  مناديب {formatNumber(item.sponsorships.riders)} · إداريون{' '}
+                                  {formatNumber(item.sponsorships.admins)}
+                                </span>
+                              </div>
+                              <div className="rounded-xl bg-[var(--raised)]/60 border border-[var(--line)] p-3">
+                                <span className="text-[11px] text-[var(--muted)] block">حسابات المنصات</span>
+                                <strong className="num text-xl font-bold text-[var(--accent)] block mt-0.5">
+                                  {formatNumber(item.platformAccounts.total)}
+                                </strong>
+                                <span className="text-[11px] text-[var(--muted)] block mt-1">
+                                  نشط {formatNumber(item.platformAccounts.active)} · مسند{' '}
+                                  {formatNumber(item.platformAccounts.assigned)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Platform Chips */}
+                            <div className="space-y-1.5">
+                              <span className="text-[11px] font-semibold text-[var(--muted)] block">
+                                الحسابات المسجلة باسم الشركة حسب المنصة
+                              </span>
+                              {item.platformAccounts.byPlatform.length === 0 ? (
+                                <p className="text-[11px] text-[var(--muted)]">
+                                  لا توجد حسابات منصات مسجلة باسم هذه الشركة حاليًا.
+                                </p>
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {item.platformAccounts.byPlatform.map((plat) => {
+                                    const label = platformLabelAr(plat.code, plat.nameAr);
+                                    const platHref = inApp(buildWorkforceCompanyUrl(companyKey, plat.code));
+                                    if (canFilterWorkforce) {
+                                      return (
+                                        <Link
+                                          key={plat.code}
+                                          href={platHref}
+                                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[var(--line)] bg-[var(--raised)]/40 hover:border-[var(--accent)] hover:bg-[var(--row-selected)] text-[11px] font-semibold text-[var(--ink)] transition"
+                                          title={`تصفية القوى العاملة: ${item.nameAr} — ${label}`}
+                                        >
+                                          <span>{label}</span>
+                                          <span className="num font-bold text-[var(--accent)]">
+                                            {formatNumber(plat.total)}
+                                          </span>
+                                        </Link>
+                                      );
+                                    }
+                                    return (
+                                      <span
+                                        key={plat.code}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[var(--line)] bg-[var(--raised)]/40 text-[11px] font-semibold text-[var(--ink)]"
+                                      >
+                                        <span>{label}</span>
+                                        <span className="num font-bold text-[var(--accent)]">
+                                          {formatNumber(plat.total)}
+                                        </span>
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Workforce Filter Action */}
+                          <div className="pt-3 border-t border-[var(--line)] flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-[var(--muted)]">
+                              نشطون: <strong className="num text-[var(--ink)]">{formatNumber(item.sponsorships.active)}</strong>
+                              {' · '}في إجازة:{' '}
+                              <strong className="num text-[var(--ink)]">{formatNumber(item.sponsorships.onLeave)}</strong>
+                            </span>
+                            {canFilterWorkforce ? (
+                              <Link
+                                href={workforceHref}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-95 transition whitespace-nowrap"
+                              >
+                                <span>عرض في القوى العاملة</span>
+                                <ArrowUpLeft size={14} aria-hidden="true" />
+                              </Link>
+                            ) : (
+                              <span className="text-[11px] text-[var(--muted)]">عرض إحصائي فقط</span>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {/* Detailed Table: Sponsorships & Platform Accounts per Company */}
+              <section
+                aria-label="جدول إحصائيات الكفالات وحسابات المنصات"
+                className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs overflow-hidden"
+              >
+                <div className="p-4 bg-[var(--raised)]/40 border-b border-[var(--line)] flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 size={16} className="text-[var(--accent)]" aria-hidden="true" />
+                    <h3 className="text-xs font-bold text-[var(--ink)]">
+                      مقارنة الكفالات وحسابات المنصات لكل شركة وسجل
+                    </h3>
+                  </div>
+                  <span className="text-[11px] text-[var(--muted)]">
+                    نطاق الإجماليات: كل الشركات ضمن صلاحية المستخدم
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-start text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-bold">
+                        <th scope="col" className="py-3 px-4 text-start whitespace-nowrap">الشركة / السجل</th>
+                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">إجمالي المكفولين</th>
+                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">مناديب</th>
+                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">إداريون</th>
+                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">نشطون</th>
+                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">إجمالي الحسابات</th>
+                        {CANONICAL_PLATFORMS.map((plat) => (
+                          <th key={plat.code} scope="col" className="py-3 px-3 text-start whitespace-nowrap">
+                            {plat.labelAr}
+                          </th>
+                        ))}
+                        <th scope="col" className="py-3 px-3 text-start whitespace-nowrap">نشط / مسند</th>
+                        <th scope="col" className="py-3 px-3 text-center whitespace-nowrap">القوى العاملة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--line)]/60">
+                      {filteredStatsItems.map((item) => {
+                        const companyKey = item.unifiedNumber || item.companyId;
+                        return (
+                          <tr key={item.companyId} className="hover:bg-[var(--row-hover)] transition">
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <div className="font-bold text-[var(--ink)]">{item.nameAr}</div>
+                              <div className="text-[11px] text-[var(--muted)]">
+                                <bdi dir="ltr" className="font-mono num">
+                                  {item.unifiedNumber || '—'}
+                                </bdi>
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 font-mono font-bold num text-[var(--ink)]">
+                              {formatNumber(item.sponsorships.total)}
+                            </td>
+                            <td className="py-3 px-3 font-mono num text-[var(--ink)]">
+                              {formatNumber(item.sponsorships.riders)}
+                            </td>
+                            <td className="py-3 px-3 font-mono num text-[var(--ink)]">
+                              {formatNumber(item.sponsorships.admins)}
+                            </td>
+                            <td className="py-3 px-3 font-mono num text-[var(--money-pos)] font-semibold">
+                              {formatNumber(item.sponsorships.active)}
+                            </td>
+                            <td className="py-3 px-3 font-mono font-bold num text-[var(--accent)]">
+                              {formatNumber(item.platformAccounts.total)}
+                            </td>
+                            {CANONICAL_PLATFORMS.map((plat) => {
+                              const count = platformCountFor(item.platformAccounts.byPlatform, plat.code);
+                              return (
+                                <td key={plat.code} className="py-3 px-3 font-mono num">
+                                  {count > 0 && canFilterWorkforce ? (
+                                    <Link
+                                      href={inApp(buildWorkforceCompanyUrl(companyKey, plat.code))}
+                                      className="font-semibold text-[var(--accent)] hover:underline"
+                                    >
+                                      {formatNumber(count)}
+                                    </Link>
+                                  ) : (
+                                    <span className={count > 0 ? 'font-semibold text-[var(--ink)]' : 'text-[var(--muted)]'}>
+                                      {formatNumber(count)}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="py-3 px-3 font-mono num whitespace-nowrap">
+                              <span className="text-[var(--money-pos)] font-semibold">
+                                {formatNumber(item.platformAccounts.active)}
+                              </span>
+                              <span className="text-[var(--muted)] mx-1">/</span>
+                              <span className="text-[var(--ink)] font-semibold">
+                                {formatNumber(item.platformAccounts.assigned)}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center whitespace-nowrap">
+                              {canFilterWorkforce ? (
+                                <Link
+                                  href={inApp(buildWorkforceCompanyUrl(companyKey))}
+                                  className="h-8 px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:border-[var(--accent)] hover:bg-[var(--row-selected)] text-xs font-semibold inline-flex items-center gap-1 text-[var(--ink)] transition"
+                                >
+                                  <span>تصفية</span>
+                                  <ArrowUpLeft size={13} aria-hidden="true" />
+                                </Link>
+                              ) : (
+                                <span className="text-[var(--muted)]">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-[var(--line)] bg-[var(--raised)]/60 font-bold text-[var(--ink)]">
+                        <td className="py-3 px-4 whitespace-nowrap">الإجمالي العام</td>
+                        <td className="py-3 px-3 font-mono num">{formatNumber(stats.totals.sponsoredTotal)}</td>
+                        <td className="py-3 px-3 font-mono num">{formatNumber(stats.totals.sponsoredRiders)}</td>
+                        <td className="py-3 px-3 font-mono num">{formatNumber(stats.totals.sponsoredAdmins)}</td>
+                        <td className="py-3 px-3 font-mono num text-[var(--money-pos)]">
+                          {formatNumber(stats.totals.sponsoredActive)}
+                        </td>
+                        <td className="py-3 px-3 font-mono num text-[var(--accent)]">
+                          {formatNumber(stats.totals.platformAccountsTotal)}
+                        </td>
+                        {CANONICAL_PLATFORMS.map((plat) => (
+                          <td key={plat.code} className="py-3 px-3 font-mono num">
+                            {formatNumber(platformCountFor(stats.totals.byPlatform, plat.code))}
+                          </td>
+                        ))}
+                        <td className="py-3 px-3 font-mono num whitespace-nowrap">
+                          {formatNumber(stats.totals.platformAccountsActive)} /{' '}
+                          {formatNumber(stats.totals.platformAccountsAssigned)}
+                        </td>
+                        <td className="py-3 px-3 text-center">—</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </section>
+
+              {/* Company Financial Balances Placeholder (deferred until accounting tables) */}
+              <section
+                aria-label="الأرصدة المالية للشركات"
+                data-testid="company-balances-placeholder"
+                className="rounded-2xl border border-dashed border-[var(--line)] bg-[var(--raised)]/35 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-[var(--surface)] border border-[var(--line)] flex items-center justify-center text-[var(--accent)] shrink-0">
+                    <Wallet size={20} aria-hidden="true" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-[var(--ink)]">الأرصدة المالية لكل شركة</h3>
+                    <p className="text-xs font-semibold text-[var(--accent)]">
+                      {stats.balancesNote || BALANCES_PLACEHOLDER_AR}
+                    </p>
+                    <p className="text-xs text-[var(--muted)]">
+                      ستظهر هنا أرصدة البنوك والخزن والذمم والمديونيات وأصول المركبات لكل شركة فور ربط جداول المحاسبة.
+                    </p>
+                  </div>
+                </div>
+                <span className="shrink-0 inline-flex items-center px-3 py-1 rounded-full bg-[var(--surface)] border border-[var(--line)] text-xs font-bold text-[var(--muted)]">
+                  {BALANCES_PLACEHOLDER_AR}
+                </span>
+              </section>
+            </>
+          )}
+        </div>
+      ) : error ? (
         <ErrorState
           title="تعذر تحميل بيانات الشركات"
           message={error}
@@ -583,23 +1149,28 @@ function CompaniesPageContent() {
           <Skeleton className="h-48 rounded-xl" rows={3} />
         </div>
       ) : activeTab === 'companies' ? (
-        /* Sub-tab 1: الشركات */
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs overflow-hidden">
+        /* Sub-tab 1: الشركات والكفلاء */
+        <div
+          id="tabpanel-companies"
+          role="tabpanel"
+          aria-labelledby="tab-companies"
+          className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs overflow-hidden"
+        >
           <div className="overflow-x-auto">
             <table className="w-full text-start text-xs border-collapse">
               <thead>
                 <tr className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-bold">
-                  <th className="py-3 px-4 text-start">الكود</th>
-                  <th className="py-3 px-4 text-start">المنشأة الرسمية</th>
-                  <th className="py-3 px-4 text-start">الرقم الموحد (700)</th>
-                  <th className="py-3 px-4 text-start">السجل التجاري</th>
-                  <th className="py-3 px-4 text-start">نوع الكيان</th>
-                  <th className="py-3 px-4 text-start">المدينة</th>
-                  <th className="py-3 px-4 text-start">رأس المال</th>
-                  <th className="py-3 px-4 text-start">المكفولون</th>
-                  <th className="py-3 px-4 text-start">التأكيد السنوي القادم</th>
-                  <th className="py-3 px-4 text-start">الحالة</th>
-                  <th className="py-3 px-4 text-center">إجراءات</th>
+                  <th scope="col" className="py-3 px-4 text-start">الرمز</th>
+                  <th scope="col" className="py-3 px-4 text-start">المنشأة الرسمية</th>
+                  <th scope="col" className="py-3 px-4 text-start">الرقم الموحد</th>
+                  <th scope="col" className="py-3 px-4 text-start">السجل التجاري</th>
+                  <th scope="col" className="py-3 px-4 text-start">نوع الكيان</th>
+                  <th scope="col" className="py-3 px-4 text-start">المدينة</th>
+                  <th scope="col" className="py-3 px-4 text-start">رأس المال</th>
+                  <th scope="col" className="py-3 px-4 text-start">المكفولون</th>
+                  <th scope="col" className="py-3 px-4 text-start">التأكيد السنوي القادم</th>
+                  <th scope="col" className="py-3 px-4 text-start">الحالة</th>
+                  <th scope="col" className="py-3 px-4 text-center">إجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]/60">
@@ -613,6 +1184,8 @@ function CompaniesPageContent() {
                   filteredCompanies.map((c) => {
                     const daysRemaining = getDaysRemaining(c.annualConfirmation);
                     const isExpiring = daysRemaining !== null && daysRemaining <= 60;
+                    const liveItem = statsByCompanyId.get(c.id);
+                    const sponsoredCount = liveItem?.sponsorships.total;
 
                     return (
                       <tr
@@ -621,43 +1194,48 @@ function CompaniesPageContent() {
                         onClick={() => handleOpenDrawer(c)}
                       >
                         <td className="py-3 px-4 font-mono font-bold text-[var(--accent)]">
-                          {c.code}
+                          <bdi dir="ltr">{c.code}</bdi>
                         </td>
                         <td className="py-3 px-4">
                           <div className="font-bold text-[var(--ink)]">{c.nameAr}</div>
-                          {c.nameEn && (
-                            <div className="font-mono text-[11px] text-[var(--muted)] ltr text-start">
-                              {c.nameEn}
-                            </div>
+                          {c.shortNameAr && c.shortNameAr !== c.nameAr && (
+                            <div className="text-[11px] text-[var(--muted)]">{c.shortNameAr}</div>
                           )}
                         </td>
-                        <td className="py-3 px-4 font-mono text-xs num ltr">
-                          {c.unifiedNumber || '—'}
+                        <td className="py-3 px-4 font-mono text-xs num">
+                          <bdi dir="ltr">{c.unifiedNumber || '—'}</bdi>
                         </td>
-                        <td className="py-3 px-4 font-mono text-xs num ltr">
-                          {c.crNumber || c.commercialReg || '—'}
+                        <td className="py-3 px-4 font-mono text-xs num">
+                          <bdi dir="ltr">{c.crNumber || c.commercialReg || '—'}</bdi>
                         </td>
-                        <td className="py-3 px-4 text-[var(--muted)]">
-                          {c.entityType || '—'}
-                        </td>
-                        <td className="py-3 px-4 text-[var(--ink)]">
-                          {c.city || 'جدة'}
-                        </td>
+                        <td className="py-3 px-4 text-[var(--muted)]">{c.entityType || '—'}</td>
+                        <td className="py-3 px-4 text-[var(--ink)]">{c.city || 'جدة'}</td>
                         <td className="py-3 px-4 font-mono text-xs num">
                           {c.capitalSar
                             ? showBalances
-                              ? Number(c.capitalSar).toLocaleString('en-US') + ' ر.س'
+                              ? `${formatNumber(c.capitalSar)} ر.س`
                               : '••••••••'
                             : '—'}
                         </td>
                         <td className="py-3 px-4 font-mono text-xs num">
-                          {c.sponsoredRidersCount ? (
-                            <span className="inline-flex items-center gap-1 font-bold text-[var(--accent)]">
-                              <Users size={12} />
-                              {c.sponsoredRidersCount}
-                            </span>
+                          {sponsoredCount !== undefined ? (
+                            canFilterWorkforce ? (
+                              <Link
+                                href={inApp(buildWorkforceCompanyUrl(c.unifiedNumber || c.id))}
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 font-bold text-[var(--accent)] hover:underline"
+                              >
+                                <Users size={12} aria-hidden="true" />
+                                <span>{formatNumber(sponsoredCount)}</span>
+                              </Link>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 font-bold text-[var(--ink)]">
+                                <Users size={12} aria-hidden="true" />
+                                <span>{formatNumber(sponsoredCount)}</span>
+                              </span>
+                            )
                           ) : (
-                            '0'
+                            <span className="text-[var(--muted)]">—</span>
                           )}
                         </td>
                         <td className="py-3 px-4">
@@ -675,7 +1253,7 @@ function CompaniesPageContent() {
                                       : 'bg-[var(--warning)]/15 text-[var(--warning)]'
                                   }`}
                                 >
-                                  <AlertTriangle size={11} />
+                                  <AlertTriangle size={11} aria-hidden="true" />
                                   <span>
                                     {daysRemaining !== null && daysRemaining <= 0
                                       ? 'منتهي'
@@ -691,7 +1269,7 @@ function CompaniesPageContent() {
                         <td className="py-3 px-4">
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--money-pos)]/10 text-[var(--money-pos)]">
                             <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                            نشط
+                            {c.status === 'active' ? 'نشط' : 'غير نشط'}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -703,7 +1281,7 @@ function CompaniesPageContent() {
                             }}
                             className="h-8 px-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-xs font-semibold inline-flex items-center gap-1 transition"
                           >
-                            <Eye size={13} />
+                            <Eye size={13} aria-hidden="true" />
                             <span>التفاصيل</span>
                           </button>
                         </td>
@@ -715,21 +1293,26 @@ function CompaniesPageContent() {
             </table>
           </div>
         </div>
-      ) : activeTab === 'registrations' ? (
+      ) : activeTab === 'cr' ? (
         /* Sub-tab 2: السجلات التجارية */
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs overflow-hidden">
+        <div
+          id="tabpanel-cr"
+          role="tabpanel"
+          aria-labelledby="tab-cr"
+          className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs overflow-hidden"
+        >
           <div className="overflow-x-auto">
             <table className="w-full text-start text-xs border-collapse">
               <thead>
                 <tr className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-bold">
-                  <th className="py-3 px-4 text-start">رقم السجل التجاري</th>
-                  <th className="py-3 px-4 text-start">المنشأة التابعة</th>
-                  <th className="py-3 px-4 text-start">نوع السجل</th>
-                  <th className="py-3 px-4 text-start">النسخة</th>
-                  <th className="py-3 px-4 text-start">المدينة</th>
-                  <th className="py-3 px-4 text-start">تاريخ القيد</th>
-                  <th className="py-3 px-4 text-start">التأكيد السنوي القادم</th>
-                  <th className="py-3 px-4 text-start">الحالة</th>
+                  <th scope="col" className="py-3 px-4 text-start">رقم السجل التجاري</th>
+                  <th scope="col" className="py-3 px-4 text-start">المنشأة التابعة</th>
+                  <th scope="col" className="py-3 px-4 text-start">نوع السجل</th>
+                  <th scope="col" className="py-3 px-4 text-start">النسخة</th>
+                  <th scope="col" className="py-3 px-4 text-start">المدينة</th>
+                  <th scope="col" className="py-3 px-4 text-start">تاريخ القيد</th>
+                  <th scope="col" className="py-3 px-4 text-start">التأكيد السنوي القادم</th>
+                  <th scope="col" className="py-3 px-4 text-start">الحالة</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]/60">
@@ -739,21 +1322,13 @@ function CompaniesPageContent() {
 
                   return (
                     <tr key={cr.id} className="hover:bg-[var(--row-hover)] transition">
-                      <td className="py-3 px-4 font-mono font-bold text-xs num ltr">
-                        {cr.number}
+                      <td className="py-3 px-4 font-mono font-bold text-xs num">
+                        <bdi dir="ltr">{cr.number}</bdi>
                       </td>
-                      <td className="py-3 px-4 font-bold text-[var(--ink)]">
-                        {cr.company}
-                      </td>
-                      <td className="py-3 px-4 text-[var(--muted)]">
-                        رئيسي
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs num">
-                        {cr.crVersion}
-                      </td>
-                      <td className="py-3 px-4 text-[var(--ink)]">
-                        {cr.city || 'جدة'}
-                      </td>
+                      <td className="py-3 px-4 font-bold text-[var(--ink)]">{cr.companyNameAr}</td>
+                      <td className="py-3 px-4 text-[var(--muted)]">رئيسي</td>
+                      <td className="py-3 px-4 font-mono text-xs num">{cr.crVersion}</td>
+                      <td className="py-3 px-4 text-[var(--ink)]">{cr.city || 'جدة'}</td>
                       <td className="py-3 px-4 font-mono text-xs num">
                         {cr.issueDateHijri ? `${cr.issueDateHijri} هـ` : ''}{' '}
                         {cr.issueDate ? `(${cr.issueDate})` : '—'}
@@ -762,11 +1337,11 @@ function CompaniesPageContent() {
                         <div className="space-y-1">
                           <div className="font-mono text-xs num">
                             {cr.annualConfirmationHijri ? `${cr.annualConfirmationHijri} هـ` : ''}{' '}
-                            <span className="text-[var(--muted)]">({cr.annualConfirmation})</span>
+                            <span className="text-[var(--muted)]">({cr.annualConfirmation || '—'})</span>
                           </div>
                           {isExpiring && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--warning)]/15 text-[var(--warning)]">
-                              <AlertTriangle size={11} />
+                              <AlertTriangle size={11} aria-hidden="true" />
                               <span>مستحق خلال {rem} يوم</span>
                             </span>
                           )}
@@ -774,7 +1349,7 @@ function CompaniesPageContent() {
                       </td>
                       <td className="py-3 px-4">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--money-pos)]/10 text-[var(--money-pos)]">
-                          نشط
+                          {cr.status === 'active' ? 'نشط' : 'غير نشط'}
                         </span>
                       </td>
                     </tr>
@@ -786,29 +1361,32 @@ function CompaniesPageContent() {
         </div>
       ) : (
         /* Sub-tab 3: الوثائق والانتهاءات */
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs overflow-hidden">
+        <div
+          id="tabpanel-expiring"
+          role="tabpanel"
+          aria-labelledby="tab-expiring"
+          className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs overflow-hidden"
+        >
           <div className="p-4 bg-[var(--raised)]/40 border-b border-[var(--line)] flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Clock size={16} className="text-[var(--accent)]" />
+              <Clock size={16} className="text-[var(--accent)]" aria-hidden="true" />
               <h3 className="text-xs font-bold text-[var(--ink)]">
                 السجلات والوثائق مستحقة التجديد والتأكيد
               </h3>
             </div>
-            <span className="text-xs text-[var(--muted)]">
-              نافذة التنبيه: 60 يوماً
-            </span>
+            <span className="text-xs text-[var(--muted)]">نافذة التنبيه: 60 يومًا</span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-start text-xs border-collapse">
               <thead>
                 <tr className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-bold">
-                  <th className="py-3 px-4 text-start">النوع</th>
-                  <th className="py-3 px-4 text-start">المنشأة</th>
-                  <th className="py-3 px-4 text-start">رقم المستند / السجل</th>
-                  <th className="py-3 px-4 text-start">تاريخ الاستحقاق / الانتهاء</th>
-                  <th className="py-3 px-4 text-start">المدة المتبقية</th>
-                  <th className="py-3 px-4 text-start">الموقف</th>
+                  <th scope="col" className="py-3 px-4 text-start">النوع</th>
+                  <th scope="col" className="py-3 px-4 text-start">المنشأة</th>
+                  <th scope="col" className="py-3 px-4 text-start">رقم المستند / السجل</th>
+                  <th scope="col" className="py-3 px-4 text-start">تاريخ الاستحقاق / الانتهاء</th>
+                  <th scope="col" className="py-3 px-4 text-start">المدة المتبقية</th>
+                  <th scope="col" className="py-3 px-4 text-start">الموقف</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]/60">
@@ -821,15 +1399,13 @@ function CompaniesPageContent() {
                       <td className="py-3 px-4 font-bold text-[var(--accent)]">
                         التأكيد السنوي للسجل التجاري
                       </td>
-                      <td className="py-3 px-4 font-bold text-[var(--ink)]">
-                        {c.nameAr} ({c.code})
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs num ltr">
-                        {c.crNumber || c.commercialReg || '—'}
+                      <td className="py-3 px-4 font-bold text-[var(--ink)]">{c.nameAr}</td>
+                      <td className="py-3 px-4 font-mono text-xs num">
+                        <bdi dir="ltr">{c.crNumber || c.commercialReg || '—'}</bdi>
                       </td>
                       <td className="py-3 px-4 font-mono text-xs num">
                         {c.annualConfirmationHijri ? `${c.annualConfirmationHijri} هـ` : ''}{' '}
-                        ({c.annualConfirmation})
+                        ({c.annualConfirmation || '—'})
                       </td>
                       <td className="py-3 px-4">
                         <span
@@ -864,21 +1440,21 @@ function CompaniesPageContent() {
         </div>
       )}
 
-      {/* Drawer: تفاصيل المنشأة والأنشطة والوثائق */}
+      {/* Drawer: تفاصيل المنشأة والأنشطة والوثائق والإحصائيات */}
       <Drawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title={selectedCompany ? `${selectedCompany.nameAr} (${selectedCompany.code})` : 'تفاصيل المنشأة'}
+        title={selectedCompany ? selectedCompany.nameAr : 'تفاصيل المنشأة'}
         width="wide"
       >
         {selectedCompany && (
           <div className="space-y-6">
             {/* Drawer Sub-tabs */}
-            <div className="flex border-b border-[var(--line)] gap-2">
+            <div className="flex border-b border-[var(--line)] gap-2 overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setDrawerTab('details')}
-                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition ${
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
                   drawerTab === 'details'
                     ? 'border-[var(--accent)] text-[var(--accent)]'
                     : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
@@ -889,13 +1465,13 @@ function CompaniesPageContent() {
               <button
                 type="button"
                 onClick={() => setDrawerTab('activities')}
-                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition flex items-center gap-1.5 ${
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
                   drawerTab === 'activities'
                     ? 'border-[var(--accent)] text-[var(--accent)]'
                     : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
                 }`}
               >
-                <span>الأنشطة المعتمدة (ISIC)</span>
+                <span>الأنشطة المعتمدة</span>
                 {selectedCompany.activitiesIncomplete && (
                   <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-[var(--warning)]/15 text-[var(--warning)]">
                     ناقص
@@ -905,7 +1481,7 @@ function CompaniesPageContent() {
               <button
                 type="button"
                 onClick={() => setDrawerTab('documents')}
-                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition flex items-center gap-1.5 ${
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
                   drawerTab === 'documents'
                     ? 'border-[var(--accent)] text-[var(--accent)]'
                     : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
@@ -918,15 +1494,28 @@ function CompaniesPageContent() {
               </button>
               <button
                 type="button"
-                onClick={() => setDrawerTab('audit')}
-                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition ${
-                  drawerTab === 'audit'
+                onClick={() => setDrawerTab('stats')}
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
+                  drawerTab === 'stats'
                     ? 'border-[var(--accent)] text-[var(--accent)]'
                     : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
                 }`}
               >
-                سجل العمليات
+                الإحصائيات
               </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setDrawerTab('audit')}
+                  className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
+                    drawerTab === 'audit'
+                      ? 'border-[var(--accent)] text-[var(--accent)]'
+                      : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+                  }`}
+                >
+                  سجل العمليات
+                </button>
+              )}
             </div>
 
             {/* Drawer Tab 1: البيانات الرسمية */}
@@ -934,41 +1523,35 @@ function CompaniesPageContent() {
               <div className="space-y-4 text-xs">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl bg-[var(--raised)]/40 border border-[var(--line)]">
                   <div>
-                    <span className="text-[var(--muted)] block mb-1">الرقم الوطني الموحد (700)</span>
+                    <span className="text-[var(--muted)] block mb-1">الرقم الوطني الموحد</span>
                     <strong className="font-mono text-sm num text-[var(--ink)]">
-                      {selectedCompany.unifiedNumber || '—'}
+                      <bdi dir="ltr">{selectedCompany.unifiedNumber || '—'}</bdi>
                     </strong>
                   </div>
                   <div>
                     <span className="text-[var(--muted)] block mb-1">رقم السجل التجاري</span>
                     <strong className="font-mono text-sm num text-[var(--ink)]">
-                      {selectedCompany.crNumber || selectedCompany.commercialReg || '—'}
+                      <bdi dir="ltr">{selectedCompany.crNumber || selectedCompany.commercialReg || '—'}</bdi>
                     </strong>
                   </div>
                   <div>
                     <span className="text-[var(--muted)] block mb-1">نوع الكيان القانوني</span>
-                    <strong className="text-[var(--ink)]">
-                      {selectedCompany.entityType || '—'}
-                    </strong>
+                    <strong className="text-[var(--ink)]">{selectedCompany.entityType || '—'}</strong>
                   </div>
                   <div>
                     <span className="text-[var(--muted)] block mb-1">صفة الشركة</span>
-                    <strong className="text-[var(--ink)]">
-                      {selectedCompany.characteristic || '—'}
-                    </strong>
+                    <strong className="text-[var(--ink)]">{selectedCompany.characteristic || '—'}</strong>
                   </div>
                   <div>
                     <span className="text-[var(--muted)] block mb-1">المدينة والمقر</span>
-                    <strong className="text-[var(--ink)]">
-                      {selectedCompany.city || 'جدة'}
-                    </strong>
+                    <strong className="text-[var(--ink)]">{selectedCompany.city || 'جدة'}</strong>
                   </div>
                   <div>
                     <span className="text-[var(--muted)] block mb-1">رأس المال المثبت</span>
                     <strong className="font-mono text-sm num text-[var(--money-pos)]">
                       {selectedCompany.capitalSar
                         ? showBalances
-                          ? Number(selectedCompany.capitalSar).toLocaleString('en-US') + ' ر.س'
+                          ? `${formatNumber(selectedCompany.capitalSar)} ر.س`
                           : '••••••••'
                         : '—'}
                     </strong>
@@ -988,7 +1571,9 @@ function CompaniesPageContent() {
                     <div>
                       <span className="text-[var(--muted)] block mb-1">التأكيد السنوي القادم</span>
                       <div className="font-mono text-xs num">
-                        {selectedCompany.annualConfirmationHijri ? `${selectedCompany.annualConfirmationHijri} هـ` : ''}{' '}
+                        {selectedCompany.annualConfirmationHijri
+                          ? `${selectedCompany.annualConfirmationHijri} هـ`
+                          : ''}{' '}
                         ({selectedCompany.annualConfirmation || '—'})
                       </div>
                     </div>
@@ -1004,20 +1589,20 @@ function CompaniesPageContent() {
               </div>
             )}
 
-            {/* Drawer Tab 2: الأنشطة المعتمدة ISIC */}
+            {/* Drawer Tab 2: الأنشطة المعتمدة */}
             {drawerTab === 'activities' && (
               <div className="space-y-4">
                 {selectedCompany.activitiesIncomplete && (
                   <div className="p-3 rounded-xl bg-[var(--warning)]/15 border border-[var(--warning)]/30 text-xs text-[var(--warning)] flex items-start gap-2">
-                    <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                    <AlertTriangle size={15} className="shrink-0 mt-0.5" aria-hidden="true" />
                     <p>
-                      <strong>أنشطة ناقصة:</strong> توجد أنشطة إضافية في شهادة السجل لم يتم تسجيلها بعد في النظام بانتظار استكمال بياناتها.
+                      <strong>أنشطة ناقصة:</strong> توجد أنشطة إضافية في شهادة السجل لم تُسجّل بعد في النظام بانتظار استكمال بياناتها.
                     </p>
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-[var(--ink)]">قائمة أنشطة المنشأة (ISIC):</h4>
+                  <h4 className="text-xs font-bold text-[var(--ink)]">قائمة أنشطة المنشأة المعتمدة:</h4>
                   {selectedCompany.activities && selectedCompany.activities.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {selectedCompany.activities.map((act) => (
@@ -1026,7 +1611,7 @@ function CompaniesPageContent() {
                           className="p-2.5 rounded-xl border border-[var(--line)] bg-[var(--raised)]/50 text-xs flex items-center gap-2"
                         >
                           <span className="font-mono font-bold text-[var(--accent)] bg-[var(--surface)] px-2 py-0.5 rounded border border-[var(--line)]">
-                            {act.isic}
+                            <bdi dir="ltr">{act.isic}</bdi>
                           </span>
                           <span className="text-[var(--ink)] font-semibold">{act.nameAr}</span>
                         </div>
@@ -1039,18 +1624,18 @@ function CompaniesPageContent() {
               </div>
             )}
 
-            {/* Drawer Tab 3: الوثائق والمستندات */}
+            {/* Drawer Tab 3: الوثائق والمستندات (تبقى مرفوعاتنا الخاصة) */}
             {drawerTab === 'documents' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-[var(--ink)]">مستندات وتراخيص المنشأة</h4>
-                  {isAdmin && (
+                  {canManage && (
                     <button
                       type="button"
                       onClick={() => setUploadDocModalOpen(true)}
                       className="h-8 px-3 rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs hover:opacity-95 transition"
                     >
-                      <Plus size={14} />
+                      <Plus size={14} aria-hidden="true" />
                       <span>إضافة وثيقة</span>
                     </button>
                   )}
@@ -1067,7 +1652,7 @@ function CompaniesPageContent() {
                     {companyDocs.map((doc) => (
                       <div key={doc.id} className="p-3 text-xs flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5">
-                          <FileText size={16} className="text-[var(--accent)] shrink-0" />
+                          <FileText size={16} className="text-[var(--accent)] shrink-0" aria-hidden="true" />
                           <div>
                             <span className="font-bold text-[var(--ink)] block">{doc.type}</span>
                             <span className="text-[11px] text-[var(--muted)]">
@@ -1088,7 +1673,7 @@ function CompaniesPageContent() {
                               rel="noreferrer"
                               className="h-7 px-2 rounded bg-[var(--raised)] hover:bg-[var(--line)] text-[11px] font-semibold inline-flex items-center gap-1 transition"
                             >
-                              <Download size={12} />
+                              <Download size={12} aria-hidden="true" />
                               <span>تنزيل</span>
                             </a>
                           )}
@@ -1100,14 +1685,89 @@ function CompaniesPageContent() {
               </div>
             )}
 
-            {/* Drawer Tab 4: سجل العمليات */}
-            {drawerTab === 'audit' && (
+            {/* Drawer Tab 4: الإحصائيات */}
+            {drawerTab === 'stats' && (
+              <div className="space-y-4 text-xs">
+                {statsError ? (
+                  <ErrorState title="تعذر تحميل الإحصائيات" message={statsError} onRetry={fetchStats} />
+                ) : !selectedCompanyStats ? (
+                  <div className="p-6 text-center text-[var(--muted)] rounded-xl border border-dashed border-[var(--line)]">
+                    جاري تجهيز الإحصائيات أو لا توجد بيانات مرتبطة بعد.
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3.5 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)]">
+                        <span className="text-[var(--muted)] block">إجمالي المكفولين</span>
+                        <strong className="num text-xl font-bold text-[var(--ink)]">
+                          {formatNumber(selectedCompanyStats.sponsorships.total)}
+                        </strong>
+                        <span className="text-[11px] text-[var(--muted)] block mt-1">
+                          مناديب {formatNumber(selectedCompanyStats.sponsorships.riders)} · إداريون{' '}
+                          {formatNumber(selectedCompanyStats.sponsorships.admins)}
+                        </span>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)]">
+                        <span className="text-[var(--muted)] block">حسابات المنصات المسجلة</span>
+                        <strong className="num text-xl font-bold text-[var(--accent)]">
+                          {formatNumber(selectedCompanyStats.platformAccounts.total)}
+                        </strong>
+                        <span className="text-[11px] text-[var(--muted)] block mt-1">
+                          نشط {formatNumber(selectedCompanyStats.platformAccounts.active)} · مسند{' '}
+                          {formatNumber(selectedCompanyStats.platformAccounts.assigned)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {selectedCompanyStats.platformAccounts.byPlatform.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-bold text-[var(--ink)]">توزيع الحسابات حسب المنصة</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedCompanyStats.platformAccounts.byPlatform.map((plat) => (
+                            <span
+                              key={plat.code}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] font-semibold"
+                            >
+                              <span>{platformLabelAr(plat.code, plat.nameAr)}</span>
+                              <strong className="num text-[var(--accent)]">{formatNumber(plat.total)}</strong>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="p-3.5 rounded-xl border border-dashed border-[var(--line)] bg-[var(--raised)]/30 text-[var(--muted)]">
+                      <strong className="text-[var(--accent)] block">
+                        {stats?.balancesNote || BALANCES_PLACEHOLDER_AR}
+                      </strong>
+                    </div>
+
+                    {canFilterWorkforce && (
+                      <Link
+                        href={inApp(
+                          buildWorkforceCompanyUrl(
+                            selectedCompanyStats.unifiedNumber || selectedCompanyStats.companyId
+                          )
+                        )}
+                        className="w-full h-10 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold inline-flex items-center justify-center gap-1.5 hover:opacity-95 transition"
+                      >
+                        <span>فتح القوى العاملة مفلترة بهذه الشركة</span>
+                        <ArrowUpLeft size={15} aria-hidden="true" />
+                      </Link>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Drawer Tab 5: سجل العمليات (Admin only) */}
+            {drawerTab === 'audit' && isAdmin && (
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-[var(--ink)]">العمليات المرتبطة بالشركات</h4>
                 <div className="divide-y divide-[var(--line)] border border-[var(--line)] rounded-xl bg-[var(--surface)] max-h-80 overflow-y-auto">
                   {auditLogs.length === 0 ? (
                     <div className="p-6 text-center text-xs text-[var(--muted)]">
-                      لا توجد أحداث مراجعة مسجلة حالياً.
+                      لا توجد أحداث مراجعة مسجلة حاليًا.
                     </div>
                   ) : (
                     auditLogs.map((log) => (
@@ -1133,7 +1793,7 @@ function CompaniesPageContent() {
       <Dialog
         open={uploadDocModalOpen}
         onClose={() => setUploadDocModalOpen(false)}
-        title="إضافة وثيقة / ترخيص منشأة"
+        title="إضافة وثيقة أو ترخيص منشأة"
       >
         <form onSubmit={handleUploadDocument} className="space-y-4 text-xs">
           <div>
@@ -1144,8 +1804,8 @@ function CompaniesPageContent() {
               ariaLabel="نوع المستند"
               options={[
                 { value: 'شهادة السجل التجاري', label: 'شهادة السجل التجاري' },
-                { value: 'شهادة التأمينات الاجتماعية (GOSI)', label: 'شهادة التأمينات الاجتماعية (GOSI)' },
-                { value: 'شهادة الزكاة والضريبة (ZATCA)', label: 'شهادة الزكاة والضريبة (ZATCA)' },
+                { value: 'شهادة التأمينات الاجتماعية', label: 'شهادة التأمينات الاجتماعية' },
+                { value: 'شهادة الزكاة والضريبة', label: 'شهادة الزكاة والضريبة' },
                 { value: 'رخصة البلدية', label: 'رخصة البلدية' },
                 { value: 'اشتراك الغرفة التجارية', label: 'اشتراك الغرفة التجارية' },
                 { value: 'شهادة العنوان الوطني', label: 'شهادة العنوان الوطني' },
@@ -1155,7 +1815,7 @@ function CompaniesPageContent() {
           </div>
 
           <div>
-            <label className="block font-semibold text-[var(--ink)] mb-1">رقم المستند / المرجع</label>
+            <label className="block font-semibold text-[var(--ink)] mb-1">رقم المستند أو المرجع</label>
             <input
               type="text"
               value={docNumber}
@@ -1176,7 +1836,7 @@ function CompaniesPageContent() {
           </div>
 
           <div>
-            <label className="block font-semibold text-[var(--ink)] mb-1">ملف الوثيقة (PDF أو صورة PNG/JPG)</label>
+            <label className="block font-semibold text-[var(--ink)] mb-1">ملف الوثيقة (مستند أو صورة)</label>
             <input
               type="file"
               required
@@ -1213,12 +1873,12 @@ function CompaniesPageContent() {
       >
         <div className="space-y-4 text-xs">
           <p className="text-[var(--muted)] leading-relaxed">
-            استيراد مباشر للشهادات المعتمدة من وزارة التجارة لشركات المجموعة (BW, EX, TR) مع فحص البصمة والتطابق قبل الاعتماد.
+            استيراد مباشر للشهادات المعتمدة من وزارة التجارة لشركات المجموعة مع فحص البصمة والتطابق قبل الاعتماد.
           </p>
 
           {importError && (
             <div className="p-3.5 rounded-xl bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[var(--danger)] flex items-start gap-2">
-              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <AlertCircle size={16} className="shrink-0 mt-0.5" aria-hidden="true" />
               <span>{importError}</span>
             </div>
           )}
@@ -1234,7 +1894,7 @@ function CompaniesPageContent() {
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-[var(--ink)]">ملخص خطة التغييرات:</span>
                   <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--line)] text-[var(--muted)]">
-                    البصمة: {importPreviewPlan.fingerprint.slice(0, 12)}...
+                    البصمة: <bdi dir="ltr">{importPreviewPlan.fingerprint.slice(0, 12)}...</bdi>
                   </span>
                 </div>
 
@@ -1255,7 +1915,7 @@ function CompaniesPageContent() {
               </div>
 
               <div className="p-3 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/30 text-[var(--ink)] text-[11px]">
-                سيتم تحديث الكيانات الثلاثة (BW, EX, TR) مع الأرقام الموحدة وتواريخ التأكيد السنوي وأنشطة ISIC المسجلة.
+                سيتم تحديث الكيانات المسجلة مع الأرقام الموحدة وتواريخ التأكيد السنوي والأنشطة المعتمدة.
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
@@ -1301,7 +1961,13 @@ function CompaniesPageContent() {
 
 export default function CompaniesPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-xs text-[var(--muted)]">جاري تحميل صفحة الشركات...</div>}>
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-xs text-[var(--muted)]">
+          جاري تحميل صفحة الشركات والسجلات...
+        </div>
+      }
+    >
       <CompaniesPageContent />
     </Suspense>
   );

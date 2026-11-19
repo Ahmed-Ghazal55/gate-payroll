@@ -94,9 +94,7 @@ function SidebarInner({
       defaultHref: '/companies/',
       permission: 'companies.view',
       items: [
-        { id: 'companies-sponsors', href: '/companies/?tab=companies', label: 'الشركات والكفلاء' },
-        { id: 'companies-cr', href: '/companies/?tab=cr', label: 'السجلات التجارية' },
-        { id: 'companies-docs', href: '/companies/?tab=expiring', label: 'الوثائق والانتهاءات' },
+        { id: 'companies-main', href: '/companies/', label: 'الشركات والسجلات' },
         { id: 'hr-catalogs', href: '/hr/catalogs/', label: 'كتالوجات الموارد البشرية', isNew: true },
       ],
     },

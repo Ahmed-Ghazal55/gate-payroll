@@ -168,13 +168,23 @@ function WorkforcePageInner() {
   const sizeFromUrl = parseInt(searchParams?.get('size') || '50', 10);
   const qFromUrl = searchParams?.get('q') || '';
   const iqamaFromUrl = searchParams?.get('iqama') || searchParams?.get('id') || '';
+  const companyFromUrl =
+    searchParams?.get('company') ||
+    searchParams?.get('sponsorUnified') ||
+    searchParams?.get('companyId') ||
+    '';
+  const platformFromUrl = searchParams?.get('platform') || '';
 
   const [activeTab, setActiveTab] = useState(tabFromUrl);
   const [page, setPage] = useState(pageFromUrl > 0 ? pageFromUrl : 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZES.includes(sizeFromUrl) ? sizeFromUrl : 50);
   const [searchQuery, setSearchQuery] = useState(qFromUrl);
   const [debouncedQuery, setDebouncedQuery] = useState(qFromUrl);
-  const [filters, setFilters] = useState<ListFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<ListFilters>(() => ({
+    ...EMPTY_FILTERS,
+    sponsorUnified: companyFromUrl,
+    platform: platformFromUrl,
+  }));
 
   const [items, setItems] = useState<WorkforcePerson[]>([]);
   const [total, setTotal] = useState(0);
@@ -213,6 +223,13 @@ function WorkforcePageInner() {
       setActiveTab(tabFromUrl);
     }
   }, [tabFromUrl]);
+
+  useEffect(() => {
+    setFilters((prev) => {
+      if (prev.sponsorUnified === companyFromUrl && prev.platform === platformFromUrl) return prev;
+      return { ...prev, sponsorUnified: companyFromUrl, platform: platformFromUrl };
+    });
+  }, [companyFromUrl, platformFromUrl]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
