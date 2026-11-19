@@ -241,117 +241,50 @@ public static class RiderDirectory
             };
         })).WithTags("Riders").WithSummary("Read riders data quality");
 
-        // 4. الملف الشامل للمندوب 360° ومستنداته ومرفقاته الرسمية (متوافق مع EmployeeDocumentsController في البوابة)
+        // Reduced 360 (H6): prefer GET /api/workforce/{id}/360. Legacy route kept for statement links.
         api.MapGet("/riders/{iqama}/profile-360", (string iqama, HttpContext ctx) => store.Read(c =>
         {
             J.Iqama(iqama);
             var rider = Store.Get(c, iqama, "rider") ?? throw new ApiError("المندوب غير موجود.", 404);
-            FinancialScopes.DemandRider(ctx.User,rider);
-            var view = !AccessPolicy.Has(ctx.User,"riders.view_360") ? UserAccess.RiderView(rider) : rider;
-            var docs = Store.List(c, "rider_document").Where(d => d.S("iqama") == iqama).ToList();
-            var debts = Store.List(c, "debt").Where(d => d.S("iqama") == iqama&&FinancialScopes.Debt(ctx.User,d)).ToList();
+            FinancialScopes.DemandRider(ctx.User, rider);
+            var view = !AccessPolicy.Has(ctx.User, "riders.view_360") ? UserAccess.RiderView(rider) : rider;
+            var debts = Store.List(c, "debt").Where(d => d.S("iqama") == iqama && FinancialScopes.Debt(ctx.User, d)).ToList();
             var works = Store.List(c, "work").Where(w => w.S("iqama") == iqama).ToList();
-            var submissions = Store.List(c, "submission").Where(s => s.S("iqama") == iqama).ToList();
-
-            var checklist = DocumentTypes.Select(dt =>
-            {
-                var found = docs.FirstOrDefault(d => d.S("documentTypeCode") == dt.Code || d.S("documentTypeId") == dt.Id);
-                return new
-                {
-                    documentTypeId = dt.Id,
-                    code = dt.Code,
-                    nameAr = dt.NameAr,
-                    requiresExpiry = dt.RequiresExpiry,
-                    isUploaded = found != null,
-                    documentId = found?.S("id") ?? "",
-                    documentNumber = found?.S("documentNumber") ?? "",
-                    issueDate = found?.S("issueDate") ?? "",
-                    expiryDate = found?.S("expiryDate") ?? "",
-                    fileName = found?.S("fileName") ?? "",
-                    storagePath = found?.S("storagePath") ?? $"wwwroot/private/employee-documents/{iqama}/{dt.Id}",
-                    status = found?.S("status") ?? "Missing"
-                };
-            }).ToList();
-
             return new
             {
+                person = view,
                 rider = view,
-                documentChecklist = checklist,
-                documentsCount = docs.Count,
+                workRecord3Months = works.Take(50).Select(w => new
+                {
+                    month = w.S("period", w.S("from")),
+                    platform = w.S("platform"),
+                    workDays = ErpImport.WorkforceLiveQuery.NoSourceYet,
+                    orders = (int)w.N("orders"),
+                    netDue = ErpImport.WorkforceLiveQuery.NoSourceYet,
+                    status = w.S("status")
+                }),
+                financialEvaluation = new { status = "unavailable", message = ErpImport.WorkforceLiveQuery.NoSourceYet },
+                iqamaImage = new { status = "pending_permission", message = ErpImport.WorkforceLiveQuery.ImagePending },
+                ibanImage = new { status = "pending_permission", message = ErpImport.WorkforceLiveQuery.ImagePending },
+                promissoryNotes = Array.Empty<object>(),
+                platformAccounts = Array.Empty<object>(),
+                financialPosition = new
+                {
+                    activeDebtsCount = debts.Count(d => d.S("status") == "active"),
+                    totalRemainingDebt = J.Money(debts.Sum(d => d.N("remainingBalance"))),
+                    statementPath = "/app/riders/statement/?iqama=" + Uri.EscapeDataString(iqama),
+                    message = "افتح كشف الحساب التفصيلي"
+                },
+                // Legacy fields kept empty so old clients do not invent a documents checklist.
+                documentChecklist = Array.Empty<object>(),
+                documentsCount = 0,
                 activeDebtsCount = debts.Count(d => d.S("status") == "active"),
                 totalRemainingDebt = J.Money(debts.Sum(d => d.N("remainingBalance"))),
                 workRecordsCount = works.Count,
                 totalOrders = works.Sum(w => (int)w.N("orders")),
-                submissions
+                submissions = Array.Empty<object>(),
+                allowedActions = new[] { "open_statement" }
             };
-        })).WithTags("Riders").WithSummary("Read riders {iqama} profile 360");
-
-        // 5. رفع / تحديث وثيقة رسمية للمندوب (الإقامة، رخصة القيادة، بطاقة السائق، الكرت الصحي، عقد أجير...)
-        api.MapPost("/riders/{iqama}/documents", (string iqama, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-        {
-            J.Iqama(iqama);
-            var rider = Store.Get(c, iqama, "rider", tx) ?? throw new ApiError("المندوب غير موجود.", 404);
-            FinancialScopes.DemandRider(ctx.User,rider);
-            string code = input.Required("documentTypeCode");
-            var dt = DocumentTypes.FirstOrDefault(x => x.Code == code || x.Id == code) ?? throw new ApiError("نوع المستند غير صالح.");
-
-            var existing=Store.List(c,"rider_document",tx).FirstOrDefault(d=>d.S("iqama")==iqama&&d.S("documentTypeCode")==dt.Code);
-            string docId=Guid.NewGuid().ToString("N"),recordId=existing?.S("id")??docId;
-            string fileName=Path.GetFileName(input.S("fileName",existing?.S("fileName")??$"{dt.Code}-{iqama}.pdf"));
-            J.Need(fileName.Length is >0 and <=200&&!fileName.Contains('\\'),"اسم ملف غير صالح.");
-            string extension=Path.GetExtension(fileName).ToLowerInvariant();
-            J.Need(new[]{".pdf",".png",".jpg",".jpeg"}.Contains(extension),"المرفقات PDF أو PNG أو JPG فقط.");
-            string contentType=extension==".pdf"?"application/pdf":extension==".png"?"image/png":"image/jpeg";
-            string base64=input.S("dataBase64"),relative=existing?.S("fileRelativePath")??"";
-            if(!string.IsNullOrWhiteSpace(base64))
-            {
-                J.Need(base64.Length<=14*1024*1024,"المرفق طويل جدًا.");byte[] bytes=Convert.FromBase64String(base64);
-                J.Need(bytes.Length is >0 and <=10*1024*1024,"حجم ملف المستند غير صالح.");
-                relative=Path.Combine("rider-documents",iqama,dt.Code,docId+extension);
-                string disk=Path.Combine(store.DirectoryPath,relative);Directory.CreateDirectory(Path.GetDirectoryName(disk)!);File.WriteAllBytes(disk,bytes);
-            }
-            string relPath=$"/api/riders/{iqama}/documents/{recordId}/download";
-            var history=(existing?["history"] as JsonArray)?.DeepClone().AsArray()??new JsonArray();
-            if(existing!=null){var previous=existing.Clone();previous.Remove("history");history.Add(previous);}
-            int version = existing != null ? (int)existing.N("versionNumber", 1) + 1 : 1;
-            var doc = new JsonObject
-            {
-                ["id"] = existing?.S("id") ?? docId,
-                ["iqama"] = iqama,
-                ["riderName"] = rider.S("name"),
-                ["documentTypeId"] = dt.Id,
-                ["documentTypeCode"] = dt.Code,
-                ["documentTypeNameAr"] = dt.NameAr,
-                ["documentNumber"] = input.S("documentNumber", iqama),
-                ["issueDate"] = input.S("issueDate"),
-                ["expiryDate"] = input.S("expiryDate"),
-                ["fileName"] = fileName,
-                ["contentType"] = string.IsNullOrWhiteSpace(base64)?existing?.S("contentType",contentType)??contentType:contentType,
-                ["fileRelativePath"] = relative,
-                ["history"] = history,
-                ["storagePath"] = relPath,
-                ["versionNumber"] = version,
-                ["hasBinary"] = !string.IsNullOrWhiteSpace(base64)||existing?.B("hasBinary")==true,
-                ["status"] = "Active",
-                ["notes"] = input.S("notes"),
-                ["uploadedBy"] = ctx.User.Identity!.Name!,
-                ["updatedAt"] = DateTimeOffset.UtcNow.ToString("O")
-            };
-            Store.Save(c, "rider_document", doc, tx);
-            Store.Audit(c, tx, "rider.document_saved", $"{iqama}:{dt.Code}", ctx.User.Identity!.Name!);
-            return doc;
-        })).WithTags("Riders").WithSummary("Submit riders {iqama} documents");
-        api.MapGet("/riders/{iqama}/documents/{id}/download",(string iqama,string id,HttpContext ctx)=>store.Read(c=>
-        {
-            FinancialScopes.DemandRider(ctx.User,Store.Get(c,J.Iqama(iqama),"rider")??throw new ApiError("المندوب غير موجود.",404));
-            var doc=Store.Get(c,id,"rider_document")??throw new ApiError("المستند غير موجود.",404);
-            J.Need(doc.S("iqama")==J.Iqama(iqama),"المستند لا يخص هذا المندوب.");
-            string relative=doc.S("fileRelativePath");
-            if(!doc.B("hasBinary")||string.IsNullOrWhiteSpace(relative))throw new ApiError("لا يوجد مرفق محفوظ لهذا السجل.",404);
-            string path=Path.GetFullPath(Path.Combine(store.DirectoryPath,relative));
-            J.Need(path.StartsWith(Path.GetFullPath(store.DirectoryPath)+Path.DirectorySeparatorChar,StringComparison.Ordinal),"مسار مرفق غير صالح.");
-            if(!File.Exists(path))throw new ApiError("المرفق غير متاح.",404);
-            return Results.File(path,doc.S("contentType","application/octet-stream"),doc.S("fileName","document.pdf"));
-        })).WithTags("Riders").WithSummary("Read riders {iqama} documents {id} download");
+        })).WithTags("Riders").WithSummary("Read reduced riders {iqama} profile 360 (H6)");
     }
 }

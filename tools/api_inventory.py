@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 ROOT = Path(__file__).resolve().parents[1]
 DEPRECATED = {'/api/template.csv', '/api/payroll/fingerprint', '/api/imports', '/api/debts/settlements', '/api/public/forms/{token}/resume', '/api/system/release-check'}
-GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Companies and registrations':'الشركات والسجلات', 'Platforms':'المنصات', 'Payroll':'الرواتب', 'Operations':'العمليات', 'Debts and advances':'المديونيات والسلف', 'Banks and treasury':'البنوك والصناديق والخزن', 'Accounting and reports':'المحاسبة والتقارير', 'Forms and responses':'النماذج والردود', 'Administration':'الإدارة'}
+GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Workforce':'القوى العاملة', 'HR Catalogs':'كتالوجات الموارد البشرية', 'Companies and registrations':'الشركات والسجلات', 'Platforms':'المنصات', 'Payroll':'الرواتب', 'Operations':'العمليات', 'Debts and advances':'المديونيات والسلف', 'Banks and treasury':'البنوك والصناديق والخزن', 'Accounting and reports':'المحاسبة والتقارير', 'Forms and responses':'النماذج والردود', 'Administration':'الإدارة'}
 def permission(method,p):
  if p.startswith(('/api/public/', '/api/auth/')) or not p.startswith('/api/'): return 'public (rider portal: own authenticated rider)'
  if p.startswith(('/api/rider-mobile/login','/api/rider-mobile/portal/')) or p.startswith('/api/rider-mobile/broadcasts/') and p.endswith('/ack'):return 'own rider session / one-time inquiry code'
@@ -43,6 +43,9 @@ def permission(method,p):
  if p.startswith('/api/companies'): return 'companies.view' if method=='GET' else 'companies.manage'
  if p.startswith(('/api/users','/api/system','/api/rider-mobile/firebase')) or method=='DELETE' or p=='/api/submissions/bulk-delete' or p.endswith('/delete-preview') or method=='PUT' and p.startswith('/api/campaigns/'):return 'Admin / SuperAdmin'
  if p.startswith('/api/riders/enrich'):return 'Admin / SuperAdmin'
+ if p.startswith('/api/workforce/') and p.endswith('/360'):return 'riders.view_360 + debts.view; live ERP when configured'
+ if p.startswith('/api/workforce'):return 'riders.view; live ERP when configured; always paginated on list'
+ if p.startswith('/api/hr-catalogs'):return 'riders.view; live ERP catalogs when configured'
  if p.startswith('/api/riders'):return ('riders.view_360 + debts.view' if p.endswith('/profile-360') else 'riders.view_360' if '/documents' in p and method=='GET' else 'riders.view' if method=='GET' else 'riders.edit (+ riders.financial_edit for financial fields)')
  if p.startswith('/api/debts'):
   if '/reconcile-opening/' in p:return 'treasury.opening'
