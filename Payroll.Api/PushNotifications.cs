@@ -109,12 +109,36 @@ public static class PushNotifications
         Interlocked.Exchange(ref _isFlushing, 0);
     }
 
-    public static void ConfigureIpLimits(IConfiguration config)
+    /// <summary>
+    /// Applies RiderMobile IP rate-limit settings. Invalid values fall back to defaults and
+    /// return warning messages (never throws / never crashes startup).
+    /// </summary>
+    public static IReadOnlyList<string> ConfigureIpLimits(IConfiguration config)
     {
-        int read = config.GetValue("RiderMobile:IpReadLimitPerMinute", DefaultIpReadLimitPerMinute);
-        int write = config.GetValue("RiderMobile:IpWriteLimitPerMinute", DefaultIpWriteLimitPerMinute);
-        IpReadLimitPerMinute = Math.Clamp(read, 1, 100_000);
-        IpWriteLimitPerMinute = Math.Clamp(write, 1, 100_000);
+        var warnings = new List<string>();
+        IpReadLimitPerMinute = ParseLimit(
+            config["RiderMobile:IpReadLimitPerMinute"],
+            DefaultIpReadLimitPerMinute,
+            "RiderMobile:IpReadLimitPerMinute",
+            warnings);
+        IpWriteLimitPerMinute = ParseLimit(
+            config["RiderMobile:IpWriteLimitPerMinute"],
+            DefaultIpWriteLimitPerMinute,
+            "RiderMobile:IpWriteLimitPerMinute",
+            warnings);
+        return warnings;
+    }
+
+    static int ParseLimit(string? raw, int fallback, string key, List<string> warnings)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return fallback;
+        if (!int.TryParse(raw.Trim(), out int value) || value < 1 || value > 100_000)
+        {
+            warnings.Add($"Invalid {key} value; using default {fallback}.");
+            return fallback;
+        }
+        return value;
     }
 
     /// <summary>Evict only expired minute buckets (O(expired keys)), never a full dictionary scan.</summary>

@@ -1005,9 +1005,21 @@ public sealed class PushNotificationsTests
                 ["RiderMobile:IpReadLimitPerMinute"] = "12",
                 ["RiderMobile:IpWriteLimitPerMinute"] = "4"
             }).Build();
-            PushNotifications.ConfigureIpLimits(cfg);
+            Assert.AreEqual(0, PushNotifications.ConfigureIpLimits(cfg).Count);
             Assert.AreEqual(12, PushNotifications.IpReadLimitPerMinute);
             Assert.AreEqual(4, PushNotifications.IpWriteLimitPerMinute);
+
+            var bad = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["RiderMobile:IpReadLimitPerMinute"] = "nope",
+                ["RiderMobile:IpWriteLimitPerMinute"] = "0"
+            }).Build();
+            var warnings = PushNotifications.ConfigureIpLimits(bad);
+            Assert.AreEqual(2, warnings.Count);
+            Assert.AreEqual(PushNotifications.DefaultIpReadLimitPerMinute, PushNotifications.IpReadLimitPerMinute);
+            Assert.AreEqual(PushNotifications.DefaultIpWriteLimitPerMinute, PushNotifications.IpWriteLimitPerMinute);
+            // Restore configured limits for the rest of this test.
+            PushNotifications.ConfigureIpLimits(cfg);
 
             var now = new DateTimeOffset(2026, 11, 19, 12, 0, 0, TimeSpan.Zero);
             PushNotifications.ClockOverride = () => now;
