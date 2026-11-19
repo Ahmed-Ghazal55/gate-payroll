@@ -76,6 +76,8 @@ public sealed partial class Store
     }
     // WAL allows independent reads while a write transaction is open.
     public T Read<T>(Func<DbConnection, T> action) { using var c = Open(); return action(c); }
+    /// <summary>Holds one open connection for the callback (session locks / multi-statement DDL).</summary>
+    public void WithConnection(Action<DbConnection> action) { using var c = Open(); action(c); }
     public const string DocumentLock="GatePayroll.DocumentWrite",ErpMirrorLock="GatePayroll.ErpMirrorWrite";
     public T Write<T>(Func<DbConnection, DbTransaction, T> action, bool invalidateSummaries = true,CancellationToken cancellationToken=default,string? lockResource=null)
     {
