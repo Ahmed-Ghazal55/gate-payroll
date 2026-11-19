@@ -46,6 +46,23 @@ public sealed class SchemaHrCompanyTests
     }
 
     [TestMethod]
+    public void RequiredCompanyFactsHaveNoInventedDefaults()
+    {
+        using var c=Open();
+        SchemaRef.Ensure(c);SchemaHrCompany.Ensure(c);
+        // Missing code / unified / name must fail; schema never invents placeholders.
+        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO hr_company(id,unified_number,name_ar,status,created_at) VALUES(@id,'U1','n',1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
+        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO hr_company(id,code,name_ar,status,created_at) VALUES(@id,'X','n',1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
+        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO hr_company(id,code,unified_number,status,created_at) VALUES(@id,'X','U',1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
+    }
+
+    [TestMethod]
     public void FilteredUniqueAllowsTwoNullErpSponsorIds()
     {
         using var c=Open();
