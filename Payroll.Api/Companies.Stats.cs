@@ -210,7 +210,7 @@ public static partial class Companies
                 ["unifiedNumber"] = unified,
                 ["commercialReg"] = comp.S("crNumber", comp.S("commercialReg")),
                 ["status"] = comp.S("status", "active"),
-                ["erpLinked"] = linked,
+                ["erpLinked"] = source == Operations.SourceLive && linked,
                 ["sponsorships"] = new JsonObject
                 {
                     ["total"] = sTotal,

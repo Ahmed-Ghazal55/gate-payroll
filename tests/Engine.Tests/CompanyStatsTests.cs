@@ -205,6 +205,7 @@ public sealed class CompanyStatsTests
             var adminItems = adminStats["items"]!.AsArray().OfType<JsonObject>().ToList();
             Assert.AreEqual(3, adminItems.Count);
             var bwRow = adminItems.Single(x => x.S("code") == "BW");
+            Assert.IsFalse(bwRow.B("erpLinked"), "store mode must not claim live ERP linkage");
             Assert.AreEqual(3m, bwRow["sponsorships"]!.N("total"));
             Assert.AreEqual(2m, bwRow["sponsorships"]!.N("riders"));
             Assert.AreEqual(1m, bwRow["sponsorships"]!.N("admins"));

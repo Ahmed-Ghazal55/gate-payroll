@@ -31,6 +31,7 @@ import {
   type CompanyDocumentContract,
   type CompanyExpiringContract,
   type CompanyImportPlanContract,
+  type CompanyRegistrationContract,
   type CompaniesStatsResponse,
   type CompanyStatsItem,
 } from '../../lib/api';
@@ -188,6 +189,7 @@ function CompaniesPageContent() {
 
   // Core company tables (our DB)
   const [companies, setCompanies] = useState<CompanyContract[]>([]);
+  const [registrations, setRegistrations] = useState<CompanyRegistrationContract[]>([]);
   const [expiring, setExpiring] = useState<CompanyExpiringContract[]>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; actor: string; at: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -259,8 +261,13 @@ function CompaniesPageContent() {
         api.getCompaniesList(),
         api.getExpiringCompanies(60),
       ]);
-      setCompanies(Array.isArray(compList) ? compList : []);
+      const safeCompanies = Array.isArray(compList) ? compList : [];
+      setCompanies(safeCompanies);
       setExpiring(Array.isArray(expList) ? expList : []);
+      const regLists = await Promise.all(
+        safeCompanies.map((c) => api.getCompanyRegistrations(c.id).catch(() => [] as CompanyRegistrationContract[]))
+      );
+      setRegistrations(regLists.flat());
       if (isAdmin) {
         try {
           const logs = await api.getAuditLogs();
@@ -490,25 +497,115 @@ function CompaniesPageContent() {
     [filteredStatsItems, filteredStatsTotals]
   );
 
-  // Registrations list derived from companies
+  const companiesById = useMemo(() => {
+    const map = new Map<string, CompanyContract>();
+    for (const c of companies) map.set(c.id, c);
+    return map;
+  }, [companies]);
+
+  // Registrations list: real fetched commercial_registration records plus fallback for seeded companies without child CR rows
   const allRegistrations = useMemo(() => {
-    return companies
-      .filter((c) => c.commercialReg || c.crNumber)
-      .map((c) => ({
+    const seen = new Set<string>();
+    const list: Array<{
+      id: string;
+      companyId: string;
+      companyNameAr: string;
+      companyCode: string;
+      number: string;
+      crType: string;
+      city: string;
+      issueDate?: string;
+      issueDateHijri?: string;
+      annualConfirmation?: string;
+      annualConfirmationHijri?: string;
+      crVersion?: number;
+      status: string;
+      isRealRecord: boolean;
+    }> = [];
+
+    for (const reg of registrations) {
+      const comp = companiesById.get(reg.companyId);
+      const key = `${reg.companyId}:${reg.number}`;
+      seen.add(key);
+      list.push({
+        id: reg.id,
+        companyId: reg.companyId,
+        companyNameAr: comp?.nameAr || reg.company || '—',
+        companyCode: comp?.code || '',
+        number: reg.number,
+        crType: comp?.crType || '—',
+        city: reg.city || comp?.city || '—',
+        issueDate: reg.issueDate,
+        issueDateHijri: reg.issueDateHijri,
+        annualConfirmation: reg.annualConfirmation || reg.expiryDate,
+        annualConfirmationHijri: reg.annualConfirmationHijri,
+        crVersion: reg.crVersion,
+        status: reg.status || 'active',
+        isRealRecord: true,
+      });
+    }
+
+    for (const c of companies) {
+      const num = c.crNumber || c.commercialReg;
+      if (!num) continue;
+      const key = `${c.id}:${num}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push({
         id: `cr-${c.id}`,
         companyId: c.id,
         companyNameAr: c.nameAr,
         companyCode: c.code,
-        number: c.crNumber || c.commercialReg || '—',
-        city: c.city || 'جدة',
+        number: num,
+        crType: c.crType || '—',
+        city: c.city || '—',
         issueDate: c.issueDate,
         issueDateHijri: c.issueDateHijri,
         annualConfirmation: c.annualConfirmation,
         annualConfirmationHijri: c.annualConfirmationHijri,
-        crVersion: c.crVersion || 1,
+        crVersion: c.crVersion,
         status: c.status || 'active',
-      }));
-  }, [companies]);
+        isRealRecord: false,
+      });
+    }
+
+    return list;
+  }, [registrations, companies, companiesById]);
+
+  const filteredRegistrations = useMemo(() => {
+    if (!searchQuery.trim()) return allRegistrations;
+    const q = searchQuery.toLowerCase().trim();
+    return allRegistrations.filter(
+      (cr) =>
+        cr.number.toLowerCase().includes(q) ||
+        cr.companyNameAr.toLowerCase().includes(q) ||
+        cr.companyCode.toLowerCase().includes(q) ||
+        cr.city.toLowerCase().includes(q)
+    );
+  }, [allRegistrations, searchQuery]);
+
+  const filteredExpiring = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return expiring.filter((item) => {
+      const comp = companiesById.get(item.companyId);
+      if (q) {
+        const hay = [
+          comp?.nameAr || '',
+          comp?.code || '',
+          item.number || '',
+          item.type || '',
+          item.kind === 'commercial_registration' ? 'سجل تجاري' : 'وثيقة شركة',
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      const rem = getDaysRemaining(item.annualConfirmation || item.expiryDate);
+      if (expiringBucket === 'soon30') return rem !== null && rem > 0 && rem <= 30;
+      if (expiringBucket === 'expired') return rem !== null && rem <= 0;
+      return true;
+    });
+  }, [expiring, companiesById, searchQuery, expiringBucket]);
 
   // Summary metrics (recount against active filters per H3 / U-W3-03)
   const filteredCompanyIds = useMemo(
@@ -605,7 +702,7 @@ function CompaniesPageContent() {
         c.entityType || '',
         c.city || '',
         Number(c.capitalSar || 0),
-        statsByCompanyId.get(c.id)?.sponsorships.total ?? Number(c.sponsoredRidersCount || 0),
+        statsByCompanyId.get(c.id)?.sponsorships.total ?? '',
         c.annualConfirmation ? `${c.annualConfirmationHijri || ''} (${c.annualConfirmation})` : '',
         c.status === 'active' ? 'نشط' : 'غير نشط',
       ]);
@@ -974,11 +1071,19 @@ function CompaniesPageContent() {
                                 className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                   item.erpLinked
                                     ? 'bg-[var(--money-pos)]/10 text-[var(--money-pos)]'
+                                    : stats.source === 'store'
+                                    ? 'bg-[var(--raised)] text-[var(--muted)]'
                                     : 'bg-[var(--warning)]/15 text-[var(--warning)]'
                                 }`}
                               >
                                 <CheckCircle2 size={11} aria-hidden="true" />
-                                <span>{item.erpLinked ? 'مرتبط بنظام الموارد' : 'غير مرتبط'}</span>
+                                <span>
+                                  {item.erpLinked
+                                    ? 'مرتبط بنظام الموارد'
+                                    : stats.source === 'store'
+                                    ? 'بيانات محلية'
+                                    : 'غير مرتبط'}
+                                </span>
                               </span>
                             </div>
 
@@ -1318,7 +1423,7 @@ function CompaniesPageContent() {
                           <bdi dir="ltr">{c.crNumber || c.commercialReg || '—'}</bdi>
                         </td>
                         <td className="py-3 px-4 text-[var(--muted)]">{c.entityType || '—'}</td>
-                        <td className="py-3 px-4 text-[var(--ink)]">{c.city || 'جدة'}</td>
+                        <td className="py-3 px-4 text-[var(--ink)]">{c.city || '—'}</td>
                         <td className="py-3 px-4 font-mono text-xs num">
                           {c.capitalSar
                             ? showBalances
@@ -1425,45 +1530,59 @@ function CompaniesPageContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]/60">
-                {allRegistrations.map((cr) => {
-                  const isExpiring = isDueWithinDays(cr.annualConfirmation, 60);
-                  const rem = getDaysRemaining(cr.annualConfirmation);
+                {filteredRegistrations.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center text-[var(--muted)]">
+                      لا توجد سجلات تجارية مطابقة للبحث الحالي.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRegistrations.map((cr) => {
+                    const rem = getDaysRemaining(cr.annualConfirmation);
+                    const isExpired = rem !== null && rem <= 0;
+                    const isExpiring = rem !== null && rem > 0 && rem <= 60;
 
-                  return (
-                    <tr key={cr.id} className="hover:bg-[var(--row-hover)] transition">
-                      <td className="py-3 px-4 font-mono font-bold text-xs num">
-                        <bdi dir="ltr">{cr.number}</bdi>
-                      </td>
-                      <td className="py-3 px-4 font-bold text-[var(--ink)]">{cr.companyNameAr}</td>
-                      <td className="py-3 px-4 text-[var(--muted)]">رئيسي</td>
-                      <td className="py-3 px-4 font-mono text-xs num">{cr.crVersion}</td>
-                      <td className="py-3 px-4 text-[var(--ink)]">{cr.city || 'جدة'}</td>
-                      <td className="py-3 px-4 font-mono text-xs num">
-                        {cr.issueDateHijri ? `${cr.issueDateHijri} هـ` : ''}{' '}
-                        {cr.issueDate ? `(${cr.issueDate})` : '—'}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="space-y-1">
-                          <div className="font-mono text-xs num">
-                            {cr.annualConfirmationHijri ? `${cr.annualConfirmationHijri} هـ` : ''}{' '}
-                            <span className="text-[var(--muted)]">({cr.annualConfirmation || '—'})</span>
+                    return (
+                      <tr key={cr.id} className="hover:bg-[var(--row-hover)] transition">
+                        <td className="py-3 px-4 font-mono font-bold text-xs num">
+                          <bdi dir="ltr">{cr.number}</bdi>
+                        </td>
+                        <td className="py-3 px-4 font-bold text-[var(--ink)]">{cr.companyNameAr}</td>
+                        <td className="py-3 px-4 text-[var(--muted)]">{cr.crType || '—'}</td>
+                        <td className="py-3 px-4 font-mono text-xs num">{cr.crVersion ?? '—'}</td>
+                        <td className="py-3 px-4 text-[var(--ink)]">{cr.city || '—'}</td>
+                        <td className="py-3 px-4 font-mono text-xs num">
+                          {cr.issueDateHijri ? `${cr.issueDateHijri} هـ ` : ''}
+                          {cr.issueDate ? `(${cr.issueDate})` : '—'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="space-y-1">
+                            <div className="font-mono text-xs num">
+                              {cr.annualConfirmationHijri ? `${cr.annualConfirmationHijri} هـ ` : ''}
+                              <span className="text-[var(--muted)]">({cr.annualConfirmation || '—'})</span>
+                            </div>
+                            {isExpired ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--danger)]/15 text-[var(--danger)]">
+                                <AlertTriangle size={11} aria-hidden="true" />
+                                <span>{rem === 0 ? 'ينتهي اليوم' : `منتهي منذ ${Math.abs(rem)} يوم`}</span>
+                              </span>
+                            ) : isExpiring ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--warning)]/15 text-[var(--warning)]">
+                                <AlertTriangle size={11} aria-hidden="true" />
+                                <span>مستحق خلال {rem} يوم</span>
+                              </span>
+                            ) : null}
                           </div>
-                          {isExpiring && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--warning)]/15 text-[var(--warning)]">
-                              <AlertTriangle size={11} aria-hidden="true" />
-                              <span>مستحق خلال {rem} يوم</span>
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--money-pos)]/10 text-[var(--money-pos)]">
-                          {cr.status === 'active' ? 'نشط' : 'غير نشط'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--money-pos)]/10 text-[var(--money-pos)]">
+                            {cr.status === 'active' ? 'نشط' : 'غير نشط'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -1496,53 +1615,104 @@ function CompaniesPageContent() {
                   <th scope="col" className="py-3 px-4 text-start">تاريخ الاستحقاق / الانتهاء</th>
                   <th scope="col" className="py-3 px-4 text-start">المدة المتبقية</th>
                   <th scope="col" className="py-3 px-4 text-start">الموقف</th>
+                  <th scope="col" className="py-3 px-4 text-center">المرفق / إجراء</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]/60">
-                {companies.map((c) => {
-                  const rem = getDaysRemaining(c.annualConfirmation);
-                  const isClose = rem !== null && rem <= 60;
+                {filteredExpiring.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-[var(--muted)]">
+                      لا توجد سجلات أو وثائق منتهية أو مستحقة خلال نافذة التنبيه الحالية.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredExpiring.map((item) => {
+                    const comp = companiesById.get(item.companyId);
+                    const dueDate = item.annualConfirmation || item.expiryDate;
+                    const rem = getDaysRemaining(dueDate);
+                    const isExpired = rem !== null && rem <= 0;
+                    const isClose = rem !== null && rem > 0 && rem <= 60;
+                    const isDocument = item.kind === 'company_document';
 
-                  return (
-                    <tr key={`exp-${c.id}`} className="hover:bg-[var(--row-hover)] transition">
-                      <td className="py-3 px-4 font-bold text-[var(--accent)]">
-                        التأكيد السنوي للسجل التجاري
-                      </td>
-                      <td className="py-3 px-4 font-bold text-[var(--ink)]">{c.nameAr}</td>
-                      <td className="py-3 px-4 font-mono text-xs num">
-                        <bdi dir="ltr">{c.crNumber || c.commercialReg || '—'}</bdi>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs num">
-                        {c.annualConfirmationHijri ? `${c.annualConfirmationHijri} هـ` : ''}{' '}
-                        ({c.annualConfirmation || '—'})
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`font-mono font-bold text-xs ${
-                            rem !== null && rem <= 30
-                              ? 'text-[var(--danger)]'
-                              : rem !== null && rem <= 60
-                              ? 'text-[var(--warning)]'
-                              : 'text-[var(--muted)]'
-                          }`}
-                        >
-                          {rem !== null ? `${rem} يوم` : '—'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                            isClose
-                              ? 'bg-[var(--warning)]/15 text-[var(--warning)]'
-                              : 'bg-[var(--money-pos)]/10 text-[var(--money-pos)]'
-                          }`}
-                        >
-                          {isClose ? 'يستحق المتابعة' : 'ساري'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                    return (
+                      <tr key={`${item.kind}-${item.id}`} className="hover:bg-[var(--row-hover)] transition">
+                        <td className="py-3 px-4 font-bold text-[var(--accent)]">
+                          {isDocument
+                            ? item.type || 'وثيقة شركة'
+                            : 'التأكيد السنوي للسجل التجاري'}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-[var(--ink)]">
+                          {comp?.nameAr || item.companyId}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-xs num">
+                          <bdi dir="ltr">{item.number || '—'}</bdi>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-xs num">
+                          {dueDate || '—'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`font-mono font-bold text-xs ${
+                              isExpired
+                                ? 'text-[var(--danger)]'
+                                : rem !== null && rem <= 30
+                                ? 'text-[var(--danger)]'
+                                : isClose
+                                ? 'text-[var(--warning)]'
+                                : 'text-[var(--muted)]'
+                            }`}
+                          >
+                            {rem === null
+                              ? '—'
+                              : rem < 0
+                              ? `منتهي منذ ${Math.abs(rem)} يوم`
+                              : rem === 0
+                              ? 'ينتهي اليوم'
+                              : `${rem} يوم`}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                              isExpired
+                                ? 'bg-[var(--danger)]/15 text-[var(--danger)]'
+                                : isClose
+                                ? 'bg-[var(--warning)]/15 text-[var(--warning)]'
+                                : 'bg-[var(--money-pos)]/10 text-[var(--money-pos)]'
+                            }`}
+                          >
+                            {isExpired ? 'منتهي' : isClose ? 'يستحق المتابعة' : 'ساري'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="inline-flex items-center gap-1.5">
+                            {isDocument && (
+                              <a
+                                href={`/api/companies/${encodeURIComponent(item.companyId)}/documents/${encodeURIComponent(item.id)}/download`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="h-7 px-2 rounded bg-[var(--raised)] hover:bg-[var(--line)] text-[11px] font-semibold inline-flex items-center gap-1 transition"
+                              >
+                                <Download size={12} aria-hidden="true" />
+                                <span>تنزيل</span>
+                              </a>
+                            )}
+                            {comp && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDrawer(comp)}
+                                className="h-7 px-2 rounded border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--raised)] text-[11px] font-semibold inline-flex items-center gap-1 transition"
+                              >
+                                <Eye size={12} aria-hidden="true" />
+                                <span>تفاصيل</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -1653,7 +1823,7 @@ function CompaniesPageContent() {
                   </div>
                   <div>
                     <span className="text-[var(--muted)] block mb-1">المدينة والمقر</span>
-                    <strong className="text-[var(--ink)]">{selectedCompany.city || 'جدة'}</strong>
+                    <strong className="text-[var(--ink)]">{selectedCompany.city || '—'}</strong>
                   </div>
                   <div>
                     <span className="text-[var(--muted)] block mb-1">رأس المال المثبت</span>
