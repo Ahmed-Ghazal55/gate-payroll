@@ -61,12 +61,45 @@ public sealed class SchemaFinAccountTests
     public void CodeUniqueNatureAndPostableChecksRejectBadRows()
     {
         using var c=Open();
-        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
-            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at) VALUES(@id,'1','dup',1,1,0,1,1,0,1,datetime('now'))",
-            ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
-        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
-            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at) VALUES(@id,'9',@name,1,@nature,0,1,1,0,1,datetime('now'))",
-            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@name","x"),("@nature",9)));
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at) VALUES(@id,@code,@name,1,1,0,1,1,0,1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code","1"),("@name","dup")),
+            "UQ_fin_account_code",sqliteToken:"fin_account.code");
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at) VALUES(@id,@code,@name,1,@nature,0,1,1,0,1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code","999901"),("@name","x"),("@nature",9)),
+            "CK_fin_account_nature");
+    }
+
+    [TestMethod]
+    public void SqlServerConstraintNamesMatchSqlite()
+    {
+        if(!TrySql(out var builder,out var admin))return;
+        string db="GateFinAccCk_"+Guid.NewGuid().ToString("N");
+        string dir=Path.Combine(Path.GetTempPath(),db);Directory.CreateDirectory(dir);
+        using(var q=admin.CreateCommand()){q.CommandText="CREATE DATABASE ["+db+"]";q.ExecuteNonQuery();}
+        builder.InitialCatalog=db;
+        try
+        {
+            var store=new Store(dir,builder.ToString());
+            store.Read(c=>{
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+                    "INSERT INTO fin.account(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at) VALUES(@id,@code,@name,1,1,0,1,1,0,1,SYSUTCDATETIME())",
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code","1"),("@name","dup")),
+                    "UQ_fin_account_code");
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+                    "INSERT INTO fin.account(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at) VALUES(@id,@code,@name,1,@nature,0,1,1,0,1,SYSUTCDATETIME())",
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code","999901"),("@name","x"),("@nature",9)),
+                    "CK_fin_account_nature");
+                return true;
+            });
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            using(var q=admin.CreateCommand()){q.CommandText="ALTER DATABASE ["+db+"] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ["+db+"]";q.ExecuteNonQuery();}
+            if(Directory.Exists(dir))Directory.Delete(dir,true);admin.Dispose();
+        }
     }
 
     [TestMethod]

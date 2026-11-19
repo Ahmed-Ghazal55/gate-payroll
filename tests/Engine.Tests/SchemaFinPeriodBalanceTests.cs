@@ -51,27 +51,31 @@ public sealed class SchemaFinPeriodBalanceTests
             VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'none',@dim,0,0,0,0,datetime('now'))
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",k.Period),("@cid",k.Company),("@aid",k.Account),("@cc",cc),("@dim",dim));
         // Same hash → grain unique
-        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"""
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
             INSERT INTO fin_period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
-            VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'none',@dim,0,1,0,1,datetime('now'))
-            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",k.Period),("@cid",k.Company),("@aid",k.Account),("@cc",cc),("@dim",dim)));
+            VALUES(@id,@pid,@pm,@cid,@aid,@cc,'none',@dim,0,1,0,1,datetime('now'))
+            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",k.Period),("@pm","2026-11-01"),("@cid",k.Company),("@aid",k.Account),("@cc",cc),("@dim",dim)),
+            "UQ_fin_period_balance_grain",sqliteToken:"fin_period_balance.period_id, fin_period_balance.dimension_key");
         // Same raw dims with a different 32-byte hash still rejected by UQ_fin_period_balance_dims
         byte[] otherHash=Enumerable.Range(1,32).Select(i=>(byte)i).ToArray();
-        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"""
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
             INSERT INTO fin_period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
-            VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'none',@dim2,0,2,0,2,datetime('now'))
-            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",k.Period),("@cid",k.Company),("@aid",k.Account),("@cc",cc),("@dim2",otherHash)));
+            VALUES(@id,@pid,@pm,@cid,@aid,@cc,'none',@dim2,0,2,0,2,datetime('now'))
+            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",k.Period),("@pm","2026-11-01"),("@cid",k.Company),("@aid",k.Account),("@cc",cc),("@dim2",otherHash)),
+            "UQ_fin_period_balance_dims",sqliteToken:"fin_period_balance.period_id, fin_period_balance.company_id, fin_period_balance.account_id, fin_period_balance.cost_centre_id, fin_period_balance.app_code");
         // Short hash rejected by length CHECK
-        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"""
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
             INSERT INTO fin_period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
-            VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'ninja',@short,0,0,0,0,datetime('now'))
-            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",k.Period),("@cid",k.Company),("@aid",k.Account),("@cc",cc),
-            ("@short",new byte[]{1,2,3})));
-        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"""
+            VALUES(@id,@pid,@pm,@cid,@aid,@cc,'ninja',@short,0,0,0,0,datetime('now'))
+            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",k.Period),("@pm","2026-11-01"),("@cid",k.Company),("@aid",k.Account),("@cc",cc),
+            ("@short",new byte[]{1,2,3})),
+            "CK_fin_period_balance_dim_len");
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
             INSERT INTO fin_period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
-            VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'',@dim2,0,0,0,0,datetime('now'))
-            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",k.Period),("@cid",k.Company),("@aid",k.Account),("@cc",cc),
-            ("@dim2",SchemaFinPeriodBalance.ComputeDimensionKey(k.CompanyG,k.AccountG,ccG,""))));
+            VALUES(@id,@pid,@pm,@cid,@aid,@cc,'',@dim2,0,0,0,0,datetime('now'))
+            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",k.Period),("@pm","2026-11-01"),("@cid",k.Company),("@aid",k.Account),("@cc",cc),
+            ("@dim2",SchemaFinPeriodBalance.ComputeDimensionKey(k.CompanyG,k.AccountG,ccG,""))),
+            "CK_fin_period_balance_app");
     }
 
     [TestMethod]

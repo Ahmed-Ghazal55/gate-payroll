@@ -39,19 +39,23 @@ public sealed class SchemaFinPeriodTests
         string company=InsertCompany(c);
         SchemaSql.Exec(c,null,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-11-01',1,datetime('now'))",
             ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company));
-        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
-            "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-11-01',1,datetime('now'))",
-            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company)));
-        // Mid-month is not a valid period_start (must be first day) — closes the same-month duplicate loophole.
-        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
             "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,@m,1,datetime('now'))",
-            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company),("@m","2026-11-15")));
-        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
-            "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-12-01',9,datetime('now'))",
-            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company)));
-        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
-            "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-12-01',1,datetime('now'))",
-            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",SchemaSql.GuidText(SchemaSql.NewId()))));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company),("@m","2026-11-01")),
+            "UQ_fin_accounting_period",sqliteToken:"fin_accounting_period.company_id, fin_accounting_period.period_month");
+        // Mid-month is not a valid period_start (must be first day) — closes the same-month duplicate loophole.
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,@m,1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company),("@m","2026-11-15")),
+            "CK_fin_accounting_period_start");
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,@m,@state,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company),("@m","2026-12-01"),("@state",9)),
+            "CK_fin_accounting_period_state");
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,@m,1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",SchemaSql.GuidText(SchemaSql.NewId())),("@m","2026-12-01")),
+            "FK_fin_period_company",sqliteToken:"FOREIGN KEY");
         SchemaSql.Exec(c,null,"UPDATE fin_accounting_period SET state=2 WHERE company_id=@cid",("@cid",company));
         Assert.AreEqual(2L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT state FROM fin_accounting_period WHERE company_id=@cid",("@cid",company))!));
     }
