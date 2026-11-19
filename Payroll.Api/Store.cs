@@ -50,6 +50,7 @@ public sealed partial class Store
         ErpDataIndexes.Ensure(c);
         PayRunInputs.Ensure(c);
         SchemaRef.Ensure(c);
+        SchemaHrCompany.Ensure(c);
         // M9: captured cycle must have freeze rows (in-flight cycles cannot deploy without U2 + rows).
         foreach(var cycle in List(c,PayCycles.Kind).Where(PayRunInputs.Captured))
             if(PayRunInputs.CountForCycle(c,null,cycle.S("id"))==0)

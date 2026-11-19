@@ -17,6 +17,8 @@ public static class Companies
             Store.Save(c,"company",new(){["id"]=sponsor.Id,["sponsorId"]=sponsor.Id,["code"]=sponsor.Code,["nameAr"]=sponsor.NameAr,["shortNameAr"]=sponsor.ShortNameAr,["unifiedNumber"]=sponsor.UnifiedNumber,["commercialReg"]=sponsor.CommercialReg,["status"]="active",["createdAt"]=DateTimeOffset.UtcNow.ToString("O")},tx);
             Store.Audit(c,tx,"company.seeded",sponsor.Id,"system");
         }
+        // Dual-read copy into hr.company*; legacy kind remains the write owner (U-W1-11a).
+        SchemaHrCompany.Ensure(c,tx);
         return true;
     });
     public static List<JsonObject> List(DbConnection c,ClaimsPrincipal user,DbTransaction? tx=null)=>Store.List(c,"company",tx).Where(x=>FinancialScopes.Sponsor(user,x.S("id"))).ToList();
