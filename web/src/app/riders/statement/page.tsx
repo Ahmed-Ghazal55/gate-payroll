@@ -131,12 +131,6 @@ function RiderStatementPageInner() {
     );
   }, [statement]);
 
-  // Mask Iqama
-  const maskIqama = (val: string) => {
-    if (!val || val.length < 8) return val;
-    return `${val.slice(0, 2)}****${val.slice(-4)}`;
-  };
-
   // Print handler
   const handlePrint = () => {
     if (typeof window !== 'undefined') {
@@ -185,7 +179,7 @@ function RiderStatementPageInner() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Link
-              href="/riders/"
+              href="/workforce/"
               className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--raised)] transition"
               title="العودة لدليل المناديب"
             >

@@ -8722,6 +8722,517 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workforce": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Paged workforce directory (live ERP when configured) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                iqama: string;
+                                name: string;
+                                phone?: string;
+                                nationality?: string;
+                                iban?: string;
+                                ibanAlert?: string;
+                                ibanSource?: string;
+                                engagementType?: string;
+                                status?: string;
+                                sponsorNameAr?: string;
+                                sponsor?: string;
+                                platform?: string;
+                                platforms?: string;
+                                platformWorkId?: string;
+                                city?: string;
+                                workType?: string;
+                                mudadSalary?: string;
+                                jobTitle?: string;
+                                hasCompanyVehicle?: boolean;
+                                companyVehicleType?: string;
+                                operationalRole?: string;
+                                housing?: string;
+                                allowedActions?: string[];
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            summary?: {
+                                totalCount: number;
+                                sponsoredCount: number;
+                                sponsoredRiders: number;
+                                sponsoredAdmins: number;
+                                sponsoredMissingIban: number;
+                                byCompany?: {
+                                    sponsorUnified: string;
+                                    sponsorNameAr: string;
+                                    totalCount: number;
+                                }[];
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** KPI counts for workforce filter cards */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            summary: {
+                                totalCount: number;
+                                sponsoredCount: number;
+                                sponsoredRiders: number;
+                                sponsoredAdmins: number;
+                                sponsoredMissingIban: number;
+                                byCompany?: {
+                                    sponsorUnified: string;
+                                    sponsorNameAr: string;
+                                    totalCount: number;
+                                }[];
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Server-side Excel export of workforce rows (H21) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/{id}/360": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reduced workforce 360 (H6) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            person: {
+                                id: string;
+                                iqama: string;
+                                name: string;
+                                phone?: string;
+                                nationality?: string;
+                                iban?: string;
+                                ibanAlert?: string;
+                                ibanSource?: string;
+                                engagementType?: string;
+                                status?: string;
+                                sponsorNameAr?: string;
+                                sponsor?: string;
+                                platform?: string;
+                                platforms?: string;
+                                platformWorkId?: string;
+                                city?: string;
+                                workType?: string;
+                                mudadSalary?: string;
+                                jobTitle?: string;
+                                hasCompanyVehicle?: boolean;
+                                companyVehicleType?: string;
+                                operationalRole?: string;
+                                housing?: string;
+                                allowedActions?: string[];
+                            };
+                            workRecord3Months: Record<string, never>[];
+                            financialEvaluation: Record<string, never>;
+                            iqamaImage: Record<string, never>;
+                            ibanImage?: Record<string, never>;
+                            promissoryNotes: Record<string, never>[];
+                            platformAccounts: Record<string, never>[];
+                            legalCases?: Record<string, never>[];
+                            financialPosition: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/saudi-payroll-employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Omar GOSI payroll employees (H10) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/terminated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Terminated and fleeing people (H11) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/absence-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Absence compliance cases (H11) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/legal-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** HR legal cases (H11/H20) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/data-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Workforce data-quality issues from live or store */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/hr-catalogs/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live HR catalogs from Omar ERP (H9) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/finance/statement/rider/{iqama}/monthly": {
         parameters: {
             query?: never;
@@ -10119,42 +10630,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/riders/enrich-missing": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit riders enrich missing */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfintAndintAndint"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/riders/data-quality": {
         parameters: {
             query?: never;
@@ -10198,7 +10673,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read riders {iqama} profile 360 */
+        /** Read reduced riders {iqama} profile 360 (H6) */
         get: {
             parameters: {
                 query?: never;
@@ -10216,87 +10691,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfJsonObjectAndListOfAnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAndintAndintAndListOfJsonObject"];
+                        "application/json": components["schemas"]["AnonymousTypeOfJsonObjectAndJsonObjectAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndintAndstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndObject[]AndObject[]AndAnonymousTypeOfintAnddecimalAndstringAndstringAndObject[]AndintAndintAnddecimalAndintAndintAndObject[]AndString[]"];
                     };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/riders/{iqama}/documents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit riders {iqama} documents */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    iqama: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["JsonObject"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["JsonObject"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/riders/{iqama}/documents/{id}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read riders {iqama} documents {id} download */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    iqama: string;
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
                 };
             };
         };
@@ -15810,6 +16206,14 @@ export interface components {
             /** Format: int32 */
             needsReviewCount: number | string;
         };
+        AnonymousTypeOfintAnddecimalAndstringAndstring: {
+            /** Format: int32 */
+            activeDebtsCount: number | string;
+            /** Format: double */
+            totalRemainingDebt: number | string;
+            statementPath: null | string;
+            message: null | string;
+        };
         AnonymousTypeOfintAndintAnddecimalAnddecimal: {
             /** Format: int32 */
             importedCount: number | string;
@@ -15830,14 +16234,6 @@ export interface components {
             /** Format: double */
             totalWaivedBatch: number | string;
             settlements: components["schemas"]["JsonArray"];
-        };
-        AnonymousTypeOfintAndintAndint: {
-            /** Format: int32 */
-            enrichedExisting: number | string;
-            /** Format: int32 */
-            addedFromSources: number | string;
-            /** Format: int32 */
-            totalRidersNow: number | string;
         };
         AnonymousTypeOfintAndintAndintAndint: {
             /** Format: int32 */
@@ -15896,14 +16292,17 @@ export interface components {
             debt: components["schemas"]["JsonObject"];
             reconciliation: components["schemas"]["JsonObject"];
         };
-        AnonymousTypeOfJsonObjectAndJsonObjectAndJsonObject: {
-            debt: components["schemas"]["JsonObject"];
-            settlement: components["schemas"]["JsonObject"];
-            journal: components["schemas"]["JsonObject"];
-        };
-        AnonymousTypeOfJsonObjectAndListOfAnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAndintAndintAndListOfJsonObject: {
+        "AnonymousTypeOfJsonObjectAndJsonObjectAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndintAndstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndObject[]AndObject[]AndAnonymousTypeOfintAnddecimalAndstringAndstringAndObject[]AndintAndintAnddecimalAndintAndintAndObject[]AndString[]": {
+            person: components["schemas"]["JsonObject"];
             rider: components["schemas"]["JsonObject"];
-            documentChecklist: null | components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstring"][];
+            workRecord3Months: null | components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndintAndstringAndstring"][];
+            financialEvaluation: components["schemas"]["AnonymousTypeOfstringAndstring"];
+            iqamaImage: components["schemas"]["AnonymousTypeOfstringAndstring"];
+            ibanImage: components["schemas"]["AnonymousTypeOfstringAndstring"];
+            promissoryNotes: null | unknown[];
+            platformAccounts: null | unknown[];
+            financialPosition: components["schemas"]["AnonymousTypeOfintAnddecimalAndstringAndstring"];
+            documentChecklist: null | unknown[];
             /** Format: int32 */
             documentsCount: number | string;
             /** Format: int32 */
@@ -15914,7 +16313,13 @@ export interface components {
             workRecordsCount: number | string;
             /** Format: int32 */
             totalOrders: number | string;
-            submissions: null | components["schemas"]["JsonObject"][];
+            submissions: null | unknown[];
+            allowedActions: null | string[];
+        };
+        AnonymousTypeOfJsonObjectAndJsonObjectAndJsonObject: {
+            debt: components["schemas"]["JsonObject"];
+            settlement: components["schemas"]["JsonObject"];
+            journal: components["schemas"]["JsonObject"];
         };
         AnonymousTypeOfJsonObjectAndstringAndJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstringAndListOfJsonObjectAndAnonymousTypeOfintAndintAndintAndint: {
             rider: components["schemas"]["JsonObject"];
@@ -15977,6 +16382,10 @@ export interface components {
             errors: components["schemas"]["JsonArray"];
             fingerprint: null | string;
         };
+        AnonymousTypeOfstringAndstring: {
+            status: null | string;
+            message: null | string;
+        };
         AnonymousTypeOfstringAndstringAndIEnumerableOfAnonymousTypeOfstringAndintAndint: {
             id: null | string;
             filename: null | string;
@@ -16021,18 +16430,13 @@ export interface components {
             titleAr: null | string;
             fields: components["schemas"]["JsonNode"];
         };
-        AnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstring: {
-            documentTypeId: null | string;
-            code: null | string;
-            nameAr: null | string;
-            requiresExpiry: boolean;
-            isUploaded: boolean;
-            documentId: null | string;
-            documentNumber: null | string;
-            issueDate: null | string;
-            expiryDate: null | string;
-            fileName: null | string;
-            storagePath: null | string;
+        AnonymousTypeOfstringAndstringAndstringAndintAndstringAndstring: {
+            month: null | string;
+            platform: null | string;
+            workDays: null | string;
+            /** Format: int32 */
+            orders: number | string;
+            netDue: null | string;
             status: null | string;
         };
         AnonymousTypeOfstringAndstringAndstringAndObjectAndJsonElementAndintAndint: {

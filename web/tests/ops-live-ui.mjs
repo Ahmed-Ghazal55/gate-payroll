@@ -240,14 +240,15 @@ async function main() {
       console.log('✓ Retry button clicked and recovered successfully');
     }
 
-    // Test H: Rider Accounts Panel
-    console.log('\n[Test H] Testing Rider Accounts Panel in /app/riders/ ...');
+    // Test H: the old riders page now redirects to the workforce directory (0.26.0 people section)
+    console.log('\n[Test H] Testing /app/riders/ redirects to /app/workforce/ ...');
     await page.goto(`${baseUrl}/app/riders/`);
+    await page.waitForURL(/\/app\/workforce\/?(\?|$)/, { timeout: 10000 });
     await page.waitForLoadState('networkidle');
 
     const pageRidersText = await page.textContent('body');
-    assert.ok(pageRidersText.includes('المناديب وسجلات التشغيل'), 'Riders page loaded');
-    console.log('✓ Riders page loaded');
+    assert.ok(pageRidersText.includes('دليل الأشخاص والتشغيل'), 'Workforce page loaded after riders redirect');
+    console.log('✓ Riders link redirects to the workforce page');
 
     // Test I: Rider Statement Accounts Panel
     console.log('\n[Test I] Testing Rider Accounts Panel in /app/riders/statement/ ...');

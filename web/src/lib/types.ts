@@ -556,43 +556,34 @@ export interface PromissoryNote {
   createdAt: string;
 }
 
-export interface RiderRecord {
-  id: string;
-  iqama: string;
-  name: string;
-  phone?: string;
-  nationality?: string;
+/** Workforce wire types come from the OpenAPI contract (api.ts → api-contract.ts). */
+export type {
+  WorkforceListResponse,
+  WorkforcePerson,
+  WorkforceSummary,
+  Workforce360Response,
+} from './api';
+
+/** Extends the contract person with optional directory fields still used by older riders screens. */
+export type RiderRecord = import('./api').WorkforcePerson & {
   sponsor?: string;
   sponsorId?: string;
-  city?: string;
-  engagementType?: 'SponsoredInternal' | 'External' | string;
-  operationalRole?: 'Car' | 'Motorcycle' | string;
+  housing?: string;
+  operationalRole?: string;
   drivingLicense?: string;
   platforms?: string;
-  iban?: string;
-  status: string;
+  platformWorkId?: string;
+  paymentModel?: string;
+  ibanAlert?: string;
+  ibanSource?: string;
+  workType?: string;
+  status?: string;
   policyId?: string;
   createdAt?: string;
-}
-
-export interface RiderDocumentChecklistItem {
-  documentTypeId: string;
-  code: string;
-  nameAr: string;
-  requiresExpiry: boolean;
-  isUploaded: boolean;
-  documentId: string;
-  documentNumber: string;
-  issueDate: string;
-  expiryDate: string;
-  fileName: string;
-  storagePath: string;
-  status: string;
-}
+};
 
 export interface RiderProfile360 {
   rider: RiderRecord;
-  documentChecklist: RiderDocumentChecklistItem[];
   documentsCount: number;
   activeDebtsCount: number;
   totalRemainingDebt: number;
