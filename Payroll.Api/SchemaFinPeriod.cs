@@ -18,9 +18,10 @@ public static class SchemaFinPeriod
         string t=SchemaSql.Q(c,"fin","accounting_period");string g=SchemaSql.GuidType(c);
         string company=SchemaSql.Q(c,"hr","company");
         // period_month is the period start (design §7.1); must be first day of month on both providers.
+        // SQLite: also require canonical 'YYYY-MM-DD' text so '2026-11-01' and '2026-11-01 00:00:00' cannot both insert.
         string firstOfMonth=SchemaSql.IsSql(c)
             ?"period_month = DATEFROMPARTS(YEAR(period_month), MONTH(period_month), 1)"
-            :"strftime('%d', period_month) = '01'";
+            :"period_month = date(period_month) AND strftime('%d', period_month) = '01'";
         if(SchemaSql.IsSql(c))
         {
             SchemaSql.Exec(c,tx,$"""

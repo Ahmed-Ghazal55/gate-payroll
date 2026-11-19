@@ -48,6 +48,11 @@ public sealed class SchemaFinPeriodTests
             "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,@m,1,datetime('now'))",
             ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company),("@m","2026-11-15")),
             "CK_fin_accounting_period_start");
+        // Same calendar day in a non-canonical textual form is rejected (cannot defeat unique via variant text).
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,@m,1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company),("@m","2026-11-01 00:00:00")),
+            "CK_fin_accounting_period_start");
         SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
             "INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,@m,@state,datetime('now'))",
             ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company),("@m","2026-12-01"),("@state",9)),
