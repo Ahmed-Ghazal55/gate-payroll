@@ -131,7 +131,7 @@ async function enterpriseView(view:string):Promise<string>{
    'دليل المناديب وملفاتهم الوثائقية 360°',
    'هوية فعلية واحدة، مع الفصل بين الكفالة والعلاقة التشغيلية والسياسة المالية، واستكمال آلي للبيانات المفقودة وأرشيف الوثائق السبع.',
    userRole==='Admin'||userRole==='SuperAdmin'
-    ? `<button data-action="rider-new">＋ إضافة مندوب</button>${excelControls('riders')}<button class="secondary" data-enterprise="rider-enrich">⚡ جلب واستكمال البيانات المفقودة</button>`
+    ? `<button data-action="rider-new">＋ إضافة مندوب</button>${excelControls('riders')}`
     : ''
   )+kpiStrip+`<div class="panel">${table(
    ['المندوب','الإقامة','الجنسية','الجوال','العلاقة','الكفيل','المدينة','نوع المركبة','رخصة القيادة','الحالة','سياسة الحساب','الرد المختار',''],
@@ -1362,7 +1362,6 @@ document.addEventListener('click',async e=>{const b=(e.target as HTMLElement).cl
  case'open-statement':statementRiderIqama=b.dataset.iqama||'';financeSubTab='statement-360';await show('debts');break;
  case'open-statement-simple':statementSimpleRiderIqama=b.dataset.iqama||'';financeSubTab='statement-simple';await show('debts');break;
  case'rider-profile-360':await riderProfile360Dialog(b.dataset.iqama!);break;
- case'rider-enrich':{const res=await api('/riders/enrich-missing',{});await show('riders');toast(`تم استكمال حقول ${res.enrichedExisting} مندوب وإضافة ${res.addedFromSources} سجل من المصادر`);break;}
  case'debt-collect':debtCollectDialog(id!);break;
  case'debt-transfer-sp':debtTransferSponsorDialog(id!);break;
  case'opening-debt-import':openingDebtImportDialog();break;

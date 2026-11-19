@@ -84,12 +84,8 @@ function SidebarInner({
       defaultHref: '/workforce/',
       permission: 'riders.view',
       items: [
-        { id: 'wf-directory', href: '/workforce/?tab=directory', label: 'دليل القوى العاملة' },
-        { id: 'wf-360', href: '/workforce/?tab=360', label: 'الملف 360' },
+        { id: 'wf-directory', href: '/workforce/', label: 'القوى العاملة' },
         { id: 'wf-statement', href: '/riders/statement/', label: 'كشف حساب المندوب', isNew: true },
-        { id: 'wf-quality', href: '/workforce/?tab=quality', label: 'جودة البيانات' },
-        { id: 'wf-saudi', href: '/workforce/?tab=saudi', label: 'رواتب سعودية' },
-        { id: 'wf-cases', href: '/workforce/?tab=cases', label: 'حالات الإنهاء والغياب' },
       ],
     },
     {
