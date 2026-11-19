@@ -35,4 +35,10 @@ describe('Excel export split (R1 / F-R2)', () => {
     const t = splitForExport(['الآيبان'], [['—'], ['XX12']]);
     assert.deepEqual(t.rows, [['', '', ''], ['XX12', '', '']]);
   });
+
+  it('does not treat composite or alert IBAN headers as IBAN columns', () => {
+    assert.equal(isIbanColumn('المنصة / الآيبان', ['Jahez / masked']), false);
+    assert.equal(isIbanColumn('تنبيه الآيبان', ['آيبان مفقود للمكفول']), false);
+    assert.equal(isIbanColumn('المنصة / الآيبان', [validRajhi]), true);
+  });
 });
