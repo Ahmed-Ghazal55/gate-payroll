@@ -199,7 +199,7 @@ public static partial class Debts
         sp.Id, sp.Code, sp.UnifiedNumber, sp.CommercialReg, sp.NameAr, sp.ShortNameAr
     ];
 
-    /// <summary>Lower + Arabic letter/digit fold for LIKE search (mirrors TextSearch.Normalize).</summary>
+    /// <summary>Lower + Arabic letter/digit/harakat/tatweel/space fold for LIKE search (mirrors TextSearch.Normalize).</summary>
     static string SqlFold(DbConnection c, string expr)
     {
         bool sqlite = c is SqliteConnection;
@@ -217,9 +217,20 @@ public static partial class Debts
             ["۰", "0"], ["۱", "1"], ["۲", "2"], ["۳", "3"], ["۴", "4"],
             ["۵", "5"], ["۶", "6"], ["۷", "7"], ["۸", "8"], ["۹", "9"]
         ];
+        // Strip tatweel + harakat (same removals as TextSearch.Normalize) from stored names.
+        string[] strip =
+        [
+            "ـ",
+            "ً", "ٌ", "ٍ", "َ", "ُ", "ِ", "ّ", "ْ", "ٓ", "ٔ", "ٕ", "ٖ", "ٗ", "٘", "ٙ", "ٚ", "ٛ", "ٜ", "ٝ", "ٞ", "ٟ", "ٰ"
+        ];
         string folded = $"{lower}({e})";
         foreach (var pair in folds)
             folded = $"REPLACE({folded},{Lit(pair[0])},{Lit(pair[1])})";
+        foreach (string ch in strip)
+            folded = $"REPLACE({folded},{Lit(ch)},{Lit("")})";
+        // Collapse runs of spaces (a few passes cover typical stored names).
+        for (int i = 0; i < 4; i++)
+            folded = $"REPLACE({folded},{Lit("  ")},{Lit(" ")})";
         return folded;
     }
 
