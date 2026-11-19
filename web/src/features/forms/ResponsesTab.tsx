@@ -42,7 +42,8 @@ export function ResponsesTab({
   onRefresh,
 }: ResponsesTabProps) {
   const { toast } = useToast();
-  const { canReview, isAdmin } = useAuth();
+  const { can, canReview, isAdmin } = useAuth();
+  const canViewIban = isAdmin || can('riders.iban.view');
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [campaignFilter, setCampaignFilter] = useState<string>('');
@@ -166,8 +167,10 @@ export function ResponsesTab({
   const handleExport = async (format: 'excel-all' | 'excel-filtered' | 'csv-filtered') => {
     setExportLoading(true);
     const targetRows = format === 'excel-all' ? submissions : filteredSubmissions;
-    // R1: IBAN and work system are separate columns; api.exportExcel adds bank code and bank name after the IBAN.
-    const headers = ['اسم المندوب', 'الإقامة', 'الآيبان', 'النظام', 'الحملة', 'الحالة', 'التاريخ'];
+    // R1 / H20: IBAN column only when the caller has riders.iban.view; otherwise omit it entirely.
+    const headers = canViewIban
+      ? ['اسم المندوب', 'الإقامة', 'الآيبان', 'النظام', 'الحملة', 'الحالة', 'التاريخ']
+      : ['اسم المندوب', 'الإقامة', 'النظام', 'الحملة', 'الحالة', 'التاريخ'];
 
     // Formula injection guard matching Frontend/src/table-tools.ts:86
     const sanitize = (val: string) => {
@@ -175,16 +178,20 @@ export function ResponsesTab({
       return val;
     };
 
-    const rows = targetRows.map((s) => [
-      sanitize(s.name),
-      sanitize(s.iqama),
-      // Export the IBAN as one unbroken value so it can be copied into a bank form as is.
-      s.iban ? cleanIban(s.iban) : '',
-      sanitize(s.workSystem || ''),
-      sanitize(campaignName(s)),
-      sanitize(s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'),
-      sanitize(s.createdAt ? new Date(s.createdAt).toLocaleDateString('ar-SA') : '—'),
-    ]);
+    const rows = targetRows.map((s) => {
+      const base = [
+        sanitize(s.name),
+        sanitize(s.iqama),
+      ];
+      if (canViewIban) base.push(sanitize(s.iban ? cleanIban(s.iban) : ''));
+      base.push(
+        sanitize(s.workSystem || ''),
+        sanitize(campaignName(s)),
+        sanitize(s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'),
+        sanitize(s.createdAt ? new Date(s.createdAt).toLocaleDateString('ar-SA') : '—'),
+      );
+      return base;
+    });
 
     try {
       if (format === 'csv-filtered') {
@@ -248,14 +255,20 @@ export function ResponsesTab({
     {
       key: 'choice',
       header: 'البيان / الآيبان',
-      getValue: (s) => (s.iban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : workSystemLabel(s)),
-      exportColumns: [
-        { header: 'الآيبان', value: (s) => (s.iban ? cleanIban(s.iban) : '') },
-        { header: 'نظام العمل', value: (s) => (s.iban ? '' : workSystemLabel(s)) },
-      ],
+      getValue: (s) => (s.iban ? (canViewIban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : `••••${cleanIban(s.iban).slice(-4)}`) : workSystemLabel(s)),
+      exportColumns: canViewIban
+        ? [
+            { header: 'الآيبان', value: (s) => (s.iban ? cleanIban(s.iban) : '') },
+            { header: 'نظام العمل', value: (s) => (s.iban ? '' : workSystemLabel(s)) },
+          ]
+        : [{ header: 'نظام العمل', value: (s) => (s.iban ? '' : workSystemLabel(s)) }],
       render: (s) =>
         s.iban ? (
+          canViewIban ? (
           <IbanDisplay iban={s.iban} bankCode={s.bankCode} bank={s.bank} />
+          ) : (
+            <span className="font-mono text-xs" dir="ltr">••••{cleanIban(s.iban).slice(-4)}</span>
+          )
         ) : (
           <span className="font-semibold text-xs">
             {workSystemLabel(s)}

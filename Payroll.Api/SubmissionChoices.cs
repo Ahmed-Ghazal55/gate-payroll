@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Globalization;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -9,7 +10,44 @@ namespace Payroll;
 public static class SubmissionChoices
 {
     public static int Version(JsonObject d) => (int)d.N("version", 1);
-    public static JsonObject PublicAdmin(JsonObject d) { var result=d.Clone(); result.Remove("editTokenHash"); return result; }
+    /// <summary>Staff projection: drop the edit-token hash and mask IBAN (and history) unless the caller has <see cref="WorkforceApi.PermIban"/>.</summary>
+    public static JsonObject PublicAdmin(JsonObject d, ClaimsPrincipal? user = null)
+    {
+        var result = d.Clone();
+        result.Remove("editTokenHash");
+        if (user == null || AccessPolicy.Has(user, WorkforceApi.PermIban)) return result;
+        MaskIban(result);
+        if (result["history"] is JsonArray history)
+            foreach (var item in history.OfType<JsonObject>()) MaskIban(item);
+        return result;
+    }
+    static void MaskIban(JsonObject d)
+    {
+        string iban = d.S("iban");
+        if (iban == "") return;
+        d["iban"] = iban.Length >= 4 ? "••••" + iban[^4..] : "••••";
+    }
+    /// <summary>
+    /// Company scope for a submission/custom-response iqama.
+    /// Riders assigned to a company must match <see cref="FinancialScopes.Rider"/>.
+    /// Missing or company-unassigned riders stay visible to unscoped forms staff (and all-company users).
+    /// </summary>
+    public static bool InRiderScope(DbConnection c, ClaimsPrincipal user, string iqama, DbTransaction? tx = null)
+    {
+        if (iqama == "") return false;
+        if (AccessPolicy.Administrator(user) || FinancialScopes.AllCompanies(user)) return true;
+        bool unscoped = !user.FindAll("finance.sponsorIds").Any();
+        var rider = Store.Get(c, iqama, "rider", tx);
+        if (rider == null) return unscoped;
+        bool assigned = rider.S("financeSponsorId") != "" || rider.S("sponsorId") != "" || FinancialCore.FindSponsor(rider.S("sponsor")) != null;
+        if (!assigned) return unscoped;
+        return FinancialScopes.Rider(user, rider);
+    }
+    public static void DemandInScope(DbConnection c, ClaimsPrincipal user, JsonObject submission, DbTransaction? tx = null)
+    {
+        if (!InRiderScope(c, user, submission.S("iqama"), tx))
+            throw new ApiError("الرد غير موجود.", 404);
+    }
     public static void CheckVersion(JsonObject d, JsonObject input)
     {
         if (input.ContainsKey("version") && input.N("version") != Version(d))
@@ -25,12 +63,27 @@ public static class SubmissionChoices
     }
     static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
     static bool Equal(string a,string b) => a.Length==b.Length && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(a),Encoding.UTF8.GetBytes(b));
+    /// <summary>Issue a one-time-readable edit token; only the hash is stored on the submission.</summary>
+    public static string IssueEditToken(JsonObject d)
+    {
+        string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        d["editTokenHash"] = Hash(token);
+        return token;
+    }
+    /// <summary>Constant-time edit-token check; missing or wrong token → 404 (no existence leak).</summary>
+    public static void RequireEditToken(JsonObject d, string editToken)
+    {
+        string hash = d.S("editTokenHash");
+        if (editToken == "" || hash == "" || !Equal(hash, Hash(editToken)))
+            throw new ApiError("الرد غير موجود.", 404);
+    }
     static JsonObject Owned(DbConnection c,DbTransaction tx,JsonObject campaign,JsonObject input)
     {
-        // Compatibility for old clients; the current form uses Iqama-based lookup.
+        // Compatibility for old clients that still call /resume with receipt + editToken.
         var d=Store.Get(c,input.S("receipt"),"submission",tx);
-        if(d==null || d.S("campaignId")!=campaign.S("id") || (d.S("editTokenHash")!="" && !Equal(d.S("editTokenHash"),Hash(input.S("editToken")))))
-            throw new ApiError("تعذر التحقق من رمز تعديل الرد. استخدم بيانات المتابعة الأصلية أو تواصل مع الإدارة.",403);
+        if(d==null || d.S("campaignId")!=campaign.S("id"))
+            throw new ApiError("الرد غير موجود.",404);
+        RequireEditToken(d, input.S("editToken"));
         return d;
     }
     internal static JsonObject Open(DbConnection c,DbTransaction tx,JsonObject campaign)
@@ -45,14 +98,22 @@ public static class SubmissionChoices
     }
     internal static JsonObject? Find(DbConnection c,DbTransaction tx,JsonObject campaign,string iqama) => Store.List(c,"submission",tx).SingleOrDefault(d=>d.S("campaignId")==campaign.S("id") && d.S("iqama")==iqama);
     public static JsonObject ChoiceView(JsonObject d,JsonObject? campaign=null)
-    { var result=new JsonObject() { ["alreadySubmitted"]=true,["iqama"]=d.S("iqama"),["name"]=d.S("name"),["currentChoice"]=d.S("workSystem"),["version"]=Version(d),["message"]="سبق لك تسجيل اختيار. يمكنك تعديله أدناه مباشرة." };
-        foreach(string f in campaign==null?[]:CampaignOperations.Fields(campaign))result[f]=d.S(f);return result;
+    {
+        // Public lookup never returns phone or IBAN of any rider (H20 / public edit IDOR).
+        var result=new JsonObject() { ["alreadySubmitted"]=true,["iqama"]=d.S("iqama"),["name"]=d.S("name"),["currentChoice"]=d.S("workSystem"),["version"]=Version(d),["message"]="سبق لك تسجيل اختيار. يمكنك تعديله أدناه مباشرة." };
+        foreach(string f in campaign==null?[]:CampaignOperations.Fields(campaign))
+            if(f is not ("phone" or "iban")) result[f]=d.S(f);
+        return result;
     }
-    static JsonObject Receipt(JsonObject d) => new() { ["receipt"]=d.S("id"),["iqama"]=d.S("iqama"),["name"]=d.S("name"),["workSystem"]=d.S("workSystem"),["isEdited"]=d.B("isEdited"),["version"]=Version(d),["status"]=d.S("status"),["submittedAt"]=d.S("updatedAt",d.S("createdAt")),["message"]=d.B("isEdited")?"تم تعديل اختيارك بنجاح.":"تم تسجيل اختيارك بنجاح." };
+    static JsonObject Receipt(JsonObject d, string? editToken = null)
+    {
+        var result = new JsonObject { ["receipt"]=d.S("id"),["iqama"]=d.S("iqama"),["name"]=d.S("name"),["workSystem"]=d.S("workSystem"),["isEdited"]=d.B("isEdited"),["version"]=Version(d),["status"]=d.S("status"),["submittedAt"]=d.S("updatedAt",d.S("createdAt")),["message"]=d.B("isEdited")?"تم تعديل اختيارك بنجاح.":"تم تسجيل اختيارك بنجاح." };
+        if (editToken != null) result["editToken"] = editToken;
+        return result;
+    }
     public static void Map(WebApplication app,Store store,Func<string,JsonObject> campaignLookup)
     {
-        // The campaign explicitly permits Iqama-based choice lookup/editing (v0.5.2).
-        // Never project directory, financial, bank or historical review data here.
+        // Lookup is iqama-based and never returns phone/IBAN. Edits require the per-submission editToken.
         app.MapPost("/api/public/forms/{token}/lookup",(string token,JsonObject input)=>
         {
             J.Need(input.All(p=>p.Key=="iqama"),"حقول الاستعلام غير صحيحة.");string iqama=Iqama(input);var campaign=campaignLookup(token);
@@ -69,28 +130,29 @@ public static class SubmissionChoices
                 var answers=CampaignOperations.Answers(campaign,input);
                 var d=new JsonObject { ["id"]=Guid.NewGuid().ToString("N"),["campaignId"]=campaign.S("id"),["schema"]="work-choice-v1",["iqama"]=choice.Iqama,["name"]=choice.Name,["workSystem"]=choice.WorkSystem,["status"]="pending",["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["version"]=1,["isEdited"]=false,["history"]=new JsonArray() };
                 foreach(var field in answers)d[field.Key]=field.Value?.DeepClone();
-                Store.Save(c,"submission",d,tx);Store.Audit(c,tx,"submission.received",d.S("id"),"public-form");return Results.Ok(Receipt(d));
+                string editToken=IssueEditToken(d);
+                Store.Save(c,"submission",d,tx);Store.Audit(c,tx,"submission.received",d.S("id"),"public-form");return Results.Ok(Receipt(d, editToken));
             });
         }).WithTags("Forms and responses").WithSummary("Submit public forms {token}").RequireRateLimiting("sensitive");
         // Retain the v0.5.1 recovery route for already-loaded legacy clients only.
         app.MapPost("/api/public/forms/{token}/resume",(string token,JsonObject input)=>
         {
             J.Need(input.All(p=>p.Key is "receipt" or "editToken"),"حقول طلب التعديل غير صحيحة.");var campaign=campaignLookup(token);
-            return store.Write((c,tx)=>{Open(c,tx,campaign);var d=Owned(c,tx,campaign,input);var result=Receipt(d);result["editToken"]=input.S("editToken");return Results.Ok(result);},invalidateSummaries:false);
+            return store.Write((c,tx)=>{Open(c,tx,campaign);var d=Owned(c,tx,campaign,input);var result=Receipt(d, input.S("editToken"));return Results.Ok(result);},invalidateSummaries:false);
         }).WithTags("Forms and responses").WithSummary("Submit public forms {token} resume").RequireRateLimiting("sensitive");
         app.MapPost("/api/public/forms/{token}/edit",(string token,JsonObject input)=>
         {
             var campaign=campaignLookup(token);if(IbanChoices.Is(campaign))return IbanChoices.Edit(store,campaign,input);
-            // editToken is accepted but ignored for legacy callers; it is never required or issued.
             J.Need(input.All(p=>p.Key is "receipt" or "editToken" or "version" or "iqama" or "name" or "workSystem" or "city" or "phone"),"حقول طلب التعديل غير صحيحة.");
             var choice=WorkChoices.Validate(new JsonObject { ["iqama"]=input.S("iqama"),["name"]=input.S("name"),["workSystem"]=input.S("workSystem") });
             return store.Write((c,tx)=>
             {
-                campaign=Open(c,tx,campaign);var answers=CampaignOperations.Answers(campaign,input);var d=Find(c,tx,campaign,choice.Iqama)??throw new ApiError("لم يتم العثور على رد سابق لتعديله.",404);
+                campaign=Open(c,tx,campaign);var answers=CampaignOperations.Answers(campaign,input);var d=Find(c,tx,campaign,choice.Iqama)??throw new ApiError("الرد غير موجود.",404);
+                RequireEditToken(d, input.S("editToken"));
                 J.Need(input.S("receipt")=="" || input.S("receipt")==d.S("id"),"رقم الإيصال لا يطابق الإقامة والحملة.");CheckVersion(d,input);
                 bool changed=d.S("name")!=choice.Name || d.S("workSystem")!=choice.WorkSystem || answers.Any(p=>d.S(p.Key)!=p.Value?.ToString());
                 if(changed){ArchiveAndEdit(d,choice);foreach(var field in answers)d[field.Key]=field.Value?.DeepClone();Store.Audit(c,tx,"submission.edited",d.S("id"),"public-form");Store.Save(c,"submission",d,tx);}
-                return Results.Ok(Receipt(d));
+                return Results.Ok(Receipt(d, input.S("editToken")));
             });
         }).WithTags("Forms and responses").WithSummary("Submit public forms {token} edit").RequireRateLimiting("sensitive");
     }
