@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   debtsLoadKindsForTab,
   DEBTS_PAGE_SIZE,
-  DEBT_CATEGORY_OPTIONS,
+  debtCategoryOptionsFromCatalog,
 } from '../../src/features/debts/debts-tab-load.ts';
 
 describe('debts tab load (F-D2)', () => {
@@ -25,9 +25,17 @@ describe('debts tab load (F-D2)', () => {
     assert.deepEqual(debtsLoadKindsForTab('promissory'), ['promissory']);
   });
 
-  it('uses server page size 50 and category options for filters', () => {
+  it('uses server page size 50 and builds category options from scoped catalog', () => {
     assert.equal(DEBTS_PAGE_SIZE, 50);
-    assert.ok(DEBT_CATEGORY_OPTIONS.some((o) => o.value === 'all'));
-    assert.ok(DEBT_CATEGORY_OPTIONS.some((o) => o.value === 'advance'));
+    const opts = debtCategoryOptionsFromCatalog([
+      { code: 'InternetAdvance', nameAr: 'سلفة إنترنت' },
+      { code: 'CashCustody', nameAr: 'عهدة نقدية' },
+      { code: 'AdministrativeDeduction', nameAr: 'جزاء إداري' },
+    ]);
+    assert.ok(opts.some((o) => o.value === 'all'));
+    assert.ok(opts.some((o) => o.value === 'advance'));
+    assert.ok(opts.some((o) => o.value === 'InternetAdvance'));
+    assert.ok(opts.some((o) => o.value === 'CashCustody'));
+    assert.ok(opts.some((o) => o.value === 'AdministrativeDeduction'));
   });
 });

@@ -34,17 +34,25 @@ export function debtsLoadKindsForTab(tab: DebtsTabId): DebtsLoadKind[] {
 /** Default server page size for GET /debts?page=&pageSize= (max 200 on the API). */
 export const DEBTS_PAGE_SIZE = 50;
 
-/** Category filter choices for server-side debts list (not derived from the current page). */
-export const DEBT_CATEGORY_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'all', label: 'كافة الفئات' },
-  { value: 'advance', label: 'سلف (نقدية / بنكية)' },
-  { value: 'CashAdvance', label: 'سلفة نقدية' },
-  { value: 'BankAdvance', label: 'سلفة بنكية' },
-  { value: 'TrafficFine', label: 'مخالفة مرورية' },
-  { value: 'EquipmentLoan', label: 'عهدة ومعدات' },
-  { value: 'WorkPermit', label: 'رخصة عمل' },
-  { value: 'IqamaRenewal', label: 'تجديد إقامة' },
-  { value: 'HousingDeduction', label: 'استقطاع سكن' },
-  { value: 'PlatformTransferredDebt', label: 'مديونية منقولة من منصة' },
-  { value: 'NegativeSalaryCarryover', label: 'ترحيل راتب سالب' },
-];
+export type DebtCategoryOption = { value: string; label: string };
+
+/**
+ * Category filter choices from the scoped finance catalog, plus the advance group tab.
+ * Built from catalog data (not a fixed 10-item list / not from the current page rows).
+ */
+export function debtCategoryOptionsFromCatalog(
+  categories: Array<{ code?: string | null; nameAr?: string | null }> | null | undefined
+): DebtCategoryOption[] {
+  const options: DebtCategoryOption[] = [
+    { value: 'all', label: 'كافة الفئات' },
+    { value: 'advance', label: 'سلف (نقدية / بنكية)' },
+  ];
+  const seen = new Set(['all', 'advance']);
+  for (const cat of categories ?? []) {
+    const code = (cat.code || '').trim();
+    if (!code || seen.has(code)) continue;
+    seen.add(code);
+    options.push({ value: code, label: (cat.nameAr || '').trim() || code });
+  }
+  return options;
+}

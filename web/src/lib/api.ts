@@ -1383,7 +1383,11 @@ export const api = {
   getLedger: (iqama: string) =>
     handleRequest<{ balance: number; rows: Array<{ period: string; kind: string; amount: number; sourceRef: string }> }>(`/ledger/${encodeURIComponent(iqama)}`),
   getFinanceCatalog: () =>
-    handleRequest<{ sponsors: any[]; vaults: any[] }>('/finance/catalog'),
+    handleRequest<{
+      sponsors: any[];
+      vaults: any[];
+      categories?: Array<{ code?: string; nameAr?: string; sector?: string }>;
+    }>('/finance/catalog'),
 
   // Admin & Security APIs
   getUsers: () => handleRequest<any[]>('/users'),

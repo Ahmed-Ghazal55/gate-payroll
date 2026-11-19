@@ -52,9 +52,10 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { DebtActionsPanel } from '../../features/debts/DebtActionsPanel';
 import {
   debtsLoadKindsForTab,
-  DEBT_CATEGORY_OPTIONS,
+  debtCategoryOptionsFromCatalog,
   DEBTS_PAGE_SIZE,
   type DebtsTabId,
+  type DebtCategoryOption,
 } from '../../features/debts/debts-tab-load';
 import type { PaginatedResult } from '../../lib/types';
 import type {
@@ -133,6 +134,9 @@ function DebtsPageContent() {
   const [debtsPage, setDebtsPage] = useState(1);
   const [debtsPageSize, setDebtsPageSize] = useState(DEBTS_PAGE_SIZE);
   const [debtsTotal, setDebtsTotal] = useState(0);
+  const [categoryOptions, setCategoryOptions] = useState<DebtCategoryOption[]>(() =>
+    debtCategoryOptionsFromCatalog([])
+  );
 
   // Data states
   const [loading, setLoading] = useState<boolean>(true);
@@ -400,6 +404,21 @@ function DebtsPageContent() {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getFinanceCatalog()
+      .then((catalog) => {
+        if (!cancelled) setCategoryOptions(debtCategoryOptionsFromCatalog(catalog.categories));
+      })
+      .catch(() => {
+        if (!cancelled) setCategoryOptions(debtCategoryOptionsFromCatalog([]));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // F-D2: fetch only the open tab's data; debts list is server-paged with filters/search.
   useEffect(() => {
@@ -1153,7 +1172,7 @@ function DebtsPageContent() {
                 ariaLabel="تصفية حسب الفئة"
                 placeholder="كافة الفئات"
                 className="w-44"
-                options={DEBT_CATEGORY_OPTIONS}
+                options={categoryOptions}
               />
 
               <select
