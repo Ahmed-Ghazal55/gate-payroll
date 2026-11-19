@@ -9,8 +9,12 @@ import {
   OperationsFleetListResponse,
   OperationsFuelResponse,
   OperationsHousingResponse,
+  OperationsOilChangesResponse,
   OperationsPeriodResponse,
+  OperationsPurchasesResponse,
 } from '../../lib/api';
+/** Shared DataTable row; filled from ApiResp operations items[number]. */
+type OpsRow = Record<string, unknown>;
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
@@ -22,6 +26,7 @@ import { useToast } from '../../components/ui/Toast';
 
 const MAIN_TABS = new Set(['cities', 'housing', 'vehicles', 'fuel']);
 const NO_SOURCE = 'لا يوجد مصدر بعد';
+const cell = (v: unknown) => (v === null || v === undefined || v === '' ? NO_SOURCE : String(v));
 
 function monthBounds(d = new Date()) {
   const y = d.getFullYear();
@@ -87,7 +92,7 @@ function OperationsPageInner() {
   const [source, setSource] = useState('');
   const [asOf, setAsOf] = useState('');
   const [allowedActions, setAllowedActions] = useState<string[]>([]);
-  const [items, setItems] = useState<Record<string, unknown>[]>([]);
+  const [items, setItems] = useState<OpsRow[]>([]);
   const [total, setTotal] = useState(0);
   const [summary, setSummary] = useState<Record<string, unknown>>({});
   const [drawer, setDrawer] = useState<{ title: string; body: React.ReactNode } | null>(null);
@@ -122,7 +127,7 @@ function OperationsPageInner() {
     try {
       if (tab === 'cities') {
         const res = (await api.getOperationsCities({ q: debouncedQ || undefined })) as OperationsFleetListResponse;
-        setItems((res.items || []) as Record<string, unknown>[]);
+        setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
         setSummary((res.summary || {}) as Record<string, unknown>);
         setSource(String(res.source || ''));
@@ -134,28 +139,28 @@ function OperationsPageInner() {
           pageSize,
           q: debouncedQ || undefined,
         })) as OperationsHousingResponse;
-        setItems((res.items || []) as Record<string, unknown>[]);
+        setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
         setSummary((res.summary || {}) as Record<string, unknown>);
         setSource(String(res.source || ''));
         setAsOf(String(res.asOf || ''));
         setAllowedActions((res.allowedActions || []) as string[]);
       } else if (tab === 'vehicles' && view === 'invoices') {
-        const res = await api.getOperationsPurchaseInvoices({ from, to, page, pageSize, q: debouncedQ || undefined });
-        setItems((res.items || []) as Record<string, unknown>[]);
+        const res = await api.getOperationsPurchaseInvoices({ from, to, page, pageSize, q: debouncedQ || undefined }) as OperationsPurchasesResponse;
+        setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
         setSummary((res.summary || {}) as Record<string, unknown>);
         setSource(String(res.source || ''));
         setAsOf(String(res.asOf || ''));
         setAllowedActions((res.allowedActions || []) as string[]);
       } else if (tab === 'vehicles' && view === 'oil') {
-        setItems([]);
-        setTotal(0);
-        setSummary({});
-        setSource('erp_live');
-        setAsOf(new Date().toISOString());
-        setAllowedActions(['refresh']);
-        setErrorMsg(null);
+        const res = await api.getOperationsOilChangesPeriod({ from, to, page, pageSize, q: debouncedQ || undefined }) as OperationsOilChangesResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
       } else if (tab === 'vehicles') {
         const res = (await api.getOperationsPeriodReport({
           from,
@@ -165,7 +170,7 @@ function OperationsPageInner() {
           pageSize,
           q: debouncedQ || undefined,
         })) as OperationsPeriodResponse;
-        setItems((res.items || []) as Record<string, unknown>[]);
+        setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
         setSummary((res.summary || {}) as Record<string, unknown>);
         setSource(String(res.source || ''));
@@ -173,7 +178,7 @@ function OperationsPageInner() {
         setAllowedActions((res.allowedActions || []) as string[]);
       } else if (tab === 'fuel' && view === 'log') {
         const res = await api.getOperationsFuelAssignments({ from, to, page, pageSize });
-        setItems((res.items || []) as Record<string, unknown>[]);
+        setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
         setSummary((res.summary || {}) as Record<string, unknown>);
         setSource(String(res.source || ''));
@@ -186,7 +191,7 @@ function OperationsPageInner() {
           pageSize,
           q: debouncedQ || undefined,
         })) as OperationsFuelResponse;
-        setItems((res.items || []) as Record<string, unknown>[]);
+        setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
         setSummary((res.summary || {}) as Record<string, unknown>);
         setSource(String(res.source || ''));
@@ -230,7 +235,7 @@ function OperationsPageInner() {
   const openHousing = async (id: string) => {
     try {
       const detail = await api.getOperationsHousingRooms(id);
-      const rooms = (detail.rooms as Array<Record<string, unknown>>) || [];
+      const rooms = detail.rooms || [];
       setDrawer({
         title: String(detail.nameAr || 'الغرف والمقيمون'),
         body: (
@@ -241,18 +246,18 @@ function OperationsPageInner() {
             ) : (
               rooms.map((room) => (
                 <div key={String(room.id)} className="border border-[var(--border)] rounded-lg p-3">
-                  <div className="font-medium">{String(room.name)}</div>
+                  <div className="font-medium">{String(room.name || '')}</div>
                   <div className="text-xs text-[var(--muted)] mb-2">
-                    سعة {String(room.capacity)} · إشغال {String(room.currentOccupancy)}
+                    سعة {String(room.capacity ?? '')} · إشغال {String(room.currentOccupancy ?? '')}
                   </div>
                   <ul className="space-y-1 text-sm">
-                    {((room.residents as Array<Record<string, unknown>>) || []).map((r, i) => (
+                    {(room.residents || []).map((r, i) => (
                       <li key={i} className="flex flex-col sm:flex-row sm:gap-3">
                         <span>{String(r.nameAr || '')}</span>
                         <bdi className="font-mono">{String(r.iqama || '')}</bdi>
                         <span className="text-[var(--muted)]">{String(r.checkInDate || '')}</span>
-                        {r.employeeId ? (
-                          <a className="text-[var(--accent)]" href={`/workforce/?tab=directory&focus=${encodeURIComponent(String(r.employeeId))}`}>
+                        {r.iqama ? (
+                          <a className="text-[var(--accent)]" href={`/workforce/?tab=360&iqama=${encodeURIComponent(String(r.iqama))}`}>
                             ملف 360
                           </a>
                         ) : null}
@@ -342,7 +347,7 @@ function OperationsPageInner() {
     ];
   }, [tab, summary]);
 
-  const columns: ColumnDef<Record<string, unknown>>[] = useMemo(() => {
+  const columns: ColumnDef<OpsRow>[] = useMemo(() => {
     if (tab === 'cities') {
       return [
         { key: 'nameAr', header: 'المدينة', render: (r) => String(r.nameAr || '') },
@@ -414,7 +419,17 @@ function OperationsPageInner() {
       ];
     }
     if (view === 'oil') {
-      return [{ key: 'hint', header: 'ملاحظة', render: () => 'افتح تفاصيل مركبة من تقرير الفترة لعرض تغييرات الزيت.' }];
+      return [
+        { key: 'plate', header: 'اللوحة', render: (r) => cell(r.plateNumberAr) },
+        { key: 'date', header: 'التاريخ', render: (r) => cell(r.performedAt) },
+        { key: 'odo', header: 'العداد', render: (r) => cell(r.odometer) },
+        { key: 'liters', header: 'لترات', render: (r) => cell(r.oilLiters) },
+        { key: 'oil', header: 'تكلفة الزيت', render: (r) => cell(r.oilCost) },
+        { key: 'filter', header: 'الفلتر', render: (r) => cell(r.filterCost) },
+        { key: 'labor', header: 'أجور', render: (r) => cell(r.laborCost) },
+        { key: 'other', header: 'أخرى', render: (r) => cell(r.otherCost) },
+        { key: 'total', header: 'الإجمالي', render: (r) => cell(r.totalCost) },
+      ];
     }
     return [
       { key: 'plate', header: 'اللوحة والنوع', render: (r) => `${r.plateNumberAr || ''} · ${r.vehicleType || ''}` },

@@ -86,6 +86,34 @@ try{
   const company=await req('/api/operations/cities-summary');
   assert.equal(company.source,'store');
 
+  // M7: company-scoped purchases empty / detail 404 (store mode also empty list)
+  const purchases=await req('/api/operations/vehicles/purchase-invoices?from=2026-11-01&to=2026-11-30');
+  assert.equal(purchases.source,'store');
+  assert.equal(purchases.total,0);
+  await req('/api/operations/vehicles/purchase-invoices/00000000-0000-0000-0000-000000000099',undefined,404);
+
+  // H3: exports return files (not capped by list pageSize) — store mode still streams xlsx
+  await login('ops-admin',password);
+  for (const route of [
+    '/api/operations/cities-summary/export',
+    '/api/operations/housing/export',
+    '/api/operations/fuel-cards/export?month=2026-11',
+    '/api/operations/vehicles/period-report/export?from=2026-11-01&to=2026-11-30&mode=vehicle'
+  ]){
+    const r=await fetch(base+route,{headers:{Cookie:cookie}});
+    assert.equal(r.status,200,`export ${route}: ${r.status}`);
+    const ct=r.headers.get('content-type')||'';
+    assert.ok(ct.includes('spreadsheet')||ct.includes('octet-stream')||ct.includes('excel')||ct.includes('openxml'),`export content-type ${ct}`);
+    checks++;
+  }
+
+  // M9 oil period endpoint exists
+  const oil=await req('/api/operations/vehicles/oil-changes?from=2026-11-01&to=2026-11-30');
+  assert.ok('items' in oil);
+  assert.equal(oil.source,'store');
+
+  // H2 note: store housing rooms path still 404 without seeded housing — covered by SQL Server test
+
   console.log(`Operations live HTTP: ${checks} passed`);
 }finally{
   proc.kill('SIGTERM');
