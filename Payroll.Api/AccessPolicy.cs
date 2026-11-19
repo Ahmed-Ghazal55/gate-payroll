@@ -74,7 +74,7 @@ public static partial class AccessPolicy
         }
         if(path=="/api/dashboard")return method=="GET"&&Has("payroll.view");
         if(path.StartsWith("/api/system/",StringComparison.Ordinal))return false;
-        if(path=="/api/riders/sync-baseline"||path=="/api/riders/enrich-missing")return false;
+        if(path=="/api/riders/enrich-missing")return false;
         if(path=="/api/riders/lookup")return method=="GET"; // RiderLookup.Allowed re-checks the picker permissions in the handler.
         if(path=="/api/riders/data-quality"||path=="/api/riders")return method=="GET"?Has("riders.view"):method=="POST"&&Has("riders.edit");
         if(path.StartsWith("/api/riders/",StringComparison.Ordinal))return path.EndsWith("/profile-360",StringComparison.Ordinal)?method=="GET"&&Has("riders.view_360")&&Has("debts.view"):method=="GET"?Has("riders.view_360"):method=="POST"&&path.EndsWith("/documents",StringComparison.Ordinal)&&Has("riders.edit");
