@@ -221,11 +221,12 @@ public sealed class SchemaFinPeriodBalanceTests
                 object? raw=SchemaSql.Scalar(c,null,"SELECT dimension_key FROM fin.period_balance WHERE company_id=@cid AND account_id=@aid",
                     ("@cid",company),("@aid",account));
                 CollectionAssert.AreEqual(expected,(byte[])raw!);
+                // Same dims → same computed key; SQL Server reports the raw-dims unique (grain is equivalent under HASHBYTES).
                 SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
                     INSERT INTO fin.period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,opening,debit,credit,closing,created_at)
                     VALUES(@id,@pid,'2026-11-01',@cid,@aid,@cc,'none',0,1,0,1,SYSUTCDATETIME())
                     """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@cid",company),("@aid",account),("@cc",cc)),
-                    "UQ_fin_period_balance_grain");
+                    "UQ_fin_period_balance_dims");
                 return true;
             });
         }
