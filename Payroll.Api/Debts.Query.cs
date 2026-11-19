@@ -159,7 +159,8 @@ public static partial class Debts
         }
         if (filter.Category != null)
         {
-            if (AdvanceCategories.Contains(filter.Category) || string.Equals(filter.Category, "advance", StringComparison.OrdinalIgnoreCase))
+            // Only the "advance" tab expands the advance group; CashAdvance/BankAdvance/Advance stay exact.
+            if (string.Equals(filter.Category, "advance", StringComparison.OrdinalIgnoreCase))
                 AppendIn(sb, parms, categoryExpr, "adv", AdvanceCategories.Concat(["advance"]).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
             else
             {

@@ -245,10 +245,13 @@ public sealed class DebtsPagingTests
                 LegacyIds(store, scoped, d => d.S("status") == "active"),
                 SqlIds(store, scoped, ("status", "active")));
 
-            // Category filter (exact CashAdvance group expansion still applies until item #2)
+            // Exact category filter (CashAdvance does not expand to the whole advance group)
+            CollectionAssert.AreEqual(
+                LegacyIds(store, admin, d => d.S("category") == "CashAdvance"),
+                SqlIds(store, admin, ("category", "CashAdvance")));
             CollectionAssert.AreEqual(
                 LegacyIds(store, admin, d => AdvanceCategories.Contains(d.S("category")) || string.Equals(d.S("category"), "advance", StringComparison.OrdinalIgnoreCase)),
-                SqlIds(store, admin, ("category", "CashAdvance")));
+                SqlIds(store, admin, ("category", "advance")));
 
             // Admin keeps free-text platform + legacy category; scoped user does not.
             Assert.IsTrue(SqlIds(store, admin).Contains("a-free-plat"));
