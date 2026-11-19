@@ -144,6 +144,7 @@ export function CampaignsTab({
     {
       key: 'title',
       header: 'عنوان الحملة',
+      filterType: 'text',
       render: (c) => {
         const full = campaignLink(c);
         const short = shortCampaignLinkLabel(c);
@@ -176,6 +177,8 @@ export function CampaignsTab({
     {
       key: 'kind',
       header: 'النوع',
+      filterType: 'list',
+      getValue: (c) => (c.kind === 'iban' ? 'تحديث الآيبان' : 'اختيار نظام العمل'),
       render: (c) => (
         <span
           className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
@@ -191,6 +194,8 @@ export function CampaignsTab({
     {
       key: 'status',
       header: 'الحالة',
+      filterType: 'list',
+      getValue: (c) => (c.status === 'open' ? 'نشطة' : c.status === 'closed' ? 'مغلقة' : String(c.status || '')),
       render: (c) => (
         <span
           className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${

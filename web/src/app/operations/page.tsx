@@ -539,15 +539,17 @@ function OperationsPageInner() {
   const columns: ColumnDef<OpsRow>[] = useMemo(() => {
     if (tab === 'cities') {
       return [
-        { key: 'nameAr', header: 'المدينة', render: (r) => String(r.nameAr || '') },
-        { key: 'regs', header: 'السجلات النشطة', render: (r) => String(r.registrationNames || r.activeRegistrations || '') },
-        { key: 'veh', header: 'المركبات (سيارة/دراجة)', render: (r) => `${r.vehiclesCars ?? 0} / ${r.vehiclesMotorbikes ?? 0}` },
-        { key: 'riders', header: 'المناديب', render: (r) => String(r.ridersTotal ?? '') },
-        { key: 'apps', header: 'التطبيقات العاملة', render: (r) => String(r.appsWorking || '') },
-        { key: 'acc', header: 'الحسابات', render: (r) => `${r.accountsTotal ?? 0} / ${r.accountsActive ?? 0} / ${r.accountsAssigned ?? 0}` },
+        { key: 'nameAr', header: 'المدينة', filterType: 'list', getValue: (r) => String(r.nameAr || ''), render: (r) => String(r.nameAr || '') },
+        { key: 'regs', header: 'السجلات النشطة', filterType: 'text', getValue: (r) => String(r.registrationNames || r.activeRegistrations || ''), render: (r) => String(r.registrationNames || r.activeRegistrations || '') },
+        { key: 'veh', header: 'المركبات (سيارة/دراجة)', filterType: 'text', getValue: (r) => `${r.vehiclesCars ?? 0} / ${r.vehiclesMotorbikes ?? 0}`, render: (r) => `${r.vehiclesCars ?? 0} / ${r.vehiclesMotorbikes ?? 0}` },
+        { key: 'riders', header: 'المناديب', filterType: 'text', getValue: (r) => String(r.ridersTotal ?? ''), render: (r) => String(r.ridersTotal ?? '') },
+        { key: 'apps', header: 'التطبيقات العاملة', filterType: 'list', filterColumn: 'appsWorking', getValue: (r) => String(r.appsWorking || ''), render: (r) => String(r.appsWorking || '') },
+        { key: 'acc', header: 'الحسابات', filterType: 'text', getValue: (r) => `${r.accountsTotal ?? 0} / ${r.accountsActive ?? 0} / ${r.accountsAssigned ?? 0}`, render: (r) => `${r.accountsTotal ?? 0} / ${r.accountsActive ?? 0} / ${r.accountsAssigned ?? 0}` },
         {
           key: 'actions',
           header: 'إجراءات',
+          filterable: false,
+          sortable: false,
           render: (r) => (
             <button type="button" className="text-[var(--accent)]" onClick={() => void openCity(String(r.id))}>
               تفاصيل المدينة
@@ -558,16 +560,18 @@ function OperationsPageInner() {
     }
     if (tab === 'housing') {
       return [
-        { key: 'nameAr', header: 'اسم السكن', render: (r) => String(r.nameAr || '') },
-        { key: 'city', header: 'المدينة', render: (r) => String(r.city || '') },
-        { key: 'rooms', header: 'عدد الغرف', render: (r) => String(r.roomsCount ?? '') },
-        { key: 'res', header: 'إجمالي المناديب', render: (r) => String(r.residentsTotal ?? '') },
-        { key: 'per', header: 'مندوب/غرفة', render: (r) => String(r.ridersPerRoom ?? '') },
-        { key: 'sup', header: 'المشرف', render: () => NO_SOURCE },
-        { key: 'status', header: 'الحالة', render: (r) => String(r.status || '') },
+        { key: 'nameAr', header: 'اسم السكن', filterType: 'text', getValue: (r) => String(r.nameAr || ''), render: (r) => String(r.nameAr || '') },
+        { key: 'city', header: 'المدينة', filterType: 'list', getValue: (r) => String(r.city || ''), render: (r) => String(r.city || '') },
+        { key: 'rooms', header: 'عدد الغرف', filterType: 'text', getValue: (r) => String(r.roomsCount ?? ''), render: (r) => String(r.roomsCount ?? '') },
+        { key: 'res', header: 'إجمالي المناديب', filterType: 'text', getValue: (r) => String(r.residentsTotal ?? ''), render: (r) => String(r.residentsTotal ?? '') },
+        { key: 'per', header: 'مندوب/غرفة', filterType: 'text', getValue: (r) => String(r.ridersPerRoom ?? ''), render: (r) => String(r.ridersPerRoom ?? '') },
+        { key: 'sup', header: 'المشرف', filterable: false, render: () => NO_SOURCE },
+        { key: 'status', header: 'الحالة', filterType: 'list', getValue: (r) => String(r.status || ''), render: (r) => String(r.status || '') },
         {
           key: 'actions',
           header: 'إجراءات',
+          filterable: false,
+          sortable: false,
           render: (r) => (
             <button type="button" className="text-[var(--accent)]" onClick={() => void openHousing(String(r.id))}>
               عرض الغرف والمقيمين
@@ -582,6 +586,9 @@ function OperationsPageInner() {
           {
             key: 'cardName',
             header: 'اسم البطاقة',
+            filterType: 'list',
+            filterColumn: 'providerNameAr',
+            getValue: (r) => String(r.providerNameAr || formatFuelProviderAr(r.provider)),
             render: (r) => {
               const providerAr = String(r.providerNameAr || formatFuelProviderAr(r.provider));
               const notes = String(r.cardNotes || '').trim();
@@ -593,10 +600,12 @@ function OperationsPageInner() {
               );
             },
           },
-          { key: 'card', header: 'رقم البطاقة', render: (r) => <bdi className="font-mono font-medium">{String(r.cardNumber || '—')}</bdi> },
+          { key: 'card', header: 'رقم البطاقة', filterType: 'list', filterColumn: 'cardNumber', getValue: (r) => String(r.cardNumber || ''), render: (r) => <bdi className="font-mono font-medium">{String(r.cardNumber || '—')}</bdi> },
           {
             key: 'rider',
             header: 'المندوب',
+            filterType: 'text',
+            getValue: (r) => `${r.riderNameAr || ''} ${r.iqama || ''}`.trim(),
             render: (r) => (
               <div className="flex flex-col">
                 <span className="font-medium">{String(r.riderNameAr || '—')}</span>
@@ -604,14 +613,17 @@ function OperationsPageInner() {
               </div>
             ),
           },
-          { key: 'from', header: 'من', render: (r) => formatDateShort(r.effectiveFrom) },
-          { key: 'to', header: 'إلى', render: (r) => (r.effectiveTo ? formatDateShort(r.effectiveTo) : 'حتى الآن') },
+          { key: 'from', header: 'من', filterType: 'text', getValue: (r) => formatDateShort(r.effectiveFrom), render: (r) => formatDateShort(r.effectiveFrom) },
+          { key: 'to', header: 'إلى', filterType: 'text', getValue: (r) => (r.effectiveTo ? formatDateShort(r.effectiveTo) : 'حتى الآن'), render: (r) => (r.effectiveTo ? formatDateShort(r.effectiveTo) : 'حتى الآن') },
         ];
       }
       return [
         {
           key: 'cardName',
           header: 'اسم البطاقة',
+          filterType: 'list',
+          filterColumn: 'providerNameAr',
+          getValue: (r) => String(r.providerNameAr || formatFuelProviderAr(r.provider)),
           render: (r) => {
             const providerAr = String(r.providerNameAr || formatFuelProviderAr(r.provider));
             const notes = String(r.cardNotes || '').trim();
@@ -623,10 +635,12 @@ function OperationsPageInner() {
             );
           },
         },
-        { key: 'cardNumber', header: 'رقم البطاقة', render: (r) => <bdi className="font-mono font-medium">{String(r.cardNumber || '—')}</bdi> },
+        { key: 'cardNumber', header: 'رقم البطاقة', filterType: 'list', getValue: (r) => String(r.cardNumber || ''), render: (r) => <bdi className="font-mono font-medium">{String(r.cardNumber || '—')}</bdi> },
         {
           key: 'rider',
           header: 'المندوب الفعلي',
+          filterType: 'text',
+          getValue: (r) => `${r.riderNameAr || ''} ${r.iqama || ''}`.trim(),
           render: (r) => (
             <div className="flex flex-col">
               <span className="font-medium">{String(r.riderNameAr || '—')}</span>
@@ -634,15 +648,17 @@ function OperationsPageInner() {
             </div>
           ),
         },
-        { key: 'plate', header: 'المركبة', render: (r) => String(r.plateNumber || '—') },
-        { key: 'liters', header: 'اللترات', render: (r) => String(r.liters ?? '') },
-        { key: 'before', header: 'قبل الضريبة', render: (r) => String(r.amountBeforeTax ?? '') },
-        { key: 'vat', header: 'الضريبة', render: (r) => String(r.vat ?? '') },
-        { key: 'total', header: 'الإجمالي', render: (r) => String(r.totalInclVat ?? '') },
-        { key: 'cap', header: 'السقف', render: () => NO_SOURCE },
+        { key: 'plate', header: 'المركبة', filterType: 'list', filterColumn: 'plateNumber', getValue: (r) => String(r.plateNumber || ''), render: (r) => String(r.plateNumber || '—') },
+        { key: 'liters', header: 'اللترات', filterType: 'text', getValue: (r) => String(r.liters ?? ''), render: (r) => String(r.liters ?? '') },
+        { key: 'before', header: 'قبل الضريبة', filterType: 'text', getValue: (r) => String(r.amountBeforeTax ?? ''), render: (r) => String(r.amountBeforeTax ?? '') },
+        { key: 'vat', header: 'الضريبة', filterType: 'text', getValue: (r) => String(r.vat ?? ''), render: (r) => String(r.vat ?? '') },
+        { key: 'total', header: 'الإجمالي', filterType: 'text', getValue: (r) => String(r.totalInclVat ?? ''), render: (r) => String(r.totalInclVat ?? '') },
+        { key: 'cap', header: 'السقف', filterable: false, render: () => NO_SOURCE },
         {
           key: 'status',
           header: 'الحالة',
+          filterType: 'list',
+          getValue: (r) => formatFuelStatusAr(r.status),
           render: (r) => {
             const label = formatFuelStatusAr(r.status);
             const active = label === 'نشطة';
@@ -663,39 +679,41 @@ function OperationsPageInner() {
     }
     if (view === 'invoices') {
       return [
-        { key: 'num', header: 'رقم الاستلام', render: (r) => String(r.receiptNumber || '') },
-        { key: 'supInv', header: 'فاتورة المورد', render: (r) => String(r.supplierInvoiceNumber || '—') },
-        { key: 'sup', header: 'المورد', render: (r) => String(r.supplierNameAr || '—') },
-        { key: 'date', header: 'تاريخ الفاتورة', render: (r) => formatDateShort(r.invoiceDate) },
-        { key: 'receivedAt', header: 'تاريخ الاستلام', render: (r) => formatDateShort(r.receivedAt) },
-        { key: 'total', header: 'الإجمالي', render: (r) => String(r.totalAmount ?? '') },
-        { key: 'status', header: 'الحالة', render: (r) => formatPurchaseStatus(r.status) },
+        { key: 'num', header: 'رقم الاستلام', filterType: 'text', getValue: (r) => String(r.receiptNumber || ''), render: (r) => String(r.receiptNumber || '') },
+        { key: 'supInv', header: 'فاتورة المورد', filterType: 'text', getValue: (r) => String(r.supplierInvoiceNumber || ''), render: (r) => String(r.supplierInvoiceNumber || '—') },
+        { key: 'sup', header: 'المورد', filterType: 'list', filterColumn: 'supplierNameAr', getValue: (r) => String(r.supplierNameAr || ''), render: (r) => String(r.supplierNameAr || '—') },
+        { key: 'date', header: 'تاريخ الفاتورة', filterType: 'text', getValue: (r) => formatDateShort(r.invoiceDate), render: (r) => formatDateShort(r.invoiceDate) },
+        { key: 'receivedAt', header: 'تاريخ الاستلام', filterType: 'text', getValue: (r) => formatDateShort(r.receivedAt), render: (r) => formatDateShort(r.receivedAt) },
+        { key: 'total', header: 'الإجمالي', filterType: 'text', getValue: (r) => String(r.totalAmount ?? ''), render: (r) => String(r.totalAmount ?? '') },
+        { key: 'status', header: 'الحالة', filterType: 'list', getValue: (r) => formatPurchaseStatus(r.status), render: (r) => formatPurchaseStatus(r.status) },
       ];
     }
     if (view === 'oil') {
       return [
-        { key: 'plate', header: 'اللوحة', render: (r) => cell(r.plateNumberAr) },
-        { key: 'date', header: 'التاريخ', render: (r) => cell(r.performedAt) },
-        { key: 'odo', header: 'العداد', render: (r) => cell(r.odometer) },
-        { key: 'liters', header: 'لترات', render: (r) => cell(r.oilLiters) },
-        { key: 'oil', header: 'تكلفة الزيت', render: (r) => cell(r.oilCost) },
-        { key: 'filter', header: 'الفلتر', render: (r) => cell(r.filterCost) },
-        { key: 'labor', header: 'أجور', render: (r) => cell(r.laborCost) },
-        { key: 'other', header: 'أخرى', render: (r) => cell(r.otherCost) },
-        { key: 'total', header: 'الإجمالي', render: (r) => cell(r.totalCost) },
+        { key: 'plate', header: 'اللوحة', filterType: 'list', filterColumn: 'plateNumberAr', getValue: (r) => String(r.plateNumberAr || ''), render: (r) => cell(r.plateNumberAr) },
+        { key: 'date', header: 'التاريخ', filterType: 'text', getValue: (r) => formatDateShort(r.performedAt), render: (r) => cell(r.performedAt) },
+        { key: 'odo', header: 'العداد', filterType: 'text', getValue: (r) => String(r.odometer ?? ''), render: (r) => cell(r.odometer) },
+        { key: 'liters', header: 'لترات', filterType: 'text', getValue: (r) => String(r.oilLiters ?? ''), render: (r) => cell(r.oilLiters) },
+        { key: 'oil', header: 'تكلفة الزيت', filterType: 'text', getValue: (r) => String(r.oilCost ?? ''), render: (r) => cell(r.oilCost) },
+        { key: 'filter', header: 'الفلتر', filterType: 'text', getValue: (r) => String(r.filterCost ?? ''), render: (r) => cell(r.filterCost) },
+        { key: 'labor', header: 'أجور', filterType: 'text', getValue: (r) => String(r.laborCost ?? ''), render: (r) => cell(r.laborCost) },
+        { key: 'other', header: 'أخرى', filterType: 'text', getValue: (r) => String(r.otherCost ?? ''), render: (r) => cell(r.otherCost) },
+        { key: 'total', header: 'الإجمالي', filterType: 'text', getValue: (r) => String(r.totalCost ?? ''), render: (r) => cell(r.totalCost) },
       ];
     }
     return [
-      { key: 'plate', header: 'اللوحة والنوع', render: (r) => `${r.plateNumberAr || ''} · ${r.vehicleType || ''}` },
-      { key: 'rider', header: mode === 'rider' ? 'المندوب الفعلي' : 'المندوب / الفترة', render: (r) => String(r.riderNameAr || '') },
-      { key: 'city', header: 'المدينة', render: (r) => String(r.city || '') },
-      { key: 'days', header: 'أيام التشغيل', render: (r) => String(r.operatingDays ?? '') },
-      { key: 'parts', header: 'تكلفة قطع الغيار', render: (r) => String(r.sparePartsCost ?? '') },
-      { key: 'collect', header: 'الاستقطاع المطلوب', render: (r) => String(r.amountToCollect ?? '') },
-      { key: 'oil', header: 'زيت (عدد/تكلفة/كم)', render: (r) => `${r.oilChangesCount ?? 0} / ${r.oilChangesCost ?? 0} / ${r.oilMileage ?? '—'}` },
+      { key: 'plate', header: 'اللوحة والنوع', filterType: 'list', filterColumn: 'plateNumberAr', getValue: (r) => String(r.plateNumberAr || ''), render: (r) => `${r.plateNumberAr || ''} · ${r.vehicleType || ''}` },
+      { key: 'rider', header: mode === 'rider' ? 'المندوب الفعلي' : 'المندوب / الفترة', filterType: 'text', getValue: (r) => `${r.riderNameAr || ''} ${r.iqama || ''}`.trim(), render: (r) => String(r.riderNameAr || '') },
+      { key: 'city', header: 'المدينة', filterType: 'list', getValue: (r) => String(r.city || ''), render: (r) => String(r.city || '') },
+      { key: 'days', header: 'أيام التشغيل', filterType: 'text', getValue: (r) => String(r.operatingDays ?? ''), render: (r) => String(r.operatingDays ?? '') },
+      { key: 'parts', header: 'تكلفة قطع الغيار', filterType: 'text', getValue: (r) => String(r.sparePartsCost ?? ''), render: (r) => String(r.sparePartsCost ?? '') },
+      { key: 'collect', header: 'الاستقطاع المطلوب', filterType: 'text', getValue: (r) => String(r.amountToCollect ?? ''), render: (r) => String(r.amountToCollect ?? '') },
+      { key: 'oil', header: 'زيت (عدد/تكلفة/كم)', filterType: 'text', getValue: (r) => `${r.oilChangesCount ?? 0} / ${r.oilChangesCost ?? 0} / ${r.oilMileage ?? '—'}`, render: (r) => `${r.oilChangesCount ?? 0} / ${r.oilChangesCost ?? 0} / ${r.oilMileage ?? '—'}` },
       {
         key: 'actions',
         header: 'إجراءات',
+        filterable: false,
+        sortable: false,
         render: (r) => (
           <button type="button" className="text-[var(--accent)]" onClick={() => void openVehicle(String(r.vehicleId || r.id))}>
             تفاصيل المركبة
@@ -836,6 +854,8 @@ function OperationsPageInner() {
           data={items}
           getRowId={(r) => String(r.id || Math.random())}
           serverSide
+          distinctEndpoint="/operations/distinct"
+          distinctParams={{ tab, view, from, to, month, mode }}
           searchable={false}
           exportable={false}
           syncUrl={false}

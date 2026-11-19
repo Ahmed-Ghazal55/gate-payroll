@@ -392,12 +392,14 @@ export function ManualJournalsPanel({
         key: 'id',
         header: 'معرف القيد',
         filterable: true,
+        filterType: 'text',
         render: (j) => <span className="font-mono text-[11px] text-[var(--muted)]">{j.id}</span>,
       },
       {
         key: 'companyId',
         header: 'الشركة',
         filterable: true,
+        filterType: 'list',
         getValue: (j) => companies.find((c) => c.id === j.companyId)?.nameAr || j.companyName || j.companyId,
         render: (j) => {
           const comp = companies.find((c) => c.id === j.companyId);
@@ -408,23 +410,27 @@ export function ManualJournalsPanel({
         key: 'date',
         header: 'التاريخ',
         filterable: true,
+        filterType: 'text',
         render: (j) => <span className="num font-medium text-[var(--ink)]">{j.date}</span>,
       },
       {
         key: 'reference',
         header: 'المرجع',
+        filterType: 'text',
         render: (j) => <span className="font-mono text-xs text-[var(--muted)]">{j.reference || '—'}</span>,
       },
       {
         key: 'description',
         header: 'البيان العام',
         filterable: true,
+        filterType: 'text',
         render: (j) => <span className="text-xs text-[var(--ink)] max-w-xs truncate block">{j.description}</span>,
       },
       {
         key: 'totalDebit',
         header: 'المبلغ (ر.س)',
         numeric: true,
+        filterType: 'text',
         getValue: (j) => j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0),
         render: (j) => {
           const total = j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0);
@@ -435,12 +441,15 @@ export function ManualJournalsPanel({
         key: 'maker',
         header: 'المنشئ',
         filterable: true,
+        filterType: 'list',
         render: (j) => <span className="font-mono text-xs text-[var(--muted)]">{j.maker}</span>,
       },
       {
         key: 'status',
         header: 'الحالة',
         filterable: true,
+        filterType: 'list',
+        getValue: (j) => (j.status === 'approved' ? 'معتمد' : 'مسودة'),
         render: (j) =>
           j.status === 'approved' ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]">

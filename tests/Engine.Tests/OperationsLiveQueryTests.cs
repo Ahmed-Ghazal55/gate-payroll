@@ -201,5 +201,18 @@ public sealed class OperationsLiveQueryTests
         CollectionAssert.AreEquivalent(new[] { "inv-1", "inv-2", "inv-3", "inv-4" }, items.Select(i => i["id"]!.GetValue<string>()).ToList());
         Assert.IsTrue(items.Any(i => i["status"]!.GetValue<string>() == "مرحّل"));
         Assert.IsTrue(items.Any(i => i["status"]!.GetValue<string>() == "معكوس"));
+
+        // Verify GET /api/operations/distinct returns distinct suppliers & closed-set statuses
+        var distinctMethod = typeof(OperationsLiveApi).GetMethod("DistinctValues", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new AssertFailedException("missing DistinctValues handler");
+        var dCtx = new DefaultHttpContext { User = PayFixture.Maker };
+        dCtx.Request.QueryString = new QueryString("?tab=vehicles&view=invoices&column=status&from=2026-11-01&to=2026-11-30");
+        var dRes = (JsonObject)distinctMethod.Invoke(null, [f.Store, cfg, env, dCtx])!;
+        CollectionAssert.AreEquivalent(new[] { "مرحّل", "معكوس" }, dRes["values"]!.AsArray().Select(n => n!.GetValue<string>()).ToList());
+
+        var dSupCtx = new DefaultHttpContext { User = PayFixture.Maker };
+        dSupCtx.Request.QueryString = new QueryString("?tab=vehicles&view=invoices&column=supplierNameAr&from=2026-11-01&to=2026-11-30");
+        var dSupRes = (JsonObject)distinctMethod.Invoke(null, [f.Store, cfg, env, dSupCtx])!;
+        Assert.AreEqual(4, dSupRes["values"]!.AsArray().Count);
     }
 }

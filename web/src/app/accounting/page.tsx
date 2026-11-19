@@ -315,6 +315,7 @@ function AccountingPageContent() {
     {
       key: 'code',
       header: 'رمز الحساب',
+      filterType: 'list',
       render: (acc) => (
         <span className="font-mono font-bold text-xs num text-[var(--accent)] bg-[var(--raised)] px-2 py-0.5 rounded border border-[var(--line)]">
           {acc.code}
@@ -324,6 +325,7 @@ function AccountingPageContent() {
     {
       key: 'nameAr',
       header: 'اسم الحساب المحاسبي',
+      filterType: 'text',
       render: (acc) => {
         const indentClass =
           acc.level === 1
@@ -351,6 +353,8 @@ function AccountingPageContent() {
     {
       key: 'posting',
       header: 'نوع الحساب',
+      filterType: 'list',
+      getValue: (acc) => ((acc.posting ?? acc.isPosting) ? 'ترحيل مباشر' : 'رئيسي تجميعي'),
       render: (acc) => {
         const isPosting = acc.posting ?? acc.isPosting;
         return isPosting ? (
@@ -369,6 +373,8 @@ function AccountingPageContent() {
     {
       key: 'nature',
       header: 'الطبيعة',
+      filterType: 'list',
+      getValue: (acc) => ((acc.nature || '').toLowerCase() === 'debit' ? 'مدين' : 'دائن'),
       render: (acc) => {
         const isDebit = (acc.nature || '').toLowerCase() === 'debit';
         return (
@@ -381,6 +387,13 @@ function AccountingPageContent() {
     {
       key: 'source',
       header: 'مصدر الاعتماد',
+      filterType: 'list',
+      getValue: (acc) => {
+        const src = (acc.source || acc.sourceType || '').toLowerCase();
+        if (src.includes('excel')) return 'Excel 2024';
+        if (src.includes('mod')) return 'تعديل مالي';
+        return 'حساب جديد';
+      },
       render: (acc) => {
         const src = (acc.source || acc.sourceType || '').toLowerCase();
         if (src.includes('excel')) {

@@ -44,6 +44,58 @@ public static partial class Debts
         return new { items, total, page, pageSize };
     }
 
+    static readonly Dictionary<string, string> DistinctColumnMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["status"] = "status",
+        ["category"] = "category",
+        ["categoryAr"] = "categoryAr",
+        ["creditorSponsorId"] = "creditorSponsorId",
+        ["originSponsorId"] = "originSponsorId",
+        ["companyId"] = "creditorSponsorId",
+        ["company"] = "creditorSponsorId",
+        ["platform"] = "platform",
+        ["source"] = "source",
+        ["entryMode"] = "entryMode"
+    };
+
+    /// <summary>Light scoped distinct values for DataTable column list filters.</summary>
+    public static JsonObject Distinct(DbConnection c, ClaimsPrincipal actor, IQueryCollection query)
+    {
+        string rawCol = (query["column"].ToString() ?? "").Trim();
+        if (!DistinctColumnMap.TryGetValue(rawCol, out string? field))
+            return new JsonObject { ["column"] = rawCol, ["values"] = new JsonArray() };
+        var filter = ParseFilter(query) with { Status = null, Category = null, Search = null };
+        var (where, parms) = BuildWhere(c, actor, filter);
+        string expr = RiderDataIndexes.FieldExpr(c, field);
+        bool sqlite = c is SqliteConnection;
+        string sql = sqlite
+            ? $"SELECT DISTINCT {expr} AS v FROM records WHERE {where} AND {expr} IS NOT NULL AND {expr} <> '' ORDER BY v LIMIT 500"
+            : $"SELECT DISTINCT TOP 500 {expr} AS v FROM records WHERE {where} AND {expr} IS NOT NULL AND {expr} <> '' ORDER BY v";
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = sql;
+        foreach (var (k, v) in parms)
+        {
+            var p = cmd.CreateParameter();
+            p.ParameterName = k;
+            p.Value = v ?? DBNull.Value;
+            cmd.Parameters.Add(p);
+        }
+        var set = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (reader.IsDBNull(0)) continue;
+            string v = Convert.ToString(reader.GetValue(0), CultureInfo.InvariantCulture)?.Trim() ?? "";
+            if (v.Length == 0) continue;
+            set.Add(v);
+        }
+        return new JsonObject
+        {
+            ["column"] = rawCol,
+            ["values"] = new JsonArray(set.Select(v => (JsonNode?)v).ToArray())
+        };
+    }
+
     /// <summary>Light SQL aggregates for debts stat cards (scoped like the list).</summary>
     public static JsonObject Summary(DbConnection c, ClaimsPrincipal actor, IQueryCollection query)
     {

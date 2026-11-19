@@ -2304,4 +2304,15 @@ export const api = {
     handleRequest<Record<string, unknown>>('/debts', { method: 'POST', body: JSON.stringify(input) }),
   collectDebt: (id: string, input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>(`/debts/${encodeURIComponent(id)}/collect`, { method: 'POST', body: JSON.stringify(input) }),
+  getDistinctValues: (endpoint: string, column: string, params?: Record<string, string | undefined>) => {
+    const q = new URLSearchParams();
+    q.set('column', column);
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== '') q.set(k, v);
+      });
+    }
+    const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return handleRequest<{ column: string; values: string[] }>(`${clean}?${q.toString()}`);
+  },
 };

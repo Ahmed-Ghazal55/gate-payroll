@@ -77,6 +77,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/workforce/legal-cases` | Payroll.Api/WorkforceApi.cs:36 | riders.view; live ERP when configured; always paginated on list | none | keep |
 | GET | `/api/workforce/saudi-payroll-employees` | Payroll.Api/WorkforceApi.cs:30 | riders.view; live ERP when configured; always paginated on list | none | keep |
 | GET | `/api/workforce/summary` | Payroll.Api/WorkforceApi.cs:24 | riders.view; live ERP when configured; always paginated on list | none | keep |
+| GET | `/api/workforce/distinct` | Payroll.Api/WorkforceApi.cs:26 | riders.view; distinct values for column list filters | none | keep |
 | GET | `/api/workforce/terminated` | Payroll.Api/WorkforceApi.cs:32 | riders.view; live ERP when configured; always paginated on list | none | keep |
 | GET | `/api/workforce/{id}/360` | Payroll.Api/WorkforceApi.cs:28 | riders.view_360 + debts.view; live ERP when configured | none | keep |
 
@@ -235,6 +236,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/operations/cities-summary` | Payroll.Api/OperationsLiveApi.cs:18 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/operations/cities-summary/export` | Payroll.Api/OperationsLiveApi.cs:42 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/operations/cities/{id}` | Payroll.Api/OperationsLiveApi.cs:20 | operations.view; company/platform scope; always paginated | none | keep |
+| GET | `/api/operations/distinct` | Payroll.Api/OperationsLiveApi.cs:50 | operations.view; distinct values for column list filters | none | keep |
 | GET | `/api/operations/fuel-cards` | Payroll.Api/OperationsLiveApi.cs:38 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/operations/fuel-cards/assignments` | Payroll.Api/OperationsLiveApi.cs:40 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/operations/fuel-cards/export` | Payroll.Api/OperationsLiveApi.cs:48 | operations.view; company/platform scope; always paginated | none | keep |
@@ -264,6 +266,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/debts/import-opening/template` | Payroll.Api/Debts.cs:668 | debts.view | old UI | keep |
 | GET | `/api/debts/settlements` | Payroll.Api/Debts.cs:136 | debts.view | none | deprecated |
 | GET | `/api/debts/summary` | Payroll.Api/Debts.cs:134 | debts.view | none | keep |
+| GET | `/api/debts/distinct` | Payroll.Api/Debts.cs:136 | debts.view; distinct values for column list filters | none | keep |
 | GET | `/api/debts/{id}` | Payroll.Api/Debts.cs:143 | debts.view | old UI | keep |
 | GET | `/api/promissory-notes` | Payroll.Api/FinancialCore.cs:1184 | debts.view (promissory writes: Admin + feature enabled) | old UI | keep |
 | POST | `/api/advance-requests` | Payroll.Api/AdvanceRequests.cs:228 | advances.request | none | keep |

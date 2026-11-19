@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:35473/"
+      "url": "http://127.0.0.1:45897/"
     }
   ],
   "paths": {
@@ -16395,6 +16395,41 @@
         }
       }
     },
+    "/api/operations/distinct": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Distinct column values for operations table filters",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "column",
+                    "values"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/operations/{kind}": {
       "get": {
         "tags": [
@@ -18540,6 +18575,41 @@
                       "type": "string"
                     },
                     "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workforce/distinct": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "Distinct column values for workforce table filters",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "column",
+                    "values"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "values": {
                       "type": "array",
                       "items": {
                         "type": "string"
@@ -21103,6 +21173,41 @@
                     },
                     "pendingOpeningTotal": {
                       "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/debts/distinct": {
+      "get": {
+        "tags": [
+          "Debts and advances"
+        ],
+        "summary": "Distinct column values for debts table filters",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "column",
+                    "values"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   }
                 }

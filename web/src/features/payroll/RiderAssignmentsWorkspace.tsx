@@ -182,6 +182,7 @@ export function RiderAssignmentsWorkspace({
         header: 'إقامة المندوب',
         sortable: true,
         filterable: true,
+        filterType: 'text',
         render: (row) => (
           <span className="font-mono font-bold text-[var(--ink)]">{row.rider}</span>
         ),
@@ -191,6 +192,7 @@ export function RiderAssignmentsWorkspace({
         header: 'اسم المندوب',
         sortable: true,
         filterable: true,
+        filterType: 'text',
         render: (row) => <span className="font-semibold text-xs">{row.name}</span>,
       },
       {
@@ -198,6 +200,7 @@ export function RiderAssignmentsWorkspace({
         header: 'الشركة / الكفيل',
         sortable: true,
         filterable: true,
+        filterType: 'list',
         render: (row) => (
           <span className="px-2 py-0.5 rounded-md bg-[var(--raised)] text-xs font-mono">
             {row.sponsor}
@@ -209,6 +212,7 @@ export function RiderAssignmentsWorkspace({
         header: 'النظام الداخلي المكلف به',
         sortable: true,
         filterable: true,
+        filterType: 'list',
         render: (row) => {
           const isAssigned = row.isAssigned;
           return isAssigned ? (
@@ -227,11 +231,13 @@ export function RiderAssignmentsWorkspace({
         key: 'choiceApprovedAt',
         header: 'تاريخ اعتماد الاختيار',
         sortable: true,
+        filterType: 'text',
         render: (row) => <span className="font-mono text-xs text-[var(--muted)]">{row.choiceApprovedAt}</span>,
       },
       {
         key: 'sourceKind',
         header: 'مصدر الاختيار',
+        filterType: 'list',
         render: (row) => <span className="text-xs text-[var(--muted)]">{row.sourceKind}</span>,
       },
       {

@@ -660,12 +660,14 @@ export function NinjaInvoiceUploadScreen({
       {
         key: 'captainId',
         header: 'معرف الكابتن (Captain ID)',
+        filterType: 'text',
         getValue: (line) => line.captainId,
         render: (line) => <span className="font-mono font-bold text-xs text-[var(--ink)]">{line.captainId}</span>,
       },
       {
         key: 'status',
         header: 'حالة المطابقة',
+        filterType: 'list',
         getValue: (line) => {
           const hasDiffs = (line.diffs && line.diffs.length > 0) || line.status === 'error';
           return hasDiffs ? 'يوجد فرق' : 'مطابق 100%';

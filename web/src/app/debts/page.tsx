@@ -771,17 +771,21 @@ function DebtsPageContent() {
         key: 'iqama',
         header: 'رقم الإقامة',
         filterable: true,
+        filterType: 'text',
         render: (d) => <span className="font-mono font-bold text-[var(--accent)]">{d.iqama}</span>,
       },
       {
         key: 'riderName',
         header: 'اسم المندوب',
         filterable: true,
+        filterType: 'text',
         render: (d) => <span className="font-semibold">{d.riderName || 'مندوب مسجل'}</span>,
       },
       {
         key: 'category',
         header: 'فئة البند',
+        filterType: 'list',
+        filterColumn: 'categoryAr',
         getValue: (d) => debtCategoryLabel(d),
         render: (d) => (
           <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
@@ -793,6 +797,7 @@ function DebtsPageContent() {
         key: 'originalAmount',
         header: 'المبلغ الأصلي',
         numeric: true,
+        filterType: 'text',
         getValue: (d) => d.originalAmount ?? 0,
         render: (d) => (
           <span className="num text-[var(--muted)]">
@@ -804,6 +809,7 @@ function DebtsPageContent() {
         key: 'remainingAmount',
         header: 'المبلغ المتبقي',
         numeric: true,
+        filterType: 'text',
         getValue: (d) => d.remainingAmount ?? 0,
         render: (d) => (
           <span className="num font-bold text-sm text-[var(--danger)]">
@@ -815,6 +821,7 @@ function DebtsPageContent() {
         key: 'monthlyInstallment',
         header: 'القسط الشهري',
         numeric: true,
+        filterType: 'text',
         getValue: (d) => d.monthlyInstallment || d.monthlyDeduction || 0,
         render: (d) => {
           const val = d.monthlyInstallment || d.monthlyDeduction || 0;
@@ -828,6 +835,7 @@ function DebtsPageContent() {
       {
         key: 'status',
         header: 'الحالة',
+        filterType: 'list',
         getValue: (d) => debtStatusLabel(d.status),
         render: (d) => (
           <span
@@ -846,6 +854,8 @@ function DebtsPageContent() {
       {
         key: 'actions',
         header: 'الإجراءات',
+        filterable: false,
+        sortable: false,
         render: (d) => (
           <button
             type="button"
@@ -1241,6 +1251,7 @@ function DebtsPageContent() {
               showTotals={true}
               searchable={false}
               serverSide={true}
+              distinctEndpoint="/debts/distinct"
               totalCount={debtsTotal}
               page={debtsPage}
               pageSize={debtsPageSize}

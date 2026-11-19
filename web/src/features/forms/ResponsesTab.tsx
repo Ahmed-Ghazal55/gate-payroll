@@ -229,6 +229,7 @@ export function ResponsesTab({
     {
       key: 'name',
       header: 'اسم المندوب',
+      filterType: 'text',
       render: (s) => (
         <div className="flex flex-col">
           <strong className="font-bold text-[var(--ink)]">{s.name}</strong>
@@ -243,11 +244,13 @@ export function ResponsesTab({
     {
       key: 'iqama',
       header: 'رقم الإقامة',
+      filterType: 'text',
       render: (s) => <span className="num font-mono text-xs font-bold">{s.iqama}</span>,
     },
     {
       key: 'choice',
       header: 'البيان / الآيبان',
+      filterType: 'text',
       getValue: (s) => (s.iban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : workSystemLabel(s)),
       exportColumns: [
         { header: 'الآيبان', value: (s) => (s.iban ? cleanIban(s.iban) : '') },
@@ -265,6 +268,7 @@ export function ResponsesTab({
     {
       key: 'campaign',
       header: 'الحملة',
+      filterType: 'list',
       getValue: (s) => campaignName(s),
       render: (s) => (
         <span
@@ -278,6 +282,7 @@ export function ResponsesTab({
     {
       key: 'status',
       header: 'الحالة',
+      filterType: 'list',
       getValue: (s) => statusLabel(s),
       render: (s) => {
         const badges = {

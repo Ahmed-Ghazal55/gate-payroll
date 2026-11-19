@@ -599,6 +599,7 @@ function WorkforcePageInner() {
         key: 'person',
         header: 'الشخص / الإقامة',
         filterable: true,
+        filterType: 'text',
         getValue: (r) => `${r.name || ''} ${r.iqama || ''}`,
         render: (r) => (
           <StackedCell
@@ -615,7 +616,9 @@ function WorkforcePageInner() {
       {
         key: 'contact',
         header: 'التواصل / المدينة',
-        getValue: (r) => `${r.phone || ''} ${r.city || ''}`,
+        filterType: 'list',
+        filterColumn: 'city',
+        getValue: (r) => r.city || '',
         render: (r) => (
           <StackedCell
             primary={r.phone || '—'}
@@ -627,7 +630,9 @@ function WorkforcePageInner() {
       {
         key: 'sponsor',
         header: 'الكفيل / الدور',
-        getValue: (r) => `${r.sponsorNameAr || r.sponsor || ''} ${r.workType || ''}`,
+        filterType: 'list',
+        filterColumn: 'sponsorNameAr',
+        getValue: (r) => r.sponsorNameAr || r.sponsor || '',
         render: (r) => (
           <StackedCell
             primary={r.sponsorNameAr || r.sponsor || '—'}
@@ -639,7 +644,9 @@ function WorkforcePageInner() {
       {
         key: 'platform',
         header: 'المنصة / الآيبان',
-        getValue: (r) => `${r.platform || r.platforms || ''} ${r.iban || ''}`,
+        filterType: 'list',
+        filterColumn: 'platform',
+        getValue: (r) => r.platform || r.platforms || '',
         render: (r) => (
           <div className="flex flex-col gap-1.5 min-w-0">
             <StackedCell
@@ -662,7 +669,9 @@ function WorkforcePageInner() {
       {
         key: 'mudadSalary',
         header: 'راتب مدد / المركبة',
-        getValue: (r) => `${r.mudadSalary || ''} ${vehicleLabel(r)}`,
+        filterType: 'list',
+        filterColumn: 'companyVehicleType',
+        getValue: (r) => vehicleLabel(r),
         render: (r) => (
           <StackedCell
             primary={<span className="whitespace-nowrap">{r.mudadSalary || '—'}</span>}
@@ -683,6 +692,8 @@ function WorkforcePageInner() {
         key: 'status',
         header: 'الحالة',
         filterable: true,
+        filterType: 'list',
+        getValue: (r) => statusLabel(r.status),
         render: (r) => (
           <StackedCell
             primary={
@@ -1171,6 +1182,7 @@ function WorkforcePageInner() {
               emptyDescription="لا توجد سجلات تطابق الفلاتر الحالية."
               exportFilename="workforce_directory"
               serverSide
+              distinctEndpoint="/workforce/distinct"
               page={page}
               pageSize={pageSize}
               pageSizes={PAGE_SIZES}

@@ -6,6 +6,7 @@ import { Send, UserRound, History } from 'lucide-react';
 import { api, type RiderBroadcast } from '../../lib/api';
 import { SectionTabs } from '../../components/ui/SectionTabs';
 import { DataTable, type ColumnDef } from '../../components/ui/DataTable';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Dialog } from '../../components/ui/Dialog';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { useToast } from '../../components/ui/Toast';
@@ -259,41 +260,40 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
   }, [load, reloadKey]);
 
   const columns: ColumnDef<RiderBroadcast>[] = [
-    { key: 'titleAr', header: 'العنوان', render: (b) => <span className="font-bold">{b.titleAr}</span> },
+    { key: 'titleAr', header: 'العنوان', filterType: 'text', render: (b) => <span className="font-bold">{b.titleAr}</span> },
     {
       key: 'targetIqama',
       header: 'المستهدف',
+      filterType: 'text',
       getValue: (b) => (b.targetIqama === 'ALL' ? 'كل المناديب' : b.targetIqama),
       render: (b) => (b.targetIqama === 'ALL' ? 'كل المناديب' : <span className="font-mono" dir="ltr">{b.targetIqama}</span>),
     },
-    { key: 'kind', header: 'النوع', getValue: (b) => KIND_LABEL[b.kind ?? ''] || b.kind || '' },
-    { key: 'category', header: 'التصنيف', getValue: (b) => CATEGORY_LABEL[b.category ?? ''] || b.category || '' },
-    { key: 'readCount', header: 'قراءات', numeric: true, getValue: (b) => b.readCount ?? 0 },
-    { key: 'ackCount', header: 'إقرارات', numeric: true, getValue: (b) => b.ackCount ?? 0 },
-    { key: 'sentBy', header: 'أرسله', getValue: (b) => b.sentBy ?? '' },
-    { key: 'createdAt', header: 'وقت الإرسال', getValue: (b) => (b.createdAt ? new Date(b.createdAt).toLocaleString('ar-SA') : '') },
+    { key: 'kind', header: 'النوع', filterType: 'list', filterOptions: Object.values(KIND_LABEL).map((l) => ({ value: l, label: l })), getValue: (b) => KIND_LABEL[b.kind ?? ''] || b.kind || '' },
+    { key: 'category', header: 'التصنيف', filterType: 'list', filterOptions: Object.values(CATEGORY_LABEL).map((l) => ({ value: l, label: l })), getValue: (b) => CATEGORY_LABEL[b.category ?? ''] || b.category || '' },
+    { key: 'readCount', header: 'قراءات', numeric: true, filterType: 'text', getValue: (b) => b.readCount ?? 0 },
+    { key: 'ackCount', header: 'إقرارات', numeric: true, filterType: 'text', getValue: (b) => b.ackCount ?? 0 },
+    { key: 'sentBy', header: 'أرسله', filterType: 'list', getValue: (b) => b.sentBy ?? '' },
+    { key: 'createdAt', header: 'وقت الإرسال', filterType: 'text', getValue: (b) => (b.createdAt ? new Date(b.createdAt).toLocaleString('ar-SA') : '') },
   ];
 
   return (
     <div className="space-y-3">
-      <label className="flex items-center gap-2 text-xs">
+      <div className="flex items-center gap-2 text-xs">
         <span className="font-bold">النوع:</span>
-        <select
-          value={kind}
-          onChange={(e) => {
-            setKind(e.target.value);
-            setPage(1);
-          }}
-          className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]"
-        >
-          <option value="">الكل</option>
-          {Object.entries(KIND_LABEL).map(([k, l]) => (
-            <option key={k} value={k}>
-              {l}
-            </option>
-          ))}
-        </select>
-      </label>
+        <div className="w-52">
+          <SearchableSelect
+            value={kind}
+            onChange={(val) => {
+              setKind(val);
+              setPage(1);
+            }}
+            clearable
+            placeholder="الكل"
+            ariaLabel="تصفية بنوع الإشعار"
+            options={Object.entries(KIND_LABEL).map(([k, l]) => ({ value: k, label: l }))}
+          />
+        </div>
+      </div>
       <DataTable
         tableId="rider-app-broadcasts"
         columns={columns}

@@ -155,11 +155,15 @@ function HrCatalogsPageInner() {
           {
             key: 'SponsorType',
             header: 'النوع',
+            filterType: 'list',
+            getValue: (r) => cellText(pickField(r, 'SponsorType', 'sponsorType')),
             render: (r) => <span>{cellText(pickField(r, 'SponsorType', 'sponsorType'))}</span>,
           },
           {
             key: 'Status',
             header: 'الحالة',
+            filterType: 'list',
+            getValue: (r) => cellText(pickField(r, 'Status', 'status')),
             render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
           },
         ];
@@ -168,6 +172,8 @@ function HrCatalogsPageInner() {
           {
             key: 'Code',
             header: 'الرمز',
+            filterType: 'list',
+            getValue: (r) => cellText(pickField(r, 'Code', 'code')),
             render: (r) => (
               <span className="font-mono font-bold text-[var(--accent)]">
                 {cellText(pickField(r, 'Code', 'code'))}
@@ -177,6 +183,8 @@ function HrCatalogsPageInner() {
           {
             key: 'NameAr',
             header: 'المدينة',
+            filterType: 'list',
+            getValue: (r) => cellText(pickField(r, 'NameAr', 'nameAr')),
             render: (r) => (
               <span className="font-semibold">
                 {cellText(pickField(r, 'NameAr', 'nameAr'))}
@@ -186,16 +194,22 @@ function HrCatalogsPageInner() {
           {
             key: 'RegionAr',
             header: 'المنطقة',
+            filterType: 'list',
+            getValue: (r) => cellText(pickField(r, 'RegionAr', 'regionAr')),
             render: (r) => <span>{cellText(pickField(r, 'RegionAr', 'regionAr'))}</span>,
           },
           {
             key: 'CountryCode',
             header: 'الدولة',
+            filterType: 'list',
+            getValue: (r) => cellText(pickField(r, 'CountryCode', 'countryCode')),
             render: (r) => <span className="font-mono">{cellText(pickField(r, 'CountryCode', 'countryCode'))}</span>,
           },
           {
             key: 'Status',
             header: 'الحالة',
+            filterType: 'list',
+            getValue: (r) => cellText(pickField(r, 'Status', 'status')),
             render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
           },
           {

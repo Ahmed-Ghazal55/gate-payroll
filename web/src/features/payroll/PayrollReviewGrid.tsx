@@ -109,6 +109,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'name',
         header: 'المندوب',
+        filterType: 'text',
         getValue: (r) => `${r.name || ''} ${r.rider || ''}`,
         render: (row) => (
           <div
@@ -123,6 +124,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'status',
         header: 'الحالة',
+        filterType: 'list',
         getValue: (r) => (r.status === 'ready' ? 'جاهز' : 'يحتاج قرار'),
         render: (row) => (
           <span

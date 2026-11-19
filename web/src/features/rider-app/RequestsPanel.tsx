@@ -125,10 +125,11 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
   };
 
   const columns: ColumnDef<ServiceRequest>[] = [
-    { key: 'id', header: 'رقم الطلب', getValue: (r) => r.id.replace(/^sreq:/, '').slice(0, 8), render: (r) => <span className="font-mono text-xs" dir="ltr">{r.id.replace(/^sreq:/, '').slice(0, 8)}</span> },
+    { key: 'id', header: 'رقم الطلب', filterType: 'text', getValue: (r) => r.id.replace(/^sreq:/, '').slice(0, 8), render: (r) => <span className="font-mono text-xs" dir="ltr">{r.id.replace(/^sreq:/, '').slice(0, 8)}</span> },
     {
       key: 'rider',
       header: 'المندوب والإقامة',
+      filterType: 'text',
       getValue: (r) => `${r.riderName ?? ''} ${r.riderIqama}`,
       exportColumns: [
         { header: 'المندوب', value: (r) => r.riderName ?? '' },
@@ -141,14 +142,16 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
         </div>
       ),
     },
-    { key: 'requestType', header: 'النوع', getValue: (r) => TYPE_LABEL[r.requestType] || r.requestType },
-    { key: 'details', header: 'التفاصيل', getValue: details },
-    { key: 'direction', header: 'الاتجاه', getValue: (r) => (r.direction === 'admin_to_rider' ? 'من الإدارة للمندوب' : 'من المندوب') },
-    { key: 'createdAt', header: 'تاريخ الإرسال', getValue: (r) => (r.createdAt ? new Date(r.createdAt).toLocaleString('ar-SA') : '') },
-    { key: 'status', header: 'الحالة', getValue: (r) => STATUS_LABEL[r.status] || r.status },
+    { key: 'requestType', header: 'النوع', filterType: 'list', filterOptions: Object.values(TYPE_LABEL).map((l) => ({ value: l, label: l })), getValue: (r) => TYPE_LABEL[r.requestType] || r.requestType },
+    { key: 'details', header: 'التفاصيل', filterType: 'text', getValue: details },
+    { key: 'direction', header: 'الاتجاه', filterType: 'list', filterOptions: [{ value: 'من الإدارة للمندوب', label: 'من الإدارة للمندوب' }, { value: 'من المندوب', label: 'من المندوب' }], getValue: (r) => (r.direction === 'admin_to_rider' ? 'من الإدارة للمندوب' : 'من المندوب') },
+    { key: 'createdAt', header: 'تاريخ الإرسال', filterType: 'text', getValue: (r) => (r.createdAt ? new Date(r.createdAt).toLocaleString('ar-SA') : '') },
+    { key: 'status', header: 'الحالة', filterType: 'list', filterOptions: Object.values(STATUS_LABEL).map((l) => ({ value: l, label: l })), getValue: (r) => STATUS_LABEL[r.status] || r.status },
     {
       key: 'actions',
       header: 'الإجراء',
+      filterable: false,
+      sortable: false,
       render: (r) => (
         <div className="flex flex-wrap gap-1">
           {(r.allowedActions ?? []).map((a) => (

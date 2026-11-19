@@ -23,6 +23,8 @@ public static class WorkforceApi
             .WithTags("Workforce").WithSummary("Paged workforce directory (live ERP when configured)");
         api.MapGet("/workforce/summary", (HttpContext ctx) => Summary(store, config, env, ctx))
             .WithTags("Workforce").WithSummary("KPI counts for workforce filter cards");
+        api.MapGet("/workforce/distinct", (HttpContext ctx) => DistinctValues(store, config, env, ctx))
+            .WithTags("Workforce").WithSummary("Distinct column values for workforce table filters");
         api.MapGet("/workforce/export", (HttpContext ctx) => Export(store, config, env, ctx))
             .WithTags("Workforce").WithSummary("Server-side Excel export of workforce rows (H21)");
         api.MapGet("/workforce/{id}/360", (string id, HttpContext ctx) => Profile360(store, config, env, id, ctx))
@@ -85,6 +87,47 @@ public static class WorkforceApi
                 return Envelope(new { summary }, Operations.SourceLive, asOf, Actions(ctx.User));
             });
         }, "workforce");
+    }
+
+    static readonly HashSet<string> WorkforceDistinctColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "status", "city", "sponsorNameAr", "sponsor", "platform", "platforms",
+        "workType", "engagementType", "nationality", "jobTitle", "companyVehicleType", "housing"
+    };
+
+    static object DistinctValues(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "riders.view");
+        string column = (ctx.Request.Query["column"].ToString() ?? "").Trim();
+        if (!WorkforceDistinctColumns.Contains(column))
+            return new JsonObject { ["column"] = column, ["values"] = new JsonArray() };
+        var request = ParseList(ctx) with { Page = 1, PageSize = WorkforceLiveQuery.MaxPageSize, Skip = 0, Take = WorkforceLiveQuery.MaxPageSize };
+        List<JsonObject> rows;
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+        {
+            rows = store.Read(c => StoreList(c, ctx.User, request with { Page = 1, PageSize = 5_000, Skip = 0, Take = 5_000 }).Items.ToList());
+        }
+        else
+        {
+            rows = LiveRead(ctx, token =>
+            {
+                using var erp = OpenErp(config);
+                return store.Read(c =>
+                {
+                    var scope = Operations.LiveScope(c, ctx.User);
+                    return WorkforceLiveQuery.Page(erp, request with { QueryAlt = "" }, scope, token).Items.ToList();
+                });
+            }, "workforce-distinct");
+        }
+        var values = rows
+            .Select(r => r.S(column).Trim())
+            .Where(v => v.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(v => v, StringComparer.OrdinalIgnoreCase)
+            .Take(500)
+            .Select(v => (JsonNode?)v)
+            .ToArray();
+        return new JsonObject { ["column"] = column, ["values"] = new JsonArray(values) };
     }
 
     static IResult Export(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)

@@ -322,6 +322,7 @@ function PayrollPageInner() {
         key: 'rider',
         header: 'إقامة المندوب',
         filterable: true,
+        filterType: 'text',
         render: (line) => (
           <Link
             href={`/riders/statement?iqama=${line.rider}&period=${selectedPeriod}`}
@@ -336,11 +337,13 @@ function PayrollPageInner() {
         key: 'app',
         header: 'التطبيق',
         filterable: true,
+        filterType: 'list',
         render: (line) => <span className="font-mono text-xs">{line.app}</span>,
       },
       {
         key: 'category',
         header: 'الفئة',
+        filterType: 'list',
         render: (line) => <span className="text-xs text-[var(--muted)]">{'category' in line ? String((line as Record<string, unknown>).category || '-') : '-'}</span>,
       },
       {

@@ -47,6 +47,100 @@ public static class OperationsLiveApi
             .WithTags("Operations").WithSummary("Export vehicles period report");
         api.MapGet("/operations/fuel-cards/export", (HttpContext ctx) => ExportFuel(store, config, env, ctx))
             .WithTags("Operations").WithSummary("Export fuel cards");
+        api.MapGet("/operations/distinct", (HttpContext ctx) => DistinctValues(store, config, env, ctx))
+            .WithTags("Operations").WithSummary("Distinct column values for operations table filters");
+    }
+
+    static object DistinctValues(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "operations.view");
+        string column = (ctx.Request.Query["column"].ToString() ?? "").Trim();
+        string tab = (ctx.Request.Query["tab"].ToString() ?? "cities").Trim().ToLowerInvariant();
+        string view = (ctx.Request.Query["view"].ToString() ?? "").Trim().ToLowerInvariant();
+        if (column.Length == 0)
+            return new JsonObject { ["column"] = "", ["values"] = new JsonArray() };
+
+        // Closed sets that never require a heavy scan
+        if (tab == "fuel" && column is "status")
+            return new JsonObject { ["column"] = column, ["values"] = new JsonArray("نشطة", "غير نشطة") };
+        if (tab == "vehicles" && view == "invoices" && column is "status")
+            return new JsonObject { ["column"] = column, ["values"] = new JsonArray("مرحّل", "معكوس") };
+        if (tab == "fuel" && column is "provider" or "providerNameAr" or "cardName")
+        {
+            if (column is "provider" or "providerNameAr")
+                return new JsonObject { ["column"] = column, ["values"] = new JsonArray("شركة بترو اب", "شركة سيارة اب") };
+        }
+
+        string field = (tab, view, column) switch
+        {
+            ("cities", _, "nameAr") => "nameAr",
+            ("cities", _, "status") => "status",
+            ("cities", _, "apps") or ("cities", _, "appsWorking") => "appsWorking",
+            ("housing", _, "city") => "city",
+            ("housing", _, "status") => "status",
+            ("vehicles", "invoices", "sup") or ("vehicles", "invoices", "supplierNameAr") => "supplierNameAr",
+            ("vehicles", "invoices", "status") => "status",
+            ("vehicles", "oil", "plate") or ("vehicles", "oil", "plateNumberAr") => "plateNumberAr",
+            ("vehicles", "oil", "vehicleType") => "vehicleType",
+            ("vehicles", _, "city") => "city",
+            ("vehicles", _, "vehicleType") => "vehicleType",
+            ("vehicles", _, "plate") or ("vehicles", _, "plateNumberAr") => "plateNumberAr",
+            ("fuel", _, "cardName") => "cardName",
+            ("fuel", _, "cardNumber") or ("fuel", _, "card") => "cardNumber",
+            ("fuel", _, "plate") or ("fuel", _, "plateNumber") => "plateNumber",
+            ("fuel", _, "fuelType") => "fuelType",
+            _ => ""
+        };
+        if (field.Length == 0)
+            return new JsonObject { ["column"] = column, ["values"] = new JsonArray() };
+
+        var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
+        DateOnly month = ParseMonth(ctx);
+        string mode = (ctx.Request.Query["mode"].ToString() is { Length: > 0 } m && m == "rider") ? "rider" : "vehicle";
+        List<JsonObject> rows = [];
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+        {
+            rows = store.Read(c => tab switch
+            {
+                "cities" => BuildStoreCities(c, ctx.User).Items.ToList(),
+                "housing" => ExtractItems(BuildStoreHousing(c, ctx.User, 1, 200, "", "", "")),
+                "vehicles" when view == "invoices" => ExtractItems(BuildStorePurchases(c, ctx.User, from, to, 1, 200, "")),
+                "vehicles" => ExtractItems(BuildStorePeriod(c, ctx.User, from, to, mode, 1, 200)),
+                "fuel" => ExtractItems(BuildStoreFuel(c, ctx.User, month, 1, 200)),
+                _ => new List<JsonObject>()
+            });
+        }
+        else
+        {
+            rows = LiveRead(ctx, token =>
+            {
+                using var erp = OpenErp(config);
+                return store.Read(c =>
+                {
+                    var scope = Operations.LiveScope(c, ctx.User);
+                    return (tab, view) switch
+                    {
+                        ("cities", _) => OperationsLiveQuery.CitiesSummary(erp, scope, token).Items.ToList(),
+                        ("housing", _) => OperationsLiveQuery.HousingPage(erp, 1, OperationsLiveQuery.MaxPageSize, "", "", "", scope, token).Items.ToList(),
+                        ("vehicles", "invoices") => OperationsLiveQuery.PurchaseInvoices(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, "", scope, null, token).Items.ToList(),
+                        ("vehicles", "oil") => OperationsLiveQuery.OilChangesPeriod(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, "", scope, export: false, token).Items.ToList(),
+                        ("vehicles", _) => OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, 1, OperationsLiveQuery.MaxPageSize, "", scope, detailed: false, token).Items.ToList(),
+                        ("fuel", "log") => OperationsLiveQuery.FuelAssignments(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, scope, token).Items.ToList(),
+                        ("fuel", _) => OperationsLiveQuery.FuelCards(erp, month, "", 1, OperationsLiveQuery.MaxPageSize, "", scope, token).Items.ToList(),
+                        _ => new List<JsonObject>()
+                    };
+                });
+            }, "operations-distinct");
+        }
+        var values = rows
+            .Select(r => r.S(field).Trim())
+            .Where(v => v.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(v => v, StringComparer.OrdinalIgnoreCase)
+            .Take(500)
+            .Select(v => (JsonNode?)v)
+            .ToArray();
+        return new JsonObject { ["column"] = column, ["values"] = new JsonArray(values) };
     }
 
     static object Cities(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)

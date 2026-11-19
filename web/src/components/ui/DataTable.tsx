@@ -15,7 +15,15 @@ import {
   Download,
 } from 'lucide-react';
 import { Skeleton, EmptyState, ErrorState } from './EmptyState';
+import { SearchableSelect } from './SearchableSelect';
 import { api } from '@/lib/api';
+import {
+  type ColumnFilterType,
+  type ColumnFilterOption,
+  inferColumnFilterType,
+  extractDistinctOptions,
+  matchesColumnFilter,
+} from '@/lib/columnFilter';
 
 /**
  * Normalizes Arabic text and digits for robust searching:
@@ -55,6 +63,12 @@ export interface ColumnDef<T> {
   numeric?: boolean;
   sortable?: boolean;
   filterable?: boolean;
+  /** 'list' renders a type-in searchable dropdown of distinct values; 'text' renders a free-text box. */
+  filterType?: ColumnFilterType;
+  /** Optional explicit closed set of options for a 'list' column filter. */
+  filterOptions?: ColumnFilterOption[];
+  /** Optional server column name for distinctEndpoint if different from key. */
+  filterColumn?: string;
   width?: string;
   render?: (row: T, index: number) => React.ReactNode;
   getValue?: (row: T) => any;
@@ -104,6 +118,10 @@ export interface DataTableProps<T> {
   columnFilters?: Record<string, string>;
   onColumnFiltersChange?: (filters: Record<string, string>) => void;
   serverSide?: boolean;
+  /** Optional light API endpoint (e.g. '/operations/distinct') for fetching distinct column values on server-paged tables. */
+  distinctEndpoint?: string;
+  /** Optional extra query parameters sent alongside ?column= to distinctEndpoint. */
+  distinctParams?: Record<string, string | undefined>;
   pageSizes?: number[];
 }
 
@@ -140,6 +158,8 @@ export function DataTable<T extends Record<string, any>>({
   columnFilters: controlledColumnFilters,
   onColumnFiltersChange,
   serverSide = false,
+  distinctEndpoint,
+  distinctParams,
   pageSizes: propPageSizes,
 }: DataTableProps<T>) {
   const availablePageSizes = propPageSizes || PAGE_SIZES;
@@ -200,6 +220,49 @@ export function DataTable<T extends Record<string, any>>({
 
   // Export state
   const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  // Remote distinct values cache (for server-paged tables with distinctEndpoint)
+  const [remoteDistinct, setRemoteDistinct] = useState<Record<string, ColumnFilterOption[]>>({});
+  const [loadingDistinct, setLoadingDistinct] = useState<Record<string, boolean>>({});
+  const distinctFetchedRef = useRef<Set<string>>(new Set());
+
+  const distinctParamsKey = useMemo(() => {
+    if (!distinctParams) return '';
+    return Object.entries(distinctParams)
+      .filter(([, v]) => v !== undefined && v !== '')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join('&');
+  }, [distinctParams]);
+
+  const distinctCacheKey = useCallback(
+    (col: ColumnDef<T>) =>
+      `${distinctEndpoint || ''}|${distinctParamsKey}|${col.filterColumn || col.key}`,
+    [distinctEndpoint, distinctParamsKey]
+  );
+
+  const ensureDistinctLoaded = useCallback(
+    (col: ColumnDef<T>) => {
+      if (!distinctEndpoint || col.filterOptions) return;
+      const cacheKey = distinctCacheKey(col);
+      if (distinctFetchedRef.current.has(cacheKey)) return;
+      distinctFetchedRef.current.add(cacheKey);
+      setLoadingDistinct((prev) => ({ ...prev, [cacheKey]: true }));
+      api
+        .getDistinctValues(distinctEndpoint, col.filterColumn || col.key, distinctParams)
+        .then((res) => {
+          const opts = extractDistinctOptions(res?.values || []);
+          setRemoteDistinct((prev) => ({ ...prev, [cacheKey]: opts }));
+        })
+        .catch(() => {
+          // Fallback seamlessly to loaded page distinct values.
+        })
+        .finally(() => {
+          setLoadingDistinct((prev) => ({ ...prev, [cacheKey]: false }));
+        });
+    },
+    [distinctEndpoint, distinctParams, distinctCacheKey]
+  );
 
   const popoverRef = useRef<HTMLDivElement>(null);
   const popoverTriggerRef = useRef<HTMLDivElement>(null);
@@ -359,6 +422,17 @@ export function DataTable<T extends Record<string, any>>({
     return String(raw);
   }, []);
 
+  // Local distinct values per 'list' column (instant for client-side tables and fallback for server-paged tables)
+  const localDistinctByCol = useMemo(() => {
+    const map: Record<string, ColumnFilterOption[]> = {};
+    for (const col of columns) {
+      if (col.filterable === false || col.key === 'actions') continue;
+      if (inferColumnFilterType(col.key, col.filterType) !== 'list') continue;
+      map[col.key] = extractDistinctOptions(data.map((r) => getCellString(r, col)));
+    }
+    return map;
+  }, [columns, data, getCellString]);
+
   // Distinct values for the active popover column
   const popoverDistinctValues = useMemo(() => {
     if (!activePopover) return [];
@@ -369,10 +443,11 @@ export function DataTable<T extends Record<string, any>>({
     return Array.from(set).sort(new Intl.Collator('ar', { numeric: true }).compare);
   }, [activePopover?.colKey, columns, data, getCellString]);
 
-  // Filtered dataset
+  // Filtered dataset (when serverSide without onColumnFiltersChange, column filters still narrow the loaded page)
+  const serverOwnsColumnFilters = serverSide && Boolean(onColumnFiltersChange);
   const filteredData = useMemo(() => {
-    if (serverSide) return data;
-    const normGlobal = normalizeArabicSearch(globalSearch);
+    if (serverOwnsColumnFilters) return data;
+    const normGlobal = serverSide ? '' : normalizeArabicSearch(globalSearch);
 
     return data.filter((row) => {
       // 1. Check Global Search (matches any searchable column)
@@ -389,22 +464,13 @@ export function DataTable<T extends Record<string, any>>({
         if (!matchGlobal) return false;
       }
 
-      // 2. Check per-column text search inputs (OR within column via comma/pipe, AND across columns)
+      // 2. Check per-column filter inputs (exact match for 'list' columns; OR substring for 'text' columns)
       for (const [key, term] of Object.entries(columnSearch)) {
         if (!term || !term.trim()) continue;
         const col = columns.find((c) => c.key === key);
         if (!col) continue;
-
-        const cellNorm = normalizeArabicSearch(getCellString(row, col));
-        const terms = term
-          .split(/[,|]/)
-          .map((t) => normalizeArabicSearch(t))
-          .filter(Boolean);
-
-        if (terms.length > 0) {
-          const colMatches = terms.some((t) => cellNorm.includes(t));
-          if (!colMatches) return false;
-        }
+        const fType = inferColumnFilterType(col.key, col.filterType);
+        if (!matchesColumnFilter(getCellString(row, col), term, fType)) return false;
       }
 
       // 3. Check column distinct values selections (popovers)
@@ -418,11 +484,11 @@ export function DataTable<T extends Record<string, any>>({
 
       return true;
     });
-  }, [data, globalSearch, columnSearch, selectedColValues, columns, getCellString]);
+  }, [serverOwnsColumnFilters, serverSide, data, globalSearch, columnSearch, selectedColValues, columns, getCellString]);
 
   // Sorted dataset
   const sortedData = useMemo(() => {
-    if (serverSide) return data;
+    if (serverOwnsColumnFilters) return data;
     if (!sortKey) return filteredData;
     const col = columns.find((c) => c.key === sortKey);
     if (!col) return filteredData;
@@ -440,11 +506,11 @@ export function DataTable<T extends Record<string, any>>({
       const cmp = new Intl.Collator('ar', { numeric: true }).compare(aVal, bVal);
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [serverSide, data, filteredData, sortKey, sortDir, columns, getCellString]);
+  }, [serverOwnsColumnFilters, data, filteredData, sortKey, sortDir, columns, getCellString]);
 
   // Paginated slice
   const paginatedData = useMemo(() => {
-    if (serverSide) return data;
+    if (serverSide) return sortedData;
     if (totalCount !== undefined && totalCount > data.length) {
       return sortedData;
     }
@@ -782,33 +848,58 @@ export function DataTable<T extends Record<string, any>>({
               )}
             </tr>
 
-            {/* Per-column search input row */}
+            {/* Per-column filter row: type-in searchable dropdown for 'list' columns, text box for 'text' columns */}
             <tr className="border-t border-[var(--line)] bg-[var(--surface)]">
               {selectable && <th className="px-3 py-1.5" />}
-              {columns.map((col) => (
-                <th key={`search-${col.key}`} className="px-2 py-1.5 font-normal">
-                  {col.filterable !== false && (
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder={`بحث...`}
-                        value={columnSearch[col.key] || ''}
-                        onChange={(e) => handleColumnFilterChange(col.key, e.target.value)}
-                        className="w-full px-2 py-1 text-[11px] rounded border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-hidden"
-                      />
-                      {columnSearch[col.key] && (
-                        <button
-                          type="button"
-                          onClick={() => handleColumnFilterChange(col.key, '')}
-                          className="absolute inset-y-0 end-0 flex items-center pe-1.5 text-[var(--muted)] hover:text-[var(--ink)]"
-                        >
-                          <X size={11} />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </th>
-              ))}
+              {columns.map((col) => {
+                const isFilterable = col.filterable !== false && col.key !== 'actions';
+                const fType = inferColumnFilterType(col.key, col.filterType);
+                const cacheKey = distinctCacheKey(col);
+                const remoteOpts = remoteDistinct[cacheKey];
+                const listOptions =
+                  col.filterOptions ??
+                  (remoteOpts && remoteOpts.length > 0 ? remoteOpts : localDistinctByCol[col.key] || []);
+
+                return (
+                  <th key={`search-${col.key}`} className="px-2 py-1.5 font-normal">
+                    {isFilterable &&
+                      (fType === 'list' ? (
+                        <SearchableSelect
+                          size="sm"
+                          clearable
+                          value={columnSearch[col.key] || ''}
+                          onChange={(val) => handleColumnFilterChange(col.key, val)}
+                          options={listOptions}
+                          loading={!!loadingDistinct[cacheKey]}
+                          onOpen={() => ensureDistinctLoaded(col)}
+                          placeholder="اختر أو اكتب..."
+                          ariaLabel={`تصفية ${col.header}`}
+                        />
+                      ) : (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="بحث..."
+                            aria-label={`بحث في ${col.header}`}
+                            value={columnSearch[col.key] || ''}
+                            onChange={(e) => handleColumnFilterChange(col.key, e.target.value)}
+                            className="w-full px-2 py-1 text-[11px] rounded border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-hidden"
+                          />
+                          {columnSearch[col.key] && (
+                            <button
+                              type="button"
+                              aria-label={`مسح بحث ${col.header}`}
+                              onClick={() => handleColumnFilterChange(col.key, '')}
+                              className="absolute inset-y-0 end-0 flex items-center pe-1.5 text-[var(--muted)] hover:text-[var(--ink)]"
+                            >
+                              <X size={11} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                  </th>
+                );
+              })}
               {rowActions && rowActions.length > 0 && <th className="px-2 py-1.5" />}
             </tr>
           </thead>
