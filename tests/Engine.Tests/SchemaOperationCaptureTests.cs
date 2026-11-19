@@ -107,8 +107,10 @@ public sealed class SchemaOperationCaptureTests
         using var c=Open(sqlServer);string company=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company),other=MoneySchemaFixture.Run(c,company,"keeta");
         string erp=MoneySchemaFixture.Id(),snap=Snapshot(c,company,erpRow:erp);
         SchemaConstraintAssert.ThrowsNamed(()=>Link(c,run,snap,kind:"fuel"),"FK_op_snap_snapshot",sqliteToken:"FOREIGN KEY");
-        string link=Link(c,run,snap);
+        // Wrong period must be checked before a successful link: UQ_op_snap_content omits period_month, so SQL Server
+        // would report that unique key instead of FK_op_snap_snapshot once the same content is already linked.
         SchemaConstraintAssert.ThrowsNamed(()=>Link(c,run,snap,month:"2026-12-01"),"FK_op_snap_snapshot",sqliteToken:"Capture owner or period mismatch");
+        string link=Link(c,run,snap);
         SchemaConstraintAssert.ThrowsNamed(()=>Captured(c,other,link),"FK_manifest_link",sqliteToken:"FOREIGN KEY");
         SchemaConstraintAssert.ThrowsNamed(()=>Captured(c,run,link,kind:"fuel"),"FK_manifest_link",sqliteToken:"FOREIGN KEY");
         string duplicate=Snapshot(c,company,erpRow:erp);
