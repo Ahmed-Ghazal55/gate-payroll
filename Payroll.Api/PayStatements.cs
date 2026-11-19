@@ -1,10 +1,13 @@
 using System.Data.Common;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 namespace Payroll;
 
 public static class PayStatements
 {
+    public static ILogger Logger { get; set; } = NullLogger.Instance;
     static JsonArray Array(IEnumerable<JsonObject> rows)=>new(rows.Select(r=>(JsonNode?)r.Clone()).ToArray());
     static readonly string[] PhaseKeys=["gross","commission","afterCommission","phase1","preliminaryDue","phase2","phase3"];
     static JsonObject Pick(JsonObject source,params string[] keys){var result=new JsonObject();foreach(string key in keys)if(source.ContainsKey(key))result[key]=source[key]?.DeepClone();return result;}
@@ -197,7 +200,7 @@ public static class PayStatements
         }
         decimal mismatch=J.Money(expectedClosing-running);
         bool balanced=mismatch==0m;
-        if(!balanced)System.Diagnostics.Trace.TraceWarning($"PayStatements.BuildShortLines mismatch: running={running}, expectedClosing={expectedClosing}, diff={mismatch}");
+        if(!balanced)Logger.LogWarning("PayStatements.BuildShortLines mismatch: running={Running}, expectedClosing={ExpectedClosing}, diff={Diff}",running,expectedClosing,mismatch);
         return (items,balanced,mismatch);
     }
 

@@ -74,8 +74,10 @@ export async function renderStatementHtml(period: string, latestSummary?: any): 
 
   const cards: any[] = s.cards || [];
   const ded: any[] = s.deductions || [];
-  const shortLines: any[] = Array.isArray(s.shortLines) ? s.shortLines : [];
-  if (s.source === 'none' || (!cards.length && !ded.length && !shortLines.length)) {
+  const shortLinesBalanced = s.shortLinesBalanced !== false;
+  const shortLines: any[] =
+    shortLinesBalanced && Array.isArray(s.shortLines) ? s.shortLines : [];
+  if (s.source === 'none' || (!cards.length && !ded.length && shortLinesBalanced && !shortLines.length)) {
     return picker + `<div class="mob-card muted" id="mob-statement-empty">${esc(t('statementEmpty'))}</div>`;
   }
 

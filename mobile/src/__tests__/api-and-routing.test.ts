@@ -206,6 +206,44 @@ describe('Statement, Debts, Notifications, and Requests Screens', () => {
     setLanguage('ar');
   });
 
+  it('hides short lines and shows not available when shortLinesBalanced is false', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 'approved',
+        approvedOnly: true,
+        net: 100,
+        carried: 0,
+        closing: 999,
+        shortLinesBalanced: false,
+        shortLinesMismatch: 899,
+        cards: [{ app: 'keeta', platform: 'Keeta', gross: 100 }],
+        deductions: [],
+        shortLines: [
+          {
+            key: 'gross',
+            labelAr: 'مستحقات',
+            labelEn: 'Earnings',
+            labelUr: 'آمدنی',
+            amount: 100,
+            absAmount: 100,
+            runningBalance: 100
+          }
+        ]
+      })
+    } as any);
+
+    setLanguage('en');
+    const htmlEn = await renderStatementHtml('2026-09');
+    expect(htmlEn).toContain('id="mob-statement-not-available"');
+    expect(htmlEn).toContain('Statement items are not available.');
+    expect(htmlEn).not.toContain('id="mob-statement-lines"');
+    expect(htmlEn).not.toContain('statement-line-row');
+    expect(htmlEn).not.toContain('Earnings');
+    setLanguage('ar');
+  });
+
   it('renders debts summary without company or sponsor names', () => {
     const html = renderDebtsHtml({
       totalRemainingDebt: 800,

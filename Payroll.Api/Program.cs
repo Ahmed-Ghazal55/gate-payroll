@@ -48,6 +48,7 @@ builder.Services.AddSingleton<InquiryLimits>();
 builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
+PayStatements.Logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PayStatements");
 CampaignLinks.Migrate(store);
 Companies.Seed(store);
 ConfigLists.Seed(store);
