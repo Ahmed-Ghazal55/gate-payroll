@@ -134,9 +134,9 @@ const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
   approve_settings: { label: 'اعتماد شروط الأهلية والأنظمة', href: '/app/payroll?tab=rules' },
   resolve_dispute: { label: 'حسم الاعتراض الرسمي', href: '/app/payroll?tab=ninja_upload' },
   classify_invoice: { label: 'تصنيف خصومات الفاتورة', href: '/app/payroll?tab=ninja_upload' },
-  review_invoice_account: { label: 'مراجعة حسابات الفاتورة', href: '/app/operations?tab=accounts' },
-  link_account: { label: 'ربط حساب المنصة بالسجل', href: '/app/operations?tab=accounts' },
-  link_actual_operator: { label: 'ربط المشغل الفعلي للحساب', href: '/app/operations?tab=accounts' },
+  review_invoice_account: { label: 'مراجعة حسابات الفاتورة', href: '/app/workforce/' },
+  link_account: { label: 'ربط حساب المنصة بالسجل', href: '/app/workforce/' },
+  link_actual_operator: { label: 'ربط المشغل الفعلي للحساب', href: '/app/workforce/' },
   import_operations: { label: 'استيراد التشغيل والمناديب', href: '/app/imports' },
   import_scheme_choices: { label: 'خيارات الأنظمة', href: '/app/payroll?tab=rules' },
   review_operations: { label: 'مراجعة بيانات التشغيل اليومي', href: '/app/operations' },
@@ -3362,7 +3362,7 @@ function PayrollPageInner() {
                         </span>
                       </div>
                       <a
-                        href="/app/operations?tab=accounts"
+                        href="/app/workforce/"
                         className="font-bold text-[var(--accent)] hover:underline inline-flex items-center gap-1 text-xs shrink-0"
                       >
                         <span>ربط المشغل الفعلي</span>

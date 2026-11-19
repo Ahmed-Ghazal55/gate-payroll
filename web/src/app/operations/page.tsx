@@ -1,670 +1,608 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
-import Link from 'next/link';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Car, Fuel, Home, RefreshCw, Search } from 'lucide-react';
 import {
-  MapPin,
-  Home,
-  Car,
-  PackageCheck,
-  ShieldAlert,
-  Scale,
-  Smartphone,
-  RefreshCw,
-  Search,
-  X,
-  AlertTriangle,
-  Clock,
-  Layers,
-  CheckCircle2,
-} from 'lucide-react';
-import { api, ApiError, OperationsResponse, OperationRow } from '../../lib/api';
-import { useToast } from '../../components/ui/Toast';
+  api,
+  ApiError,
+  OperationsFleetListResponse,
+  OperationsFuelResponse,
+  OperationsHousingResponse,
+  OperationsOilChangesResponse,
+  OperationsPeriodResponse,
+  OperationsPurchasesResponse,
+} from '../../lib/api';
+/** Shared DataTable row; filled from ApiResp operations items[number]. */
+type OpsRow = Record<string, unknown>;
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
-import { SourceBadge, formatRiyadhDateTime } from '../../components/ui/SourceBadge';
+import { SourceBadge } from '../../components/ui/SourceBadge';
+import { Drawer } from '../../components/ui/Drawer';
+import { useToast } from '../../components/ui/Toast';
 
-const KIND_MAP: Record<string, string> = {
-  cities: 'city',
-  housing: 'housing',
-  vehicles: 'vehicle',
-  custody: 'custody_handover',
-  guarantees: 'sponsorship_period',
-  cases: 'legal_case',
-  accounts: 'platform_account',
-};
+const MAIN_TABS = new Set(['cities', 'housing', 'vehicles', 'fuel']);
+const NO_SOURCE = 'لا يوجد مصدر بعد';
+const cell = (v: unknown) => (v === null || v === undefined || v === '' ? NO_SOURCE : String(v));
 
-const PAGE_SIZES = [25, 50, 100, 200];
+function monthBounds(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const last = new Date(y, d.getMonth() + 1, 0).getDate();
+  return { from: `${y}-${m}-01`, to: `${y}-${m}-${String(last).padStart(2, '0')}`, month: `${y}-${m}` };
+}
+
+function downloadBlob(res: Response, fallback: string) {
+  return res.blob().then((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fallback;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
 
 function OperationsPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
 
-  const tabFromUrl = searchParams?.get('tab') || 'cities';
-  const pageFromUrl = parseInt(searchParams?.get('page') || '1', 10);
-  const sizeFromUrl = parseInt(searchParams?.get('size') || '25', 10);
-  const qFromUrl = searchParams?.get('q') || '';
-
-  const [activeTab, setActiveTab] = useState<string>(tabFromUrl);
-  const [page, setPage] = useState<number>(pageFromUrl > 0 ? pageFromUrl : 1);
-  const [pageSize, setPageSize] = useState<number>(PAGE_SIZES.includes(sizeFromUrl) ? sizeFromUrl : 25);
-  const [searchQuery, setSearchQuery] = useState<string>(qFromUrl);
-  const [debouncedQuery, setDebouncedQuery] = useState<string>(qFromUrl);
-
-  const [items, setItems] = useState<OperationRow[]>([]);
-  const [total, setTotal] = useState<number>(0);
-  const [source, setSource] = useState<string>('');
-  const [asOf, setAsOf] = useState<string>('');
-  const [allowedActions, setAllowedActions] = useState<string[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [is503, setIs503] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Sync tab change from URL
+  const rawTab = searchParams?.get('tab') || 'cities';
   useEffect(() => {
-    if (tabFromUrl && tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
-      setPage(1);
-    }
-  }, [tabFromUrl]);
-
-  // Debounce typing (300 ms)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  // Sync URL search params
-  const updateUrl = useCallback(
-    (newTab: string, newPage: number, newSize: number, newQ: string) => {
-      if (typeof window === 'undefined') return;
-      const sp = new URLSearchParams();
-      if (newTab && newTab !== 'cities') sp.set('tab', newTab);
-      if (newPage > 1) sp.set('page', String(newPage));
-      if (newSize !== 25) sp.set('size', String(newSize));
-      if (newQ.trim()) sp.set('q', newQ.trim());
-      const qs = sp.toString() ? `?${sp.toString()}` : '';
-      router.replace(`${pathname}${qs}`, { scroll: false });
-    },
-    [router, pathname]
-  );
-
-  // Fetch operations data from server
-  const loadTabData = useCallback(
-    async (
-      targetTab: string,
-      targetPage: number,
-      targetPageSize: number,
-      targetQuery: string
-    ) => {
-      const kind = KIND_MAP[targetTab] || targetTab;
-      setLoading(true);
-      setErrorMsg(null);
-      setIs503(false);
-
-      try {
-        const res: OperationsResponse = await api.getOperations(kind, {
-          page: targetPage,
-          pageSize: targetPageSize,
-          q: targetQuery.trim() || undefined,
-        });
-
-        const rows = res?.items || (Array.isArray(res) ? res : []);
-        setItems(rows);
-        setTotal(res?.total ?? rows.length);
-        setSource(res?.source || '');
-        setAsOf(res?.asOf || '');
-        setAllowedActions(res?.allowedActions || []);
-        setPage(res?.page ?? targetPage);
-        setPageSize(res?.pageSize ?? targetPageSize);
-      } catch (err: unknown) {
-        const status =
-          err instanceof ApiError
-            ? err.status
-            : typeof err === 'object' && err !== null && 'status' in err && typeof err.status === 'number'
-            ? err.status
-            : undefined;
-        const msg = err instanceof Error && err.message ? err.message : 'تعذر استرجاع بيانات التشغيل';
-
-        if (status === 503 || msg.includes('503') || msg.includes('مصدر التشغيل')) {
-          setIs503(true);
-          setErrorMsg(msg);
-          // 4. Errors: 503 -> keeping the last page shown!
-          // Do NOT clear items if we already have data
-        } else {
-          setErrorMsg(msg);
-          setItems([]);
-          setTotal(0);
-        }
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
-
-  // Track initial mount
-  const isFirstMount = useRef(true);
-
-  // Primary data-fetching trigger on tab or debounced query change
-  useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      loadTabData(activeTab, page, pageSize, debouncedQuery);
+    if (rawTab === 'cases') {
+      router.replace('/workforce/?tab=cases');
       return;
     }
-    // Reset to page 1 on search or tab change
-    setPage(1);
-    updateUrl(activeTab, 1, pageSize, debouncedQuery);
-    loadTabData(activeTab, 1, pageSize, debouncedQuery);
-  }, [activeTab, debouncedQuery]);
+    if (rawTab === 'accounts') {
+      router.replace('/workforce/');
+      return;
+    }
+    if (rawTab === 'custody' || rawTab === 'guarantees') {
+      router.replace('/operations/?tab=vehicles');
+      return;
+    }
+    if (!MAIN_TABS.has(rawTab)) {
+      router.replace('/operations/?tab=cities');
+    }
+  }, [rawTab, router]);
 
-  const handlePageChange = (newPage: number) => {
-    setPage(newPage);
-    updateUrl(activeTab, newPage, pageSize, debouncedQuery);
-    loadTabData(activeTab, newPage, pageSize, debouncedQuery);
+  const tab = MAIN_TABS.has(rawTab) ? rawTab : 'cities';
+  const view = searchParams?.get('view') || (tab === 'vehicles' ? 'period' : tab === 'fuel' ? 'usage' : '');
+  const page = Math.max(1, parseInt(searchParams?.get('page') || '1', 10) || 1);
+  const pageSize = [25, 50, 100, 200].includes(parseInt(searchParams?.get('size') || '25', 10))
+    ? parseInt(searchParams?.get('size') || '25', 10)
+    : 25;
+  const q = searchParams?.get('q') || '';
+  const mode = (searchParams?.get('mode') === 'rider' ? 'rider' : 'vehicle') as 'vehicle' | 'rider';
+  const defaults = monthBounds();
+  const from = searchParams?.get('from') || defaults.from;
+  const to = searchParams?.get('to') || defaults.to;
+  const month = searchParams?.get('month') || defaults.month;
+
+  const [query, setQuery] = useState(q);
+  const [debouncedQ, setDebouncedQ] = useState(q);
+  const [loading, setLoading] = useState(true);
+  const [is503, setIs503] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [source, setSource] = useState('');
+  const [asOf, setAsOf] = useState('');
+  const [allowedActions, setAllowedActions] = useState<string[]>([]);
+  const [items, setItems] = useState<OpsRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState<Record<string, unknown>>({});
+  const [drawer, setDrawer] = useState<{ title: string; body: React.ReactNode } | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(query), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const replaceParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      const sp = new URLSearchParams(searchParams?.toString() || '');
+      Object.entries(patch).forEach(([k, v]) => {
+        if (v === null || v === '') sp.delete(k);
+        else sp.set(k, v);
+      });
+      if (sp.get('tab') === 'cities') sp.delete('tab');
+      const qs = sp.toString();
+      router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    },
+    [router, pathname, searchParams]
+  );
+
+  useEffect(() => {
+    if (debouncedQ !== q) replaceParams({ q: debouncedQ || null, page: '1' });
+  }, [debouncedQ]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    setIs503(false);
+    try {
+      if (tab === 'cities') {
+        const res = (await api.getOperationsCities({ q: debouncedQ || undefined })) as OperationsFleetListResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else if (tab === 'housing') {
+        const res = (await api.getOperationsHousing({
+          page,
+          pageSize,
+          q: debouncedQ || undefined,
+        })) as OperationsHousingResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else if (tab === 'vehicles' && view === 'invoices') {
+        const res = await api.getOperationsPurchaseInvoices({ from, to, page, pageSize, q: debouncedQ || undefined }) as OperationsPurchasesResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else if (tab === 'vehicles' && view === 'oil') {
+        const res = await api.getOperationsOilChangesPeriod({ from, to, page, pageSize, q: debouncedQ || undefined }) as OperationsOilChangesResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else if (tab === 'vehicles') {
+        const res = (await api.getOperationsPeriodReport({
+          from,
+          to,
+          mode,
+          page,
+          pageSize,
+          q: debouncedQ || undefined,
+        })) as OperationsPeriodResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else if (tab === 'fuel' && view === 'log') {
+        const res = await api.getOperationsFuelAssignments({ from, to, page, pageSize });
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else {
+        const res = (await api.getOperationsFuelCards({
+          month,
+          page,
+          pageSize,
+          q: debouncedQ || undefined,
+        })) as OperationsFuelResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      }
+    } catch (e) {
+      const err = e as ApiError;
+      if (err?.status === 503) setIs503(true);
+      setErrorMsg(err?.message || 'تعذر تحميل بيانات التشغيل.');
+    } finally {
+      setLoading(false);
+    }
+  }, [tab, view, page, pageSize, debouncedQ, from, to, mode, month]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const canExport = allowedActions.includes('export');
+  const canRefresh = allowedActions.includes('refresh');
+
+  const openCity = async (id: string) => {
+    try {
+      const detail = await api.getOperationsCity(id);
+      setDrawer({
+        title: String(detail.nameAr || 'تفاصيل المدينة'),
+        body: (
+          <div className="space-y-4 text-sm">
+            <pre className="whitespace-pre-wrap break-words bg-[var(--surface-2)] p-3 rounded-lg overflow-auto max-h-[60vh]">
+              {JSON.stringify(detail, null, 2)}
+            </pre>
+          </div>
+        ),
+      });
+    } catch (e) {
+      toast((e as ApiError).message || 'تعذر فتح التفاصيل', 'danger');
+    }
   };
 
-  const handlePageSizeChange = (newSize: number) => {
-    setPageSize(newSize);
-    setPage(1);
-    updateUrl(activeTab, 1, newSize, debouncedQuery);
-    loadTabData(activeTab, 1, newSize, debouncedQuery);
+  const openHousing = async (id: string) => {
+    try {
+      const detail = await api.getOperationsHousingRooms(id);
+      const rooms = detail.rooms || [];
+      setDrawer({
+        title: String(detail.nameAr || 'الغرف والمقيمون'),
+        body: (
+          <div className="space-y-3">
+            <p className="text-sm text-[var(--muted)]">المشرف: {NO_SOURCE}</p>
+            {rooms.length === 0 ? (
+              <EmptyState title="لا غرف" description="لا توجد غرف لهذا السكن." />
+            ) : (
+              rooms.map((room) => (
+                <div key={String(room.id)} className="border border-[var(--border)] rounded-lg p-3">
+                  <div className="font-medium">{String(room.name || '')}</div>
+                  <div className="text-xs text-[var(--muted)] mb-2">
+                    سعة {String(room.capacity ?? '')} · إشغال {String(room.currentOccupancy ?? '')}
+                  </div>
+                  <ul className="space-y-1 text-sm">
+                    {(room.residents || []).map((r, i) => (
+                      <li key={i} className="flex flex-col sm:flex-row sm:gap-3">
+                        <span>{String(r.nameAr || '')}</span>
+                        <bdi className="font-mono">{String(r.iqama || '')}</bdi>
+                        <span className="text-[var(--muted)]">{String(r.checkInDate || '')}</span>
+                        {r.iqama ? (
+                          <a className="text-[var(--accent)]" href={`/workforce/?tab=360&iqama=${encodeURIComponent(String(r.iqama))}`}>
+                            ملف 360
+                          </a>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
+            )}
+          </div>
+        ),
+      });
+    } catch (e) {
+      toast((e as ApiError).message || 'تعذر فتح الغرف', 'danger');
+    }
   };
 
-  const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
-    setSearchQuery('');
-    setDebouncedQuery('');
-    setPage(1);
-    updateUrl(tabId, 1, pageSize, '');
+  const openVehicle = async (id: string) => {
+    try {
+      const detail = await api.getOperationsVehicle(id);
+      setDrawer({
+        title: String(detail.plateNumberAr || detail.assetNumber || 'تفاصيل المركبة'),
+        body: (
+          <div className="space-y-2 text-sm">
+            <div>VIN: <bdi className="font-mono">{String(detail.vin || '')}</bdi></div>
+            <div>الهيكل: {String(detail.chassisNumber || '')}</div>
+            <div>العداد: {String(detail.currentOdometer ?? '')}</div>
+            <div>الكفيل: {String(detail.sponsorNameAr || '')}</div>
+            <div>المدينة: {String(detail.city || '')}</div>
+            <pre className="whitespace-pre-wrap break-words bg-[var(--surface-2)] p-3 rounded-lg overflow-auto max-h-[40vh] text-xs">
+              {JSON.stringify(detail.assignmentHistory || [], null, 2)}
+            </pre>
+          </div>
+        ),
+      });
+    } catch (e) {
+      toast((e as ApiError).message || 'تعذر فتح المركبة', 'danger');
+    }
   };
 
-  const sectionTabs: SectionTabItem[] = [
-    { id: 'cities', label: 'المدن والمناطق', icon: <MapPin size={16} /> },
-    { id: 'housing', label: 'السكن والإيواء', icon: <Home size={16} /> },
-    { id: 'vehicles', label: 'المركبات والتسليمات', icon: <Car size={16} /> },
-    { id: 'custody', label: 'العهد الشهرية والأجهزة', icon: <PackageCheck size={16} /> },
-    { id: 'guarantees', label: 'الكفالات والضمانات', icon: <ShieldAlert size={16} /> },
-    { id: 'cases', label: 'القضايا والمنازعات', icon: <Scale size={16} /> },
-    { id: 'accounts', label: 'حسابات المنصات والمعرفات', icon: <Smartphone size={16} /> },
+  const vehicleInnerTabs: SectionTabItem[] = [
+    { id: 'period', label: 'تقرير فترة العهد والتعيينات' },
+    { id: 'oil', label: 'تغيير الزيت والاستهلاك' },
+    { id: 'invoices', label: 'فواتير مشتريات المركبات' },
+  ];
+  const fuelInnerTabs: SectionTabItem[] = [
+    { id: 'usage', label: 'الاستهلاك الشهري' },
+    { id: 'cards', label: 'بطاقات الوقود والتسليمات' },
+    { id: 'log', label: 'سجل البطاقات' },
   ];
 
-  const currentTabInfo = useMemo(() => {
-    switch (activeTab) {
-      case 'cities':
-        return {
-          title: 'المدن التشغيلية والمناطق',
-          shortLabel: 'المدن والمناطق',
-          desc: 'مواقع ومراكز التشغيل، نطاقات التوصيل، والمشرفين الميدانيين المسؤولين.',
-          icon: MapPin,
-        };
-      case 'housing':
-        return {
-          title: 'السكن والإيواء الميداني',
-          shortLabel: 'وحدات السكن',
-          desc: 'إدارة وحدات الإيواء وسكن المناديب، العقود، وتوزيع التكاليف التشغيلية.',
-          icon: Home,
-        };
-      case 'vehicles':
-        return {
-          title: 'أسطول المركبات والتسليمات',
-          shortLabel: 'أسطول المركبات',
-          desc: 'السيارات والدراجات النارية، تسليمات العهد، رخص السير والتأمين، ومتابعة الصيانة.',
-          icon: Car,
-        };
-      case 'custody':
-        return {
-          title: 'العهد الشهرية والأجهزة',
-          shortLabel: 'العهد والأجهزة',
-          desc: 'الأجهزة الذكية، الحقائب الحرارية، والزي الرسمي الموزع على الكوادر.',
-          icon: PackageCheck,
-        };
-      case 'guarantees':
-        return {
-          title: 'الكفالات والضمانات المالية',
-          shortLabel: 'الكفالات والضمانات',
-          desc: 'الكفالات الغارمة وسندات الضمان ضد المخاطر المالية والعهد.',
-          icon: ShieldAlert,
-        };
-      case 'cases':
-        return {
-          title: 'القضايا والمنازعات التشغيلية',
-          shortLabel: 'القضايا والمنازعات',
-          desc: 'متابعة البلاغات المرورية، المطالبات القانونية، والنزاعات مع المنصات أو الأطراف الخارجية.',
-          icon: Scale,
-        };
-      case 'accounts':
-      default:
-        return {
-          title: 'حسابات المنصات ومعرفات العمل',
-          shortLabel: 'حسابات المنصات',
-          desc: 'معرفات المناديب على تطبيقات التوصيل، التبديل والتسليم بين المناديب، ومطابقة الهويات.',
-          icon: Smartphone,
-        };
-    }
-  }, [activeTab]);
+  const title =
+    tab === 'cities' ? 'المدن والمناطق' : tab === 'housing' ? 'السكن والإسكان' : tab === 'vehicles' ? 'المركبات والتسليمات' : 'الوقود';
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  const tabColumns: ColumnDef<OperationRow>[] = useMemo(() => {
-    switch (activeTab) {
-      case 'cities':
-        return [
-          {
-            key: 'code',
-            header: 'رمز المدينة',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
-          },
-          {
-            key: 'nameAr',
-            header: 'الاسم بالعربية',
-            render: (it: OperationRow) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
-          },
-          {
-            key: 'nameEn',
-            header: 'الاسم بالإنجليزية',
-            render: (it: OperationRow) => <span className="text-xs text-[var(--muted)] font-mono">{it.nameEn || '-'}</span>,
-          },
-          {
-            key: 'globalCityId',
-            header: 'المعرف الموحد',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.globalCityId || '-'}</span>,
-          },
-        ];
-      case 'housing':
-        return [
-          {
-            key: 'code',
-            header: 'كود السكن',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
-          },
-          {
-            key: 'nameAr',
-            header: 'اسم الوحدة',
-            render: (it: OperationRow) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
-          },
-          {
-            key: 'cityId',
-            header: 'المدينة',
-            render: (it: OperationRow) => <span className="text-xs">{it.cityId || '-'}</span>,
-          },
-          {
-            key: 'rooms',
-            header: 'عدد الغرف',
-            numeric: true,
-            render: (it: OperationRow) => <span className="num">{it.rooms?.length ?? '-'}</span>,
-          },
-          {
-            key: 'openedDate',
-            header: 'تاريخ الافتتاح',
-            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.openedDate || '-'}</span>,
-          },
-        ];
-      case 'vehicles':
-        return [
-          {
-            key: 'plateNumber',
-            header: 'رقم اللوحة',
-            render: (it: OperationRow) => (
-              <span className="font-mono font-bold text-[var(--ink)]">
-                {it.plateNumberAr || it.plateNumberEn || it.assetNumber || it.id}
-              </span>
-            ),
-          },
-          {
-            key: 'vehicleType',
-            header: 'نوع المركبة',
-            render: (it: OperationRow) => (
-              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">
-                {String(it.vehicleType ?? '').toLowerCase() === 'car' || it.vehicleType === 1 ? 'سيارة' : 'دباب'}
-              </span>
-            ),
-          },
-          {
-            key: 'modelYear',
-            header: 'سنة الموديل',
-            numeric: true,
-            render: (it: OperationRow) => <span className="num">{it.modelYear || '-'}</span>,
-          },
-          {
-            key: 'vin',
-            header: 'رقم الهيكل / VIN',
-            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.vin || it.chassisNumber || '-'}</span>,
-          },
-          {
-            key: 'currentOdometer',
-            header: 'العداد الحالي',
-            numeric: true,
-            render: (it: OperationRow) => <span className="num font-medium">{it.currentOdometer ? `${it.currentOdometer} كم` : '-'}</span>,
-          },
-          {
-            key: 'currentOperationalStatus',
-            header: 'الحالة التشغيلية',
-            render: (it: OperationRow) => (
-              <span
-                className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                  it.currentOperationalStatus === 'Active' || it.currentOperationalStatus === 'active'
-                    ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                    : 'bg-[var(--warning)]/15 text-[var(--warning)]'
-                }`}
-              >
-                {it.currentOperationalStatus || 'نشط'}
-              </span>
-            ),
-          },
-        ];
-      case 'custody':
-        return [
-          {
-            key: 'assignmentId',
-            header: 'معرف التكليف',
-            render: (it: OperationRow) => <span className="font-mono font-bold">{it.assignmentId || it.id}</span>,
-          },
-          {
-            key: 'eventTypeCode',
-            header: 'نوع الحدث',
-            render: (it: OperationRow) => <span>{it.eventTypeCode || '-'}</span>,
-          },
-          {
-            key: 'direction',
-            header: 'الاتجاه',
-            render: (it: OperationRow) => <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">{it.direction || '-'}</span>,
-          },
-          {
-            key: 'occurredAt',
-            header: 'تاريخ التوثيق',
-            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.occurredAt || '-'}</span>,
-          },
-        ];
-      case 'guarantees':
-        return [
-          {
-            key: 'riderId',
-            header: 'إقامة المندوب',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--ink)]">{it.riderId}</span>,
-          },
-          {
-            key: 'sponsorId',
-            header: 'السجل / الكفيل',
-            render: (it: OperationRow) => <span className="text-xs font-mono">{it.sponsorId || it.companyId || '-'}</span>,
-          },
-          {
-            key: 'effectiveFrom',
-            header: 'سريان من',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.effectiveFrom || '-'}</span>,
-          },
-          {
-            key: 'effectiveTo',
-            header: 'سريان إلى',
-            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.effectiveTo || 'مستمر'}</span>,
-          },
-        ];
-      case 'cases':
-        return [
-          {
-            key: 'number',
-            header: 'رقم القضية',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--danger)]">{it.number || it.id}</span>,
-          },
-          {
-            key: 'personName',
-            header: 'اسم الطرف',
-            render: (it: OperationRow) => <span className="font-semibold">{it.personName || it.riderId || '-'}</span>,
-          },
-          {
-            key: 'personTypeCode',
-            header: 'الصفة',
-            render: (it: OperationRow) => <span>{it.personTypeCode || '-'}</span>,
-          },
-          {
-            key: 'caseDate',
-            header: 'التاريخ',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.caseDate || '-'}</span>,
-          },
-          {
-            key: 'details',
-            header: 'التفاصيل',
-            render: (it: OperationRow) => <span className="text-xs text-[var(--muted)] truncate max-w-xs block">{it.details || '-'}</span>,
-          },
-        ];
-      case 'accounts':
-      default:
-        return [
-          {
-            key: 'code',
-            header: 'كود الحساب',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
-          },
-          {
-            key: 'externalAccountId',
-            header: 'معرف المنصة الخارجي',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.externalAccountId || '-'}</span>,
-          },
-          {
-            key: 'platformCode',
-            header: 'المنصة',
-            render: (it: OperationRow) => <span className="text-xs font-bold">{it.platformCode || '-'}</span>,
-          },
-          {
-            key: 'registeredRiderId',
-            header: 'المندوب المسجل',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.registeredRiderId || '-'}</span>,
-          },
-          {
-            key: 'assignments',
-            header: 'المشغلون الفعليون',
-            render: (it: OperationRow) => <span className="num font-bold">{it.assignments ? `${it.assignments.length} مشغل` : '-'}</span>,
-          },
-        ];
+  const kpi = useMemo(() => {
+    if (tab === 'cities') {
+      return [
+        { label: 'عدد المدن النشطة', value: summary.activeCities },
+        { label: 'إجمالي المركبات', value: summary.totalVehicles },
+        { label: 'إجمالي المناديب', value: summary.totalRiders },
+        { label: 'حسابات (نشط / مسند)', value: `${summary.platformAccountsActive ?? 0} / ${summary.platformAccountsAssigned ?? 0}` },
+      ];
     }
-  }, [activeTab]);
+    if (tab === 'housing') {
+      return [
+        { label: 'إجمالي السكنات', value: summary.housingsTotal },
+        { label: 'إجمالي الغرف', value: summary.roomsTotal },
+        { label: 'إجمالي المقيمين', value: summary.residentsTotal },
+        { label: 'نسبة الإشغال %', value: summary.occupancyPercent },
+      ];
+    }
+    if (tab === 'vehicles') {
+      return [
+        { label: 'المركبات العاملة', value: summary.vehiclesOperating ?? summary.invoicesTotal },
+        { label: 'إجمالي أيام التشغيل', value: summary.totalOperatingDays },
+        { label: 'تكلفة قطع الغيار', value: summary.sparePartsCost ?? summary.totalAmount },
+        { label: 'الاستقطاع المطلوب', value: summary.amountToCollect },
+        { label: 'تكلفة تغييرات الزيت', value: summary.oilChangesCost },
+      ];
+    }
+    return [
+      { label: 'البطاقات النشطة', value: summary.activeCards },
+      { label: 'المناديب المستهلكون', value: summary.consumingRiders },
+      { label: 'إجمالي اللترات', value: summary.totalLiters },
+      { label: 'الإجمالي شامل الضريبة', value: summary.totalInclVat },
+      { label: 'تجاوز السقف', value: summary.capExceeded ?? NO_SOURCE },
+    ];
+  }, [tab, summary]);
+
+  const columns: ColumnDef<OpsRow>[] = useMemo(() => {
+    if (tab === 'cities') {
+      return [
+        { key: 'nameAr', header: 'المدينة', render: (r) => String(r.nameAr || '') },
+        { key: 'regs', header: 'السجلات النشطة', render: (r) => String(r.registrationNames || r.activeRegistrations || '') },
+        { key: 'veh', header: 'المركبات (سيارة/دراجة)', render: (r) => `${r.vehiclesCars ?? 0} / ${r.vehiclesMotorbikes ?? 0}` },
+        { key: 'riders', header: 'المناديب', render: (r) => String(r.ridersTotal ?? '') },
+        { key: 'apps', header: 'التطبيقات العاملة', render: (r) => String(r.appsWorking || '') },
+        { key: 'acc', header: 'الحسابات', render: (r) => `${r.accountsTotal ?? 0} / ${r.accountsActive ?? 0} / ${r.accountsAssigned ?? 0}` },
+        {
+          key: 'actions',
+          header: 'إجراءات',
+          render: (r) => (
+            <button type="button" className="text-[var(--accent)]" onClick={() => void openCity(String(r.id))}>
+              تفاصيل المدينة
+            </button>
+          ),
+        },
+      ];
+    }
+    if (tab === 'housing') {
+      return [
+        { key: 'nameAr', header: 'اسم السكن', render: (r) => String(r.nameAr || '') },
+        { key: 'city', header: 'المدينة', render: (r) => String(r.city || '') },
+        { key: 'rooms', header: 'عدد الغرف', render: (r) => String(r.roomsCount ?? '') },
+        { key: 'res', header: 'إجمالي المناديب', render: (r) => String(r.residentsTotal ?? '') },
+        { key: 'per', header: 'مندوب/غرفة', render: (r) => String(r.ridersPerRoom ?? '') },
+        { key: 'sup', header: 'المشرف', render: () => NO_SOURCE },
+        { key: 'status', header: 'الحالة', render: (r) => String(r.status || '') },
+        {
+          key: 'actions',
+          header: 'إجراءات',
+          render: (r) => (
+            <button type="button" className="text-[var(--accent)]" onClick={() => void openHousing(String(r.id))}>
+              عرض الغرف والمقيمين
+            </button>
+          ),
+        },
+      ];
+    }
+    if (tab === 'fuel') {
+      if (view === 'log') {
+        return [
+          { key: 'card', header: 'البطاقة', render: (r) => String(r.cardNumber || '') },
+          { key: 'provider', header: 'المزود', render: (r) => String(r.provider || '') },
+          { key: 'rider', header: 'المندوب', render: (r) => String(r.riderNameAr || '') },
+          { key: 'from', header: 'من', render: (r) => String(r.effectiveFrom || '') },
+          { key: 'to', header: 'إلى', render: (r) => String(r.effectiveTo || '') },
+        ];
+      }
+      return [
+        { key: 'card', header: 'رقم البطاقة والمزود', render: (r) => `${r.cardNumber || ''} · ${r.provider || ''}` },
+        { key: 'rider', header: 'المندوب الفعلي', render: (r) => String(r.riderNameAr || '') },
+        { key: 'plate', header: 'المركبة', render: (r) => String(r.plateNumber || '') },
+        { key: 'liters', header: 'اللترات', render: (r) => String(r.liters ?? '') },
+        { key: 'before', header: 'قبل الضريبة', render: (r) => String(r.amountBeforeTax ?? '') },
+        { key: 'vat', header: 'الضريبة', render: (r) => String(r.vat ?? '') },
+        { key: 'total', header: 'الإجمالي', render: (r) => String(r.totalInclVat ?? '') },
+        { key: 'cap', header: 'السقف', render: () => NO_SOURCE },
+        { key: 'status', header: 'الحالة', render: (r) => String(r.status || '') },
+      ];
+    }
+    if (view === 'invoices') {
+      return [
+        { key: 'num', header: 'رقم الاستلام', render: (r) => String(r.receiptNumber || '') },
+        { key: 'sup', header: 'المورد', render: (r) => String(r.supplierNameAr || '') },
+        { key: 'date', header: 'تاريخ الفاتورة', render: (r) => String(r.invoiceDate || '') },
+        { key: 'total', header: 'الإجمالي', render: (r) => String(r.totalAmount ?? '') },
+        { key: 'status', header: 'الحالة', render: (r) => String(r.status || '') },
+      ];
+    }
+    if (view === 'oil') {
+      return [
+        { key: 'plate', header: 'اللوحة', render: (r) => cell(r.plateNumberAr) },
+        { key: 'date', header: 'التاريخ', render: (r) => cell(r.performedAt) },
+        { key: 'odo', header: 'العداد', render: (r) => cell(r.odometer) },
+        { key: 'liters', header: 'لترات', render: (r) => cell(r.oilLiters) },
+        { key: 'oil', header: 'تكلفة الزيت', render: (r) => cell(r.oilCost) },
+        { key: 'filter', header: 'الفلتر', render: (r) => cell(r.filterCost) },
+        { key: 'labor', header: 'أجور', render: (r) => cell(r.laborCost) },
+        { key: 'other', header: 'أخرى', render: (r) => cell(r.otherCost) },
+        { key: 'total', header: 'الإجمالي', render: (r) => cell(r.totalCost) },
+      ];
+    }
+    return [
+      { key: 'plate', header: 'اللوحة والنوع', render: (r) => `${r.plateNumberAr || ''} · ${r.vehicleType || ''}` },
+      { key: 'rider', header: mode === 'rider' ? 'المندوب الفعلي' : 'المندوب / الفترة', render: (r) => String(r.riderNameAr || '') },
+      { key: 'city', header: 'المدينة', render: (r) => String(r.city || '') },
+      { key: 'days', header: 'أيام التشغيل', render: (r) => String(r.operatingDays ?? '') },
+      { key: 'parts', header: 'تكلفة قطع الغيار', render: (r) => String(r.sparePartsCost ?? '') },
+      { key: 'collect', header: 'الاستقطاع المطلوب', render: (r) => String(r.amountToCollect ?? '') },
+      { key: 'oil', header: 'زيت (عدد/تكلفة/كم)', render: (r) => `${r.oilChangesCount ?? 0} / ${r.oilChangesCost ?? 0} / ${r.oilMileage ?? '—'}` },
+      {
+        key: 'actions',
+        header: 'إجراءات',
+        render: (r) => (
+          <button type="button" className="text-[var(--accent)]" onClick={() => void openVehicle(String(r.vehicleId || r.id))}>
+            تفاصيل المركبة
+          </button>
+        ),
+      },
+    ];
+  }, [tab, view, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="space-y-6">
-      {/* Page Header with Source Badge and Import Center Link */}
+    <div className="space-y-4 max-w-full overflow-x-hidden">
       <PageHeader
-        title="التشغيل والأصول الميدانية"
-        eyebrow="العمليات واللوجستيات"
-        description="إدارة أسطول المركبات، السكن والإيواء، تسليم واستلام العهد والأجهزة، حسابات المنصات، والقضايا والضمانات التشغيلية."
-        primaryAction={{
-          label: 'تحديث البيانات',
-          icon: <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />,
-          onClick: () => loadTabData(activeTab, page, pageSize, debouncedQuery),
-        }}
+        title={title}
+        description="عرض مباشر من نظام الموارد — بدون ترحيل أو مدفوعات من هذه الشاشة."
       >
-        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[var(--line)]">
-          {source && <SourceBadge source={source} asOf={asOf} />}
-
-        </div>
+        {source ? <SourceBadge source={source === 'erp_live' ? 'erp_live' : 'store'} asOf={asOf || undefined} /> : null}
       </PageHeader>
 
-      {/* 6. Stat Cards: Using total of the active tab only (no fake counts for other tabs) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard
-          label={`إجمالي سجلات ${currentTabInfo.shortLabel}`}
-          value={loading ? '...' : total}
-          hint="إجمالي السجلات المطابقة في مصدر التشغيل"
-          icon={currentTabInfo.icon}
-          active={true}
-          loading={loading}
+      {tab === 'fuel' ? (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm">
+          عرض مباشر فقط من نظام الموارد — الاستهلاك يُدخل في نظام عمر.
+        </div>
+      ) : null}
+
+      {tab === 'vehicles' ? (
+        <SectionTabs
+          tabs={vehicleInnerTabs}
+          activeTab={view || 'period'}
+          paramName="view"
+          onChange={(id) => replaceParams({ view: id, page: '1' })}
         />
-        <StatCard
-          label="السجلات المعروضة"
-          value={loading ? '...' : items.length}
-          hint={`الصفحة ${page} من أصل ${totalPages} (بحجم ${pageSize})`}
-          icon={Layers}
-          loading={loading}
+      ) : null}
+      {tab === 'fuel' ? (
+        <SectionTabs
+          tabs={fuelInnerTabs}
+          activeTab={view || 'usage'}
+          paramName="view"
+          onChange={(id) => replaceParams({ view: id, page: '1' })}
         />
-        <StatCard
-          label="مصدر البيانات"
-          value={source === 'erp_live' ? 'نظام الموارد المباشر' : source === 'store' ? 'بيانات تجريبية محلية' : 'بانتظار المصدر'}
-          hint={source === 'erp_live' ? 'قراءة مباشرة حية للقراءة فقط' : 'مخزن التطوير التجريبي'}
-          icon={CheckCircle2}
-          loading={loading && !source}
-        />
-        <StatCard
-          label="توقيت آخر قراءة"
-          value={asOf ? (formatRiyadhDateTime(asOf).split('،')[1]?.trim() || 'محدث') : '-'}
-          hint={asOf ? `بتاريخ ${formatRiyadhDateTime(asOf).split('،')[0]?.trim()} بتوقيت الرياض` : 'بانتظار القراءة'}
-          icon={Clock}
-          loading={loading && !asOf}
-        />
+      ) : null}
+
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        {kpi.map((k) => (
+          <StatCard key={k.label} label={k.label} value={k.value == null ? '—' : String(k.value)} />
+        ))}
       </div>
 
-      {/* Section Tabs */}
-      <SectionTabs
-        tabs={sectionTabs}
-        activeTab={activeTab}
-        onChange={handleTabChange}
-      />
-
-      {/* Content Area */}
-      <div className="space-y-4">
-        {/* Tab Toolbar: Title, Source Badge, and Server Search with 300ms Debounce */}
-        <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                {currentTabInfo.title}
-              </h3>
-            </div>
-            <p className="text-xs text-[var(--muted)] mt-0.5">
-              {currentTabInfo.desc}
-            </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <label className="flex-1 min-w-[12rem]">
+          <span className="sr-only">بحث</span>
+          <div className="relative">
+            <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+            <input
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] pr-9 pl-3 py-2"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="بحث…"
+            />
           </div>
-
-          {/* 1. Server Search Input (Debounced 300 ms) */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none" />
-              <input
-                type="text"
-                placeholder="بحث في سجلات التشغيل..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="ps-9 pe-8 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-hidden w-52 sm:w-72 transition"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  aria-label="مسح البحث"
-                  className="absolute end-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
-                >
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 4. Errors: 503 Warning Banner when keeping last page shown */}
-        {is503 && items.length > 0 && (
-          <div
-            role="alert"
-            className="p-4 rounded-2xl border border-[var(--warning)]/30 bg-[var(--warning)]/10 flex flex-wrap items-center justify-between gap-3 shadow-xs"
-          >
-            <div className="flex items-center gap-2.5 text-xs text-[var(--warning)] font-bold">
-              <AlertTriangle size={18} className="shrink-0" />
-              <div>
-                <span className="font-extrabold block text-sm">مصدر التشغيل غير متاح الآن</span>
-                <span className="font-normal text-[var(--muted)]">
-                  تم الإبقاء على آخر صفحة قراءة معروضة أدناه ({errorMsg || 'تعذر الاتصال بقاعدة بيانات التشغيل'})
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => loadTabData(activeTab, page, pageSize, debouncedQuery)}
-              className="px-3.5 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <RefreshCw size={13} />
-              <span>إعادة المحاولة</span>
+        </label>
+        {(tab === 'vehicles' || tab === 'fuel') && (
+          <>
+            <label className="text-sm">
+              من
+              <input type="date" className="block mt-1 rounded-lg border border-[var(--border)] px-2 py-2" value={from} onChange={(e) => replaceParams({ from: e.target.value, page: '1' })} />
+            </label>
+            <label className="text-sm">
+              إلى
+              <input type="date" className="block mt-1 rounded-lg border border-[var(--border)] px-2 py-2" value={to} onChange={(e) => replaceParams({ to: e.target.value, page: '1' })} />
+            </label>
+          </>
+        )}
+        {tab === 'fuel' && view !== 'log' ? (
+          <label className="text-sm">
+            الشهر
+            <input type="month" className="block mt-1 rounded-lg border border-[var(--border)] px-2 py-2" value={month} onChange={(e) => replaceParams({ month: e.target.value, page: '1' })} />
+          </label>
+        ) : null}
+        {tab === 'vehicles' && view === 'period' ? (
+          <div className="flex w-full sm:w-auto rounded-lg overflow-hidden border border-[var(--border)]">
+            <button type="button" className={`flex-1 sm:flex-none px-3 py-2 text-sm ${mode === 'vehicle' ? 'bg-[var(--accent)] text-white' : ''}`} onClick={() => replaceParams({ mode: 'vehicle', page: '1' })}>
+              عرض بالمركبة
+            </button>
+            <button type="button" className={`flex-1 sm:flex-none px-3 py-2 text-sm ${mode === 'rider' ? 'bg-[var(--accent)] text-white' : ''}`} onClick={() => replaceParams({ mode: 'rider', page: '1' })}>
+              عرض بالمندوب الفعلي
             </button>
           </div>
-        )}
-
-        {/* 4. Errors: 503 Full Card when no data was loaded yet */}
-        {is503 && items.length === 0 ? (
-          <div
-            role="alert"
-            className="p-8 rounded-2xl border border-[var(--warning)]/30 bg-[var(--surface)] text-center space-y-4 shadow-xs"
-          >
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--warning)]/15 text-[var(--warning)] text-xs font-bold">
-              <AlertTriangle size={16} />
-              <span>مصدر التشغيل غير متاح الآن</span>
-            </div>
-            <h4 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-              تعذر الاتصال بمصدر التشغيل اللوجستي
-            </h4>
-            <p className="text-xs sm:text-sm text-[var(--muted)] max-w-md mx-auto">
-              {errorMsg || 'نظام الموارد الميداني أو اتصال قاعدة بيانات التشغيل غير متاح حالياً. يرجى إعادة المحاولة.'}
-            </p>
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => loadTabData(activeTab, page, pageSize, debouncedQuery)}
-                className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] hover:opacity-90 text-xs sm:text-sm font-bold transition inline-flex items-center gap-2 cursor-pointer shadow-xs"
-              >
-                <RefreshCw size={14} />
-                <span>إعادة المحاولة</span>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {canRefresh ? (
+            <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void load()}>
+              <RefreshCw size={16} /> تحديث
+            </button>
+          ) : null}
+          {canExport && tab === 'cities' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsCities().then((r) => downloadBlob(r, 'operations-cities.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'housing' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsHousing({ q: debouncedQ || undefined }).then((r) => downloadBlob(r, 'operations-housing.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'vehicles' && view === 'period' ? (
+            <>
+              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'summary' }).then((r) => downloadBlob(r, 'operations-vehicles-summary.xlsx'))}>
+                تصدير ملخص
               </button>
-            </div>
-          </div>
-        ) : errorMsg && !is503 ? (
-          <ErrorState
-            title="تعذر تحميل بيانات التشغيل"
-            message={errorMsg}
-            onRetry={() => loadTabData(activeTab, page, pageSize, debouncedQuery)}
-          />
-        ) : (
-          /* 1. Server Paging and Search: DataTable in serverSide mode */
-          <DataTable
-            tableId={`operations-${activeTab}`}
-            columns={tabColumns}
-            data={items}
-            totalCount={total}
-            loading={loading}
-            page={page}
-            pageSize={pageSize}
-            pageSizes={PAGE_SIZES}
-            onPageChange={handlePageChange}
-            onPageSizeChange={handlePageSizeChange}
-            serverSide={true}
-            searchable={false}
-            emptyTitle={`لا توجد سجلات حالية في ${currentTabInfo.title}`}
-            emptyDescription={
-              debouncedQuery
-                ? 'لم يتم العثور على نتائج تطابق معايير البحث في مصدر التشغيل.'
-                : 'تظهر السجلات هنا فور توفرها من مصدر التشغيل اللوجستي.'
-            }
-            exportFilename={`operations_${activeTab}`}
-            showTotals={true}
-          />
-        )}
+              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'detailed' }).then((r) => downloadBlob(r, 'operations-vehicles-detailed.xlsx'))}>
+                تصدير تفصيلي
+              </button>
+            </>
+          ) : null}
+          {canExport && tab === 'fuel' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsFuel({ month }).then((r) => downloadBlob(r, 'operations-fuel.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+        </div>
       </div>
+
+      {is503 ? (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          مصدر التشغيل غير متاح حاليًا (503). آخر بيانات معروضة إن وُجدت.
+        </div>
+      ) : null}
+
+      {loading ? (
+        <Skeleton className="h-64 w-full" />
+      ) : errorMsg && !is503 ? (
+        <ErrorState title="تعذر التحميل" message={errorMsg} onRetry={() => void load()} />
+      ) : items.length === 0 ? (
+        <EmptyState title="لا بيانات" description={view === 'oil' ? 'اختر مركبة من تقرير الفترة لعرض تغييرات الزيت.' : 'لا صفوف مطابقة للمرشحات.'} />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={items}
+          getRowId={(r) => String(r.id || Math.random())}
+          serverSide
+          searchable={false}
+          exportable={false}
+          syncUrl={false}
+          page={page}
+          pageSize={pageSize}
+          totalCount={total}
+          onPageChange={(p) => replaceParams({ page: String(p) })}
+          onPageSizeChange={(s) => replaceParams({ size: String(s), page: '1' })}
+        />
+      )}
+
+      <Drawer open={!!drawer} onClose={() => setDrawer(null)} title={drawer?.title || ''}>
+        {drawer?.body}
+      </Drawer>
     </div>
   );
 }
 
 export default function OperationsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="space-y-4 p-6">
-          <Skeleton className="h-12 w-48 rounded-xl" />
-          <Skeleton className="h-28 w-full rounded-2xl" />
-        </div>
-      }
-    >
+    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
       <OperationsPageInner />
     </Suspense>
   );
