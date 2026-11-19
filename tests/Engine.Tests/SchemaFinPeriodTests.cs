@@ -94,12 +94,14 @@ public sealed class SchemaFinPeriodTests
                 SchemaSql.Exec(c,null,"INSERT INTO hr.company(id,code,unified_number,name_ar,status,created_at) VALUES(@id,'P1','UP1',N'n',1,SYSUTCDATETIME())",("@id",company));
                 SchemaSql.Exec(c,null,"INSERT INTO fin.accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-11-01',1,SYSUTCDATETIME())",
                     ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company));
-                Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
                     "INSERT INTO fin.accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-12-01',3,SYSUTCDATETIME())",
-                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company)));
-                Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company)),
+                    "CK_fin_accounting_period_state");
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
                     "INSERT INTO fin.accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,@m,1,SYSUTCDATETIME())",
-                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company),("@m","2026-11-15")));
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company),("@m","2026-11-15")),
+                    "CK_fin_accounting_period_start");
                 return true;
             });
         }

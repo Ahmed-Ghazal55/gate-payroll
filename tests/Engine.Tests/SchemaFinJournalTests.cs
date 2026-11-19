@@ -198,25 +198,37 @@ public sealed class SchemaFinJournalTests
                     INSERT INTO fin.journal(id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,currency_code,created_at)
                     VALUES(@id,'V-1',@pid,'2026-11-01','2026-11-15','manual',@sid,@cid,'manual',1,'SAR',SYSUTCDATETIME())
                     """,("@id",journal),("@pid",period),("@sid",source),("@cid",company));
-                Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,"""
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
                     INSERT INTO fin.journal(id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,currency_code,created_at)
                     VALUES(@id,'V-2',@pid,'2026-11-01','2026-11-15','manual',@sid,@cid,'manual',1,'SAR',SYSUTCDATETIME())
-                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@sid",source),("@cid",company)));
-                Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,"""
+                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@sid",source),("@cid",company)),
+                    "UQ_fin_journal_source");
+                // November period + December date → named month CHECK
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
                     INSERT INTO fin.journal(id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,currency_code,created_at)
                     VALUES(@id,'V-D',@pid,'2026-11-01','2026-12-15','manual',@sid2,@cid,'manual',1,'SAR',SYSUTCDATETIME())
-                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@sid2",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company)));
+                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@sid2",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company)),
+                    "CK_fin_journal_date_in_period");
+                // November period id + December period_month → named composite FK
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
+                    INSERT INTO fin.journal(id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,currency_code,created_at)
+                    VALUES(@id,'V-MX',@pid,'2026-12-01','2026-12-15','manual',@sid3,@cid,'manual',1,'SAR',SYSUTCDATETIME())
+                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@sid3",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company)),
+                    "FK_fin_journal_period_company");
                 string posting=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CONVERT(varchar(36),id) FROM fin.account WHERE is_postable=1 AND is_active=1 ORDER BY code")!;
                 string nonLeaf=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CONVERT(varchar(36),id) FROM fin.account WHERE is_postable=0 ORDER BY code")!;
                 string cc=SchemaSql.GuidText(SchemaOrgCostCentre.NoneId);
-                Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,"""
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
                     INSERT INTO fin.journal_line(id,period_id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
                     VALUES(@id,@pid,'2026-11-01',@jid,1,@aid,1,@cid,@cc,5,5,SYSUTCDATETIME())
-                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@jid",journal),("@aid",posting),("@cid",company),("@cc",cc)));
-                Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,"""
+                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@jid",journal),("@aid",posting),("@cid",company),("@cc",cc)),
+                    "CK_fin_journal_line_one_side");
+                // Leaf-only: assert the specific composite postable FK name (not any SqlException)
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
                     INSERT INTO fin.journal_line(id,period_id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
                     VALUES(@id,@pid,'2026-11-01',@jid,1,@aid,1,@cid,@cc,10,0,SYSUTCDATETIME())
-                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@jid",journal),("@aid",nonLeaf),("@cid",company),("@cc",cc)));
+                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@jid",journal),("@aid",nonLeaf),("@cid",company),("@cc",cc)),
+                    "FK_fin_journal_line_account_postable");
                 SchemaSql.Exec(c,null,"""
                     INSERT INTO fin.journal_line(id,period_id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)
                     VALUES(@id,@pid,'2026-11-01',@jid,1,@aid,1,@cid,@cc,10,0,SYSUTCDATETIME())
