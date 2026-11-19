@@ -177,7 +177,13 @@ export function ReviewDrawer({ submission, onClose, onSuccess }: ReviewDrawerPro
           <div className="p-4 rounded-xl border border-[var(--line)] bg-[var(--surface)] space-y-1.5">
             <span className="text-xs font-bold text-[var(--muted)]">نظام العمل المختار:</span>
             <div className="text-sm font-bold text-[var(--accent)]">
-              {submission.workSystem === 'monthly' ? 'راتب شهري ثابت' : 'محاسبة بالطلب (عمولة)'}
+              {submission.workSystem === 'tiers'
+                ? 'نظام الراتب الجديد'
+                : submission.workSystem === 'commission'
+                  ? 'نظام العمولة السابق'
+                  : submission.workSystem === 'monthly'
+                    ? 'راتب شهري ثابت'
+                    : 'محاسبة بالطلب (عمولة)'}
             </div>
           </div>
         )}
