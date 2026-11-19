@@ -1,7 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Payroll;
-using System.Text.Json.Nodes;
 
 [TestClass]
 public sealed class SchemaHrCompanyTests
@@ -10,36 +9,19 @@ public sealed class SchemaHrCompanyTests
     {
         var c=new SqliteConnection("Data Source=:memory:");c.Open();
         using(var fk=c.CreateCommand()){fk.CommandText="PRAGMA foreign_keys=ON;";fk.ExecuteNonQuery();}
-        using(var records=c.CreateCommand()){records.CommandText="CREATE TABLE records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL);";records.ExecuteNonQuery();}
         return c;
     }
 
     [TestMethod]
-    public void EnsureIdempotentConstraintsAndBackfill()
+    public void EnsureIdempotentCreatesEmptyCompanyTables()
     {
         using var c=Open();
-        using(var tx=c.BeginTransaction())
-        {
-            var companyId=Guid.Parse("019c18d5-62e1-7000-8000-000000000041");
-            Store.Save(c,"company",new JsonObject{
-                ["id"]=companyId.ToString("D"),["sponsorId"]=companyId.ToString("D"),["code"]="BW",
-                ["unifiedNumber"]="7015658094",["nameAr"]="شركة اختبار",["status"]="active",
-                ["activities"]=new JsonArray(new JsonObject{["isicCode"]="4923",["nameAr"]="نقل"})
-            },tx);
-            Store.Save(c,"commercial_registration",new JsonObject{
-                ["id"]="cr:"+Guid.NewGuid().ToString("N"),["companyId"]=companyId.ToString("D"),
-                ["number"]="4030362130",["status"]="active"
-            },tx);
-            tx.Commit();
-        }
-
         SchemaRef.Ensure(c);
         SchemaHrCompany.Ensure(c);
         SchemaHrCompany.Ensure(c);
-
-        Assert.AreEqual(1L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM hr_company WHERE code='BW'")!));
-        Assert.AreEqual(1L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM hr_commercial_registration WHERE cr_number='4030362130'")!));
-        Assert.AreEqual(1L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM hr_company_activity WHERE isic_code='4923'")!));
+        Assert.IsTrue(SchemaSql.TableExists(c,null,"hr","company"));
+        Assert.IsTrue(SchemaSql.TableExists(c,null,"hr","commercial_registration"));
+        Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM hr_company")!));
     }
 
     [TestMethod]
@@ -64,7 +46,7 @@ public sealed class SchemaHrCompanyTests
     }
 
     [TestMethod]
-    public void StoreStartupCreatesCompanyMasters()
+    public void StoreStartupCreatesEmptyCompanyMasters()
     {
         string dir=Path.Combine(Path.GetTempPath(),"gate-hr-company-"+Guid.NewGuid().ToString("N"));
         try
@@ -72,11 +54,10 @@ public sealed class SchemaHrCompanyTests
             var store=new Store(dir);
             Companies.Seed(store);
             Assert.IsTrue(store.DataPreservationVerified);
-            // Seed runs after Store ctor Ensure; re-run Ensure to copy seeded kinds.
-            store.Write((c,tx)=>{SchemaHrCompany.Ensure(c,tx);return true;});
             store.Read(c=>{
                 Assert.IsTrue(SchemaSql.TableExists(c,null,"hr","company"));
-                Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM hr_company")!)>=3);
+                Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM hr_company")!));
+                Assert.IsTrue(Store.List(c,"company").Count>=3);
                 return true;
             });
         }

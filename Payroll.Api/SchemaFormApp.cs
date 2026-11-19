@@ -1,8 +1,7 @@
 using System.Data.Common;
-using System.Text.Json.Nodes;
 namespace Payroll;
 
-/// <summary>U-W1-17: form.* / app.* metadata tables. Keep forever (M-0363); dual-read copy only; no wipe path.</summary>
+/// <summary>U-W1-17: form.* / app.* metadata tables. Keep forever (M-0363). Schema-only this phase; legacy kinds remain the only reader/writer until cutover.</summary>
 public static class SchemaFormApp
 {
     public static void Ensure(DbConnection c,DbTransaction? tx=null)
@@ -18,7 +17,6 @@ public static class SchemaFormApp
         EnsureBroadcastAck(c,tx);
         EnsurePushOutbox(c,tx);
         EnsureRiderAsk(c,tx);
-        BackfillFromLegacy(c,tx);
     }
 
     static void EnsureCampaign(DbConnection c,DbTransaction? tx)
@@ -397,91 +395,4 @@ public static class SchemaFormApp
         SchemaSql.CreateIndexIfMissing(c,tx,"app","rider_ask","IX_app_rider_ask_person_key","person_key");
     }
 
-    static bool HasRecords(DbConnection c,DbTransaction? tx)
-    {
-        if(SchemaSql.IsSql(c))
-            return Convert.ToInt32(SchemaSql.Scalar(c,tx,"SELECT CASE WHEN OBJECT_ID(N'dbo.records',N'U') IS NULL THEN 0 ELSE 1 END")!)==1;
-        return Convert.ToInt64(SchemaSql.Scalar(c,tx,"SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name='records'")!)>0;
-    }
-
-    static bool TryGuid(string? value,out Guid id)
-    {
-        id=default;
-        if(string.IsNullOrWhiteSpace(value))return false;
-        string cleaned=value;
-        foreach(string prefix in new[]{"mobile:","cr:","company-doc:"})
-            if(cleaned.StartsWith(prefix,StringComparison.OrdinalIgnoreCase))cleaned=cleaned[prefix.Length..];
-        return Guid.TryParse(cleaned,out id)||Guid.TryParseExact(cleaned,"N",out id);
-    }
-
-    static string MapCampaignStatus(string status)=>status switch{"closed"=>"closed","archived"=>"archived","draft"=>"draft",_=>"open"};
-    static string MapSubmissionStatus(string status)=>status switch{"approved"=>"approved","rejected"=>"rejected","archived"=>"archived",_=>"pending"};
-
-    static void BackfillFromLegacy(DbConnection c,DbTransaction? tx)
-    {
-        if(!HasRecords(c,tx))return;
-        string now=SchemaSql.NowLiteral(c);
-        string campaigns=SchemaSql.Q(c,"form","campaign");
-        foreach(var doc in Store.List(c,"campaign",tx))
-        {
-            Guid id=TryGuid(doc.S("id"),out var parsed)?parsed:SchemaSql.NewId();
-            string idText=SchemaSql.GuidText(id);
-            if(Convert.ToInt64(SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {campaigns} WHERE id=@id",("@id",idText))!)>0)continue;
-            try
-            {
-                SchemaSql.Exec(c,tx,$"""
-                    INSERT INTO {campaigns}(id,title,kind,status,sharing_token,token_hash,expires_at,fields_json,body_json,created_at)
-                    VALUES(@id,@title,@kind,@status,@token,@hash,@exp,@fields,@body,{now})
-                    """,
-                    ("@id",idText),("@title",doc.S("title","campaign")),("@kind",doc.S("kind","work-choice")),
-                    ("@status",MapCampaignStatus(doc.S("status","open"))),
-                    ("@token",NullIfEmpty(doc.S("sharingToken"))),("@hash",NullIfEmpty(doc.S("tokenHash"))),
-                    ("@exp",NullIfEmpty(doc.S("expiresAt"))),("@fields",doc["fields"]?.ToJsonString()??(object)DBNull.Value),
-                    ("@body",doc.ToJsonString()));
-            }
-            catch(DbException){}
-        }
-
-        string submissions=SchemaSql.Q(c,"form","submission");
-        foreach(var doc in Store.List(c,"submission",tx))
-        {
-            if(!TryGuid(doc.S("campaignId"),out var campaignId))continue;
-            string campaignText=SchemaSql.GuidText(campaignId);
-            if(Convert.ToInt64(SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {campaigns} WHERE id=@id",("@id",campaignText))!)==0)continue;
-            string person=doc.S("iqama");if(person=="")continue;
-            if(Convert.ToInt64(SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {submissions} WHERE campaign_id=@c AND person_key=@p",("@c",campaignText),("@p",person))!)>0)continue;
-            Guid id=TryGuid(doc.S("id"),out var sid)?sid:SchemaSql.NewId();
-            try
-            {
-                SchemaSql.Exec(c,tx,$"""
-                    INSERT INTO {submissions}(id,campaign_id,person_key,status,answers_json,body_json,created_at)
-                    VALUES(@id,@cid,@person,@status,@answers,@body,{now})
-                    """,
-                    ("@id",SchemaSql.GuidText(id)),("@cid",campaignText),("@person",person),("@status",MapSubmissionStatus(doc.S("status","pending"))),
-                    ("@answers",doc.ToJsonString()),("@body",doc.ToJsonString()));
-            }
-            catch(DbException){}
-        }
-
-        string forms=SchemaSql.Q(c,"form","custom_form");
-        foreach(var doc in Store.List(c,"custom_form",tx))
-        {
-            Guid id=TryGuid(doc.S("id"),out var fid)?fid:SchemaSql.NewId();
-            string idText=SchemaSql.GuidText(id);
-            if(Convert.ToInt64(SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {forms} WHERE id=@id",("@id",idText))!)>0)continue;
-            try
-            {
-                SchemaSql.Exec(c,tx,$"""
-                    INSERT INTO {forms}(id,title_ar,status,sharing_token,expires_at,fields_json,body_json,created_at)
-                    VALUES(@id,@title,@status,@token,@exp,@fields,@body,{now})
-                    """,
-                    ("@id",idText),("@title",doc.S("titleAr",doc.S("title","form"))),("@status",MapCampaignStatus(doc.S("status","draft"))),
-                    ("@token",NullIfEmpty(doc.S("sharingToken"))),("@exp",NullIfEmpty(doc.S("expiresAt"))),
-                    ("@fields",doc["fields"]?.ToJsonString()??(object)DBNull.Value),("@body",doc.ToJsonString()));
-            }
-            catch(DbException){}
-        }
-    }
-
-    static object NullIfEmpty(string value)=>string.IsNullOrWhiteSpace(value)?DBNull.Value:value;
 }

@@ -17,6 +17,7 @@ public static class SchemaRef
         EnsureErpEventType(c,tx);
         EnsureSetting(c,tx);
         EnsureLegacyAccountMap(c,tx);
+        EnsureLegacyKeyMap(c,tx);
         SeedSaudiBanks(c,tx);
         SeedErpEventTypes(c,tx);
     }
@@ -188,6 +189,41 @@ public static class SchemaRef
                   company_id TEXT NULL,
                   created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
                   CONSTRAINT UQ_legacy_account_map UNIQUE (legacy_code, company_id)
+                );
+                """);
+        }
+    }
+
+    /// <summary>Empty map for later cutover: source kind + source id → GUID v7. Created empty; never filled at startup in this phase.</summary>
+    static void EnsureLegacyKeyMap(DbConnection c,DbTransaction? tx)
+    {
+        string t=SchemaSql.Q(c,"ref","legacy_key_map");
+        string g=SchemaSql.GuidType(c);
+        if(SchemaSql.IsSql(c))
+        {
+            SchemaSql.Exec(c,tx,$"""
+                IF OBJECT_ID(N'ref.legacy_key_map',N'U') IS NULL
+                CREATE TABLE {t}(
+                  id {g} NOT NULL,
+                  source_kind varchar(40) NOT NULL,
+                  source_id nvarchar(128) NOT NULL,
+                  target_id {g} NOT NULL,
+                  {SchemaSql.AuditCols(c)},
+                  CONSTRAINT PK_legacy_key_map PRIMARY KEY NONCLUSTERED (id),
+                  CONSTRAINT UQ_legacy_key_map_source UNIQUE (source_kind, source_id)
+                );
+                """);
+        }
+        else
+        {
+            SchemaSql.Exec(c,tx,$"""
+                CREATE TABLE IF NOT EXISTS {t}(
+                  id {g} NOT NULL PRIMARY KEY,
+                  source_kind TEXT NOT NULL,
+                  source_id TEXT NOT NULL,
+                  target_id {g} NOT NULL,
+                  created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
+                  CONSTRAINT UQ_legacy_key_map_source UNIQUE (source_kind, source_id)
                 );
                 """);
         }

@@ -23,6 +23,8 @@ public sealed class SchemaRefTests
         Assert.IsTrue(SchemaSql.TableExists(c,null,"ref","erp_event_type"));
         Assert.IsTrue(SchemaSql.TableExists(c,null,"ref","setting"));
         Assert.IsTrue(SchemaSql.TableExists(c,null,"ref","legacy_account_map"));
+        Assert.IsTrue(SchemaSql.TableExists(c,null,"ref","legacy_key_map"));
+        Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM ref_legacy_key_map")!));
         Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM ref_saudi_bank")!)>=12);
         Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM ref_erp_event_type")!)>=4);
     }
