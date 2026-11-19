@@ -60,10 +60,17 @@ function AccountingPageContent() {
   }, []);
 
   // Company labels come from GET /companies only — never a fixed code map.
-  const companyName = (codeOrId?: string) => {
-    if (!codeOrId || codeOrId === 'all') return 'كافة المنشآت والسجلات';
-    const match = companies.find((c) => c.code === codeOrId || c.id === codeOrId);
-    return match?.nameAr || match?.shortNameAr || codeOrId;
+  // Try each candidate (code and sponsorId) and match code or id/sponsorId.
+  const companyName = (...candidates: Array<string | undefined>) => {
+    const keys = candidates.filter((k): k is string => !!k && k !== 'all');
+    if (keys.length === 0) return 'كافة المنشآت والسجلات';
+    for (const key of keys) {
+      const match = companies.find(
+        (c) => c.code === key || c.id === key || (c as { sponsorId?: string }).sponsorId === key
+      );
+      if (match) return match.nameAr || match.shortNameAr || key;
+    }
+    return keys[0];
   };
 
   useEffect(() => {
@@ -959,7 +966,7 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{companyName(company.companyCode || company.sponsorId)}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companyName(company.companyCode, company.sponsorId)}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
@@ -1215,7 +1222,7 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{companyName(company.companyCode || company.sponsorId)}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companyName(company.companyCode, company.sponsorId)}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
