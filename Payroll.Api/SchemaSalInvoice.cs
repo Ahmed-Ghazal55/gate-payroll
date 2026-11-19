@@ -33,6 +33,7 @@ public static class SchemaSalInvoice
             CONSTRAINT FK_sal_invoice_company FOREIGN KEY (company_id) REFERENCES {SchemaSql.Q(c,"hr","company")}(id) ON DELETE NO ACTION,
             CONSTRAINT FK_sal_invoice_journal FOREIGN KEY (journal_id) REFERENCES {SchemaSql.Q(c,"fin","journal")}(id) ON DELETE NO ACTION
             """);
+        SchemaMoneyFlags.Ensure(c,tx,"sal","platform_invoice",o=>$"{o}.approved_at IS NOT NULL OR {o}.status IN (2,3,5)");
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"sal","platform_invoice","UQ_sal_invoice_active","app_code,erp_cr_id,period_from,period_to","status<>4");
         SchemaSql.EnsureTable(c,tx,"sal","platform_invoice_line",$"""
             id {g} NOT NULL, invoice_id {g} NOT NULL, period_month {SchemaSql.Date(c)} NOT NULL,

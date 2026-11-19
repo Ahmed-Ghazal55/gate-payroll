@@ -6,7 +6,7 @@ using Payroll;
 [TestClass]
 public sealed class SchemaSalPayRunTests
 {
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void RunFlagsAreIndependentAndActiveBusinessKeyIsFiltered(bool sqlServer)
@@ -24,7 +24,7 @@ public sealed class SchemaSalPayRunTests
         SchemaSalPayRun.Ensure(c);Assert.AreEqual(2L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM sal_pay_run"));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void SignedNetDebtBeforeApprovalCompositeFksAndVersionAreEnforced(bool sqlServer)
@@ -49,7 +49,34 @@ public sealed class SchemaSalPayRunTests
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_pay_run WHERE id=@id",("@id",run)));
     }
 
-    [DataTestMethod]
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void SimulationRidersNeverBankAndRunFlagsGovernTheirClaims(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Payments(sqlServer);SchemaSalPayRun.Ensure(c);
+        string company=MoneySchemaFixture.Company(c),payment=MoneySchemaFixture.Payment(c,company);
+        void Approve(string rider)=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET debt_confirm_status='confirmed',salary_approved_at=datetime('now') WHERE id=@id",("@id",rider));
+        // Payout-blocked live run: eligible for the comparison bank file, may reserve, never posts.
+        string blocked=MoneySchemaFixture.Run(c,company),due=MoneySchemaFixture.Payable(c,company);
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET payout_blocked=1 WHERE id=@id",("@id",blocked));
+        string live=MoneySchemaFixture.Rider(c,blocked,company,due,50);Approve(live);
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET bank_eligible=1 WHERE id=@id",("@id",live));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,due,status:2));
+        string reserved=MoneySchemaFixture.Claim(c,company,payment,due);
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",reserved)));
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",reserved));
+        // Simulation run: its riders carry run_mode=1 (composite FK) and can neither bank nor be claimed.
+        string simulation=MoneySchemaFixture.Run(c,company,"keeta"),simDue=MoneySchemaFixture.Payable(c,company);
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET run_mode=1 WHERE id=@id",("@id",simulation));
+        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Rider(c,simulation,company,simDue,50),"FK_sal_rider_run",sqliteToken:"FOREIGN KEY");
+        string sim=MoneySchemaFixture.Rider(c,simulation,company,simDue,50,mode:1);Approve(sim);
+        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET bank_eligible=1 WHERE id=@id",("@id",sim)),"CK_sal_rider_bank");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,simDue));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET run_mode=0 WHERE id=@id",("@id",simulation)));
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void HoldsDefaultOpenAndOnlyOneActiveHoldOrRequestCanOwnItsKey(bool sqlServer)

@@ -74,6 +74,7 @@ public static class SchemaPayAllocation
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payment","payment_id,company_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payable","payable_id,company_id,payable_period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_line","payment_line_id");
+        SchemaMoneyFlags.Ensure(c,tx,"pay","payment",o=>$"{o}.status IN (2,3)");
         EnsureTransitions(c,tx);
         EnsureClaims(c,tx);
         SchemaPayPayable.EnsureCounters(c,tx);
@@ -116,13 +117,17 @@ public static class SchemaPayAllocation
 
     static void EnsureClaims(DbConnection c,DbTransaction? tx)
     {
-        string a=SchemaSql.Q(c,"pay","payment_allocation"),p=SchemaSql.Q(c,"pay","payable");
+        string a=SchemaSql.Q(c,"pay","payment_allocation"),p=SchemaSql.Q(c,"pay","payable"),payment=SchemaSql.Q(c,"pay","payment");
         if(SchemaSql.IsSql(c))
         {
             SchemaSql.Exec(c,tx,$"""
                 CREATE OR ALTER TRIGGER pay.TR_allocation_totals ON {a} AFTER INSERT,UPDATE AS
                 BEGIN
                   SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM inserted i LEFT JOIN deleted d ON d.id=i.id JOIN {payment} p ON p.id=i.payment_id
+                    WHERE i.claim_status IN (1,2) AND (d.id IS NULL OR d.claim_status<>i.claim_status)
+                      AND (p.run_mode=1 OR (i.claim_status=2 AND p.payout_blocked=1)))
+                    THROW 51017,'Simulation or payout-blocked payment cannot claim',1;
                   DECLARE @locked uniqueidentifier;
                   SELECT @locked=p.id FROM {p} p WITH (UPDLOCK,HOLDLOCK)
                     WHERE p.id IN (SELECT payable_id FROM inserted UNION SELECT payable_id FROM deleted);
@@ -138,14 +143,17 @@ public static class SchemaPayAllocation
                 END;
                 """);
             SchemaSql.Exec(c,tx,$"CREATE OR ALTER TRIGGER pay.TR_allocation_no_delete ON {a} INSTEAD OF DELETE AS BEGIN THROW 51002,'Cancel or release allocations instead of deleting',1; END;");
+
         }
         else
         {
             foreach(string operation in new[]{"INSERT","UPDATE OF payable_id,amount,claim_status"})
             {
                 bool insert=operation=="INSERT";string targets=insert?"NEW.payable_id":"NEW.payable_id,OLD.payable_id";
+                string fresh=insert?"NEW.claim_status IN (1,2)":"NEW.claim_status IN (1,2) AND NEW.claim_status<>OLD.claim_status";
                 SchemaSql.Exec(c,tx,$"""
                     CREATE TRIGGER IF NOT EXISTS TR_allocation_{(insert?"insert":"update")} AFTER {operation} ON {a} BEGIN
+                      SELECT RAISE(ABORT,'Simulation or payout-blocked payment cannot claim') WHERE {fresh} AND EXISTS(SELECT 1 FROM {payment} WHERE id=NEW.payment_id AND (run_mode=1 OR (NEW.claim_status=2 AND payout_blocked=1)));
                       SELECT RAISE(ABORT,'Cancelled payable cannot receive claims') WHERE NEW.claim_status IN (1,2) AND (SELECT status FROM {p} WHERE id=NEW.payable_id)=4;
                       UPDATE {p} SET
                         amount_reserved=round(COALESCE((SELECT SUM(amount) FROM {a} WHERE payable_id={p}.id AND claim_status=1),0),2),
@@ -156,6 +164,7 @@ public static class SchemaPayAllocation
                     """);
             }
             SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_allocation_no_delete BEFORE DELETE ON {a} BEGIN SELECT RAISE(ABORT,'Cancel or release allocations instead of deleting'); END;");
+
         }
     }
 }

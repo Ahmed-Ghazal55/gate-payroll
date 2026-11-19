@@ -6,7 +6,7 @@ using Payroll;
 [TestClass]
 public sealed class SchemaSalInvoiceTests
 {
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void ActiveInvoiceUniqueAndPartitionBoundChildrenRejectInvalidWrites(bool sqlServer)

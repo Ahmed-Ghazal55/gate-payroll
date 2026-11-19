@@ -32,7 +32,29 @@ public sealed class SchemaOperationCaptureTests
     static void Captured(DbConnection c,string run,string link,string kind="ninja_daily")=>MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_operation_capture_manifest(id,operation_type,operation_id,required_kind,status,snapshot_link_id,period_month) VALUES(@id,'pay_run',@run,@kind,1,@link,'2026-11-01')",("@id",MoneySchemaFixture.Id()),("@run",run),("@kind",kind),("@link",link));
     static void Freeze(DbConnection c,string run)=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET capture_state=1,stage=2,calc_started_at=datetime('now') WHERE id=@run",("@run",run));
 
-    [DataTestMethod]
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void FrozenRunAndApprovedInvoiceAndPaymentKeepPayoutFlags(bool sqlServer)
+    {
+        using var c=Open(sqlServer);string company=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company);
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET payout_blocked=1 WHERE id=@id",("@id",run));
+        FillEmpty(c,run);Freeze(c,run);
+        string invoice=MoneySchemaFixture.Invoice(c,company),payment=MoneySchemaFixture.Payment(c,company);
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_platform_invoice SET approved_at=datetime('now'),status=2,payout_blocked=1 WHERE id=@id",("@id",invoice));
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET status=2,payout_blocked=1 WHERE id=@id",("@id",payment));
+        foreach(var (table,id) in new[]{("sal_pay_run",run),("sal_platform_invoice",invoice),("pay_payment",payment)})
+        foreach(string set in new[]{"run_mode=1","payout_blocked=0"})
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE {table} SET {set} WHERE id=@id",("@id",id)));
+        string payable=MoneySchemaFixture.Payable(c,company),simulation=MoneySchemaFixture.Payment(c,company);
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET run_mode=1 WHERE id=@id",("@id",simulation));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,simulation,payable));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,payable,status:2));
+        string reserved=MoneySchemaFixture.Claim(c,company,payment,payable);
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",reserved)));
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void CatalogueIsExhaustiveAndIdempotentWithGuidV7Keys(bool sqlServer)
@@ -46,7 +68,7 @@ public sealed class SchemaOperationCaptureTests
         while(reader.Read())Assert.AreEqual(7,Guid.Parse(Convert.ToString(reader.GetValue(0))!).Version);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void MissingKindBlockerBlankReasonAndUnknownAppCannotFreeze(bool sqlServer)
@@ -62,7 +84,7 @@ public sealed class SchemaOperationCaptureTests
         string unknown=MoneySchemaFixture.Run(c,company,"other");MoneySchemaFixture.Reject(()=>Freeze(c,unknown));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void TypedLinksRejectWrongKindOperationPeriodAndDuplicateContent(bool sqlServer)
@@ -79,7 +101,7 @@ public sealed class SchemaOperationCaptureTests
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_ops_snapshot SET payload='{\"changed\":true}' WHERE id=@id",("@id",snap)));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void FrozenEvidenceCannotBeEditedReplacedDeletedOrMovedAndSealIsMonotonic(bool sqlServer)
@@ -102,7 +124,7 @@ public sealed class SchemaOperationCaptureTests
         SchemaOperationCapture.Ensure(c);Assert.AreEqual(8L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM fin_operation_capture_manifest WHERE operation_id=@id",("@id",run)));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void SnapshotFromAnotherCompanyOrAppCannotSatisfyCapture(bool sqlServer)

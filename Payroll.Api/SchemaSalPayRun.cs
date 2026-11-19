@@ -20,6 +20,7 @@ public static class SchemaSalPayRun
             CONSTRAINT PK_sal_pay_run {SchemaSql.PrimaryKey(c)} (id),
             CONSTRAINT UQ_sal_run_scope UNIQUE (id,company_id,period_month),
             CONSTRAINT UQ_sal_run_month UNIQUE (id,period_month),
+            CONSTRAINT UQ_sal_run_mode_scope UNIQUE (id,company_id,period_month,run_mode),
             CONSTRAINT CK_sal_run_stage CHECK (stage BETWEEN 0 AND 9),
             CONSTRAINT CK_sal_run_status CHECK (status IN (1,2,3,4,5)),
             CONSTRAINT CK_sal_run_flags CHECK (run_mode IN (0,1) AND payout_blocked IN (0,1)),
@@ -28,10 +29,12 @@ public static class SchemaSalPayRun
             CONSTRAINT CK_sal_run_capture CHECK (capture_state IN (0,1,2) AND (stage<=1 OR capture_state>0) AND (capture_state=0 OR calc_started_at IS NOT NULL)),
             CONSTRAINT FK_sal_run_company FOREIGN KEY (company_id) REFERENCES {SchemaSql.Q(c,"hr","company")}(id) ON DELETE NO ACTION
             """);
+        SchemaMoneyFlags.Ensure(c,tx,"sal","pay_run",o=>$"{o}.capture_state>0 OR {o}.status IN (2,3,5)");
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"sal","pay_run","UQ_sal_run_active","app_code,company_id,period_month","status<>4");
         SchemaSql.EnsureTable(c,tx,"sal","pay_run_rider",$"""
             id {g} NOT NULL, pay_run_id {g} NOT NULL, company_id {g} NOT NULL,
             period_month {SchemaSql.Date(c)} NOT NULL, erp_rider_id {g} NOT NULL,
+            run_mode {SchemaSql.Tiny(c)} NOT NULL DEFAULT 0,
             gross {m} NOT NULL, commission {m} NOT NULL, salary_net {m} NOT NULL,
             old_debt_instalment {m} NOT NULL DEFAULT 0, salary_approved_at {SchemaSql.DateTime(c)} NULL,
             debt_confirm_status {SchemaSql.Varchar(c,12)} NOT NULL DEFAULT 'pending',
@@ -44,9 +47,9 @@ public static class SchemaSalPayRun
             CONSTRAINT CK_sal_rider_instalment CHECK (old_debt_instalment>=0),
             CONSTRAINT CK_sal_rider_debt CHECK (debt_confirm_status IN ('pending','confirmed','deferred') AND (debt_confirm_status<>'deferred' OR old_debt_instalment=0)),
             CONSTRAINT CK_sal_rider_approval CHECK (salary_approved_at IS NULL OR debt_confirm_status IN ('confirmed','deferred')),
-            CONSTRAINT CK_sal_rider_flags CHECK (bank_eligible IN (0,1) AND keeta_ineligible IN (0,1)),
-            CONSTRAINT CK_sal_rider_bank CHECK (bank_eligible=0 OR (salary_approved_at IS NOT NULL AND debt_confirm_status IN ('confirmed','deferred') AND payable_id IS NOT NULL AND salary_net>0)),
-            CONSTRAINT FK_sal_rider_run FOREIGN KEY (pay_run_id,company_id,period_month) REFERENCES {run}(id,company_id,period_month) ON DELETE NO ACTION,
+            CONSTRAINT CK_sal_rider_flags CHECK (bank_eligible IN (0,1) AND keeta_ineligible IN (0,1) AND run_mode IN (0,1)),
+            CONSTRAINT CK_sal_rider_bank CHECK (bank_eligible=0 OR (run_mode=0 AND salary_approved_at IS NOT NULL AND debt_confirm_status IN ('confirmed','deferred') AND payable_id IS NOT NULL AND salary_net>0)),
+            CONSTRAINT FK_sal_rider_run FOREIGN KEY (pay_run_id,company_id,period_month,run_mode) REFERENCES {run}(id,company_id,period_month,run_mode) ON DELETE NO ACTION,
             CONSTRAINT FK_sal_rider_payable FOREIGN KEY (payable_id,company_id,period_month) REFERENCES {SchemaSql.Q(c,"pay","payable")}(id,company_id,period_month) ON DELETE NO ACTION
             """);
         SchemaSql.EnsureTable(c,tx,"sal","pay_run_item",$"""
@@ -99,10 +102,41 @@ public static class SchemaSalPayRun
         {SchemaSql.EnsureMonthIndex(c,tx,"sal",table);SchemaSql.EnsureRowVersion(c,tx,"sal",table);}
         SchemaSql.EnsureRowVersion(c,tx,"sal","shared_rider_hold");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run","IX_sal_run_company","company_id");
-        SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_rider","IX_sal_rider_run","pay_run_id,company_id,period_month");
+        SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_rider","IX_sal_rider_run","pay_run_id,company_id,period_month,run_mode");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_rider","IX_sal_rider_payable","payable_id,company_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_item","IX_sal_item_rider","pay_run_rider_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_item","IX_sal_item_account","account_code");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","rider_request","IX_sal_request_company","company_id");
+        EnsureClaimRunFlags(c,tx);
+    }
+
+    /// <summary>H2: a claim on a rider payable follows its run. Simulation runs never reserve or pay;
+    /// payout-blocked runs (e.g. the Ninja parallel run) may reserve for the bank-file comparison but never post.
+    /// Checked only when a claim enters status 1 or 2, so releases and reversals stay possible.</summary>
+    static void EnsureClaimRunFlags(DbConnection c,DbTransaction? tx)
+    {
+        string a=SchemaSql.Q(c,"pay","payment_allocation"),rider=SchemaSql.Q(c,"sal","pay_run_rider"),run=SchemaSql.Q(c,"sal","pay_run");
+        const string message="Payable of a simulation or payout-blocked run cannot be claimed or paid";
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER pay.TR_allocation_run_flags ON {a} AFTER INSERT,UPDATE AS
+                BEGIN
+                  SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM inserted i LEFT JOIN deleted d ON d.id=i.id
+                    JOIN {rider} r ON r.payable_id=i.payable_id JOIN {run} pr ON pr.id=r.pay_run_id
+                    WHERE i.claim_status IN (1,2) AND (d.id IS NULL OR d.claim_status<>i.claim_status)
+                      AND (pr.run_mode=1 OR (i.claim_status=2 AND pr.payout_blocked=1)))
+                    THROW 51018,'{message}',1;
+                END;
+                """);
+        else
+            foreach(bool insert in new[]{true,false})
+                SchemaSql.Exec(c,tx,$"""
+                    CREATE TRIGGER IF NOT EXISTS TR_allocation_run_flags_{(insert?"insert":"update")} BEFORE {(insert?"INSERT":"UPDATE OF claim_status")} ON {a}
+                    WHEN NEW.claim_status IN (1,2){(insert?"":" AND NEW.claim_status<>OLD.claim_status")} BEGIN
+                      SELECT RAISE(ABORT,'{message}') WHERE EXISTS(SELECT 1 FROM {rider} r JOIN {run} pr ON pr.id=r.pay_run_id
+                        WHERE r.payable_id=NEW.payable_id AND (pr.run_mode=1 OR (NEW.claim_status=2 AND pr.payout_blocked=1)));
+                    END;
+                    """);
     }
 }

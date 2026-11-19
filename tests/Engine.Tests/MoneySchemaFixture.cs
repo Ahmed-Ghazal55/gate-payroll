@@ -82,9 +82,9 @@ internal static class MoneySchemaFixture
     {
         string id=Id();Exec(c,null,"INSERT INTO sal_pay_run(id,company_id,app_code,period_month) VALUES(@id,@c,@app,@month)",("@id",id),("@c",company),("@app",app),("@month",month));return id;
     }
-    public static string Rider(DbConnection c,string run,string company,string? payable=null,decimal net=-10,string month="2026-11-01")
+    public static string Rider(DbConnection c,string run,string company,string? payable=null,decimal net=-10,string month="2026-11-01",int mode=0)
     {
-        string id=Id();Exec(c,null,"INSERT INTO sal_pay_run_rider(id,pay_run_id,company_id,period_month,erp_rider_id,gross,commission,salary_net,payable_id) VALUES(@id,@run,@c,@month,@id,100,10,@net,@payable)",("@id",id),("@run",run),("@c",company),("@month",month),("@net",net),("@payable",(object?)payable??DBNull.Value));return id;
+        string id=Id();Exec(c,null,"INSERT INTO sal_pay_run_rider(id,pay_run_id,company_id,period_month,erp_rider_id,gross,commission,salary_net,payable_id,run_mode) VALUES(@id,@run,@c,@month,@id,100,10,@net,@payable,@mode)",("@id",id),("@run",run),("@c",company),("@month",month),("@net",net),("@payable",(object?)payable??DBNull.Value),("@mode",mode));return id;
     }
     public static string Claim(DbConnection c,string company,string payment,string payable,decimal amount=40,int status=1,string month="2026-11-01",string? line=null)
     {
