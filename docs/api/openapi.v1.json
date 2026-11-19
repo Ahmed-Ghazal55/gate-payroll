@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:35103/"
+      "url": "http://127.0.0.1:37925/"
     }
   ],
   "paths": {
@@ -1542,10 +1542,253 @@
         "summary": "List companies within the current legal-entity scope",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "code",
+                          "nameAr",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "sponsorId": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          },
+                          "nameEn": {
+                            "type": "string"
+                          },
+                          "nameOnCertificateAr": {
+                            "type": "string"
+                          },
+                          "shortNameAr": {
+                            "type": "string"
+                          },
+                          "unifiedNumber": {
+                            "type": "string"
+                          },
+                          "commercialReg": {
+                            "type": "string"
+                          },
+                          "crNumber": {
+                            "type": "string"
+                          },
+                          "crType": {
+                            "type": "string"
+                          },
+                          "entityType": {
+                            "type": "string"
+                          },
+                          "characteristic": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "capitalSar": {
+                            "type": "number"
+                          },
+                          "crVersion": {
+                            "type": "number"
+                          },
+                          "issueDate": {
+                            "type": "string"
+                          },
+                          "issueDateHijri": {
+                            "type": "string"
+                          },
+                          "annualConfirmation": {
+                            "type": "string"
+                          },
+                          "annualConfirmationHijri": {
+                            "type": "string"
+                          },
+                          "activities": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "isic",
+                                "nameAr"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "isic": {
+                                  "type": "string"
+                                },
+                                "nameAr": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "activitiesIncomplete": {
+                            "type": "boolean"
+                          },
+                          "sponsoredRidersCount": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "pageSize"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "id",
+                              "code",
+                              "nameAr",
+                              "status"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "sponsorId": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "nameAr": {
+                                "type": "string"
+                              },
+                              "nameEn": {
+                                "type": "string"
+                              },
+                              "nameOnCertificateAr": {
+                                "type": "string"
+                              },
+                              "shortNameAr": {
+                                "type": "string"
+                              },
+                              "unifiedNumber": {
+                                "type": "string"
+                              },
+                              "commercialReg": {
+                                "type": "string"
+                              },
+                              "crNumber": {
+                                "type": "string"
+                              },
+                              "crType": {
+                                "type": "string"
+                              },
+                              "entityType": {
+                                "type": "string"
+                              },
+                              "characteristic": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "string"
+                              },
+                              "address": {
+                                "type": "string"
+                              },
+                              "capitalSar": {
+                                "type": "number"
+                              },
+                              "crVersion": {
+                                "type": "number"
+                              },
+                              "issueDate": {
+                                "type": "string"
+                              },
+                              "issueDateHijri": {
+                                "type": "string"
+                              },
+                              "annualConfirmation": {
+                                "type": "string"
+                              },
+                              "annualConfirmationHijri": {
+                                "type": "string"
+                              },
+                              "activities": {
+                                "type": "array",
+                                "items": {
+                                  "required": [
+                                    "isic",
+                                    "nameAr"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "isic": {
+                                      "type": "string"
+                                    },
+                                    "nameAr": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              },
+                              "activitiesIncomplete": {
+                                "type": "boolean"
+                              },
+                              "sponsoredRidersCount": {
+                                "type": "number"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "updatedAt": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "number"
+                        },
+                        "page": {
+                          "type": "number"
+                        },
+                        "pageSize": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
@@ -1568,11 +1811,359 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "code",
+                    "nameAr",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "sponsorId": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "nameAr": {
+                      "type": "string"
+                    },
+                    "nameEn": {
+                      "type": "string"
+                    },
+                    "nameOnCertificateAr": {
+                      "type": "string"
+                    },
+                    "shortNameAr": {
+                      "type": "string"
+                    },
+                    "unifiedNumber": {
+                      "type": "string"
+                    },
+                    "commercialReg": {
+                      "type": "string"
+                    },
+                    "crNumber": {
+                      "type": "string"
+                    },
+                    "crType": {
+                      "type": "string"
+                    },
+                    "entityType": {
+                      "type": "string"
+                    },
+                    "characteristic": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "address": {
+                      "type": "string"
+                    },
+                    "capitalSar": {
+                      "type": "number"
+                    },
+                    "crVersion": {
+                      "type": "number"
+                    },
+                    "issueDate": {
+                      "type": "string"
+                    },
+                    "issueDateHijri": {
+                      "type": "string"
+                    },
+                    "annualConfirmation": {
+                      "type": "string"
+                    },
+                    "annualConfirmationHijri": {
+                      "type": "string"
+                    },
+                    "activities": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "isic",
+                          "nameAr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "isic": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "activitiesIncomplete": {
+                      "type": "boolean"
+                    },
+                    "sponsoredRidersCount": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/companies/stats": {
+      "get": {
+        "tags": [
+          "Companies and registrations"
+        ],
+        "summary": "Live sponsorships and platform-account counts per company within scope",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "totals",
+                    "source",
+                    "asOf",
+                    "balancesAvailable",
+                    "balancesNote",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "companyId",
+                          "code",
+                          "nameAr",
+                          "shortNameAr",
+                          "unifiedNumber",
+                          "commercialReg",
+                          "status",
+                          "erpLinked",
+                          "sponsorships",
+                          "platformAccounts"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          },
+                          "shortNameAr": {
+                            "type": "string"
+                          },
+                          "unifiedNumber": {
+                            "type": "string"
+                          },
+                          "commercialReg": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "erpLinked": {
+                            "type": "boolean"
+                          },
+                          "sponsorships": {
+                            "required": [
+                              "total",
+                              "riders",
+                              "admins",
+                              "active",
+                              "onLeave"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "total": {
+                                "type": "number"
+                              },
+                              "riders": {
+                                "type": "number"
+                              },
+                              "admins": {
+                                "type": "number"
+                              },
+                              "active": {
+                                "type": "number"
+                              },
+                              "onLeave": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          "platformAccounts": {
+                            "required": [
+                              "total",
+                              "active",
+                              "assigned",
+                              "byPlatform"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "total": {
+                                "type": "number"
+                              },
+                              "active": {
+                                "type": "number"
+                              },
+                              "assigned": {
+                                "type": "number"
+                              },
+                              "byPlatform": {
+                                "type": "array",
+                                "items": {
+                                  "required": [
+                                    "code",
+                                    "nameAr",
+                                    "total",
+                                    "active",
+                                    "assigned"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "nameAr": {
+                                      "type": "string"
+                                    },
+                                    "total": {
+                                      "type": "number"
+                                    },
+                                    "active": {
+                                      "type": "number"
+                                    },
+                                    "assigned": {
+                                      "type": "number"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "totals": {
+                      "required": [
+                        "companiesCount",
+                        "sponsoredTotal",
+                        "sponsoredRiders",
+                        "sponsoredAdmins",
+                        "sponsoredActive",
+                        "sponsoredOnLeave",
+                        "platformAccountsTotal",
+                        "platformAccountsActive",
+                        "platformAccountsAssigned",
+                        "byPlatform"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "companiesCount": {
+                          "type": "number"
+                        },
+                        "sponsoredTotal": {
+                          "type": "number"
+                        },
+                        "sponsoredRiders": {
+                          "type": "number"
+                        },
+                        "sponsoredAdmins": {
+                          "type": "number"
+                        },
+                        "sponsoredActive": {
+                          "type": "number"
+                        },
+                        "sponsoredOnLeave": {
+                          "type": "number"
+                        },
+                        "platformAccountsTotal": {
+                          "type": "number"
+                        },
+                        "platformAccountsActive": {
+                          "type": "number"
+                        },
+                        "platformAccountsAssigned": {
+                          "type": "number"
+                        },
+                        "byPlatform": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "code",
+                              "nameAr",
+                              "total",
+                              "active",
+                              "assigned"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "nameAr": {
+                                "type": "string"
+                              },
+                              "total": {
+                                "type": "number"
+                              },
+                              "active": {
+                                "type": "number"
+                              },
+                              "assigned": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "balancesAvailable": {
+                      "type": "boolean"
+                    },
+                    "balancesNote": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -1602,13 +2193,45 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/JsonObject"
+                    "required": [
+                      "id",
+                      "companyId",
+                      "kind",
+                      "status"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "companyId": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "number": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "annualConfirmation": {
+                        "type": "string"
+                      },
+                      "expiryDate": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    }
                   }
                 }
               }
@@ -1635,11 +2258,115 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "code",
+                    "nameAr",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "sponsorId": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "nameAr": {
+                      "type": "string"
+                    },
+                    "nameEn": {
+                      "type": "string"
+                    },
+                    "nameOnCertificateAr": {
+                      "type": "string"
+                    },
+                    "shortNameAr": {
+                      "type": "string"
+                    },
+                    "unifiedNumber": {
+                      "type": "string"
+                    },
+                    "commercialReg": {
+                      "type": "string"
+                    },
+                    "crNumber": {
+                      "type": "string"
+                    },
+                    "crType": {
+                      "type": "string"
+                    },
+                    "entityType": {
+                      "type": "string"
+                    },
+                    "characteristic": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "address": {
+                      "type": "string"
+                    },
+                    "capitalSar": {
+                      "type": "number"
+                    },
+                    "crVersion": {
+                      "type": "number"
+                    },
+                    "issueDate": {
+                      "type": "string"
+                    },
+                    "issueDateHijri": {
+                      "type": "string"
+                    },
+                    "annualConfirmation": {
+                      "type": "string"
+                    },
+                    "annualConfirmationHijri": {
+                      "type": "string"
+                    },
+                    "activities": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "isic",
+                          "nameAr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "isic": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "activitiesIncomplete": {
+                      "type": "boolean"
+                    },
+                    "sponsoredRidersCount": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -1673,11 +2400,115 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "code",
+                    "nameAr",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "sponsorId": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "nameAr": {
+                      "type": "string"
+                    },
+                    "nameEn": {
+                      "type": "string"
+                    },
+                    "nameOnCertificateAr": {
+                      "type": "string"
+                    },
+                    "shortNameAr": {
+                      "type": "string"
+                    },
+                    "unifiedNumber": {
+                      "type": "string"
+                    },
+                    "commercialReg": {
+                      "type": "string"
+                    },
+                    "crNumber": {
+                      "type": "string"
+                    },
+                    "crType": {
+                      "type": "string"
+                    },
+                    "entityType": {
+                      "type": "string"
+                    },
+                    "characteristic": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "address": {
+                      "type": "string"
+                    },
+                    "capitalSar": {
+                      "type": "number"
+                    },
+                    "crVersion": {
+                      "type": "number"
+                    },
+                    "issueDate": {
+                      "type": "string"
+                    },
+                    "issueDateHijri": {
+                      "type": "string"
+                    },
+                    "annualConfirmation": {
+                      "type": "string"
+                    },
+                    "annualConfirmationHijri": {
+                      "type": "string"
+                    },
+                    "activities": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "isic",
+                          "nameAr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "isic": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "activitiesIncomplete": {
+                      "type": "boolean"
+                    },
+                    "sponsoredRidersCount": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -1729,13 +2560,60 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/JsonObject"
+                    "required": [
+                      "id",
+                      "companyId",
+                      "number",
+                      "status"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "companyId": {
+                        "type": "string"
+                      },
+                      "company": {
+                        "type": "string"
+                      },
+                      "number": {
+                        "type": "string"
+                      },
+                      "city": {
+                        "type": "string"
+                      },
+                      "issueDate": {
+                        "type": "string"
+                      },
+                      "issueDateHijri": {
+                        "type": "string"
+                      },
+                      "expiryDate": {
+                        "type": "string"
+                      },
+                      "annualConfirmation": {
+                        "type": "string"
+                      },
+                      "annualConfirmationHijri": {
+                        "type": "string"
+                      },
+                      "crVersion": {
+                        "type": "number"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    }
                   }
                 }
               }
@@ -1770,11 +2648,58 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "companyId",
+                    "number",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "company": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "issueDate": {
+                      "type": "string"
+                    },
+                    "issueDateHijri": {
+                      "type": "string"
+                    },
+                    "expiryDate": {
+                      "type": "string"
+                    },
+                    "annualConfirmation": {
+                      "type": "string"
+                    },
+                    "annualConfirmationHijri": {
+                      "type": "string"
+                    },
+                    "crVersion": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -1808,11 +2733,58 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "companyId",
+                    "number",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "company": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "issueDate": {
+                      "type": "string"
+                    },
+                    "issueDateHijri": {
+                      "type": "string"
+                    },
+                    "expiryDate": {
+                      "type": "string"
+                    },
+                    "annualConfirmation": {
+                      "type": "string"
+                    },
+                    "annualConfirmationHijri": {
+                      "type": "string"
+                    },
+                    "crVersion": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -1854,11 +2826,58 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "companyId",
+                    "number",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "company": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "issueDate": {
+                      "type": "string"
+                    },
+                    "issueDateHijri": {
+                      "type": "string"
+                    },
+                    "expiryDate": {
+                      "type": "string"
+                    },
+                    "annualConfirmation": {
+                      "type": "string"
+                    },
+                    "annualConfirmationHijri": {
+                      "type": "string"
+                    },
+                    "crVersion": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -1918,13 +2937,54 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/JsonObject"
+                    "required": [
+                      "id",
+                      "companyId",
+                      "type",
+                      "status"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "companyId": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "number": {
+                        "type": "string"
+                      },
+                      "expiryDate": {
+                        "type": "string"
+                      },
+                      "fileName": {
+                        "type": "string"
+                      },
+                      "fileRelativePath": {
+                        "type": "string"
+                      },
+                      "file": {
+                        "type": "string"
+                      },
+                      "contentType": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    }
                   }
                 }
               }
@@ -1959,11 +3019,52 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "companyId",
+                    "type",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "string"
+                    },
+                    "expiryDate": {
+                      "type": "string"
+                    },
+                    "fileName": {
+                      "type": "string"
+                    },
+                    "fileRelativePath": {
+                      "type": "string"
+                    },
+                    "file": {
+                      "type": "string"
+                    },
+                    "contentType": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -1997,11 +3098,52 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "companyId",
+                    "type",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "string"
+                    },
+                    "expiryDate": {
+                      "type": "string"
+                    },
+                    "fileName": {
+                      "type": "string"
+                    },
+                    "fileRelativePath": {
+                      "type": "string"
+                    },
+                    "file": {
+                      "type": "string"
+                    },
+                    "contentType": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -2043,11 +3185,52 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "companyId",
+                    "type",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "string"
+                    },
+                    "expiryDate": {
+                      "type": "string"
+                    },
+                    "fileName": {
+                      "type": "string"
+                    },
+                    "fileRelativePath": {
+                      "type": "string"
+                    },
+                    "file": {
+                      "type": "string"
+                    },
+                    "contentType": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -7878,11 +9061,74 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "rows",
+                    "fingerprint",
+                    "counts"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "fingerprint": {
+                      "type": "string"
+                    },
+                    "counts": {
+                      "required": [
+                        "company",
+                        "commercial_registration"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "company": {
+                          "required": [
+                            "new",
+                            "changed",
+                            "unchanged"
+                          ],
+                          "type": "object",
+                          "properties": {
+                            "new": {
+                              "type": "number"
+                            },
+                            "changed": {
+                              "type": "number"
+                            },
+                            "unchanged": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "commercial_registration": {
+                          "required": [
+                            "new",
+                            "changed",
+                            "unchanged"
+                          ],
+                          "type": "object",
+                          "properties": {
+                            "new": {
+                              "type": "number"
+                            },
+                            "changed": {
+                              "type": "number"
+                            },
+                            "unchanged": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

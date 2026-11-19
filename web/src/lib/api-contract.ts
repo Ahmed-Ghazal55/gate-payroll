@@ -2069,13 +2069,80 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            id: string;
+                            sponsorId?: string;
+                            code: string;
+                            nameAr: string;
+                            nameEn?: string;
+                            nameOnCertificateAr?: string;
+                            shortNameAr?: string;
+                            unifiedNumber?: string;
+                            commercialReg?: string;
+                            crNumber?: string;
+                            crType?: string;
+                            entityType?: string;
+                            characteristic?: string;
+                            city?: string;
+                            address?: string;
+                            capitalSar?: number;
+                            crVersion?: number;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            activities?: {
+                                isic: string;
+                                nameAr: string;
+                            }[];
+                            activitiesIncomplete?: boolean;
+                            sponsoredRidersCount?: number;
+                            status: string;
+                            createdAt?: string;
+                            updatedAt?: string;
+                        }[] | {
+                            items: {
+                                id: string;
+                                sponsorId?: string;
+                                code: string;
+                                nameAr: string;
+                                nameEn?: string;
+                                nameOnCertificateAr?: string;
+                                shortNameAr?: string;
+                                unifiedNumber?: string;
+                                commercialReg?: string;
+                                crNumber?: string;
+                                crType?: string;
+                                entityType?: string;
+                                characteristic?: string;
+                                city?: string;
+                                address?: string;
+                                capitalSar?: number;
+                                crVersion?: number;
+                                issueDate?: string;
+                                issueDateHijri?: string;
+                                annualConfirmation?: string;
+                                annualConfirmationHijri?: string;
+                                activities?: {
+                                    isic: string;
+                                    nameAr: string;
+                                }[];
+                                activitiesIncomplete?: boolean;
+                                sponsoredRidersCount?: number;
+                                status: string;
+                                createdAt?: string;
+                                updatedAt?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -2095,17 +2162,137 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            sponsorId?: string;
+                            code: string;
+                            nameAr: string;
+                            nameEn?: string;
+                            nameOnCertificateAr?: string;
+                            shortNameAr?: string;
+                            unifiedNumber?: string;
+                            commercialReg?: string;
+                            crNumber?: string;
+                            crType?: string;
+                            entityType?: string;
+                            characteristic?: string;
+                            city?: string;
+                            address?: string;
+                            capitalSar?: number;
+                            crVersion?: number;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            activities?: {
+                                isic: string;
+                                nameAr: string;
+                            }[];
+                            activitiesIncomplete?: boolean;
+                            sponsoredRidersCount?: number;
+                            status: string;
+                            createdAt?: string;
+                            updatedAt?: string;
+                        };
                     };
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/companies/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live sponsorships and platform-account counts per company within scope */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                companyId: string;
+                                code: string;
+                                nameAr: string;
+                                shortNameAr: string;
+                                unifiedNumber: string;
+                                commercialReg: string;
+                                status: string;
+                                erpLinked: boolean;
+                                sponsorships: {
+                                    total: number;
+                                    riders: number;
+                                    admins: number;
+                                    active: number;
+                                    onLeave: number;
+                                };
+                                platformAccounts: {
+                                    total: number;
+                                    active: number;
+                                    assigned: number;
+                                    byPlatform: {
+                                        code: string;
+                                        nameAr: string;
+                                        total: number;
+                                        active: number;
+                                        assigned: number;
+                                    }[];
+                                };
+                            }[];
+                            totals: {
+                                companiesCount: number;
+                                sponsoredTotal: number;
+                                sponsoredRiders: number;
+                                sponsoredAdmins: number;
+                                sponsoredActive: number;
+                                sponsoredOnLeave: number;
+                                platformAccountsTotal: number;
+                                platformAccountsActive: number;
+                                platformAccountsAssigned: number;
+                                byPlatform: {
+                                    code: string;
+                                    nameAr: string;
+                                    total: number;
+                                    active: number;
+                                    assigned: number;
+                                }[];
+                            };
+                            source: string;
+                            asOf: string;
+                            balancesAvailable: boolean;
+                            balancesNote: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2131,13 +2318,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            kind: string;
+                            number?: string;
+                            type?: string;
+                            annualConfirmation?: string;
+                            expiryDate?: string;
+                            status: string;
+                        }[];
                     };
                 };
             };
@@ -2169,13 +2365,44 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            sponsorId?: string;
+                            code: string;
+                            nameAr: string;
+                            nameEn?: string;
+                            nameOnCertificateAr?: string;
+                            shortNameAr?: string;
+                            unifiedNumber?: string;
+                            commercialReg?: string;
+                            crNumber?: string;
+                            crType?: string;
+                            entityType?: string;
+                            characteristic?: string;
+                            city?: string;
+                            address?: string;
+                            capitalSar?: number;
+                            crVersion?: number;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            activities?: {
+                                isic: string;
+                                nameAr: string;
+                            }[];
+                            activitiesIncomplete?: boolean;
+                            sponsoredRidersCount?: number;
+                            status: string;
+                            createdAt?: string;
+                            updatedAt?: string;
+                        };
                     };
                 };
             };
@@ -2196,13 +2423,44 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            sponsorId?: string;
+                            code: string;
+                            nameAr: string;
+                            nameEn?: string;
+                            nameOnCertificateAr?: string;
+                            shortNameAr?: string;
+                            unifiedNumber?: string;
+                            commercialReg?: string;
+                            crNumber?: string;
+                            crType?: string;
+                            entityType?: string;
+                            characteristic?: string;
+                            city?: string;
+                            address?: string;
+                            capitalSar?: number;
+                            crVersion?: number;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            activities?: {
+                                isic: string;
+                                nameAr: string;
+                            }[];
+                            activitiesIncomplete?: boolean;
+                            sponsoredRidersCount?: number;
+                            status: string;
+                            createdAt?: string;
+                            updatedAt?: string;
+                        };
                     };
                 };
             };
@@ -2255,13 +2513,27 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            company?: string;
+                            number: string;
+                            city?: string;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            expiryDate?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            crVersion?: number;
+                            status: string;
+                            createdAt?: string;
+                        }[];
                     };
                 };
             };
@@ -2283,13 +2555,27 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            company?: string;
+                            number: string;
+                            city?: string;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            expiryDate?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            crVersion?: number;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -2320,13 +2606,27 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            company?: string;
+                            number: string;
+                            city?: string;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            expiryDate?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            crVersion?: number;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -2348,13 +2648,27 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            company?: string;
+                            number: string;
+                            city?: string;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            expiryDate?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            crVersion?: number;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -2408,13 +2722,25 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            type: string;
+                            number?: string;
+                            expiryDate?: string;
+                            fileName?: string;
+                            fileRelativePath?: string;
+                            file?: string;
+                            contentType?: string;
+                            status: string;
+                            createdAt?: string;
+                        }[];
                     };
                 };
             };
@@ -2436,13 +2762,25 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            type: string;
+                            number?: string;
+                            expiryDate?: string;
+                            fileName?: string;
+                            fileRelativePath?: string;
+                            file?: string;
+                            contentType?: string;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -2473,13 +2811,25 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            type: string;
+                            number?: string;
+                            expiryDate?: string;
+                            fileName?: string;
+                            fileRelativePath?: string;
+                            file?: string;
+                            contentType?: string;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -2501,13 +2851,25 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            type: string;
+                            number?: string;
+                            expiryDate?: string;
+                            fileName?: string;
+                            fileRelativePath?: string;
+                            file?: string;
+                            contentType?: string;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -5474,13 +5836,28 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            rows: Record<string, never>[];
+                            fingerprint: string;
+                            counts: {
+                                company: {
+                                    new: number;
+                                    changed: number;
+                                    unchanged: number;
+                                };
+                                commercial_registration: {
+                                    new: number;
+                                    changed: number;
+                                    unchanged: number;
+                                };
+                            };
+                        };
                     };
                 };
             };

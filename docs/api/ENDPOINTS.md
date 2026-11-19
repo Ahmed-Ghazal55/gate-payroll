@@ -90,25 +90,26 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| DELETE | `/api/companies/{id}` | Payroll.Api/Companies.cs:108 | companies.manage | none | new |
-| DELETE | `/api/companies/{id}/documents/{documentId}` | Payroll.Api/Companies.cs:118 | companies.manage | none | new |
-| DELETE | `/api/companies/{id}/registrations/{registrationId}` | Payroll.Api/Companies.cs:113 | companies.manage | none | new |
+| DELETE | `/api/companies/{id}` | Payroll.Api/Companies.cs:109 | companies.manage | none | new |
+| DELETE | `/api/companies/{id}/documents/{documentId}` | Payroll.Api/Companies.cs:119 | companies.manage | none | new |
+| DELETE | `/api/companies/{id}/registrations/{registrationId}` | Payroll.Api/Companies.cs:114 | companies.manage | none | new |
 | GET | `/api/companies` | Payroll.Api/Companies.cs:98 | companies.view | none | new |
-| GET | `/api/companies/expiring` | Payroll.Api/Companies.cs:99 | companies.view | none | new |
-| GET | `/api/companies/{id}` | Payroll.Api/Companies.cs:105 | companies.view | none | new |
-| GET | `/api/companies/{id}/documents` | Payroll.Api/Companies.cs:114 | companies.view | none | new |
-| GET | `/api/companies/{id}/documents/{documentId}` | Payroll.Api/Companies.cs:115 | companies.view | none | new |
-| GET | `/api/companies/{id}/documents/{documentId}/download` | Payroll.Api/Companies.cs:119 | companies.view | none | new |
-| GET | `/api/companies/{id}/registrations` | Payroll.Api/Companies.cs:109 | companies.view | none | new |
-| GET | `/api/companies/{id}/registrations/{registrationId}` | Payroll.Api/Companies.cs:110 | companies.view | none | new |
-| POST | `/api/companies` | Payroll.Api/Companies.cs:106 | companies.manage | none | new |
+| GET | `/api/companies/expiring` | Payroll.Api/Companies.cs:100 | companies.view | none | new |
+| GET | `/api/companies/stats` | Payroll.Api/Companies.cs:99 | companies.view | none | new |
+| GET | `/api/companies/{id}` | Payroll.Api/Companies.cs:106 | companies.view | none | new |
+| GET | `/api/companies/{id}/documents` | Payroll.Api/Companies.cs:115 | companies.view | none | new |
+| GET | `/api/companies/{id}/documents/{documentId}` | Payroll.Api/Companies.cs:116 | companies.view | none | new |
+| GET | `/api/companies/{id}/documents/{documentId}/download` | Payroll.Api/Companies.cs:120 | companies.view | none | new |
+| GET | `/api/companies/{id}/registrations` | Payroll.Api/Companies.cs:110 | companies.view | none | new |
+| GET | `/api/companies/{id}/registrations/{registrationId}` | Payroll.Api/Companies.cs:111 | companies.view | none | new |
+| POST | `/api/companies` | Payroll.Api/Companies.cs:107 | companies.manage | none | new |
 | POST | `/api/companies/import/commit` | Payroll.Api/CompanyRegistryImport.cs:91 | Admin / SuperAdmin; signed preview + audit | none | new |
 | POST | `/api/companies/import/preview` | Payroll.Api/CompanyRegistryImport.cs:90 | Admin / SuperAdmin; signed preview + audit | none | new |
-| POST | `/api/companies/{id}/documents` | Payroll.Api/Companies.cs:116 | companies.manage | none | new |
-| POST | `/api/companies/{id}/registrations` | Payroll.Api/Companies.cs:111 | companies.manage | none | new |
-| PUT | `/api/companies/{id}` | Payroll.Api/Companies.cs:107 | companies.manage | none | new |
-| PUT | `/api/companies/{id}/documents/{documentId}` | Payroll.Api/Companies.cs:117 | companies.manage | none | new |
-| PUT | `/api/companies/{id}/registrations/{registrationId}` | Payroll.Api/Companies.cs:112 | companies.manage | none | new |
+| POST | `/api/companies/{id}/documents` | Payroll.Api/Companies.cs:117 | companies.manage | none | new |
+| POST | `/api/companies/{id}/registrations` | Payroll.Api/Companies.cs:112 | companies.manage | none | new |
+| PUT | `/api/companies/{id}` | Payroll.Api/Companies.cs:108 | companies.manage | none | new |
+| PUT | `/api/companies/{id}/documents/{documentId}` | Payroll.Api/Companies.cs:118 | companies.manage | none | new |
+| PUT | `/api/companies/{id}/registrations/{registrationId}` | Payroll.Api/Companies.cs:113 | companies.manage | none | new |
 
 ## المنصات
 
