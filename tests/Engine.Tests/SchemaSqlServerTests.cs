@@ -55,8 +55,15 @@ public sealed class SchemaSqlServerTests
                 Assert.IsTrue(SchemaSql.TableExists(c,null,"ref","legacy_key_map"));
                 Assert.IsTrue(SchemaSql.TableExists(c,null,"ref","legacy_account_map"));
                 Assert.IsTrue(SchemaSql.TableExists(c,null,"form","campaign"));
+                Assert.IsTrue(SchemaSql.TableExists(c,null,"fin","account"));
+                Assert.IsTrue(SchemaSql.TableExists(c,null,"fin","accounting_period"));
+                Assert.IsTrue(SchemaSql.TableExists(c,null,"fin","journal"));
+                Assert.IsTrue(SchemaSql.TableExists(c,null,"fin","journal_line"));
+                Assert.IsTrue(SchemaSql.TableExists(c,null,"fin","period_balance"));
+                Assert.AreEqual(SchemaFinAccount.ExpectedSeedCount(),Convert.ToInt32(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin.account")!));
                 Assert.AreEqual(0,Convert.ToInt32(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM ref.legacy_key_map")!));
                 Assert.AreEqual(0,Convert.ToInt32(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM hr.company")!));
+                Assert.AreEqual(0,Convert.ToInt32(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin.period_balance")!));
                 return true;
             });
         }
