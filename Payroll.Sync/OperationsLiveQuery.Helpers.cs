@@ -156,11 +156,40 @@ public static partial class OperationsLiveQuery
 
     static string VehicleTypeName(string code) => code switch
     {
-        "1" => "Motorcycle",
-        "2" => "Car",
-        "3" => "Van",
-        "4" => "Truck",
-        "5" => "Other",
+        "1" => "دراجة",
+        "2" => "سيارة",
+        "3" => "فان",
+        "4" => "شاحنة",
+        "5" => "أخرى",
+        "Motorcycle" => "دراجة",
+        "Car" => "سيارة",
+        _ => code
+    };
+
+    static string FuelProviderLabel(string code) => code switch
+    {
+        "1" => "PetroApp",
+        "2" => "SayaraApp",
+        "PetroApp" => "PetroApp",
+        "SayaraApp" => "SayaraApp",
+        _ => code
+    };
+
+    static string HousingStatusLabel(string code) => code switch
+    {
+        "1" => "مسودة",
+        "2" => "نشط",
+        "3" => "غير نشط",
+        "4" => "مغلق",
+        "5" => "مؤرشف",
+        _ => code
+    };
+
+    static string CityStatusLabel(string code) => code switch
+    {
+        "1" => "نشط",
+        "2" => "موقوف",
+        "3" => "مغلق",
         _ => code
     };
 

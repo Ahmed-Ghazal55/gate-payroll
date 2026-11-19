@@ -25,7 +25,8 @@ public static partial class OperationsLiveQuery
     {
         using var cmd = new SqlCommand();
         string scopeSql = ScopeSponsor(scope, cmd, "s");
-        string sql = CitiesSummarySql(scopeSql);
+        string platformSql = ScopePlatform(scope, cmd, "cp");
+        string sql = CitiesSummarySql(scopeSql, platformSql);
         return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
     }
 
@@ -92,7 +93,8 @@ public static partial class OperationsLiveQuery
         cmd.CommandTimeout = CommandTimeoutSeconds;
         using var cancel = SyncCancellation.Register(cmd, ct);
         string scopeSql = ScopeSponsor(scope, cmd, "s");
-        cmd.CommandText = CitiesSummarySql(scopeSql);
+        string platformSql = ScopePlatform(scope, cmd, "cp");
+        cmd.CommandText = CitiesSummarySql(scopeSql, platformSql);
         var items = ReadMapped(cmd, MapCityRow, ct);
         var summary = new JsonObject
         {
@@ -113,8 +115,9 @@ public static partial class OperationsLiveQuery
         cmd.CommandTimeout = CommandTimeoutSeconds;
         using var cancel = SyncCancellation.Register(cmd, ct);
         string scopeSql = ScopeSponsor(scope, cmd, "s");
+        string platformSql = ScopePlatform(scope, cmd, "cp");
         Add(cmd, "@cityId", id);
-        cmd.CommandText = CitiesSummarySql(scopeSql, cityFilter: true);
+        cmd.CommandText = CitiesSummarySql(scopeSql, platformSql, cityFilter: true);
         var rows = ReadMapped(cmd, MapCityRow, ct);
         if (rows.Count == 0) throw new ImportFailure("city_not_found");
         var city = rows[0];
@@ -184,6 +187,60 @@ public static partial class OperationsLiveQuery
         return new(items, total, summary, DateTimeOffset.UtcNow);
     }
 
+    public static PageResult HousingExport(DbConnection source, string city, string status, string search,
+        LiveOperationsQuery.Scope scope, int timeoutSeconds, CancellationToken ct = default)
+    {
+        EnsureSql(source);
+        using var cmd = source.CreateCommand();
+        cmd.CommandTimeout = timeoutSeconds;
+        using var cancel = SyncCancellation.Register(cmd, ct);
+        string where = HousingWhere(cmd, city, status, search, scope);
+        cmd.CommandText = $"""
+            WITH filtered AS (
+                SELECT {HousingSelect()}
+                FROM {HousingFrom()}
+                {where}
+            ),
+            agg AS (
+                SELECT COUNT_BIG(*) AS TotalCount,
+                       ISNULL(SUM(RoomsCount),0) AS RoomsCount,
+                       ISNULL(SUM(ResidentsTotal),0) AS ResidentsTotal,
+                       ISNULL(SUM(CapacityTotal),0) AS CapacityTotal
+                FROM filtered
+            )
+            SELECT f.*, a.TotalCount, a.RoomsCount AS SumRooms, a.ResidentsTotal AS SumResidents, a.CapacityTotal AS SumCapacity
+            FROM filtered f CROSS JOIN agg a
+            ORDER BY f.NameAr
+            """;
+        long total = 0;
+        var summary = EmptyHousingSummary();
+        var items = new List<JsonObject>();
+        using (var reader = cmd.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                ct.ThrowIfCancellationRequested();
+                if (items.Count == 0)
+                {
+                    total = Long(reader, "TotalCount");
+                    long rooms = Long(reader, "SumRooms");
+                    long residents = Long(reader, "SumResidents");
+                    long capacity = Long(reader, "SumCapacity");
+                    summary = new JsonObject
+                    {
+                        ["housingsTotal"] = total,
+                        ["roomsTotal"] = rooms,
+                        ["residentsTotal"] = residents,
+                        ["occupancyPercent"] = capacity <= 0 ? 0 : Math.Round(100.0 * residents / capacity, 1),
+                        ["residentsTotalNote"] = "إجمالي المقيمين من نظام الموارد (قد يشمل شركات أخرى)"
+                    };
+                }
+                items.Add(MapHousingRow(reader));
+            }
+        }
+        return new(items, total, summary, DateTimeOffset.UtcNow);
+    }
+
     static JsonObject HousingSummaryOnly(DbConnection source, string city, string status, string search,
         LiveOperationsQuery.Scope scope, CancellationToken ct)
     {
@@ -250,18 +307,30 @@ public static partial class OperationsLiveQuery
         roomsCmd.CommandTimeout = CommandTimeoutSeconds;
         using var roomsCancel = SyncCancellation.Register(roomsCmd, ct);
         Add(roomsCmd, "@housingId", housingId);
-        roomsCmd.CommandText = """
+        string empPred = "";
+        if (!scope.AllCompanies)
+        {
+            if (scope.EmployeeIds.Count == 0) empPred = " AND 1=0";
+            else
+            {
+                string ids = InList(roomsCmd, "@resEmp", scope.EmployeeIds);
+                empPred = $" AND p.[EmployeeId] IN ({ids})";
+            }
+        }
+        roomsCmd.CommandText = $"""
             SELECT r.[Id], r.[Name], r.[Capacity], r.[CurrentOccupancy],
                    (SELECT e.[Id] AS employeeId, e.[FullNameAr] AS nameAr, e.[IqamaNo] AS iqama,
                            CONVERT(varchar(10), p.[EffectiveFrom], 23) AS checkInDate
                     FROM [app].[HousingResidencePeriods] p
                     INNER JOIN [app].[Employees] e ON e.[Id]=p.[EmployeeId] AND e.[IsDeleted]=0
-                    WHERE p.[RoomId]=r.[Id] AND p.[EffectiveTo] IS NULL
+                    WHERE p.[RoomId]=r.[Id] AND p.[EffectiveTo] IS NULL{empPred}
                     FOR JSON PATH) AS ResidentsJson
             FROM [app].[HousingRooms] r
             WHERE r.[IsDeleted]=0 AND r.[HousingId]=@housingId
             ORDER BY r.[Name]
             """;
+        // Residents list is company-scoped when !AllCompanies; room occupancy counts stay ERP totals.
+
         var rooms = new JsonArray();
         using (var rr = roomsCmd.ExecuteReader())
         {
@@ -283,7 +352,7 @@ public static partial class OperationsLiveQuery
         return new(body, DateTimeOffset.UtcNow);
     }
 
-    static string CitiesSummarySql(string scopeSql, bool cityFilter = false)
+    static string CitiesSummarySql(string scopeSql, string platformSql = "", bool cityFilter = false)
     {
         string cityPred = cityFilter ? " AND oc.[Id]=@cityId" : "";
         // Sponsor scope applied to vehicle/account/employee counts via LEFT JOIN sponsors when restricted.
@@ -327,23 +396,26 @@ public static partial class OperationsLiveQuery
                         FROM [app].[PlatformRiderAccounts] a
                         INNER JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=a.[ClientPlatformId] AND cp.[IsDeleted]=0
                         LEFT JOIN [app].[Sponsors] s ON s.[Id]=a.[SponsorId] AND s.[IsDeleted]=0
-                        WHERE a.[IsDeleted]=0 AND a.[OperatingCityId]=oc.[Id]{sponsorJoinFilter}
+                        WHERE a.[IsDeleted]=0 AND a.[OperatingCityId]=oc.[Id]{sponsorJoinFilter}{platformSql}
                         GROUP BY cp.[Code]
                         ORDER BY cp.[Code]
                         FOR XML PATH(''), TYPE).value('.','nvarchar(max)'),1,2,'')) AS AppsWorking,
                    (SELECT COUNT_BIG(*) FROM [app].[PlatformRiderAccounts] a
                     LEFT JOIN [app].[Sponsors] s ON s.[Id]=a.[SponsorId] AND s.[IsDeleted]=0
-                    WHERE a.[IsDeleted]=0 AND a.[OperatingCityId]=oc.[Id]{sponsorJoinFilter}) AS AccountsTotal,
+                    LEFT JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=a.[ClientPlatformId] AND cp.[IsDeleted]=0
+                    WHERE a.[IsDeleted]=0 AND a.[OperatingCityId]=oc.[Id]{sponsorJoinFilter}{platformSql}) AS AccountsTotal,
                    (SELECT COUNT_BIG(*) FROM [app].[PlatformRiderAccounts] a
                     LEFT JOIN [app].[Sponsors] s ON s.[Id]=a.[SponsorId] AND s.[IsDeleted]=0
-                    WHERE a.[IsDeleted]=0 AND a.[OperatingCityId]=oc.[Id] AND a.[Status]=1{sponsorJoinFilter}) AS AccountsActive,
+                    LEFT JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=a.[ClientPlatformId] AND cp.[IsDeleted]=0
+                    WHERE a.[IsDeleted]=0 AND a.[OperatingCityId]=oc.[Id] AND a.[Status] IN (1,2){sponsorJoinFilter}{platformSql}) AS AccountsActive,
                    (SELECT COUNT_BIG(*) FROM [app].[PlatformRiderAccounts] a
                     LEFT JOIN [app].[Sponsors] s ON s.[Id]=a.[SponsorId] AND s.[IsDeleted]=0
+                    LEFT JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=a.[ClientPlatformId] AND cp.[IsDeleted]=0
                     WHERE a.[IsDeleted]=0 AND a.[OperatingCityId]=oc.[Id]
                       AND EXISTS(
                         SELECT 1 FROM [app].[RiderClientAssignments] rca
                         WHERE rca.[PlatformRiderAccountId]=a.[Id] AND rca.[IsDeleted]=0 AND rca.[EffectiveTo] IS NULL
-                      ){sponsorJoinFilter}) AS AccountsAssigned
+                      ){sponsorJoinFilter}{platformSql}) AS AccountsAssigned
             FROM [app].[OperatingCities] oc
             INNER JOIN [platform].[GlobalCities] gc ON gc.[Id]=oc.[GlobalCityId] AND gc.[IsDeleted]=0
             WHERE oc.[IsDeleted]=0{cityPred}
@@ -394,7 +466,7 @@ public static partial class OperationsLiveQuery
         cmd.CommandText = $"""
             SELECT cp.[Code] AS platformCode, cp.[NameAr] AS nameAr,
                    COUNT_BIG(*) AS accountsTotal,
-                   SUM(CASE WHEN a.[Status]=1 THEN 1 ELSE 0 END) AS accountsActive,
+                   SUM(CASE WHEN a.[Status] IN (1,2) THEN 1 ELSE 0 END) AS accountsActive,
                    SUM(CASE WHEN EXISTS(
                         SELECT 1 FROM [app].[RiderClientAssignments] rca
                         WHERE rca.[PlatformRiderAccountId]=a.[Id] AND rca.[IsDeleted]=0 AND rca.[EffectiveTo] IS NULL
@@ -488,7 +560,7 @@ public static partial class OperationsLiveQuery
         ["code"] = Str(r, "CityCode"),
         ["nameAr"] = Str(r, "CityNameAr"),
         ["nameEn"] = Str(r, "CityNameEn"),
-        ["status"] = Str(r, "Status"),
+        ["status"] = CityStatusLabel(Str(r, "Status")),
         ["activeRegistrations"] = Long(r, "ActiveRegistrations"),
         ["registrationNames"] = Str(r, "RegistrationNames"),
         ["vehiclesCars"] = Long(r, "CarsCount"),
@@ -516,7 +588,7 @@ public static partial class OperationsLiveQuery
             ["capacity"] = Long(r, "CapacityTotal"),
             ["residentsTotal"] = residents,
             ["ridersPerRoom"] = rooms <= 0 ? 0 : Math.Round((double)residents / rooms, 2),
-            ["status"] = Str(r, "Status"),
+            ["status"] = HousingStatusLabel(Str(r, "Status")),
             ["supervisor"] = null,
             ["supervisorSource"] = NoSourceYet
         };

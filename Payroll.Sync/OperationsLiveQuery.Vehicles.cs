@@ -212,6 +212,102 @@ public static partial class OperationsLiveQuery
         }
     }
 
+    /// <summary>M9: all oil changes in period, vehicle-scoped like the period report.</summary>
+    public static PageResult OilChangesPeriod(DbConnection source, DateOnly from, DateOnly to, int page, int pageSize,
+        string search, LiveOperationsQuery.Scope scope, bool export, CancellationToken ct = default)
+    {
+        EnsureSql(source);
+        if (to < from) throw new ImportFailure("invalid_period");
+        pageSize = Math.Min(Math.Max(1, pageSize), MaxPageSize);
+        page = Math.Max(1, page);
+        int skip = checked((page - 1) * pageSize);
+        try
+        {
+            using var cmd = source.CreateCommand();
+            cmd.CommandTimeout = export ? ExportCommandTimeoutSeconds : CommandTimeoutSeconds;
+            using var cancel = SyncCancellation.Register(cmd, ct);
+            Add(cmd, "@from", from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            Add(cmd, "@to", to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            string scopeSql = ScopeSponsor(scope, cmd, "s");
+            string searchPred = "";
+            if (search.Length > 0)
+            {
+                Add(cmd, "@q", "%" + EscapeLike(search) + "%");
+                searchPred = " AND (v.[PlateNumberAr] LIKE @q OR v.[AssetNumber] LIKE @q)";
+            }
+            if (!export)
+            {
+                Add(cmd, "@skip", skip);
+                Add(cmd, "@take", pageSize);
+            }
+            string pageSql = export ? "" : "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+            cmd.CommandText = $"""
+                WITH filtered AS (
+                    SELECT o.[Id], o.[PerformedAtUtc], o.[OdometerAtChange], o.[OilQuantityLiters],
+                           o.[OilCost], o.[OilFilterCost], o.[LaborCost], o.[OtherCost], o.[TotalCost],
+                           v.[Id] AS VehicleId, v.[PlateNumberAr], v.[AssetNumber], v.[VehicleType]
+                    FROM [maintenance].[OilChangeOperations] o
+                    INNER JOIN [app].[Vehicles] v ON v.[Id]=o.[VehicleId] AND v.[IsDeleted]=0
+                    LEFT JOIN [app].[Sponsors] s ON s.[Id]=v.[SponsorId] AND s.[IsDeleted]=0
+                    WHERE ISNULL(o.[IsCancelled],0)=0{scopeSql}{searchPred}
+                      AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) >= CONVERT(date, @from)
+                      AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) <= CONVERT(date, @to)
+                ),
+                agg AS (
+                    SELECT COUNT_BIG(*) AS TotalCount,
+                           ISNULL(SUM(TotalCost),0) AS OilChangesCost,
+                           ISNULL(SUM(OilQuantityLiters),0) AS TotalLiters
+                    FROM filtered
+                )
+                SELECT f.*, a.TotalCount, a.OilChangesCost AS OilChangesCostAgg, a.TotalLiters
+                FROM filtered f CROSS JOIN agg a
+                ORDER BY f.PerformedAtUtc DESC, f.PlateNumberAr
+                {pageSql}
+                """;
+            long total = 0;
+            var summary = new JsonObject { ["oilChangesCount"] = 0L, ["oilChangesCost"] = 0m, ["totalLiters"] = 0m };
+            var items = new List<JsonObject>();
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (items.Count == 0)
+                    {
+                        total = Long(reader, "TotalCount");
+                        summary = new JsonObject
+                        {
+                            ["oilChangesCount"] = total,
+                            ["oilChangesCost"] = Decimal(reader, "OilChangesCostAgg"),
+                            ["totalLiters"] = Decimal(reader, "TotalLiters")
+                        };
+                    }
+                    items.Add(new JsonObject
+                    {
+                        ["id"] = Str(reader, "Id"),
+                        ["vehicleId"] = Str(reader, "VehicleId"),
+                        ["plateNumberAr"] = Str(reader, "PlateNumberAr"),
+                        ["assetNumber"] = Str(reader, "AssetNumber"),
+                        ["vehicleType"] = VehicleTypeName(Str(reader, "VehicleType")),
+                        ["performedAt"] = Str(reader, "PerformedAtUtc"),
+                        ["odometer"] = Decimal(reader, "OdometerAtChange"),
+                        ["oilLiters"] = Decimal(reader, "OilQuantityLiters"),
+                        ["oilCost"] = Decimal(reader, "OilCost"),
+                        ["filterCost"] = Decimal(reader, "OilFilterCost"),
+                        ["laborCost"] = Decimal(reader, "LaborCost"),
+                        ["otherCost"] = Decimal(reader, "OtherCost"),
+                        ["totalCost"] = Decimal(reader, "TotalCost")
+                    });
+                }
+            }
+            return new(items, total, summary, DateTimeOffset.UtcNow);
+        }
+        catch (SqlException ex) when (IsMissingTable(ex))
+        {
+            return new([], 0, new JsonObject { ["oilChangesCount"] = 0, ["oilChangesCost"] = 0, ["message"] = NoSourceYet }, DateTimeOffset.UtcNow);
+        }
+    }
+
     public static PageResult PurchaseInvoices(DbConnection source, DateOnly from, DateOnly to, int page, int pageSize,
         string search, LiveOperationsQuery.Scope scope, string? receiptId, CancellationToken ct = default)
     {
@@ -225,6 +321,12 @@ public static partial class OperationsLiveQuery
             using var cmd = source.CreateCommand();
             cmd.CommandTimeout = CommandTimeoutSeconds;
             using var cancel = SyncCancellation.Register(cmd, ct);
+            // Purchases have no company column — company-scoped users get empty list / 404 on detail.
+            if (!scope.AllCompanies)
+            {
+                if (receiptId is { Length: > 0 }) throw new ImportFailure("purchase_not_found");
+                return new([], 0, new JsonObject { ["invoicesTotal"] = 0, ["totalAmount"] = 0, ["message"] = "فواتير المشتريات بلا عمود شركة — مخفية لنطاق شركة" }, DateTimeOffset.UtcNow);
+            }
             Add(cmd, "@from", from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
             Add(cmd, "@to", to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
             var parts = new List<string>
@@ -233,8 +335,6 @@ public static partial class OperationsLiveQuery
                 "CONVERT(date, pr.[InvoiceDate]) >= CONVERT(date, @from)",
                 "CONVERT(date, pr.[InvoiceDate]) <= CONVERT(date, @to)"
             };
-            // Purchase receipts have no sponsor column; show to any actor with operations.view (company-wide fleet ops).
-            // Out-of-scope detail id still 404s via receiptId check below when we add sponsor later — for now all-company.
             if (receiptId is { Length: > 0 })
             {
                 if (!Guid.TryParse(receiptId, out _)) throw new ImportFailure("purchase_not_found");
@@ -297,7 +397,6 @@ public static partial class OperationsLiveQuery
             if (receiptId is { Length: > 0 } && items.Count == 1)
                 items[0]["lines"] = PurchaseLines(source, items[0].S("id"), ct);
             var summary = new JsonObject { ["invoicesTotal"] = total, ["totalAmount"] = totalAmount };
-            _ = scope; // reserved when receipts gain sponsor scope
             return new(items, total, summary, DateTimeOffset.UtcNow);
         }
         catch (SqlException ex) when (IsMissingTable(ex))
@@ -334,32 +433,24 @@ public static partial class OperationsLiveQuery
     }
 
     /// <summary>
-    /// Period overlap + Omar billing-day rule (Riyadh, after 14:00 bumps boundary).
-    /// Spare parts = VehicleExpenses in period (ExpenseType MaintenanceMaterial/Labor/Other).
-    /// Oil = OilChangeOperations in the clipped vehicle operating window when table exists.
+    /// Period overlap + Omar billing-day rule clipped to from/to (Riyadh, after 14:00 bumps boundary).
+    /// Spare parts = MaintenanceMaterial from MaintenanceMaterialUsage only; net out reversed originals.
+    /// Oil = OilChangeOperations in the period; mileage = Start/EndOdometer else VehicleOdometerReadings.
     /// </summary>
     static string PeriodReportVehicleSql(string scopeSql, bool search = false)
     {
         string searchPred = search
-            ? " AND (v.[PlateNumberAr] LIKE @q OR v.[PlateNumberEn] LIKE @q OR v.[AssetNumber] LIKE @q OR e.[FullNameAr] LIKE @q OR e.[IqamaNo] LIKE @q)"
+            ? " AND (v.[PlateNumberAr] LIKE @q OR v.[PlateNumberEn] LIKE @q OR v.[AssetNumber] LIKE @q OR e.[FullNameAr] LIKE @q OR e.[IqamaNo] LIKE @q OR rr.[Name] LIKE @q OR rr.[IqamaNo] LIKE @q)"
             : "";
         return $"""
-            WITH period_bounds AS (
-                SELECT CONVERT(datetimeoffset, CONVERT(datetime, @from) AT TIME ZONE 'UTC' AT TIME ZONE 'Arabian Standard Time') AS PeriodStartLocal,
-                       DATEADD(day, 1, CONVERT(datetimeoffset, CONVERT(datetime, @to) AT TIME ZONE 'UTC' AT TIME ZONE 'Arabian Standard Time')) AS PeriodEndLocalExclusive
-            ),
-            asg AS (
+            WITH asg AS (
                 SELECT a.[Id] AS AssignmentId, a.[VehicleId], a.[RiderProfileId], a.[IsRealRider],
-                       a.[StartedAtUtc], a.[EndedAtUtc],
+                       a.[StartedAtUtc], a.[EndedAtUtc], a.[StartOdometer], a.[EndOdometer],
                        v.[AssetNumber], v.[PlateNumberAr], v.[VehicleType], v.[OperatingCityId],
                        s.[RegistryNameAr] AS SponsorNameAr, s.[UnifiedNationalNumber],
                        gc.[NameAr] AS CityNameAr,
-                       e.[FullNameAr] AS RiderNameAr, e.[IqamaNo],
-                       CASE
-                         WHEN SWITCHOFFSET(a.[StartedAtUtc], '+03:00') > (SELECT PeriodEndLocalExclusive FROM period_bounds) THEN 0
-                         WHEN a.[EndedAtUtc] IS NOT NULL AND SWITCHOFFSET(a.[EndedAtUtc], '+03:00') < (SELECT PeriodStartLocal FROM period_bounds) THEN 0
-                         ELSE 1
-                       END AS InPeriod
+                       CASE WHEN a.[IsRealRider]=1 THEN e.[FullNameAr] ELSE rr.[Name] END AS RiderNameAr,
+                       CASE WHEN a.[IsRealRider]=1 THEN e.[IqamaNo] ELSE rr.[IqamaNo] END AS IqamaNo
                 FROM [app].[RiderVehicleAssignments] a
                 INNER JOIN [app].[Vehicles] v ON v.[Id]=a.[VehicleId] AND v.[IsDeleted]=0
                 LEFT JOIN [app].[Sponsors] s ON s.[Id]=v.[SponsorId] AND s.[IsDeleted]=0
@@ -367,6 +458,7 @@ public static partial class OperationsLiveQuery
                 LEFT JOIN [platform].[GlobalCities] gc ON gc.[Id]=oc.[GlobalCityId] AND gc.[IsDeleted]=0
                 LEFT JOIN [app].[RiderProfiles] rp ON rp.[Id]=a.[RiderProfileId] AND rp.[IsDeleted]=0
                 LEFT JOIN [app].[Employees] e ON e.[Id]=rp.[EmployeeId] AND e.[IsDeleted]=0
+                LEFT JOIN [app].[RealRiders] rr ON rr.[RiderVehicleAssignmentId]=a.[Id]
                 WHERE a.[IsDeleted]=0{scopeSql}{searchPred}
                   AND a.[StartedAtUtc] < DATEADD(day, 1, CONVERT(datetimeoffset, @to + 'T00:00:00+03:00'))
                   AND (a.[EndedAtUtc] IS NULL OR a.[EndedAtUtc] > CONVERT(datetimeoffset, @from + 'T00:00:00+03:00'))
@@ -378,8 +470,16 @@ public static partial class OperationsLiveQuery
                          WHEN 2 THEN CAST({MonthlyCostCarSar.ToString(CultureInfo.InvariantCulture)} AS decimal(18,4)) / 30.0
                          WHEN 1 THEN CAST({MonthlyCostMotorcycleSar.ToString(CultureInfo.InvariantCulture)} AS decimal(18,4)) / 30.0
                          ELSE NULL
-                       END AS DailyCost
-                FROM asg a WHERE a.InPeriod=1
+                       END AS DailyCost,
+                       {AssignmentMileageSql("a")} AS AssignmentMileage,
+                       ROW_NUMBER() OVER (PARTITION BY a.VehicleId ORDER BY a.StartedAtUtc DESC) AS LatestRn
+                FROM asg a
+            ),
+            priced AS (
+                SELECT c.*,
+                       CASE WHEN c.DailyCost IS NULL THEN NULL
+                            ELSE ROUND(c.DaysInPeriod * c.DailyCost, 2) END AS AssignmentCost
+                FROM calc c
             ),
             by_vehicle AS (
                 SELECT
@@ -389,29 +489,23 @@ public static partial class OperationsLiveQuery
                     MAX(VehicleType) AS VehicleType,
                     MAX(CityNameAr) AS CityNameAr,
                     MAX(SponsorNameAr) AS SponsorNameAr,
-                    MAX(RiderNameAr) AS RiderNameAr,
-                    MAX(IqamaNo) AS IqamaNo,
+                    MAX(CASE WHEN LatestRn=1 THEN RiderNameAr END) AS RiderNameAr,
+                    MAX(CASE WHEN LatestRn=1 THEN IqamaNo END) AS IqamaNo,
                     SUM(DaysInPeriod) AS OperatingDays,
                     CASE WHEN COUNT_BIG(CASE WHEN DailyCost IS NULL THEN 1 END)=0
-                         THEN ROUND(SUM(DaysInPeriod * DailyCost), 2) ELSE NULL END AS AmountToCollect,
-                    (SELECT ISNULL(SUM(ve.[TotalAmount]),0) FROM [maintenance].[VehicleExpenses] ve
-                     WHERE ve.[VehicleId]=c.VehicleId
-                       AND ve.[ExpenseType] IN (N'MaintenanceMaterial',N'MaintenanceLabor',N'MaintenanceOther')
-                       AND ve.[OccurredOn] >= CONVERT(date, @from) AND ve.[OccurredOn] <= CONVERT(date, @to)
-                       AND ve.[ReversalOfExpenseId] IS NULL) AS SparePartsCost,
+                         THEN SUM(AssignmentCost) ELSE NULL END AS AmountToCollect,
+                    {SparePartsByVehicleSql("p.VehicleId")} AS SparePartsCost,
                     (SELECT COUNT_BIG(*) FROM [maintenance].[OilChangeOperations] o
-                     WHERE o.[VehicleId]=c.VehicleId AND ISNULL(o.[IsCancelled],0)=0
+                     WHERE o.[VehicleId]=p.VehicleId AND ISNULL(o.[IsCancelled],0)=0
                        AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) >= CONVERT(date, @from)
                        AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) <= CONVERT(date, @to)) AS OilChangesCount,
                     (SELECT ISNULL(SUM(o.[TotalCost]),0) FROM [maintenance].[OilChangeOperations] o
-                     WHERE o.[VehicleId]=c.VehicleId AND ISNULL(o.[IsCancelled],0)=0
+                     WHERE o.[VehicleId]=p.VehicleId AND ISNULL(o.[IsCancelled],0)=0
                        AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) >= CONVERT(date, @from)
                        AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) <= CONVERT(date, @to)) AS OilChangesCost,
-                    (SELECT MAX(o.[OdometerAtChange]) FROM [maintenance].[OilChangeOperations] o
-                     WHERE o.[VehicleId]=c.VehicleId AND ISNULL(o.[IsCancelled],0)=0
-                       AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) >= CONVERT(date, @from)
-                       AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) <= CONVERT(date, @to)) AS OilMileage
-                FROM calc c
+                    CASE WHEN COUNT_BIG(CASE WHEN AssignmentMileage IS NOT NULL THEN 1 END)=0 THEN NULL
+                         ELSE SUM(AssignmentMileage) END AS OilMileage
+                FROM priced p
                 GROUP BY VehicleId
             ),
             agg AS (
@@ -432,19 +526,24 @@ public static partial class OperationsLiveQuery
 
     static string PeriodReportRiderSql(string scopeSql, bool search = false)
     {
-        // Same assignment calc, grouped by actual rider (iqama → profile).
         string searchPred = search
-            ? " AND (v.[PlateNumberAr] LIKE @q OR e.[FullNameAr] LIKE @q OR e.[IqamaNo] LIKE @q)"
+            ? " AND (v.[PlateNumberAr] LIKE @q OR e.[FullNameAr] LIKE @q OR e.[IqamaNo] LIKE @q OR rr.[Name] LIKE @q OR rr.[IqamaNo] LIKE @q)"
             : "";
         return $"""
             WITH asg AS (
                 SELECT a.[Id] AS AssignmentId, a.[VehicleId], a.[RiderProfileId], a.[IsRealRider],
-                       a.[StartedAtUtc], a.[EndedAtUtc],
+                       a.[StartedAtUtc], a.[EndedAtUtc], a.[StartOdometer], a.[EndOdometer],
                        v.[AssetNumber], v.[PlateNumberAr], v.[VehicleType],
                        gc.[NameAr] AS CityNameAr,
-                       e.[FullNameAr] AS RiderNameAr, e.[IqamaNo],
-                       CASE WHEN e.[IqamaNo] IS NOT NULL AND e.[IqamaNo]<>'' THEN N'iqama:'+e.[IqamaNo]
-                            ELSE N'profile:'+CONVERT(nvarchar(36), a.[RiderProfileId]) END AS RiderKey
+                       CASE WHEN a.[IsRealRider]=1 THEN e.[FullNameAr] ELSE rr.[Name] END AS RiderNameAr,
+                       CASE WHEN a.[IsRealRider]=1 THEN e.[IqamaNo] ELSE rr.[IqamaNo] END AS IqamaNo,
+                       CASE
+                         WHEN a.[IsRealRider]=1 AND e.[IqamaNo] IS NOT NULL AND e.[IqamaNo]<>'' THEN N'iqama:'+e.[IqamaNo]
+                         WHEN a.[IsRealRider]=1 THEN N'profile:'+CONVERT(nvarchar(36), a.[RiderProfileId])
+                         WHEN rr.[IqamaNo] IS NOT NULL AND rr.[IqamaNo]<>'' THEN N'iqama:'+rr.[IqamaNo]
+                         WHEN rr.[Id] IS NOT NULL THEN N'real:'+CONVERT(nvarchar(36), rr.[Id])
+                         ELSE N'unidentified:'+CONVERT(nvarchar(36), a.[Id])
+                       END AS RiderKey
                 FROM [app].[RiderVehicleAssignments] a
                 INNER JOIN [app].[Vehicles] v ON v.[Id]=a.[VehicleId] AND v.[IsDeleted]=0
                 LEFT JOIN [app].[Sponsors] s ON s.[Id]=v.[SponsorId] AND s.[IsDeleted]=0
@@ -452,6 +551,7 @@ public static partial class OperationsLiveQuery
                 LEFT JOIN [platform].[GlobalCities] gc ON gc.[Id]=oc.[GlobalCityId] AND gc.[IsDeleted]=0
                 LEFT JOIN [app].[RiderProfiles] rp ON rp.[Id]=a.[RiderProfileId] AND rp.[IsDeleted]=0
                 LEFT JOIN [app].[Employees] e ON e.[Id]=rp.[EmployeeId] AND e.[IsDeleted]=0
+                LEFT JOIN [app].[RealRiders] rr ON rr.[RiderVehicleAssignmentId]=a.[Id]
                 WHERE a.[IsDeleted]=0{scopeSql}{searchPred}
                   AND a.[StartedAtUtc] < DATEADD(day, 1, CONVERT(datetimeoffset, @to + 'T00:00:00+03:00'))
                   AND (a.[EndedAtUtc] IS NULL OR a.[EndedAtUtc] > CONVERT(datetimeoffset, @from + 'T00:00:00+03:00'))
@@ -463,8 +563,28 @@ public static partial class OperationsLiveQuery
                          WHEN 2 THEN CAST({MonthlyCostCarSar.ToString(CultureInfo.InvariantCulture)} AS decimal(18,4)) / 30.0
                          WHEN 1 THEN CAST({MonthlyCostMotorcycleSar.ToString(CultureInfo.InvariantCulture)} AS decimal(18,4)) / 30.0
                          ELSE NULL
-                       END AS DailyCost
+                       END AS DailyCost,
+                       {AssignmentMileageSql("a")} AS AssignmentMileage
                 FROM asg a
+            ),
+            priced AS (
+                SELECT c.*,
+                       CASE WHEN c.DailyCost IS NULL THEN NULL
+                            ELSE ROUND(c.DaysInPeriod * c.DailyCost, 2) END AS AssignmentCost,
+                       {SparePartsByAssignmentSql("c.AssignmentId")} AS SparePartsCost,
+                       (SELECT COUNT_BIG(*) FROM [maintenance].[OilChangeOperations] o
+                        WHERE o.[VehicleId]=c.VehicleId AND ISNULL(o.[IsCancelled],0)=0
+                          AND o.[PerformedAtUtc] >= c.StartedAtUtc
+                          AND o.[PerformedAtUtc] < ISNULL(c.EndedAtUtc, DATEADD(day, 1, CONVERT(datetimeoffset, @to + 'T00:00:00+03:00')))
+                          AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) >= CONVERT(date, @from)
+                          AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) <= CONVERT(date, @to)) AS OilChangesCount,
+                       (SELECT ISNULL(SUM(o.[TotalCost]),0) FROM [maintenance].[OilChangeOperations] o
+                        WHERE o.[VehicleId]=c.VehicleId AND ISNULL(o.[IsCancelled],0)=0
+                          AND o.[PerformedAtUtc] >= c.StartedAtUtc
+                          AND o.[PerformedAtUtc] < ISNULL(c.EndedAtUtc, DATEADD(day, 1, CONVERT(datetimeoffset, @to + 'T00:00:00+03:00')))
+                          AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) >= CONVERT(date, @from)
+                          AND CONVERT(date, SWITCHOFFSET(o.[PerformedAtUtc], '+03:00')) <= CONVERT(date, @to)) AS OilChangesCost
+                FROM calc c
             ),
             by_rider AS (
                 SELECT
@@ -478,12 +598,13 @@ public static partial class OperationsLiveQuery
                     MAX(CONVERT(nvarchar(36), VehicleId)) AS VehicleId,
                     SUM(DaysInPeriod) AS OperatingDays,
                     CASE WHEN COUNT_BIG(CASE WHEN DailyCost IS NULL THEN 1 END)=0
-                         THEN ROUND(SUM(DaysInPeriod * DailyCost), 2) ELSE NULL END AS AmountToCollect,
-                    CAST(0 AS decimal(18,2)) AS SparePartsCost,
-                    CAST(0 AS int) AS OilChangesCount,
-                    CAST(0 AS decimal(18,2)) AS OilChangesCost,
-                    CAST(NULL AS decimal(18,2)) AS OilMileage
-                FROM calc
+                         THEN SUM(AssignmentCost) ELSE NULL END AS AmountToCollect,
+                    SUM(SparePartsCost) AS SparePartsCost,
+                    SUM(OilChangesCount) AS OilChangesCount,
+                    SUM(OilChangesCost) AS OilChangesCost,
+                    CASE WHEN COUNT_BIG(CASE WHEN AssignmentMileage IS NOT NULL THEN 1 END)=0 THEN NULL
+                         ELSE SUM(AssignmentMileage) END AS OilMileage
+                FROM priced
                 GROUP BY RiderKey
             ),
             agg AS (
@@ -502,19 +623,82 @@ public static partial class OperationsLiveQuery
             """;
     }
 
-    /// <summary>SQL fragment: Omar billing-day days between two datetimeoffset expressions (Riyadh +14:00 cutoff).</summary>
+    /// <summary>Omar Days(): billing boundaries clipped to from/to DayNumber range.</summary>
     static string DaysInPeriodSql(string startExpr, string endExpr) => $"""
         (
           SELECT CAST(CASE WHEN endDay < startDay THEN 0 ELSE endDay - startDay END AS decimal(18,2))
           FROM (
             SELECT
-              CASE WHEN DATEPART(HOUR, SWITCHOFFSET({startExpr}, '+03:00')) * 60 + DATEPART(MINUTE, SWITCHOFFSET({startExpr}, '+03:00')) > 14*60
-                   THEN DATEDIFF(DAY, '0001-01-01', CONVERT(date, SWITCHOFFSET({startExpr}, '+03:00'))) + 1
-                   ELSE DATEDIFF(DAY, '0001-01-01', CONVERT(date, SWITCHOFFSET({startExpr}, '+03:00'))) END AS startDay,
-              CASE WHEN DATEPART(HOUR, SWITCHOFFSET({endExpr}, '+03:00')) * 60 + DATEPART(MINUTE, SWITCHOFFSET({endExpr}, '+03:00')) > 14*60
-                   THEN DATEDIFF(DAY, '0001-01-01', CONVERT(date, SWITCHOFFSET({endExpr}, '+03:00'))) + 1
-                   ELSE DATEDIFF(DAY, '0001-01-01', CONVERT(date, SWITCHOFFSET({endExpr}, '+03:00'))) END AS endDay
+              CASE WHEN rawStart < fromDay THEN fromDay ELSE rawStart END AS startDay,
+              CASE WHEN rawEnd > toDayEx THEN toDayEx ELSE rawEnd END AS endDay
+            FROM (
+              SELECT
+                CASE WHEN DATEPART(HOUR, SWITCHOFFSET({startExpr}, '+03:00')) * 60 + DATEPART(MINUTE, SWITCHOFFSET({startExpr}, '+03:00')) > 14*60
+                     THEN DATEDIFF(DAY, '0001-01-01', CONVERT(date, SWITCHOFFSET({startExpr}, '+03:00'))) + 1
+                     ELSE DATEDIFF(DAY, '0001-01-01', CONVERT(date, SWITCHOFFSET({startExpr}, '+03:00'))) END AS rawStart,
+                CASE WHEN DATEPART(HOUR, SWITCHOFFSET({endExpr}, '+03:00')) * 60 + DATEPART(MINUTE, SWITCHOFFSET({endExpr}, '+03:00')) > 14*60
+                     THEN DATEDIFF(DAY, '0001-01-01', CONVERT(date, SWITCHOFFSET({endExpr}, '+03:00'))) + 1
+                     ELSE DATEDIFF(DAY, '0001-01-01', CONVERT(date, SWITCHOFFSET({endExpr}, '+03:00'))) END AS rawEnd,
+                DATEDIFF(DAY, '0001-01-01', CONVERT(date, @from)) AS fromDay,
+                DATEDIFF(DAY, '0001-01-01', CONVERT(date, @to)) + 1 AS toDayEx
+            ) x
           ) d
+        )
+        """;
+
+    /// <summary>M2: material usages only; exclude originals that have a reversal row.</summary>
+    static string SparePartsByVehicleSql(string vehicleIdExpr) => $"""
+        (SELECT ISNULL(SUM(ve.[TotalAmount]),0) FROM [maintenance].[VehicleExpenses] ve
+         WHERE ve.[VehicleId]={vehicleIdExpr}
+           AND ve.[ExpenseType]=N'MaintenanceMaterial'
+           AND ve.[SourceEntityType]=N'MaintenanceMaterialUsage'
+           AND ve.[OccurredOn] >= CONVERT(date, @from) AND ve.[OccurredOn] <= CONVERT(date, @to)
+           AND ve.[ReversalOfExpenseId] IS NULL
+           AND NOT EXISTS (SELECT 1 FROM [maintenance].[VehicleExpenses] rev WHERE rev.[ReversalOfExpenseId]=ve.[Id]))
+        """;
+
+    static string SparePartsByAssignmentSql(string assignmentIdExpr) => $"""
+        (SELECT ISNULL(SUM(ve.[TotalAmount]),0) FROM [maintenance].[VehicleExpenses] ve
+         WHERE ve.[RiderVehicleAssignmentId]={assignmentIdExpr}
+           AND ve.[ExpenseType]=N'MaintenanceMaterial'
+           AND ve.[SourceEntityType]=N'MaintenanceMaterialUsage'
+           AND ve.[OccurredOn] >= CONVERT(date, @from) AND ve.[OccurredOn] <= CONVERT(date, @to)
+           AND ve.[ReversalOfExpenseId] IS NULL
+           AND NOT EXISTS (SELECT 1 FROM [maintenance].[VehicleExpenses] rev WHERE rev.[ReversalOfExpenseId]=ve.[Id]))
+        """;
+
+    /// <summary>M4: StartOdometer/EndOdometer else readings in assignment window; null if unknown.</summary>
+    static string AssignmentMileageSql(string alias) => $"""
+        (
+          CASE
+            WHEN {alias}.[StartOdometer] IS NOT NULL AND {alias}.[EndOdometer] IS NOT NULL
+              THEN CAST({alias}.[EndOdometer] - {alias}.[StartOdometer] AS decimal(18,2))
+            WHEN {alias}.[StartOdometer] IS NOT NULL AND (
+                  SELECT MAX(r.[Reading]) FROM [app].[VehicleOdometerReadings] r
+                  WHERE r.[VehicleId]={alias}.[VehicleId] AND ISNULL(r.[IsVoided],0)=0
+                    AND r.[RecordedAtUtc] >= {alias}.[StartedAtUtc]
+                    AND r.[RecordedAtUtc] <= ISNULL({alias}.[EndedAtUtc], @asOf)
+                ) IS NOT NULL
+              THEN CAST((
+                  SELECT MAX(r.[Reading]) FROM [app].[VehicleOdometerReadings] r
+                  WHERE r.[VehicleId]={alias}.[VehicleId] AND ISNULL(r.[IsVoided],0)=0
+                    AND r.[RecordedAtUtc] >= {alias}.[StartedAtUtc]
+                    AND r.[RecordedAtUtc] <= ISNULL({alias}.[EndedAtUtc], @asOf)
+                ) - {alias}.[StartOdometer] AS decimal(18,2))
+            ELSE (
+              SELECT CASE WHEN MIN(r.[Reading]) IS NULL OR MAX(r.[Reading]) IS NULL THEN NULL
+                          ELSE CAST(MAX(r.[Reading]) - MIN(r.[Reading]) AS decimal(18,2)) END
+              FROM [app].[VehicleOdometerReadings] r
+              WHERE r.[VehicleId]={alias}.[VehicleId] AND ISNULL(r.[IsVoided],0)=0
+                AND r.[RecordedAtUtc] >= CASE WHEN {alias}.[StartedAtUtc] > CONVERT(datetimeoffset, @from + 'T00:00:00+03:00')
+                                              THEN {alias}.[StartedAtUtc]
+                                              ELSE CONVERT(datetimeoffset, @from + 'T00:00:00+03:00') END
+                AND r.[RecordedAtUtc] <= CASE WHEN {alias}.[EndedAtUtc] IS NOT NULL
+                                               AND {alias}.[EndedAtUtc] < DATEADD(day, 1, CONVERT(datetimeoffset, @to + 'T00:00:00+03:00'))
+                                              THEN {alias}.[EndedAtUtc]
+                                              ELSE DATEADD(day, 1, CONVERT(datetimeoffset, @to + 'T00:00:00+03:00')) END
+            )
+          END
         )
         """;
 

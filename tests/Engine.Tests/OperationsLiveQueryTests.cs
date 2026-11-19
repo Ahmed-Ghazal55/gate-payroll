@@ -35,10 +35,13 @@ public sealed class OperationsLiveQueryTests
         var (sql, _) = OperationsLiveQuery.PreviewPeriodReportSql("vehicle");
         Assert.DoesNotContain("].[Vin]", sql, StringComparison.Ordinal);
         Assert.DoesNotContain(" v.[Vin]", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("period_bounds", sql, StringComparison.Ordinal);
         Assert.Contains("RiderVehicleAssignments", sql, StringComparison.Ordinal);
-        Assert.Contains("VehicleExpenses", sql, StringComparison.Ordinal);
+        Assert.Contains("MaintenanceMaterialUsage", sql, StringComparison.Ordinal);
+        Assert.Contains("RealRiders", sql, StringComparison.Ordinal);
         Assert.Contains(OperationsLiveQuery.MonthlyCostCarSar.ToString(CultureInfo.InvariantCulture), sql, StringComparison.Ordinal);
         Assert.Contains("OFFSET @skip", sql, StringComparison.Ordinal);
+        Assert.Contains("DATEDIFF(DAY, '0001-01-01', CONVERT(date, @from))", sql, StringComparison.Ordinal);
     }
 
     [TestMethod]
@@ -46,7 +49,17 @@ public sealed class OperationsLiveQueryTests
     {
         var (sql, _) = OperationsLiveQuery.PreviewPeriodReportSql("rider");
         Assert.Contains("RiderKey", sql, StringComparison.Ordinal);
+        Assert.Contains("IsRealRider", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("].[Vin]", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("CAST(0 AS decimal(18,2)) AS SparePartsCost", sql, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void PreviewCitiesSqlUsesActiveStatusesOneAndTwo()
+    {
+        var (sql, _) = OperationsLiveQuery.PreviewCitiesSql();
+        Assert.Contains("a.[Status] IN (1,2)", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("a.[OperatingCityId]=oc.[Id] AND a.[Status]=1", sql, StringComparison.Ordinal);
     }
 
     [TestMethod]
