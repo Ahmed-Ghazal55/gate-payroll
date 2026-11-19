@@ -39,9 +39,6 @@ public static partial class AccessPolicy
         if(path is "/api/me" or "/api/roles-catalog")return method=="GET";
         if(path=="/api/me/password")return method=="POST";
         if(path.StartsWith("/api/roles/",StringComparison.Ordinal))return false;
-        if(path is "/api/system/jobs/erp-sync/run" or "/api/system/jobs/erp-sync/dry-run")return method=="POST"&&Has("erp.sync.run");
-        const string syncStatus="/api/system/jobs/erp-sync/";
-        if(method=="GET"&&path.StartsWith(syncStatus,StringComparison.Ordinal)&&System.Text.RegularExpressions.Regex.IsMatch(path[syncStatus.Length..],"^[1-9][0-9]{0,19}$"))return Has("erp.sync.run");
         if(path.StartsWith("/api/config/lists",StringComparison.Ordinal))return method=="GET"||method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return method is "GET" or "POST" or "PUT"&&Has("users.manage"); // Handlers guard escalation and self-edit.
         if(path=="/api/responses")return method=="GET"&&Has("forms.view");

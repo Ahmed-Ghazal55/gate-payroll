@@ -47,11 +47,9 @@ builder.Services.AddMemoryCache(o => o.SizeLimit = 10000);
 builder.Services.AddSingleton<InquiryLimits>();
 builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
-GateJobs.Add(builder.Services,builder.Configuration,builder.Environment);
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
 CampaignLinks.Migrate(store);
 Companies.Seed(store);
-ErpSyncRequests.SeedPermission(store);
 ConfigLists.Seed(store);
 ManualJournals.Seed(store);
 app.MapOpenApi("/openapi/{documentName}.json").WithTags("Administration").WithSummary("Administrator-only OpenAPI document").RequireAuthorization().AddEndpointFilter(async (context, next) =>
@@ -94,7 +92,7 @@ app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensio
 app.UseRouting(); app.UseAuthorization(); app.UseRateLimiter();
 NextApp.Map(app);
 Vouchers.Map(app,store);
-Func<IJobsSchedule,object> health=jobs=>new { jobs=jobs.Health(), ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent, operationsSource=Operations.SourceMode(app.Configuration,app.Environment), erpReadonlyConfigured=Operations.ErpConfigured(app.Configuration) };
+Func<object> health=()=>new { ok = true, application = "Gate Payroll", version = ReleaseSafety.Version, dataPreservationVerified=store.DataPreservationVerified, releaseCheckpointPresent=store.ReleaseCheckpointPresent, operationsSource=Operations.SourceMode(app.Configuration,app.Environment), erpReadonlyConfigured=Operations.ErpConfigured(app.Configuration) };
 app.MapGet("/health",health).WithTags("Administration").WithSummary("Read health");
 app.MapGet("/api/health",health).WithTags("Administration").WithSummary("Read health through the API prefix");
 app.MapGet("/api/auth/status", () => new { needsSetup = store.Read(c => Store.List(c, "user").Count == 0), environment = app.Environment.EnvironmentName }).WithTags("Administration").WithSummary("Read auth status");
@@ -139,8 +137,7 @@ api.AddEndpointFilter(async (context, next) => {
 });
 api.AddEndpointFilter(ApiPagination.Filter);
 Notifications.Map(api,store);
-ErpSyncRuns.Map(api,store);
-JobsControl.Map(api);
+ErpSponsorMap.Map(api);
 ConfigLists.Map(api,store);
 ImportCatalog.Map(api);
 Companies.Map(api,store);

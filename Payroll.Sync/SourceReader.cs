@@ -64,7 +64,7 @@ public static class SourceReader
         var after=requireStableRowversion&&!incremental?Stamp():null;
         if(before!=null&&after!=null&&!before.SequenceEqual(after))throw new ImportFailure("source_changed_during_read");
         if(upper!=null)next["__rowversion_upper"]=Convert.ToHexString(upper);
-        string consistency=incremental?"incremental_rowversion_upper_bound":sql?(connection.Database=="erp_copy"?"local_read_only_copy":"read_committed_database_rowversion_stable"):"synthetic_sqlite";
+        string consistency=incremental?"incremental_rowversion_upper_bound":sql?"read_committed_database_rowversion_stable":"synthetic_sqlite";
         string mode=!incremental?"full":tables.Count==0?"incremental":"open_period_mix";
         if(incremental&&skippedModules.Count==0&&!Catalog.Any(t=>SourceReadProfiles.For(t.Schema,t.Name)?.HardDeleteReconcile==true))mode="incremental";
         return new(tables,started,DateTimeOffset.UtcNow,consistency,mode,skippedTables.Count,next,skippedTables);

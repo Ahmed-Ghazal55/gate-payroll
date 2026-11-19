@@ -384,7 +384,6 @@ public static class UserAccess
             ["hash"] = Convert.ToBase64String(Rfc2898DeriveBytes.Pbkdf2(password, salt, 210000, HashAlgorithmName.SHA256, 32))
         };
         if (customPermissions != null) doc["customPermissions"] = customPermissions.DeepClone();
-        ErpSyncRequests.Grant(doc);
         return doc;
     }
 
@@ -479,7 +478,6 @@ public static class UserAccess
                 if (rnk is >= 1 and <= 5) u["rankLevel"] = rnk;
             }
             if(input["customPermissions"] is JsonArray cp){ValidatePermissionList(cp);u["customPermissions"]=cp.DeepClone();}
-            if(roleChanged&&!input.ContainsKey("customPermissions"))ErpSyncRequests.Grant(u);
             if(input["financialScope"] is JsonObject scope)u["financialScope"]=FinancialScopes.Normalize(scope);
             if(input["deniedPermissions"] is JsonArray denied){ValidatePermissionList(denied);u["deniedPermissions"]=denied.DeepClone();}
             J.Need(FinancialCore.DepartmentsCatalog.OfType<JsonObject>().Any(d=>d.S("code")==Department(u)),"قسم غير صالح.");
