@@ -55,7 +55,18 @@ function details(r: ServiceRequest): string {
     return `${p.fieldToUpdate ?? ''} : ${p.previousValue ?? '—'} ← ${p.newValue ?? '—'}`;
   }
   if (r.requestType === 'complaint') return String(p.details ?? r.reason ?? '');
-  if (r.requestType === 'statement_request') return String(p.scope ?? p.period ?? r.reason ?? '');
+  if (r.requestType === 'statement_request') {
+    const scope = String(p.statementScope ?? p.scope ?? '');
+    const scopeAr =
+      scope === 'monthly_payslip'
+        ? 'كشف راتب شهري'
+        : scope === 'full_account'
+          ? 'كشف حساب شامل'
+          : scope === 'debt_clearance'
+            ? 'بيان مديونيات وأقساط'
+            : scope;
+    return [scopeAr, p.period].filter(Boolean).join(' — ') || r.reason || '';
+  }
   return r.reason ?? '';
 }
 
@@ -127,12 +138,23 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [status, setStatus] = useState('');
+  const [iqamaFilter, setIqamaFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState<{ row: ServiceRequest; action: string } | null>(null);
   const [detail, setDetail] = useState<ServiceRequest | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const pageFilters = useCallback(
+    () => ({
+      status: status || undefined,
+      requestType: SUBTAB_TYPE[active],
+      group: active === 'other' ? ('other' as const) : undefined,
+      iqama: iqamaFilter.trim() || undefined,
+    }),
+    [active, status, iqamaFilter]
+  );
 
   const load = useCallback(async () => {
     if (active === 'advances') return;
@@ -143,9 +165,7 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
         api.getServiceRequestsPage({
           page,
           pageSize,
-          status: status || undefined,
-          requestType: SUBTAB_TYPE[active],
-          group: active === 'other' ? 'other' : undefined,
+          ...pageFilters(),
         }),
         api.getServiceRequestsSummary(),
       ]);
@@ -157,7 +177,7 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
     } finally {
       setLoading(false);
     }
-  }, [active, page, pageSize, status]);
+  }, [active, page, pageSize, pageFilters]);
 
   useEffect(() => {
     load();
@@ -239,12 +259,54 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
 
   const needsNote = target && (target.action === 'reject' || target.action === 'need_info' || target.action === 'reply');
 
+  const exportAll = async () => {
+    const all: ServiceRequest[] = [];
+    let p = 1;
+    const size = 200;
+    for (;;) {
+      const res = await api.getServiceRequestsPage({ page: p, pageSize: size, ...pageFilters() });
+      all.push(...res.items);
+      if (all.length >= res.total || res.items.length === 0) break;
+      p += 1;
+      if (p > 100) break;
+    }
+    const headers = ['رقم الطلب', 'المندوب', 'رقم الإقامة', 'النوع', 'التفاصيل', 'الاتجاه', 'تاريخ الإرسال', 'الحالة'];
+    const excelRows = all.map((r) => [
+      r.id.replace(/^sreq:/, '').slice(0, 8),
+      r.riderName ?? '',
+      r.riderIqama,
+      TYPE_LABEL[r.requestType] || r.requestType,
+      details(r),
+      r.direction === 'admin_to_rider' ? 'من الإدارة للمندوب' : 'من المندوب',
+      r.createdAt ? new Date(r.createdAt).toLocaleString('ar-SA') : '',
+      STATUS_LABEL[r.status] || r.status,
+    ]);
+    const blob = await api.exportExcel({
+      headers,
+      rows: excelRows,
+      numericColumns: [],
+      filename: 'rider-app-requests.xlsx',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rider-app-requests.xlsx';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="طلبات جديدة بانتظار المراجعة" value={summary?.open ?? '…'} loading={!summary && loading} />
-        <StatCard label="إجازات سنوية مفتوحة" value={summary?.annualLeaveOpen ?? '…'} loading={!summary && loading} />
-        <StatCard label="مواعيد مفتوحة" value={summary?.appointmentsOpen ?? '…'} loading={!summary && loading} />
+        <button type="button" className="text-start" onClick={() => { setStatus('open'); setPage(1); }}>
+          <StatCard label="طلبات جديدة بانتظار المراجعة" value={summary?.open ?? '…'} loading={!summary && loading} />
+        </button>
+        <button type="button" className="text-start" onClick={() => { setStatus(''); setPage(1); }}>
+          <StatCard label="إجازات سنوية مفتوحة" value={summary?.annualLeaveOpen ?? '…'} loading={!summary && loading} />
+        </button>
+        <button type="button" className="text-start" onClick={() => { setStatus(''); setPage(1); }}>
+          <StatCard label="مواعيد مفتوحة" value={summary?.appointmentsOpen ?? '…'} loading={!summary && loading} />
+        </button>
         <StatCard label="منجزة هذا الشهر" value={summary?.doneThisMonth ?? '…'} loading={!summary && loading} />
       </div>
       <SectionTabs
@@ -265,24 +327,39 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
         <AdvanceAsks />
       ) : (
         <>
-          <label className="flex items-center gap-2 text-xs">
-            <span className="font-bold">الحالة:</span>
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
-              className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]"
-            >
-              <option value="">الكل</option>
-              {Object.entries(STATUS_LABEL).map(([k, l]) => (
-                <option key={k} value={k}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <label className="flex items-center gap-2">
+              <span className="font-bold">الحالة:</span>
+              <select
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value);
+                  setPage(1);
+                }}
+                className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]"
+              >
+                <option value="">الكل</option>
+                {Object.entries(STATUS_LABEL).map(([k, l]) => (
+                  <option key={k} value={k}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="font-bold">إقامة:</span>
+              <input
+                value={iqamaFilter}
+                onChange={(e) => {
+                  setIqamaFilter(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="رقم الإقامة"
+                className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] font-mono w-36"
+                dir="ltr"
+              />
+            </label>
+          </div>
           <DataTable
             tableId="rider-app-requests"
             columns={columns}
@@ -300,6 +377,7 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
               setPageSize(s);
               setPage(1);
             }}
+            onExport={exportAll}
             getRowId={(r) => r.id}
             exportFilename="rider-app-requests"
             emptyTitle="لا توجد طلبات"

@@ -237,14 +237,25 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [kind, setKind] = useState('');
+  const [category, setCategory] = useState('');
+  const [iqama, setIqama] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const filters = useCallback(
+    () => ({
+      kind: kind || undefined,
+      category: category || undefined,
+      q: iqama.trim() || undefined,
+    }),
+    [kind, category, iqama]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.getRiderBroadcastsPage({ page, pageSize, kind: kind || undefined });
+      const res = await api.getRiderBroadcastsPage({ page, pageSize, ...filters() });
       setRows(res.items);
       setTotal(res.total);
     } catch (err: any) {
@@ -252,11 +263,47 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, kind]);
+  }, [page, pageSize, filters]);
 
   useEffect(() => {
     load();
   }, [load, reloadKey]);
+
+  const exportAll = async () => {
+    const all: RiderBroadcast[] = [];
+    let p = 1;
+    const size = 200;
+    for (;;) {
+      const res = await api.getRiderBroadcastsPage({ page: p, pageSize: size, ...filters() });
+      all.push(...res.items);
+      if (all.length >= res.total || res.items.length === 0) break;
+      p += 1;
+      if (p > 100) break;
+    }
+    const headers = ['العنوان', 'المستهدف', 'النوع', 'التصنيف', 'قراءات', 'إقرارات', 'أرسله', 'وقت الإرسال'];
+    const excelRows = all.map((b) => [
+      b.titleAr ?? '',
+      b.targetIqama === 'ALL' ? 'كل المناديب' : b.targetIqama ?? '',
+      KIND_LABEL[b.kind ?? ''] || b.kind || '',
+      CATEGORY_LABEL[b.category ?? ''] || b.category || '',
+      b.readCount ?? 0,
+      b.ackCount ?? 0,
+      b.sentBy ?? '',
+      b.createdAt ? new Date(b.createdAt).toLocaleString('ar-SA') : '',
+    ]);
+    const blob = await api.exportExcel({
+      headers,
+      rows: excelRows,
+      numericColumns: [4, 5],
+      filename: 'rider-app-notifications.xlsx',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rider-app-notifications.xlsx';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   const columns: ColumnDef<RiderBroadcast>[] = [
     { key: 'titleAr', header: 'العنوان', render: (b) => <span className="font-bold">{b.titleAr}</span> },
@@ -276,24 +323,57 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
 
   return (
     <div className="space-y-3">
-      <label className="flex items-center gap-2 text-xs">
-        <span className="font-bold">النوع:</span>
-        <select
-          value={kind}
-          onChange={(e) => {
-            setKind(e.target.value);
-            setPage(1);
-          }}
-          className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]"
-        >
-          <option value="">الكل</option>
-          {Object.entries(KIND_LABEL).map(([k, l]) => (
-            <option key={k} value={k}>
-              {l}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="flex flex-wrap items-center gap-3 text-xs">
+        <label className="flex items-center gap-2">
+          <span className="font-bold">النوع:</span>
+          <select
+            value={kind}
+            onChange={(e) => {
+              setKind(e.target.value);
+              setPage(1);
+            }}
+            className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]"
+          >
+            <option value="">الكل</option>
+            {Object.entries(KIND_LABEL).map(([k, l]) => (
+              <option key={k} value={k}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="font-bold">التصنيف:</span>
+          <select
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setPage(1);
+            }}
+            className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]"
+          >
+            <option value="">الكل</option>
+            {Object.entries(CATEGORY_LABEL).map(([k, l]) => (
+              <option key={k} value={k}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="font-bold">إقامة:</span>
+          <input
+            value={iqama}
+            onChange={(e) => {
+              setIqama(e.target.value);
+              setPage(1);
+            }}
+            placeholder="رقم الإقامة"
+            className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] font-mono w-36"
+            dir="ltr"
+          />
+        </label>
+      </div>
       <DataTable
         tableId="rider-app-broadcasts"
         columns={columns}
@@ -303,6 +383,7 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
         error={error}
         onRetry={load}
         serverSide
+        searchable={false}
         page={page}
         pageSize={pageSize}
         onPageChange={setPage}
@@ -310,6 +391,7 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
           setPageSize(s);
           setPage(1);
         }}
+        onExport={exportAll}
         getRowId={(b) => b.id}
         exportFilename="rider-app-notifications"
         emptyTitle="لا توجد إشعارات مرسلة"
