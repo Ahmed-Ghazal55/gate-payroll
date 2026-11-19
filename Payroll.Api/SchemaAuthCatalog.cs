@@ -242,7 +242,7 @@ public static class SchemaAuthCatalog
                     INSERT INTO {permTable}(id,code,section,name_ar,description_ar,deprecated,created_at)
                     VALUES(@id,@code,@section,@name,@desc,@dep,{now})
                     """,
-                    ("@id",id),("@code",p.Code),("@section",p.ModuleCode),("@name",p.NameAr),
+                    ("@id",SchemaSql.GuidText(id)),("@code",p.Code),("@section",p.ModuleCode),("@name",p.NameAr),
                     ("@desc",p.DescriptionAr),("@dep",p.Deprecated?1:0));
                 permissionIds[p.Code]=id;
             }
@@ -261,17 +261,18 @@ public static class SchemaAuthCatalog
                     INSERT INTO {roleTable}(id,code,name_ar,default_department,default_rank_level,summary_ar,created_at)
                     VALUES(@id,@code,@name,@dept,@rank,@summary,{now})
                     """,
-                    ("@id",roleId),("@code",role.Code),("@name",role.NameAr),("@dept",role.DefaultDepartment),
+                    ("@id",SchemaSql.GuidText(roleId)),("@code",role.Code),("@name",role.NameAr),("@dept",role.DefaultDepartment),
                     ("@rank",role.DefaultRankLevel),("@summary",role.SummaryAr));
             }
 
             foreach(string code in role.DefaultPermissions.Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 if(!permissionIds.TryGetValue(code,out var permissionId))continue;
-                object? link=SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {rpTable} WHERE role_id=@r AND permission_id=@p",("@r",roleId),("@p",permissionId));
+                object? link=SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {rpTable} WHERE role_id=@r AND permission_id=@p",
+                    ("@r",SchemaSql.GuidText(roleId)),("@p",SchemaSql.GuidText(permissionId)));
                 if(Convert.ToInt64(link!)>0)continue;
                 SchemaSql.Exec(c,tx,$"INSERT INTO {rpTable}(id,role_id,permission_id,created_at) VALUES(@id,@r,@p,{now})",
-                    ("@id",SchemaSql.NewId()),("@r",roleId),("@p",permissionId));
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@r",SchemaSql.GuidText(roleId)),("@p",SchemaSql.GuidText(permissionId)));
             }
         }
         // Intentionally no auth.bypass_grant and no default admin self-approve row (BR §35 / §9.1).

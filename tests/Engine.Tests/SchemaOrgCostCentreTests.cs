@@ -30,13 +30,13 @@ public sealed class SchemaOrgCostCentreTests
         using var c=OpenMasters();
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO org_cost_centre(id,code,name_ar,kind,status,created_at) VALUES(@id,'bad','x','warehouse',1,datetime('now'))",
-            ("@id",SchemaSql.NewId())));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO org_cost_centre(id,code,name_ar,kind,company_id,status,created_at) VALUES(@id,'c1','x','city',@cid,1,datetime('now'))",
-            ("@id",SchemaSql.NewId()),("@cid",SchemaSql.NewId())));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",SchemaSql.GuidText(SchemaSql.NewId()))));
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO org_cost_centre(id,code,name_ar,kind,status,created_at) VALUES(@id,'none','dup','none',1,datetime('now'))",
-            ("@id",SchemaSql.NewId())));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
     }
 
     [TestMethod]

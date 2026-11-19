@@ -8,6 +8,8 @@ public static class SchemaSql
 {
     public static bool IsSql(DbConnection c)=>c is SqlConnection;
     public static Guid NewId()=>Guid.CreateVersion7();
+    /// <summary>Store GUID parameters as D-format text so SQLite reopen matches (blob Guid params do not).</summary>
+    public static string GuidText(Guid id)=>id.ToString("D");
     public static string GuidType(DbConnection c)=>IsSql(c)?"uniqueidentifier":"TEXT";
     public static string Text(DbConnection c,int n)=>IsSql(c)?$"nvarchar({n})":"TEXT";
     public static string Varchar(DbConnection c,int n)=>IsSql(c)?$"varchar({n})":"TEXT";

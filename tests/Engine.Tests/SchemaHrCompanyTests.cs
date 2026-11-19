@@ -47,20 +47,20 @@ public sealed class SchemaHrCompanyTests
     {
         using var c=Open();
         SchemaRef.Ensure(c);SchemaHrCompany.Ensure(c);
-        var companyId=SchemaSql.NewId();
+        string companyId=SchemaSql.GuidText(SchemaSql.NewId());
         SchemaSql.Exec(c,null,"INSERT INTO hr_company(id,code,unified_number,name_ar,status,created_at) VALUES(@id,'X1','U1','n',1,datetime('now'))",("@id",companyId));
 
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO hr_company(id,code,unified_number,name_ar,status,created_at) VALUES(@id,'X1','U2','n',1,datetime('now'))",
-            ("@id",SchemaSql.NewId())));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
 
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO hr_company(id,code,unified_number,name_ar,status,created_at) VALUES(@id,'X2','U3','n',9,datetime('now'))",
-            ("@id",SchemaSql.NewId())));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
 
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO hr_commercial_registration(id,company_id,cr_number,status,created_at) VALUES(@id,@cid,'999',1,datetime('now'))",
-            ("@id",SchemaSql.NewId()),("@cid",SchemaSql.NewId())));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",SchemaSql.GuidText(SchemaSql.NewId()))));
     }
 
     [TestMethod]

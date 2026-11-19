@@ -210,7 +210,7 @@ public static class SchemaRef
             object? exists=SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {t} WHERE code=@code",("@code",b.Code));
             if(Convert.ToInt64(exists!)>0)continue;
             SchemaSql.Exec(c,tx,$"INSERT INTO {t}(id,code,short_code,name_ar,active,created_at) VALUES(@id,@code,@short,@name,1,{now})",
-                ("@id",SchemaSql.NewId()),("@code",b.Code),("@short",b.Short),("@name",b.NameAr));
+                ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code",b.Code),("@short",b.Short),("@name",b.NameAr));
         }
     }
 
@@ -229,7 +229,7 @@ public static class SchemaRef
             object? exists=SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {t} WHERE code=@code",("@code",e.Code));
             if(Convert.ToInt64(exists!)>0)continue;
             SchemaSql.Exec(c,tx,$"INSERT INTO {t}(id,code,name_ar,active,created_at) VALUES(@id,@code,@name,1,{now})",
-                ("@id",SchemaSql.NewId()),("@code",e.Code),("@name",e.NameAr));
+                ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code",e.Code),("@name",e.NameAr));
         }
     }
 }

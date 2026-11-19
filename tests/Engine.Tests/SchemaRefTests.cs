@@ -31,7 +31,7 @@ public sealed class SchemaRefTests
     public void BusinessKeyGuardRejectsDuplicateNaturalKey()
     {
         using var c=Open();SchemaRef.Ensure(c);
-        var a=SchemaSql.NewId();var b=SchemaSql.NewId();
+        string a=SchemaSql.GuidText(SchemaSql.NewId());string b=SchemaSql.GuidText(SchemaSql.NewId());
         SchemaSql.Exec(c,null,"INSERT INTO ref_business_key_guard(id,object_type,business_key,row_id) VALUES(@id,'sal.platform_invoice','app|cr|2026-10',@row)",
             ("@id",a),("@row",a));
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
@@ -45,7 +45,7 @@ public sealed class SchemaRefTests
         using var c=Open();SchemaRef.Ensure(c);
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO ref_saudi_bank(id,code,short_code,name_ar,active,created_at) VALUES(@id,'1','X','x',1,datetime('now'))",
-            ("@id",SchemaSql.NewId())));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
     }
 
     [TestMethod]

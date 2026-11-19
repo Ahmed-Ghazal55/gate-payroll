@@ -71,6 +71,6 @@ public static class SchemaOrgCostCentre
             INSERT INTO {t}(id,code,name_ar,kind,company_id,status,created_at)
             VALUES(@id,@code,@name,@kind,NULL,1,{now})
             """,
-            ("@id",NoneId),("@code",NoneCode),("@name","بدون مركز تكلفة"),("@kind",NoneCode));
+            ("@id",SchemaSql.GuidText(NoneId)),("@code",NoneCode),("@name","بدون مركز تكلفة"),("@kind",NoneCode));
     }
 }

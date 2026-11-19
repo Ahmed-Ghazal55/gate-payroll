@@ -42,10 +42,10 @@ public sealed class SchemaFormAppTests
 
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO form_submission(id,campaign_id,person_key,status,created_at) VALUES(@id,@cid,'2000000001','pending',datetime('now'))",
-            ("@id",SchemaSql.NewId()),("@cid",campaignId)));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",SchemaSql.GuidText(campaignId))));
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO form_submission(id,campaign_id,person_key,status,created_at) VALUES(@id,@cid,'2000000002','pending',datetime('now'))",
-            ("@id",SchemaSql.NewId()),("@cid",SchemaSql.NewId())));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",SchemaSql.GuidText(SchemaSql.NewId()))));
     }
 
     [TestMethod]

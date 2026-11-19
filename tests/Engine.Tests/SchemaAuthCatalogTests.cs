@@ -29,20 +29,20 @@ public sealed class SchemaAuthCatalogTests
     public void UniqueUsernameAndFkAndEffectChecks()
     {
         using var c=Open();
-        var roleId=Guid.Parse((string)SchemaSql.Scalar(c,null,"SELECT id FROM auth_role WHERE code='Admin'")!);
-        var userId=SchemaSql.NewId();
+        string roleId=(string)SchemaSql.Scalar(c,null,"SELECT id FROM auth_role WHERE code='Admin'")!;
+        string userId=SchemaSql.GuidText(SchemaSql.NewId());
         SchemaSql.Exec(c,null,"INSERT INTO auth_user(id,username,role_id,security_version,status,created_at) VALUES(@id,'synthetic-op',@role,1,1,datetime('now'))",
             ("@id",userId),("@role",roleId));
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO auth_user(id,username,role_id,security_version,status,created_at) VALUES(@id,'synthetic-op',@role,1,1,datetime('now'))",
-            ("@id",SchemaSql.NewId()),("@role",roleId)));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@role",roleId)));
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO auth_user(id,username,role_id,security_version,status,created_at) VALUES(@id,'other',@role,1,1,datetime('now'))",
-            ("@id",SchemaSql.NewId()),("@role",SchemaSql.NewId())));
-        var permId=Guid.Parse((string)SchemaSql.Scalar(c,null,"SELECT id FROM auth_permission LIMIT 1")!);
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@role",SchemaSql.GuidText(SchemaSql.NewId()))));
+        string permId=(string)SchemaSql.Scalar(c,null,"SELECT id FROM auth_permission LIMIT 1")!;
         Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,
             "INSERT INTO auth_user_permission(id,user_id,permission_id,effect,created_at) VALUES(@id,@u,@p,'allow',datetime('now'))",
-            ("@id",SchemaSql.NewId()),("@u",userId),("@p",permId)));
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@u",userId),("@p",permId)));
     }
 
     [TestMethod]
