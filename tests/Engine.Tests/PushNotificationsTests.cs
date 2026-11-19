@@ -905,6 +905,9 @@ public sealed class PushNotificationsTests
             Assert.AreEqual("لك", shortLines[1].S("markerAr"));   // gross +2200
             Assert.IsFalse(string.IsNullOrWhiteSpace(shortLines[1].S("labelEn")));
             Assert.IsFalse(string.IsNullOrWhiteSpace(shortLines[1].S("labelUr")));
+            Assert.AreEqual(stmt.N("closing"), shortLines.Last().N("runningBalance"));
+            Assert.IsTrue(stmt.B("shortLinesBalanced"));
+            Assert.AreEqual(0m, stmt.N("shortLinesMismatch"));
 
             // Ensure no company/sponsor IDs leak in mobile statement cards
             Assert.IsTrue(stmt["cards"]!.AsArray().OfType<JsonObject>().All(card => !card.ContainsKey("companyId") && !card.ContainsKey("sponsorId")));

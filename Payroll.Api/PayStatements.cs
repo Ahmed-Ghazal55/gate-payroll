@@ -28,7 +28,7 @@ public static class PayStatements
                 refs.Add(Pick(cycle,"id","companyId","period","postingPeriod","status","stage","approvedAt"));var lines=allLines.Where(l=>l.S("cycleId")==cycle.S("id")).ToList();
                 foreach(var line in lines)
                 {
-                    var card=Pick(line,"app","schemeId","schemeName","schemeType","accountingRole","category","companyId","cycleId","orders","days","incentives","companyCommission","band","operatingCost","accountDeduction","fuelCap","status","blockers");
+                    var card=Pick(line,"app","schemeId","schemeName","schemeType","accountingRole","category","companyId","cycleId","orders","days","incentives","companyCommission","band","operatingCost","recoveredOperatingCost","accountDeduction","platformPenalties","penaltiesInCommissionBase","entitlement","fuelCap","status","blockers");
                     card["sources"]=(line["sources"] as JsonArray??[]).DeepClone();card["platform"]=PayPlatforms.For(line.S("app")).Platform;card["gross"]=line.N("platformGross")+line.N("incentives");card["earnedGross"]=line.N("gross");card["vehicleCharge"]=line.N("allocatedVehicleCharge",line.N("vehicleCharge"));card["netBeforePersonal"]=line.N("entitlement")-card.N("vehicleCharge")-line.N("accountDeduction");
                     var explain=(line["lines"] as JsonArray??[]).OfType<JsonObject>().Select(l=>l.Clone()).ToList();foreach(var e in explain.Where(e=>e.S("category")=="vehicle_charge")){e["amount"]=-card.N("vehicleCharge");e["formula"]="monthly rent allocated once per rider across apps";}
                     if(line.N("accountDeduction")!=0)explain.Add(new(){["label"]="خصم اليوزر المراجع",["formula"]="reviewed actual operator deduction; excludes company-level costs",["inputs"]=new JsonObject{["reviewedAmount"]=line.N("accountDeduction")},["amount"]=-line.N("accountDeduction"),["category"]="account_deduction",["affectsNet"]=true});card["explain"]=Array(explain);cards.Add(card);
@@ -55,7 +55,8 @@ public static class PayStatements
                 foreach(var group in earnings.GroupBy(App))
                 {
                     var explain=group.Select(l=>new JsonObject{["label"]=l.S("description"),["formula"]="immutable approved legacy run line",["inputs"]=new JsonObject{["category"]=l.S("category"),["source"]=l.S("source")},["amount"]=l.N("amount"),["category"]=l.S("category"),["affectsNet"]=true}).ToList();
-                    cards.Add(new(){["app"]=group.Key,["platform"]=group.Key=="legacy_unattributed"?"Legacy":PayPlatforms.For(group.Key).Platform,["companyId"]=run.S("sponsorId"),["schemeName"]=result.S("policyName"),["schemeType"]="legacy",["gross"]=group.Where(l=>l.N("amount")>0).Sum(l=>l.N("amount")),["earnedGross"]=group.Sum(l=>l.N("amount")),["companyCommission"]=-group.Where(l=>l.S("category")=="company_fee").Sum(l=>l.N("amount")),["vehicleCharge"]=0,["incentives"]=0,["band"]=null,["explain"]=Array(explain),["status"]="approved"});
+                    decimal negSettlement=group.Where(l=>l.S("category")=="platform_settlement"&&l.N("amount")<0m).Sum(l=>l.N("amount"));
+                    cards.Add(new(){["app"]=group.Key,["platform"]=group.Key=="legacy_unattributed"?"Legacy":PayPlatforms.For(group.Key).Platform,["companyId"]=run.S("sponsorId"),["schemeName"]=result.S("policyName"),["schemeType"]="legacy",["gross"]=group.Where(l=>l.S("category")!="company_fee"&&l.N("amount")>0m).Sum(l=>l.N("amount")),["platformSettlementAdjustment"]=negSettlement,["earnedGross"]=group.Sum(l=>l.N("amount")),["companyCommission"]=-group.Where(l=>l.S("category")=="company_fee").Sum(l=>l.N("amount")),["vehicleCharge"]=0,["incentives"]=0,["band"]=null,["explain"]=Array(explain),["status"]="approved"});
                 }
                 foreach(var d in pay.Except(earnings)){if(actor!=null&&d.S("category")=="debt_installment"&&Store.Get(c,d.S("source"),"debt",tx) is {} debt)FinancialScopes.DemandDebt(actor,debt);deductions.Add(Pick(d,"category","description","amount","source"));}
                 net+=result.N("periodMovement");carried+=result.N("openingBalance");closing+=result.N("closingBalance");
@@ -63,9 +64,9 @@ public static class PayStatements
         }
         if(actor!=null&&source=="none")FinancialScopes.DemandRider(actor,person);
         string iban=person.S("iban");var header=new JsonObject{["rider"]=rider,["name"]=person.S("name"),["period"]=period,["status"]=person.S("status"),["ibanMasked"]=iban.Length>=4?"••••"+iban[^4..]:"",["cycles"]=Array(refs)};
-        var shortLines=BuildShortLines(cards,deductions,J.Money(carried));
         decimal closingMoney=J.Money(closing),netMoney=J.Money(net),carriedMoney=J.Money(carried);
-        return new(){["header"]=header,["source"]=source,["status"]=status,["cards"]=Array(cards),["deductions"]=Array(deductions),["shortLines"]=shortLines,["phases"]=phases.Count==0?null:phases,["net"]=netMoney,["carried"]=carriedMoney,["closing"]=closingMoney,
+        var (shortLines,shortLinesBalanced,shortLinesMismatch)=BuildShortLines(cards,deductions,carriedMoney,closingMoney);
+        return new(){["header"]=header,["source"]=source,["status"]=status,["cards"]=Array(cards),["deductions"]=Array(deductions),["shortLines"]=shortLines,["shortLinesBalanced"]=shortLinesBalanced,["shortLinesMismatch"]=shortLinesMismatch,["phases"]=phases.Count==0?null:phases,["net"]=netMoney,["carried"]=carriedMoney,["closing"]=closingMoney,
             ["closingDirection"]=Direction(closingMoney),["closingMarkerAr"]=MarkerAr(closingMoney),["closingMarkerEn"]=MarkerEn(closingMoney),["closingMarkerUr"]=MarkerUr(closingMoney),
             ["netDirection"]=Direction(netMoney),["netMarkerAr"]=MarkerAr(netMoney),["netMarkerEn"]=MarkerEn(netMoney),["netMarkerUr"]=MarkerUr(netMoney),
             ["legalDocument"]=false,
@@ -116,7 +117,7 @@ public static class PayStatements
         };
     }
 
-    static JsonArray BuildShortLines(List<JsonObject> cards,List<JsonObject> deductions,decimal carried)
+    static (JsonArray Items,bool Balanced,decimal Mismatch) BuildShortLines(List<JsonObject> cards,List<JsonObject> deductions,decimal carried,decimal expectedClosing)
     {
         var items=new JsonArray();decimal running=0m;
         void AddLine(string key,string ar,string en,string ur,decimal signedAmount)
@@ -142,10 +143,41 @@ public static class PayStatements
             string ordAr=orders>0?$" ({orders:0} طلب)":"";
             string ordEn=orders>0?$" ({orders:0} orders)":"";
             string ordUr=orders>0?$" ({orders:0} آرڈرز)":"";
-            decimal gross=card.N("gross");
-            if(gross!=0m)AddLine($"card_{cardIdx}_gross",$"مستحقات التوصيل — {pAr}{ordAr}",$"Delivery earnings — {pEn}{ordEn}",$"ڈیلیوری کی آمدنی — {pUr}{ordUr}",gross);
-            decimal comm=Math.Abs(card.N("companyCommission"));
-            if(comm>0m)AddLine($"card_{cardIdx}_commission",$"عمولة التشغيل — {pAr}",$"Operating commission — {pEn}",$"آپریٹنگ کمیشن — {pUr}",-comm);
+            string schemeType=card.S("schemeType");
+            if(schemeType=="legacy")
+            {
+                decimal gross=card.N("gross");
+                if(gross!=0m)AddLine($"card_{cardIdx}_gross",$"مستحقات التوصيل — {pAr}{ordAr}",$"Delivery earnings — {pEn}{ordEn}",$"ڈیلیوری کی آمدنی — {pUr}{ordUr}",gross);
+                decimal negSettlement=card.N("platformSettlementAdjustment");
+                if(negSettlement!=0m)AddLine($"card_{cardIdx}_platform_settlement",$"تسوية المنصة — {pAr}",$"Platform settlement — {pEn}",$"پلیٹ فارم تصفیہ — {pUr}",negSettlement);
+                decimal comm=card.N("companyCommission");
+                if(comm!=0m)AddLine($"card_{cardIdx}_commission",$"عمولة التشغيل — {pAr}",$"Operating commission — {pEn}",$"آپریٹنگ کمیشن — {pUr}",-comm);
+            }
+            else
+            {
+                bool salaryPrincipal=schemeType=="target_salary"&&card.S("accountingRole")!="agent";
+                if(salaryPrincipal)
+                {
+                    decimal earned=card.N("earnedGross");
+                    if(earned!=0m)AddLine($"card_{cardIdx}_gross",$"مستحقات التوصيل — {pAr}{ordAr}",$"Delivery earnings — {pEn}{ordEn}",$"ڈیلیوری کی آمدنی — {pUr}{ordUr}",earned);
+                }
+                else
+                {
+                    decimal gross=card.N("gross");
+                    if(gross!=0m)AddLine($"card_{cardIdx}_gross",$"مستحقات التوصيل — {pAr}{ordAr}",$"Delivery earnings — {pEn}{ordEn}",$"ڈیلیوری کی آمدنی — {pUr}{ordUr}",gross);
+                    if(card.B("penaltiesInCommissionBase"))
+                    {
+                        decimal pen=Math.Abs(card.N("platformPenalties"));
+                        if(pen>0m)AddLine($"card_{cardIdx}_penalties",$"غرامات المنصة — {pAr}",$"Platform penalties — {pEn}",$"پلیٹ فارم جرمانے — {pUr}",-pen);
+                    }
+                    decimal comm=card.N("companyCommission");
+                    if(comm!=0m)AddLine($"card_{cardIdx}_commission",$"عمولة التشغيل — {pAr}",$"Operating commission — {pEn}",$"آپریٹنگ کمیشن — {pUr}",-comm);
+                }
+                decimal recoveredOpCost=card.ContainsKey("recoveredOperatingCost")
+                    ?Math.Abs(card.N("recoveredOperatingCost"))
+                    :(card.ContainsKey("entitlement")?Math.Max(0m,card.N("earnedGross")-card.N("entitlement")):0m);
+                if(recoveredOpCost>0m)AddLine($"card_{cardIdx}_operating_cost","تكلفة تشغيل مستردة","Recovered operating cost","وصول شدہ آپریٹنگ لاگت",-recoveredOpCost);
+            }
             decimal veh=Math.Abs(card.N("vehicleCharge"));
             if(veh>0m)AddLine($"card_{cardIdx}_vehicle","إيجار المركبة","Vehicle charge","گاڑی کا کرایہ",-veh);
             decimal accDed=Math.Abs(card.N("accountDeduction"));
@@ -160,7 +192,10 @@ public static class PayStatements
             decimal signed=d.N("amount");
             AddLine($"ded_{dedIdx}_{cat}",dAr,dEn,dUr,signed);
         }
-        return items;
+        decimal mismatch=J.Money(expectedClosing-running);
+        bool balanced=mismatch==0m;
+        if(!balanced)System.Diagnostics.Trace.TraceWarning($"PayStatements.BuildShortLines mismatch: running={running}, expectedClosing={expectedClosing}, diff={mismatch}");
+        return (items,balanced,mismatch);
     }
 
     public static JsonObject LatestApprovedSummary(DbConnection c,string rider)

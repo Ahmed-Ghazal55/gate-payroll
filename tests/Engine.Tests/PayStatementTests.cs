@@ -16,7 +16,7 @@ public sealed class PayStatementTests
     [TestMethod]
     public void ApprovedMonthlyStatementShowsOwnTwoAppsExplainLinesDeductionsAndSnapshotNet()
     {
-        var(f,input,_)=PayCycleTests.Setup();using(f){var cycle=PayCycleTests.Through(f,input);PayCycleTests.Advance(f,cycle.S("id"),7,true);PayCycleTests.Advance(f,cycle.S("id"),8,true);var mobile=Session(f,Rider(1));var statement=f.Store.Read(c=>PayStatements.Mobile(c,mobile,"2026-10"));Assert.AreEqual("pay_cycle",statement.S("source"));Assert.AreEqual("approved",statement.S("status"));Assert.AreEqual(2,statement["cards"]!.AsArray().Count);Assert.AreEqual(175m,statement.N("net"));Assert.AreEqual(175m,statement.N("closing"));Assert.AreEqual(1,statement["deductions"]!.AsArray().Count);Assert.IsTrue(statement["cards"]!.AsArray().All(card=>card!["explain"]!.AsArray().Count>0));Assert.IsFalse(statement.ToJsonString().Contains(Rider(2)));Assert.IsNull(statement["debtBefore"]);}
+        var(f,input,_)=PayCycleTests.Setup();using(f){var cycle=PayCycleTests.Through(f,input);PayCycleTests.Advance(f,cycle.S("id"),7,true);PayCycleTests.Advance(f,cycle.S("id"),8,true);var mobile=Session(f,Rider(1));var statement=f.Store.Read(c=>PayStatements.Mobile(c,mobile,"2026-10"));Assert.AreEqual("pay_cycle",statement.S("source"));Assert.AreEqual("approved",statement.S("status"));Assert.AreEqual(2,statement["cards"]!.AsArray().Count);Assert.AreEqual(175m,statement.N("net"));Assert.AreEqual(175m,statement.N("closing"));Assert.AreEqual(1,statement["deductions"]!.AsArray().Count);Assert.IsTrue(statement["cards"]!.AsArray().All(card=>card!["explain"]!.AsArray().Count>0));Assert.IsFalse(statement.ToJsonString().Contains(Rider(2)));Assert.IsNull(statement["debtBefore"]);var shortLines=statement["shortLines"]!.AsArray().OfType<JsonObject>().ToList();Assert.IsTrue(shortLines.Count>0);Assert.AreEqual(statement.N("closing"),shortLines.Last().N("runningBalance"));Assert.IsTrue(statement.B("shortLinesBalanced"));Assert.AreEqual(0m,statement.N("shortLinesMismatch"));}
     }
     [TestMethod]
     public void MobileCannotSeeDraftsWhileAdministratorCanReviewThemAndScopeIsEnforced()
@@ -63,5 +63,52 @@ public sealed class PayStatementTests
         Assert.AreEqual("لك",refundLine.S("markerAr"));
         Assert.AreEqual(925m,shortLines.Last().N("runningBalance"));
         Assert.AreEqual(stmt.N("closing"),shortLines.Last().N("runningBalance"));
+        Assert.IsTrue(stmt.B("shortLinesBalanced"));
+    }
+    [TestMethod]
+    public void LegacyShortLinesKeepNegativePlatformSettlementAndBalanceGuardFlagsMismatch()
+    {
+        using var f=new PayFixture();string id=Rider(10);
+        f.Store.Write((c,tx)=>
+        {
+            Store.Save(c,"rider",new(){["id"]=id,["iqama"]=id,["status"]="Active",["sponsorId"]=FinancialCore.Sponsors[0].Id,["name"]="Synthetic Neg Settlement Rider"},tx);
+            Store.Save(c,"run",new()
+            {
+                ["id"]="syn-legacy-neg-settlement",["iqama"]=id,["period"]="2026-10",["sponsorId"]=FinancialCore.Sponsors[0].Id,["approvedAt"]="2026-11-01T00:00:00Z",
+                ["result"]=new JsonObject
+                {
+                    ["policyName"]="Legacy Policy",["openingBalance"]=50m,["periodMovement"]=320m,["closingBalance"]=370m,
+                    ["lines"]=new JsonArray(
+                        new JsonObject{["category"]="platform_settlement",["platform"]="Keeta",["amount"]=500m},
+                        new JsonObject{["category"]="platform_settlement",["platform"]="Keeta",["amount"]=-80m},
+                        new JsonObject{["category"]="company_fee",["platform"]="Keeta",["amount"]=-60m},
+                        new JsonObject{["category"]="debt_installment",["amount"]=-40m}
+                    )
+                }
+            },tx);
+            // Second period with an intentionally inconsistent stored closingBalance to verify the mismatch guard
+            Store.Save(c,"run",new()
+            {
+                ["id"]="syn-legacy-mismatch",["iqama"]=id,["period"]="2026-09",["sponsorId"]=FinancialCore.Sponsors[0].Id,["approvedAt"]="2026-10-01T00:00:00Z",
+                ["result"]=new JsonObject
+                {
+                    ["policyName"]="Legacy Policy",["openingBalance"]=0m,["periodMovement"]=100m,["closingBalance"]=999m,
+                    ["lines"]=new JsonArray(new JsonObject{["category"]="platform_settlement",["platform"]="Keeta",["amount"]=100m})
+                }
+            },tx);
+            return true;
+        });
+        var mobile=Session(f,id);
+        var stmt=f.Store.Read(c=>PayStatements.Mobile(c,mobile,"2026-10"));
+        var shortLines=stmt["shortLines"]!.AsArray().OfType<JsonObject>().ToList();
+        Assert.IsTrue(shortLines.Any(l=>l.S("key").Contains("platform_settlement")&&l.N("amount")==-80m&&l.S("markerAr")=="عليك"));
+        Assert.AreEqual(370m,shortLines.Last().N("runningBalance"));
+        Assert.AreEqual(stmt.N("closing"),shortLines.Last().N("runningBalance"));
+        Assert.IsTrue(stmt.B("shortLinesBalanced"));
+        Assert.AreEqual(0m,stmt.N("shortLinesMismatch"));
+
+        var mismatchStmt=f.Store.Read(c=>PayStatements.Mobile(c,mobile,"2026-09"));
+        Assert.IsFalse(mismatchStmt.B("shortLinesBalanced"));
+        Assert.AreEqual(899m,mismatchStmt.N("shortLinesMismatch"));
     }
 }
