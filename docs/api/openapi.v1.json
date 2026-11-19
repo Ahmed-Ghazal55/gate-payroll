@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:45581/"
+      "url": "http://127.0.0.1:37593/"
     }
   ],
   "paths": {
@@ -19160,6 +19160,44 @@
           }
         },
         "deprecated": true
+      }
+    },
+    "/api/system/maintenance/rider-indexes": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Read rider index maintenance status with allowedActions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Start rider index maintenance one index at a time",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/finance/coa/target": {
