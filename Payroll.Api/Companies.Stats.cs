@@ -17,16 +17,19 @@ public static partial class Companies
         if (config == null || env == null || Operations.SourceMode(config, env) == Operations.SourceStore)
             return store.Read(c => StoreStats(c, ctx.User));
 
+        var (companies, scope) = store.Read(c =>
+        {
+            var list = ActiveCompanies(c, ctx.User);
+            return (list, list.Count == 0 ? null : LiveCompanyScope(c, ctx.User, list));
+        });
+        if (companies.Count == 0 || scope == null)
+            return BuildStatsPayload(companies, Array.Empty<JsonObject>(), Operations.SourceLive, DateTimeOffset.UtcNow, ctx.User);
+
         return Operations.LiveRead(ctx, token =>
         {
             using var erp = Operations.OpenErp(config);
-            return store.Read(c =>
-            {
-                var companies = ActiveCompanies(c, ctx.User);
-                var scope = LiveCompanyScope(c, ctx.User, companies);
-                var live = CompanyStatsLiveQuery.Read(erp, scope, token);
-                return BuildStatsPayload(companies, live.Rows, Operations.SourceLive, live.AsOf, ctx.User);
-            });
+            var live = CompanyStatsLiveQuery.Read(erp, scope, token);
+            return BuildStatsPayload(companies, live.Rows, Operations.SourceLive, live.AsOf, ctx.User);
         }, "company-stats");
     }
 
