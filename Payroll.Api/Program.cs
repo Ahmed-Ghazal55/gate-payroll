@@ -309,8 +309,7 @@ api.MapPost("/campaigns", (JsonObject input, HttpContext ctx) => store.Write((c,
     J.Need(input.S("kind") is "" or "work-choice" or IbanChoices.Kind, "نوع الحملة غير صحيح.");
     if(input.S("kind")==IbanChoices.Kind){J.Need(!input.ContainsKey("fields"),"حقول نموذج الآيبان ثابتة.");doc["kind"]=IbanChoices.Kind;if(input.ContainsKey("cities"))doc["cities"]=IbanChoices.ValidateCities(input["cities"]);}
     else{J.Need(!input.ContainsKey("cities"),"قائمة المدن لنموذج الآيبان فقط.");if(input.ContainsKey("fields"))doc["fields"]=CampaignOperations.ValidateFields(input["fields"]);}
-    foreach(string k in new[]{"companyId","targetCompanyId","targetIqama","target","targetCity"}){string v=input.S(k).Trim();if(v!="")doc[k]=v;}
-    foreach(string k in new[]{"targetCompanyIds","targetIqamas"})if(input[k] is JsonArray arr)doc[k]=arr.DeepClone();
+    FormTargeting.ApplyAndValidate(input, doc);
     Store.Save(c, "campaign", doc, tx); Store.Audit(c, tx, "form.publish", doc.S("id"), Actor(ctx)); return new { id=doc.S("id"), path="/forms/"+token, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+token, qrCodeUrl="/api/campaigns/"+doc.S("id")+"/qr.svg", expiresAt=doc.S("expiresAt") };
 })).WithTags("Forms and responses").WithSummary("Submit campaigns");
 api.MapPost("/campaigns/{id}/close", (string id, HttpContext ctx) => store.Write((c, tx) => { var d = Store.Get(c, id, "campaign", tx) ?? throw new ApiError("النموذج غير موجود.", 404); d["status"] = "closed"; Store.Save(c, "campaign", d, tx); Store.Audit(c, tx, "form.close", id, Actor(ctx)); return new { ok = true }; })).WithTags("Forms and responses").WithSummary("Submit campaigns {id} close");

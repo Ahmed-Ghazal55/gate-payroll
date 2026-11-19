@@ -54,8 +54,7 @@ public static class FormSchemas
         J.Need(DateTimeOffset.TryParse(input.S("expiresAt"),CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var expires)&&expires>DateTimeOffset.UtcNow&&expires<DateTimeOffset.UtcNow.AddYears(2),"تاريخ انتهاء النموذج غير صالح.");
         decimal limit=input.N("maxSubmissions",10000);J.Need(limit is >=1 and <=100000&&decimal.Truncate(limit)==limit,"حد الردود غير صالح.");
         var doc=new JsonObject{["titleAr"]=title,["titleEn"]=Text(input,"titleEn",200) is {Length:>0} titleEn?titleEn:title,["titleUr"]=Text(input,"titleUr",200) is {Length:>0} titleUr?titleUr:title,["descriptionAr"]=Text(input,"descriptionAr",3000),["descriptionEn"]=Text(input,"descriptionEn",3000),["descriptionUr"]=Text(input,"descriptionUr",3000),["expiresAt"]=expires.ToString("O"),["maxSubmissions"]=(int)limit,["fields"]=result,["schemaVersion"]=1};
-        foreach(string k in new[]{"companyId","targetCompanyId","targetIqama","target","targetCity"}){string v=Text(input,k,100);if(v!="")doc[k]=v;}
-        foreach(string k in new[]{"targetCompanyIds","targetIqamas"})if(input[k] is JsonArray arr)doc[k]=arr.DeepClone();
+        FormTargeting.ApplyAndValidate(input, doc);
         return doc;
     }
     public static JsonObject Answers(JsonObject form,JsonObject input)
