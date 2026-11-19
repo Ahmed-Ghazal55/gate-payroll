@@ -1,10 +1,9 @@
 using System.Data.Common;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json.Nodes;
 namespace Payroll;
 
-/// <summary>U-W1-08: fin.account GUID PK + code UQ + leaf posting flag + nature + target CoA seed. Design §7 / §7.1 / §0.1. Legacy dbo.records chart untouched.</summary>
+/// <summary>U-W1-08: fin.account GUID PK + code UQ + leaf posting flag + nature + target CoA seed. Design §7 / §7.1 / §0.1. Legacy dbo.records chart untouched.
+/// IDs are real GUID v7 generated at first insert; lookup by code keeps them stable on repeat runs.</summary>
 public static class SchemaFinAccount
 {
     // status: 1 active, 2 stopped, 3 display, 4 reserved
@@ -17,16 +16,6 @@ public static class SchemaFinAccount
         SchemaSql.EnsureSchema(c,tx,"fin");
         EnsureAccount(c,tx);
         SeedTargetChart(c,tx);
-    }
-
-    public static Guid StableId(string code)
-    {
-        Span<byte> hash=stackalloc byte[32];
-        SHA256.HashData(Encoding.UTF8.GetBytes("fin.account:"+code),hash);
-        var b=hash[..16].ToArray();
-        b[6]=(byte)((b[6]&0x0F)|0x70); // version 7 shape
-        b[8]=(byte)((b[8]&0x3F)|0x80);
-        return new Guid(b);
     }
 
     static void EnsureAccount(DbConnection c,DbTransaction? tx)
@@ -118,13 +107,24 @@ public static class SchemaFinAccount
             else if(existing is string es&&Guid.TryParse(es,out var ep))id=ep;
             else
             {
-                id=StableId(a.Code);
+                id=SchemaSql.NewId(); // real GUID v7 (time-ordered); stable thereafter via code lookup
                 byte nature=a.Nature=="credit"?(byte)2:(byte)1;
                 byte type=DeriveAccountType(a.Code,nature);
                 byte status=MapStatus(a.Status);
                 byte active=(byte)(status==1?1:0);
                 byte scope=MapCompanyScope(a.Company);
-                object? parentId=string.IsNullOrWhiteSpace(a.Parent)?DBNull.Value:(object)SchemaSql.GuidText(byCode.TryGetValue(a.Parent,out var pid)?pid:StableId(a.Parent));
+                object? parentId=DBNull.Value;
+                if(!string.IsNullOrWhiteSpace(a.Parent))
+                {
+                    if(byCode.TryGetValue(a.Parent,out var pid))parentId=SchemaSql.GuidText(pid);
+                    else
+                    {
+                        // Parent not yet in byCode (should not happen when ordered by level); resolve existing or fail closed next Ensure.
+                        object? parentExisting=SchemaSql.Scalar(c,tx,$"SELECT id FROM {t} WHERE code=@p",("@p",a.Parent));
+                        if(parentExisting is Guid pg)parentId=SchemaSql.GuidText(pg);
+                        else if(parentExisting is string ps&&Guid.TryParse(ps,out var pp))parentId=SchemaSql.GuidText(pp);
+                    }
+                }
                 SchemaSql.Exec(c,tx,$"""
                     INSERT INTO {t}(id,code,parent_id,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at)
                     VALUES(@id,@code,@parent,@name,@type,@nature,@postable,@status,@active,@scope,@level,{now})

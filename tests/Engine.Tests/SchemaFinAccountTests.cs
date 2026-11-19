@@ -28,14 +28,33 @@ public sealed class SchemaFinAccountTests
         Assert.AreEqual(first,second);
         Assert.AreEqual(SchemaFinAccount.ExpectedSeedCount(),(int)first);
         Assert.IsTrue(first>200);
-        Assert.AreEqual(SchemaFinAccount.StableId("1").ToString("D").ToLowerInvariant(),
-            ((string)SchemaSql.Scalar(c,null,"SELECT lower(id) FROM fin_account WHERE code='1'")!).ToLowerInvariant());
+        string id1=((string)SchemaSql.Scalar(c,null,"SELECT lower(id) FROM fin_account WHERE code='1'")!).ToLowerInvariant();
+        SchemaFinAccount.Ensure(c);
+        Assert.AreEqual(id1,((string)SchemaSql.Scalar(c,null,"SELECT lower(id) FROM fin_account WHERE code='1'")!).ToLowerInvariant());
+        Assert.AreEqual(7,Guid.Parse(id1).Version);
         Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_postable=1")!)>0);
         Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_postable=0")!)>0);
         foreach(string code in RequiredDesignCodes)
             Assert.AreEqual(1L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code=@code",("@code",code))!),code);
         Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT is_postable FROM fin_account WHERE code='5268'")!));
         Assert.AreEqual(6L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code LIKE '52680%' AND is_postable=1")!));
+    }
+
+    [TestMethod]
+    public void SeededIdsAreGuidVersion7()
+    {
+        using var c=Open();
+        using var cmd=c.CreateCommand();
+        cmd.CommandText="SELECT id FROM fin_account";
+        using var r=cmd.ExecuteReader();
+        int n=0;
+        while(r.Read())
+        {
+            string raw=r.GetString(0);
+            Assert.AreEqual(7,Guid.Parse(raw).Version,raw);
+            n++;
+        }
+        Assert.AreEqual(SchemaFinAccount.ExpectedSeedCount(),n);
     }
 
     [TestMethod]
