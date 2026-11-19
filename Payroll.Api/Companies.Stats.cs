@@ -30,7 +30,7 @@ public static partial class Companies
         }, "company-stats");
     }
 
-    internal static JsonObject StoreStats(DbConnection c, ClaimsPrincipal user)
+    public static JsonObject StoreStats(DbConnection c, ClaimsPrincipal user)
     {
         var companies = ActiveCompanies(c, user);
         var byId = companies.ToDictionary(x => x.S("id"), StringComparer.Ordinal);
@@ -118,7 +118,7 @@ public static partial class Companies
         return BuildStatsPayload(companies, syntheticErpRows, Operations.SourceStore, DateTimeOffset.UtcNow, user);
     }
 
-    internal static JsonObject BuildStatsPayload(
+    public static JsonObject BuildStatsPayload(
         IReadOnlyList<JsonObject> companies,
         IReadOnlyList<JsonObject> erpRows,
         string source,
