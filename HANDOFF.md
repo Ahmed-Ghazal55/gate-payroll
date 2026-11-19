@@ -4,20 +4,20 @@
 |---|---|
 | Current writer | none |
 | Branch | `feat/rider-app-v2` (worktree `/home/ghazal/Projects/active/gate-payroll-rider-app`) |
-| Updated | 2026-11-19 by Cursor (Task M4 done: merge 0.24.0 + RA2 close-out) |
+| Updated | 2026-11-19 by Cursor (Task M4F: live-safe rider indexes) |
 | Live | unchanged; no push/deploy from this branch |
-| Next | Planner re-review `feat/rider-app-v2`; Ghazal places `google-services.json` and runs `mobile/scripts/build-debug.sh` |
+| Next | Planner re-review `feat/rider-app-v2` after M4F; Ghazal places `google-services.json` and runs `mobile/scripts/build-debug.sh` |
 
 ## Goal now
-Branch is on release 0.24.0 with RA2 close-out (M4 indexes, H3, L3, rate-limit). Ready for planner review. Do not push.
+Rider SQL Server indexes are out of startup; admin maintenance job builds them one-by-one. Ready for planner re-review. Do not push.
 
-## Done (Task M4 — 2026-11-19)
-- Merge `main` (0.24.0 `cc3cbb5`) into `feat/rider-app-v2`; conflicts: `HANDOFF.md` (kept main + branch note), `ENDPOINTS.md` (regenerated). Auto-merged AccessPolicy/FinancialCore/Program/UserAccess kept both intents. Regenerated OpenAPI + `api-contract.ts`.
-- M4: SQL Server rider filter indexes (`RiderDataIndexes`) + SQL-filtered open campaign/form lists.
-- H3: mobile hides short lines when `shortLinesBalanced=false`; mismatch via `ILogger`.
-- L3: web target company/type dropdowns; server rejects unknown target/company.
-- Rate limit: configurable per-IP (`RiderMobile:*`); O(expired) eviction + test.
-- Tests: SQL Server 581/581; web build+14 tests; mobile 19/19. Container `gp-m4-sql` removed.
+## Done (Task M4F — 2026-11-19)
+- Startup creates no rider columns/indexes; catalog in `RiderDataIndexes`.
+- Admin `GET/POST /api/system/maintenance/rider-indexes`: free-space check, session app lock, `ops.maintenance_step`, definition verify, `allowedActions`.
+- Queries use allow-listed kind literals + CONVERT expressions matching computed columns.
+- IP rate-limit invalid config → defaults + warning (no crash).
+- Ops notes: `docs/rider-app/RELEASE-NOTES-OPS.md`.
+- Verify: Engine.Tests 583/583 (SQL `gp-m4f-sql:14333` removed); web build+14; mobile 19/19.
 
 ## How to verify
 ```bash
