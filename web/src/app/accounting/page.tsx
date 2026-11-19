@@ -71,7 +71,23 @@ function AccountingPageContent() {
     if (action === 'manual_journal') {
       setActiveTab('manual_journals');
       setOpenNewManualJournal(true);
+      return;
     }
+    // Sidebar ids (trial_balance, income_statement) map to the page's internal tab ids.
+    const tab = searchParams?.get('tab');
+    if (!tab) return;
+    const tabMap: Record<string, typeof activeTab> = {
+      coa: 'coa',
+      manual_journals: 'manual_journals',
+      adjustments: 'adjustments',
+      journals: 'journals',
+      trial: 'trial',
+      trial_balance: 'trial',
+      income: 'income',
+      income_statement: 'income',
+    };
+    const mapped = tabMap[tab];
+    if (mapped) setActiveTab(mapped);
   }, [searchParams]);
 
   // ==========================================
