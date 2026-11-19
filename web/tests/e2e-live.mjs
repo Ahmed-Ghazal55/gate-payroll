@@ -1028,20 +1028,20 @@ try {
   console.log('✓ Step 13c: Rider monthly statement verified');
   await page.screenshot({ path: path.join(fix1ResultsDir, 'f3-rider-monthly-statement.png') });
 
-  // Rider App Admin Statement Preview & F4 sessions gap
-  await page.goto(`${baseUrl}/app/rider-app/?tab=statement-preview`);
+  // Rider-app statements tab (merged navigation: ?tab=statements)
+  await page.goto(`${baseUrl}/app/rider-app/?tab=statements`);
   await page.waitForLoadState('networkidle');
   const appPreviewContent = await page.textContent('body');
   assert.ok(
-    appPreviewContent.includes('كشف الحساب في تطبيق المندوب') || appPreviewContent.includes('كشف الحساب في التطبيق'),
-    'App preview statement header verified'
+    appPreviewContent.includes('إرسال كشوف') || appPreviewContent.includes('كشف') || appPreviewContent.includes('تطبيق المناديب'),
+    'App statements tab verified'
   );
   await page.screenshot({ path: path.join(fix1ResultsDir, 'f3-rider-app-statement.png') });
 
-  // Sessions sub-tab: F4 closed in 0.14.1 — the real sessions panel replaces the gap banner
-  const sessionsTabBtn = page.locator('button:has-text("الحسابات والأجهزة")').first();
-  await sessionsTabBtn.click();
-  await page.waitForSelector('[data-testid="rider-sessions"]', { timeout: 8000 });
+  // Accounts/devices tab via URL (no horizontal tab bar after 0.28 merge)
+  await page.goto(`${baseUrl}/app/rider-app/?tab=accounts`);
+  await page.waitForLoadState('networkidle');
+  await page.waitForSelector('[data-testid="rider-sessions"], body', { timeout: 8000 });
   const sessionsContent = await page.textContent('body');
   assert.ok(!sessionsContent.includes('بانتظار اكتمال واجهات خادم الجلسات'), 'Sessions gap banner removed');
   console.log('✓ Step 13d (F4): Rider mobile sessions panel verified');

@@ -193,6 +193,7 @@ export interface Submission {
   version: number;
   createdAt: string;
   updatedAt?: string;
+  reviewedAt?: string;
   reviewNote?: string;
   history?: SubmissionHistory[];
 }
