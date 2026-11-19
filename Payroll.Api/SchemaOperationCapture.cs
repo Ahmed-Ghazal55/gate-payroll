@@ -160,7 +160,8 @@ public static class SchemaOperationCapture
                     THROW 51013,'Frozen run cannot reopen or change capture scope',1;
                   IF EXISTS(SELECT 1 FROM inserted n WHERE n.capture_state=0 AND n.calc_started_at IS NOT NULL)
                     THROW 51014,'Calculation requires frozen capture',1;
-                  IF EXISTS(SELECT 1 FROM inserted n WHERE n.capture_state>0 AND {Incomplete(c,"n")})
+                  -- Completeness is checked only when the run freezes (0 -> >0), so a kind added later does not block runs already frozen.
+                  IF EXISTS(SELECT 1 FROM inserted n LEFT JOIN deleted o ON o.id=n.id WHERE n.capture_state>0 AND COALESCE(o.capture_state,0)=0 AND {Incomplete(c,"n")})
                     THROW 51015,'Capture incomplete or snapshot scope mismatch',1;
                 END;
                 """);
@@ -176,7 +177,7 @@ public static class SchemaOperationCapture
                     CREATE TRIGGER IF NOT EXISTS TR_run_capture_{op} BEFORE {op} ON {run} BEGIN
                       {immutable}
                       SELECT RAISE(ABORT,'Calculation requires frozen capture') WHERE NEW.capture_state=0 AND NEW.calc_started_at IS NOT NULL;
-                      SELECT RAISE(ABORT,'Capture incomplete or snapshot scope mismatch') WHERE NEW.capture_state>0 AND {Incomplete(c,"NEW")};
+                      SELECT RAISE(ABORT,'Capture incomplete or snapshot scope mismatch') WHERE NEW.capture_state>0{(op=="INSERT"?"":" AND OLD.capture_state=0")} AND {Incomplete(c,"NEW")};
                     END;
                     """);
             }

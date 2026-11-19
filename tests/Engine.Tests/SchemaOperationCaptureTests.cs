@@ -57,6 +57,21 @@ public sealed class SchemaOperationCaptureTests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
+    public void KindAddedAfterFreezeBlocksOnlyNewFreezes(bool sqlServer)
+    {
+        using var c=Open(sqlServer);string company=MoneySchemaFixture.Company(c),frozen=MoneySchemaFixture.Run(c,company);
+        FillEmpty(c,frozen);Freeze(c,frozen);
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_operation_required_kind(id,operation_type,app_code,required_kind) VALUES(@id,'pay_run','ninja','late_kind')",("@id",MoneySchemaFixture.Id()));
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET stage=3 WHERE id=@id",("@id",frozen));
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET capture_state=2 WHERE id=@id",("@id",frozen));
+        string next=MoneySchemaFixture.Run(c,MoneySchemaFixture.Company(c));
+        FillEmpty(c,next,except:"late_kind");MoneySchemaFixture.Reject(()=>Freeze(c,next));
+        Empty(c,next,"late_kind");Freeze(c,next);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
     public void CatalogueIsExhaustiveAndIdempotentWithGuidV7Keys(bool sqlServer)
     {
         using var c=Open(sqlServer);Assert.AreEqual(40L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM fin_operation_required_kind"));
