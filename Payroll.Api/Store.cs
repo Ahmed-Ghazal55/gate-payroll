@@ -57,6 +57,7 @@ public sealed partial class Store
             SchemaOrgCostCentre.Ensure(conn,tx);
             SchemaAuthCatalog.Ensure(conn,tx);
             SchemaFormApp.Ensure(conn,tx);
+            SchemaFinAccount.Ensure(conn,tx);
         });
         // M9: captured cycle must have freeze rows (in-flight cycles cannot deploy without U2 + rows).
         foreach(var cycle in List(c,PayCycles.Kind).Where(PayRunInputs.Captured))
