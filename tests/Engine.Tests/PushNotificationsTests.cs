@@ -1246,4 +1246,41 @@ public sealed class PushNotificationsTests
                 })).Status);
         });
     }
+
+    [TestMethod]
+    public void StaffAccessToServiceRequestIsDeniedWhenRiderRecordIsMissing()
+    {
+        WithSqlStore(store =>
+        {
+            const string missingIqama = "2000000951";
+            const string reqId = "sreq:orphan-rider-test";
+            store.Write((c, tx) =>
+            {
+                Store.Save(c, RiderAsks.ServiceKind, new()
+                {
+                    ["id"] = reqId,
+                    ["requestType"] = "appointment",
+                    ["riderIqama"] = missingIqama,
+                    ["status"] = "open",
+                    ["titleAr"] = "طلب موعد",
+                    ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
+                }, tx);
+                return true;
+            });
+
+            var scopedReviewer = UserAccess.Principal(new()
+            {
+                ["id"] = "syn-scope-rev",
+                ["username"] = "syn-scope-rev",
+                ["role"] = "Reviewer",
+                ["customPermissions"] = new JsonArray("forms.review", "mobile.broadcast"),
+                ["financialScope"] = new JsonObject { ["sponsorIds"] = new JsonArray(FinancialCore.ResolveSponsor("BW").Id) }
+            });
+
+            Assert.AreEqual(404, Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.StaffReplyServiceRequest(c, tx, scopedReviewer, reqId, new() { ["message"] = "رد" }))).Status);
+            Assert.AreEqual(404, Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, Admin, reqId, new() { ["action"] = "approve" }))).Status);
+        });
+    }
 }

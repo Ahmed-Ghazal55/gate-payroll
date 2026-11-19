@@ -442,7 +442,9 @@ public static class RiderAsks
                 return false;
         }
         var rider = Store.Get(c, req.S("riderIqama"), "rider", tx);
-        if (rider != null && !FinancialScopes.Rider(user, rider) && !FinancialScopes.AllCompanies(user))
+        if (rider == null)
+            return false;
+        if (!FinancialScopes.Rider(user, rider) && !FinancialScopes.AllCompanies(user))
             return false;
         return true;
     }
