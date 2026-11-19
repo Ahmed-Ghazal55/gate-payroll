@@ -31,6 +31,8 @@ npm --prefix web run build
 ## Release 0.25.0 (2026-11-19, Claude planner)
 - Rider app v2 (`feat/rider-app-v2`): 3-language short statement, notices with read receipts, two-way requests, annual leave form, push in rider language, rate limits. Rider indexes on live are created ONLY by the admin job `POST /api/system/maintenance/rider-indexes` (run off-hours). Ops: grant the 3 new permissions to two different reviewers (`docs/rider-app/RELEASE-NOTES-OPS.md`).
 
+- 2026-11-19 Release 0.29.1 (Claude pro2 deputy): forms/rider-app security fix (`fix/forms-security-0-28`, S28 by Cursor, verified R28V): IBAN masked without `riders.iban.view`, company scope on form responses/submissions, public edit needs the edit token, sidebar/API permissions aligned, statements and requests panels fixed (`docs/runbooks/RELEASE-0.29.1.md`).
+
 ## Release 0.29.0 (2026-11-19, Claude pro2 deputy)
 - Companies section (`feat/companies-stats`, U-W2-06 / U-W3-03, C1R + C1F): «الإحصائيات والمؤشرات» tab with live per-company sponsorship and platform-account counts (company + platform scope), filter cards that drill to the workforce list, CR drawer tab (`docs/runbooks/RELEASE-0.29.0.md`). Balances per company come later with accounting.
 
