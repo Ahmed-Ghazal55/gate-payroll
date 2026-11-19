@@ -6,8 +6,39 @@ namespace Payroll;
 /// <summary>Shared dual-dialect helpers for additive schema Ensure (SQL Server + SQLite).</summary>
 public static class SchemaSql
 {
+    public const string MigrationLockResource="GatePayroll.SchemaMigration";
+    static readonly object SqliteMigrationGate=new();
     public static bool IsSql(DbConnection c)=>c is SqlConnection;
     public static Guid NewId()=>Guid.CreateVersion7();
+    /// <summary>Serialize master DDL so two app instances cannot collide. SQL Server uses sp_getapplock; SQLite uses a process lock (single-connection Ensure is otherwise fine).</summary>
+    public static void WithMigrationLock(DbConnection c,Action<DbConnection,DbTransaction?> action)
+    {
+        if(IsSql(c))
+        {
+            using var tx=c.BeginTransaction();
+            try
+            {
+                using(var guard=c.CreateCommand())
+                {
+                    guard.Transaction=tx;
+                    guard.CommandText="DECLARE @result int; EXEC @result=sp_getapplock @Resource=@resource,@LockMode=N'Exclusive',@LockOwner=N'Transaction',@LockTimeout=60000; IF @result < 0 THROW 51000,N'Schema migration busy',1;";
+                    var p=guard.CreateParameter();p.ParameterName="@resource";p.Value=MigrationLockResource;guard.Parameters.Add(p);
+                    guard.ExecuteNonQuery();
+                }
+                action(c,tx);
+                tx.Commit();
+            }
+            catch
+            {
+                try{tx.Rollback();}catch{/* already failed */}
+                throw;
+            }
+        }
+        else
+        {
+            lock(SqliteMigrationGate)action(c,null);
+        }
+    }
     /// <summary>Store GUID parameters as D-format text so SQLite reopen matches (blob Guid params do not).</summary>
     public static string GuidText(Guid id)=>id.ToString("D");
     public static string GuidType(DbConnection c)=>IsSql(c)?"uniqueidentifier":"TEXT";

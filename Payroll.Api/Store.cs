@@ -49,11 +49,14 @@ public sealed partial class Store
         cmd.ExecuteNonQuery();
         ErpDataIndexes.Ensure(c);
         PayRunInputs.Ensure(c);
-        SchemaRef.Ensure(c);
-        SchemaHrCompany.Ensure(c);
-        SchemaOrgCostCentre.Ensure(c);
-        SchemaAuthCatalog.Ensure(c);
-        SchemaFormApp.Ensure(c);
+        SchemaSql.WithMigrationLock(c,(conn,tx)=>
+        {
+            SchemaRef.Ensure(conn,tx);
+            SchemaHrCompany.Ensure(conn,tx);
+            SchemaOrgCostCentre.Ensure(conn,tx);
+            SchemaAuthCatalog.Ensure(conn,tx);
+            SchemaFormApp.Ensure(conn,tx);
+        });
         // M9: captured cycle must have freeze rows (in-flight cycles cannot deploy without U2 + rows).
         foreach(var cycle in List(c,PayCycles.Kind).Where(PayRunInputs.Captured))
             if(PayRunInputs.CountForCycle(c,null,cycle.S("id"))==0)
