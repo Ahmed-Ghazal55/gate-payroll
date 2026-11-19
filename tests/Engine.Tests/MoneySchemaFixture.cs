@@ -7,19 +7,31 @@ using Payroll;
 
 internal static class MoneySchemaFixture
 {
-    public static string Sql(DbConnection c,string sql)
+    public static string Sql(DbConnection c,string sql,DbTransaction? tx=null)
     {
         if(!SchemaSql.IsSql(c))return sql;
+        var tables=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using(var cmd=c.CreateCommand())
+        {
+            cmd.Transaction=tx; // SQL Server rejects a command outside the connection's open transaction
+            cmd.CommandText="SELECT s.name+'_'+t.name FROM sys.tables t JOIN sys.schemas s ON s.schema_id=t.schema_id";
+            using var reader=cmd.ExecuteReader();while(reader.Read())tables.Add(reader.GetString(0));
+        }
         sql=sql.Replace("datetime('now')","SYSUTCDATETIME()").Replace("randomblob(32)","CRYPT_GEN_RANDOM(32)");
-        return Regex.Replace(sql,@"\b(pay|sal|fin|hr|org|ref)_([a-z][a-z0-9_]*)\b",m=>SchemaSql.Q(c,m.Groups[1].Value,m.Groups[2].Value));
+        return RewriteTables(sql,tables.Contains,(schema,table)=>SchemaSql.Q(c,schema,table));
     }
-    public static void Exec(DbConnection c,DbTransaction? tx,string sql,params (string Name,object Value)[] values)=>SchemaSql.Exec(c,tx,Sql(c,sql),values);
+    /// <summary>Rewrite SQLite-style schema_table names to SQL Server names. Only names of existing tables are
+    /// rewritten; string literals and columns such as pay_run_id are left alone.</summary>
+    public static string RewriteTables(string sql,Func<string,bool> isTable,Func<string,string,string> quote)=>
+        Regex.Replace(sql,@"'(?:[^']|'')*'|\b(pay|sal|fin|hr|org|ref)_([a-z][a-z0-9_]*)\b",m=>
+            m.Value.StartsWith('\'')||!isTable(m.Value)?m.Value:quote(m.Groups[1].Value,m.Groups[2].Value));
+    public static void Exec(DbConnection c,DbTransaction? tx,string sql,params (string Name,object Value)[] values)=>SchemaSql.Exec(c,tx,Sql(c,sql,tx),values);
     public static object? Scalar(DbConnection c,DbTransaction? tx,string sql,params (string Name,object Value)[] values)
     {
-        object? value=SchemaSql.Scalar(c,tx,Sql(c,sql),values);
+        object? value=SchemaSql.Scalar(c,tx,Sql(c,sql,tx),values);
         return value switch { int n=>(long)n, byte n=>(long)n, bool b=>b?1L:0L, Guid id=>id.ToString("D"), _=>value };
     }
-    public static DbCommand Command(DbConnection c,DbTransaction? tx,string sql,params (string Name,object Value)[] values)=>Store.Command(c,tx,Sql(c,sql),values);
+    public static DbCommand Command(DbConnection c,DbTransaction? tx,string sql,params (string Name,object Value)[] values)=>Store.Command(c,tx,Sql(c,sql,tx),values);
     public static void Reject(Action action)
     {
         try{action();Assert.Fail("Expected a database rejection.");}catch(DbException){}
@@ -57,8 +69,9 @@ internal static class MoneySchemaFixture
     }
     public static string Company(DbConnection c)
     {
-        string id=Id();
-        Exec(c,null,"INSERT INTO hr_company(id,code,unified_number,name_ar,status,created_at) VALUES(@id,@id,@id,'Synthetic company',1,datetime('now'))",("@id",id));
+        // hr.company code and unified_number are varchar(20); a unified number is 10 digits starting with 7.
+        string id=Id(),unified="7"+System.Security.Cryptography.RandomNumberGenerator.GetInt32(0,1_000_000_000).ToString("D9");
+        Exec(c,null,"INSERT INTO hr_company(id,code,unified_number,name_ar,status,created_at) VALUES(@id,@code,@unified,'Synthetic company',1,datetime('now'))",("@id",id),("@code","SYN"+unified),("@unified",unified));
         return id;
     }
     public static DbConnection Payments(bool sqlServer=false)
