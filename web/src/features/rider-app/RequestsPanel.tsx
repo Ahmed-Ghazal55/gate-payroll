@@ -11,6 +11,7 @@ import { SectionTabs } from '../../components/ui/SectionTabs';
 import { StatCard } from '../../components/ui/StatCard';
 import { DataTable, type ColumnDef } from '../../components/ui/DataTable';
 import { Dialog } from '../../components/ui/Dialog';
+import { IbanDisplay } from '../../components/ui/IbanDisplay';
 import { useToast } from '../../components/ui/Toast';
 
 const TYPE_LABEL: Record<string, string> = {
@@ -46,7 +47,61 @@ function details(r: ServiceRequest): string {
   const p = (r.payload ?? {}) as Record<string, unknown>;
   if (r.requestType === 'annual_leave') return `${p.startDate ?? ''} → ${p.endDate ?? ''} (${p.days ?? '—'} يوم)`;
   if (r.requestType === 'appointment') return `${p.preferredDate ?? ''} ${p.preferredSlot === 'afternoon' ? 'مساءً' : 'صباحًا'}`;
+  if (r.requestType === 'iban_update') {
+    const iban = String(p.iban ?? '');
+    return iban ? `آيبان: ${iban}` : r.reason ?? '';
+  }
+  if (r.requestType === 'data_update') {
+    return `${p.fieldToUpdate ?? ''} : ${p.previousValue ?? '—'} ← ${p.newValue ?? '—'}`;
+  }
+  if (r.requestType === 'complaint') return String(p.details ?? r.reason ?? '');
+  if (r.requestType === 'statement_request') return String(p.scope ?? p.period ?? r.reason ?? '');
   return r.reason ?? '';
+}
+
+function RequestDetailBody({ row }: { row: ServiceRequest }) {
+  const p = (row.payload ?? {}) as Record<string, unknown>;
+  const replies = (row.replies ?? []) as Array<{ senderRole?: string; senderName?: string; message?: string; createdAt?: string }>;
+  const timeline = (row.timeline ?? []) as Array<{ at?: string; status?: string; labelAr?: string; note?: string }>;
+  return (
+    <div className="space-y-3 text-xs">
+      <p className="text-[var(--muted)]">{details(row)}</p>
+      {row.requestType === 'iban_update' && p.iban ? (
+        <IbanDisplay iban={String(p.iban)} bankCode={typeof p.bankCode === 'string' ? p.bankCode : undefined} />
+      ) : null}
+      {row.requestType === 'data_update' ? (
+        <dl className="grid grid-cols-2 gap-1">
+          <dt className="text-[var(--muted)]">الحقل</dt><dd>{String(p.fieldToUpdate ?? '—')}</dd>
+          <dt className="text-[var(--muted)]">القيمة السابقة</dt><dd>{String(p.previousValue ?? '—')}</dd>
+          <dt className="text-[var(--muted)]">القيمة الجديدة</dt><dd>{String(p.newValue ?? '—')}</dd>
+        </dl>
+      ) : null}
+      {row.requestType === 'complaint' && p.details ? <p className="whitespace-pre-wrap">{String(p.details)}</p> : null}
+      {row.reason ? <p><span className="font-bold">السبب: </span>{row.reason}</p> : null}
+      {replies.length > 0 ? (
+        <div className="space-y-1">
+          <p className="font-bold">الردود</p>
+          {replies.map((rep, i) => (
+            <div key={i} className="p-2 rounded-lg bg-[var(--raised)]">
+              <div className="text-[10px] text-[var(--muted)]">{rep.senderName || rep.senderRole || '—'} · {rep.createdAt ? new Date(rep.createdAt).toLocaleString('ar-SA') : ''}</div>
+              <div>{rep.message}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {timeline.length > 0 ? (
+        <div className="space-y-1">
+          <p className="font-bold">سجل الحالة</p>
+          {timeline.map((t, i) => (
+            <div key={i} className="flex justify-between gap-2 border-b border-[var(--line)] py-1">
+              <span>{t.labelAr || t.status}</span>
+              <span className="text-[var(--muted)] shrink-0">{t.at ? new Date(t.at).toLocaleString('ar-SA') : ''}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function AdvanceAsks() {
@@ -75,6 +130,7 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState<{ row: ServiceRequest; action: string } | null>(null);
+  const [detail, setDetail] = useState<ServiceRequest | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -142,7 +198,16 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
       ),
     },
     { key: 'requestType', header: 'النوع', getValue: (r) => TYPE_LABEL[r.requestType] || r.requestType },
-    { key: 'details', header: 'التفاصيل', getValue: details },
+    {
+      key: 'details',
+      header: 'التفاصيل',
+      getValue: details,
+      render: (r) => (
+        <button type="button" onClick={() => setDetail(r)} className="text-start text-xs text-[var(--accent)] font-semibold hover:underline max-w-[220px]">
+          {details(r) || 'عرض التفاصيل'}
+        </button>
+      ),
+    },
     { key: 'direction', header: 'الاتجاه', getValue: (r) => (r.direction === 'admin_to_rider' ? 'من الإدارة للمندوب' : 'من المندوب') },
     { key: 'createdAt', header: 'تاريخ الإرسال', getValue: (r) => (r.createdAt ? new Date(r.createdAt).toLocaleString('ar-SA') : '') },
     { key: 'status', header: 'الحالة', getValue: (r) => STATUS_LABEL[r.status] || r.status },
@@ -151,6 +216,9 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
       header: 'الإجراء',
       render: (r) => (
         <div className="flex flex-wrap gap-1">
+          <button type="button" onClick={() => setDetail(r)} className="px-2 py-1 rounded-lg text-[11px] font-bold border border-[var(--line)]">
+            تفاصيل
+          </button>
           {(r.allowedActions ?? []).map((a) => (
             <button
               key={a}
@@ -224,6 +292,7 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
             error={error}
             onRetry={load}
             serverSide
+            searchable={false}
             page={page}
             pageSize={pageSize}
             onPageChange={setPage}
@@ -237,6 +306,14 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
           />
         </>
       )}
+      <Dialog
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={detail ? `${TYPE_LABEL[detail.requestType] || detail.requestType} — ${STATUS_LABEL[detail.status] || detail.status}` : ''}
+        description={detail ? `${detail.riderName ?? ''} — ${detail.riderIqama}` : undefined}
+      >
+        {detail ? <RequestDetailBody row={detail} /> : null}
+      </Dialog>
       <Dialog
         open={!!target}
         onClose={() => setTarget(null)}
@@ -254,7 +331,7 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
         }
       >
         <div className="space-y-2">
-          {target ? <p className="text-xs text-[var(--muted)]">{details(target.row)}</p> : null}
+          {target ? <RequestDetailBody row={target.row} /> : null}
           <label className="space-y-1 block">
             <span className="text-xs font-bold">{needsNote ? 'النص الذي يصل للمندوب (مطلوب)' : 'ملاحظة (اختياري)'}</span>
             <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs" />
