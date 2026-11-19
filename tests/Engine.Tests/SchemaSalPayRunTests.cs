@@ -15,12 +15,25 @@ public sealed class SchemaSalPayRunTests
         string company=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company);
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET run_mode=0,payout_blocked=1 WHERE id=@id",("@id",run));
         Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT run_mode FROM sal_pay_run WHERE id=@id",("@id",run)));
-        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Run(c,company),"UQ_sal_run_active",sqliteToken:"sal_pay_run.app_code, sal_pay_run.company_id, sal_pay_run.period_month");
+        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Run(c,company),"UQ_sal_run_active_mode",sqliteToken:"sal_pay_run.app_code, sal_pay_run.company_id, sal_pay_run.period_month, sal_pay_run.run_mode");
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET status=4 WHERE id=@id",("@id",run));
         string simulation=MoneySchemaFixture.Run(c,company);
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET run_mode=1,payout_blocked=0 WHERE id=@id",("@id",simulation));
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET run_mode=2 WHERE id=@id",("@id",simulation)),"CK_sal_run_flags");
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET stage=2 WHERE id=@id",("@id",simulation)),"CK_sal_run_capture");
+        SchemaSalPayRun.Ensure(c);Assert.AreEqual(2L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM sal_pay_run"));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void SimulationRunsNextToTheLiveRunWithItsOwnActiveKey(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Payments(sqlServer);SchemaSalPayRun.Ensure(c);
+        string company=MoneySchemaFixture.Company(c);MoneySchemaFixture.Run(c,company);
+        void Simulation()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO sal_pay_run(id,company_id,app_code,period_month,run_mode) VALUES(@id,@c,'ninja','2026-11-01',1)",("@id",MoneySchemaFixture.Id()),("@c",company));
+        Simulation();
+        SchemaConstraintAssert.ThrowsNamed(Simulation,"UQ_sal_run_active_mode",sqliteToken:"sal_pay_run.run_mode");
         SchemaSalPayRun.Ensure(c);Assert.AreEqual(2L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM sal_pay_run"));
     }
 

@@ -30,7 +30,9 @@ public static class SchemaSalPayRun
             CONSTRAINT FK_sal_run_company FOREIGN KEY (company_id) REFERENCES {SchemaSql.Q(c,"hr","company")}(id) ON DELETE NO ACTION
             """);
         SchemaMoneyFlags.Ensure(c,tx,"sal","pay_run",o=>$"{o}.capture_state>0 OR {o}.status IN (2,3,5)");
-        SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"sal","pay_run","UQ_sal_run_active","app_code,company_id,period_month","status<>4");
+        // L3: one active live run and one active simulation may share app, company and month.
+        SchemaSql.DropIndexIfExists(c,tx,"sal","pay_run","UQ_sal_run_active");
+        SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"sal","pay_run","UQ_sal_run_active_mode","app_code,company_id,period_month,run_mode","status<>4");
         SchemaSql.EnsureTable(c,tx,"sal","pay_run_rider",$"""
             id {g} NOT NULL, pay_run_id {g} NOT NULL, company_id {g} NOT NULL,
             period_month {SchemaSql.Date(c)} NOT NULL, erp_rider_id {g} NOT NULL,

@@ -140,6 +140,11 @@ public static class SchemaSql
             Exec(c,tx,$"IF EXISTS(SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'{schema}.{table}') AND name=N'{constraintName}') ALTER TABLE {Q(c,schema,table)} DROP CONSTRAINT [{constraintName}];");
         // SQLite: inline UNIQUE on an already-created table cannot be dropped without rebuild; new CREATE definitions omit it.
     }
+    public static void DropIndexIfExists(DbConnection c,DbTransaction? tx,string schema,string table,string indexName)
+    {
+        if(IsSql(c))Exec(c,tx,$"IF EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'{schema}.{table}') AND name=N'{indexName}') DROP INDEX [{indexName}] ON {Q(c,schema,table)};");
+        else Exec(c,tx,$"DROP INDEX IF EXISTS {indexName};");
+    }
     /// <summary>Filtered/partial unique index so multiple NULLs are allowed on both providers.</summary>
     public static void CreateFilteredUniqueIndexIfMissing(DbConnection c,DbTransaction? tx,string schema,string table,string indexName,string columns,string whereSql)
     {
