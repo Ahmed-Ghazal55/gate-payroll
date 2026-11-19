@@ -603,22 +603,6 @@ export interface RidersDataQuality {
   needsReviewCount: number;
 }
 
-export interface RidersBaselineSyncResult {
-  fingerprint?: string;
-  sourceFingerprint?: string;
-  total?: number;
-  excludedAdministrative?: number;
-  addCount?: number;
-  updateCount?: number;
-  existingCount?: number;
-  conflicts?: any[];
-  errors?: any[];
-  rows?: any[];
-  count?: number;
-  updatedCount?: number;
-  alreadyImported?: boolean;
-  batchId?: string;
-}
 
 export interface RiderStatementEntry {
   date: string;
@@ -1379,35 +1363,6 @@ export interface OrgResponsibleUser {
   rank: string;
 }
 
-export interface ErpSyncCount {
-  kind: string;
-  source: string;
-  new: number;
-  changed: number;
-  unchanged: number;
-  rejected: number;
-}
-
-export interface ErpSyncJobStatus {
-  jobId: string;
-  status: 'queued' | 'running' | 'completed' | 'refused' | 'failed';
-  mode: 'dry_run' | 'commit';
-  queuedAt: string;
-  startedAt?: string | null;
-  finishedAt?: string | null;
-  refusalCode?: string | null;
-  counts: ErpSyncCount[];
-}
-
-export interface ErpSyncRun {
-  id: string;
-  startedAt: string;
-  finishedAt: string;
-  status: 'completed' | 'refused' | 'failed';
-  mode: 'dry_run' | 'commit';
-  refusalCode?: string | null;
-  counts: ErpSyncCount[];
-}
 
 // =========================================================================
 // R6b / K4: Payroll Review Grid (BR §32)

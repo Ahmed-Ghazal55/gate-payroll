@@ -79,9 +79,9 @@ export default function DashboardPage() {
         eyebrow="مساحة الإدارة 1.0"
         description="ابدأ ببيانات تشغيلية فعلية، راجع مصدر كل بند، ثم اعتمد المسير قبل مشاركته وترحيله للمالية."
         primaryAction={{
-          label: 'استيراد بيانات التشغيل',
+          label: 'بيانات التشغيل',
           onClick: () => {
-            window.location.href = inApp('/imports/');
+            window.location.href = inApp('/operations/');
           },
           icon: <Upload size={16} />,
         }}

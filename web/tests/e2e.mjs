@@ -695,7 +695,6 @@ async function run() {
       { name: 'riders-statement', url: `${baseUrl}/riders/statement/?iqama=2000000789` },
       { name: 'operations', url: `${baseUrl}/operations/` },
       { name: 'admin', url: `${baseUrl}/admin/` },
-      { name: 'imports', url: `${baseUrl}/imports/` },
       { name: 'rider-app', url: `${baseUrl}/rider-app/` },
       { name: 'payroll-rules', url: `${baseUrl}/payroll/?tab=rules` },
       { name: 'payroll-cycle', url: `${baseUrl}/payroll/?tab=cycle` },

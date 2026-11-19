@@ -591,7 +591,7 @@ try {
   await checkerContext.close();
 
   // Step 10: Verify all workspaces load cleanly without UnderMigration
-  console.log('\nStep 10: Verifying active workspaces (/app/treasury/, /app/debts/, /app/accounting/, /app/riders/, /app/operations/, /app/admin/, /app/imports/, /app/rider-app/)...');
+  console.log('\nStep 10: Verifying active workspaces (/app/treasury/, /app/debts/, /app/accounting/, /app/riders/, /app/operations/, /app/admin/, /app/rider-app/)...');
   const allWorkspacePaths = [
     '/app/treasury/',
     '/app/debts/',
@@ -600,7 +600,6 @@ try {
     '/app/riders/statement/?iqama=2000000789',
     '/app/operations/',
     '/app/admin/',
-    '/app/imports/',
     '/app/rider-app/',
   ];
   for (const pagePath of allWorkspacePaths) {
