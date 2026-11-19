@@ -237,9 +237,23 @@ public static class PayStatements
         if(result["header"] is JsonObject h)foreach(var cyc in (h["cycles"] as JsonArray??[]).OfType<JsonObject>()){cyc.Remove("companyId");cyc.Remove("sponsorId");}
         return result;
     }
+    // Web and forms send 1/0; OpenAPI clients send true/false. ASP.NET bool? binding rejects "1".
+    public static bool ParseApprovedOnly(string? raw)
+    {
+        if(string.IsNullOrWhiteSpace(raw))return false;
+        raw=raw.Trim();
+        if(raw is "1" or "true" or "True" or "TRUE")return true;
+        if(raw is "0" or "false" or "False" or "FALSE")return false;
+        throw new ApiError("قيمة approvedOnly غير صالحة.",400);
+    }
+
     public static void Map(WebApplication app,RouteGroupBuilder api,Store store)
     {
-        api.MapGet("/finance/statement/rider/{iqama}/monthly",(string iqama,string period,bool? approvedOnly,HttpContext ctx)=>store.Read(c=>Build(c,iqama,period,ctx.User,approvedOnly==true))).WithTags("Payroll").WithSummary("Read scoped monthly rider app cards and explainable net with legacy fallback");
+        api.MapGet("/finance/statement/rider/{iqama}/monthly",(string iqama,string period,HttpContext ctx)=>
+        {
+            bool approvedOnly=ParseApprovedOnly(ctx.Request.Query["approvedOnly"].FirstOrDefault());
+            return store.Read(c=>Build(c,iqama,period,ctx.User,approvedOnly));
+        }).WithTags("Payroll").WithSummary("Read scoped monthly rider app cards and explainable net with legacy fallback");
         app.MapGet("/api/rider-mobile/statement",(string period,HttpContext ctx)=>{PushNotifications.AuthenticateAndRateLimit(store,ctx,write:false);return store.Read(c=>Mobile(c,ctx,period));}).WithTags("Riders").WithSummary("Read own approved monthly statement using rider bearer session only");
     }
 }
