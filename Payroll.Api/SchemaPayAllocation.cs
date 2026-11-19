@@ -74,7 +74,43 @@ public static class SchemaPayAllocation
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payment","payment_id,company_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payable","payable_id,company_id,payable_period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_line","payment_line_id");
+        EnsureTransitions(c,tx);
         EnsureClaims(c,tx);
+    }
+
+    static void EnsureTransitions(DbConnection c,DbTransaction? tx)
+    {
+        string a=SchemaSql.Q(c,"pay","payment_allocation"),payment=SchemaSql.Q(c,"pay","payment");
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER pay.TR_allocation_transition ON {a} AFTER UPDATE AS
+                BEGIN
+                  SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM deleted o LEFT JOIN inserted n ON n.id=o.id WHERE n.id IS NULL
+                    OR n.payment_id<>o.payment_id OR n.payable_id<>o.payable_id OR n.payment_line_id<>o.payment_line_id
+                    OR n.amount<>o.amount OR n.company_id<>o.company_id OR n.period_month<>o.period_month
+                    OR n.payable_period_month<>o.payable_period_month OR n.currency_code<>o.currency_code)
+                    THROW 51004,'Allocation keys and amount are immutable',1;
+                  IF EXISTS(SELECT 1 FROM inserted n JOIN deleted o ON o.id=n.id
+                    WHERE n.claim_status<>o.claim_status AND NOT
+                    ((o.claim_status=1 AND n.claim_status IN (2,3,4)) OR
+                     (o.claim_status=2 AND n.claim_status=4 AND EXISTS(SELECT 1 FROM {payment} p WHERE p.id=n.payment_id AND p.status=3))))
+                    THROW 51005,'Invalid allocation status transition; posted claims require reversed payment',1;
+                END;
+                """);
+        else
+            SchemaSql.Exec(c,tx,$"""
+                CREATE TRIGGER IF NOT EXISTS TR_allocation_transition BEFORE UPDATE ON {a} BEGIN
+                  SELECT RAISE(ABORT,'Allocation keys and amount are immutable') WHERE
+                    NEW.id<>OLD.id OR NEW.payment_id<>OLD.payment_id OR NEW.payable_id<>OLD.payable_id OR NEW.payment_line_id<>OLD.payment_line_id
+                    OR NEW.amount<>OLD.amount OR NEW.company_id<>OLD.company_id OR NEW.period_month<>OLD.period_month
+                    OR NEW.payable_period_month<>OLD.payable_period_month OR NEW.currency_code<>OLD.currency_code;
+                  SELECT RAISE(ABORT,'Invalid allocation status transition; posted claims require reversed payment') WHERE
+                    NEW.claim_status<>OLD.claim_status AND NOT
+                    ((OLD.claim_status=1 AND NEW.claim_status IN (2,3,4)) OR
+                     (OLD.claim_status=2 AND NEW.claim_status=4 AND EXISTS(SELECT 1 FROM {payment} p WHERE p.id=NEW.payment_id AND p.status=3)));
+                END;
+                """);
     }
 
     static void EnsureClaims(DbConnection c,DbTransaction? tx)

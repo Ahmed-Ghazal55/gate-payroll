@@ -6,7 +6,30 @@ using Payroll;
 [TestClass]
 public sealed class SchemaPayAllocationTests
 {
-    [DataTestMethod]
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void PostedClaimsAndFinalStatesCannotReopenOrChangeTheirIdentity(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Payments(sqlServer);
+        string company=MoneySchemaFixture.Company(c),payable=MoneySchemaFixture.Payable(c,company),payment=MoneySchemaFixture.Payment(c,company);
+        string claim=MoneySchemaFixture.Claim(c,company,payment,payable);
+        void Change(string set)=>MoneySchemaFixture.Exec(c,null,$"UPDATE pay_payment_allocation SET {set} WHERE id=@id",("@id",claim));
+        Change("claim_status=2");
+        foreach(int status in new[]{1,3,4})MoneySchemaFixture.Reject(()=>Change($"claim_status={status}"));
+        foreach(string set in new[]{"amount=20",$"payment_id='{MoneySchemaFixture.Payment(c,company)}'",$"payable_id='{MoneySchemaFixture.Payable(c,company)}'",$"payment_line_id='{MoneySchemaFixture.Id()}'"})
+            MoneySchemaFixture.Reject(()=>Change(set));
+        Assert.AreEqual(40m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT amount_paid FROM pay_payable WHERE id=@id",("@id",payable))));
+        // status 3 on the payment is reversed; status 4 is cancelled.
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET status=3 WHERE id=@id",("@id",payment));
+        Change("claim_status=4");
+        MoneySchemaFixture.Reject(()=>Change("claim_status=1"));
+        string released=MoneySchemaFixture.Claim(c,company,MoneySchemaFixture.Payment(c,company),payable);
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",released));
+        foreach(int status in new[]{1,2,4})MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE pay_payment_allocation SET claim_status={status} WHERE id=@id",("@id",released)));
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void PartialClaimsReservePostReleaseAndCancelWithoutOverpaying(bool sqlServer)
@@ -22,17 +45,17 @@ public sealed class SchemaPayAllocationTests
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=4 WHERE id=@id",("@id",b));
         Assert.AreEqual(60m,Available());
         string replacement=MoneySchemaFixture.Claim(c,company,payment,payable,60);
-        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",a));
-        Assert.AreEqual(40m,Available());
-        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET amount=101 WHERE id=@id",("@id",replacement)),"CK_payable_amounts");
-        Assert.AreEqual(40m,Available()); // failed trigger rolls the whole statement back
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",a)));
+        Assert.AreEqual(0m,Available());
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET amount=101 WHERE id=@id",("@id",replacement)));
+        Assert.AreEqual(0m,Available()); // failed trigger rolls the whole statement back
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payable SET amount_due=59 WHERE id=@id",("@id",payable)),"CK_payable_amounts");
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payable SET amount_reserved=0 WHERE id=@id",("@id",payable)));
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM pay_payment_allocation WHERE id=@id",("@id",replacement)));
-        SchemaPayAllocation.Ensure(c);Assert.AreEqual(40m,Available());
+        SchemaPayAllocation.Ensure(c);Assert.AreEqual(0m,Available());
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void ClaimUniqueCompanyMonthsChecksAndStaleVersionAreEnforced(bool sqlServer)
@@ -52,7 +75,7 @@ public sealed class SchemaPayAllocationTests
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM pay_payment WHERE id=@id",("@id",payment)));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void FailedMultiClaimTransactionRollsBackItsEarlierReservation(bool sqlServer)
