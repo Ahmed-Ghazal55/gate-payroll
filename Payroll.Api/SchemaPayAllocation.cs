@@ -76,6 +76,7 @@ public static class SchemaPayAllocation
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_line","payment_line_id");
         EnsureTransitions(c,tx);
         EnsureClaims(c,tx);
+        SchemaPayPayable.EnsureCounters(c,tx);
     }
 
     static void EnsureTransitions(DbConnection c,DbTransaction? tx)
@@ -137,16 +138,6 @@ public static class SchemaPayAllocation
                 END;
                 """);
             SchemaSql.Exec(c,tx,$"CREATE OR ALTER TRIGGER pay.TR_allocation_no_delete ON {a} INSTEAD OF DELETE AS BEGIN THROW 51002,'Cancel or release allocations instead of deleting',1; END;");
-            SchemaSql.Exec(c,tx,$"""
-                CREATE OR ALTER TRIGGER pay.TR_payable_claim_totals ON {p} AFTER UPDATE AS
-                BEGIN
-                  SET NOCOUNT ON;
-                  IF EXISTS(SELECT 1 FROM inserted p WHERE EXISTS(SELECT 1 FROM {a} WHERE payable_id=p.id)
-                    AND (p.amount_reserved<>(SELECT COALESCE(SUM(amount),0) FROM {a} WHERE payable_id=p.id AND claim_status=1)
-                      OR p.amount_paid<>(SELECT COALESCE(SUM(amount),0) FROM {a} WHERE payable_id=p.id AND claim_status=2)))
-                    THROW 51003,'Payable counters must match allocation claims',1;
-                END;
-                """);
         }
         else
         {
@@ -165,14 +156,6 @@ public static class SchemaPayAllocation
                     """);
             }
             SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_allocation_no_delete BEFORE DELETE ON {a} BEGIN SELECT RAISE(ABORT,'Cancel or release allocations instead of deleting'); END;");
-            SchemaSql.Exec(c,tx,$"""
-                CREATE TRIGGER IF NOT EXISTS TR_payable_claim_totals AFTER UPDATE ON {p}
-                WHEN EXISTS(SELECT 1 FROM {a} WHERE payable_id=NEW.id) BEGIN
-                  SELECT RAISE(ABORT,'Payable counters must match allocation claims') WHERE
-                    NEW.amount_reserved<>round(COALESCE((SELECT SUM(amount) FROM {a} WHERE payable_id=NEW.id AND claim_status=1),0),2)
-                    OR NEW.amount_paid<>round(COALESCE((SELECT SUM(amount) FROM {a} WHERE payable_id=NEW.id AND claim_status=2),0),2);
-                END;
-                """);
         }
     }
 }

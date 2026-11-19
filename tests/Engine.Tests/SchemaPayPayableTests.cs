@@ -6,7 +6,20 @@ using Payroll;
 [TestClass]
 public sealed class SchemaPayPayableTests
 {
-    [DataTestMethod]
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void CountersCannotBeInventedWithoutClaimsOnInsertOrUpdate(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Payments(sqlServer);string company=MoneySchemaFixture.Company(c),id=MoneySchemaFixture.Payable(c,company);
+        foreach(string column in new[]{"amount_paid","amount_reserved"})
+        {
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE pay_payable SET {column}=1 WHERE id=@id",("@id",id)));
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"INSERT INTO pay_payable(id,kind,source_table,source_id,company_id,period_month,amount_due,{column}) VALUES(@id,'advance','test',@id,@c,'2026-11-01',100,1)",("@id",MoneySchemaFixture.Id()),("@c",company)));
+        }
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void SourceUniquenessMoneyMonthCurrencyAndCompanyAreEnforced(bool sqlServer)
@@ -22,13 +35,13 @@ public sealed class SchemaPayPayableTests
             SchemaConstraintAssert.ThrowsNamed(()=>Change($"period_month='{month}'"),"CK_payable_month");
         SchemaConstraintAssert.ThrowsNamed(()=>Change($"company_id='{MoneySchemaFixture.Id()}'"),"FK_payable_company",sqliteToken:"FOREIGN KEY");
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO pay_payable(id,kind,source_table,source_id,company_id,amount_due,period_month) SELECT @new,kind,source_table,source_id,company_id,amount_due,period_month FROM pay_payable WHERE id=@id",("@new",MoneySchemaFixture.Id()),("@id",id)),"UQ_payable_source",sqliteToken:"pay_payable.source_table, pay_payable.source_id");
-        Change("amount_reserved=25,amount_paid=30");
-        Assert.AreEqual(45m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT available_balance FROM pay_payable WHERE id=@id",("@id",id))));
+        MoneySchemaFixture.Reject(()=>Change("amount_reserved=25,amount_paid=30"));
+        Assert.AreEqual(100m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT available_balance FROM pay_payable WHERE id=@id",("@id",id))));
         SchemaPayPayable.Ensure(c);
         Assert.AreEqual("new",MoneySchemaFixture.Scalar(c,null,"SELECT generation FROM pay_payable WHERE id=@id",("@id",id)));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void CompareAndSwapRejectsStaleRowVersion(bool sqlServer)
@@ -36,7 +49,7 @@ public sealed class SchemaPayPayableTests
         using var c=MoneySchemaFixture.Open(sqlServer);string id=MoneySchemaFixture.Payable(c,MoneySchemaFixture.Company(c));
         byte[] version=(byte[])MoneySchemaFixture.Scalar(c,null,"SELECT row_version FROM pay_payable WHERE id=@id",("@id",id))!;
         Assert.AreEqual(8,version.Length);
-        int Update(){using var cmd=MoneySchemaFixture.Command(c,null,"UPDATE pay_payable SET amount_reserved=20 WHERE id=@id AND row_version=@version",("@id",id),("@version",version));return cmd.ExecuteNonQuery();}
+        int Update(){using var cmd=MoneySchemaFixture.Command(c,null,"UPDATE pay_payable SET due_on='2026-11-20' WHERE id=@id AND row_version=@version",("@id",id),("@version",version));return cmd.ExecuteNonQuery();}
         Assert.AreEqual(1,Update());Assert.AreEqual(0,Update());
         Assert.IsFalse(version.SequenceEqual((byte[])MoneySchemaFixture.Scalar(c,null,"SELECT row_version FROM pay_payable WHERE id=@id",("@id",id))!));
     }

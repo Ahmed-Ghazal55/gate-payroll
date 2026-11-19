@@ -38,5 +38,36 @@ public static class SchemaPayPayable
         SchemaSql.EnsureMonthIndex(c,tx,"pay","payable");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payable","IX_payable_company","company_id");
         SchemaSql.EnsureRowVersion(c,tx,"pay","payable");
+        EnsureCounters(c,tx);
     }
+    internal static void EnsureCounters(DbConnection c,DbTransaction? tx)
+    {
+        string p=SchemaSql.Q(c,"pay","payable"),a=SchemaSql.Q(c,"pay","payment_allocation");
+        bool claims=SchemaSql.TableExists(c,tx,"pay","payment_allocation");
+        string Sum(string alias,int status)=>claims?$"(SELECT COALESCE(SUM(amount),0) FROM {a} WHERE payable_id={alias}.id AND claim_status={status})":"0";
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER pay.TR_payable_claim_totals ON {p} AFTER INSERT,UPDATE AS
+                BEGIN
+                  SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM inserted p WHERE p.amount_reserved<>{Sum("p",1)} OR p.amount_paid<>{Sum("p",2)})
+                    THROW 51003,'Payable counters must match allocation claims',1;
+                END;
+                """);
+        else
+        {
+            SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_payable_claim_totals;");
+            foreach(string op in new[]{"INSERT","UPDATE"})
+            {
+                SchemaSql.Exec(c,tx,$"DROP TRIGGER IF EXISTS TR_payable_claim_totals_{op};");
+                SchemaSql.Exec(c,tx,$"""
+                    CREATE TRIGGER TR_payable_claim_totals_{op} AFTER {op} ON {p} BEGIN
+                      SELECT RAISE(ABORT,'Payable counters must match allocation claims') WHERE
+                        NEW.amount_reserved<>round({Sum("NEW",1)},2) OR NEW.amount_paid<>round({Sum("NEW",2)},2);
+                    END;
+                    """);
+            }
+        }
+    }
+
 }
