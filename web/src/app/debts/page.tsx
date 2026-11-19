@@ -52,8 +52,6 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { DebtActionsPanel } from '../../features/debts/DebtActionsPanel';
 import {
   debtsLoadKindsForTab,
-  pageSlice,
-  DEBTS_CLIENT_PAGE_SIZE,
   type DebtsTabId,
 } from '../../features/debts/debts-tab-load';
 import type {
@@ -133,7 +131,6 @@ function DebtsPageContent() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [debts, setDebts] = useState<DebtRecord[]>([]);
-  const [debtsPage, setDebtsPage] = useState(1);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [promissoryNotes, setPromissoryNotes] = useState<PromissoryNote[]>([]);
   const [promissoryFeatureEnabled, setPromissoryFeatureEnabled] = useState<boolean>(false);
@@ -216,7 +213,6 @@ function DebtsPageContent() {
     try {
       const debtsRes = await api.getDebts();
       setDebts(debtsRes || []);
-      setDebtsPage(1);
     } catch (err: any) {
       const msg = err.message || 'تعذر تحميل بيانات المديونيات';
       setError(msg);
@@ -566,13 +562,6 @@ function DebtsPageContent() {
       return true;
     });
   }, [debts, selectedCategory, selectedStatus, searchQuery]);
-
-  // Client-side page until GET /debts accepts page + pageSize (API need).
-  const debtsPageCount = Math.max(1, Math.ceil(filteredDebts.length / DEBTS_CLIENT_PAGE_SIZE));
-  const pagedDebts = useMemo(
-    () => pageSlice(filteredDebts, Math.min(debtsPage, debtsPageCount)),
-    [filteredDebts, debtsPage, debtsPageCount]
-  );
 
   const categoryOptions = useMemo(() => {
     const m = new Map<string, string>();
@@ -1116,43 +1105,16 @@ function DebtsPageContent() {
           {error ? (
             <ErrorState title="تعذر تحميل بيانات المديونيات" message={error} onRetry={loadData} />
           ) : (
-            <>
-              <DataTable
-                tableId="debts-list"
-                columns={debtsColumns}
-                data={pagedDebts}
-                loading={loading}
-                emptyTitle="لا توجد مديونيات مسجلة"
-                emptyDescription="لم يتم العثور على أي مديونيات أو سلف تطابق شروط الفلترة الحالية."
-                exportFilename="debts_list"
-                showTotals={true}
-              />
-              {filteredDebts.length > DEBTS_CLIENT_PAGE_SIZE && (
-                <div className="flex items-center justify-between gap-3 text-xs text-[var(--muted)]">
-                  <span>
-                    صفحة {Math.min(debtsPage, debtsPageCount)} من {debtsPageCount} · {filteredDebts.length} سجل
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={debtsPage <= 1}
-                      onClick={() => setDebtsPage((p) => Math.max(1, p - 1))}
-                      className="px-3 py-1.5 rounded-lg border border-[var(--line)] disabled:opacity-40"
-                    >
-                      السابق
-                    </button>
-                    <button
-                      type="button"
-                      disabled={debtsPage >= debtsPageCount}
-                      onClick={() => setDebtsPage((p) => Math.min(debtsPageCount, p + 1))}
-                      className="px-3 py-1.5 rounded-lg border border-[var(--line)] disabled:opacity-40"
-                    >
-                      التالي
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
+            <DataTable
+              tableId="debts-list"
+              columns={debtsColumns}
+              data={filteredDebts}
+              loading={loading}
+              emptyTitle="لا توجد مديونيات مسجلة"
+              emptyDescription="لم يتم العثور على أي مديونيات أو سلف تطابق شروط الفلترة الحالية."
+              exportFilename="debts_list"
+              showTotals={true}
+            />
           )}
         </div>
       )}
