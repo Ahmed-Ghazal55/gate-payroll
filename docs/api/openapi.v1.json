@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:36039/"
+      "url": "http://127.0.0.1:46487/"
     }
   ],
   "paths": {
@@ -19087,6 +19087,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -20087,7 +20094,34 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "required": [
+                    "ok",
+                    "period",
+                    "notifiedRidersCount",
+                    "enqueuedPushCount",
+                    "skippedAlreadyNotifiedCount"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "notifiedRidersCount": {
+                      "type": "number"
+                    },
+                    "enqueuedPushCount": {
+                      "type": "number"
+                    },
+                    "skippedAlreadyNotifiedCount": {
+                      "type": "number"
+                    },
+                    "batchSize": {
+                      "type": "number"
+                    }
+                  }
                 }
               }
             }

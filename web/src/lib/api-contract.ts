@@ -11591,6 +11591,7 @@ export interface paths {
                     requestType?: string;
                     status?: string;
                     iqama?: string;
+                    group?: string;
                 };
                 header?: never;
                 path?: never;
@@ -12108,7 +12109,14 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": Record<string, never>;
+                        "application/json": {
+                            ok: boolean;
+                            period: string;
+                            notifiedRidersCount: number;
+                            enqueuedPushCount: number;
+                            skippedAlreadyNotifiedCount: number;
+                            batchSize?: number;
+                        };
                     };
                 };
             };

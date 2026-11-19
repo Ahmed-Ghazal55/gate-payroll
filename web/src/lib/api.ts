@@ -89,6 +89,17 @@ export type PayReviewRider = PayReviewAccount['riders'][number];
 
 export type RiderLookupItem = ApiResp<'/api/riders/lookup'>[number];
 
+// Section 9 — rider app admin (U-W3-16 / U-W3-17); all from the generated contract.
+type PagedOf<T> = Extract<T, { items: unknown[] }>;
+export type RiderBroadcastsPage = PagedOf<ApiResp<'/api/rider-mobile/broadcasts'>>;
+export type RiderBroadcast = ApiResp<'/api/rider-mobile/broadcast', 'post'>;
+export type ServiceRequestsPage = PagedOf<ApiResp<'/api/rider-mobile/service-requests'>>;
+export type ServiceRequest = ServiceRequestsPage['items'][number];
+export type ServiceRequestsSummary = ApiResp<'/api/rider-mobile/service-requests/summary'>;
+export type FirebaseConfig = ApiResp<'/api/rider-mobile/firebase-config'>;
+export type InquiryAccessResult = ApiResp<'/api/inquiry-access', 'post'>;
+export type RiderMonthlyStatement = ApiResp<'/api/finance/statement/rider/{iqama}/monthly'>;
+
 export type DebtDeductionsView = ApiResp<'/api/pay/cycles/{id}/debt-deductions'>;
 export type PayCycleItem = ApiResp<'/api/pay/cycles'>['items'][number];
 export type PayCyclesResponse = ApiResp<'/api/pay/cycles'>;
@@ -153,7 +164,7 @@ let mockNotifications: NotificationItem[] = [
     category: 'approvals',
     unread: true,
     createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    link: '/app/forms/?tab=responses',
+    link: '/app/rider-app/?tab=responses',
     actionText: 'مراجعة الردود',
   },
   {
@@ -493,7 +504,7 @@ async function handleMockRequest<T>(endpoint: string, options: RequestInit = {})
         kind: 'campaign',
         title: 'تحديث بيانات الآيبان 2026',
         subtitle: 'حملة استقبال مفتوحة',
-        url: '/app/forms/?tab=campaigns',
+        url: '/app/rider-app/?tab=campaigns',
       });
     }
     return results as unknown as T;
@@ -1337,6 +1348,9 @@ export const api = {
     return handleRequest<RiderAccountsResponse>(`/riders/${encodeURIComponent(iqama)}/accounts${qs}`);
   },
 
+  // Contract-typed read used by the rider-app statements panel (same endpoint as getRiderMonthlyStatement).
+  getRiderStatementPreview: (iqama: string, period: string) =>
+    handleRequest<RiderMonthlyStatement>(`/finance/statement/rider/${encodeURIComponent(iqama)}/monthly?period=${encodeURIComponent(period)}`),
   getRiderMonthlyStatement: (iqama: string, period: string) =>
     handleRequest<any>(`/finance/statement/rider/${encodeURIComponent(iqama)}/monthly?period=${encodeURIComponent(period)}`),
 
@@ -1473,7 +1487,7 @@ export const api = {
   updateUser: (id: string, input: any) =>
     handleRequest<any>(`/users/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }),
   getRolesCatalog: () => handleRequest<any>('/roles-catalog'),
-  getFirebaseConfig: () => handleRequest<any>('/rider-mobile/firebase-config'),
+  getFirebaseConfig: () => handleRequest<FirebaseConfig>('/rider-mobile/firebase-config'),
   saveFirebaseConfig: (input: any) =>
     handleRequest<any>('/rider-mobile/firebase-config', { method: 'POST', body: JSON.stringify(input) }),
 
@@ -1505,8 +1519,36 @@ export const api = {
   // Legacy Policies
   getPolicies: () => handleRequest<any[]>('/policies'),
 
-  // Rider Mobile App APIs (Track M)
-  getRiderBroadcasts: () => handleRequest<any[]>('/rider-mobile/broadcasts'),
+  // Rider Mobile App APIs (section 9: «تطبيق المناديب والنماذج»; types from api-contract.ts)
+  getRiderBroadcastsPage: (f: { page?: number; pageSize?: number; kind?: string; category?: string; q?: string } = {}) => {
+    const q = new URLSearchParams();
+    q.set('page', String(f.page ?? 1));
+    q.set('pageSize', String(f.pageSize ?? 50));
+    if (f.kind) q.set('kind', f.kind);
+    if (f.category) q.set('category', f.category);
+    if (f.q) q.set('q', f.q);
+    return handleRequest<RiderBroadcastsPage>(`/rider-mobile/broadcasts?${q.toString()}`);
+  },
+  getServiceRequestsPage: (f: { page?: number; pageSize?: number; requestType?: string; group?: 'other'; status?: string; iqama?: string; q?: string } = {}) => {
+    const q = new URLSearchParams();
+    q.set('page', String(f.page ?? 1));
+    q.set('pageSize', String(f.pageSize ?? 50));
+    if (f.requestType) q.set('requestType', f.requestType);
+    if (f.group) q.set('group', f.group);
+    if (f.status) q.set('status', f.status);
+    if (f.iqama) q.set('iqama', f.iqama);
+    if (f.q) q.set('q', f.q);
+    return handleRequest<ServiceRequestsPage>(`/rider-mobile/service-requests?${q.toString()}`);
+  },
+  getServiceRequestsSummary: () => handleRequest<ServiceRequestsSummary>('/rider-mobile/service-requests/summary'),
+  decideServiceRequest: (id: string, input: { action: string; note?: string }) =>
+    handleRequest<ServiceRequest>(`/rider-mobile/service-requests/${encodeURIComponent(id)}/decide`, { method: 'POST', body: JSON.stringify(input) }),
+  replyServiceRequest: (id: string, message: string) =>
+    handleRequest<ServiceRequest>(`/rider-mobile/service-requests/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ message }) }),
+  notifyStatementsForPeriod: (period: string) =>
+    handleRequest<ApiResp<'/api/rider-mobile/statements/notify-period', 'post'>>('/rider-mobile/statements/notify-period', { method: 'POST', body: JSON.stringify({ period }) }),
+  issueMobileAccessCode: (iqama: string) =>
+    handleRequest<InquiryAccessResult>('/inquiry-access', { method: 'POST', body: JSON.stringify({ iqama, scope: 'mobile', identityReviewed: true }) }),
   getRiderSessions: (f: { status?: string; iqama?: string } = {}) => {
     const q = new URLSearchParams();
     if (f.status) q.set('status', f.status);
@@ -1520,8 +1562,19 @@ export const api = {
     handleRequest<unknown>(`/rider-mobile/sessions/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: JSON.stringify({ reason }) }),
   revokeAllRiderSessions: (iqama: string, reason: string) =>
     handleRequest<{ revoked: number }>(`/rider-mobile/sessions/revoke-all?iqama=${encodeURIComponent(iqama)}`, { method: 'POST', body: JSON.stringify({ reason }) }),
-  sendRiderBroadcast: (input: { category?: string; titleAr: string; bodyAr: string; iqama?: string; actionUrl?: string; requiresAck?: boolean }) =>
-    handleRequest<any>('/rider-mobile/broadcast', {
+  sendRiderBroadcast: (input: {
+    category?: string;
+    titleAr: string;
+    bodyAr: string;
+    titleEn?: string;
+    titleUr?: string;
+    bodyEn?: string;
+    bodyUr?: string;
+    iqama?: string;
+    actionUrl?: string;
+    requiresAck?: boolean;
+  }) =>
+    handleRequest<RiderBroadcast>('/rider-mobile/broadcast', {
       method: 'POST',
       body: JSON.stringify(input),
     }),

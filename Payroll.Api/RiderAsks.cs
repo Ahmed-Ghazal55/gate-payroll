@@ -1267,8 +1267,15 @@ public static class RiderAsks
             return store.Write((c, tx) => RiderReply(c, tx, ctx, id, input));
         }).WithTags("Riders").WithSummary("Rider sends a reply on an existing request");
 
-        api.MapGet("/rider-mobile/service-requests", (string? requestType, string? status, string? iqama, HttpContext ctx) =>
-            store.Read(c => ApiPagination.Apply(StaffServiceRequests(c, ctx.User, requestType, status, iqama), ctx.Request.Query)))
+        api.MapGet("/rider-mobile/service-requests", (string? requestType, string? status, string? iqama, string? group, HttpContext ctx) =>
+            store.Read(c =>
+            {
+                var rows = StaffServiceRequests(c, ctx.User, requestType, status, iqama);
+                // group=other: every type except annual leave and appointments (the requests tab's «طلبات أخرى»).
+                if (string.Equals(group, "other", StringComparison.Ordinal))
+                    rows = rows.Where(r => r.S("requestType") is not ("annual_leave" or "appointment")).ToList();
+                return ApiPagination.Apply(rows, ctx.Request.Query);
+            }))
             .WithTags("Riders").WithSummary("List rider service requests within caller scope, hiding confidential complaints from unauthorized staff");
 
         api.MapGet("/rider-mobile/service-requests/summary", (HttpContext ctx) =>

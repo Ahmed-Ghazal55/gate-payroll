@@ -108,7 +108,7 @@ public static class ApiContracts
         if(path=="/api/rider-mobile/service-requests/summary"&&get)return O(new(){["open"]=N(),["annualLeaveOpen"]=N(),["appointmentsOpen"]=N(),["doneThisMonth"]=N(),["total"]=N()},"open","annualLeaveOpen","appointmentsOpen","doneThisMonth","total");
         if(path=="/api/rider-mobile/broadcasts"&&get)return new(){OneOf=[A(Broadcast()),Page(Broadcast())]};
         if(path=="/api/rider-mobile/broadcast"&&!get)return Broadcast();
-        if(path=="/api/rider-mobile/statements/notify-period"&&!get)return Free();
+        if(path=="/api/rider-mobile/statements/notify-period"&&!get)return O(new(){["ok"]=B(),["period"]=S(),["notifiedRidersCount"]=N(),["enqueuedPushCount"]=N(),["skippedAlreadyNotifiedCount"]=N(),["batchSize"]=N()},"ok","period","notifiedRidersCount","enqueuedPushCount","skippedAlreadyNotifiedCount");
         if(path=="/api/rider-mobile/firebase-config"&&get)return O(new(){["projectId"]=S(),["senderId"]=S(),["androidPackageName"]=S(),["googlePlayUrl"]=S(),["hasServiceAccountJson"]=B(),["legacyStoredKey"]=B(),["configured"]=B(),["webMobilePortalUrl"]=S(),["inquiryPortalUrl"]=S(),["activeSessionsCount"]=N(),["fcmRegisteredDevicesCount"]=N(),["outboxSentCount"]=N(),["outboxFailedCount"]=N(),["outboxPendingCount"]=N(),["updatedAt"]=S()},"configured","hasServiceAccountJson","activeSessionsCount","fcmRegisteredDevicesCount","outboxSentCount","outboxFailedCount","outboxPendingCount");
         if(path=="/api/inquiry-access"&&!get)return O(new(){["iqama"]=S(),["scope"]=S(),["code"]=S(),["expiresAt"]=S(),["url"]=S()},"iqama","scope","code","expiresAt","url");
         if(path is "/api/campaigns" or "/api/campaigns/{id}")return get&&path=="/api/campaigns"?new(){OneOf=[A(Campaign()),Page(Campaign())]}:Campaign();

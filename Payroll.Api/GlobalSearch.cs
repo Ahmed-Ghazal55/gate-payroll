@@ -19,7 +19,7 @@ public static class GlobalSearch
         if(AccessPolicy.Allowed(user,"GET","/api/debts"))
             hits.AddRange(Store.List(c,"debt").Where(r=>FinancialScopes.Debt(user,r)&&Match(r.S("id"),r.S("iqama"),r.S("riderName"),r.S("description"),r.S("sourceRef"))).Select(r=>new Hit("debt",r.S("id"),r.S("description",r.S("sourceRef",r.S("id"))),r.S("iqama"),"/app/debts?id="+Uri.EscapeDataString(r.S("id")))));
         if(AccessPolicy.Allowed(user,"GET","/api/campaigns"))
-            hits.AddRange(Store.List(c,"campaign").Where(r=>Match(r.S("title"))).Select(r=>new Hit("campaign",r.S("id"),r.S("title"),r.S("status"),"/app/forms?campaignId="+Uri.EscapeDataString(r.S("id")))));
+            hits.AddRange(Store.List(c,"campaign").Where(r=>Match(r.S("title"))).Select(r=>new Hit("campaign",r.S("id"),r.S("title"),r.S("status"),"/app/rider-app/?tab=campaigns&campaignId="+Uri.EscapeDataString(r.S("id")))));
         hits.AddRange(Vouchers.Search(c,user,q));
         return hits.DistinctBy(h=>(h.Type,h.Id)).Take(20).ToList();
     }
