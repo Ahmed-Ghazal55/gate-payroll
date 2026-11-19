@@ -17,6 +17,28 @@ export const CANONICAL_PLATFORMS: ReadonlyArray<{ code: string; labelAr: string 
   { code: 'AMAZON', labelAr: 'أمازون' },
 ];
 
+const AUDIT_ACTION_LABELS_AR: Record<string, string> = {
+  'company.seeded': 'تهيئة سجل شركة أساسي',
+  'company.created': 'إنشاء شركة جديدة',
+  'company.updated': 'تحديث بيانات شركة',
+  'company.archived': 'أرشفة شركة',
+  'company.registration_created': 'إضافة سجل تجاري',
+  'company.registration_updated': 'تحديث سجل تجاري',
+  'commercial_registration.archived': 'أرشفة سجل تجاري',
+  'company.document_created': 'رفع وثيقة شركة',
+  'company.document_updated': 'تحديث وثيقة شركة',
+  'company_document.archived': 'أرشفة وثيقة شركة',
+  'company.import_committed': 'اعتماد استيراد شهادات الشركات',
+};
+
+export function auditActionLabelAr(action: string | null | undefined): string {
+  const key = (action || '').trim();
+  if (!key) return 'عملية مسجلة';
+  if (AUDIT_ACTION_LABELS_AR[key]) return AUDIT_ACTION_LABELS_AR[key];
+  if (/[\u0600-\u06FF]/.test(key) && !/[A-Za-z]/.test(key)) return key;
+  return 'عملية إدارية مسجلة';
+}
+
 export function normalizeCompaniesTab(raw: string | null | undefined): CompaniesTabId {
   const value = (raw || '').trim().toLowerCase();
   if (value === 'stats' || value === 'statistics') return 'stats';

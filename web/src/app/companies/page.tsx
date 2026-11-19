@@ -49,6 +49,7 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { SourceBadge } from '../../components/ui/SourceBadge';
 import {
   BALANCES_PLACEHOLDER_AR,
+  auditActionLabelAr,
   buildCompanyStatsExport,
   buildWorkforceCompanyUrl,
   computeCompanyStatsTotals,
@@ -869,7 +870,7 @@ function CompaniesPageContent() {
           },
           {
             id: 'stats',
-            label: 'الإحصائيات',
+            label: 'الإحصائيات والمؤشرات',
             icon: <BarChart3 size={15} />,
             badge: stats ? stats.totals.sponsoredTotal : undefined,
           },
@@ -1481,7 +1482,13 @@ function CompaniesPageContent() {
                           )}
                         </td>
                         <td className="py-3 px-4">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--money-pos)]/10 text-[var(--money-pos)]">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                              c.status === 'active'
+                                ? 'bg-[var(--money-pos)]/10 text-[var(--money-pos)]'
+                                : 'bg-[var(--raised)] text-[var(--muted)] border border-[var(--line)]'
+                            }`}
+                          >
                             <span className="h-1.5 w-1.5 rounded-full bg-current" />
                             {c.status === 'active' ? 'نشط' : 'غير نشط'}
                           </span>
@@ -1575,8 +1582,16 @@ function CompaniesPageContent() {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--money-pos)]/10 text-[var(--money-pos)]">
-                            {cr.status === 'active' ? 'نشط' : 'غير نشط'}
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                              cr.status === 'active'
+                                ? 'bg-[var(--money-pos)]/10 text-[var(--money-pos)]'
+                                : cr.status === 'expired'
+                                ? 'bg-[var(--danger)]/15 text-[var(--danger)]'
+                                : 'bg-[var(--raised)] text-[var(--muted)] border border-[var(--line)]'
+                            }`}
+                          >
+                            {cr.status === 'active' ? 'نشط' : cr.status === 'expired' ? 'منتهي' : 'غير نشط'}
                           </span>
                         </td>
                       </tr>
@@ -2052,7 +2067,7 @@ function CompaniesPageContent() {
                     auditLogs.map((log) => (
                       <div key={log.id} className="p-3 text-xs flex items-center justify-between gap-2">
                         <div>
-                          <strong className="text-[var(--ink)] block">{log.action}</strong>
+                          <strong className="text-[var(--ink)] block">{auditActionLabelAr(log.action)}</strong>
                           <span className="text-[11px] text-[var(--muted)]">بواسطة: {log.actor}</span>
                         </div>
                         <span className="text-[11px] font-mono text-[var(--muted)] num">
