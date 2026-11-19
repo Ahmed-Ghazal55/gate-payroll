@@ -120,6 +120,10 @@ export type Workforce360Response = ApiResp<'/api/workforce/{id}/360'>;
 export type OperationsResponse = Omit<ApiResp<'/api/operations/{kind}'>, 'items'> & {
   items: OperationRow[];
 };
+export type OperationsFleetListResponse = ApiResp<'/api/operations/cities-summary'>;
+export type OperationsHousingResponse = ApiResp<'/api/operations/housing'>;
+export type OperationsPeriodResponse = ApiResp<'/api/operations/vehicles/period-report'>;
+export type OperationsFuelResponse = ApiResp<'/api/operations/fuel-cards'>;
 type RawRiderAccountItem = Exclude<ApiResp<'/api/riders/{iqama}/accounts'>['items'][number], Record<string, never>>;
 export type RiderAccountRow = Omit<Partial<UnionToIntersection<RawRiderAccountItem>>, 'assignments'> & {
   id?: string;
@@ -1328,6 +1332,98 @@ export const api = {
     if (params?.q) p.set('q', params.q);
     const qs = p.toString() ? `?${p.toString()}` : '';
     return handleRequest<OperationsResponse>(`/operations/${encodeURIComponent(kind)}${qs}`);
+  },
+
+  getOperationsCities: (params?: { q?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.q) p.set('q', params.q);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return handleRequest<OperationsFleetListResponse>(`/operations/cities-summary${qs}`);
+  },
+  getOperationsCity: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/operations/cities/${encodeURIComponent(id)}`),
+  getOperationsHousing: (params?: { page?: number; pageSize?: number; q?: string; city?: string; status?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.page) p.set('page', String(params.page));
+    if (params?.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params?.q) p.set('q', params.q);
+    if (params?.city) p.set('city', params.city);
+    if (params?.status) p.set('status', params.status);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return handleRequest<OperationsHousingResponse>(`/operations/housing${qs}`);
+  },
+  getOperationsHousingRooms: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/operations/housing/${encodeURIComponent(id)}/rooms`),
+  getOperationsPeriodReport: (params: { from: string; to: string; mode?: 'vehicle' | 'rider'; page?: number; pageSize?: number; q?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.mode) p.set('mode', params.mode);
+    if (params.page) p.set('page', String(params.page));
+    if (params.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params.q) p.set('q', params.q);
+    return handleRequest<OperationsPeriodResponse>(`/operations/vehicles/period-report?${p.toString()}`);
+  },
+  getOperationsVehicle: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/operations/vehicles/${encodeURIComponent(id)}`),
+  getOperationsOilChanges: (id: string) =>
+    handleRequest<{ items: Record<string, unknown>[]; total: number; summary?: Record<string, unknown> }>(
+      `/operations/vehicles/${encodeURIComponent(id)}/oil-changes`
+    ),
+  getOperationsPurchaseInvoices: (params: { from: string; to: string; page?: number; pageSize?: number; q?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.page) p.set('page', String(params.page));
+    if (params.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params.q) p.set('q', params.q);
+    return handleRequest<{ items: Record<string, unknown>[]; total: number; summary?: Record<string, unknown>; source?: string; asOf?: string; allowedActions?: string[] }>(
+      `/operations/vehicles/purchase-invoices?${p.toString()}`
+    );
+  },
+  getOperationsFuelCards: (params?: { month?: string; provider?: string; page?: number; pageSize?: number; q?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.month) p.set('month', params.month);
+    if (params?.provider) p.set('provider', params.provider);
+    if (params?.page) p.set('page', String(params.page));
+    if (params?.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params?.q) p.set('q', params.q);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return handleRequest<OperationsFuelResponse>(`/operations/fuel-cards${qs}`);
+  },
+  getOperationsFuelAssignments: (params: { from: string; to: string; page?: number; pageSize?: number }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.page) p.set('page', String(params.page));
+    if (params.pageSize) p.set('pageSize', String(params.pageSize));
+    return handleRequest<{ items: Record<string, unknown>[]; total: number; summary?: Record<string, unknown>; source?: string; asOf?: string; allowedActions?: string[] }>(
+      `/operations/fuel-cards/assignments?${p.toString()}`
+    );
+  },
+  exportOperationsCities: () => fetch('/api/operations/cities-summary/export', { credentials: 'include' }),
+  exportOperationsHousing: (params?: { q?: string; city?: string; status?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.q) p.set('q', params.q);
+    if (params?.city) p.set('city', params.city);
+    if (params?.status) p.set('status', params.status);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return fetch(`/api/operations/housing/export${qs}`, { credentials: 'include' });
+  },
+  exportOperationsPeriod: (params: { from: string; to: string; mode?: string; detail?: 'summary' | 'detailed' }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.mode) p.set('mode', params.mode);
+    if (params.detail) p.set('detail', params.detail);
+    return fetch(`/api/operations/vehicles/period-report/export?${p.toString()}`, { credentials: 'include' });
+  },
+  exportOperationsFuel: (params?: { month?: string; provider?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.month) p.set('month', params.month);
+    if (params?.provider) p.set('provider', params.provider);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return fetch(`/api/operations/fuel-cards/export${qs}`, { credentials: 'include' });
   },
 
   getRiderAccounts: (iqama: string, params?: { page?: number; pageSize?: number }) => {
