@@ -36,7 +36,7 @@ public static class SchemaPayAllocation
             CONSTRAINT PK_pay_payment {SchemaSql.PrimaryKey(c)} (id),
             CONSTRAINT UQ_payment_no UNIQUE (payment_no),
             CONSTRAINT UQ_payment_scope UNIQUE (id,company_id,period_month),
-            CONSTRAINT CK_payment_amount CHECK (amount>=0),
+            CONSTRAINT CK_payment_amount CHECK (amount>0),
             CONSTRAINT CK_payment_currency CHECK (currency_code='SAR'),
             CONSTRAINT CK_payment_status CHECK (status IN (1,2,3,4)),
             CONSTRAINT CK_payment_flags CHECK (run_mode IN (0,1) AND payout_blocked IN (0,1)),
@@ -115,6 +115,10 @@ public static class SchemaPayAllocation
                 """);
     }
 
+    /// <summary>Active (reserved or posted) claims on one payment, rounded like the stored money values.</summary>
+    static string ClaimedOn(DbConnection c,string paymentId)=>
+        $"round(COALESCE((SELECT SUM(amount) FROM {SchemaSql.Q(c,"pay","payment_allocation")} WHERE payment_id={paymentId} AND claim_status IN (1,2)),0),2)";
+
     static void EnsureClaims(DbConnection c,DbTransaction? tx)
     {
         string a=SchemaSql.Q(c,"pay","payment_allocation"),p=SchemaSql.Q(c,"pay","payable"),payment=SchemaSql.Q(c,"pay","payment");
@@ -140,10 +144,25 @@ public static class SchemaPayAllocation
                            COALESCE(SUM(CASE WHEN a.claim_status=2 THEN a.amount ELSE 0 END),0) paid
                     FROM {a} a WHERE a.payable_id=p.id) s
                   WHERE p.id IN (SELECT payable_id FROM inserted UNION SELECT payable_id FROM deleted);
+                  SELECT @locked=p.id FROM {payment} p WITH (UPDLOCK,HOLDLOCK) WHERE p.id IN (SELECT payment_id FROM inserted);
+                  IF EXISTS(SELECT 1 FROM inserted i LEFT JOIN deleted d ON d.id=i.id JOIN {payment} p ON p.id=i.payment_id
+                    WHERE i.claim_status IN (1,2) AND (d.id IS NULL OR d.claim_status<>i.claim_status) AND p.status IN (3,4))
+                    THROW 51019,'Reversed or cancelled payment cannot receive claims',1;
+                  IF EXISTS(SELECT 1 FROM {payment} p WHERE p.id IN (SELECT payment_id FROM inserted)
+                    AND p.amount<(SELECT COALESCE(SUM(x.amount),0) FROM {a} x WHERE x.payment_id=p.id AND x.claim_status IN (1,2)))
+                    THROW 51020,'Claims exceed payment amount',1;
+                END;
+                """);
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER pay.TR_payment_claim_cover ON {payment} AFTER UPDATE AS
+                BEGIN
+                  SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM inserted p
+                    WHERE p.amount<(SELECT COALESCE(SUM(x.amount),0) FROM {a} x WHERE x.payment_id=p.id AND x.claim_status IN (1,2)))
+                    THROW 51020,'Claims exceed payment amount',1;
                 END;
                 """);
             SchemaSql.Exec(c,tx,$"CREATE OR ALTER TRIGGER pay.TR_allocation_no_delete ON {a} INSTEAD OF DELETE AS BEGIN THROW 51002,'Cancel or release allocations instead of deleting',1; END;");
-
         }
         else
         {
@@ -160,11 +179,13 @@ public static class SchemaPayAllocation
                         amount_paid=round(COALESCE((SELECT SUM(amount) FROM {a} WHERE payable_id={p}.id AND claim_status=2),0),2)
                         WHERE id IN ({targets});
                       UPDATE {p} SET status=CASE WHEN status=4 THEN 4 WHEN amount_paid=amount_due AND amount_paid>0 THEN 3 WHEN amount_reserved+amount_paid>0 THEN 2 ELSE 1 END WHERE id IN ({targets});
+                      SELECT RAISE(ABORT,'Reversed or cancelled payment cannot receive claims') WHERE {fresh} AND (SELECT status FROM {payment} WHERE id=NEW.payment_id) IN (3,4);
+                      SELECT RAISE(ABORT,'Claims exceed payment amount') WHERE {ClaimedOn(c,"NEW.payment_id")}>(SELECT amount FROM {payment} WHERE id=NEW.payment_id);
                     END;
                     """);
             }
+            SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_payment_claim_cover AFTER UPDATE OF amount ON {payment} BEGIN SELECT RAISE(ABORT,'Claims exceed payment amount') WHERE {ClaimedOn(c,"NEW.id")}>NEW.amount; END;");
             SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_allocation_no_delete BEFORE DELETE ON {a} BEGIN SELECT RAISE(ABORT,'Cancel or release allocations instead of deleting'); END;");
-
         }
     }
 }

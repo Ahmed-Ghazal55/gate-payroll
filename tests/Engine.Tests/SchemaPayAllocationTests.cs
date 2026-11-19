@@ -90,6 +90,32 @@ public sealed class SchemaPayAllocationTests
         Assert.AreEqual(100m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT available_balance FROM pay_payable WHERE id=@id",("@id",payable))));
     }
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void ClaimsStayWithinAPositiveLivePayment(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Payments(sqlServer);string company=MoneySchemaFixture.Company(c);
+        string first=MoneySchemaFixture.Payable(c,company),second=MoneySchemaFixture.Payable(c,company),payment=MoneySchemaFixture.Payment(c,company);
+        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET amount=0 WHERE id=@id",("@id",payment)),"CK_payment_amount");
+        MoneySchemaFixture.Claim(c,company,payment,first,60);
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,second,50)); // each payable has room; the payment (100) does not
+        string b=MoneySchemaFixture.Claim(c,company,payment,second,40);
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET amount=90 WHERE id=@id",("@id",payment)));
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",b));
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET amount=90 WHERE id=@id",("@id",payment));
+        foreach(int status in new[]{3,4})
+        {
+            string closed=MoneySchemaFixture.Payment(c,company),held=MoneySchemaFixture.Claim(c,company,closed,second,10);
+            MoneySchemaFixture.Exec(c,null,$"UPDATE pay_payment SET status={status} WHERE id=@id",("@id",closed));
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,closed,second,10));
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",held)));
+            MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",held));
+        }
+        Assert.AreEqual(60m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT amount_reserved FROM pay_payable WHERE id=@id",("@id",first))));
+        Assert.AreEqual(0m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT amount_reserved FROM pay_payable WHERE id=@id",("@id",second))));
+    }
+
+    [TestMethod]
     public void StartupCreatesPaymentAndAllocationParents()
     {
         string dir=Path.Combine(Path.GetTempPath(),"gate-alloc-"+Guid.NewGuid().ToString("N"));
