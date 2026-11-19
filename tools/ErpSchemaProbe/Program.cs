@@ -11,13 +11,11 @@ using Microsoft.Data.SqlClient;
 string home=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 string outPath=args.SkipWhile(a=>a!="--out").Skip(1).FirstOrDefault()
     ??Path.Combine(Directory.GetCurrentDirectory(),"docs/data/erp-schema.snapshot.json");
-bool local=args.Contains("--local-copy");
+if(args.Contains("--local-copy")){Console.Error.WriteLine("error=local_copy_removed");return 2;}
 string sourceFile=args.SkipWhile(a=>a!="--source-env").Skip(1).FirstOrDefault()
     ??Path.Combine(home,"Private/gate-data/erp-readonly.env");
 
-using var source=local
-    ?Connections.LocalCopy()
-    :Connections.Source(Connections.Env(sourceFile,"ERP_READONLY_DB"));
+using var source=Connections.Source(Connections.Env(sourceFile,"ERP_READONLY_DB"));
 source.Open();
 SourceReader.VerifyReadOnly(source);
 

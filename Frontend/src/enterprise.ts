@@ -122,7 +122,7 @@ async function enterpriseView(view:string):Promise<string>{
   ]);
   cache.riders=riders;cache.policies=policies;cache.riderQuality=quality;
   const kpiStrip=`<div class="stats" style="margin-bottom:14px">
-   <div class="stat"><div class="label">إجمالي المناديب المسجلين</div><strong class="number">${riders.length}</strong><div class="hint">${quality.localBaselineAvailable?'الدليل المرجعي المدمج (826 مندوب) متاح للمزامنة':'هوية فعلية واحدة لكل مندوب'}</div></div>
+   <div class="stat"><div class="label">إجمالي المناديب المسجلين</div><strong class="number">${riders.length}</strong><div class="hint">${'هوية فعلية واحدة لكل مندوب'}</div></div>
    <div class="stat"><div class="label">نواقص الجوال والمدينة</div><strong class="number ${quality.missingPhoneCount+quality.missingCityCount>0?'money-negative':'money-positive'}">${quality.missingPhoneCount} جوال · ${quality.missingCityCount} مدينة</strong><div class="hint">قابلة للاستكمال التلقائي من المصادر</div></div>
    <div class="stat"><div class="label">نواقص الكفيل والآيبان</div><strong class="number">${quality.missingSponsorCount} كفيل · ${quality.missingIbanCount} آيبان</strong><div class="hint">مربوطة بالسجلات التجارية الثلاثة</div></div>
    <div class="stat"><div class="label">حالات تحتاج مراجعة</div><strong class="number ${quality.needsReviewCount>0?'money-negative':'money-positive'}">${quality.needsReviewCount}</strong><div class="hint">مناديب مستوردون أو قيد استكمال الملف</div></div>
@@ -131,7 +131,7 @@ async function enterpriseView(view:string):Promise<string>{
    'دليل المناديب وملفاتهم الوثائقية 360°',
    'هوية فعلية واحدة، مع الفصل بين الكفالة والعلاقة التشغيلية والسياسة المالية، واستكمال آلي للبيانات المفقودة وأرشيف الوثائق السبع.',
    userRole==='Admin'||userRole==='SuperAdmin'
-    ? `<button data-action="rider-new">＋ إضافة مندوب</button>${excelControls('riders')}<button class="secondary" data-enterprise="rider-enrich">⚡ جلب واستكمال البيانات المفقودة</button><button class="secondary" data-enterprise="baseline">مزامنة الدليل المرجعي (826 مندوب)</button>`
+    ? `<button data-action="rider-new">＋ إضافة مندوب</button>${excelControls('riders')}<button class="secondary" data-enterprise="rider-enrich">⚡ جلب واستكمال البيانات المفقودة</button>`
     : ''
   )+kpiStrip+`<div class="panel">${table(
    ['المندوب','الإقامة','الجنسية','الجوال','العلاقة','الكفيل','المدينة','نوع المركبة','رخصة القيادة','الحالة','سياسة الحساب','الرد المختار',''],
@@ -1305,46 +1305,9 @@ function promissoryNewDialog(){
 }
 
 async function baselineDialog(){
- modal('مزامنة الدليل المرجعي واسترجاع بيانات المناديب (826 مندوب)',`
-  <div class="notice">
-   يمكنك المزامنة مباشرة من <strong>ملف الدليل المرجعي المدمج في الخادم (826 مندوب مطهر وموحد من 6 ملفات رسمية)</strong> بضغطة زر، أو رفع ملف <code>riders-baseline.json</code> خارجي. يُستبعد الإداريون (36 موظفاً) تلقائياً، وتُستكمل الحقول الفارغة للمناديب الحاليين دون استبدال بياناتهم المعتمدة.
-  </div>
-  <div class="actions" style="margin:12px 0">
-   <button type="button" class="good" id="baseline-local-preview">⚡ معاينة ومزامنة الدليل المرجعي المدمج (826 مندوب)</button>
-  </div>
-  <hr>
-  <p class="muted small">أو ارفع ملف JSON خارجي من جهازك:</p>
-  <input id="baseline-file" type="file" accept=".json">
-  <button id="baseline-preview" class="secondary">معاينة الملف المرفوع</button>
-  <div id="baseline-result" style="margin-top:12px"></div>
- `);
- const renderPreview=(result:any,payload:any)=>{
-  $('#baseline-result').innerHTML=`<div class="notice">${result.total} مندوب · ${result.excludedAdministrative} إداري مستبعد · ${result.addCount} إضافة جديدة · ${result.updateCount||0} استكمال حقول مفقودة · ${result.conflicts?.length||0} تعارض محفوظ دون استبدال · ${result.existingCount} موجود مسبقاً · ${result.errors.length} خطأ</div>${result.errors.map((x:any)=>`<p>الصف ${x.row}: ${esc(x.error)}</p>`).join('')}<button id="baseline-commit" class="good" ${result.errors.length?'disabled':''}>تأكيد الاستيراد واستكمال البيانات</button>`;
-  $('#baseline-commit').onclick=async()=>{
-   try{
-    const done=await api('/riders/sync-baseline',{...payload,mode:'commit',fingerprint:result.fingerprint});
-    $('#modal').close();
-    await show('riders');
-    toast(`تمت مزامنة الدليل بنجاح: أُضيف ${done.count||0} مندوب واستُكمل ${done.updatedCount||0} سجل`);
-   }catch(e:any){toast(e.message,true);}
-  };
- };
- $('#baseline-local-preview').onclick=async()=>{
-  try{
-   const result=await api('/riders/sync-baseline',{useLocalBaseline:true,mode:'preview'});
-   renderPreview(result,{useLocalBaseline:true});
-  }catch(e:any){toast(e.message,true);}
- };
- $('#baseline-preview').onclick=async()=>{
-  try{
-   const file=$('#baseline-file').files[0];
-   if(!file)throw Error('اختر الملف');
-   const riders=JSON.parse(await file.text());
-   const result=await api('/riders/sync-baseline',{riders,mode:'preview'});
-   renderPreview(result,{riders});
-  }catch(e:any){toast(e.message,true);}
- };
+ toast('مزامنة الدليل المرجعي أُلغيت (S1)؛ استخدم استكمال الحقول أو القراءة المباشرة من نظام عمر.',true);
 }
+
 
 async function riderProfile360Dialog(iqama:string){
  const p=await api(`/riders/${encodeURIComponent(iqama)}/profile-360`);

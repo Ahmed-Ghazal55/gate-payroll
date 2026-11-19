@@ -15,21 +15,15 @@ public static class Connections
     }
     public static SqlConnection Source(string connection)
     {
-        var b=new SqlConnectionStringBuilder(connection){ConnectTimeout=20,ApplicationName="GateERP.ReadOnlyImport"};
-        bool local=b.InitialCatalog=="erp_copy"&&System.Text.RegularExpressions.Regex.IsMatch(b.DataSource,@"^(tcp:)?(localhost|127\.0\.0\.1)(,[0-9]+)?$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var b=new SqlConnectionStringBuilder(connection){ConnectTimeout=20,ApplicationName="GateERP.ReadOnly"};
         bool live=b.InitialCatalog=="db67927"&&b.UserID=="db67927_readonly";
-        if(!local&&!live)throw new ImportFailure("unapproved_source");
+        if(!live)throw new ImportFailure("unapproved_source");
         b.ApplicationIntent=ApplicationIntent.ReadOnly;b.Encrypt=true;return new SqlConnection(b.ConnectionString);
     }
-    public static SqlConnection LocalCopy()
+    /// <summary>Payroll staging DB only (reporting tools). Not an ERP copy or sync target.</summary>
+    public static SqlConnection Staging(string envPath)
     {
-        string password=Env(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Private/gate-data/mssql/.env"),"MSSQL_SA_PASSWORD");
-        return Source(new SqlConnectionStringBuilder{DataSource="127.0.0.1,15443",InitialCatalog="erp_copy",UserID="sa",Password=password,Encrypt=true,TrustServerCertificate=true}.ConnectionString);
-    }
-    public static SqlConnection Target(string envPath)
-    {
-        var b=new SqlConnectionStringBuilder(Env(envPath,"STAGING_DB")){ConnectTimeout=20,CommandTimeout=600,ApplicationName="GateERP.StagingImport"};
-        // Ghazal approved this exact catalog; never accept a production/other target.
+        var b=new SqlConnectionStringBuilder(Env(envPath,"STAGING_DB")){ConnectTimeout=20,CommandTimeout=600,ApplicationName="GatePayroll.Staging"};
         if(b.InitialCatalog!="db77738")throw new ImportFailure("unapproved_target");
         b.Encrypt=true;return new SqlConnection(b.ConnectionString);
     }

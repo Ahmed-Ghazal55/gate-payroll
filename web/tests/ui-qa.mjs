@@ -31,42 +31,7 @@ function startStaticServer(port = 39823) {
       }
       if (reqPath === '/api/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, jobs: { enabled: true } }));
-        return;
-      }
-      if (reqPath === '/api/system/jobs/erp-sync/dry-run' || reqPath === '/api/system/jobs/erp-sync/run') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ jobId: '123456' }));
-        return;
-      }
-      if (reqPath === '/api/system/jobs/erp-sync/123456') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          jobId: '123456',
-          status: 'completed',
-          mode: 'dry_run',
-          queuedAt: new Date().toISOString(),
-          startedAt: new Date().toISOString(),
-          finishedAt: new Date().toISOString(),
-          counts: [
-            { kind: 'riders', source: 'ERP', new: 4, changed: 2, unchanged: 180, rejected: 0 },
-            { kind: 'companies', source: 'ERP', new: 1, changed: 0, unchanged: 12, rejected: 0 },
-          ]
-        }));
-        return;
-      }
-      if (reqPath === '/api/system/erp-sync') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify([
-          {
-            id: 'erp-sync-run-1',
-            startedAt: new Date().toISOString(),
-            finishedAt: new Date().toISOString(),
-            status: 'completed',
-            mode: 'dry_run',
-            counts: [{ kind: 'riders', new: 4, changed: 2, unchanged: 180, rejected: 0 }]
-          }
-        ]));
+        res.end(JSON.stringify({ ok: true }));
         return;
       }
       if (reqPath === '/api/notifications/summary') {
@@ -691,7 +656,6 @@ async function run() {
       { name: 'debts', path: '/debts/' },
       { name: 'companies', path: '/companies/' },
       { name: 'treasury', path: '/treasury/' },
-      { name: 'imports', path: '/imports/' },
       { name: 'operations', path: '/operations/' },
       { name: 'forms', path: '/forms/' },
       { name: 'rider-app', path: '/rider-app/' },

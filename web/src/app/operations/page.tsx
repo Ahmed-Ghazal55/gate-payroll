@@ -14,7 +14,6 @@ import {
   RefreshCw,
   Search,
   X,
-  Upload,
   AlertTriangle,
   Clock,
   Layers,
@@ -484,13 +483,6 @@ function OperationsPageInner() {
         <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[var(--line)]">
           {source && <SourceBadge source={source} asOf={asOf} />}
 
-          <Link
-            href="/imports/"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] transition"
-          >
-            <Upload size={13} />
-            <span>مركز الاستيراد</span>
-          </Link>
         </div>
       </PageHeader>
 

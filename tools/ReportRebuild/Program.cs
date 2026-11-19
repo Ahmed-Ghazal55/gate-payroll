@@ -10,7 +10,7 @@ try
     if(modes.Count>1||args.Any(a=>a is not ("--dry-run" or "--check" or "--commit")))throw new ImportFailure("invalid_arguments");
     string mode=modes.SingleOrDefault()??"--dry-run";
     string path=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Private/gate-data/staging.env");
-    using var c=Connections.Target(path);c.Open();using var tx=c.BeginTransaction(IsolationLevel.Serializable);
+    using var c=Connections.Staging(path);c.Open();using var tx=c.BeginTransaction(IsolationLevel.Serializable);
     if(mode=="--commit")
     {
         using(var guard=Store.Command(c,tx,"DECLARE @r int; EXEC @r=sp_getapplock @Resource='GatePayroll.DocumentWrite',@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000; IF @r<0 THROW 51000,'Reporting transaction busy',1;"))guard.ExecuteNonQuery();

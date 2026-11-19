@@ -20,7 +20,7 @@ Operations screens read logistics ERP live. Payroll calculation and approval mus
 ## Non-Goals
 
 - Invoice / pay-terms seal (sibling later).
-- Full ERP mirror / re-enabling `ErpSyncJob` (TODO remains in `JobsSchedule.cs`).
+- Full ERP mirror / Hangfire sync jobs (removed in S1; see `docs/ops/HANGFIRE.md`).
 - UI that calls capture (**U2**). **L2 must not deploy before U2.**
 - Writing to ERP.
 
