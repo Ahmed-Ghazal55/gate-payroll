@@ -177,15 +177,36 @@ function SidebarInner({
       icon: <Smartphone size={18} />,
       defaultHref: '/rider-app/?tab=campaigns',
       badge: pendingResponsesCount > 0 ? pendingResponsesCount : undefined,
-      permission: ['forms.view', 'mobile.sessions', 'mobile.broadcast'],
+      permission: [
+        'forms.view',
+        'forms.review',
+        'mobile.sessions',
+        'mobile.broadcast',
+        'mobile.complaints.confidential',
+        'riders.iban_data.approve_first',
+        'riders.iban_data.approve_second',
+        'inquiry.issue',
+      ],
       items: [
         { id: 'app-campaigns', href: '/rider-app/?tab=campaigns', label: 'الحملات والروابط', permission: 'forms.view' },
         { id: 'app-responses', href: '/rider-app/?tab=responses', label: 'مراجعة الردود', permission: 'forms.view' },
         { id: 'app-builder', href: '/rider-app/?tab=builder', label: 'مصمم النماذج', permission: 'forms.view' },
-        { id: 'app-accounts', href: '/rider-app/?tab=accounts', label: 'الحسابات والأجهزة', permission: 'mobile.sessions' },
+        { id: 'app-accounts', href: '/rider-app/?tab=accounts', label: 'الحسابات والأجهزة', permission: ['mobile.sessions', 'inquiry.issue'] },
         { id: 'app-broadcasts', href: '/rider-app/?tab=broadcasts', label: 'الإشعارات والإرسال', permission: 'mobile.broadcast' },
         { id: 'app-statements', href: '/rider-app/?tab=statements', label: 'إرسال كشوف الحساب', permission: 'mobile.broadcast' },
-        { id: 'app-requests', href: '/rider-app/?tab=requests', label: 'الطلبات والمواعيد', permission: ['mobile.broadcast', 'forms.view', 'forms.review'] },
+        {
+          id: 'app-requests',
+          href: '/rider-app/?tab=requests',
+          label: 'الطلبات والمواعيد',
+          permission: [
+            'mobile.broadcast',
+            'forms.view',
+            'forms.review',
+            'mobile.complaints.confidential',
+            'riders.iban_data.approve_first',
+            'riders.iban_data.approve_second',
+          ],
+        },
         { id: 'app-settings', href: '/rider-app/?tab=settings', label: 'إعدادات التطبيق', permission: 'admin.only' },
       ],
     },
@@ -310,7 +331,7 @@ function SidebarInner({
                 } ${collapsed ? 'p-2 justify-center' : 'px-2.5 py-2'}`}
               >
                 <Link
-                  href={group.defaultHref}
+                  href={group.items[0]?.href ?? group.defaultHref}
                   onClick={onCloseMobile}
                   title={collapsed ? group.label : undefined}
                   className={`flex items-center gap-2.5 flex-1 min-w-0 ${

@@ -88,7 +88,9 @@ export function FormsPanel({ tab, subtab }: { tab: 'campaigns' | 'responses' | '
     );
   }
 
-  const openCampaigns = campaigns.filter((c) => c.status !== 'closed').length;
+  const openCampaigns = campaigns.filter(
+    (c) => c.status === 'open' && (!c.expiresAt || new Date(c.expiresAt).getTime() > Date.now())
+  ).length;
   const pending = submissions.filter((s) => s.status === 'pending').length;
 
   return (

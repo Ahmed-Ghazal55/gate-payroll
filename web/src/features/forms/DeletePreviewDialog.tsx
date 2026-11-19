@@ -154,7 +154,7 @@ export function DeletePreviewDialog({
               <span className="num font-bold text-[var(--ink)]">{previewData.responseCount}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[var(--muted)]">بصمة التحقق (Fingerprint):</span>
+              <span className="text-[var(--muted)]">بصمة التحقق:</span>
               <span className="num font-mono text-[10px] text-[var(--muted)] truncate max-w-[200px]" title={previewData.fingerprint}>
                 {previewData.fingerprint.slice(0, 16)}...
               </span>

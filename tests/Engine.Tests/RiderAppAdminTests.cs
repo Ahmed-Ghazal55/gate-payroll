@@ -159,14 +159,61 @@ public sealed class RiderAppAdminTests
         string bw = FinancialCore.ResolveSponsor("BW").Id;
         var forms = Staff("syn-f", bw, "forms.view");
         var broadcaster = Staff("syn-b", bw, "mobile.broadcast");
+        var sessions = Staff("syn-s", bw, "mobile.sessions", "inquiry.issue");
+        var ibanApprover = Staff("syn-ia", bw, RiderAsks.IbanDataApproveFirstPermission);
         Assert.IsTrue(AccessPolicy.Allowed(forms, "GET", "/api/rider-mobile/service-requests"));
         Assert.IsTrue(AccessPolicy.Allowed(forms, "GET", "/api/rider-mobile/service-requests/summary"));
         Assert.IsFalse(AccessPolicy.Allowed(forms, "POST", "/api/rider-mobile/service-requests/sreq:x/decide"));
+        Assert.IsTrue(AccessPolicy.Allowed(forms, "GET", "/api/forms/builder"), "builder list is forms.view");
+        Assert.IsFalse(AccessPolicy.Allowed(forms, "POST", "/api/forms/builder"), "builder writes stay forms.manage");
+        Assert.IsTrue(AccessPolicy.Allowed(forms, "POST", "/api/excel/export"));
         Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "GET", "/api/rider-mobile/broadcasts"));
         Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "POST", "/api/rider-mobile/broadcast"));
         Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "POST", "/api/rider-mobile/statements/notify-period"));
+        Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "GET", "/api/finance/statement/rider/2000000991/monthly"));
+        Assert.IsTrue(AccessPolicy.CanAccessRiderMonthlyStatement(broadcaster));
+        Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "POST", "/api/excel/export"));
+        Assert.IsTrue(RiderLookup.Allowed(broadcaster));
+        Assert.IsTrue(RiderLookup.Allowed(sessions));
+        Assert.IsTrue(AccessPolicy.Allowed(ibanApprover, "GET", "/api/rider-mobile/service-requests"));
         Assert.IsFalse(AccessPolicy.Allowed(broadcaster, "GET", "/api/rider-mobile/firebase-config"), "settings stay Admin only");
         Assert.IsFalse(AccessPolicy.Allowed(forms, "POST", "/api/inquiry-access"));
+        Assert.IsTrue(AccessPolicy.Allowed(sessions, "POST", "/api/inquiry-access"));
+    }
+
+    [TestMethod]
+    public void BroadcastOnlyMayReadApprovedMonthlyPreviewButNotDraft()
+    {
+        string bw = FinancialCore.ResolveSponsor("BW").Id;
+        var broadcaster = Staff("syn-b-stmt", bw, "mobile.broadcast");
+        AccessPolicy.DemandRiderMonthlyStatement(broadcaster, approvedOnly: true);
+        Assert.AreEqual(403, Assert.ThrowsExactly<ApiError>(() =>
+            AccessPolicy.DemandRiderMonthlyStatement(broadcaster, approvedOnly: false)).Status);
+        var finance = Staff("syn-fin-stmt", bw, "pay.view", "payroll.view", "debts.view");
+        AccessPolicy.DemandRiderMonthlyStatement(finance, approvedOnly: false);
+    }
+
+    [TestMethod]
+    public void ReplyMasksIbanAndRejectsClosedRequestsAndDecideIsTypeScoped()
+    {
+        WithStore(store =>
+        {
+            Seed(store, out string bw, out _);
+            var reviewer = Staff("syn-forms-rev", bw, "forms.review", "mobile.broadcast");
+            var replied = store.Write((c, tx) => RiderAsks.StaffReplyServiceRequest(c, tx, reviewer, "sreq:iban-bw", new() { ["message"] = "نحتاج صورة الآيبان" }));
+            Assert.AreEqual("••••7519", replied["payload"]!.AsObject().S("iban"), "reply must not leak full IBAN without IBAN permission");
+            Assert.AreEqual("SA0380000000608010167519", store.Read(c => Store.Get(c, "sreq:iban-bw", RiderAsks.ServiceKind))!["payload"]!.AsObject().S("iban"));
+
+            Assert.AreEqual(409, Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.StaffReplyServiceRequest(c, tx, reviewer, "sreq:done-bw", new() { ["message"] = "رد متأخر" }))).Status);
+
+            var confidentialOnly = Staff("syn-conf-only", bw, "mobile.complaints.confidential");
+            Assert.AreEqual(403, Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, confidentialOnly, "sreq:leave-bw", new() { ["action"] = "approve" }))).Status,
+                "confidential alone must not approve annual leave");
+            Assert.IsFalse(RiderAsks.CanDecideType(confidentialOnly, new() { ["requestType"] = "annual_leave" }));
+            Assert.IsTrue(RiderAsks.CanDecideType(reviewer, new() { ["requestType"] = "annual_leave" }));
+        });
     }
 
     [TestMethod]
@@ -175,5 +222,19 @@ public sealed class RiderAppAdminTests
         Assert.AreEqual(("RJHI", "مصرف الراجحي"), BankPayrollFiles.ExportBank("SA03 8000 0000 6080 1016 7519"));
         Assert.AreEqual(("", ""), BankPayrollFiles.ExportBank(""));
         Assert.AreEqual(("", ""), BankPayrollFiles.ExportBank("GB00X"));
+    }
+
+    [TestMethod]
+    public void ExcelExportSplitsIbanIntoOneBankCodeAndNamePair()
+    {
+        var (headers, rows, numeric) = TableExcelApi.SplitIbanColumns(
+            ["الاسم", "الآيبان", "المبلغ"],
+            [ ["مندوب تجريبي", "SA03 8000 0000 6080 1016 7519", "1500"] ],
+            [2]);
+        CollectionAssert.AreEqual(new[] { "الاسم", "الآيبان", "كود البنك", "اسم البنك", "المبلغ" }, headers);
+        Assert.AreEqual(1, headers.Count(h => h == "كود البنك"));
+        Assert.AreEqual(1, headers.Count(h => h == "اسم البنك"));
+        CollectionAssert.AreEqual(new object?[] { "مندوب تجريبي", "SA0380000000608010167519", "RJHI", "مصرف الراجحي", 1500m }, rows[0]);
+        CollectionAssert.AreEqual(new[] { 4 }, numeric.ToArray());
     }
 }

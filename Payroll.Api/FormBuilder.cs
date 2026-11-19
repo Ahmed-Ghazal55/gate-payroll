@@ -96,7 +96,20 @@ public static class FormBuilderApi
         })).WithTags("Forms and responses").WithSummary("Submit forms builder {id} publish");
         api.MapPost("/forms/builder/{id}/close",(string id,HttpContext ctx)=>store.Write((c,tx)=>{var f=Store.Get(c,id,"custom_form",tx)??throw new ApiError("النموذج غير موجود.",404);f["status"]="closed";Store.Save(c,"custom_form",f,tx);Store.Audit(c,tx,"builder.closed",id,ctx.User.Identity!.Name!);return View(f,ctx);})).WithTags("Forms and responses").WithSummary("Submit forms builder {id} close");
         api.MapGet("/forms/builder/{id}/qr.svg",(string id,HttpContext ctx)=>store.Read(c=>{var f=Store.Get(c,id,"custom_form")??throw new ApiError("النموذج غير موجود.",404);J.Need(f.S("sharingToken")!="","انشر النموذج أولًا.");return Results.Text(CampaignLinks.Svg(View(f,ctx).S("publicUrl")),"image/svg+xml");})).WithTags("Forms and responses").WithSummary("Read forms builder {id} qr.svg");
-        api.MapGet("/forms/responses/{id}",(string id)=>store.Read(c=>Store.List(c,"custom_response").Where(x=>x.S("formId")==id).ToList())).WithTags("Forms and responses").WithSummary("Read forms responses {id}");
+        api.MapGet("/forms/responses/{id}",(string id,HttpContext ctx)=>store.Read(c=>{
+            var form=Store.Get(c,id,"custom_form")??throw new ApiError("النموذج غير موجود.",404);
+            var fields=(form["fields"] as JsonArray)?.OfType<JsonObject>().ToList()??[];
+            string iqamaField=fields.FirstOrDefault(x=>x.S("type")=="iqama")?.S("id")??"";
+            return Store.List(c,"custom_response").Where(x=>x.S("formId")==id).Select(item=>{
+                var row=item.Clone();var answers=(row["answers"] as JsonObject)?.Clone()??new JsonObject();
+                string iqama=answers.S(iqamaField);
+                if(!SubmissionChoices.InRiderScope(c,ctx.User,iqama))return null;
+                if(!AccessPolicy.Has(ctx.User,WorkforceApi.PermIban))
+                    foreach(var f in fields.Where(x=>x.S("type")=="iban"||x.S("id").Contains("iban",StringComparison.OrdinalIgnoreCase)))
+                    { string v=answers.S(f.S("id")); if(v.Length>=4) answers[f.S("id")]="••••"+v[^4..]; else if(v!="") answers[f.S("id")]="••••"; }
+                row["answers"]=answers;return row;
+            }).Where(x=>x!=null).Cast<JsonObject>().ToList();
+        })).WithTags("Forms and responses").WithSummary("Read forms responses {id}");
         api.MapGet("/forms/analytics/{id}",(string id)=>store.Read(c=>Analytics(c,id))).WithTags("Forms and responses").WithSummary("Read forms analytics {id}");
         JsonObject Load(string token,DbConnection c,DbTransaction? tx=null)
         { J.Need(token.Length==64&&token.All(Uri.IsHexDigit),"رابط غير صالح.");var f=Store.List(c,"custom_form",tx).FirstOrDefault(x=>x.S("sharingToken")==token)??throw new ApiError("النموذج غير متاح.",404);J.Need(f.S("status")=="open"&&DateTimeOffset.Parse(f.S("expiresAt"),CultureInfo.InvariantCulture)>DateTimeOffset.UtcNow,"النموذج مغلق.");return f; }

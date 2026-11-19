@@ -80,7 +80,7 @@ export function SettingsPanel({ isAdmin }: { isAdmin: boolean }) {
       </div>
       <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-4 max-w-xl">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-sm">ربط الإشعارات (Firebase)</h3>
+          <h3 className="font-bold text-sm">ربط خدمة إشعارات التطبيق</h3>
           <span className="text-xs font-bold">{cfg.configured ? 'مهيأ' : 'غير مهيأ'}</span>
         </div>
         {input('projectId', 'معرّف المشروع')}

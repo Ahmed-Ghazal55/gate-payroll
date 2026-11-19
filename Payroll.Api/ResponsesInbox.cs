@@ -14,8 +14,9 @@ public static class ResponsesInbox
         if(source is "" or "campaign")
         foreach(var item in Store.List(c,"submission"))
         {
+            if(!SubmissionChoices.InRiderScope(c,user,item.S("iqama")))continue;
             string parent=item.S("campaignId");if(!campaigns.TryGetValue(parent,out var form))continue;
-            var view=SubmissionChoices.PublicAdmin(item);
+            var view=SubmissionChoices.PublicAdmin(item,user);
             var answers=new JsonObject();
             foreach(string field in new[]{"iqama","name","workSystem","city","phone","bankCode","iban","platforms"}.Concat(CampaignOperations.Fields(form)).Distinct())
                 if(view.ContainsKey(field))answers[field]=view[field]?.DeepClone();
@@ -28,7 +29,12 @@ public static class ResponsesInbox
             var fields=(form["fields"] as JsonArray)?.OfType<JsonObject>().ToList()??[];
             string iqamaField=fields.FirstOrDefault(x=>x.S("type")=="iqama")?.S("id")??"";
             var answers=(item["answers"] as JsonObject)?.Clone()??new JsonObject();
-            rows.Add(Row(item,"custom",parent,form.S("titleAr"),answers.S(iqamaField),answers.S("name"),answers,null));
+            string iqama=answers.S(iqamaField);
+            if(!SubmissionChoices.InRiderScope(c,user,iqama))continue;
+            if(!AccessPolicy.Has(user,WorkforceApi.PermIban))
+                foreach(var f in fields.Where(x=>x.S("type")=="iban"||x.S("id").Contains("iban",StringComparison.OrdinalIgnoreCase)))
+                { string v=answers.S(f.S("id")); if(v.Length>=4) answers[f.S("id")]="••••"+v[^4..]; else if(v!="") answers[f.S("id")]="••••"; }
+            rows.Add(Row(item,"custom",parent,form.S("titleAr"),iqama,answers.S("name"),answers,null));
         }
         return rows.Where(r=>(status==""||r.S("status")==status)&&(campaignId==""||r.S("campaignId")==campaignId)).OrderByDescending(r=>r.S("submittedAt"),StringComparer.Ordinal).ThenBy(r=>r.S("id"),StringComparer.Ordinal).ToList();
     }
