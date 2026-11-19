@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:37593/"
+      "url": "http://127.0.0.1:41353/"
     }
   ],
   "paths": {
@@ -17137,37 +17137,7 @@
         "tags": [
           "Debts and advances"
         ],
-        "summary": "Read debts",
-        "parameters": [
-          {
-            "name": "sponsorId",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "category",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "iqama",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "Read debts (array without page; paged envelope when page is set)",
         "responses": {
           "200": {
             "description": "Successful response (stored wire field names)",
@@ -17393,6 +17363,90 @@
         }
       }
     },
+    "/api/debts/summary": {
+      "get": {
+        "tags": [
+          "Debts and advances"
+        ],
+        "summary": "Scoped debt totals for stat cards (SQL aggregates)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "totalCount",
+                    "activeRemainingTotal",
+                    "advanceRemainingTotal",
+                    "pendingOpeningCount",
+                    "pendingOpeningTotal"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "totalCount": {
+                      "type": "number"
+                    },
+                    "activeRemainingTotal": {
+                      "type": "number"
+                    },
+                    "advanceRemainingTotal": {
+                      "type": "number"
+                    },
+                    "pendingOpeningCount": {
+                      "type": "number"
+                    },
+                    "pendingOpeningTotal": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/debts/settlements": {
+      "get": {
+        "tags": [
+          "Debts and advances"
+        ],
+        "summary": "Read debts settlements",
+        "parameters": [
+          {
+            "name": "debtId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "iqama",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JsonObject"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
     "/api/debts/{id}": {
       "get": {
         "tags": [
@@ -17559,46 +17613,6 @@
             }
           }
         }
-      }
-    },
-    "/api/debts/settlements": {
-      "get": {
-        "tags": [
-          "Debts and advances"
-        ],
-        "summary": "Read debts settlements",
-        "parameters": [
-          {
-            "name": "debtId",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "iqama",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JsonObject"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "deprecated": true
       }
     },
     "/api/debts/{id}/collect": {

@@ -1090,14 +1090,61 @@ export const api = {
   // ==========================================
   // Debts & Advances (R3 Part B2)
   // ==========================================
-  getDebts: (params?: { sponsorId?: string; category?: string; status?: string; iqama?: string }) => {
+  getDebts: (
+    params?: {
+      sponsorId?: string;
+      category?: string;
+      status?: string;
+      iqama?: string;
+      q?: string;
+      page?: number;
+      pageSize?: number;
+    },
+    init?: { signal?: AbortSignal }
+  ) => {
     const q = new URLSearchParams();
     if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
     if (params?.category) q.set('category', params.category);
     if (params?.status) q.set('status', params.status);
     if (params?.iqama) q.set('iqama', params.iqama);
+    if (params?.q) q.set('q', params.q);
+    if (params?.page != null) q.set('page', String(params.page));
+    if (params?.pageSize != null) q.set('pageSize', String(params.pageSize));
     const qs = q.toString() ? `?${q.toString()}` : '';
-    return handleRequest<Array<Record<string, unknown>>>(`/debts${qs}`).then((rows) => rows.map(normalizeDebt));
+    return handleRequest<Array<Record<string, unknown>> | PaginatedResult<Record<string, unknown>>>(`/debts${qs}`, {
+      signal: init?.signal,
+    }).then((raw) => {
+      if (params?.page != null) {
+        const page = raw as PaginatedResult<Record<string, unknown>>;
+        const items = Array.isArray(page.items) ? page.items.map(normalizeDebt) : [];
+        return {
+          items,
+          total: Number(page.total ?? items.length),
+          page: Number(page.page ?? params.page),
+          pageSize: Number(page.pageSize ?? params.pageSize ?? 50),
+        } satisfies PaginatedResult<DebtRecord>;
+      }
+      const rows = Array.isArray(raw) ? raw : [];
+      return rows.map(normalizeDebt);
+    });
+  },
+
+  getDebtsSummary: (
+    params?: { sponsorId?: string; category?: string; q?: string },
+    init?: { signal?: AbortSignal }
+  ) => {
+    const q = new URLSearchParams();
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.category) q.set('category', params.category);
+    if (params?.q) q.set('q', params.q);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<{
+      totalCount: number;
+      activeRemainingTotal: number;
+      advanceRemainingTotal: number;
+      pendingOpeningCount: number;
+      pendingOpeningTotal: number;
+    }>(`/debts/summary${qs}`, { signal: init?.signal });
   },
 
   decideOpeningDebts: (input: { ids: string[]; decision: 'approved' | 'rejected'; note?: string }) =>
@@ -1344,7 +1391,11 @@ export const api = {
   getLedger: (iqama: string) =>
     handleRequest<{ balance: number; rows: Array<{ period: string; kind: string; amount: number; sourceRef: string }> }>(`/ledger/${encodeURIComponent(iqama)}`),
   getFinanceCatalog: () =>
-    handleRequest<{ sponsors: any[]; vaults: any[] }>('/finance/catalog'),
+    handleRequest<{
+      sponsors: any[];
+      vaults: any[];
+      categories?: Array<{ code?: string; nameAr?: string; sector?: string }>;
+    }>('/finance/catalog'),
 
   // Admin & Security APIs
   getUsers: () => handleRequest<any[]>('/users'),

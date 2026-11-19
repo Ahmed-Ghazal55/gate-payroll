@@ -2,8 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   debtsLoadKindsForTab,
-  pageSlice,
-  DEBTS_CLIENT_PAGE_SIZE,
+  DEBTS_PAGE_SIZE,
+  debtCategoryOptionsFromCatalog,
 } from '../../src/features/debts/debts-tab-load.ts';
 
 describe('debts tab load (F-D2)', () => {
@@ -25,10 +25,17 @@ describe('debts tab load (F-D2)', () => {
     assert.deepEqual(debtsLoadKindsForTab('promissory'), ['promissory']);
   });
 
-  it('pages a list client-side until the API accepts page params', () => {
-    const items = Array.from({ length: 120 }, (_, i) => i);
-    assert.equal(DEBTS_CLIENT_PAGE_SIZE, 50);
-    assert.deepEqual(pageSlice(items, 1), items.slice(0, 50));
-    assert.deepEqual(pageSlice(items, 3), items.slice(100, 120));
+  it('uses server page size 50 and builds category options from scoped catalog', () => {
+    assert.equal(DEBTS_PAGE_SIZE, 50);
+    const opts = debtCategoryOptionsFromCatalog([
+      { code: 'InternetAdvance', nameAr: 'سلفة إنترنت' },
+      { code: 'CashCustody', nameAr: 'عهدة نقدية' },
+      { code: 'AdministrativeDeduction', nameAr: 'جزاء إداري' },
+    ]);
+    assert.ok(opts.some((o) => o.value === 'all'));
+    assert.ok(opts.some((o) => o.value === 'advance'));
+    assert.ok(opts.some((o) => o.value === 'InternetAdvance'));
+    assert.ok(opts.some((o) => o.value === 'CashCustody'));
+    assert.ok(opts.some((o) => o.value === 'AdministrativeDeduction'));
   });
 });

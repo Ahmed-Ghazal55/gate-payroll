@@ -128,25 +128,11 @@ public static partial class Debts
     }
     public static void Map(RouteGroupBuilder api, Store store)
     {
-        api.MapGet("/debts", (string? sponsorId, string? category, string? status, string? iqama,HttpContext ctx) => store.Read(c =>
-        {
-            var list = Store.List(c, "debt").Where(d=>FinancialScopes.Debt(ctx.User,d)).ToList();
-            if (!string.IsNullOrWhiteSpace(sponsorId))
-            {
-                var spId = FinancialCore.ResolveSponsor(sponsorId).Id;
-                list = list.Where(d => FinancialCore.AssignedDebtSponsor(d)?.Id == spId).ToList();
-            }
-            if (!string.IsNullOrWhiteSpace(category)) list = list.Where(d => d.S("category") == category).ToList();
-            if (!string.IsNullOrWhiteSpace(status)) list = list.Where(d => d.S("status") == status).ToList();
-            if (!string.IsNullOrWhiteSpace(iqama)) list = list.Where(d => d.S("iqama") == iqama.Trim()).ToList();
-            return list.Select(d=>View(c,null,ctx.User,d)).ToList();
-        })).WithTags("Debts and advances").WithSummary("Read debts");
-        api.MapGet("/debts/{id}", (string id,HttpContext ctx) => store.Read(c =>
-        {
-            var d=Store.Get(c,id,"debt")??throw new ApiError("الدين غير موجود.",404);
-            return View(c,null,ctx.User,d);
-        })).WithTags("Debts and advances").WithSummary("Read one debt with allowedActions");
-
+        // SQL filters + optional page/pageSize envelope. Without page, legacy callers still get a JSON array.
+        api.MapGet("/debts", (HttpContext ctx) => store.Read(c => ListPaged(c, ctx.User, ctx.Request.Query)))
+            .WithTags("Debts and advances").WithSummary("Read debts (array without page; paged envelope when page is set)");
+        api.MapGet("/debts/summary", (HttpContext ctx) => store.Read(c => Summary(c, ctx.User, ctx.Request.Query)))
+            .WithTags("Debts and advances").WithSummary("Scoped debt totals for stat cards (SQL aggregates)");
         api.MapGet("/debts/settlements", (string? debtId, string? iqama,HttpContext ctx) => store.Read(c =>
         {
             var list = Store.List(c, "debt_settlement").Where(d=>FinancialScopes.Sponsor(ctx.User,d.S("creditorSponsorId"))&&FinancialScopes.Category(ctx.User,d.S("category"))).ToList();
@@ -154,6 +140,11 @@ public static partial class Debts
             if (!string.IsNullOrWhiteSpace(iqama)) list = list.Where(s => s.S("iqama") == iqama.Trim()).ToList();
             return list;
         })).WithTags("Debts and advances").WithSummary("Read debts settlements");
+        api.MapGet("/debts/{id}", (string id,HttpContext ctx) => store.Read(c =>
+        {
+            var d=Store.Get(c,id,"debt")??throw new ApiError("الدين غير موجود.",404);
+            return View(c,null,ctx.User,d);
+        })).WithTags("Debts and advances").WithSummary("Read one debt with allowedActions");
 
         api.MapPost("/debts", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
