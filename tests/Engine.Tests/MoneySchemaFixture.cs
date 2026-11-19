@@ -79,10 +79,10 @@ internal static class MoneySchemaFixture
         var c=Open(sqlServer);SchemaOrgCostCentre.Ensure(c);SchemaFinAccount.Ensure(c);SchemaFinPeriod.Ensure(c);SchemaFinJournal.Ensure(c);SchemaPayAllocation.Ensure(c);
         return c;
     }
-    public static string Payment(DbConnection c,string company,string month="2026-11-01")
+    public static string Payment(DbConnection c,string company,string month="2026-11-01",string? payer=null)
     {
         string id=Id();
-        Exec(c,null,"INSERT INTO pay_payment(id,payment_no,company_id,period_month,paid_on,amount) VALUES(@id,@id,@company,@month,@month,100)",("@id",id),("@company",company),("@month",month));
+        Exec(c,null,"INSERT INTO pay_payment(id,payment_no,company_id,payer_company_id,period_month,paid_on,amount) VALUES(@id,@id,@company,@payer,@month,@month,100)",("@id",id),("@company",company),("@payer",payer??company),("@month",month));
         return id;
     }
     public static string Invoice(DbConnection c,string company,string? cr=null,string month="2026-11-01")

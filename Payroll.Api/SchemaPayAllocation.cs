@@ -2,6 +2,9 @@ using System.Data.Common;
 namespace Payroll;
 
 /// <summary>U-W1-13b. Design §2.1 / §14 / §16. Triggers own reserved/paid counters atomically;
+/// Ghazal answer 11: payer_company_id is the paying bank/company chosen at bank-file issue. A payment may settle
+/// payables of other companies (per registration or one combined sheet); a claim keeps its payable's company,
+/// so claim.company_id &lt;&gt; payment.payer_company_id marks an inter-company settlement.
 /// future payment writers must not also increment them. No endpoints, backfill or reader switch.</summary>
 public static class SchemaPayAllocation
 {
@@ -26,7 +29,8 @@ public static class SchemaPayAllocation
         string dateInMonth=SchemaSql.IsSql(c)?"paid_on>=period_month AND paid_on<DATEADD(month,1,period_month)":"date(paid_on) IS NOT NULL AND paid_on=date(paid_on) AND paid_on>=period_month AND paid_on<date(period_month,'+1 month')";
         SchemaSql.EnsureTable(c,tx,"pay","payment",$"""
             id {g} NOT NULL, payment_no {SchemaSql.Varchar(c,40)} NOT NULL,
-            company_id {g} NOT NULL, request_id {g} NULL, request_period_month {SchemaSql.Date(c)} NULL,
+            company_id {g} NOT NULL, payer_company_id {g} NOT NULL,
+            request_id {g} NULL, request_period_month {SchemaSql.Date(c)} NULL,
             period_month {SchemaSql.Date(c)} NOT NULL, paid_on {SchemaSql.Date(c)} NOT NULL,
             amount {m} NOT NULL, currency_code {SchemaSql.Varchar(c,3)} NOT NULL DEFAULT 'SAR',
             status {SchemaSql.Tiny(c)} NOT NULL DEFAULT 1,
@@ -36,6 +40,7 @@ public static class SchemaPayAllocation
             CONSTRAINT PK_pay_payment {SchemaSql.PrimaryKey(c)} (id),
             CONSTRAINT UQ_payment_no UNIQUE (payment_no),
             CONSTRAINT UQ_payment_scope UNIQUE (id,company_id,period_month),
+            CONSTRAINT UQ_payment_month UNIQUE (id,period_month),
             CONSTRAINT CK_payment_amount CHECK (amount>0),
             CONSTRAINT CK_payment_currency CHECK (currency_code='SAR'),
             CONSTRAINT CK_payment_status CHECK (status IN (1,2,3,4)),
@@ -43,6 +48,7 @@ public static class SchemaPayAllocation
             CONSTRAINT CK_payment_month CHECK ({SchemaSql.MonthCheck(c)} AND {dateInMonth}),
             CONSTRAINT CK_payment_request_pair CHECK ((request_id IS NULL AND request_period_month IS NULL) OR (request_id IS NOT NULL AND request_period_month IS NOT NULL)),
             CONSTRAINT FK_payment_company FOREIGN KEY (company_id) REFERENCES {SchemaSql.Q(c,"hr","company")}(id) ON DELETE NO ACTION,
+            CONSTRAINT FK_payment_payer FOREIGN KEY (payer_company_id) REFERENCES {SchemaSql.Q(c,"hr","company")}(id) ON DELETE NO ACTION,
             CONSTRAINT FK_payment_request FOREIGN KEY (request_id,company_id,request_period_month) REFERENCES {SchemaSql.Q(c,"pay","payment_request")}(id,company_id,period_month) ON DELETE NO ACTION,
             CONSTRAINT FK_payment_journal FOREIGN KEY (journal_id) REFERENCES {SchemaSql.Q(c,"fin","journal")}(id) ON DELETE NO ACTION
             """);
@@ -61,7 +67,7 @@ public static class SchemaPayAllocation
             CONSTRAINT CK_pay_alloc_status CHECK (claim_status IN (1,2,3,4)),
             CONSTRAINT CK_pay_alloc_month CHECK ({SchemaSql.MonthCheck(c)}),
             CONSTRAINT FK_pay_alloc_payable FOREIGN KEY (payable_id,company_id,payable_period_month) REFERENCES {payable}(id,company_id,period_month) ON DELETE NO ACTION,
-            CONSTRAINT FK_pay_alloc_payment FOREIGN KEY (payment_id,company_id,period_month) REFERENCES {SchemaSql.Q(c,"pay","payment")}(id,company_id,period_month) ON DELETE NO ACTION
+            CONSTRAINT FK_pay_alloc_payment FOREIGN KEY (payment_id,period_month) REFERENCES {SchemaSql.Q(c,"pay","payment")}(id,period_month) ON DELETE NO ACTION
             """);
         foreach(string table in new[]{"payment_request","payment","payment_allocation"})
         {
@@ -71,7 +77,8 @@ public static class SchemaPayAllocation
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_request","IX_payment_request_payable","payable_id,company_id,payable_period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment","IX_payment_request","request_id,company_id,request_period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment","IX_payment_journal","journal_id");
-        SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payment","payment_id,company_id,period_month");
+        SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment","IX_payment_payer","payer_company_id");
+        SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payment","payment_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payable","payable_id,company_id,payable_period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_line","payment_line_id");
         SchemaMoneyFlags.Ensure(c,tx,"pay","payment",o=>$"{o}.status IN (2,3)");

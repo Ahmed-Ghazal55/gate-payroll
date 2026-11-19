@@ -116,6 +116,21 @@ public sealed class SchemaPayAllocationTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void PayingCompanyMaySettleAnotherCompanysPayable(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Payments(sqlServer);string owner=MoneySchemaFixture.Company(c),payer=MoneySchemaFixture.Company(c);
+        string payable=MoneySchemaFixture.Payable(c,owner),payment=MoneySchemaFixture.Payment(c,payer);
+        // Combined sheet: the payer's payment claims the owner's entitlement; the claim keeps the owner's company.
+        string claim=MoneySchemaFixture.Claim(c,owner,payment,payable,40);
+        Assert.AreEqual(40m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT amount_reserved FROM pay_payable WHERE id=@id",("@id",payable))));
+        Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM pay_payment_allocation a JOIN pay_payment p ON p.id=a.payment_id WHERE a.id=@id AND a.company_id<>p.payer_company_id",("@id",claim)));
+        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Claim(c,payer,payment,payable,10),"FK_pay_alloc_payable",sqliteToken:"FOREIGN KEY");
+        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Payment(c,owner,payer:MoneySchemaFixture.Id()),"FK_payment_payer",sqliteToken:"FOREIGN KEY");
+    }
+
+    [TestMethod]
     public void StartupCreatesPaymentAndAllocationParents()
     {
         string dir=Path.Combine(Path.GetTempPath(),"gate-alloc-"+Guid.NewGuid().ToString("N"));
