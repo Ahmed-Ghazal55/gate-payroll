@@ -3,28 +3,30 @@
 | Field | Value |
 |---|---|
 | Current writer | none |
-| Branch | `feat/rider-app-v2` (worktree `/home/ghazal/Projects/active/gate-payroll-rider-app`) |
-| Updated | 2026-11-19 by Cursor (Task M4F: live-safe rider indexes) |
-| Live | unchanged; no push/deploy from this branch |
-| Next | Planner re-review `feat/rider-app-v2` after M4F; Ghazal places `google-services.json` and runs `mobile/scripts/build-debug.sh` |
+| Branch | `chore/s1-remove-sync-hangfire` |
+| Updated | 2026-11-19 by Cursor (S1F fix round done, not pushed) |
+| Live | unchanged (no push/deploy) |
+| Next | Planner/Ghazal review S1+S1F; do **not** drop live Hangfire tables until Ghazal says yes |
 
 ## Goal now
-Rider SQL Server indexes are out of startup; admin maintenance job builds them one-by-one. Ready for planner re-review. Do not push.
+S1F review fixes on the S1 branch: pay-file imports page back, ImportPlan tests restored, role-editor/sync-baseline cleanup.
 
-## Done (Task M4F — 2026-11-19)
-- Startup creates no rider columns/indexes; catalog in `RiderDataIndexes`.
-- Admin `GET/POST /api/system/maintenance/rider-indexes`: free-space check, session app lock, `ops.maintenance_step`, definition verify, `allowedActions`.
-- Queries use allow-listed kind literals + CONVERT expressions matching computed columns.
-- IP rate-limit invalid config → defaults + warning (no crash).
-- Ops notes: `docs/rider-app/RELEASE-NOTES-OPS.md`.
-- Verify: Engine.Tests 583/583 (SQL `gp-m4f-sql:14333` removed); web build+14; mobile 19/19.
+## Done (S1F)
+- HIGH: `web/src/app/imports/page.tsx` catalog uploads; sidebar «استيراد الملفات»; payroll `import_operations` → `/app/imports`.
+- MEDIUM: `tests/Engine.Tests/ImportPlanTests.cs` (6 assertions, no ImportExecutor).
+- LOW: `erp.sync.run` hidden/deprecated in editor; sync-baseline out of contract/e2e; `/api/imports/*` keep note.
+- Commits: `e407495`, `6da0233`, `ef2a5d2`. Report: `~/.cache/agents-runs/cursor-S1F-report.md`.
 
 ## How to verify
 ```bash
+dotnet build Payroll.Api/Payroll.Api.csproj
 dotnet test tests/Engine.Tests/Engine.Tests.csproj -p:SkipFrontendBuild=true
-npm --prefix web run build && npm --prefix web test
-(cd mobile && npm test)
+npm --prefix web run build
 ```
 
-## Do not
-- No merge/deploy/push or live setting change without Ghazal's explicit yes. ERP read-only only.
+## Open for Ghazal
+- Drop live `hangfire` schema/tables? (code already gone)
+- Later: delete `/api/imports/*` free-upload with old Frontend
+
+## Release 0.25.0 (2026-11-19, Claude planner)
+- Rider app v2 (`feat/rider-app-v2`): 3-language short statement, notices with read receipts, two-way requests, annual leave form, push in rider language, rate limits. Rider indexes on live are created ONLY by the admin job `POST /api/system/maintenance/rider-indexes` (run off-hours). Ops: grant the 3 new permissions to two different reviewers (`docs/rider-app/RELEASE-NOTES-OPS.md`).
