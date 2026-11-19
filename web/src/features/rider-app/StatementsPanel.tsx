@@ -147,7 +147,7 @@ export function StatementsPanel({ canSend }: { canSend: boolean }) {
             <p className="text-[11px] text-[var(--warning)] text-center">لا يوجد كشف معتمد لهذه الفترة بعد؛ لن يصل المندوب إشعار له.</p>
           ) : null}
           <div className="space-y-1.5 text-xs">
-            {(s.shortLines?.length
+            {s.shortLines && s.shortLines.length > 0
               ? s.shortLines.map((line, i) => (
                   <div key={i} className="flex justify-between p-2 rounded-xl bg-[var(--raised)]">
                     <span>{line.labelAr || line.label || line.key}</span>
