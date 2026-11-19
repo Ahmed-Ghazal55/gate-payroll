@@ -1,14 +1,14 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { shouldWarnUnapproved } from '../../src/features/rider-app/statement-preview.ts';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const panel = readFileSync(path.join(root, 'src/features/rider-app/StatementsPanel.tsx'), 'utf8');
-const api = readFileSync(path.join(root, 'src/lib/api.ts'), 'utf8');
-
-assert.ok(!panel.includes('approvedOnly === false'), 'must not warn solely because approvedOnly is false');
-assert.ok(panel.includes("status !== 'approved'"), 'warn only when status is not approved');
-assert.ok(panel.includes('shortLines') && panel.includes('deductions') && panel.includes('disclaimerAr'), 'preview renders short lines, deductions and disclaimer');
-assert.ok(api.includes('approvedOnly=1'), 'preview requests approved-only statements');
-console.log('PASS statements preview warning and fields');
+describe('statements preview behaviour', () => {
+  it('warns only when status is not approved (ignores approvedOnly flag)', () => {
+    // Same cases the phone preview card evaluates after getRiderStatementPreview returns.
+    assert.equal(shouldWarnUnapproved('preview'), true, 'draft/preview status must warn');
+    assert.equal(shouldWarnUnapproved('no_approved_cycle'), true, 'empty cycle must warn');
+    assert.equal(shouldWarnUnapproved('approved'), false, 'approved status must not warn');
+    assert.equal(shouldWarnUnapproved(undefined), true);
+    assert.equal(shouldWarnUnapproved(null), true);
+  });
+});

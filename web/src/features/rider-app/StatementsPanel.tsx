@@ -10,6 +10,7 @@ import { RiderPicker } from '../../components/ui/RiderPicker';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
+import { shouldWarnUnapproved } from './statement-preview';
 
 const money = (n?: number | null) => (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -143,7 +144,7 @@ export function StatementsPanel({ canSend }: { canSend: boolean }) {
             {/* Same marker as PayStatements.MarkerAr on the server. */}
             <div className="text-[10px]">{s.closingMarkerAr || (s.closing > 0 ? 'لك' : s.closing < 0 ? 'عليك' : 'متوازن')}</div>
           </div>
-          {s.status !== 'approved' ? (
+          {shouldWarnUnapproved(s.status) ? (
             <p className="text-[11px] text-[var(--warning)] text-center">لا يوجد كشف معتمد لهذه الفترة بعد؛ لن يصل المندوب إشعار له.</p>
           ) : null}
           <div className="space-y-1.5 text-xs">
