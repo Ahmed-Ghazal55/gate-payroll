@@ -10601,7 +10601,6 @@ export interface paths {
             parameters: {
                 query: {
                     period: string;
-                    approvedOnly?: boolean;
                 };
                 header?: never;
                 path: {
@@ -11546,7 +11545,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -11592,7 +11596,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -11654,7 +11663,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -11714,7 +11728,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -11859,7 +11878,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -11921,7 +11945,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -16402,7 +16431,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;

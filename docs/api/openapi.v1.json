@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:36205/"
+      "url": "http://127.0.0.1:34065/"
     }
   ],
   "paths": {
@@ -19100,13 +19100,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "approvedOnly",
-            "in": "query",
-            "schema": {
-              "type": "boolean"
-            }
           }
         ],
         "responses": {
@@ -20200,7 +20193,39 @@
                         }
                       },
                       "financialScope": {
-                        "type": "object"
+                        "required": [
+                          "sponsorIds",
+                          "accountCodes",
+                          "platforms",
+                          "categoryCodes"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "sponsorIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "accountCodes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "platforms": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "categoryCodes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
                       },
                       "createdAt": {
                         "type": "string"
@@ -20310,7 +20335,39 @@
                       }
                     },
                     "financialScope": {
-                      "type": "object"
+                      "required": [
+                        "sponsorIds",
+                        "accountCodes",
+                        "platforms",
+                        "categoryCodes"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "sponsorIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "accountCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "platforms": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "categoryCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "createdAt": {
                       "type": "string"
@@ -20431,7 +20488,39 @@
                       }
                     },
                     "financialScope": {
-                      "type": "object"
+                      "required": [
+                        "sponsorIds",
+                        "accountCodes",
+                        "platforms",
+                        "categoryCodes"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "sponsorIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "accountCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "platforms": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "categoryCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "createdAt": {
                       "type": "string"
@@ -20542,7 +20631,39 @@
                       }
                     },
                     "financialScope": {
-                      "type": "object"
+                      "required": [
+                        "sponsorIds",
+                        "accountCodes",
+                        "platforms",
+                        "categoryCodes"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "sponsorIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "accountCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "platforms": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "categoryCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "createdAt": {
                       "type": "string"
@@ -20743,7 +20864,39 @@
                       }
                     },
                     "financialScope": {
-                      "type": "object"
+                      "required": [
+                        "sponsorIds",
+                        "accountCodes",
+                        "platforms",
+                        "categoryCodes"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "sponsorIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "accountCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "platforms": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "categoryCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "createdAt": {
                       "type": "string"
@@ -20864,7 +21017,39 @@
                       }
                     },
                     "financialScope": {
-                      "type": "object"
+                      "required": [
+                        "sponsorIds",
+                        "accountCodes",
+                        "platforms",
+                        "categoryCodes"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "sponsorIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "accountCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "platforms": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "categoryCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "createdAt": {
                       "type": "string"
@@ -26338,7 +26523,39 @@
                       }
                     },
                     "financialScope": {
-                      "type": "object"
+                      "required": [
+                        "sponsorIds",
+                        "accountCodes",
+                        "platforms",
+                        "categoryCodes"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "sponsorIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "accountCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "platforms": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "categoryCodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
                     },
                     "createdAt": {
                       "type": "string"
