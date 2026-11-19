@@ -230,20 +230,21 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
 | GET | `/api/operations/cities-summary` | Payroll.Api/OperationsLiveApi.cs:18 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/cities-summary/export` | Payroll.Api/OperationsLiveApi.cs:40 | operations.view; company/platform scope; always paginated | none | keep |
+| GET | `/api/operations/cities-summary/export` | Payroll.Api/OperationsLiveApi.cs:42 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/operations/cities/{id}` | Payroll.Api/OperationsLiveApi.cs:20 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/fuel-cards` | Payroll.Api/OperationsLiveApi.cs:36 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/fuel-cards/assignments` | Payroll.Api/OperationsLiveApi.cs:38 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/fuel-cards/export` | Payroll.Api/OperationsLiveApi.cs:46 | operations.view; company/platform scope; always paginated | none | keep |
+| GET | `/api/operations/fuel-cards` | Payroll.Api/OperationsLiveApi.cs:38 | operations.view; company/platform scope; always paginated | none | keep |
+| GET | `/api/operations/fuel-cards/assignments` | Payroll.Api/OperationsLiveApi.cs:40 | operations.view; company/platform scope; always paginated | none | keep |
+| GET | `/api/operations/fuel-cards/export` | Payroll.Api/OperationsLiveApi.cs:48 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/operations/housing` | Payroll.Api/OperationsLiveApi.cs:22 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/housing/export` | Payroll.Api/OperationsLiveApi.cs:42 | operations.view; company/platform scope; always paginated | none | keep |
+| GET | `/api/operations/housing/export` | Payroll.Api/OperationsLiveApi.cs:44 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/operations/housing/{id}/rooms` | Payroll.Api/OperationsLiveApi.cs:24 | operations.view; company/platform scope; always paginated | none | keep |
+| GET | `/api/operations/vehicles/oil-changes` | Payroll.Api/OperationsLiveApi.cs:32 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/operations/vehicles/period-report` | Payroll.Api/OperationsLiveApi.cs:26 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/vehicles/period-report/export` | Payroll.Api/OperationsLiveApi.cs:44 | operations.view; company/platform scope; always paginated | none | keep |
+| GET | `/api/operations/vehicles/period-report/export` | Payroll.Api/OperationsLiveApi.cs:46 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/operations/vehicles/purchase-invoices` | Payroll.Api/OperationsLiveApi.cs:28 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/operations/vehicles/purchase-invoices/{id}` | Payroll.Api/OperationsLiveApi.cs:30 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/vehicles/{id}` | Payroll.Api/OperationsLiveApi.cs:34 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/vehicles/{id}/oil-changes` | Payroll.Api/OperationsLiveApi.cs:32 | operations.view; company/platform scope; always paginated | none | keep |
+| GET | `/api/operations/vehicles/{id}` | Payroll.Api/OperationsLiveApi.cs:36 | operations.view; company/platform scope; always paginated | none | keep |
+| GET | `/api/operations/vehicles/{id}/oil-changes` | Payroll.Api/OperationsLiveApi.cs:34 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/operations/{kind}` | Payroll.Api/Operations.cs:217 | operations.view; company/platform scope; always paginated | none | keep |
 | GET | `/api/riders/{iqama}/accounts` | Payroll.Api/Operations.cs:232 | operations.view; company/platform scope; always paginated | old UI | keep |
 

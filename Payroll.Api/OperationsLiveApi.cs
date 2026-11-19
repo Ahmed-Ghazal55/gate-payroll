@@ -29,6 +29,8 @@ public static class OperationsLiveApi
             .WithTags("Operations").WithSummary("Vehicle purchase receipts (O5)");
         api.MapGet("/operations/vehicles/purchase-invoices/{id}", (string id, HttpContext ctx) => PurchaseDetail(store, config, env, id, ctx))
             .WithTags("Operations").WithSummary("Purchase receipt lines (O5)");
+        api.MapGet("/operations/vehicles/oil-changes", (HttpContext ctx) => OilChangesPeriod(store, config, env, ctx))
+            .WithTags("Operations").WithSummary("Oil changes in period (M9)");
         api.MapGet("/operations/vehicles/{id}/oil-changes", (string id, HttpContext ctx) => OilChanges(store, config, env, id, ctx))
             .WithTags("Operations").WithSummary("Oil changes for a vehicle (O5)");
         api.MapGet("/operations/vehicles/{id}", (string id, HttpContext ctx) => Vehicle(store, config, env, id, ctx))
@@ -229,6 +231,28 @@ public static class OperationsLiveApi
         }, "operations-oil");
     }
 
+    static object OilChangesPeriod(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "operations.view");
+        var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
+        var (page, pageSize, _, _, search) = ParsePage(ctx);
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            return Envelope(new { items = Array.Empty<object>(), total = 0L, page, pageSize, summary = new { oilChangesCount = (long?)null, oilChangesCost = (decimal?)null, message = OperationsLiveQuery.NoSourceYet }, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+        return LiveRead(ctx, token =>
+        {
+            using var erp = OpenErp(config);
+            return store.Read(c =>
+            {
+                try
+                {
+                    var result = OperationsLiveQuery.OilChangesPeriod(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), export: false, token);
+                    return Envelope(new { items = result.Items, total = result.Total, page, pageSize, summary = result.Summary, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                }
+                catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
+            });
+        }, "operations-oil-period");
+    }
+
     static object Purchases(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
@@ -317,16 +341,35 @@ public static class OperationsLiveApi
     static IResult ExportCities(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
-        var items = ExtractItems(Cities(store, config, env, ctx));
-        var cols = new[] { "المدينة", "السجلات", "سيارات", "دراجات", "مناديب", "تطبيقات", "حسابات إجمالي", "نشط", "مسند" }.Select(h => new ExcelColumn(h)).ToArray();
-        var rows = items.Select(r => new object?[] { r.S("nameAr"), r.S("registrationNames"), r.N("vehiclesCars"), r.N("vehiclesMotorbikes"), r.N("ridersTotal"), r.S("appsWorking"), r.N("accountsTotal"), r.N("accountsActive"), r.N("accountsAssigned") }).ToList();
+        List<JsonObject> items;
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            items = store.Read(c => BuildStoreCities(c, ctx.User).Items.ToList());
+        else
+            items = LiveRead(ctx, token =>
+            {
+                using var erp = OpenErp(config);
+                return store.Read(c => OperationsLiveQuery.CitiesSummary(erp, Operations.LiveScope(c, ctx.User), token).Items.ToList());
+            }, "operations-cities-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
+        var cols = new[] { "المدينة", "الحالة", "السجلات", "سيارات", "دراجات", "مناديب", "تطبيقات", "حسابات إجمالي", "نشط", "مسند" }.Select(h => new ExcelColumn(h)).ToArray();
+        var rows = items.Select(r => new object?[] { r.S("nameAr"), r.S("status"), r.S("registrationNames"), r.N("vehiclesCars"), r.N("vehiclesMotorbikes"), r.N("ridersTotal"), r.S("appsWorking"), r.N("accountsTotal"), r.N("accountsActive"), r.N("accountsAssigned") }).ToList();
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-cities.xlsx");
     }
 
     static IResult ExportHousing(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
-        var items = ExtractItems(Housing(store, config, env, ctx));
+        string city = (ctx.Request.Query["city"].ToString() ?? "").Trim();
+        string status = (ctx.Request.Query["status"].ToString() ?? "").Trim();
+        string search = (ctx.Request.Query["q"].ToString() is { Length: > 0 } q ? q : ctx.Request.Query["search"].ToString() ?? "").Trim();
+        List<JsonObject> items;
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            items = store.Read(c => ExtractItems(BuildStoreHousing(c, ctx.User, 1, 50_000, city, status, search)).ToList());
+        else
+            items = LiveRead(ctx, token =>
+            {
+                using var erp = OpenErp(config);
+                return store.Read(c => OperationsLiveQuery.HousingExport(erp, city, status, search, Operations.LiveScope(c, ctx.User), ExportTimeoutSeconds(config), token).Items.ToList());
+            }, "operations-housing-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
         var cols = new[] { "السكن", "المدينة", "غرف", "سعة", "مقيمون", "لكل غرفة", "الحالة" }.Select(h => new ExcelColumn(h)).ToArray();
         var rows = items.Select(r => new object?[] { r.S("nameAr"), r.S("city"), r.N("roomsCount"), r.N("capacity"), r.N("residentsTotal"), r.N("ridersPerRoom"), r.S("status") }).ToList();
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-housing.xlsx");
@@ -365,7 +408,18 @@ public static class OperationsLiveApi
     static IResult ExportFuel(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
-        var items = ExtractItems(Fuel(store, config, env, ctx));
+        DateOnly month = ParseMonth(ctx);
+        string provider = (ctx.Request.Query["provider"].ToString() ?? "").Trim();
+        string search = (ctx.Request.Query["q"].ToString() ?? "").Trim();
+        List<JsonObject> items;
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            items = store.Read(c => ExtractItems(BuildStoreFuel(c, ctx.User, month, 1, 50_000)).ToList());
+        else
+            items = LiveRead(ctx, token =>
+            {
+                using var erp = OpenErp(config);
+                return store.Read(c => OperationsLiveQuery.FuelCardsExport(erp, month, provider, search, Operations.LiveScope(c, ctx.User), ExportTimeoutSeconds(config), token).Items.ToList());
+            }, "operations-fuel-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
         var cols = new[] { "بطاقة", "مزود", "لوحة", "مندوب", "لتر", "قبل الضريبة", "ضريبة", "إجمالي", "سقف" }.Select(h => new ExcelColumn(h)).ToArray();
         var rows = items.Select(r => new object?[] { r.S("cardNumber"), r.S("provider"), r.S("plateNumber"), r.S("riderNameAr"), r["liters"]?.ToString(), r["amountBeforeTax"]?.ToString(), r["vat"]?.ToString(), r["totalInclVat"]?.ToString(), OperationsLiveQuery.NoSourceYet }).ToList();
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-fuel.xlsx");
@@ -379,25 +433,25 @@ public static class OperationsLiveApi
             ["code"] = r.S("code"),
             ["nameAr"] = r.S("nameAr", r.S("name")),
             ["nameEn"] = r.S("nameEn"),
-            ["status"] = "",
-            ["activeRegistrations"] = 0,
-            ["registrationNames"] = "",
-            ["vehiclesCars"] = 0,
-            ["vehiclesMotorbikes"] = 0,
-            ["vehiclesTotal"] = 0,
-            ["ridersTotal"] = 0,
-            ["appsWorking"] = "",
-            ["accountsTotal"] = 0,
-            ["accountsActive"] = 0,
-            ["accountsAssigned"] = 0
+            ["status"] = null,
+            ["activeRegistrations"] = null,
+            ["registrationNames"] = null,
+            ["vehiclesCars"] = null,
+            ["vehiclesMotorbikes"] = null,
+            ["vehiclesTotal"] = null,
+            ["ridersTotal"] = null,
+            ["appsWorking"] = null,
+            ["accountsTotal"] = null,
+            ["accountsActive"] = null,
+            ["accountsAssigned"] = null
         }).ToList();
         var summary = new JsonObject
         {
             ["activeCities"] = cities.Count,
-            ["totalVehicles"] = 0L,
-            ["totalRiders"] = 0L,
-            ["platformAccountsActive"] = 0L,
-            ["platformAccountsAssigned"] = 0L
+            ["totalVehicles"] = null,
+            ["totalRiders"] = null,
+            ["platformAccountsActive"] = null,
+            ["platformAccountsAssigned"] = null
         };
         return new(cities, cities.Count, summary, DateTimeOffset.UtcNow);
     }
@@ -417,8 +471,8 @@ public static class OperationsLiveApi
                 ["cityCode"] = "",
                 ["roomsCount"] = rooms.Count,
                 ["capacity"] = capacity,
-                ["residentsTotal"] = 0,
-                ["ridersPerRoom"] = 0,
+                ["residentsTotal"] = null,
+                ["ridersPerRoom"] = null,
                 ["status"] = r.S("status", ""),
                 ["supervisor"] = null,
                 ["supervisorSource"] = OperationsLiveQuery.NoSourceYet
@@ -434,8 +488,8 @@ public static class OperationsLiveApi
         {
             ["housingsTotal"] = all.Count,
             ["roomsTotal"] = all.Sum(r => (long)r.N("roomsCount")),
-            ["residentsTotal"] = 0L,
-            ["occupancyPercent"] = 0d
+            ["residentsTotal"] = null,
+            ["occupancyPercent"] = null
         };
         return new { items, total = all.Count, page, pageSize, summary };
     }
@@ -452,11 +506,11 @@ public static class OperationsLiveApi
             ["city"] = "",
             ["riderNameAr"] = "",
             ["iqama"] = "",
-            ["operatingDays"] = 0,
-            ["sparePartsCost"] = 0,
-            ["amountToCollect"] = 0,
-            ["oilChangesCount"] = 0,
-            ["oilChangesCost"] = 0,
+            ["operatingDays"] = null,
+            ["sparePartsCost"] = null,
+            ["amountToCollect"] = null,
+            ["oilChangesCount"] = null,
+            ["oilChangesCost"] = null,
             ["oilMileage"] = null
         }).ToList();
         AssertNoVin(vehicles);
@@ -465,10 +519,10 @@ public static class OperationsLiveApi
         var summary = new JsonObject
         {
             ["vehiclesOperating"] = vehicles.Count,
-            ["totalOperatingDays"] = 0m,
-            ["sparePartsCost"] = 0m,
-            ["amountToCollect"] = 0m,
-            ["oilChangesCost"] = 0m
+            ["totalOperatingDays"] = null,
+            ["sparePartsCost"] = null,
+            ["amountToCollect"] = null,
+            ["oilChangesCost"] = null
         };
         return new { items, total = vehicles.Count, page, pageSize, summary, mode, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) };
     }

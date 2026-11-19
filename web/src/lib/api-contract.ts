@@ -8160,7 +8160,25 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            items: Record<string, never>[];
+                            items: {
+                                id: string;
+                                code?: string;
+                                nameAr?: string;
+                                nameEn?: string;
+                                status?: string;
+                                activeRegistrations?: number;
+                                registrationNames?: string;
+                                vehiclesCars?: number;
+                                vehiclesMotorbikes?: number;
+                                vehiclesTotal?: number;
+                                ridersTotal?: number;
+                                appsWorking?: string;
+                                accountsTotal?: number;
+                                accountsActive?: number;
+                                accountsAssigned?: number;
+                                byRegistration?: Record<string, never>[];
+                                byApp?: Record<string, never>[];
+                            }[];
                             total: number;
                             page?: number;
                             pageSize?: number;
@@ -8212,16 +8230,14 @@ export interface paths {
                     content: {
                         "application/json": {
                             id?: string;
+                            code?: string;
+                            nameAr?: string;
+                            status?: string;
+                            byRegistration?: Record<string, never>[];
+                            byApp?: Record<string, never>[];
                             source: string;
                             asOf: string;
                             allowedActions: string[];
-                            items?: Record<string, never>[];
-                            rooms?: Record<string, never>[];
-                            byRegistration?: Record<string, never>[];
-                            byApp?: Record<string, never>[];
-                            lines?: Record<string, never>[];
-                            assignmentHistory?: Record<string, never>[];
-                            summary?: Record<string, never>;
                         };
                     };
                 };
@@ -8259,7 +8275,20 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            items: Record<string, never>[];
+                            items: {
+                                id: string;
+                                code?: string;
+                                nameAr: string;
+                                city?: string;
+                                cityCode?: string;
+                                roomsCount?: number;
+                                capacity?: number;
+                                residentsTotal?: number;
+                                ridersPerRoom?: number;
+                                status?: string;
+                                supervisor?: null | string;
+                                supervisorSource?: string;
+                            }[];
                             total: number;
                             page?: number;
                             pageSize?: number;
@@ -8311,16 +8340,27 @@ export interface paths {
                     content: {
                         "application/json": {
                             id?: string;
+                            nameAr?: string;
+                            code?: string;
+                            status?: string;
+                            city?: string;
+                            supervisor?: null | string;
+                            supervisorSource?: string;
+                            rooms?: {
+                                id: string;
+                                name?: string;
+                                capacity?: number;
+                                currentOccupancy?: number;
+                                residents?: {
+                                    employeeId?: string;
+                                    nameAr?: string;
+                                    iqama?: string;
+                                    checkInDate?: string;
+                                }[];
+                            }[];
                             source: string;
                             asOf: string;
                             allowedActions: string[];
-                            items?: Record<string, never>[];
-                            rooms?: Record<string, never>[];
-                            byRegistration?: Record<string, never>[];
-                            byApp?: Record<string, never>[];
-                            lines?: Record<string, never>[];
-                            assignmentHistory?: Record<string, never>[];
-                            summary?: Record<string, never>;
                         };
                     };
                 };
@@ -8358,7 +8398,22 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            items: Record<string, never>[];
+                            items: {
+                                id: string;
+                                assetNumber?: string;
+                                plateNumberAr?: string;
+                                vehicleType?: string;
+                                city?: string;
+                                riderNameAr?: string;
+                                iqama?: string;
+                                vehicleId?: string;
+                                operatingDays?: number;
+                                sparePartsCost?: number;
+                                amountToCollect?: number;
+                                oilChangesCount?: number;
+                                oilChangesCost?: number;
+                                oilMileage?: number;
+                            }[];
                             total: number;
                             page?: number;
                             pageSize?: number;
@@ -8407,7 +8462,19 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            items: Record<string, never>[];
+                            items: {
+                                id: string;
+                                receiptNumber?: string;
+                                supplierInvoiceNumber?: string;
+                                invoiceDate?: string;
+                                receivedAt?: string;
+                                subtotal?: number;
+                                taxAmount?: number;
+                                totalAmount?: number;
+                                status?: string;
+                                supplierNameAr?: string;
+                                lines?: Record<string, never>[];
+                            }[];
                             total: number;
                             page?: number;
                             pageSize?: number;
@@ -8458,17 +8525,76 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            id?: string;
+                            id: string;
+                            receiptNumber?: string;
+                            lines?: Record<string, never>[];
                             source: string;
                             asOf: string;
                             allowedActions: string[];
-                            items?: Record<string, never>[];
-                            rooms?: Record<string, never>[];
-                            byRegistration?: Record<string, never>[];
-                            byApp?: Record<string, never>[];
-                            lines?: Record<string, never>[];
-                            assignmentHistory?: Record<string, never>[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/oil-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Oil changes in period (M9) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                vehicleId?: string;
+                                plateNumberAr?: string;
+                                assetNumber?: string;
+                                vehicleType?: string;
+                                performedAt?: string;
+                                odometer?: number;
+                                oilLiters?: number;
+                                oilCost?: number;
+                                filterCost?: number;
+                                laborCost?: number;
+                                otherCost?: number;
+                                totalCost?: number;
+                                notes?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
                             summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
                         };
                     };
                 };
@@ -8508,17 +8634,33 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            id?: string;
+                            items: {
+                                id: string;
+                                vehicleId?: string;
+                                plateNumberAr?: string;
+                                assetNumber?: string;
+                                vehicleType?: string;
+                                performedAt?: string;
+                                odometer?: number;
+                                oilLiters?: number;
+                                oilCost?: number;
+                                filterCost?: number;
+                                laborCost?: number;
+                                otherCost?: number;
+                                totalCost?: number;
+                                notes?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
                             source: string;
                             asOf: string;
                             allowedActions: string[];
-                            items?: Record<string, never>[];
-                            rooms?: Record<string, never>[];
-                            byRegistration?: Record<string, never>[];
-                            byApp?: Record<string, never>[];
-                            lines?: Record<string, never>[];
-                            assignmentHistory?: Record<string, never>[];
-                            summary?: Record<string, never>;
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
                         };
                     };
                 };
@@ -8558,17 +8700,23 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            id?: string;
+                            id: string;
+                            assetNumber?: string;
+                            serialNumber?: string;
+                            plateNumberAr?: string;
+                            plateNumberEn?: string;
+                            vin?: string;
+                            chassisNumber?: string;
+                            vehicleType?: string;
+                            modelYear?: string;
+                            currentOdometer?: number;
+                            status?: string;
+                            sponsorNameAr?: string;
+                            city?: string;
+                            assignmentHistory?: Record<string, never>[];
                             source: string;
                             asOf: string;
                             allowedActions: string[];
-                            items?: Record<string, never>[];
-                            rooms?: Record<string, never>[];
-                            byRegistration?: Record<string, never>[];
-                            byApp?: Record<string, never>[];
-                            lines?: Record<string, never>[];
-                            assignmentHistory?: Record<string, never>[];
-                            summary?: Record<string, never>;
                         };
                     };
                 };
@@ -8606,7 +8754,23 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            items: Record<string, never>[];
+                            items: {
+                                id: string;
+                                cardNumber?: string;
+                                provider?: string;
+                                plateNumber?: string;
+                                riderNameAr?: string;
+                                iqama?: string;
+                                liters?: number;
+                                amountBeforeTax?: number;
+                                vat?: number;
+                                totalInclVat?: number;
+                                transactionCount?: number;
+                                fuelType?: string;
+                                cap?: number;
+                                capSource?: string;
+                                status?: string;
+                            }[];
                             total: number;
                             page?: number;
                             pageSize?: number;
@@ -8655,7 +8819,18 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            items: Record<string, never>[];
+                            items: {
+                                id: string;
+                                cardNumber?: string;
+                                provider?: string;
+                                plateNumber?: string;
+                                riderNameAr?: string;
+                                iqama?: string;
+                                effectiveFrom?: string;
+                                effectiveTo?: string;
+                                assignmentReason?: string;
+                                endReason?: string;
+                            }[];
                             total: number;
                             page?: number;
                             pageSize?: number;

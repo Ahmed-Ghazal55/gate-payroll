@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:45373/"
+      "url": "http://127.0.0.1:36627/"
     }
   ],
   "paths": {
@@ -13444,7 +13444,69 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "required": [
+                          "id"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          },
+                          "nameEn": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "activeRegistrations": {
+                            "type": "number"
+                          },
+                          "registrationNames": {
+                            "type": "string"
+                          },
+                          "vehiclesCars": {
+                            "type": "number"
+                          },
+                          "vehiclesMotorbikes": {
+                            "type": "number"
+                          },
+                          "vehiclesTotal": {
+                            "type": "number"
+                          },
+                          "ridersTotal": {
+                            "type": "number"
+                          },
+                          "appsWorking": {
+                            "type": "string"
+                          },
+                          "accountsTotal": {
+                            "type": "number"
+                          },
+                          "accountsActive": {
+                            "type": "number"
+                          },
+                          "accountsAssigned": {
+                            "type": "number"
+                          },
+                          "byRegistration": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          },
+                          "byApp": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          }
+                        }
                       }
                     },
                     "total": {
@@ -13523,29 +13585,14 @@
                     "id": {
                       "type": "string"
                     },
-                    "source": {
+                    "code": {
                       "type": "string"
                     },
-                    "asOf": {
+                    "nameAr": {
                       "type": "string"
                     },
-                    "allowedActions": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "rooms": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
+                    "status": {
+                      "type": "string"
                     },
                     "byRegistration": {
                       "type": "array",
@@ -13559,20 +13606,17 @@
                         "type": "object"
                       }
                     },
-                    "lines": {
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "type": "string"
                       }
-                    },
-                    "assignmentHistory": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "summary": {
-                      "type": "object"
                     }
                   }
                 }
@@ -13606,7 +13650,52 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "required": [
+                          "id",
+                          "nameAr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "string"
+                          },
+                          "cityCode": {
+                            "type": "string"
+                          },
+                          "roomsCount": {
+                            "type": "number"
+                          },
+                          "capacity": {
+                            "type": "number"
+                          },
+                          "residentsTotal": {
+                            "type": "number"
+                          },
+                          "ridersPerRoom": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "supervisor": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "supervisorSource": {
+                            "type": "string"
+                          }
+                        }
                       }
                     },
                     "total": {
@@ -13685,6 +13774,70 @@
                     "id": {
                       "type": "string"
                     },
+                    "nameAr": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "supervisor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "supervisorSource": {
+                      "type": "string"
+                    },
+                    "rooms": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "capacity": {
+                            "type": "number"
+                          },
+                          "currentOccupancy": {
+                            "type": "number"
+                          },
+                          "residents": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "employeeId": {
+                                  "type": "string"
+                                },
+                                "nameAr": {
+                                  "type": "string"
+                                },
+                                "iqama": {
+                                  "type": "string"
+                                },
+                                "checkInDate": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "source": {
                       "type": "string"
                     },
@@ -13696,45 +13849,6 @@
                       "items": {
                         "type": "string"
                       }
-                    },
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "rooms": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "byRegistration": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "byApp": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "lines": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "assignmentHistory": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "summary": {
-                      "type": "object"
                     }
                   }
                 }
@@ -13768,7 +13882,54 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "required": [
+                          "id"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "assetNumber": {
+                            "type": "string"
+                          },
+                          "plateNumberAr": {
+                            "type": "string"
+                          },
+                          "vehicleType": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "string"
+                          },
+                          "riderNameAr": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "vehicleId": {
+                            "type": "string"
+                          },
+                          "operatingDays": {
+                            "type": "number"
+                          },
+                          "sparePartsCost": {
+                            "type": "number"
+                          },
+                          "amountToCollect": {
+                            "type": "number"
+                          },
+                          "oilChangesCount": {
+                            "type": "number"
+                          },
+                          "oilChangesCost": {
+                            "type": "number"
+                          },
+                          "oilMileage": {
+                            "type": "number"
+                          }
+                        }
                       }
                     },
                     "total": {
@@ -13839,7 +14000,48 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "required": [
+                          "id"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "receiptNumber": {
+                            "type": "string"
+                          },
+                          "supplierInvoiceNumber": {
+                            "type": "string"
+                          },
+                          "invoiceDate": {
+                            "type": "string"
+                          },
+                          "receivedAt": {
+                            "type": "string"
+                          },
+                          "subtotal": {
+                            "type": "number"
+                          },
+                          "taxAmount": {
+                            "type": "number"
+                          },
+                          "totalAmount": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "supplierNameAr": {
+                            "type": "string"
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          }
+                        }
                       }
                     },
                     "total": {
@@ -13909,6 +14111,7 @@
               "application/json": {
                 "schema": {
                   "required": [
+                    "id",
                     "source",
                     "asOf",
                     "allowedActions"
@@ -13917,6 +14120,121 @@
                   "properties": {
                     "id": {
                       "type": "string"
+                    },
+                    "receiptNumber": {
+                      "type": "string"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/operations/vehicles/oil-changes": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Oil changes in period (M9)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "vehicleId": {
+                            "type": "string"
+                          },
+                          "plateNumberAr": {
+                            "type": "string"
+                          },
+                          "assetNumber": {
+                            "type": "string"
+                          },
+                          "vehicleType": {
+                            "type": "string"
+                          },
+                          "performedAt": {
+                            "type": "string"
+                          },
+                          "odometer": {
+                            "type": "number"
+                          },
+                          "oilLiters": {
+                            "type": "number"
+                          },
+                          "oilCost": {
+                            "type": "number"
+                          },
+                          "filterCost": {
+                            "type": "number"
+                          },
+                          "laborCost": {
+                            "type": "number"
+                          },
+                          "otherCost": {
+                            "type": "number"
+                          },
+                          "totalCost": {
+                            "type": "number"
+                          },
+                          "notes": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "summary": {
+                      "type": "object"
                     },
                     "source": {
                       "type": "string"
@@ -13930,44 +14248,17 @@
                         "type": "string"
                       }
                     },
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
+                    "mode": {
+                      "type": "string"
                     },
-                    "rooms": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
+                    "from": {
+                      "type": "string"
                     },
-                    "byRegistration": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
+                    "to": {
+                      "type": "string"
                     },
-                    "byApp": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "lines": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "assignmentHistory": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "summary": {
-                      "type": "object"
+                    "month": {
+                      "type": "string"
                     }
                   }
                 }
@@ -14000,14 +14291,78 @@
               "application/json": {
                 "schema": {
                   "required": [
+                    "items",
+                    "total",
                     "source",
                     "asOf",
                     "allowedActions"
                   ],
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "vehicleId": {
+                            "type": "string"
+                          },
+                          "plateNumberAr": {
+                            "type": "string"
+                          },
+                          "assetNumber": {
+                            "type": "string"
+                          },
+                          "vehicleType": {
+                            "type": "string"
+                          },
+                          "performedAt": {
+                            "type": "string"
+                          },
+                          "odometer": {
+                            "type": "number"
+                          },
+                          "oilLiters": {
+                            "type": "number"
+                          },
+                          "oilCost": {
+                            "type": "number"
+                          },
+                          "filterCost": {
+                            "type": "number"
+                          },
+                          "laborCost": {
+                            "type": "number"
+                          },
+                          "otherCost": {
+                            "type": "number"
+                          },
+                          "totalCost": {
+                            "type": "number"
+                          },
+                          "notes": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "summary": {
+                      "type": "object"
                     },
                     "source": {
                       "type": "string"
@@ -14021,44 +14376,17 @@
                         "type": "string"
                       }
                     },
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
+                    "mode": {
+                      "type": "string"
                     },
-                    "rooms": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
+                    "from": {
+                      "type": "string"
                     },
-                    "byRegistration": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
+                    "to": {
+                      "type": "string"
                     },
-                    "byApp": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "lines": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "assignmentHistory": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "summary": {
-                      "type": "object"
+                    "month": {
+                      "type": "string"
                     }
                   }
                 }
@@ -14091,6 +14419,7 @@
               "application/json": {
                 "schema": {
                   "required": [
+                    "id",
                     "source",
                     "asOf",
                     "allowedActions"
@@ -14099,6 +14428,48 @@
                   "properties": {
                     "id": {
                       "type": "string"
+                    },
+                    "assetNumber": {
+                      "type": "string"
+                    },
+                    "serialNumber": {
+                      "type": "string"
+                    },
+                    "plateNumberAr": {
+                      "type": "string"
+                    },
+                    "plateNumberEn": {
+                      "type": "string"
+                    },
+                    "vin": {
+                      "type": "string"
+                    },
+                    "chassisNumber": {
+                      "type": "string"
+                    },
+                    "vehicleType": {
+                      "type": "string"
+                    },
+                    "modelYear": {
+                      "type": "string"
+                    },
+                    "currentOdometer": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "sponsorNameAr": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "assignmentHistory": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
                     },
                     "source": {
                       "type": "string"
@@ -14111,45 +14482,6 @@
                       "items": {
                         "type": "string"
                       }
-                    },
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "rooms": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "byRegistration": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "byApp": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "lines": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "assignmentHistory": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "summary": {
-                      "type": "object"
                     }
                   }
                 }
@@ -14183,7 +14515,57 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "required": [
+                          "id"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "cardNumber": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "plateNumber": {
+                            "type": "string"
+                          },
+                          "riderNameAr": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "liters": {
+                            "type": "number"
+                          },
+                          "amountBeforeTax": {
+                            "type": "number"
+                          },
+                          "vat": {
+                            "type": "number"
+                          },
+                          "totalInclVat": {
+                            "type": "number"
+                          },
+                          "transactionCount": {
+                            "type": "number"
+                          },
+                          "fuelType": {
+                            "type": "string"
+                          },
+                          "cap": {
+                            "type": "number"
+                          },
+                          "capSource": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        }
                       }
                     },
                     "total": {
@@ -14254,7 +14636,42 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "required": [
+                          "id"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "cardNumber": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "plateNumber": {
+                            "type": "string"
+                          },
+                          "riderNameAr": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "effectiveFrom": {
+                            "type": "string"
+                          },
+                          "effectiveTo": {
+                            "type": "string"
+                          },
+                          "assignmentReason": {
+                            "type": "string"
+                          },
+                          "endReason": {
+                            "type": "string"
+                          }
+                        }
                       }
                     },
                     "total": {

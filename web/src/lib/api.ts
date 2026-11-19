@@ -121,9 +121,21 @@ export type OperationsResponse = Omit<ApiResp<'/api/operations/{kind}'>, 'items'
   items: OperationRow[];
 };
 export type OperationsFleetListResponse = ApiResp<'/api/operations/cities-summary'>;
+export type OperationsCityRow = OperationsFleetListResponse['items'][number];
 export type OperationsHousingResponse = ApiResp<'/api/operations/housing'>;
+export type OperationsHousingRow = OperationsHousingResponse['items'][number];
+export type OperationsHousingRoomsResponse = ApiResp<'/api/operations/housing/{id}/rooms'>;
 export type OperationsPeriodResponse = ApiResp<'/api/operations/vehicles/period-report'>;
+export type OperationsPeriodRow = OperationsPeriodResponse['items'][number];
 export type OperationsFuelResponse = ApiResp<'/api/operations/fuel-cards'>;
+export type OperationsFuelRow = OperationsFuelResponse['items'][number];
+export type OperationsFuelAssignmentsResponse = ApiResp<'/api/operations/fuel-cards/assignments'>;
+export type OperationsOilChangesResponse = ApiResp<'/api/operations/vehicles/oil-changes'>;
+export type OperationsOilRow = OperationsOilChangesResponse['items'][number];
+export type OperationsPurchasesResponse = ApiResp<'/api/operations/vehicles/purchase-invoices'>;
+export type OperationsPurchaseRow = OperationsPurchasesResponse['items'][number];
+export type OperationsVehicleDetailResponse = ApiResp<'/api/operations/vehicles/{id}'>;
+export type OperationsCityDetailResponse = ApiResp<'/api/operations/cities/{id}'>;
 type RawRiderAccountItem = Exclude<ApiResp<'/api/riders/{iqama}/accounts'>['items'][number], Record<string, never>>;
 export type RiderAccountRow = Omit<Partial<UnionToIntersection<RawRiderAccountItem>>, 'assignments'> & {
   id?: string;
@@ -1341,7 +1353,7 @@ export const api = {
     return handleRequest<OperationsFleetListResponse>(`/operations/cities-summary${qs}`);
   },
   getOperationsCity: (id: string) =>
-    handleRequest<Record<string, unknown>>(`/operations/cities/${encodeURIComponent(id)}`),
+    handleRequest<OperationsCityDetailResponse>(`/operations/cities/${encodeURIComponent(id)}`),
   getOperationsHousing: (params?: { page?: number; pageSize?: number; q?: string; city?: string; status?: string }) => {
     const p = new URLSearchParams();
     if (params?.page) p.set('page', String(params.page));
@@ -1353,7 +1365,7 @@ export const api = {
     return handleRequest<OperationsHousingResponse>(`/operations/housing${qs}`);
   },
   getOperationsHousingRooms: (id: string) =>
-    handleRequest<Record<string, unknown>>(`/operations/housing/${encodeURIComponent(id)}/rooms`),
+    handleRequest<OperationsHousingRoomsResponse>(`/operations/housing/${encodeURIComponent(id)}/rooms`),
   getOperationsPeriodReport: (params: { from: string; to: string; mode?: 'vehicle' | 'rider'; page?: number; pageSize?: number; q?: string }) => {
     const p = new URLSearchParams();
     p.set('from', params.from);
@@ -1365,11 +1377,18 @@ export const api = {
     return handleRequest<OperationsPeriodResponse>(`/operations/vehicles/period-report?${p.toString()}`);
   },
   getOperationsVehicle: (id: string) =>
-    handleRequest<Record<string, unknown>>(`/operations/vehicles/${encodeURIComponent(id)}`),
+    handleRequest<OperationsVehicleDetailResponse>(`/operations/vehicles/${encodeURIComponent(id)}`),
   getOperationsOilChanges: (id: string) =>
-    handleRequest<{ items: Record<string, unknown>[]; total: number; summary?: Record<string, unknown> }>(
-      `/operations/vehicles/${encodeURIComponent(id)}/oil-changes`
-    ),
+    handleRequest<OperationsOilChangesResponse>(`/operations/vehicles/${encodeURIComponent(id)}/oil-changes`),
+  getOperationsOilChangesPeriod: (params: { from: string; to: string; page?: number; pageSize?: number; q?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.page) p.set('page', String(params.page));
+    if (params.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params.q) p.set('q', params.q);
+    return handleRequest<OperationsOilChangesResponse>(`/operations/vehicles/oil-changes?${p.toString()}`);
+  },
   getOperationsPurchaseInvoices: (params: { from: string; to: string; page?: number; pageSize?: number; q?: string }) => {
     const p = new URLSearchParams();
     p.set('from', params.from);
@@ -1377,9 +1396,7 @@ export const api = {
     if (params.page) p.set('page', String(params.page));
     if (params.pageSize) p.set('pageSize', String(params.pageSize));
     if (params.q) p.set('q', params.q);
-    return handleRequest<{ items: Record<string, unknown>[]; total: number; summary?: Record<string, unknown>; source?: string; asOf?: string; allowedActions?: string[] }>(
-      `/operations/vehicles/purchase-invoices?${p.toString()}`
-    );
+    return handleRequest<OperationsPurchasesResponse>(`/operations/vehicles/purchase-invoices?${p.toString()}`);
   },
   getOperationsFuelCards: (params?: { month?: string; provider?: string; page?: number; pageSize?: number; q?: string }) => {
     const p = new URLSearchParams();
@@ -1397,9 +1414,7 @@ export const api = {
     p.set('to', params.to);
     if (params.page) p.set('page', String(params.page));
     if (params.pageSize) p.set('pageSize', String(params.pageSize));
-    return handleRequest<{ items: Record<string, unknown>[]; total: number; summary?: Record<string, unknown>; source?: string; asOf?: string; allowedActions?: string[] }>(
-      `/operations/fuel-cards/assignments?${p.toString()}`
-    );
+    return handleRequest<OperationsFuelAssignmentsResponse>(`/operations/fuel-cards/assignments?${p.toString()}`);
   },
   exportOperationsCities: () => fetch('/api/operations/cities-summary/export', { credentials: 'include' }),
   exportOperationsHousing: (params?: { q?: string; city?: string; status?: string }) => {
