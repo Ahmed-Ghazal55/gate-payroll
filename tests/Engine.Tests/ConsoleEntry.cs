@@ -2,7 +2,7 @@ Payroll.Vouchers.Configure(SyntheticVoucherSettings.Key);
 if(args.Contains("--schema-money-tests"))
 {
     int passed=0,failed=0;
-    var classes=typeof(SchemaPayPayableTests).Assembly.GetTypes().Where(t=>t.Name.StartsWith("SchemaPay",StringComparison.Ordinal)||t.Name.StartsWith("SchemaSal",StringComparison.Ordinal)||t.Name=="SchemaOperationCaptureTests"||t.Name=="ConfigListMappingTests");
+    var classes=typeof(SchemaPayPayableTests).Assembly.GetTypes().Where(t=>t.Name.StartsWith("SchemaPay",StringComparison.Ordinal)||t.Name.StartsWith("SchemaSal",StringComparison.Ordinal)||t.Name is "SchemaOperationCaptureTests" or "ConfigListMappingTests" or "Stage4DeductionTests" or "DebtSheetImportTests" or "FinanceViewsTests");
     foreach(var type in classes.OrderBy(t=>t.Name))
     foreach(var method in type.GetMethods().Where(m=>m.GetCustomAttributes(typeof(Microsoft.VisualStudio.TestTools.UnitTesting.TestMethodAttribute),true).Length>0))
     {

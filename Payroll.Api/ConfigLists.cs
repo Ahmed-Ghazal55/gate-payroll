@@ -27,7 +27,7 @@ public static class ConfigLists
     [
         ("FuelOverage","فرق الوقود","112511",1,10),("VehicleInstallment","إيجار / قسط المركبة","112505",1,20),
         ("CashAdvance","سلفة نقدية","112501",1,30),("BankAdvance","سلفة بنكية","112501",1,31),("Advance","سلفة","112501",1,32),
-        ("InternetAdvance","سلفة إنترنت","112503",1,40),("HsWalletTopUp","شحن محفظة هنقرستيشن","112506",1,45),("HousingDeduction","استقطاع سكن","112505",1,50),
+        ("InternetAdvance","سلفة إنترنت","112503",1,40),("HsWalletTopUp","شحن محفظة هنقرستيشن","112513",1,45),("HousingDeduction","استقطاع سكن","112505",1,50),
         ("MudadSalary","راتب منصة مدد","112505",1,55),
         ("AdministrativeDeduction","استقطاع إداري","112505",1,60),("EquipmentLoan","عهدة معدات","112505",1,70),("CashCustody","عهدة نقدية","112505",1,80),
         ("WorkPermit","رخصة عمل","112506",2,10),("IqamaRenewal","تجديد إقامة","112506",2,11),("SponsorshipTransfer","نقل كفالة","112506",2,12),("ExitReEntryVisa","تأشيرة خروج وعودة","112506",2,13),

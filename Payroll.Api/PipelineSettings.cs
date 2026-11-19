@@ -14,7 +14,7 @@ public static class PipelineSettings
         ["salaryFuelCompanyPaysWhenNoCap"]=false, // m1: never silent "company pays all" when fuelCap is 0
         ["fuelSupplierAccount"]="114106", // §22.9 PetroApp clearing (target CoA)
         ["payrollBankAccount"]="111101", // M1 default payout bank (target CoA)
-        ["hsWalletAccount"]="112506", // decision 6 ✅
+        ["hsWalletAccount"]="112513", // U-W1-29: HS wallet; HR services remain 112506
         ["keeta95CompanyOnly"]=true, // decision 7 ✅
         ["freezeInvoiceWithInputs"]=true // decision 10 ✅
     };
@@ -26,7 +26,7 @@ public static class PipelineSettings
         return d;
     }
 
-    public static string HsWalletAccount(JsonObject? bag=null)=>Current(bag).S("hsWalletAccount","112506");
+    public static string HsWalletAccount(JsonObject? bag=null)=>Current(bag).S("hsWalletAccount","112513");
     public static string FuelSupplierAccount(JsonObject? bag=null)=>Current(bag).S("fuelSupplierAccount","114106");
     public static bool SalaryFuelOverageOnRider(JsonObject? bag=null)
     {var cur=Current(bag);return !cur.ContainsKey("salaryFuelOverageOnRider")||cur.B("salaryFuelOverageOnRider");}
