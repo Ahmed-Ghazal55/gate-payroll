@@ -39,6 +39,10 @@ public static class UserAccess
         // إدارة المناديب والملفات
         new("riders.view", "Riders", "دليل المناديب والملفات", "استعراض دليل المناديب", "عرض جدول المناديب وبيانات الكفالة والهوية والبحث والتصفية."),
         new("riders.view_360", "Riders", "دليل المناديب والملفات", "عرض الملف الشامل 360° والوثائق", "الاطلاع على ملف المندوب الشامل وقائمة التحقق من الوثائق السبعة وتحميل المرفقات."),
+        new("riders.iban.view", "Riders", "دليل المناديب والملفات", "عرض أرقام الآيبان", "الاطلاع على أرقام الآيبان في دليل القوى العاملة والملف 360 والتصدير (H20)."),
+        new("riders.saudi_salary.view", "Riders", "دليل المناديب والملفات", "عرض رواتب موظفي التأمينات", "الاطلاع على رواتب موظفي الرواتب السعوديين من نظام عمر (H20)."),
+        new("riders.legal_cases.view", "Riders", "دليل المناديب والملفات", "عرض القضايا القانونية", "الاطلاع على قضايا الموارد البشرية المرتبطة بالمناديب والموظفين (H20)."),
+        new("riders.unified_number.view", "Riders", "دليل المناديب والملفات", "عرض الرقم الموحّد للكفيل", "الاطلاع على الرقم الموحّد للسجل في تبويب موظفي الرواتب السعوديين (H10)."),
         new("riders.edit", "Riders", "دليل المناديب والملفات", "إضافة وتعديل بيانات ومرفقات المناديب", "تحديث بيانات المندوب ورفع وتجديد الوثائق الرسمية (الإقامة، الرخصة، كرت التشغيل)."),
 
         // إدارة المديونيات وطلبات الموارد البشرية والسلف
@@ -116,7 +120,7 @@ public static class UserAccess
             "إدارة الصندوق الداخلي والبنوك، تسجيل وتحصيل المديونيات والسلف وطلبات HR، التحويل بين الصناديق، واستيراد أرصدة أول المدة.",
             [
                 "pay.view", "pay.manage", "platforms.hs.view", "platforms.hs.manage",
-                "operations.view", "riders.view", "riders.view_360",
+                "operations.view", "riders.view", "riders.view_360", "riders.iban.view",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
                 "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
                 "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
@@ -127,7 +131,7 @@ public static class UserAccess
             "الإشراف المالي الكامل على الخزينة المركزية (MAIN) والبنوك (BANK)، مطابقة وتصديق تحصيلات HR وتصفيات جاهز، واعتماد القيود.",
             [
                 "pay.view", "pay.manage", "platforms.hs.view", "platforms.hs.manage", "platforms.hs.approve", "pay.approve",
-                "operations.view", "riders.view", "riders.view_360",
+                "operations.view", "riders.view", "riders.view_360", "riders.iban.view",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
                 "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
                 "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
@@ -138,6 +142,7 @@ public static class UserAccess
             "إنشاء طلبات خدمات الموارد البشرية (رخص العمل، الإقامات، نقل الكفالة، التأشيرات، التأمين)، تحديد نسب التحمل، وتوثيق ملفات المناديب.",
             [
                 "operations.view", "riders.view", "riders.view_360", "riders.edit",
+                "riders.iban.view", "riders.saudi_salary.view", "riders.legal_cases.view", "riders.unified_number.view",
                 "debts.view", "debts.create.hr", "debts.create.advance",
                 "approvals.view", "approvals.decide", "mobile.broadcast", "forms.review"
             ]),

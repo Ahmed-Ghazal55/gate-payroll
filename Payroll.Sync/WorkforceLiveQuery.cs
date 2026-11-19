@@ -57,42 +57,92 @@ public static class WorkforceLiveQuery
         => query.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v.Trim() : fallback;
 
     /// <summary>SQL text for tests: identifiers from allowlist; values are parameters.</summary>
-    public static (string CountSql, string PageSql, string SummarySql, IReadOnlyList<string> ParameterNames) PreviewSql(ListRequest request)
+    public static (string CountSql, string PageSql, string SummarySql, IReadOnlyList<string> ParameterNames) PreviewSql(ListRequest request, LiveOperationsQuery.Scope? scope = null)
     {
         using var cmd = new SqlCommand();
-        string where = BuildWhere(request, cmd);
+        string where = BuildWhere(request, cmd, scope);
         string from = FromSql();
         string order = OrderSql(request.Sort);
         string count = $"SELECT COUNT_BIG(*) FROM {from}{where}";
-        string page = $"SELECT {SelectSql()} FROM {from}{where} {order} OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        string page = PageSqlText(where, order);
         string summary = $"SELECT {SummarySelectSql()} FROM {from}{where}";
         var names = cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).Append("@skip").Append("@take").ToList();
         return (count, page, summary, names);
     }
 
-    public static ListResult Page(DbConnection source, ListRequest request, CancellationToken cancellationToken = default)
+    static string PageSqlText(string where, string order) => $"""
+        WITH filtered AS (
+            SELECT {SelectSql()}
+            FROM {FromSql()}{where}
+        ),
+        agg AS (
+            SELECT COUNT_BIG(*) AS TotalCount,
+                   SUM(CASE WHEN EngagementType=1 THEN 1 ELSE 0 END) AS SponsoredCount,
+                   SUM(CASE WHEN EngagementType=1 AND IsEmployee=0 THEN 1 ELSE 0 END) AS SponsoredRiders,
+                   SUM(CASE WHEN EngagementType=1 AND IsEmployee=1 THEN 1 ELSE 0 END) AS SponsoredAdmins,
+                   SUM(CASE WHEN EngagementType=1 AND (Iban IS NULL OR Iban='') THEN 1 ELSE 0 END) AS SponsoredMissingIban,
+                   (SELECT SponsorUnified AS sponsorUnified, SponsorNameAr AS sponsorNameAr, COUNT_BIG(*) AS totalCount
+                    FROM filtered
+                    WHERE SponsorUnified IS NOT NULL AND SponsorUnified<>''
+                    GROUP BY SponsorUnified, SponsorNameAr
+                    ORDER BY SponsorNameAr
+                    FOR JSON PATH) AS ByCompanyJson
+            FROM filtered
+        )
+        SELECT f.*, a.TotalCount, a.SponsoredCount, a.SponsoredRiders, a.SponsoredAdmins, a.SponsoredMissingIban, a.ByCompanyJson
+        FROM filtered f CROSS JOIN agg a
+        {OrderSqlFiltered(order)}
+        OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY
+        """;
+
+    static string OrderSqlFiltered(string order) => order
+        .Replace("e.[Status]", "f.[Status]", StringComparison.Ordinal)
+        .Replace("e.[FullNameAr]", "f.[FullNameAr]", StringComparison.Ordinal)
+        .Replace("e.[IqamaNo]", "f.[IqamaNo]", StringComparison.Ordinal);
+
+    /// <summary>One summary SQL only (no page rows).</summary>
+    public static (JsonObject Summary, DateTimeOffset AsOf) SummaryOnly(DbConnection source, ListRequest request, LiveOperationsQuery.Scope scope, CancellationToken cancellationToken = default)
     {
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
         DateTimeOffset asOf = DateTimeOffset.UtcNow;
-        using var countCmd = source.CreateCommand();
-        countCmd.CommandTimeout = CommandTimeoutSeconds;
-        using var countCancel = SyncCancellation.Register(countCmd, cancellationToken);
-        countCmd.CommandText = $"SELECT COUNT_BIG(*) FROM {FromSql()}{BuildWhere(request, countCmd)}";
-        long total = Convert.ToInt64(countCmd.ExecuteScalar() ?? 0, CultureInfo.InvariantCulture);
-
         using var summaryCmd = source.CreateCommand();
         summaryCmd.CommandTimeout = CommandTimeoutSeconds;
         using var summaryCancel = SyncCancellation.Register(summaryCmd, cancellationToken);
-        summaryCmd.CommandText = $"SELECT {SummarySelectSql()} FROM {FromSql()}{BuildWhere(request, summaryCmd)}";
-        var summary = ReadSummary(summaryCmd);
+        string where = BuildWhere(request, summaryCmd, scope);
+        summaryCmd.CommandText = $"""
+            WITH filtered AS (
+                SELECT e.[EngagementType] AS EngagementType, e.[IsEmployee] AS IsEmployee, e.[Iban] AS Iban,
+                       s.[UnifiedNationalNumber] AS SponsorUnified, s.[RegistryNameAr] AS SponsorNameAr
+                FROM {FromSql()}{where}
+            )
+            SELECT COUNT_BIG(*) AS TotalCount,
+                   SUM(CASE WHEN EngagementType=1 THEN 1 ELSE 0 END) AS SponsoredCount,
+                   SUM(CASE WHEN EngagementType=1 AND IsEmployee=0 THEN 1 ELSE 0 END) AS SponsoredRiders,
+                   SUM(CASE WHEN EngagementType=1 AND IsEmployee=1 THEN 1 ELSE 0 END) AS SponsoredAdmins,
+                   SUM(CASE WHEN EngagementType=1 AND (Iban IS NULL OR Iban='') THEN 1 ELSE 0 END) AS SponsoredMissingIban,
+                   (SELECT SponsorUnified AS sponsorUnified, SponsorNameAr AS sponsorNameAr, COUNT_BIG(*) AS totalCount
+                    FROM filtered
+                    WHERE SponsorUnified IS NOT NULL AND SponsorUnified<>''
+                    GROUP BY SponsorUnified, SponsorNameAr
+                    ORDER BY SponsorNameAr
+                    FOR JSON PATH) AS ByCompanyJson
+            FROM filtered
+            """;
+        return (ReadSummary(summaryCmd), asOf);
+    }
 
+    public static ListResult Page(DbConnection source, ListRequest request, LiveOperationsQuery.Scope scope, CancellationToken cancellationToken = default)
+    {
+        if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
+        DateTimeOffset asOf = DateTimeOffset.UtcNow;
         using var pageCmd = source.CreateCommand();
         pageCmd.CommandTimeout = CommandTimeoutSeconds;
         using var pageCancel = SyncCancellation.Register(pageCmd, cancellationToken);
+        string where = BuildWhere(request, pageCmd, scope);
         Add(pageCmd, "@skip", request.Skip);
         Add(pageCmd, "@take", request.Take);
-        pageCmd.CommandText = $"SELECT {SelectSql()} FROM {FromSql()}{BuildWhere(request, pageCmd)} {OrderSql(request.Sort)} OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
-        var items = ReadRows(pageCmd, cancellationToken);
+        pageCmd.CommandText = PageSqlText(where, OrderSql(request.Sort));
+        var (items, total, summary) = ReadRowsWithSummary(pageCmd, cancellationToken);
         return new(items, total, request, asOf, summary);
     }
 
@@ -142,66 +192,99 @@ public static class WorkforceLiveQuery
         return ReadGeneric(cmd, cancellationToken);
     }
 
-    public static IReadOnlyList<JsonObject> SaudiPayrollEmployees(DbConnection source, CancellationToken cancellationToken = default)
+    public static IReadOnlyList<JsonObject> SaudiPayrollEmployees(DbConnection source, LiveOperationsQuery.Scope scope, CancellationToken cancellationToken = default)
     {
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
         using var cmd = source.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        cmd.CommandText = """
+        string scopeSql = ScopeSponsorSql(scope, cmd, "s");
+        cmd.CommandText = $"""
             SELECT p.[Id], p.[Number], p.[Name], p.[NationalId], p.[Country], p.[JoiningDate], p.[PersonalIban], p.[Salary], p.[Status],
                    s.[RegistryNameAr] AS SponsorNameAr, s.[UnifiedNationalNumber]
             FROM [app].[PayrollEmployees] p
             INNER JOIN [app].[Sponsors] s ON s.[Id]=p.[SponsorId] AND s.[IsDeleted]=0
-            WHERE p.[IsDeleted]=0
+            WHERE p.[IsDeleted]=0{scopeSql}
             ORDER BY p.[Number]
             """;
         using var cancel = SyncCancellation.Register(cmd, cancellationToken);
         return ReadGeneric(cmd, cancellationToken).Select(MapSaudi).ToList();
     }
 
-    public static IReadOnlyList<JsonObject> TerminatedAndFleeing(DbConnection source, CancellationToken cancellationToken = default)
+    public static IReadOnlyList<JsonObject> TerminatedAndFleeing(DbConnection source, LiveOperationsQuery.Scope scope, CancellationToken cancellationToken = default)
     {
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
         using var cmd = source.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        cmd.CommandText = """
+        string scopeSql = ScopeSponsorSql(scope, cmd, "s");
+        cmd.CommandText = $"""
             SELECT e.[Id], e.[IqamaNo], e.[FullNameAr], e.[Nationality], e.[PrimaryPhone], e.[Status], e.[TerminationDate], e.[StatusReason],
                    owt.[NameAr] AS WorkTypeNameAr, gc.[NameAr] AS CityNameAr
             FROM [app].[Employees] e
+            LEFT JOIN [app].[Sponsors] s ON s.[Id]=e.[SponsorId] AND s.[IsDeleted]=0
             LEFT JOIN [app].[OperationalWorkTypes] owt ON owt.[Id]=e.[OperationalWorkTypeId] AND owt.[IsDeleted]=0
             LEFT JOIN [app].[OperatingCities] oc ON oc.[Id]=e.[OperatingCityId] AND oc.[IsDeleted]=0
             LEFT JOIN [platform].[GlobalCities] gc ON gc.[Id]=oc.[GlobalCityId] AND gc.[IsDeleted]=0
-            WHERE e.[IsDeleted]=0 AND e.[Status] IN (6,8)
+            WHERE e.[IsDeleted]=0 AND e.[Status] IN (6,8){scopeSql}
             ORDER BY e.[FullNameAr]
             """;
         using var cancel = SyncCancellation.Register(cmd, cancellationToken);
         return ReadGeneric(cmd, cancellationToken).Select(MapTerminated).ToList();
     }
 
-    public static IReadOnlyList<JsonObject> AbsenceCases(DbConnection source, CancellationToken cancellationToken = default)
+    public static IReadOnlyList<JsonObject> AbsenceCases(DbConnection source, LiveOperationsQuery.Scope scope, CancellationToken cancellationToken = default)
     {
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
         using var cmd = source.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        cmd.CommandText = """
+        string scopeSql = ScopeSponsorSql(scope, cmd, "s");
+        cmd.CommandText = $"""
             SELECT c.[Id], c.[CaseNumber], c.[AbsenceDate], c.[CurrentPath], c.[Status], e.[FullNameAr] AS EmployeeNameAr, e.[IqamaNo]
             FROM [app].[EmployeeAbsenceComplianceCases] c
             INNER JOIN [app].[Employees] e ON e.[Id]=c.[EmployeeId] AND e.[IsDeleted]=0
-            WHERE c.[IsDeleted]=0
+            LEFT JOIN [app].[Sponsors] s ON s.[Id]=e.[SponsorId] AND s.[IsDeleted]=0
+            WHERE c.[IsDeleted]=0{scopeSql}
             ORDER BY c.[CaseNumber]
             """;
         using var cancel = SyncCancellation.Register(cmd, cancellationToken);
         return ReadGeneric(cmd, cancellationToken);
     }
 
-    public static JsonObject Person360(DbConnection source, string employeeId, CancellationToken cancellationToken = default)
+    public static IReadOnlyList<JsonObject> LegalCases(DbConnection source, LiveOperationsQuery.Scope scope, CancellationToken cancellationToken = default)
+    {
+        if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
+        using var cmd = source.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        string scopeSql = ScopeSponsorSql(scope, cmd, "s");
+        cmd.CommandText = $"""
+            SELECT c.[Id], c.[CaseNumber], c.[CaseTime], c.[Status], c.[PersonName],
+                   s.[RegistryNameAr] AS SponsorNameAr, s.[UnifiedNationalNumber] AS SponsorUnified,
+                   e.[IqamaNo], e.[FullNameAr] AS EmployeeNameAr
+            FROM [app].[HrLegalCases] c
+            LEFT JOIN [app].[Sponsors] s ON s.[Id]=c.[SponsorId] AND s.[IsDeleted]=0
+            LEFT JOIN [app].[Employees] e ON e.[Id]=c.[EmployeeId] AND e.[IsDeleted]=0
+            WHERE c.[IsDeleted]=0{scopeSql}
+            ORDER BY c.[CaseNumber]
+            """;
+        try
+        {
+            using var cancel = SyncCancellation.Register(cmd, cancellationToken);
+            return ReadGeneric(cmd, cancellationToken).Select(MapLegal).ToList();
+        }
+        catch (SqlException ex) when (IsMissingTable(ex))
+        {
+            return Array.Empty<JsonObject>();
+        }
+    }
+
+    public static JsonObject Person360(DbConnection source, string employeeId, LiveOperationsQuery.Scope scope, CancellationToken cancellationToken = default)
     {
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
         if (!Guid.TryParse(employeeId, out _)) throw new ImportFailure("invalid_employee_id");
         using var personCmd = source.CreateCommand();
         personCmd.CommandTimeout = CommandTimeoutSeconds;
         Add(personCmd, "@id", employeeId);
-        personCmd.CommandText = $"SELECT TOP 1 {SelectSql()} FROM {FromSql()} WHERE e.[IsDeleted]=0 AND e.[Id]=@id";
+        string scopeSql = ScopeSponsorSql(scope, personCmd, "s");
+        personCmd.CommandText = $"SELECT TOP 1 {SelectSql()} FROM {FromSql()} WHERE e.[IsDeleted]=0 AND e.[Id]=@id{scopeSql}";
         using var cancel = SyncCancellation.Register(personCmd, cancellationToken);
         var people = ReadRows(personCmd, cancellationToken);
         if (people.Count == 0) throw new ImportFailure("employee_not_found");
@@ -254,7 +337,8 @@ public static class WorkforceLiveQuery
             LEFT JOIN [app].[PlatformRiderAccounts] pra ON pra.[Id]=a.[PlatformRiderAccountId] AND pra.[IsDeleted]=0
             LEFT JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=pra.[ClientPlatformId]
             WHERE rp.[EmployeeId]=@id AND rp.[IsDeleted]=0
-              AND a.[EffectiveFrom] >= DATEADD(month,-3,SYSUTCDATETIME())
+              AND a.[EffectiveFrom] <= SYSUTCDATETIME()
+              AND (a.[EffectiveTo] IS NULL OR a.[EffectiveTo] >= DATEADD(month,-3,SYSUTCDATETIME()))
             ORDER BY a.[EffectiveFrom] DESC
             """;
         using var cancel = SyncCancellation.Register(cmd, ct);
@@ -281,11 +365,13 @@ public static class WorkforceLiveQuery
         cmd.CommandText = """
             SELECT pra.[Id], pra.[ExternalAccountId], pra.[CreatedAtUtc], pra.[StartDate], pra.[AcquisitionDate],
                    cp.[Code] AS PlatformCode, cp.[NameAr] AS PlatformNameAr,
-                   gc.[NameAr] AS CityNameAr
+                   gc.[NameAr] AS CityNameAr,
+                   ownerEmp.[FullNameAr] AS OwnerNameAr, ownerEmp.[IqamaNo] AS OwnerIqama
             FROM [app].[PlatformRiderAccounts] pra
             LEFT JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=pra.[ClientPlatformId]
             LEFT JOIN [app].[OperatingCities] oc ON oc.[Id]=pra.[OperatingCityId] AND oc.[IsDeleted]=0
             LEFT JOIN [platform].[GlobalCities] gc ON gc.[Id]=oc.[GlobalCityId] AND gc.[IsDeleted]=0
+            LEFT JOIN [app].[Employees] ownerEmp ON ownerEmp.[Id]=pra.[RegisteredEmployeeId] AND ownerEmp.[IsDeleted]=0
             WHERE pra.[RegisteredEmployeeId]=@id AND pra.[IsDeleted]=0
             ORDER BY pra.[CreatedAtUtc] DESC
             """;
@@ -297,13 +383,38 @@ public static class WorkforceLiveQuery
             ["externalAccountId"] = r.S("ExternalAccountId"),
             ["city"] = r.S("CityNameAr"),
             ["createdAt"] = r.S("CreatedAtUtc", r.S("StartDate", r.S("AcquisitionDate"))),
-            ["owner"] = "registered"
+            ["owner"] = r.S("OwnerNameAr").Length > 0 ? r.S("OwnerNameAr") : (r.S("OwnerIqama").Length > 0 ? r.S("OwnerIqama") : "registered"),
+            ["ownerIqama"] = r.S("OwnerIqama")
         }).ToList();
     }
 
     static IReadOnlyList<JsonObject> ReadPromissoryMeta(DbConnection source, string employeeId, string riderProfileId, CancellationToken ct)
     {
         var rows = new List<JsonObject>();
+        using (var noteCmd = source.CreateCommand())
+        {
+            noteCmd.CommandTimeout = CommandTimeoutSeconds;
+            Add(noteCmd, "@emp", employeeId);
+            noteCmd.CommandText = """
+                SELECT n.[Id], n.[NoteNumber], n.[Amount], n.[IssueDate], n.[Status]
+                FROM [app].[EmployeePromissoryNotes] n
+                WHERE n.[EmployeeId]=@emp AND n.[IsDeleted]=0
+                ORDER BY n.[IssueDate] DESC
+                """;
+            try
+            {
+                using var cancel = SyncCancellation.Register(noteCmd, ct);
+                rows.AddRange(ReadGeneric(noteCmd, ct).Select(r => new JsonObject
+                {
+                    ["id"] = r.S("Id"),
+                    ["date"] = r.S("IssueDate"),
+                    ["amount"] = string.IsNullOrWhiteSpace(r.S("Amount")) ? NoSourceYet : r.S("Amount"),
+                    ["status"] = r.S("Status"),
+                    ["noteNumber"] = string.IsNullOrWhiteSpace(r.S("NoteNumber")) ? NoSourceYet : r.S("NoteNumber")
+                }));
+            }
+            catch (SqlException ex) when (IsMissingTable(ex)) { /* table absent */ }
+        }
         if (riderProfileId != "")
         {
             using var cmd = source.CreateCommand();
@@ -323,13 +434,65 @@ public static class WorkforceLiveQuery
                     ["date"] = r.S("CreatedAtUtc"),
                     ["amount"] = NoSourceYet,
                     ["status"] = "erp_file",
-                    ["noteNumber"] = r.S("Id")
+                    ["noteNumber"] = NoSourceYet
                 }));
             }
-            catch (SqlException) { /* table may be absent in synthetic envs */ }
+            catch (SqlException ex) when (IsMissingTable(ex)) { /* table may be absent in synthetic envs */ }
         }
-        _ = employeeId;
         return rows;
+    }
+
+    public static (IReadOnlyList<JsonObject> Items, long Total) DataQualityPage(DbConnection source, ListRequest request, LiveOperationsQuery.Scope scope, CancellationToken cancellationToken = default)
+    {
+        if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
+        using var cmd = source.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        string where = BuildWhere(request with { MissingIban = false }, cmd, scope);
+        Add(cmd, "@skip", request.Skip);
+        Add(cmd, "@take", request.Take);
+        cmd.CommandText = $"""
+            WITH base AS (
+                SELECT e.[Id], e.[IqamaNo], e.[FullNameAr], e.[EngagementType], e.[Iban], e.[PrimaryPhone],
+                       plat.[PlatformCode]
+                FROM {FromSql()}{where}
+            ),
+            issues AS (
+                SELECT Id, IqamaNo, FullNameAr, 'missing_iban_sponsored' AS IssueKind, 'erp_live' AS Source, N'تنبيه آيبان مفقود للمكفول' AS SuggestedAction
+                FROM base WHERE EngagementType=1 AND (Iban IS NULL OR Iban='')
+                UNION ALL
+                SELECT Id, IqamaNo, FullNameAr, 'no_active_platform', 'erp_live', N'بدون منصة نشطة'
+                FROM base WHERE PlatformCode IS NULL OR PlatformCode=''
+                UNION ALL
+                SELECT Id, IqamaNo, FullNameAr, 'missing_phone', 'erp_live', N'أكمل الجوال'
+                FROM base WHERE PrimaryPhone IS NULL OR PrimaryPhone=''
+            ),
+            counted AS (
+                SELECT *, COUNT_BIG(*) OVER() AS TotalCount FROM issues
+            )
+            SELECT Id, IqamaNo AS iqama, FullNameAr AS name, IssueKind AS issueKind, Source AS source, SuggestedAction AS suggestedAction, TotalCount
+            FROM counted
+            ORDER BY FullNameAr, IssueKind
+            OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY
+            """;
+        using var cancel = SyncCancellation.Register(cmd, cancellationToken);
+        var items = new List<JsonObject>();
+        long total = 0;
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (total == 0) total = Convert.ToInt64(reader["TotalCount"], CultureInfo.InvariantCulture);
+            items.Add(new JsonObject
+            {
+                ["id"] = Convert.ToString(reader["Id"], CultureInfo.InvariantCulture) ?? "",
+                ["iqama"] = Convert.ToString(reader["iqama"], CultureInfo.InvariantCulture) ?? "",
+                ["name"] = Convert.ToString(reader["name"], CultureInfo.InvariantCulture) ?? "",
+                ["issueKind"] = Convert.ToString(reader["issueKind"], CultureInfo.InvariantCulture) ?? "",
+                ["source"] = Convert.ToString(reader["source"], CultureInfo.InvariantCulture) ?? "",
+                ["suggestedAction"] = Convert.ToString(reader["suggestedAction"], CultureInfo.InvariantCulture) ?? ""
+            });
+        }
+        return (items, total);
     }
 
     static string FromSql() => """
@@ -403,9 +566,19 @@ public static class WorkforceLiveQuery
         _ => "ORDER BY e.[FullNameAr] ASC"
     };
 
-    static string BuildWhere(ListRequest request, DbCommand cmd)
+    static string BuildWhere(ListRequest request, DbCommand cmd, LiveOperationsQuery.Scope? scope = null)
     {
         var parts = new List<string> { "e.[IsDeleted]=0" };
+        if (scope is { AllCompanies: false })
+        {
+            if (scope.SponsorUnifiedNumbers.Count == 0)
+                parts.Add("1=0");
+            else
+            {
+                string regs = InList(cmd, "@cr", scope.SponsorUnifiedNumbers);
+                parts.Add($"s.[UnifiedNationalNumber] IN ({regs})");
+            }
+        }
         if (request.Query.Length > 0)
         {
             Add(cmd, "@q", "%" + EscapeLike(request.Query) + "%");
@@ -424,8 +597,11 @@ public static class WorkforceLiveQuery
             parts.Add("e.[IsEmployee]=0");
         else if (request.WorkType is "admin" or "إداري" or "administrative")
             parts.Add("e.[IsEmployee]=1");
-        if (request.Status.Length > 0 && int.TryParse(StatusCode(request.Status), out int statusCode))
+        if (request.Status.Length > 0)
         {
+            string mapped = StatusCode(request.Status);
+            if (!int.TryParse(mapped, NumberStyles.None, CultureInfo.InvariantCulture, out int statusCode))
+                throw new ImportFailure("invalid_live_status");
             Add(cmd, "@status", statusCode);
             parts.Add("e.[Status]=@status");
         }
@@ -449,20 +625,49 @@ public static class WorkforceLiveQuery
         return parts.Count == 0 ? "" : " WHERE " + string.Join(" AND ", parts);
     }
 
+    static string ScopeSponsorSql(LiveOperationsQuery.Scope scope, DbCommand cmd, string sponsorAlias)
+    {
+        if (scope.AllCompanies) return "";
+        if (scope.SponsorUnifiedNumbers.Count == 0) return " AND 1=0";
+        string regs = InList(cmd, "@cr", scope.SponsorUnifiedNumbers);
+        return $" AND {sponsorAlias}.[UnifiedNationalNumber] IN ({regs})";
+    }
+
+    static string InList(DbCommand cmd, string prefix, IReadOnlyList<string> values)
+    {
+        if (values.Count == 0) { Add(cmd, prefix + "0", Guid.Empty.ToString("D")); return prefix + "0"; }
+        if (values.Count > LiveOperationsQuery.MaxInlineParameters)
+        {
+            Add(cmd, prefix + "json", System.Text.Json.JsonSerializer.Serialize(values));
+            return $"SELECT [value] FROM OPENJSON({prefix}json)";
+        }
+        var names = new List<string>();
+        for (int i = 0; i < values.Count; i++)
+        {
+            string name = prefix + i;
+            Add(cmd, name, values[i]);
+            names.Add(name);
+        }
+        return string.Join(',', names);
+    }
+
     static string StatusCode(string status) => status.Trim().ToLowerInvariant() switch
     {
         "1" or "draft" or "مسودة" => "1",
         "2" or "onboarding" or "قيد التهيئة" => "2",
         "3" or "active" or "نشط" => "3",
-        "4" or "suspended" or "موقوف" => "4",
+        "4" or "suspended" or "موقوف" or "غير نشط" or "inactive" => "4",
         "5" or "onleave" or "في إجازة" => "5",
         "6" or "terminated" or "منتهي الخدمة" => "6",
         "7" or "archived" or "مؤرشف" => "7",
         "8" or "fleeing" or "هروب" or "هروب / انقطاع" => "8",
         "9" or "accident" or "حادث" => "9",
         "10" or "sick" or "إجازة مرضية" => "10",
-        _ => status
+        _ => ""
     };
+
+    static bool IsMissingTable(SqlException ex) =>
+        ex.Number is 208 or 207 || ex.Message.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase);
 
     static string EscapeLike(string value) => value.Replace("[", "[[]", StringComparison.Ordinal).Replace("%", "[%]", StringComparison.Ordinal).Replace("_", "[_]", StringComparison.Ordinal);
 
@@ -477,15 +682,67 @@ public static class WorkforceLiveQuery
     static JsonObject ReadSummary(DbCommand cmd)
     {
         using var r = cmd.ExecuteReader();
-        if (!r.Read()) return new JsonObject();
-        return new JsonObject
+        if (!r.Read()) return new JsonObject { ["byCompany"] = new JsonArray() };
+        var summary = new JsonObject
         {
             ["totalCount"] = Convert.ToInt64(r["TotalCount"], CultureInfo.InvariantCulture),
-            ["sponsoredCount"] = Convert.ToInt64(r["SponsoredCount"], CultureInfo.InvariantCulture),
-            ["sponsoredRiders"] = Convert.ToInt64(r["SponsoredRiders"], CultureInfo.InvariantCulture),
-            ["sponsoredAdmins"] = Convert.ToInt64(r["SponsoredAdmins"], CultureInfo.InvariantCulture),
-            ["sponsoredMissingIban"] = Convert.ToInt64(r["SponsoredMissingIban"], CultureInfo.InvariantCulture)
+            ["sponsoredCount"] = Convert.ToInt64(r["SponsoredCount"] is DBNull ? 0 : r["SponsoredCount"], CultureInfo.InvariantCulture),
+            ["sponsoredRiders"] = Convert.ToInt64(r["SponsoredRiders"] is DBNull ? 0 : r["SponsoredRiders"], CultureInfo.InvariantCulture),
+            ["sponsoredAdmins"] = Convert.ToInt64(r["SponsoredAdmins"] is DBNull ? 0 : r["SponsoredAdmins"], CultureInfo.InvariantCulture),
+            ["sponsoredMissingIban"] = Convert.ToInt64(r["SponsoredMissingIban"] is DBNull ? 0 : r["SponsoredMissingIban"], CultureInfo.InvariantCulture),
+            ["byCompany"] = ParseByCompany(r)
         };
+        return summary;
+    }
+
+    static JsonArray ParseByCompany(IDataRecord r)
+    {
+        try
+        {
+            int ord = r.GetOrdinal("ByCompanyJson");
+            if (r.IsDBNull(ord)) return new JsonArray();
+            string json = Convert.ToString(r.GetValue(ord), CultureInfo.InvariantCulture) ?? "";
+            if (string.IsNullOrWhiteSpace(json)) return new JsonArray();
+            var arr = JsonNode.Parse(json) as JsonArray;
+            return arr ?? new JsonArray();
+        }
+        catch (IndexOutOfRangeException) { return new JsonArray(); }
+        catch (System.Text.Json.JsonException) { return new JsonArray(); }
+    }
+
+    static (List<JsonObject> Items, long Total, JsonObject Summary) ReadRowsWithSummary(DbCommand cmd, CancellationToken ct)
+    {
+        using var reader = cmd.ExecuteReader();
+        var rows = new List<JsonObject>();
+        long total = 0;
+        JsonObject summary = new()
+        {
+            ["totalCount"] = 0L,
+            ["sponsoredCount"] = 0L,
+            ["sponsoredRiders"] = 0L,
+            ["sponsoredAdmins"] = 0L,
+            ["sponsoredMissingIban"] = 0L,
+            ["byCompany"] = new JsonArray()
+        };
+        while (reader.Read())
+        {
+            ct.ThrowIfCancellationRequested();
+            if (rows.Count == 0)
+            {
+                total = Convert.ToInt64(reader["TotalCount"] is DBNull ? 0 : reader["TotalCount"], CultureInfo.InvariantCulture);
+                summary = new JsonObject
+                {
+                    ["totalCount"] = total,
+                    ["sponsoredCount"] = Convert.ToInt64(reader["SponsoredCount"] is DBNull ? 0 : reader["SponsoredCount"], CultureInfo.InvariantCulture),
+                    ["sponsoredRiders"] = Convert.ToInt64(reader["SponsoredRiders"] is DBNull ? 0 : reader["SponsoredRiders"], CultureInfo.InvariantCulture),
+                    ["sponsoredAdmins"] = Convert.ToInt64(reader["SponsoredAdmins"] is DBNull ? 0 : reader["SponsoredAdmins"], CultureInfo.InvariantCulture),
+                    ["sponsoredMissingIban"] = Convert.ToInt64(reader["SponsoredMissingIban"] is DBNull ? 0 : reader["SponsoredMissingIban"], CultureInfo.InvariantCulture),
+                    ["byCompany"] = ParseByCompany(reader)
+                };
+            }
+            rows.Add(MapPersonRow(reader));
+        }
+        return (rows, total, summary);
     }
 
     static List<JsonObject> ReadRows(DbCommand cmd, CancellationToken ct)
@@ -495,45 +752,50 @@ public static class WorkforceLiveQuery
         while (reader.Read())
         {
             ct.ThrowIfCancellationRequested();
-            string engagement = IntStr(reader, "EngagementType") switch { "1" => "SponsoredInternal", "2" => "External", _ => "" };
-            bool isEmployee = IntStr(reader, "IsEmployee") == "1";
-            string vehicleType = IntStr(reader, "VehicleType");
-            string status = IntStr(reader, "Status");
-            rows.Add(new JsonObject
-            {
-                ["id"] = Str(reader, "Id"),
-                ["erpEmployeeId"] = Str(reader, "Id"),
-                ["riderProfileId"] = Str(reader, "RiderProfileId"),
-                ["iqama"] = Str(reader, "IqamaNo"),
-                ["name"] = Str(reader, "FullNameAr"),
-                ["nameEn"] = Str(reader, "FullNameEn"),
-                ["phone"] = Str(reader, "PrimaryPhone"),
-                ["nationality"] = Str(reader, "Nationality"),
-                ["iban"] = Str(reader, "Iban"),
-                ["engagementType"] = engagement,
-                ["isEmployee"] = isEmployee,
-                ["workType"] = isEmployee ? "admin" : "rider",
-                ["status"] = StatusName(status),
-                ["statusCode"] = status,
-                ["sponsorNameAr"] = Str(reader, "SponsorNameAr"),
-                ["sponsorUnified"] = Str(reader, "SponsorUnified"),
-                ["jobTitle"] = Str(reader, "WorkTypeNameAr").Length > 0 ? Str(reader, "WorkTypeNameAr") : NoSourceYet,
-                ["workTypeCode"] = Str(reader, "WorkTypeCode"),
-                ["workTypeNameAr"] = Str(reader, "WorkTypeNameAr"),
-                ["city"] = Str(reader, "CityNameAr"),
-                ["cityCode"] = Str(reader, "CityCode"),
-                ["housing"] = Str(reader, "HousingNameAr"),
-                ["platform"] = Str(reader, "PlatformCode", Str(reader, "PlatformNameAr")),
-                ["platformWorkId"] = Str(reader, "ExternalAccountId"),
-                ["paymentModel"] = PaymentModel(Str(reader, "PaymentModel")),
-                ["hasCompanyVehicle"] = vehicleType.Length > 0,
-                ["companyVehicleType"] = VehicleTypeName(vehicleType),
-                ["drivingLicense"] = Str(reader, "LicenseNamesAr"),
-                ["mudadSalary"] = NoSourceYet,
-                ["residencyProfession"] = Str(reader, "ResidencyProfession")
-            });
+            rows.Add(MapPersonRow(reader));
         }
         return rows;
+    }
+
+    static JsonObject MapPersonRow(IDataRecord reader)
+    {
+        string engagement = IntStr(reader, "EngagementType") switch { "1" => "SponsoredInternal", "2" => "External", _ => "" };
+        bool isEmployee = IntStr(reader, "IsEmployee") == "1" || string.Equals(IntStr(reader, "IsEmployee"), "True", StringComparison.OrdinalIgnoreCase);
+        string vehicleType = IntStr(reader, "VehicleType");
+        string status = IntStr(reader, "Status");
+        return new JsonObject
+        {
+            ["id"] = Str(reader, "Id"),
+            ["erpEmployeeId"] = Str(reader, "Id"),
+            ["riderProfileId"] = Str(reader, "RiderProfileId"),
+            ["iqama"] = Str(reader, "IqamaNo"),
+            ["name"] = Str(reader, "FullNameAr"),
+            ["nameEn"] = Str(reader, "FullNameEn"),
+            ["phone"] = Str(reader, "PrimaryPhone"),
+            ["nationality"] = Str(reader, "Nationality"),
+            ["iban"] = Str(reader, "Iban"),
+            ["engagementType"] = engagement,
+            ["isEmployee"] = isEmployee,
+            ["workType"] = isEmployee ? "admin" : "rider",
+            ["status"] = StatusName(status),
+            ["statusCode"] = status,
+            ["sponsorNameAr"] = Str(reader, "SponsorNameAr"),
+            ["sponsorUnified"] = Str(reader, "SponsorUnified"),
+            ["jobTitle"] = Str(reader, "WorkTypeNameAr").Length > 0 ? Str(reader, "WorkTypeNameAr") : NoSourceYet,
+            ["workTypeCode"] = Str(reader, "WorkTypeCode"),
+            ["workTypeNameAr"] = Str(reader, "WorkTypeNameAr"),
+            ["city"] = Str(reader, "CityNameAr"),
+            ["cityCode"] = Str(reader, "CityCode"),
+            ["housing"] = Str(reader, "HousingNameAr"),
+            ["platform"] = Str(reader, "PlatformCode", Str(reader, "PlatformNameAr")),
+            ["platformWorkId"] = Str(reader, "ExternalAccountId"),
+            ["paymentModel"] = PaymentModel(Str(reader, "PaymentModel")),
+            ["hasCompanyVehicle"] = vehicleType.Length > 0,
+            ["companyVehicleType"] = VehicleTypeName(vehicleType),
+            ["drivingLicense"] = Str(reader, "LicenseNamesAr"),
+            ["mudadSalary"] = NoSourceYet,
+            ["residencyProfession"] = Str(reader, "ResidencyProfession")
+        };
     }
 
     static List<JsonObject> ReadGeneric(DbCommand cmd, CancellationToken ct)
@@ -593,6 +855,18 @@ public static class WorkforceLiveQuery
         ["status"] = StatusName(r.S("Status")),
         ["terminationDate"] = r.S("TerminationDate"),
         ["statusReason"] = r.S("StatusReason")
+    };
+
+    static JsonObject MapLegal(JsonObject r) => new()
+    {
+        ["id"] = r.S("Id"),
+        ["caseNumber"] = r.S("CaseNumber"),
+        ["caseTime"] = r.S("CaseTime"),
+        ["status"] = r.S("Status"),
+        ["personName"] = r.S("PersonName", r.S("EmployeeNameAr")),
+        ["iqama"] = r.S("IqamaNo"),
+        ["sponsorNameAr"] = r.S("SponsorNameAr"),
+        ["sponsorUnified"] = r.S("SponsorUnified")
     };
 
     static string StatusName(string code) => code switch
