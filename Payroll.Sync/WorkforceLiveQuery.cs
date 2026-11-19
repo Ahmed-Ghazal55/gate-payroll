@@ -11,7 +11,7 @@ namespace ErpImport;
 /// </summary>
 public static class WorkforceLiveQuery
 {
-    public const int MaxPageSize = 200, CommandTimeoutSeconds = 15;
+    public const int MaxPageSize = 200, CommandTimeoutSeconds = 15, ExportCommandTimeoutSeconds = 120;
     public const string NoSourceYet = "لا يوجد مصدر بعد";
     public const string ImagePending = "بانتظار صلاحية القراءة من نظام عمر";
 
@@ -144,6 +144,46 @@ public static class WorkforceLiveQuery
         pageCmd.CommandText = PageSqlText(where, OrderSql(request.Sort));
         var (items, total, summary) = ReadRowsWithSummary(pageCmd, cancellationToken);
         return new(items, total, request, asOf, summary);
+    }
+
+
+    /// <summary>One SQL for the full filtered set (export). Longer timeout; no page loop.</summary>
+    public static ListResult ExportAll(DbConnection source, ListRequest request, LiveOperationsQuery.Scope scope, int timeoutSeconds = ExportCommandTimeoutSeconds, CancellationToken cancellationToken = default)
+    {
+        if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
+        if (timeoutSeconds < 30) timeoutSeconds = ExportCommandTimeoutSeconds;
+        DateTimeOffset asOf = DateTimeOffset.UtcNow;
+        using var cmd = source.CreateCommand();
+        cmd.CommandTimeout = timeoutSeconds;
+        using var cancel = SyncCancellation.Register(cmd, cancellationToken);
+        string where = BuildWhere(request, cmd, scope);
+        string order = OrderSql(request.Sort);
+        // Single query: all matching rows + aggregate totals (no OFFSET paging loop).
+        cmd.CommandText = $"""
+            WITH filtered AS (
+                SELECT {SelectSql()}
+                FROM {FromSql()}{where}
+            ),
+            agg AS (
+                SELECT COUNT_BIG(*) AS TotalCount,
+                       SUM(CASE WHEN EngagementType=1 THEN 1 ELSE 0 END) AS SponsoredCount,
+                       SUM(CASE WHEN EngagementType=1 AND IsEmployee=0 THEN 1 ELSE 0 END) AS SponsoredRiders,
+                       SUM(CASE WHEN EngagementType=1 AND IsEmployee=1 THEN 1 ELSE 0 END) AS SponsoredAdmins,
+                       SUM(CASE WHEN EngagementType=1 AND (Iban IS NULL OR Iban='') THEN 1 ELSE 0 END) AS SponsoredMissingIban,
+                       (SELECT SponsorUnified AS sponsorUnified, SponsorNameAr AS sponsorNameAr, COUNT_BIG(*) AS totalCount
+                        FROM filtered
+                        WHERE SponsorUnified IS NOT NULL AND SponsorUnified<>''
+                        GROUP BY SponsorUnified, SponsorNameAr
+                        ORDER BY SponsorNameAr
+                        FOR JSON PATH) AS ByCompanyJson
+                FROM filtered
+            )
+            SELECT f.*, a.TotalCount, a.SponsoredCount, a.SponsoredRiders, a.SponsoredAdmins, a.SponsoredMissingIban, a.ByCompanyJson
+            FROM filtered f CROSS JOIN agg a
+            {OrderSqlFiltered(order)}
+            """;
+        var (items, total, summary) = ReadRowsWithSummary(cmd, cancellationToken);
+        return new(items, total, request with { Page = 1, Skip = 0, Take = items.Count, PageSize = Math.Max(1, items.Count) }, asOf, summary);
     }
 
     public static IReadOnlyList<JsonObject> Catalog(DbConnection source, string kind, CancellationToken cancellationToken = default)

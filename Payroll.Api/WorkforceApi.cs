@@ -15,6 +15,7 @@ public static class WorkforceApi
     public const string PermLegalCases = "riders.legal_cases.view";
     public const string PermUnifiedNumber = "riders.unified_number.view";
     static readonly TimeSpan LiveReadTimeout = TimeSpan.FromSeconds(20);
+    const int DefaultExportTimeoutSeconds = 120;
 
     public static void Map(RouteGroupBuilder api, Store store, IConfiguration config, IHostEnvironment env)
     {
@@ -102,31 +103,25 @@ public static class WorkforceApi
         }
         else
         {
+            int exportTimeout = ExportTimeoutSeconds(config);
             LiveRead(ctx, token =>
             {
                 using var erp = OpenErp(config);
                 return store.Read(c =>
                 {
                     var scope = Operations.LiveScope(c, ctx.User);
-                    int pageNo = 1;
-                    while (true)
+                    var req = request with
                     {
-                        var req = request with
-                        {
-                            Page = pageNo,
-                            Skip = (pageNo - 1) * request.PageSize,
-                            Take = request.PageSize,
-                            QueryAlt = request.Query.Length == 0 ? "" : TextSearch.Normalize(request.Query)
-                        };
-                        var page = WorkforceLiveQuery.Page(erp, req, scope, token);
-                        all.AddRange(page.Items.Select(r => StripSensitive(ApplyIbanAlert(r), ctx.User)));
-                        if (all.Count >= page.Total || page.Items.Count == 0) break;
-                        pageNo++;
-                        if (pageNo > 500) break;
-                    }
+                        Page = 1,
+                        Skip = 0,
+                        Take = int.MaxValue,
+                        QueryAlt = request.Query.Length == 0 ? "" : TextSearch.Normalize(request.Query)
+                    };
+                    var page = WorkforceLiveQuery.ExportAll(erp, req, scope, exportTimeout, token);
+                    all = page.Items.Select(r => StripSensitive(ApplyIbanAlert(r), ctx.User)).ToList();
                     return true;
                 });
-            }, "workforce-export");
+            }, "workforce-export", TimeSpan.FromSeconds(exportTimeout));
         }
         bool showIban = AccessPolicy.Has(ctx.User, PermIban);
         var headers = new[] { "الاسم", "رقم الإقامة", "الجوال", "الجنسية", "الحالة", "نوع العلاقة", "نوع العمل", "الكفيل", "المنصة", "معرف المنصة", "المدينة", "السكن", "المسمى", "نموذج الدفع", "مركبة الشركة", "الرخصة", showIban ? "الآيبان" : "الآيبان", "تنبيه الآيبان", "راتب مدد" };
@@ -371,6 +366,14 @@ public static class WorkforceApi
             if (app != null && allowed.Contains(app.Platform)) return true;
         }
         return false;
+    }
+
+    static int ExportTimeoutSeconds(IConfiguration config)
+    {
+        string raw = config["Workforce:ExportTimeoutSeconds"] ?? config["WORKFORCE_EXPORT_TIMEOUT_SECONDS"] ?? "";
+        if (int.TryParse(raw, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int seconds) && seconds is >= 30 and <= 600)
+            return seconds;
+        return DefaultExportTimeoutSeconds;
     }
 
     static List<JsonObject> FilterStore(List<JsonObject> rows, WorkforceLiveQuery.ListRequest request)
@@ -684,10 +687,10 @@ public static class WorkforceApi
         catch (SqlException) { throw new ApiError("تعذر الاتصال بمصدر التشغيل. حاول مرة أخرى.", 503); }
     }
 
-    static T LiveRead<T>(HttpContext ctx, Func<CancellationToken, T> read, string kind)
+    static T LiveRead<T>(HttpContext ctx, Func<CancellationToken, T> read, string kind, TimeSpan? timeout = null)
     {
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
-        cancel.CancelAfter(LiveReadTimeout);
+        cancel.CancelAfter(timeout ?? LiveReadTimeout);
         try { return read(cancel.Token); }
         catch (Exception ex) when (cancel.IsCancellationRequested && !ctx.RequestAborted.IsCancellationRequested && ex is OperationCanceledException or SqlException or ImportFailure)
         {
