@@ -426,8 +426,8 @@ public static class OperationsLiveApi
                 using var erp = OpenErp(config);
                 return store.Read(c => OperationsLiveQuery.FuelCardsExport(erp, month, provider, search, Operations.LiveScope(c, ctx.User), ExportTimeoutSeconds(config), token).Items.ToList());
             }, "operations-fuel-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
-        var cols = new[] { "بطاقة", "مزود", "لوحة", "مندوب", "لتر", "قبل الضريبة", "ضريبة", "إجمالي", "سقف" }.Select(h => new ExcelColumn(h)).ToArray();
-        var rows = items.Select(r => new object?[] { r.S("cardNumber"), r.S("provider"), r.S("plateNumber"), r.S("riderNameAr"), r["liters"]?.ToString(), r["amountBeforeTax"]?.ToString(), r["vat"]?.ToString(), r["totalInclVat"]?.ToString(), OperationsLiveQuery.NoSourceYet }).ToList();
+        var cols = new[] { "اسم البطاقة", "رقم البطاقة", "لوحة", "مندوب", "رقم الإقامة", "لتر", "قبل الضريبة", "ضريبة", "إجمالي", "سقف", "الحالة" }.Select(h => new ExcelColumn(h)).ToArray();
+        var rows = items.Select(r => new object?[] { r.S("cardName", r.S("providerNameAr", r.S("provider"))), r.S("cardNumber"), r.S("plateNumber"), r.S("riderNameAr"), r.S("iqama"), r["liters"]?.ToString(), r["amountBeforeTax"]?.ToString(), r["vat"]?.ToString(), r["totalInclVat"]?.ToString(), OperationsLiveQuery.NoSourceYet, OperationsLiveQuery.FuelStatusLabel(r.S("status")) }).ToList();
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-fuel.xlsx");
     }
 
@@ -536,23 +536,32 @@ public static class OperationsLiveApi
     static object BuildStoreFuel(DbConnection c, ClaimsPrincipal user, DateOnly month, int page, int pageSize)
     {
         _ = month;
-        var rows = Operations.List(c, user, "fuel_usage").Select(r => new JsonObject
+        var rows = Operations.List(c, user, "fuel_usage").Select(r =>
         {
-            ["id"] = r.S("id"),
-            ["cardNumber"] = r.S("fuelCardId"),
-            ["provider"] = "",
-            ["plateNumber"] = "",
-            ["riderNameAr"] = "",
-            ["iqama"] = r.S("riderId"),
-            ["liters"] = r.N("liters"),
-            ["amountBeforeTax"] = r.N("amountBeforeTax"),
-            ["vat"] = r.N("vat"),
-            ["totalInclVat"] = r.N("amount", r.N("totalAmount")),
-            ["transactionCount"] = null,
-            ["fuelType"] = r.S("fuelType"),
-            ["cap"] = null,
-            ["capSource"] = OperationsLiveQuery.NoSourceYet,
-            ["status"] = "active"
+            string provider = r.S("provider");
+            string providerAr = OperationsLiveQuery.FuelProviderNameAr(provider);
+            string notes = r.S("cardNotes", r.S("notes"));
+            return new JsonObject
+            {
+                ["id"] = r.S("id"),
+                ["cardNumber"] = r.S("fuelCardId"),
+                ["provider"] = provider,
+                ["providerNameAr"] = providerAr,
+                ["cardName"] = !string.IsNullOrWhiteSpace(notes) ? notes : providerAr,
+                ["cardNotes"] = notes,
+                ["plateNumber"] = "",
+                ["riderNameAr"] = "",
+                ["iqama"] = r.S("riderId"),
+                ["liters"] = r.N("liters"),
+                ["amountBeforeTax"] = r.N("amountBeforeTax"),
+                ["vat"] = r.N("vat"),
+                ["totalInclVat"] = r.N("amount", r.N("totalAmount")),
+                ["transactionCount"] = null,
+                ["fuelType"] = r.S("fuelType"),
+                ["cap"] = null,
+                ["capSource"] = OperationsLiveQuery.NoSourceYet,
+                ["status"] = OperationsLiveQuery.FuelStatusLabel(r.S("status", "active"))
+            };
         }).ToList();
         int skip = (page - 1) * pageSize;
         var items = rows.Skip(skip).Take(pageSize).ToList();

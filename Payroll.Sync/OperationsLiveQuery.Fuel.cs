@@ -101,7 +101,7 @@ public static partial class OperationsLiveQuery
         cmd.CommandText = $"""
             WITH filtered AS (
                 SELECT a.[Id], a.[EffectiveFrom], a.[EffectiveTo], a.[AssignmentReason], a.[EndReason],
-                       fc.[CardNumber], fc.[Provider], fc.[PlateNumberText],
+                       fc.[CardNumber], fc.[Provider], fc.[PlateNumberText], fc.[Notes],
                        e.[FullNameAr] AS RiderNameAr, e.[IqamaNo]
                 FROM [app].[FuelCardRiderAssignments] a
                 INNER JOIN [app].[FuelCards] fc ON fc.[Id]=a.[FuelCardId] AND fc.[IsDeleted]=0
@@ -125,11 +125,17 @@ public static partial class OperationsLiveQuery
             {
                 ct.ThrowIfCancellationRequested();
                 if (items.Count == 0) total = Long(reader, "TotalCount");
+                string rawProvider = Str(reader, "Provider");
+                string providerAr = FuelProviderNameAr(rawProvider);
+                string cardNotes = Str(reader, "Notes");
                 items.Add(new JsonObject
                 {
                     ["id"] = Str(reader, "Id"),
                     ["cardNumber"] = Str(reader, "CardNumber"),
-                    ["provider"] = Str(reader, "Provider"),
+                    ["provider"] = FuelProviderLabel(rawProvider),
+                    ["providerNameAr"] = providerAr,
+                    ["cardName"] = !string.IsNullOrWhiteSpace(cardNotes) ? cardNotes : providerAr,
+                    ["cardNotes"] = cardNotes,
                     ["plateNumber"] = Str(reader, "PlateNumberText"),
                     ["riderNameAr"] = Str(reader, "RiderNameAr"),
                     ["iqama"] = Str(reader, "IqamaNo"),
@@ -150,7 +156,7 @@ public static partial class OperationsLiveQuery
     static string FuelCardsSql(string scopeSql, bool providerFilter, bool search = false)
     {
         string providerPred = providerFilter ? " AND fc.[Provider]=@provider" : "";
-        string searchPred = search ? " AND (fc.[CardNumber] LIKE @q OR fc.[PlateNumberText] LIKE @q OR ue.[FullNameAr] LIKE @q OR ue.[IqamaNo] LIKE @q OR ae.[FullNameAr] LIKE @q OR ae.[IqamaNo] LIKE @q)" : "";
+        string searchPred = search ? " AND (fc.[CardNumber] LIKE @q OR fc.[PlateNumberText] LIKE @q OR fc.[Notes] LIKE @q OR ue.[FullNameAr] LIKE @q OR ue.[IqamaNo] LIKE @q OR ae.[FullNameAr] LIKE @q OR ae.[IqamaNo] LIKE @q)" : "";
         return $"""
             WITH usage_agg AS (
                 SELECT u.[FuelCardId],
@@ -166,7 +172,7 @@ public static partial class OperationsLiveQuery
                 GROUP BY u.[FuelCardId]
             ),
             filtered AS (
-                SELECT fc.[Id], fc.[CardNumber], fc.[Provider], fc.[PlateNumberText],
+                SELECT fc.[Id], fc.[CardNumber], fc.[Provider], fc.[PlateNumberText], fc.[Notes],
                        COALESCE(ue.[FullNameAr], ae.[FullNameAr]) AS RiderNameAr,
                        COALESCE(ue.[IqamaNo], ae.[IqamaNo]) AS IqamaNo,
                        ua.[TotalLiters], ua.[AmountBeforeTax], ua.[VatAmount], ua.[TotalAmount], ua.[TransactionCount], ua.[FuelType],
@@ -248,24 +254,33 @@ public static partial class OperationsLiveQuery
         return new(items, total, summary, DateTimeOffset.UtcNow);
     }
 
-    static JsonObject MapFuelCardRow(IDataRecord r) => new()
+    static JsonObject MapFuelCardRow(IDataRecord r)
     {
-        ["id"] = Str(r, "Id"),
-        ["cardNumber"] = Str(r, "CardNumber"),
-        ["provider"] = FuelProviderLabel(Str(r, "Provider")),
-        ["plateNumber"] = Str(r, "PlateNumberText"),
-        ["riderNameAr"] = Str(r, "RiderNameAr"),
-        ["iqama"] = Str(r, "IqamaNo"),
-        ["liters"] = NullDecimal(r, "TotalLiters"),
-        ["amountBeforeTax"] = NullDecimal(r, "AmountBeforeTax"),
-        ["vat"] = NullDecimal(r, "VatAmount"),
-        ["totalInclVat"] = NullDecimal(r, "TotalAmount"),
-        ["transactionCount"] = NullLong(r, "TransactionCount"),
-        ["fuelType"] = Str(r, "FuelType"),
-        ["cap"] = null,
-        ["capSource"] = NoSourceYet,
-        ["status"] = Long(r, "HasOpenAssignment") == 1 ? "active" : "inactive"
-    };
+        string rawProvider = Str(r, "Provider");
+        string providerAr = FuelProviderNameAr(rawProvider);
+        string cardNotes = Str(r, "Notes");
+        return new()
+        {
+            ["id"] = Str(r, "Id"),
+            ["cardNumber"] = Str(r, "CardNumber"),
+            ["provider"] = FuelProviderLabel(rawProvider),
+            ["providerNameAr"] = providerAr,
+            ["cardName"] = !string.IsNullOrWhiteSpace(cardNotes) ? cardNotes : providerAr,
+            ["cardNotes"] = cardNotes,
+            ["plateNumber"] = Str(r, "PlateNumberText"),
+            ["riderNameAr"] = Str(r, "RiderNameAr"),
+            ["iqama"] = Str(r, "IqamaNo"),
+            ["liters"] = NullDecimal(r, "TotalLiters"),
+            ["amountBeforeTax"] = NullDecimal(r, "AmountBeforeTax"),
+            ["vat"] = NullDecimal(r, "VatAmount"),
+            ["totalInclVat"] = NullDecimal(r, "TotalAmount"),
+            ["transactionCount"] = NullLong(r, "TransactionCount"),
+            ["fuelType"] = Str(r, "FuelType"),
+            ["cap"] = null,
+            ["capSource"] = NoSourceYet,
+            ["status"] = FuelStatusLabel(Long(r, "HasOpenAssignment") == 1 ? "active" : "inactive")
+        };
+    }
 
     static JsonObject EmptyFuelSummary() => new()
     {

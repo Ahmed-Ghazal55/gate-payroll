@@ -9251,6 +9251,9 @@ export interface paths {
                                 id: string;
                                 cardNumber?: string;
                                 provider?: string;
+                                providerNameAr?: string;
+                                cardName?: string;
+                                cardNotes?: string;
                                 plateNumber?: string;
                                 riderNameAr?: string;
                                 iqama?: string;
@@ -9316,6 +9319,9 @@ export interface paths {
                                 id: string;
                                 cardNumber?: string;
                                 provider?: string;
+                                providerNameAr?: string;
+                                cardName?: string;
+                                cardNotes?: string;
                                 plateNumber?: string;
                                 riderNameAr?: string;
                                 iqama?: string;

@@ -142,6 +142,9 @@ public sealed class OperationsLiveSqlServerTests
             var fuelExport = OperationsLiveQuery.FuelCardsExport(conn, new DateOnly(2026, 11, 1), "", "", all, 30);
             Assert.AreEqual(fuelExport.Total, fuelExport.Items.Count);
             Assert.AreEqual("PetroApp", fuelExport.Items[0]["provider"]!.GetValue<string>());
+            Assert.AreEqual("شركة بترو اب", fuelExport.Items[0]["providerNameAr"]!.GetValue<string>());
+            Assert.AreEqual("بطاقة اختبار 1", fuelExport.Items[0]["cardName"]!.GetValue<string>());
+            Assert.AreEqual("نشطة", fuelExport.Items[0]["status"]!.GetValue<string>());
 
             // paging totals match aggregates
             var paged = OperationsLiveQuery.VehiclesPeriodReport(conn, from, to, "vehicle", 1, 1, "", all, detailed: false);
@@ -182,7 +185,7 @@ public sealed class OperationsLiveSqlServerTests
             CREATE TABLE platform.ClientPlatforms (Id uniqueidentifier NOT NULL PRIMARY KEY, Code nvarchar(50) NULL, NameAr nvarchar(200) NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE app.PlatformRiderAccounts (Id uniqueidentifier NOT NULL PRIMARY KEY, ClientPlatformId uniqueidentifier NOT NULL, Code nvarchar(50) NULL, Status int NOT NULL, OperatingCityId uniqueidentifier NULL, SponsorId uniqueidentifier NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE app.RiderClientAssignments (Id uniqueidentifier NOT NULL PRIMARY KEY, PlatformRiderAccountId uniqueidentifier NOT NULL, EffectiveTo date NULL, IsDeleted bit NOT NULL DEFAULT 0);
-            CREATE TABLE app.FuelCards (Id uniqueidentifier NOT NULL PRIMARY KEY, Provider int NOT NULL, CardNumber nvarchar(50) NULL, PlateNumberText nvarchar(50) NULL, SponsorId uniqueidentifier NULL, IsDeleted bit NOT NULL DEFAULT 0);
+            CREATE TABLE app.FuelCards (Id uniqueidentifier NOT NULL PRIMARY KEY, Provider int NOT NULL, CardNumber nvarchar(50) NULL, PlateNumberText nvarchar(50) NULL, Notes nvarchar(500) NULL, SponsorId uniqueidentifier NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE app.FuelCardRiderAssignments (Id uniqueidentifier NOT NULL PRIMARY KEY, FuelCardId uniqueidentifier NOT NULL, EmployeeId uniqueidentifier NULL, EffectiveFrom date NOT NULL, EffectiveTo date NULL, AssignmentReason nvarchar(200) NULL, EndReason nvarchar(200) NULL);
             CREATE TABLE app.FuelCardMonthlyUsages (Id uniqueidentifier NOT NULL PRIMARY KEY, FuelCardId uniqueidentifier NOT NULL, EmployeeId uniqueidentifier NULL, RiderProfileId uniqueidentifier NULL, ReportMonth date NOT NULL, TotalLiters decimal(18,2) NULL, AmountBeforeTax decimal(18,2) NULL, VatAmount decimal(18,2) NULL, TotalAmount decimal(18,2) NULL, TransactionCount int NULL, FuelType nvarchar(50) NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE maintenance.VehicleExpenses (Id uniqueidentifier NOT NULL PRIMARY KEY, VehicleId uniqueidentifier NOT NULL, RiderVehicleAssignmentId uniqueidentifier NULL, RiderProfileId uniqueidentifier NULL, ExpenseType nvarchar(100) NOT NULL, SourceEntityType nvarchar(100) NOT NULL, SourceEntityId uniqueidentifier NULL, OccurredOn date NOT NULL, AmountBeforeTax decimal(18,2) NOT NULL, TaxAmount decimal(18,2) NULL, TotalAmount decimal(18,2) NOT NULL, ReversalOfExpenseId uniqueidentifier NULL);
@@ -240,7 +243,7 @@ public sealed class OperationsLiveSqlServerTests
               ('{PurchaseUtcBoundary}','R-4','2026-10-31','2026-10-31T22:00:00+00:00',400,60,460,'1',0),
               ('{PurchaseOutside}','R-5','2026-10-10','2026-10-12T09:00:00+03:00',500,75,575,'1',0),
               ('{PurchaseDeleted}','R-6','2026-11-20','2026-11-20T09:00:00+03:00',600,90,690,'1',1);
-            INSERT INTO app.FuelCards(Id,Provider,CardNumber,PlateNumberText,SponsorId) VALUES('{FuelCardId}',1,'FC-1',N'أ ب ج 1234','{SponsorA}');
+            INSERT INTO app.FuelCards(Id,Provider,CardNumber,PlateNumberText,Notes,SponsorId) VALUES('{FuelCardId}',1,'FC-1',N'أ ب ج 1234',N'بطاقة اختبار 1','{SponsorA}');
             INSERT INTO app.FuelCardMonthlyUsages(Id,FuelCardId,EmployeeId,ReportMonth,TotalLiters,AmountBeforeTax,VatAmount,TotalAmount,TransactionCount,FuelType)
               VALUES(NEWID(),'{FuelCardId}','{EmpInScope}','2026-11-01',40,100,15,115,3,N'91');
             INSERT INTO app.FuelCardRiderAssignments(Id,FuelCardId,EmployeeId,EffectiveFrom) VALUES(NEWID(),'{FuelCardId}','{EmpInScope}','2026-11-01');

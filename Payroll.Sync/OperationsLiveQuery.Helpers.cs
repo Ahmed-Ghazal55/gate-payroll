@@ -175,6 +175,22 @@ public static partial class OperationsLiveQuery
         _ => code
     };
 
+    public static string FuelProviderNameAr(string code) => (code ?? "").Trim() switch
+    {
+        "1" or "PetroApp" or "petroapp" => "شركة بترو اب",
+        "2" or "SayaraApp" or "sayaraapp" => "شركة سيارة اب",
+        "" => "",
+        var other => other
+    };
+
+    public static string FuelStatusLabel(string? code) => (code ?? "").Trim().ToLowerInvariant() switch
+    {
+        "1" or "active" or "true" or "نشطة" => "نشطة",
+        "0" or "inactive" or "false" or "غير نشطة" => "غير نشطة",
+        "" => "",
+        _ => (code ?? "").Trim()
+    };
+
     static string HousingStatusLabel(string code) => code switch
     {
         "1" => "مسودة",

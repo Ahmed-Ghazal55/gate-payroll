@@ -43,6 +43,22 @@ function formatPurchaseStatus(v: unknown): string {
   return s || '—';
 }
 
+function formatFuelProviderAr(v: unknown): string {
+  const s = String(v ?? '').trim();
+  const low = s.toLowerCase();
+  if (s === '1' || low === 'petroapp') return 'شركة بترو اب';
+  if (s === '2' || low === 'sayaraapp') return 'شركة سيارة اب';
+  return s || '—';
+}
+
+function formatFuelStatusAr(v: unknown): string {
+  const s = String(v ?? '').trim();
+  const low = s.toLowerCase();
+  if (low === 'active' || s === '1' || s === 'نشطة') return 'نشطة';
+  if (low === 'inactive' || s === '0' || s === 'غير نشطة') return 'غير نشطة';
+  return s || '—';
+}
+
 function monthBounds(d = new Date()) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -563,23 +579,86 @@ function OperationsPageInner() {
     if (tab === 'fuel') {
       if (view === 'log') {
         return [
-          { key: 'card', header: 'البطاقة', render: (r) => String(r.cardNumber || '') },
-          { key: 'provider', header: 'المزود', render: (r) => String(r.provider || '') },
-          { key: 'rider', header: 'المندوب', render: (r) => String(r.riderNameAr || '') },
-          { key: 'from', header: 'من', render: (r) => String(r.effectiveFrom || '') },
-          { key: 'to', header: 'إلى', render: (r) => String(r.effectiveTo || '') },
+          {
+            key: 'cardName',
+            header: 'اسم البطاقة',
+            render: (r) => {
+              const providerAr = String(r.providerNameAr || formatFuelProviderAr(r.provider));
+              const notes = String(r.cardNotes || '').trim();
+              return (
+                <div className="flex flex-col">
+                  <span className="font-medium">{providerAr}</span>
+                  {notes ? <span className="text-xs text-[var(--muted)]">{notes}</span> : null}
+                </div>
+              );
+            },
+          },
+          { key: 'card', header: 'رقم البطاقة', render: (r) => <bdi className="font-mono font-medium">{String(r.cardNumber || '—')}</bdi> },
+          {
+            key: 'rider',
+            header: 'المندوب',
+            render: (r) => (
+              <div className="flex flex-col">
+                <span className="font-medium">{String(r.riderNameAr || '—')}</span>
+                {r.iqama ? <bdi className="text-xs text-[var(--muted)] font-mono">{String(r.iqama)}</bdi> : null}
+              </div>
+            ),
+          },
+          { key: 'from', header: 'من', render: (r) => formatDateShort(r.effectiveFrom) },
+          { key: 'to', header: 'إلى', render: (r) => (r.effectiveTo ? formatDateShort(r.effectiveTo) : 'حتى الآن') },
         ];
       }
       return [
-        { key: 'card', header: 'رقم البطاقة والمزود', render: (r) => `${r.cardNumber || ''} · ${r.provider || ''}` },
-        { key: 'rider', header: 'المندوب الفعلي', render: (r) => String(r.riderNameAr || '') },
-        { key: 'plate', header: 'المركبة', render: (r) => String(r.plateNumber || '') },
+        {
+          key: 'cardName',
+          header: 'اسم البطاقة',
+          render: (r) => {
+            const providerAr = String(r.providerNameAr || formatFuelProviderAr(r.provider));
+            const notes = String(r.cardNotes || '').trim();
+            return (
+              <div className="flex flex-col">
+                <span className="font-medium">{providerAr}</span>
+                {notes ? <span className="text-xs text-[var(--muted)]">{notes}</span> : null}
+              </div>
+            );
+          },
+        },
+        { key: 'cardNumber', header: 'رقم البطاقة', render: (r) => <bdi className="font-mono font-medium">{String(r.cardNumber || '—')}</bdi> },
+        {
+          key: 'rider',
+          header: 'المندوب الفعلي',
+          render: (r) => (
+            <div className="flex flex-col">
+              <span className="font-medium">{String(r.riderNameAr || '—')}</span>
+              {r.iqama ? <bdi className="text-xs text-[var(--muted)] font-mono">{String(r.iqama)}</bdi> : null}
+            </div>
+          ),
+        },
+        { key: 'plate', header: 'المركبة', render: (r) => String(r.plateNumber || '—') },
         { key: 'liters', header: 'اللترات', render: (r) => String(r.liters ?? '') },
         { key: 'before', header: 'قبل الضريبة', render: (r) => String(r.amountBeforeTax ?? '') },
         { key: 'vat', header: 'الضريبة', render: (r) => String(r.vat ?? '') },
         { key: 'total', header: 'الإجمالي', render: (r) => String(r.totalInclVat ?? '') },
         { key: 'cap', header: 'السقف', render: () => NO_SOURCE },
-        { key: 'status', header: 'الحالة', render: (r) => String(r.status || '') },
+        {
+          key: 'status',
+          header: 'الحالة',
+          render: (r) => {
+            const label = formatFuelStatusAr(r.status);
+            const active = label === 'نشطة';
+            return (
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                  active
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {label}
+              </span>
+            );
+          },
+        },
       ];
     }
     if (view === 'invoices') {

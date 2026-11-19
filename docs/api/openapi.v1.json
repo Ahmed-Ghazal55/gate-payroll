@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:37835/"
+      "url": "http://127.0.0.1:35473/"
     }
   ],
   "paths": {
@@ -16108,6 +16108,15 @@
                           "provider": {
                             "type": "string"
                           },
+                          "providerNameAr": {
+                            "type": "string"
+                          },
+                          "cardName": {
+                            "type": "string"
+                          },
+                          "cardNotes": {
+                            "type": "string"
+                          },
                           "plateNumber": {
                             "type": "string"
                           },
@@ -16227,6 +16236,15 @@
                             "type": "string"
                           },
                           "provider": {
+                            "type": "string"
+                          },
+                          "providerNameAr": {
+                            "type": "string"
+                          },
+                          "cardName": {
+                            "type": "string"
+                          },
+                          "cardNotes": {
                             "type": "string"
                           },
                           "plateNumber": {

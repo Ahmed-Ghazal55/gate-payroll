@@ -74,9 +74,14 @@ public sealed class OperationsLiveQueryTests
     {
         var (sql, names) = OperationsLiveQuery.PreviewFuelCardsSql();
         Assert.Contains("[app].[FuelCards]", sql, StringComparison.Ordinal);
+        Assert.Contains("fc.[Notes]", sql, StringComparison.Ordinal);
         Assert.Contains("FuelCardMonthlyUsages", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("CapLimit", sql, StringComparison.OrdinalIgnoreCase);
         CollectionAssert.Contains(names.ToList(), "@month");
+        Assert.AreEqual("شركة بترو اب", OperationsLiveQuery.FuelProviderNameAr("1"));
+        Assert.AreEqual("شركة سيارة اب", OperationsLiveQuery.FuelProviderNameAr("2"));
+        Assert.AreEqual("نشطة", OperationsLiveQuery.FuelStatusLabel("active"));
+        Assert.AreEqual("غير نشطة", OperationsLiveQuery.FuelStatusLabel("inactive"));
     }
 
     [TestMethod]
