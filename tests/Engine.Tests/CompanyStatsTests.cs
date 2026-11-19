@@ -320,6 +320,37 @@ public sealed class CompanyStatsTests
     }
 
     [TestMethod]
+    public void BuildStatsPayloadFallsBackToErpSponsorIdWhenUnifiedNumberBlank()
+    {
+        var companies = new List<JsonObject>
+        {
+            new() { ["id"] = "syn-no-unified", ["erpSponsorId"] = "erp-sp-99", ["code"] = "NU", ["nameAr"] = "شركة بدون رقم موحد", ["unifiedNumber"] = "", ["status"] = "active" }
+        };
+        var erpRows = new List<JsonObject>
+        {
+            new()
+            {
+                ["erpSponsorId"] = "erp-sp-99",
+                ["unifiedNumber"] = "",
+                ["sponsoredTotal"] = 5L, ["sponsoredRiders"] = 4L, ["sponsoredAdmins"] = 1L,
+                ["sponsoredActive"] = 5L, ["sponsoredOnLeave"] = 0L,
+                ["platformAccountsTotal"] = 3L, ["platformAccountsActive"] = 2L, ["platformAccountsAssigned"] = 2L,
+                ["byPlatform"] = new JsonArray(
+                    new JsonObject { ["code"] = "KEETA", ["nameAr"] = "Keeta", ["total"] = 3L, ["active"] = 2L, ["assigned"] = 2L }
+                )
+            }
+        };
+
+        var admin = Principal("syn-fallback-admin", "Admin", []);
+        var payload = Companies.BuildStatsPayload(companies, erpRows, Operations.SourceLive, DateTimeOffset.UtcNow, admin);
+        var items = payload["items"]!.AsArray().OfType<JsonObject>().ToList();
+        Assert.AreEqual(1, items.Count);
+        Assert.IsTrue(items[0].B("erpLinked"));
+        Assert.AreEqual(5m, items[0]["sponsorships"]!.N("total"));
+        Assert.AreEqual(3m, items[0]["platformAccounts"]!.N("total"));
+    }
+
+    [TestMethod]
     public void WorkforceParseRequestAcceptsCompanyAlias()
     {
         var req = WorkforceLiveQuery.ParseRequest(new Dictionary<string, string>

@@ -127,10 +127,13 @@ public static partial class Companies
         ClaimsPrincipal user)
     {
         var erpByUnified = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
+        var erpBySponsorId = new Dictionary<string, JsonObject>(StringComparer.OrdinalIgnoreCase);
         foreach (var row in erpRows)
         {
             string u = row.S("unifiedNumber");
             if (u != "" && !erpByUnified.ContainsKey(u)) erpByUnified[u] = row;
+            string sid = row.S("erpSponsorId");
+            if (sid != "" && !erpBySponsorId.ContainsKey(sid)) erpBySponsorId[sid] = row;
         }
 
         var items = new JsonArray();
@@ -141,8 +144,10 @@ public static partial class Companies
         foreach (var comp in companies)
         {
             string unified = comp.S("unifiedNumber");
+            string fallbackSponsorId = comp.S("erpSponsorId", comp.S("sponsorId", comp.S("id")));
             JsonObject? erp = null;
-            bool linked = unified != "" && erpByUnified.TryGetValue(unified, out erp);
+            bool linked = (unified != "" && erpByUnified.TryGetValue(unified, out erp))
+                || (fallbackSponsorId != "" && erpBySponsorId.TryGetValue(fallbackSponsorId, out erp));
 
             long sTotal = erp == null ? 0L : Int64(erp, "sponsoredTotal");
             long sRiders = erp == null ? 0L : Int64(erp, "sponsoredRiders");
