@@ -263,7 +263,7 @@ export function ReviewDrawer({ submission, onClose, onSuccess }: ReviewDrawerPro
                     <span className="num">{new Date(h.submittedAt).toLocaleDateString('ar-SA')}</span>
                   </div>
                   <div className="font-semibold text-[var(--ink)]">
-                    {h.iban || h.workSystem}
+                    {h.iban ? <IbanDisplay iban={h.iban} /> : h.workSystem}
                   </div>
                   {h.reviewNote && <p className="text-[11px] text-[var(--muted)]">{h.reviewNote}</p>}
                   {h.reviewedBy && (
