@@ -159,14 +159,25 @@ public sealed class RiderAppAdminTests
         string bw = FinancialCore.ResolveSponsor("BW").Id;
         var forms = Staff("syn-f", bw, "forms.view");
         var broadcaster = Staff("syn-b", bw, "mobile.broadcast");
+        var sessions = Staff("syn-s", bw, "mobile.sessions", "inquiry.issue");
+        var ibanApprover = Staff("syn-ia", bw, RiderAsks.IbanDataApproveFirstPermission);
         Assert.IsTrue(AccessPolicy.Allowed(forms, "GET", "/api/rider-mobile/service-requests"));
         Assert.IsTrue(AccessPolicy.Allowed(forms, "GET", "/api/rider-mobile/service-requests/summary"));
         Assert.IsFalse(AccessPolicy.Allowed(forms, "POST", "/api/rider-mobile/service-requests/sreq:x/decide"));
+        Assert.IsTrue(AccessPolicy.Allowed(forms, "GET", "/api/forms/builder"), "builder list is forms.view");
+        Assert.IsFalse(AccessPolicy.Allowed(forms, "POST", "/api/forms/builder"), "builder writes stay forms.manage");
+        Assert.IsTrue(AccessPolicy.Allowed(forms, "POST", "/api/excel/export"));
         Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "GET", "/api/rider-mobile/broadcasts"));
         Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "POST", "/api/rider-mobile/broadcast"));
         Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "POST", "/api/rider-mobile/statements/notify-period"));
+        Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "GET", "/api/finance/statement/rider/2000000991/monthly"));
+        Assert.IsTrue(AccessPolicy.Allowed(broadcaster, "POST", "/api/excel/export"));
+        Assert.IsTrue(RiderLookup.Allowed(broadcaster));
+        Assert.IsTrue(RiderLookup.Allowed(sessions));
+        Assert.IsTrue(AccessPolicy.Allowed(ibanApprover, "GET", "/api/rider-mobile/service-requests"));
         Assert.IsFalse(AccessPolicy.Allowed(broadcaster, "GET", "/api/rider-mobile/firebase-config"), "settings stay Admin only");
         Assert.IsFalse(AccessPolicy.Allowed(forms, "POST", "/api/inquiry-access"));
+        Assert.IsTrue(AccessPolicy.Allowed(sessions, "POST", "/api/inquiry-access"));
     }
 
     [TestMethod]

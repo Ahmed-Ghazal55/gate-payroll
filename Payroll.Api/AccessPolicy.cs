@@ -63,7 +63,8 @@ public static partial class AccessPolicy
         }
         if(path.StartsWith("/api/companies/import/",StringComparison.Ordinal))return false; // administrators returned above
         if(path=="/api/companies"||path.StartsWith("/api/companies/",StringComparison.Ordinal))return method=="GET"?Has("companies.view"):method is "POST" or "PUT" or "DELETE"&&Has("companies.manage");
-        if(path=="/api/excel/export")return method=="POST"&&(Has("riders.view")||Has("companies.view"));
+        // Section-9 exports (forms/broadcasts) need the same view perms as the sidebar tabs that call them.
+        if(path=="/api/excel/export")return method=="POST"&&(Has("riders.view")||Has("companies.view")||Has("forms.view")||Has("mobile.broadcast"));
         if(path.StartsWith("/api/excel/",StringComparison.Ordinal))
         {
             var parts=path.Split('/');if(parts.Length!=5)return false;
@@ -101,7 +102,8 @@ public static partial class AccessPolicy
         if(path=="/api/finance/accounting-adjustments"||path.StartsWith("/api/finance/accounting-adjustments/",StringComparison.Ordinal))return method=="GET"?Has("finance.journal.create"):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
         if(path=="/api/finance/journals/manual"||path.StartsWith("/api/finance/journals/manual/",StringComparison.Ordinal))
             return method=="GET"?(Has("finance.journal.create")||Has("finance.journal.approve")):method=="DELETE"?Has("finance.journal.create")&&path.Count(ch=>ch=='/')==5:method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
-        if(path.StartsWith("/api/finance/statement/rider/",StringComparison.Ordinal)&&path.EndsWith("/monthly",StringComparison.Ordinal))return method=="GET"&&Has("pay.view")&&Has("payroll.view")&&Has("debts.view");
+        // Preview for «إرسال كشوف الحساب» (mobile.broadcast) or full finance viewers.
+        if(path.StartsWith("/api/finance/statement/rider/",StringComparison.Ordinal)&&path.EndsWith("/monthly",StringComparison.Ordinal))return method=="GET"&&(Has("mobile.broadcast")||(Has("pay.view")&&Has("payroll.view")&&Has("debts.view")));
         if(path.StartsWith("/api/finance/statement/",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
         if(path is "/api/finance/bank-file/preview" or "/api/finance/bank-file/export")return method=="POST"&&Has("finance.bankfile.export")&&Has("payroll.view");
         if(path is "/api/finance/trial-balance" or "/api/finance/income-statement")return method=="GET"&&Has("treasury.journals");
@@ -160,7 +162,9 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/campaigns",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="DELETE"?Has("forms.delete"):Has("forms.manage");
         if(path.StartsWith("/api/submissions",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="POST"&&(path.EndsWith("/review",StringComparison.Ordinal)||path=="/api/submissions/bulk-approve")&&Has("forms.review");
         if(Get("/api/forms/catalog")||Get("/api/forms/analytics")||Get("/api/forms/responses"))return Has("forms.view");
-        if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))return Has("forms.manage");
+        // GET builder list is forms.view; create/publish/close stay forms.manage.
+        if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))
+            return method=="GET"?Has("forms.view"):Has("forms.manage");
         return false;
     }
     public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide",System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null,string operation="approval.decide",JsonObject? record=null)
