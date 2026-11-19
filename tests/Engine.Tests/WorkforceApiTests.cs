@@ -1,5 +1,7 @@
+using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
+using ErpImport;
 using Microsoft.Data.Sqlite;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Payroll;
@@ -7,116 +9,154 @@ using Payroll;
 [TestClass]
 public sealed class WorkforceApiTests
 {
-    [TestMethod]
-    public void ScopeAndIbanPermissionStripIbanForViewerWithoutGrant()
+    static ClaimsPrincipal Principal(string user, string role, string[] perms, string[]? sponsors = null, string[]? platforms = null)
     {
-        string path = Path.Combine(Path.GetTempPath(), "gate-wf-api-" + Guid.NewGuid().ToString("N"));
-        try
+        var body = new JsonObject
         {
-            var store = new Store(path);
-            store.Write((c, tx) =>
-            {
-                Store.Save(c, "rider", new JsonObject
-                {
-                    ["id"] = "2000000222",
-                    ["iqama"] = "2000000222",
-                    ["name"] = "Synthetic Scoped Rider",
-                    ["status"] = "Active",
-                    ["engagementType"] = "SponsoredInternal",
-                    ["iban"] = "SA0000000000000000000999",
-                    ["isDeliveryRider"] = true,
-                    ["personRole"] = "rider",
-                    ["sponsorId"] = FinancialCore.Sponsors[0].Id,
-                    ["sponsor"] = FinancialCore.Sponsors[0].NameAr
-                }, tx);
-                return true;
-            });
-
-            var withIban = UserAccess.Principal(new()
-            {
-                ["username"] = "synthetic-iban-viewer",
-                ["role"] = "Reviewer",
-                ["customPermissions"] = new JsonArray("riders.view", "riders.iban.view")
-            });
-            var withoutIban = UserAccess.Principal(new()
-            {
-                ["username"] = "synthetic-plain-viewer",
-                ["role"] = "Reviewer",
-                ["customPermissions"] = new JsonArray("riders.view")
-            });
-
-            Assert.IsTrue(AccessPolicy.Has(withIban, WorkforceApi.PermIban));
-            Assert.IsFalse(AccessPolicy.Has(withoutIban, WorkforceApi.PermIban));
-            Assert.IsTrue(AccessPolicy.Allowed(withIban, "GET", "/api/workforce"));
-            Assert.IsTrue(AccessPolicy.Allowed(withoutIban, "GET", "/api/workforce"));
-            Assert.IsFalse(AccessPolicy.Allowed(withoutIban, "GET", "/api/workforce/legal-cases"));
-            Assert.IsTrue(AccessPolicy.Allowed(
-                UserAccess.Principal(new()
-                {
-                    ["username"] = "synthetic-legal",
-                    ["role"] = "Reviewer",
-                    ["customPermissions"] = new JsonArray(WorkforceApi.PermLegalCases)
-                }),
-                "GET", "/api/workforce/legal-cases"));
-
-            // Strip helper behavior via store list + permission check used by API.
-            store.Read(c =>
-            {
-                var rider = Store.Get(c, "2000000222", "rider")!;
-                Assert.AreEqual("SA0000000000000000000999", rider.S("iban"));
-                Assert.IsTrue(FinancialScopes.Rider(withIban, rider) || FinancialScopes.AllCompanies(withIban)
-                    || FinancialScopes.Sponsor(withIban, rider.S("sponsorId"))
-                    || AccessPolicy.Administrator(withIban)
-                    || true); // Reviewer may be all-company or scoped by claims; assertion is permission catalog.
-                return true;
-            });
-
-            Assert.IsTrue(UserAccess.PermissionsCatalog.Any(p => p.Code == WorkforceApi.PermIban));
-            Assert.IsTrue(UserAccess.PermissionsCatalog.Any(p => p.Code == WorkforceApi.PermSaudiSalary));
-            Assert.IsTrue(UserAccess.PermissionsCatalog.Any(p => p.Code == WorkforceApi.PermLegalCases));
-            Assert.IsTrue(UserAccess.PermissionsCatalog.Any(p => p.Code == WorkforceApi.PermUnifiedNumber));
-        }
-        finally
+            ["username"] = user,
+            ["role"] = role,
+            ["customPermissions"] = new JsonArray(perms.Select(p => (JsonNode?)p).ToArray())
+        };
+        if (sponsors != null || platforms != null)
         {
-            SqliteConnection.ClearAllPools();
-            if (Directory.Exists(path)) Directory.Delete(path, true);
+            body["financialScope"] = new JsonObject
+            {
+                ["sponsorIds"] = new JsonArray((sponsors ?? []).Select(s => (JsonNode?)s).ToArray()),
+                ["platforms"] = new JsonArray((platforms ?? ["Jahez", "Keeta", "HungerStation", "Ninja", "Chefz", "Amazon", "Other"]).Select(p => (JsonNode?)p).ToArray()),
+                ["accountCodes"] = new JsonArray(),
+                ["categoryCodes"] = new JsonArray()
+            };
         }
+        return UserAccess.Principal(body);
+    }
+
+    static JsonObject InvokeStrip(string name, JsonObject row, ClaimsPrincipal user)
+    {
+        var method = typeof(WorkforceApi).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new AssertFailedException("missing " + name);
+        return (JsonObject)method.Invoke(null, [row, user])!;
     }
 
     [TestMethod]
-    public void SaudiSalaryPermissionIsDedicatedAndExportRouteUsesRidersView()
+    public void CatalogPermissionsAndAccessPolicyRoutes()
     {
-        var saudi = UserAccess.Principal(new()
-        {
-            ["username"] = "synthetic-saudi",
-            ["role"] = "Reviewer",
-            ["customPermissions"] = new JsonArray("riders.view", WorkforceApi.PermSaudiSalary)
-        });
-        var plain = UserAccess.Principal(new()
-        {
-            ["username"] = "synthetic-plain",
-            ["role"] = "Reviewer",
-            ["customPermissions"] = new JsonArray("riders.view")
-        });
-        Assert.IsTrue(AccessPolicy.Has(saudi, WorkforceApi.PermSaudiSalary));
-        Assert.IsFalse(AccessPolicy.Has(plain, WorkforceApi.PermSaudiSalary));
+        Assert.IsTrue(UserAccess.PermissionsCatalog.Any(p => p.Code == WorkforceApi.PermIban));
+        Assert.IsTrue(UserAccess.PermissionsCatalog.Any(p => p.Code == WorkforceApi.PermSaudiSalary));
+        Assert.IsTrue(UserAccess.PermissionsCatalog.Any(p => p.Code == WorkforceApi.PermLegalCases));
+        Assert.IsTrue(UserAccess.PermissionsCatalog.Any(p => p.Code == WorkforceApi.PermUnifiedNumber));
+
+        var withIban = Principal("synthetic-iban", "Reviewer", ["riders.view", WorkforceApi.PermIban]);
+        var plain = Principal("synthetic-plain", "Reviewer", ["riders.view"]);
+        Assert.IsTrue(AccessPolicy.Has(withIban, WorkforceApi.PermIban));
+        Assert.IsFalse(AccessPolicy.Has(plain, WorkforceApi.PermIban));
+        Assert.IsTrue(AccessPolicy.Allowed(plain, "GET", "/api/workforce"));
         Assert.IsTrue(AccessPolicy.Allowed(plain, "GET", "/api/workforce/export"));
         Assert.IsTrue(AccessPolicy.Allowed(plain, "GET", "/api/workforce/saudi-payroll-employees"));
+        Assert.IsFalse(AccessPolicy.Allowed(plain, "GET", "/api/workforce/legal-cases"));
+        Assert.IsTrue(AccessPolicy.Allowed(
+            Principal("synthetic-legal", "Reviewer", [WorkforceApi.PermLegalCases]),
+            "GET", "/api/workforce/legal-cases"));
         Assert.IsFalse(AccessPolicy.Allowed(plain, "POST", "/api/riders/enrich-missing"));
     }
 
     [TestMethod]
-    public void LiveScopeIsPublicAndBuildsSponsorList()
+    public void StripSensitiveAndSaudiHonorFourFieldPermissions()
+    {
+        var person = new JsonObject
+        {
+            ["iban"] = "SA0000000000000000000444",
+            ["personalIban"] = "SA0000000000000000000555",
+            ["formIban"] = "SA0000000000000000000666",
+            ["mudadIban"] = "SA0000000000000000000777",
+            ["salary"] = "5000",
+            ["unifiedNationalNumber"] = "7015658094",
+            ["legalCases"] = new JsonArray(new JsonObject { ["id"] = "c1" })
+        };
+        var plain = Principal("strip-plain", "Reviewer", ["riders.view"]);
+        var stripped = InvokeStrip("StripSensitive", person, plain);
+        Assert.AreEqual("", stripped.S("iban"));
+        Assert.IsFalse(stripped.ContainsKey("personalIban"));
+        Assert.IsFalse(stripped.ContainsKey("formIban"));
+        Assert.IsFalse(stripped.ContainsKey("mudadIban"));
+
+        var withIban = Principal("strip-iban", "Reviewer", ["riders.view", WorkforceApi.PermIban]);
+        Assert.AreEqual("SA0000000000000000000444", InvokeStrip("StripSensitive", person, withIban).S("iban"));
+
+        var saudiPlain = InvokeStrip("StripSaudi", person, plain);
+        Assert.AreEqual("", saudiPlain.S("salary"));
+        Assert.AreEqual("", saudiPlain.S("personalIban"));
+        Assert.AreEqual("", saudiPlain.S("unifiedNationalNumber"));
+
+        var saudiFull = Principal("strip-saudi", "Reviewer", [
+            "riders.view", WorkforceApi.PermSaudiSalary, WorkforceApi.PermIban, WorkforceApi.PermUnifiedNumber
+        ]);
+        var kept = InvokeStrip("StripSaudi", person, saudiFull);
+        Assert.AreEqual("5000", kept.S("salary"));
+        Assert.AreEqual("SA0000000000000000000555", kept.S("personalIban"));
+        Assert.AreEqual("7015658094", kept.S("unifiedNationalNumber"));
+
+        var body = new JsonObject { ["person"] = person.DeepClone(), ["legalCases"] = person["legalCases"]!.DeepClone() };
+        var strip360 = typeof(WorkforceApi).GetMethod("Strip360", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var withoutLegal = (JsonObject)strip360.Invoke(null, [body, plain])!;
+        Assert.IsFalse(withoutLegal.ContainsKey("legalCases"));
+        var withLegal = (JsonObject)strip360.Invoke(null, [body, Principal("strip-legal", "Reviewer", [WorkforceApi.PermLegalCases])])!;
+        Assert.IsTrue(withLegal["legalCases"] is JsonArray);
+    }
+
+    [TestMethod]
+    public void StoreScopeTotalsMatchScopedRiderSet_CompanyAndPlatform()
     {
         string path = Path.Combine(Path.GetTempPath(), "gate-wf-scope-" + Guid.NewGuid().ToString("N"));
         try
         {
             var store = new Store(path);
-            var admin = UserAccess.Principal(new() { ["username"] = "synthetic-admin", ["role"] = "Admin" });
+            string bw = FinancialCore.ResolveSponsor("BW").Id;
+            string ex = FinancialCore.ResolveSponsor("EX").Id;
+            store.Write((c, tx) =>
+            {
+                Store.Save(c, "rider", new JsonObject
+                {
+                    ["id"] = "2000000411", ["iqama"] = "2000000411", ["name"] = "Synthetic BW Jahez",
+                    ["status"] = "Active", ["engagementType"] = "SponsoredInternal", ["iban"] = "SA0000000000000000000411",
+                    ["isDeliveryRider"] = true, ["personRole"] = "rider", ["sponsorId"] = bw, ["sponsor"] = "BW",
+                    ["financeSponsorId"] = bw, ["platforms"] = "Jahez"
+                }, tx);
+                Store.Save(c, "rider", new JsonObject
+                {
+                    ["id"] = "2000000422", ["iqama"] = "2000000422", ["name"] = "Synthetic EX Jahez",
+                    ["status"] = "Active", ["engagementType"] = "SponsoredInternal", ["iban"] = "SA0000000000000000000422",
+                    ["isDeliveryRider"] = true, ["personRole"] = "rider", ["sponsorId"] = ex, ["sponsor"] = "EX",
+                    ["financeSponsorId"] = ex, ["platforms"] = "Jahez"
+                }, tx);
+                Store.Save(c, "rider", new JsonObject
+                {
+                    ["id"] = "2000000433", ["iqama"] = "2000000433", ["name"] = "Synthetic BW Keeta",
+                    ["status"] = "Active", ["engagementType"] = "SponsoredInternal", ["iban"] = "SA0000000000000000000433",
+                    ["isDeliveryRider"] = true, ["personRole"] = "rider", ["sponsorId"] = bw, ["sponsor"] = "BW",
+                    ["financeSponsorId"] = bw, ["platforms"] = "Keeta"
+                }, tx);
+                return true;
+            });
+
+            var company = Principal("wf-company", "Reviewer", ["riders.view"], sponsors: ["BW"]);
+            var platform = Principal("wf-platform", "Reviewer", ["riders.view"], sponsors: ["BW", "EX", "TR"], platforms: ["Jahez"]);
+            var admin = Principal("wf-admin", "Admin", []);
+
             store.Read(c =>
             {
-                var scope = Operations.LiveScope(c, admin);
-                Assert.IsTrue(scope.AllCompanies);
+                var companyScope = Operations.LiveScope(c, company);
+                Assert.IsFalse(companyScope.AllCompanies);
+                Assert.IsTrue(companyScope.SponsorUnifiedNumbers.Contains(FinancialCore.ResolveSponsor("BW").UnifiedNumber));
+                Assert.AreEqual(2, Store.List(c, "rider").Count(r => FinancialScopes.Rider(company, r)));
+
+                var platformScope = Operations.LiveScope(c, platform);
+                Assert.IsTrue(platformScope.AllCompanies);
+                Assert.IsTrue(platformScope.PlatformRestricted);
+                Assert.IsTrue(platformScope.PlatformCodes.Count > 0);
+
+                Assert.IsTrue(FinancialScopes.Rider(company, Store.Get(c, "2000000411", "rider")!));
+                Assert.IsFalse(FinancialScopes.Rider(company, Store.Get(c, "2000000422", "rider")!));
+                Assert.IsTrue(FinancialScopes.AllCompanies(admin));
                 return true;
             });
         }
@@ -128,26 +168,93 @@ public sealed class WorkforceApiTests
     }
 
     [TestMethod]
+    public void PreviewSqlEmbedsCompanyAndPlatformScopePredicates()
+    {
+        var req = WorkforceLiveQuery.ParseRequest(new Dictionary<string, string> { ["page"] = "1", ["pageSize"] = "10" });
+        var companyOnly = new LiveOperationsQuery.Scope(
+            false,
+            new[] { "7015658094" },
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            PlatformRestricted: false);
+        var (countSql, _, _, names) = WorkforceLiveQuery.PreviewSql(req, companyOnly);
+        Assert.Contains("UnifiedNationalNumber", countSql, StringComparison.Ordinal);
+        Assert.Contains("@cr", countSql, StringComparison.Ordinal);
+        CollectionAssert.Contains(names.ToList(), "@cr0");
+
+        var platformScope = new LiveOperationsQuery.Scope(
+            false,
+            new[] { "7015658094" },
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            new[] { "jahez", "HungerStation" },
+            PlatformRestricted: true);
+        var (scopedSql, _, _, scopedNames) = WorkforceLiveQuery.PreviewSql(req, platformScope);
+        Assert.Contains("UnifiedNationalNumber", scopedSql, StringComparison.Ordinal);
+        Assert.Contains("PlatformCode", scopedSql, StringComparison.Ordinal);
+        Assert.IsTrue(scopedNames.Any(n => n.StartsWith("@pc", StringComparison.Ordinal)), "platform parameters in SQL");
+
+        var emptySponsors = new LiveOperationsQuery.Scope(false, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>());
+        var (blocked, _, _, _) = WorkforceLiveQuery.PreviewSql(req, emptySponsors);
+        Assert.Contains("1=0", blocked, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
     public void PreviewSqlRejectsUnknownStatusAndMapsInactive()
     {
-        var ok = ErpImport.WorkforceLiveQuery.ParseRequest(new Dictionary<string, string>
+        var ok = WorkforceLiveQuery.ParseRequest(new Dictionary<string, string>
         {
             ["page"] = "1",
             ["pageSize"] = "10",
             ["status"] = "غير نشط"
         });
         Assert.AreEqual("غير نشط", ok.Status);
-        var (countSql, pageSql, summarySql, _) = ErpImport.WorkforceLiveQuery.PreviewSql(ok);
+        var (countSql, pageSql, summarySql, _) = WorkforceLiveQuery.PreviewSql(ok);
         Assert.Contains("@status", countSql, StringComparison.Ordinal);
         Assert.Contains("WITH filtered AS", pageSql, StringComparison.Ordinal);
         Assert.Contains("SponsoredMissingIban", summarySql, StringComparison.Ordinal);
 
-        var bad = ErpImport.WorkforceLiveQuery.ParseRequest(new Dictionary<string, string>
+        var bad = WorkforceLiveQuery.ParseRequest(new Dictionary<string, string>
         {
             ["page"] = "1",
             ["pageSize"] = "5",
             ["status"] = "not-a-real-status-xyz"
         });
-        Assert.ThrowsExactly<ErpImport.ImportFailure>(() => ErpImport.WorkforceLiveQuery.PreviewSql(bad));
+        Assert.ThrowsExactly<ImportFailure>(() => WorkforceLiveQuery.PreviewSql(bad));
+    }
+
+    [TestMethod]
+    public void ExportTimeoutDefaultAndPagedPreviewStillUseOffset()
+    {
+        var req = WorkforceLiveQuery.ParseRequest(new Dictionary<string, string> { ["page"] = "1", ["pageSize"] = "50" });
+        // List PreviewSql keeps OFFSET; ExportAll uses a separate single-query path (ExportCommandTimeoutSeconds).
+        var (_, pageSql, _, _) = WorkforceLiveQuery.PreviewSql(req);
+        StringAssert.Contains(pageSql, "OFFSET @skip");
+        StringAssert.Contains(pageSql, "FETCH NEXT @take");
+        Assert.IsTrue(typeof(WorkforceLiveQuery).GetMethod("ExportAll") != null);
+    }
+
+    [TestMethod]
+    public void LiveScopeIsPublicAndBuildsSponsorList()
+    {
+        string path = Path.Combine(Path.GetTempPath(), "gate-wf-livescope-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new Store(path);
+            var admin = Principal("synthetic-admin", "Admin", []);
+            store.Read(c =>
+            {
+                var scope = Operations.LiveScope(c, admin);
+                Assert.IsTrue(scope.AllCompanies);
+                Assert.IsFalse(scope.PlatformRestricted);
+                return true;
+            });
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(path)) Directory.Delete(path, true);
+        }
     }
 }
