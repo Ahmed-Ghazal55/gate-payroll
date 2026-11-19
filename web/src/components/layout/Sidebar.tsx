@@ -88,7 +88,6 @@ function SidebarInner({
         { id: 'riders-360', href: '/riders/?tab=360', label: 'ملف المندوب 360' },
         { id: 'riders-statement', href: '/riders/statement/', label: 'كشف حساب المندوب', isNew: true },
         { id: 'riders-quality', href: '/riders/?tab=quality', label: 'جودة البيانات' },
-        { id: 'riders-sync', href: '/riders/?tab=sync', label: 'المزامنة' },
       ],
     },
     {

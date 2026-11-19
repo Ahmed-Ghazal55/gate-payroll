@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Building2,
   FileText,
@@ -141,12 +142,28 @@ function isDueWithinDays(dateStr?: string, days = 60): boolean {
   return rem !== null && rem <= days;
 }
 
-export default function CompaniesPage() {
+function CompaniesPageContent() {
   const { toast } = useToast();
   const { isAdmin } = useAuth();
+  const searchParams = useSearchParams();
 
   // State
   const [activeTab, setActiveTab] = useState<'companies' | 'registrations' | 'documents'>('companies');
+
+  // Sidebar ids (?tab=companies|cr|expiring) map to the page's internal tab ids.
+  useEffect(() => {
+    const tab = searchParams?.get('tab');
+    if (!tab) return;
+    const tabMap: Record<string, typeof activeTab> = {
+      companies: 'companies',
+      cr: 'registrations',
+      registrations: 'registrations',
+      expiring: 'documents',
+      documents: 'documents',
+    };
+    const mapped = tabMap[tab];
+    if (mapped) setActiveTab(mapped);
+  }, [searchParams]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [expiring, setExpiring] = useState<ExpiringRecord[]>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; actor: string; at: string }>>([]);
@@ -1279,5 +1296,13 @@ export default function CompaniesPage() {
         </div>
       </Dialog>
     </div>
+  );
+}
+
+export default function CompaniesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-[var(--muted)]">جاري تحميل صفحة الشركات...</div>}>
+      <CompaniesPageContent />
+    </Suspense>
   );
 }
