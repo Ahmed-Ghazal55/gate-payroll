@@ -79,6 +79,28 @@ public sealed class SchemaSalPayRunTests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
+    public void OpenSharedRiderHoldClearsAndBlocksBankEligibility(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Payments(sqlServer);SchemaSalPayRun.Ensure(c);
+        string company=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company),rider=MoneySchemaFixture.Rider(c,run,company,MoneySchemaFixture.Payable(c,company),50);
+        string erp=(string)MoneySchemaFixture.Scalar(c,null,"SELECT erp_rider_id FROM sal_pay_run_rider WHERE id=@id",("@id",rider))!;
+        void Eligible()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET bank_eligible=1 WHERE id=@id",("@id",rider));
+        long Flag()=>(long)MoneySchemaFixture.Scalar(c,null,"SELECT bank_eligible FROM sal_pay_run_rider WHERE id=@id",("@id",rider))!;
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET debt_confirm_status='confirmed',salary_approved_at=datetime('now') WHERE id=@id",("@id",rider));
+        Eligible();Assert.AreEqual(1L,Flag());
+        string hold=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO sal_shared_rider_hold(id,erp_rider_id,period_month) VALUES(@id,@r,'2026-11-01')",("@id",hold),("@r",erp));
+        Assert.AreEqual(0L,Flag());
+        MoneySchemaFixture.Reject(Eligible);
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_shared_rider_hold SET status='cleared' WHERE id=@id",("@id",hold));
+        Eligible();Assert.AreEqual(1L,Flag());
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_shared_rider_hold SET status='open' WHERE id=@id",("@id",hold));
+        Assert.AreEqual(0L,Flag());
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
     public void HoldsDefaultOpenAndOnlyOneActiveHoldOrRequestCanOwnItsKey(bool sqlServer)
     {
         using var c=MoneySchemaFixture.Payments(sqlServer);SchemaSalPayRun.Ensure(c);

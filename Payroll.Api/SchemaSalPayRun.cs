@@ -107,7 +107,44 @@ public static class SchemaSalPayRun
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_item","IX_sal_item_rider","pay_run_rider_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_item","IX_sal_item_account","account_code");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","rider_request","IX_sal_request_company","company_id");
+        SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_rider","IX_sal_rider_erp","erp_rider_id,period_month");
         EnsureClaimRunFlags(c,tx);
+        EnsureHoldBlocksBank(c,tx);
+    }
+
+    /// <summary>L1 / BR shared-rider hold (M-0587): a rider with an open hold for the month is never bank eligible.
+    /// Opening (or reopening) a hold clears the stored flag, and the flag cannot be set while the hold is open.</summary>
+    static void EnsureHoldBlocksBank(DbConnection c,DbTransaction? tx)
+    {
+        string rider=SchemaSql.Q(c,"sal","pay_run_rider"),hold=SchemaSql.Q(c,"sal","shared_rider_hold");
+        const string message="Rider with an open shared-rider hold cannot be bank eligible";
+        if(SchemaSql.IsSql(c))
+        {
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER sal.TR_rider_bank_hold ON {rider} AFTER INSERT,UPDATE AS
+                BEGIN
+                  SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM inserted r JOIN {hold} h ON h.erp_rider_id=r.erp_rider_id AND h.period_month=r.period_month AND h.status='open' WHERE r.bank_eligible=1)
+                    THROW 51021,'{message}',1;
+                END;
+                """);
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER sal.TR_hold_clears_bank ON {hold} AFTER INSERT,UPDATE AS
+                BEGIN
+                  SET NOCOUNT ON;
+                  UPDATE r SET bank_eligible=0 FROM {rider} r
+                    JOIN inserted h ON h.erp_rider_id=r.erp_rider_id AND h.period_month=r.period_month
+                    WHERE h.status='open' AND r.bank_eligible=1;
+                END;
+                """);
+        }
+        else
+            foreach(bool insert in new[]{true,false})
+            {
+                string op=insert?"INSERT":"UPDATE",suffix=insert?"insert":"update";
+                SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_rider_bank_hold_{suffix} BEFORE {op} ON {rider} WHEN NEW.bank_eligible=1 BEGIN SELECT RAISE(ABORT,'{message}') WHERE EXISTS(SELECT 1 FROM {hold} WHERE erp_rider_id=NEW.erp_rider_id AND period_month=NEW.period_month AND status='open'); END;");
+                SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_hold_clears_bank_{suffix} AFTER {(insert?"INSERT":"UPDATE OF status,erp_rider_id,period_month")} ON {hold} WHEN NEW.status='open' BEGIN UPDATE {rider} SET bank_eligible=0 WHERE erp_rider_id=NEW.erp_rider_id AND period_month=NEW.period_month AND bank_eligible=1; END;");
+            }
     }
 
     /// <summary>H2: a claim on a rider payable follows its run. Simulation runs never reserve or pay;
