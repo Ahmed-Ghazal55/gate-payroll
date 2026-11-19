@@ -665,12 +665,28 @@ public sealed class PushNotificationsTests
             var riderCtx = new DefaultHttpContext();
             riderCtx.Request.Headers.Authorization = "Bearer " + token;
 
+            var plainReviewer = UserAccess.Principal(new()
+            {
+                ["id"] = "syn-plain-rev",
+                ["username"] = "syn-plain-rev",
+                ["role"] = "Reviewer",
+                ["customPermissions"] = new JsonArray("forms.review", "mobile.broadcast"),
+                ["financialScope"] = new JsonObject { ["sponsorIds"] = new JsonArray(FinancialCore.ResolveSponsor("BW").Id) }
+            });
             var reviewer1 = UserAccess.Principal(new()
             {
                 ["id"] = "syn-rev-1",
                 ["username"] = "syn-rev-1",
                 ["role"] = "Reviewer",
-                ["customPermissions"] = new JsonArray("forms.review", "mobile.broadcast"),
+                ["customPermissions"] = new JsonArray(RiderAsks.IbanDataApproveFirstPermission),
+                ["financialScope"] = new JsonObject { ["sponsorIds"] = new JsonArray(FinancialCore.ResolveSponsor("BW").Id) }
+            });
+            var reviewer1RenamedWithBoth = UserAccess.Principal(new()
+            {
+                ["id"] = "syn-rev-1",
+                ["username"] = "syn-rev-1-renamed",
+                ["role"] = "Reviewer",
+                ["customPermissions"] = new JsonArray(RiderAsks.IbanDataApproveFirstPermission, RiderAsks.IbanDataApproveSecondPermission),
                 ["financialScope"] = new JsonObject { ["sponsorIds"] = new JsonArray(FinancialCore.ResolveSponsor("BW").Id) }
             });
             var reviewer2 = UserAccess.Principal(new()
@@ -678,7 +694,7 @@ public sealed class PushNotificationsTests
                 ["id"] = "syn-rev-2",
                 ["username"] = "syn-rev-2",
                 ["role"] = "Reviewer",
-                ["customPermissions"] = new JsonArray("forms.review", "mobile.broadcast"),
+                ["customPermissions"] = new JsonArray(RiderAsks.IbanDataApproveSecondPermission),
                 ["financialScope"] = new JsonObject { ["sponsorIds"] = new JsonArray(FinancialCore.ResolveSponsor("BW").Id) }
             });
 
@@ -697,7 +713,7 @@ public sealed class PushNotificationsTests
             Assert.AreEqual(15, (int)leave["payload"]!.AsObject().N("days"));
             Assert.AreEqual(1, leave["timeline"]!.AsArray().Count);
 
-            // 2. IBAN Update with two independent approvers (M-0359)
+            // 2. IBAN Update with dedicated per-step permissions and two independent approvers (H1 / M-0359)
             const string validRajhiIban = "SA0380000000608010167519";
             var ibanReq = store.Write((c, tx) => RiderAsks.CreateServiceRequest(c, tx, riderCtx, new()
             {
@@ -710,7 +726,21 @@ public sealed class PushNotificationsTests
             Assert.IsTrue(ibanReq.B("requiresSecondApprover"));
             Assert.AreEqual("awaiting_first", ibanReq.S("approvalStage"));
 
-            // First approval by reviewer1 -> moves to first_approved
+            // Plain reviewer with only forms.review + mobile.broadcast cannot approve step 1 (403)
+            Assert.AreEqual(403, Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, plainReviewer, ibanReq.S("id"), new()
+                {
+                    ["action"] = "approve"
+                }))).Status);
+
+            // Second-only approver cannot do step 1 (403)
+            Assert.AreEqual(403, Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, reviewer2, ibanReq.S("id"), new()
+                {
+                    ["action"] = "approve"
+                }))).Status);
+
+            // First approval by reviewer1 (with approve_first) -> moves to first_approved
             var afterFirst = store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, reviewer1, ibanReq.S("id"), new()
             {
                 ["action"] = "approve",
@@ -718,16 +748,31 @@ public sealed class PushNotificationsTests
             }));
             Assert.AreEqual("first_approved", afterFirst.S("status"));
             Assert.AreEqual("awaiting_second", afterFirst.S("approvalStage"));
+            Assert.AreEqual("syn-rev-1", afterFirst.S("firstApprovedById"));
 
-            // Same reviewer1 tries second approval -> refused with 403 (maker-checker)
-            var selfApproveErr = Assert.ThrowsExactly<ApiError>(() =>
+            // Plain reviewer cannot approve step 2 (403)
+            Assert.AreEqual(403, Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, plainReviewer, ibanReq.S("id"), new()
+                {
+                    ["action"] = "approve"
+                }))).Status);
+
+            // First-only approver cannot approve step 2 (403)
+            Assert.AreEqual(403, Assert.ThrowsExactly<ApiError>(() =>
                 store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, reviewer1, ibanReq.S("id"), new()
+                {
+                    ["action"] = "approve"
+                }))).Status);
+
+            // Same user id (even with a different username and both permissions) is refused with 403
+            var selfApproveErr = Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, reviewer1RenamedWithBoth, ibanReq.S("id"), new()
                 {
                     ["action"] = "approve"
                 })));
             Assert.AreEqual(403, selfApproveErr.Status);
 
-            // Second independent reviewer2 approves -> moves to approved & updates verifiedIban
+            // Second independent reviewer2 (different user id, with approve_second) approves -> moves to approved & updates verifiedIban
             var afterSecond = store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, reviewer2, ibanReq.S("id"), new()
             {
                 ["action"] = "approve",
@@ -735,6 +780,7 @@ public sealed class PushNotificationsTests
             }));
             Assert.AreEqual("approved", afterSecond.S("status"));
             Assert.AreEqual("completed", afterSecond.S("approvalStage"));
+            Assert.AreEqual("syn-rev-2", afterSecond.S("secondApprovedById"));
             Assert.AreEqual(validRajhiIban, store.Read(c => Store.Get(c, riderIqama, "rider")!.S("verifiedIban")));
 
             // Submitting the same IBAN again auto-approves immediately (§1e)

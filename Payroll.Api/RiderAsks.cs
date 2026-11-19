@@ -497,6 +497,16 @@ public static class RiderAsks
         return doc;
     }
 
+    public const string IbanDataApproveFirstPermission = "riders.iban_data.approve_first";
+    public const string IbanDataApproveSecondPermission = "riders.iban_data.approve_second";
+
+    static string ActorUserId(ClaimsPrincipal actor)
+    {
+        string? id = actor.FindFirstValue(ClaimTypes.NameIdentifier)?.Trim();
+        J.Need(!string.IsNullOrWhiteSpace(id), "معرّف المستخدم مطلوب لتنفيذ هذا الاعتماد.", 403);
+        return id!;
+    }
+
     public static JsonObject DecideServiceRequest(DbConnection c, DbTransaction tx, ClaimsPrincipal actor, string id, JsonObject input)
     {
         var req = Store.Get(c, id, ServiceKind, tx)?.Clone() ?? throw new ApiError("الطلب غير موجود.", 404);
@@ -508,11 +518,16 @@ public static class RiderAsks
         string note = input.S("note").Trim();
         string actorName = actor.Identity?.Name ?? "administrator";
         string now = DateTimeOffset.UtcNow.ToString("O");
-        bool twoStep = req.B("requiresSecondApprover");
+        bool twoStep = req.B("requiresSecondApprover") || req.S("requestType") is "iban_update" or "data_update";
         var tl = req["timeline"] as JsonArray ?? new JsonArray();
 
         if (action is "reject" or "decline")
         {
+            if (twoStep)
+            {
+                J.Need(AccessPolicy.Has(actor, IbanDataApproveFirstPermission) || AccessPolicy.Has(actor, IbanDataApproveSecondPermission),
+                    "ليست لديك صلاحية مخصصة للبت في طلبات الآيبان أو البيانات الشخصية.", 403);
+            }
             J.Need(note.Length is >= 3 and <= 500, "اكتب سبب الرفض ليظهر للمندوب.");
             req["status"] = "rejected";
             req["approvalStage"] = "rejected";
@@ -524,6 +539,11 @@ public static class RiderAsks
         }
         else if (action == "need_info")
         {
+            if (twoStep)
+            {
+                J.Need(AccessPolicy.Has(actor, IbanDataApproveFirstPermission) || AccessPolicy.Has(actor, IbanDataApproveSecondPermission),
+                    "ليست لديك صلاحية مخصصة للبت في طلبات الآيبان أو البيانات الشخصية.", 403);
+            }
             J.Need(note.Length is >= 3 and <= 500, "اكتب الاستفسار المطلوب من المندوب.");
             req["status"] = "need_info";
             req["note"] = note;
@@ -543,9 +563,12 @@ public static class RiderAsks
         {
             if (twoStep && status != "first_approved")
             {
+                AccessPolicy.Demand(actor, IbanDataApproveFirstPermission);
+                string actorUserId = ActorUserId(actor);
                 J.Need(action is "approve" or "first_approve", "يلزم الاعتماد الأول أولاً.");
                 req["status"] = "first_approved";
                 req["approvalStage"] = "awaiting_second";
+                req["firstApprovedById"] = actorUserId;
                 req["firstApprovedBy"] = actorName;
                 req["firstApprovedAt"] = now;
                 if (!string.IsNullOrEmpty(note)) req["note"] = note;
@@ -556,8 +579,15 @@ public static class RiderAsks
             {
                 if (twoStep)
                 {
-                    J.Need(!string.Equals(req.S("firstApprovedBy"), actorName, StringComparison.OrdinalIgnoreCase),
+                    AccessPolicy.Demand(actor, IbanDataApproveSecondPermission);
+                    J.Need(action is "approve" or "second_approve", "الطلب بانتظار الاعتماد الثاني.");
+                    string actorUserId = ActorUserId(actor);
+                    string firstApprovedById = req.S("firstApprovedById");
+                    bool sameUserId = !string.IsNullOrEmpty(firstApprovedById) &&
+                        string.Equals(firstApprovedById, actorUserId, StringComparison.OrdinalIgnoreCase);
+                    J.Need(!sameUserId && !AccessPolicy.SamePerson(actor, req.S("firstApprovedBy")),
                         "يلزم معتمد ثانٍ مستقل لتحديث الآيبان أو البيانات الشخصية (M-0359).", 403);
+                    req["secondApprovedById"] = actorUserId;
                     req["secondApprovedBy"] = actorName;
                     req["secondApprovedAt"] = now;
                 }
