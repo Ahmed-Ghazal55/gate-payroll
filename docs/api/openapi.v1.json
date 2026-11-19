@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:45897/"
+      "url": "http://127.0.0.1:32829/"
     }
   ],
   "paths": {
@@ -22493,6 +22493,71 @@
         }
       }
     },
+    "/api/rider-mobile/service-requests/distinct": {
+      "get": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Distinct column values for rider service requests table filters",
+        "parameters": [
+          {
+            "name": "requestType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "iqama",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "column",
+                    "values"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/rider-mobile/service-requests/summary": {
       "get": {
         "tags": [
@@ -23669,6 +23734,41 @@
                     },
                     "readCount": {
                       "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/broadcasts/distinct": {
+      "get": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Distinct column values for rider mobile broadcasts table filters",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "column",
+                    "values"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   }
                 }
