@@ -13,31 +13,47 @@ public static class SchemaSql
     /// <summary>Serialize master DDL so two app instances cannot collide. SQL Server uses sp_getapplock; SQLite uses a process lock (single-connection Ensure is otherwise fine).</summary>
     public static void WithMigrationLock(DbConnection c,Action<DbConnection,DbTransaction?> action)
     {
-        if(IsSql(c))
+        try
         {
-            using var tx=c.BeginTransaction();
-            try
+            if(IsSql(c))
             {
-                using(var guard=c.CreateCommand())
+                using var tx=c.BeginTransaction();
+                try
                 {
-                    guard.Transaction=tx;
-                    guard.CommandText="DECLARE @result int; EXEC @result=sp_getapplock @Resource=@resource,@LockMode=N'Exclusive',@LockOwner=N'Transaction',@LockTimeout=60000; IF @result < 0 THROW 51000,N'Schema migration busy',1;";
-                    var p=guard.CreateParameter();p.ParameterName="@resource";p.Value=MigrationLockResource;guard.Parameters.Add(p);
-                    guard.ExecuteNonQuery();
+                    using(var guard=c.CreateCommand())
+                    {
+                        guard.Transaction=tx;
+                        guard.CommandText="DECLARE @result int; EXEC @result=sp_getapplock @Resource=@resource,@LockMode=N'Exclusive',@LockOwner=N'Transaction',@LockTimeout=60000; IF @result < 0 THROW 51000,N'Schema migration busy',1;";
+                        var p=guard.CreateParameter();p.ParameterName="@resource";p.Value=MigrationLockResource;guard.Parameters.Add(p);
+                        guard.ExecuteNonQuery();
+                    }
+                    action(c,tx);
+                    tx.Commit();
                 }
-                action(c,tx);
-                tx.Commit();
+                catch
+                {
+                    try{tx.Rollback();}catch{/* already failed */}
+                    throw;
+                }
             }
-            catch
+            else
             {
-                try{tx.Rollback();}catch{/* already failed */}
-                throw;
+                lock(SqliteMigrationGate)action(c,null);
             }
         }
-        else
+        catch(DbException ex)
         {
-            lock(SqliteMigrationGate)action(c,null);
+            throw new InvalidOperationException(SanitizeSchemaError(ex),ex);
         }
+    }
+    /// <summary>Fail startup with a clear message; strip connection/server noise and never echo parameter values.</summary>
+    public static string SanitizeSchemaError(Exception ex)
+    {
+        string raw=ex.GetBaseException().Message??"";
+        // Keep SQL number / short text; drop host, catalog, and long dumps.
+        string trimmed=raw.Length>240?raw[..240]+"…":raw;
+        foreach(char ch in new[]{'\r','\n','\t'})trimmed=trimmed.Replace(ch,' ');
+        return "Master schema migration failed: "+trimmed;
     }
     /// <summary>Store GUID parameters as D-format text so SQLite reopen matches (blob Guid params do not).</summary>
     public static string GuidText(Guid id)=>id.ToString("D");
