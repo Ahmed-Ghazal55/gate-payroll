@@ -16,11 +16,13 @@ public static class SchemaRef
         EnsureSaudiBank(c,tx);
         EnsureErpEventType(c,tx);
         EnsureSetting(c,tx);
-        EnsureLegacyAccountMap(c,tx);
         EnsureLegacyKeyMap(c,tx);
         SeedSaudiBanks(c,tx);
         SeedErpEventTypes(c,tx);
     }
+
+    /// <summary>Call after hr.company exists: restrictive company FK + index (R3 / planner decision 4).</summary>
+    public static void EnsureLegacyAccountMapAfterCompany(DbConnection c,DbTransaction? tx=null)=>EnsureLegacyAccountMap(c,tx);
 
     static void EnsureBusinessKeyGuard(DbConnection c,DbTransaction? tx)
     {
@@ -164,6 +166,9 @@ public static class SchemaRef
     {
         string t=SchemaSql.Q(c,"ref","legacy_account_map");
         string g=SchemaSql.GuidType(c);
+        string company=SchemaSql.Q(c,"hr","company");
+        if(!SchemaSql.TableExists(c,tx,"hr","company"))
+            throw new InvalidOperationException("ref.legacy_account_map requires hr.company first.");
         if(SchemaSql.IsSql(c))
         {
             SchemaSql.Exec(c,tx,$"""
@@ -174,12 +179,19 @@ public static class SchemaRef
                   target_code varchar(32) NOT NULL,
                   company_id {g} NULL,
                   {SchemaSql.AuditCols(c)},
-                  CONSTRAINT PK_legacy_account_map PRIMARY KEY NONCLUSTERED (id)
+                  CONSTRAINT PK_legacy_account_map PRIMARY KEY NONCLUSTERED (id),
+                  CONSTRAINT FK_legacy_account_map_company FOREIGN KEY (company_id) REFERENCES {company}(id)
                 );
+                """);
+            SchemaSql.Exec(c,tx,$"""
+                IF OBJECT_ID(N'ref.legacy_account_map',N'U') IS NOT NULL
+                  AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_legacy_account_map_company' AND parent_object_id=OBJECT_ID(N'ref.legacy_account_map'))
+                ALTER TABLE {t} ADD CONSTRAINT FK_legacy_account_map_company FOREIGN KEY (company_id) REFERENCES {company}(id);
                 """);
             SchemaSql.DropUniqueConstraintIfExists(c,tx,"ref","legacy_account_map","UQ_legacy_account_map");
             SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"ref","legacy_account_map","UQ_legacy_account_map","legacy_code, company_id","company_id IS NOT NULL");
             SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"ref","legacy_account_map","UQ_legacy_account_map_global","legacy_code","company_id IS NULL");
+            SchemaSql.CreateIndexIfMissing(c,tx,"ref","legacy_account_map","IX_legacy_account_map_company_id","company_id");
         }
         else
         {
@@ -189,11 +201,13 @@ public static class SchemaRef
                   legacy_code TEXT NOT NULL,
                   target_code TEXT NOT NULL,
                   company_id TEXT NULL,
-                  created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL
+                  created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
+                  CONSTRAINT FK_legacy_account_map_company FOREIGN KEY (company_id) REFERENCES {company}(id)
                 );
                 """);
             SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"ref","legacy_account_map","UQ_legacy_account_map","legacy_code, company_id","company_id IS NOT NULL");
             SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"ref","legacy_account_map","UQ_legacy_account_map_global","legacy_code","company_id IS NULL");
+            SchemaSql.CreateIndexIfMissing(c,tx,"ref","legacy_account_map","IX_legacy_account_map_company_id","company_id");
         }
     }
 
