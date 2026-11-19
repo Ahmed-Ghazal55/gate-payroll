@@ -1,0 +1,180 @@
+using System.Security.Claims;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Primitives;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Payroll;
+
+[TestClass]
+public sealed class DebtsPagingTests
+{
+    static ClaimsPrincipal Admin => UserAccess.Principal(new() { ["username"] = "synthetic-debts-admin", ["role"] = "Admin" });
+    static string Bw => FinancialCore.ResolveSponsor("BW").Id;
+    static string Ex => FinancialCore.ResolveSponsor("EX").Id;
+
+    static IQueryCollection Q(params (string Key, string Value)[] values) =>
+        new QueryCollection(values.ToDictionary(x => x.Key, x => (StringValues)x.Value));
+
+    static JsonObject Debt(string id, string status, string category, decimal remaining, string sponsor, string iqama = "2000000101", string? name = null, string entryMode = "Accrual") => new()
+    {
+        ["id"] = id,
+        ["iqama"] = iqama,
+        ["riderName"] = name ?? "Synthetic Rider",
+        ["category"] = category,
+        ["status"] = status,
+        ["totalAmount"] = remaining + 10m,
+        ["remainingBalance"] = remaining,
+        ["monthlyInstallment"] = 10m,
+        ["creditorSponsorId"] = sponsor,
+        ["originSponsorId"] = sponsor,
+        ["entryMode"] = entryMode,
+        ["platform"] = "",
+        ["createdAt"] = "2026-10-01T00:00:00Z"
+    };
+
+    static void Seed(Store store, params JsonObject[] debts) =>
+        store.Write((c, tx) => { foreach (var d in debts) Store.Save(c, "debt", d, tx); return true; });
+
+    static void WithSqlite(Action<Store> action)
+    {
+        string path = Path.Combine(Path.GetTempPath(), "gate-debts-page-" + Guid.NewGuid().ToString("N"));
+        try { action(new Store(path)); }
+        finally { SqliteConnection.ClearAllPools(); if (Directory.Exists(path)) Directory.Delete(path, true); }
+    }
+
+    static void WithSqlServer(Action<Store> action)
+    {
+        string? configured = Environment.GetEnvironmentVariable("PAYROLL_TEST_SQL_CONNECTION");
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            Assert.Inconclusive("SQL Server debts paging requires PAYROLL_TEST_SQL_CONNECTION (gp-d1-sql).");
+            return;
+        }
+        var master = new SqlConnectionStringBuilder(configured) { InitialCatalog = "master" };
+        Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(master.DataSource, @"^(tcp:)?(localhost|127\.0\.0\.1)(,[0-9]+)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+        string name = "GateDebtsPage_" + Guid.NewGuid().ToString("N");
+        string dir = Path.Combine(Path.GetTempPath(), name);
+        using var admin = new SqlConnection(master.ConnectionString);
+        admin.Open();
+        using (var create = admin.CreateCommand()) { create.CommandText = "CREATE DATABASE [" + name + "]"; create.ExecuteNonQuery(); }
+        try
+        {
+            var target = new SqlConnectionStringBuilder(configured) { InitialCatalog = name };
+            action(new Store(dir, target.ConnectionString));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            using var drop = admin.CreateCommand();
+            drop.CommandText = "ALTER DATABASE [" + name + "] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [" + name + "]";
+            drop.ExecuteNonQuery();
+            if (Directory.Exists(dir)) Directory.Delete(dir, true);
+        }
+    }
+
+    static void OnProvider(bool sqlServer, Action<Store> action)
+    {
+        if (sqlServer) WithSqlServer(action);
+        else WithSqlite(action);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void WithoutPage_ReturnsLegacyArray_BackwardCompatible(bool sqlServer)
+    {
+        OnProvider(sqlServer, store =>
+        {
+            Seed(store, Debt("d1", "active", "CashAdvance", 100m, Bw), Debt("d2", "settled", "TrafficFine", 0m, Bw));
+            var result = store.Read(c => Debts.ListPaged(c, Admin, Q(("status", "active"))));
+            Assert.IsTrue(result is List<JsonObject> or IEnumerable<JsonObject>);
+            var rows = ((IEnumerable<JsonObject>)result).ToList();
+            Assert.AreEqual(1, rows.Count);
+            Assert.AreEqual("d1", rows[0].S("id"));
+            Assert.IsTrue(rows[0]["allowedActions"] is JsonArray);
+        });
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void WithPage_ReturnsEnvelope_FiltersAndTotalsInSql(bool sqlServer)
+    {
+        OnProvider(sqlServer, store =>
+        {
+            var debts = Enumerable.Range(1, 55).Select(i => Debt("p" + i, i % 2 == 0 ? "active" : "settled", "CashAdvance", i, Bw, iqama: "2000000" + (100 + i).ToString("D3"), name: i == 3 ? "أحمد تجريبي" : "Synthetic " + i)).ToArray();
+            Seed(store, debts);
+            var page1 = JsonSerializer.SerializeToNode(store.Read(c => Debts.ListPaged(c, Admin, Q(("page", "1"), ("pageSize", "10"), ("status", "active")))))!.AsObject();
+            Assert.AreEqual(10, page1["items"]!.AsArray().Count);
+            Assert.AreEqual(27, page1["total"]!.GetValue<int>()); // 2,4,...,54
+            Assert.AreEqual(1, page1["page"]!.GetValue<int>());
+            Assert.AreEqual(10, page1["pageSize"]!.GetValue<int>());
+            Assert.IsTrue(page1["items"]![0]!["allowedActions"] is JsonArray);
+
+            var page2 = JsonSerializer.SerializeToNode(store.Read(c => Debts.ListPaged(c, Admin, Q(("page", "2"), ("pageSize", "10"), ("status", "active")))))!.AsObject();
+            Assert.AreEqual(10, page2["items"]!.AsArray().Count);
+
+            var search = JsonSerializer.SerializeToNode(store.Read(c => Debts.ListPaged(c, Admin, Q(("page", "1"), ("q", "احمد")))))!.AsObject();
+            Assert.AreEqual(1, search["total"]!.GetValue<int>());
+            Assert.AreEqual("p3", search["items"]![0]!.S("id"));
+
+            var capped = JsonSerializer.SerializeToNode(store.Read(c => Debts.ListPaged(c, Admin, Q(("page", "1"), ("pageSize", "999")))))!.AsObject();
+            Assert.AreEqual(200, capped["pageSize"]!.GetValue<int>());
+
+            Assert.ThrowsExactly<ApiError>(() => store.Read(c => Debts.ListPaged(c, Admin, Q(("page", "0")))));
+        });
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void CompanyFilterAndSummaryTotals(bool sqlServer)
+    {
+        OnProvider(sqlServer, store =>
+        {
+            Seed(store,
+                Debt("bw1", "active", "CashAdvance", 40m, Bw),
+                Debt("bw2", "active", "TrafficFine", 60m, Bw),
+                Debt("ex1", "active", "CashAdvance", 25m, Ex),
+                Debt("open1", "pending_approval", "CashAdvance", 15m, Bw, entryMode: "OpeningBalance"));
+            var page = JsonSerializer.SerializeToNode(store.Read(c => Debts.ListPaged(c, Admin, Q(("page", "1"), ("sponsorId", "BW"), ("status", "active")))))!.AsObject();
+            Assert.AreEqual(2, page["total"]!.GetValue<int>());
+
+            var summary = store.Read(c => Debts.Summary(c, Admin, Q(("sponsorId", "BW"))));
+            Assert.AreEqual(100m, summary.N("activeRemainingTotal")); // 40+60
+            Assert.AreEqual(55m, summary.N("advanceRemainingTotal")); // 40+15 (opening still remaining)
+            Assert.AreEqual(1, summary.N("pendingOpeningCount"));
+            Assert.AreEqual(15m, summary.N("pendingOpeningTotal"));
+            Assert.AreEqual(3, summary.N("totalCount")); // bw rows only
+        });
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void ScopedUserSeesOnlyAssignedCompany(bool sqlServer)
+    {
+        OnProvider(sqlServer, store =>
+        {
+            Seed(store, Debt("bw1", "active", "CashAdvance", 10m, Bw), Debt("ex1", "active", "CashAdvance", 20m, Ex));
+            var scoped = UserAccess.Principal(new JsonObject
+            {
+                ["username"] = "synthetic-scoped-debts",
+                ["role"] = "FinancialAccountant",
+                ["financialScope"] = new JsonObject
+                {
+                    ["sponsorIds"] = new JsonArray(Bw),
+                    ["accountCodes"] = new JsonArray(),
+                    ["platforms"] = new JsonArray("Jahez", "Keeta", "HungerStation", "Ninja", "Chefz", "Amazon", "Other"),
+                    ["categoryCodes"] = new JsonArray("CashAdvance", "TrafficFine", "Advance", "BankAdvance")
+                }
+            });
+            var page = JsonSerializer.SerializeToNode(store.Read(c => Debts.ListPaged(c, scoped, Q(("page", "1")))))!.AsObject();
+            Assert.AreEqual(1, page["total"]!.GetValue<int>());
+            Assert.AreEqual("bw1", page["items"]![0]!.S("id"));
+        });
+    }
+}
