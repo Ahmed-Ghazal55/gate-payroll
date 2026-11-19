@@ -9,6 +9,7 @@ import {
   Trash2,
   RefreshCw,
   CalendarClock,
+  Smartphone,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { Campaign, CompanySponsor } from '../../lib/types';
@@ -275,6 +276,16 @@ export function CampaignsTab({
               label: 'عرض رمز QR',
               onClick: (c) => setQrTarget(c),
               icon: <QrCode size={14} />,
+            },
+            {
+              // F-R4: the real public form in a phone-width window (the form page refuses iframes: X-Frame-Options DENY).
+              label: 'معاينة على عرض الجوال',
+              disabled: (c) => !campaignLink(c),
+              onClick: (c) => {
+                const link = campaignLink(c);
+                if (link) window.open(link, '_blank', 'popup,width=360,height=780,noopener,noreferrer');
+              },
+              icon: <Smartphone size={14} />,
             },
             ...(canManageForms
               ? [

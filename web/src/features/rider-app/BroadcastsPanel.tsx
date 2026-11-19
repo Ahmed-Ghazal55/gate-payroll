@@ -1,0 +1,343 @@
+'use client';
+
+// R7: general broadcast to all riders, individual notices that can never be broadcast, and the send log.
+import React, { useCallback, useEffect, useState } from 'react';
+import { Send, UserRound, History } from 'lucide-react';
+import { api, type RiderBroadcast } from '../../lib/api';
+import { SectionTabs } from '../../components/ui/SectionTabs';
+import { DataTable, type ColumnDef } from '../../components/ui/DataTable';
+import { Dialog } from '../../components/ui/Dialog';
+import { RiderPicker } from '../../components/ui/RiderPicker';
+import { useToast } from '../../components/ui/Toast';
+
+export const GENERAL_CATEGORIES: { value: string; label: string }[] = [
+  { value: 'operational', label: 'تشغيلي وميداني' },
+  { value: 'administrative', label: 'إداري عام' },
+  { value: 'form_link', label: 'رابط نموذج' },
+  { value: 'financial', label: 'مالي عام (بدون مبالغ)' },
+];
+
+// Same list as PushNotifications.IsIndividualOnlyNotice on the server.
+export const INDIVIDUAL_KINDS: { value: string; label: string }[] = [
+  { value: 'summons', label: 'استدعاء' },
+  { value: 'dismissal_warning', label: 'إنذار فصل' },
+  { value: 'administrative_deduction', label: 'خصم إداري' },
+  { value: 'appointment_alert', label: 'تنبيه موعد' },
+  { value: 'administrative_warning', label: 'إنذار إداري' },
+];
+
+const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
+  [...GENERAL_CATEGORIES, ...INDIVIDUAL_KINDS].map((c) => [c.value, c.label])
+);
+const KIND_LABEL: Record<string, string> = {
+  broadcast: 'تعميم عام',
+  targeted: 'موجّه لمندوب',
+  individual_notice: 'إشعار فردي',
+  statement_ready: 'كشف حساب جاهز',
+};
+
+type Texts = { titleAr: string; bodyAr: string; titleEn: string; bodyEn: string; titleUr: string; bodyUr: string };
+const EMPTY: Texts = { titleAr: '', bodyAr: '', titleEn: '', bodyEn: '', titleUr: '', bodyUr: '' };
+
+function TextFields({ value, onChange }: { value: Texts; onChange: (v: Texts) => void }) {
+  const field = (key: keyof Texts, label: string, multiline = false, dir: 'rtl' | 'ltr' = 'rtl') => (
+    <label className="space-y-1 block">
+      <span className="text-xs font-bold text-[var(--ink)]">{label}</span>
+      {multiline ? (
+        <textarea
+          rows={3}
+          dir={dir}
+          value={value[key]}
+          onChange={(e) => onChange({ ...value, [key]: e.target.value })}
+          className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs"
+        />
+      ) : (
+        <input
+          dir={dir}
+          value={value[key]}
+          onChange={(e) => onChange({ ...value, [key]: e.target.value })}
+          className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs"
+        />
+      )}
+    </label>
+  );
+  return (
+    <div className="space-y-3">
+      {field('titleAr', 'العنوان بالعربية (مطلوب)')}
+      {field('bodyAr', 'النص بالعربية (مطلوب)', true)}
+      <details className="rounded-xl border border-[var(--line)] p-3">
+        <summary className="text-xs font-bold cursor-pointer">الإنجليزية والأردية (اختياري — يُستخدم العربي إن تُرك فارغًا)</summary>
+        <div className="space-y-3 pt-3">
+          {field('titleEn', 'العنوان بالإنجليزية', false, 'ltr')}
+          {field('bodyEn', 'النص بالإنجليزية', true, 'ltr')}
+          {field('titleUr', 'العنوان بالأردية')}
+          {field('bodyUr', 'النص بالأردية', true)}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function payload(t: Texts) {
+  return {
+    titleAr: t.titleAr.trim(),
+    bodyAr: t.bodyAr.trim(),
+    titleEn: t.titleEn.trim() || undefined,
+    bodyEn: t.bodyEn.trim() || undefined,
+    titleUr: t.titleUr.trim() || undefined,
+    bodyUr: t.bodyUr.trim() || undefined,
+  };
+}
+
+function GeneralForm({ onSent }: { onSent: () => void }) {
+  const { toast } = useToast();
+  const [category, setCategory] = useState('operational');
+  const [texts, setTexts] = useState<Texts>(EMPTY);
+  const [requiresAck, setRequiresAck] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const send = async () => {
+    setSending(true);
+    try {
+      await api.sendRiderBroadcast({ category, iqama: 'ALL', requiresAck, ...payload(texts) });
+      toast('تم حفظ التعميم وإرساله لكل المناديب المسجلين في التطبيق', 'success');
+      setTexts(EMPTY);
+      setConfirm(false);
+      onSent();
+    } catch (err: any) {
+      toast(err?.message || 'تعذر إرسال التعميم', 'danger');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl space-y-4 p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+      <p className="text-xs text-[var(--muted)]">
+        التعميم العام يصل لكل المناديب المسجلين. الإشعارات الفردية (استدعاء، إنذار، خصم إداري…) لا تُرسل من هنا أبدًا.
+      </p>
+      <label className="space-y-1 block">
+        <span className="text-xs font-bold">نوع التعميم</span>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs"
+        >
+          {GENERAL_CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <TextFields value={texts} onChange={setTexts} />
+      <label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" checked={requiresAck} onChange={(e) => setRequiresAck(e.target.checked)} />
+        <span>يطلب إقرار المندوب بالاستلام</span>
+      </label>
+      <button
+        type="button"
+        disabled={!texts.titleAr.trim() || !texts.bodyAr.trim()}
+        onClick={() => setConfirm(true)}
+        className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50 inline-flex items-center gap-1.5"
+      >
+        <Send size={14} /> إرسال التعميم
+      </button>
+      <Dialog
+        open={confirm}
+        onClose={() => setConfirm(false)}
+        title="تأكيد التعميم العام"
+        description="سيصل هذا التعميم لكل المناديب المسجلين في التطبيق. متابعة؟"
+        actions={
+          <button type="button" disabled={sending} onClick={send} className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50">
+            {sending ? 'جاري الإرسال…' : 'إرسال'}
+          </button>
+        }
+      >
+        <p className="text-sm font-bold">{texts.titleAr}</p>
+      </Dialog>
+    </div>
+  );
+}
+
+function IndividualForm({ onSent }: { onSent: () => void }) {
+  const { toast } = useToast();
+  const [kind, setKind] = useState(INDIVIDUAL_KINDS[0].value);
+  const [rider, setRider] = useState<{ iqama: string; name?: string } | null>(null);
+  const [texts, setTexts] = useState<Texts>(EMPTY);
+  const [confirm, setConfirm] = useState(false);
+  const [sending, setSending] = useState(false);
+  const kindLabel = CATEGORY_LABEL[kind] || kind;
+
+  const send = async () => {
+    if (!rider) return;
+    setSending(true);
+    try {
+      await api.sendRiderBroadcast({ category: kind, iqama: rider.iqama, ...payload(texts) });
+      toast('تم إرسال الإشعار الفردي للمندوب فقط', 'success');
+      setTexts(EMPTY);
+      setConfirm(false);
+      onSent();
+    } catch (err: any) {
+      toast(err?.message || 'تعذر إرسال الإشعار', 'danger');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl space-y-4 p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+      <p className="text-xs text-[var(--muted)]">إشعار رسمي لمندوب واحد فقط، لا يُعمَّم أبدًا، ويطلب إقرار المندوب بالاستلام.</p>
+      <label className="space-y-1 block">
+        <span className="text-xs font-bold">نوع الإشعار</span>
+        <select value={kind} onChange={(e) => setKind(e.target.value)} className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs">
+          {INDIVIDUAL_KINDS.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="space-y-1">
+        <span className="text-xs font-bold">المندوب</span>
+        <RiderPicker value={rider?.iqama} onChange={(r) => setRider(r ? { iqama: r.iqama ?? r.id, name: r.name } : null)} required />
+      </div>
+      <TextFields value={texts} onChange={setTexts} />
+      <button
+        type="button"
+        disabled={!rider || !texts.titleAr.trim() || !texts.bodyAr.trim()}
+        onClick={() => setConfirm(true)}
+        className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50 inline-flex items-center gap-1.5"
+      >
+        <UserRound size={14} /> إرسال الإشعار الفردي
+      </button>
+      <Dialog
+        open={confirm}
+        onClose={() => setConfirm(false)}
+        title="تأكيد الإشعار الفردي"
+        description={`سيُرسل إشعار فردي رسمي (${kindLabel}) للمندوب فقط بـ 3 لغات مع تتبع القراءة والإقرار. متابعة؟`}
+        actions={
+          <button type="button" disabled={sending} onClick={send} className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50">
+            {sending ? 'جاري الإرسال…' : 'إرسال'}
+          </button>
+        }
+      >
+        <p className="text-sm">
+          {rider?.name || ''} <span className="font-mono" dir="ltr">{rider?.iqama}</span>
+        </p>
+      </Dialog>
+    </div>
+  );
+}
+
+function HistoryTable({ reloadKey }: { reloadKey: number }) {
+  const [rows, setRows] = useState<RiderBroadcast[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [kind, setKind] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.getRiderBroadcastsPage({ page, pageSize, kind: kind || undefined });
+      setRows(res.items);
+      setTotal(res.total);
+    } catch (err: any) {
+      setError(err?.message || 'تعذر تحميل سجل الإرسال');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, kind]);
+
+  useEffect(() => {
+    load();
+  }, [load, reloadKey]);
+
+  const columns: ColumnDef<RiderBroadcast>[] = [
+    { key: 'titleAr', header: 'العنوان', render: (b) => <span className="font-bold">{b.titleAr}</span> },
+    {
+      key: 'targetIqama',
+      header: 'المستهدف',
+      getValue: (b) => (b.targetIqama === 'ALL' ? 'كل المناديب' : b.targetIqama),
+      render: (b) => (b.targetIqama === 'ALL' ? 'كل المناديب' : <span className="font-mono" dir="ltr">{b.targetIqama}</span>),
+    },
+    { key: 'kind', header: 'النوع', getValue: (b) => KIND_LABEL[b.kind ?? ''] || b.kind || '' },
+    { key: 'category', header: 'التصنيف', getValue: (b) => CATEGORY_LABEL[b.category ?? ''] || b.category || '' },
+    { key: 'readCount', header: 'قراءات', numeric: true, getValue: (b) => b.readCount ?? 0 },
+    { key: 'ackCount', header: 'إقرارات', numeric: true, getValue: (b) => b.ackCount ?? 0 },
+    { key: 'sentBy', header: 'أرسله', getValue: (b) => b.sentBy ?? '' },
+    { key: 'createdAt', header: 'وقت الإرسال', getValue: (b) => (b.createdAt ? new Date(b.createdAt).toLocaleString('ar-SA') : '') },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <label className="flex items-center gap-2 text-xs">
+        <span className="font-bold">النوع:</span>
+        <select
+          value={kind}
+          onChange={(e) => {
+            setKind(e.target.value);
+            setPage(1);
+          }}
+          className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]"
+        >
+          <option value="">الكل</option>
+          {Object.entries(KIND_LABEL).map(([k, l]) => (
+            <option key={k} value={k}>
+              {l}
+            </option>
+          ))}
+        </select>
+      </label>
+      <DataTable
+        tableId="rider-app-broadcasts"
+        columns={columns}
+        data={rows}
+        totalCount={total}
+        loading={loading}
+        error={error}
+        onRetry={load}
+        serverSide
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+        getRowId={(b) => b.id}
+        exportFilename="rider-app-notifications"
+        emptyTitle="لا توجد إشعارات مرسلة"
+      />
+    </div>
+  );
+}
+
+export function BroadcastsPanel({ subtab }: { subtab?: string }) {
+  const active = subtab === 'individual' || subtab === 'history' ? subtab : 'broadcast';
+  const [reloadKey, setReloadKey] = useState(0);
+  const sent = () => setReloadKey((k) => k + 1);
+  return (
+    <div className="space-y-4">
+      <SectionTabs
+        paramName="subtab"
+        activeTab={active}
+        variant="pills"
+        ariaLabel="أنواع الإشعارات"
+        tabs={[
+          { id: 'broadcast', label: 'تعميم عام (للكل)', icon: <Send size={14} /> },
+          { id: 'individual', label: 'إشعارات فردية (لا تُعمَّم أبدًا)', icon: <UserRound size={14} /> },
+          { id: 'history', label: 'سجل الإرسال والاستلام', icon: <History size={14} /> },
+        ]}
+      />
+      {active === 'broadcast' && <GeneralForm onSent={sent} />}
+      {active === 'individual' && <IndividualForm onSent={sent} />}
+      {active === 'history' && <HistoryTable reloadKey={reloadKey} />}
+    </div>
+  );
+}

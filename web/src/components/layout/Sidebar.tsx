@@ -12,7 +12,6 @@ import {
   Receipt,
   Landmark,
   FileSpreadsheet,
-  ClipboardList,
   ShieldCheck,
   Smartphone,
   ChevronDown,
@@ -174,31 +173,22 @@ function SidebarInner({
       ],
     },
     {
-      id: 'forms',
-      label: 'النماذج والردود',
-      icon: <ClipboardList size={18} />,
-      defaultHref: '/forms/',
-      badge: pendingResponsesCount > 0 ? pendingResponsesCount : undefined,
-      permission: 'forms.view',
-      items: [
-        { id: 'forms-campaigns', href: '/forms/?tab=campaigns', label: 'الحملات والروابط' },
-        { id: 'forms-responses', href: '/forms/?tab=responses', label: 'مراجعة الردود' },
-        { id: 'forms-builder', href: '/forms/?tab=builder', label: 'مصمم النماذج' },
-      ],
-    },
-    {
-      id: 'rider-app',
-      label: 'تطبيق المناديب',
+      // R3 (section 9): forms + rider-app admin in one main section; permissions match AccessPolicy.cs.
+      id: 'rider_app',
+      label: 'تطبيق المناديب والنماذج',
       icon: <Smartphone size={18} />,
-      defaultHref: '/rider-app/',
-      isNew: true,
-      permission: 'operations.view',
+      defaultHref: '/rider-app/?tab=campaigns',
+      badge: pendingResponsesCount > 0 ? pendingResponsesCount : undefined,
+      permission: ['forms.view', 'mobile.sessions', 'mobile.broadcast'],
       items: [
-        { id: 'app-accounts', href: '/rider-app/?tab=accounts', label: 'الحسابات والأجهزة' },
-        { id: 'app-broadcasts', href: '/rider-app/?tab=broadcasts', label: 'الإشعارات والإرسال' },
-        { id: 'app-settings', href: '/rider-app/?tab=settings', label: 'إعدادات Firebase' },
-        { id: 'app-statement', href: '/rider-app/?tab=statement-preview', label: 'معاينة كشف الحساب' },
-        { id: 'app-requests', href: '/rider-app/?tab=requests', label: 'الطلبات والمواعيد' },
+        { id: 'app-campaigns', href: '/rider-app/?tab=campaigns', label: 'الحملات والروابط', permission: 'forms.view' },
+        { id: 'app-responses', href: '/rider-app/?tab=responses', label: 'مراجعة الردود', permission: 'forms.view' },
+        { id: 'app-builder', href: '/rider-app/?tab=builder', label: 'مصمم النماذج', permission: 'forms.view' },
+        { id: 'app-accounts', href: '/rider-app/?tab=accounts', label: 'الحسابات والأجهزة', permission: 'mobile.sessions' },
+        { id: 'app-broadcasts', href: '/rider-app/?tab=broadcasts', label: 'الإشعارات والإرسال', permission: 'mobile.broadcast' },
+        { id: 'app-statements', href: '/rider-app/?tab=statements', label: 'إرسال كشوف الحساب', permission: 'mobile.broadcast' },
+        { id: 'app-requests', href: '/rider-app/?tab=requests', label: 'الطلبات والمواعيد', permission: ['mobile.broadcast', 'forms.view', 'forms.review'] },
+        { id: 'app-settings', href: '/rider-app/?tab=settings', label: 'إعدادات التطبيق', permission: 'admin.only' },
       ],
     },
     {
@@ -226,7 +216,7 @@ function SidebarInner({
       return 'workforce';
     }
     const found = navGroups.find((g) => {
-      const gPath = g.defaultHref.replace(/\/$/, '');
+      const gPath = g.defaultHref.split('?')[0].replace(/\/$/, '');
       if (gPath === '') return clean === '';
       return clean === gPath || clean.startsWith(gPath + '/');
     });
@@ -381,7 +371,9 @@ function SidebarInner({
                     if (pathMatch) {
                       if (subQuery) {
                         const targetParam = new URLSearchParams(subQuery).get('tab');
-                        const currentParam = searchParams?.get('tab');
+                        // No ?tab= in the URL → the group's default tab is the active entry.
+                        const defaultTab = new URLSearchParams(group.defaultHref.split('?')[1] || '').get('tab');
+                        const currentParam = searchParams?.get('tab') ?? defaultTab;
                         isSubActive = currentParam === targetParam;
                       } else {
                         isSubActive = !searchParams?.get('tab');

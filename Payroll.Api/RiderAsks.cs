@@ -449,6 +449,82 @@ public static class RiderAsks
         return true;
     }
 
+    static readonly string[] ServiceOpenStatuses = ["open", "first_approved", "need_info", "awaiting_rider"];
+
+    /// <summary>
+    /// U-W3-17: staff queue rows. Type/status/iqama filters run in SQL; the company scope and the
+    /// confidential-complaint rule stay the same as <see cref="CanStaffSeeServiceRequest"/> (riders loaded in one batch).
+    /// </summary>
+    public static List<JsonObject> StaffServiceRequests(DbConnection c, ClaimsPrincipal user, string? requestType, string? status, string? iqama)
+    {
+        var filters = new List<(string, string)>();
+        if (!string.IsNullOrWhiteSpace(requestType)) filters.Add(("requestType", requestType.Trim()));
+        if (!string.IsNullOrWhiteSpace(status)) filters.Add(("status", status.Trim()));
+        if (!string.IsNullOrWhiteSpace(iqama)) filters.Add(("riderIqama", iqama.Trim()));
+        var rows = Store.ListWhere(c, ServiceKind, null, null, filters.ToArray());
+        bool admin = AccessPolicy.Administrator(user);
+        bool confidentialOk = admin || AccessPolicy.Has(user, "mobile.complaints.confidential");
+        bool allCompanies = FinancialScopes.AllCompanies(user);
+        // The full new IBAN of an IBAN-change request is for IBAN viewers and its approvers only (others see the last 4).
+        bool ibanOk = AccessPolicy.Has(user, WorkforceApi.PermIban) || AccessPolicy.Has(user, IbanDataApproveFirstPermission) || AccessPolicy.Has(user, IbanDataApproveSecondPermission);
+        var riders = Store.ListByIds(c, "rider", rows.Select(r => r.S("riderIqama")).ToList())
+            .GroupBy(r => r.S("id"), StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        return rows
+            .Where(r => confidentialOk || !(r.B("confidential") || r.S("requestType") == "complaint"))
+            .Where(r => riders.TryGetValue(r.S("riderIqama"), out var rider) && (allCompanies || FinancialScopes.Rider(user, rider)))
+            .OrderByDescending(r => r.S("createdAt"), StringComparer.Ordinal)
+            .Select(r =>
+            {
+                var v = r.Clone();
+                if (!ibanOk && v["payload"] is JsonObject p && p.S("iban") is { Length: > 4 } iban) p["iban"] = "••••" + iban[^4..];
+                v["allowedActions"] = StaffActions(user, r);
+                return v;
+            })
+            .ToList();
+    }
+
+    /// <summary>Buttons the caller may use on one service request; the decide/reply handlers keep the same checks.</summary>
+    public static JsonArray StaffActions(ClaimsPrincipal user, JsonObject req)
+    {
+        var actions = new JsonArray();
+        string status = req.S("status");
+        bool open = ServiceOpenStatuses.Contains(status);
+        bool twoStep = req.B("requiresSecondApprover") || req.S("requestType") is "iban_update" or "data_update";
+        bool first = AccessPolicy.Has(user, IbanDataApproveFirstPermission), second = AccessPolicy.Has(user, IbanDataApproveSecondPermission);
+        bool post = AccessPolicy.Allowed(user, "POST", "/api/rider-mobile/service-requests/x/decide");
+        if (open && post)
+        {
+            if (twoStep)
+            {
+                if (status != "first_approved" && first) actions.Add("first_approve");
+                if (status == "first_approved" && second) actions.Add("second_approve");
+                if (first || second) { actions.Add("reject"); actions.Add("need_info"); }
+            }
+            else
+            {
+                actions.Add("approve"); actions.Add("reject"); actions.Add("need_info");
+            }
+        }
+        if (post && status is not ("cancelled" or "rejected" or "approved")) actions.Add("reply");
+        return actions;
+    }
+
+    /// <summary>KPI cards of the requests tab, counted on the caller's whole scope (not the current page).</summary>
+    public static JsonObject StaffServiceSummary(DbConnection c, ClaimsPrincipal user)
+    {
+        var rows = StaffServiceRequests(c, user, null, null, null);
+        string month = DateTimeOffset.UtcNow.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+        bool IsOpen(JsonObject r) => ServiceOpenStatuses.Contains(r.S("status"));
+        return new JsonObject
+        {
+            ["open"] = rows.Count(IsOpen),
+            ["annualLeaveOpen"] = rows.Count(r => IsOpen(r) && r.S("requestType") == "annual_leave"),
+            ["appointmentsOpen"] = rows.Count(r => IsOpen(r) && r.S("requestType") == "appointment"),
+            ["doneThisMonth"] = rows.Count(r => r.S("status") is "approved" or "rejected" && r.S("decidedAt").StartsWith(month, StringComparison.Ordinal)),
+            ["total"] = rows.Count
+        };
+    }
+
     public static JsonObject CreateAdminRequestToRider(DbConnection c, DbTransaction tx, ClaimsPrincipal actor, JsonObject input)
     {
         string iqama = J.Iqama(input.Required("iqama"));
@@ -1199,18 +1275,20 @@ public static class RiderAsks
             return store.Write((c, tx) => RiderReply(c, tx, ctx, id, input));
         }).WithTags("Riders").WithSummary("Rider sends a reply on an existing request");
 
-        api.MapGet("/rider-mobile/service-requests", (string? requestType, string? status, string? iqama, HttpContext ctx) =>
+        api.MapGet("/rider-mobile/service-requests", (string? requestType, string? status, string? iqama, string? group, HttpContext ctx) =>
             store.Read(c =>
             {
-                var list = Store.List(c, ServiceKind)
-                    .Where(r => CanStaffSeeServiceRequest(c, ctx.User, r) &&
-                                (string.IsNullOrWhiteSpace(requestType) || r.S("requestType") == requestType) &&
-                                (string.IsNullOrWhiteSpace(status) || r.S("status") == status) &&
-                                (string.IsNullOrWhiteSpace(iqama) || r.S("riderIqama") == iqama))
-                    .OrderByDescending(r => r.S("createdAt"))
-                    .ToList();
-                return ApiPagination.Apply(list, ctx.Request.Query);
-            })).WithTags("Riders").WithSummary("List rider service requests within caller scope, hiding confidential complaints from unauthorized staff");
+                var rows = StaffServiceRequests(c, ctx.User, requestType, status, iqama);
+                // group=other: every type except annual leave and appointments (the requests tab's «طلبات أخرى»).
+                if (string.Equals(group, "other", StringComparison.Ordinal))
+                    rows = rows.Where(r => r.S("requestType") is not ("annual_leave" or "appointment")).ToList();
+                return ApiPagination.Apply(rows, ctx.Request.Query);
+            }))
+            .WithTags("Riders").WithSummary("List rider service requests within caller scope, hiding confidential complaints from unauthorized staff");
+
+        api.MapGet("/rider-mobile/service-requests/summary", (HttpContext ctx) =>
+            store.Read(c => StaffServiceSummary(c, ctx.User)))
+            .WithTags("Riders").WithSummary("Counts for the rider-app requests tab within caller scope");
 
         api.MapPost("/rider-mobile/service-requests", (JsonObject input, HttpContext ctx) =>
         {
