@@ -131,6 +131,24 @@ public sealed class SchemaPayAllocationTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void WritersLockThePayableBeforeClaimingAndRetryOnlyLockErrors(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Payments(sqlServer);string company=MoneySchemaFixture.Company(c),payable=MoneySchemaFixture.Payable(c,company),payment=MoneySchemaFixture.Payment(c,company);
+        using(var tx=c.BeginTransaction())
+        {
+            Assert.AreEqual(100m,SchemaPayAllocation.LockPayable(c,tx,payable));
+            MoneySchemaFixture.Exec(c,tx,"INSERT INTO pay_payment_allocation(id,payment_id,payment_line_id,payable_id,company_id,payable_period_month,period_month,amount,claim_status) VALUES(@id,@p,@id,@due,@c,'2026-11-01','2026-11-01',30,1)",("@id",MoneySchemaFixture.Id()),("@p",payment),("@due",payable),("@c",company));
+            Assert.AreEqual(70m,SchemaPayAllocation.LockPayable(c,tx,payable));
+            Assert.ThrowsExactly<InvalidOperationException>(()=>SchemaPayAllocation.LockPayable(c,tx,MoneySchemaFixture.Id()));
+            tx.Commit();
+        }
+        Assert.IsTrue(SchemaPayAllocation.IsRetryable(new SqliteException("busy",5)));
+        Assert.IsFalse(SchemaPayAllocation.IsRetryable(new SqliteException("Claims exceed payment amount",19)));
+    }
+
+    [TestMethod]
     public void StartupCreatesPaymentAndAllocationParents()
     {
         string dir=Path.Combine(Path.GetTempPath(),"gate-alloc-"+Guid.NewGuid().ToString("N"));

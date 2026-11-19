@@ -87,6 +87,25 @@ public static class SchemaPayAllocation
         SchemaPayPayable.EnsureCounters(c,tx);
     }
 
+    /// <summary>Design §2.1 writer contract. Call inside the claim transaction BEFORE inserting or changing claims on
+    /// this payable. SQL Server takes UPDLOCK,HOLDLOCK on the payable row, so two writers queue instead of both inserting
+    /// and then deadlocking inside the claim trigger; SQLite writers are already serialized. Lock several payables in
+    /// ascending id order. Returns the balance still available.
+    /// Retry rule: on SQL Server any error inside a trigger (51xxx) or a deadlock dooms the whole transaction, while SQLite
+    /// aborts only the failed statement. So a writer always rolls back the whole batch, and retries the whole batch
+    /// (never one statement) only when <see cref="IsRetryable"/> says so.</summary>
+    public static decimal LockPayable(DbConnection c,DbTransaction tx,string payableId)
+    {
+        string hint=SchemaSql.IsSql(c)?" WITH (UPDLOCK,HOLDLOCK)":"";
+        object? available=SchemaSql.Scalar(c,tx,$"SELECT available_balance FROM {SchemaSql.Q(c,"pay","payable")}{hint} WHERE id=@id",("@id",payableId));
+        return available is null or DBNull?throw new InvalidOperationException("Payable not found."):Convert.ToDecimal(available);
+    }
+    /// <summary>Deadlock victim (1205) or lock timeout (1222) on SQL Server; busy (5) or locked (6) on SQLite.
+    /// Business-rule errors from the money triggers are never retryable.</summary>
+    public static bool IsRetryable(DbException ex)=>
+        ex is Microsoft.Data.SqlClient.SqlException sql?sql.Number is 1205 or 1222:
+        ex is Microsoft.Data.Sqlite.SqliteException lite&&lite.SqliteErrorCode is 5 or 6;
+
     static void EnsureTransitions(DbConnection c,DbTransaction? tx)
     {
         string a=SchemaSql.Q(c,"pay","payment_allocation"),payment=SchemaSql.Q(c,"pay","payment");
