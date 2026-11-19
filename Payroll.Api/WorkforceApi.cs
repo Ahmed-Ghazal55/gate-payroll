@@ -124,10 +124,13 @@ public static class WorkforceApi
             }, "workforce-export", TimeSpan.FromSeconds(exportTimeout));
         }
         bool showIban = AccessPolicy.Has(ctx.User, PermIban);
-        var headers = new[] { "الاسم", "رقم الإقامة", "الجوال", "الجنسية", "الحالة", "نوع العلاقة", "نوع العمل", "الكفيل", "المنصة", "معرف المنصة", "المدينة", "السكن", "المسمى", "نموذج الدفع", "مركبة الشركة", "الرخصة", showIban ? "الآيبان" : "الآيبان", "تنبيه الآيبان", "راتب مدد" };
-        if (!showIban) headers[^3] = "الآيبان (مخفي)";
+        // R1: IBAN, bank short code and bank name are three separate columns in the export.
+        var headers = new[] { "الاسم", "رقم الإقامة", "الجوال", "الجنسية", "الحالة", "نوع العلاقة", "نوع العمل", "الكفيل", "المنصة", "معرف المنصة", "المدينة", "السكن", "المسمى", "نموذج الدفع", "مركبة الشركة", "الرخصة", showIban ? "الآيبان" : "الآيبان (مخفي)", "كود البنك", "اسم البنك", "تنبيه الآيبان", "راتب مدد" };
         var cols = headers.Select(h => new ExcelColumn(h)).ToArray();
-        var rows = all.Select(r => new object?[]
+        var rows = all.Select(r =>
+        {
+            var bank = showIban ? BankPayrollFiles.ExportBank(r.S("iban")) : ("", "");
+            return new object?[]
         {
             r.S("name"),
             r.S("iqama"),
@@ -146,8 +149,11 @@ public static class WorkforceApi
             r.B("hasCompanyVehicle") ? r.S("companyVehicleType") : "",
             r.S("drivingLicense"),
             showIban ? r.S("iban") : "",
+            bank.Item1,
+            bank.Item2,
             r.S("ibanAlert"),
             r.S("mudadSalary")
+        };
         }).ToList();
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "workforce-export.xlsx");
     }

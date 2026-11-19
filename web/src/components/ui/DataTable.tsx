@@ -58,6 +58,8 @@ export interface ColumnDef<T> {
   width?: string;
   render?: (row: T, index: number) => React.ReactNode;
   getValue?: (row: T) => any;
+  /** R1: a stacked screen cell exported as several separate columns (export only; the screen is unchanged). */
+  exportColumns?: { header: string; value: (row: T) => any }[];
   className?: string;
   summary?: 'sum' | 'count' | ((rows: T[]) => React.ReactNode);
 }
@@ -559,14 +561,18 @@ export function DataTable<T extends Record<string, any>>({
       const exportCols = columns.filter(
         (c) => c.key !== 'actions' && c.header && c.header !== 'الإجراء'
       );
-      const headers = exportCols.map((c) => c.header);
-      const numericColumns = exportCols
+      // R1: a column with exportColumns becomes several columns in the sheet.
+      const flat = exportCols.flatMap((col) =>
+        col.exportColumns && col.exportColumns.length > 0
+          ? col.exportColumns.map((ec) => ({ header: ec.header, numeric: false, value: (row: T) => ec.value(row) }))
+          : [{ header: col.header, numeric: !!col.numeric, value: (row: T) => getCellExportValue(row, col) }]
+      );
+      const headers = flat.map((c) => c.header);
+      const numericColumns = flat
         .map((c, i) => (c.numeric ? i : -1))
         .filter((i) => i >= 0);
 
-      const rows = filteredData.map((row) =>
-        exportCols.map((col) => getCellExportValue(row, col))
-      );
+      const rows = filteredData.map((row) => flat.map((col) => col.value(row)));
 
       const blob = await api.exportExcel({
         headers,
