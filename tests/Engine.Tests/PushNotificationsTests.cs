@@ -609,4 +609,303 @@ public sealed class PushNotificationsTests
             Assert.IsFalse(legacyStoredKey2);
         });
     }
+
+    [TestMethod]
+    public void IndividualNoticeCategoriesAreDistinguishedFromGeneralBroadcastsAndProvideThreeLanguageTitles()
+    {
+        foreach (string cat in new[] { "summons", "dismissal_warning", "administrative_deduction", "appointment_alert", "administrative_warning" })
+        {
+            Assert.IsTrue(PushNotifications.IsIndividualOnlyNotice(cat), cat);
+            var (ar, en, ur) = PushNotifications.DefaultNoticeTitles(cat);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(ar));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(en));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(ur));
+        }
+
+        foreach (string cat in new[] { "operational", "financial", "administrative", "form_link", "" })
+        {
+            Assert.IsFalse(PushNotifications.IsIndividualOnlyNotice(cat), cat);
+        }
+    }
+
+    [TestMethod]
+    public void TwoWayServiceRequestsEnforceSecondApproverConfidentialComplaintsAndTimelineAndReplies()
+    {
+        WithSqlStore(store =>
+        {
+            PushNotifications.ResetCache();
+            const string riderIqama = "2000000871";
+            const string token = "rmob_" + "1111111111111111111111111111111111111111111111111111111111111111";
+            string sessionId = "mobile:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+            store.Write((c, tx) =>
+            {
+                Store.Save(c, "rider", new()
+                {
+                    ["id"] = riderIqama,
+                    ["iqama"] = riderIqama,
+                    ["name"] = "مندوب اختبار شامل",
+                    ["phone"] = "+966501112233",
+                    ["city"] = "الرياض",
+                    ["status"] = "Active",
+                    ["financeSponsorId"] = FinancialCore.ResolveSponsor("BW").Id
+                }, tx);
+                Store.Save(c, MobileSessions.Kind, new()
+                {
+                    ["id"] = sessionId,
+                    ["iqama"] = riderIqama,
+                    ["language"] = "ar",
+                    ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"),
+                    ["expiresAtUtc"] = DateTimeOffset.UtcNow.AddHours(8).ToString("O"),
+                    ["fcmDeviceToken"] = "tok-service-test"
+                }, tx);
+                return true;
+            });
+
+            var riderCtx = new DefaultHttpContext();
+            riderCtx.Request.Headers.Authorization = "Bearer " + token;
+
+            var reviewer1 = UserAccess.Principal(new()
+            {
+                ["id"] = "syn-rev-1",
+                ["username"] = "syn-rev-1",
+                ["role"] = "Reviewer",
+                ["customPermissions"] = new JsonArray("forms.review", "mobile.broadcast"),
+                ["financialScope"] = new JsonObject { ["sponsorIds"] = new JsonArray(FinancialCore.ResolveSponsor("BW").Id) }
+            });
+            var reviewer2 = UserAccess.Principal(new()
+            {
+                ["id"] = "syn-rev-2",
+                ["username"] = "syn-rev-2",
+                ["role"] = "Reviewer",
+                ["customPermissions"] = new JsonArray("forms.review", "mobile.broadcast"),
+                ["financialScope"] = new JsonObject { ["sponsorIds"] = new JsonArray(FinancialCore.ResolveSponsor("BW").Id) }
+            });
+
+            // 1. Annual Leave Request (new form)
+            var leave = store.Write((c, tx) => RiderAsks.CreateServiceRequest(c, tx, riderCtx, new()
+            {
+                ["requestType"] = "annual_leave",
+                ["leaveType"] = "annual",
+                ["startDate"] = "2026-12-01",
+                ["endDate"] = "2026-12-15",
+                ["destination"] = "outside_ksa",
+                ["reason"] = "إجازة سنوية للسفر"
+            }));
+            Assert.AreEqual("annual_leave", leave.S("requestType"));
+            Assert.AreEqual("open", leave.S("status"));
+            Assert.AreEqual(15, (int)leave["payload"]!.AsObject().N("days"));
+            Assert.AreEqual(1, leave["timeline"]!.AsArray().Count);
+
+            // 2. IBAN Update with two independent approvers (M-0359)
+            const string validRajhiIban = "SA0380000000608010167519";
+            var ibanReq = store.Write((c, tx) => RiderAsks.CreateServiceRequest(c, tx, riderCtx, new()
+            {
+                ["requestType"] = "iban_update",
+                ["iban"] = validRajhiIban,
+                ["bankCode"] = "80",
+                ["reason"] = "حساب جديد باسمي"
+            }));
+            Assert.AreEqual("open", ibanReq.S("status"));
+            Assert.IsTrue(ibanReq.B("requiresSecondApprover"));
+            Assert.AreEqual("awaiting_first", ibanReq.S("approvalStage"));
+
+            // First approval by reviewer1 -> moves to first_approved
+            var afterFirst = store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, reviewer1, ibanReq.S("id"), new()
+            {
+                ["action"] = "approve",
+                ["note"] = "تمت مراجعة الهوية كاعتماد أول"
+            }));
+            Assert.AreEqual("first_approved", afterFirst.S("status"));
+            Assert.AreEqual("awaiting_second", afterFirst.S("approvalStage"));
+
+            // Same reviewer1 tries second approval -> refused with 403 (maker-checker)
+            var selfApproveErr = Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, reviewer1, ibanReq.S("id"), new()
+                {
+                    ["action"] = "approve"
+                })));
+            Assert.AreEqual(403, selfApproveErr.Status);
+
+            // Second independent reviewer2 approves -> moves to approved & updates verifiedIban
+            var afterSecond = store.Write((c, tx) => RiderAsks.DecideServiceRequest(c, tx, reviewer2, ibanReq.S("id"), new()
+            {
+                ["action"] = "approve",
+                ["note"] = "تمت المطابقة النهائية كاعتماد ثانٍ"
+            }));
+            Assert.AreEqual("approved", afterSecond.S("status"));
+            Assert.AreEqual("completed", afterSecond.S("approvalStage"));
+            Assert.AreEqual(validRajhiIban, store.Read(c => Store.Get(c, riderIqama, "rider")!.S("verifiedIban")));
+
+            // Submitting the same IBAN again auto-approves immediately (§1e)
+            var autoIban = store.Write((c, tx) => RiderAsks.CreateServiceRequest(c, tx, riderCtx, new()
+            {
+                ["requestType"] = "iban_update",
+                ["iban"] = validRajhiIban,
+                ["bankCode"] = "80"
+            }));
+            Assert.AreEqual("approved", autoIban.S("status"));
+            Assert.AreEqual("auto_approved", autoIban.S("approvalStage"));
+
+            // 3. Confidential Complaint (M-0359): hidden from regular staff, visible to Admin
+            var complaint = store.Write((c, tx) => RiderAsks.CreateServiceRequest(c, tx, riderCtx, new()
+            {
+                ["requestType"] = "complaint",
+                ["targetKind"] = "supervisor",
+                ["subject"] = "شكوى سرية تجريبية",
+                ["details"] = "تفاصيل الشكوى السرية للاختبار فقط"
+            }));
+            Assert.IsTrue(complaint.B("confidential"));
+
+            // reviewer1 without confidential permission cannot decide or reply on it (404)
+            Assert.AreEqual(404, Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => RiderAsks.StaffReplyServiceRequest(c, tx, reviewer1, complaint.S("id"), new()
+                {
+                    ["message"] = "محاولة وصول غير مصرح"
+                }))).Status);
+
+            // Admin replies and rider replies back (two-way replies + timeline)
+            store.Write((c, tx) => RiderAsks.StaffReplyServiceRequest(c, tx, Admin, complaint.S("id"), new()
+            {
+                ["message"] = "تم استلام الشكوى السرية وجاري التحقيق"
+            }));
+            var afterRiderReply = store.Write((c, tx) => RiderAsks.RiderReply(c, tx, riderCtx, complaint.S("id"), new()
+            {
+                ["message"] = "شكراً لكم، مرفق توضيح إضافي"
+            }));
+            Assert.AreEqual(2, afterRiderReply["replies"]!.AsArray().Count);
+            Assert.AreEqual(3, afterRiderReply["timeline"]!.AsArray().Count);
+
+            // 4. Outbound Admin-to-Rider request (requests both ways)
+            var adminToRider = store.Write((c, tx) => RiderAsks.CreateAdminRequestToRider(c, tx, Admin, new()
+            {
+                ["iqama"] = riderIqama,
+                ["requestType"] = "appointment",
+                ["reason"] = "يرجى تحديد موعد لتحديث بيانات البطاقة"
+            }));
+            Assert.AreEqual("admin_to_rider", adminToRider.S("direction"));
+            Assert.AreEqual("awaiting_rider", adminToRider.S("status"));
+            var riderRepliedToAdmin = store.Write((c, tx) => RiderAsks.RiderReply(c, tx, riderCtx, adminToRider.S("id"), new()
+            {
+                ["message"] = "يناسبني يوم الأحد صباحاً"
+            }));
+            Assert.AreEqual("open", riderRepliedToAdmin.S("status"));
+        });
+    }
+
+    [TestMethod]
+    public void ShortThreeLanguageStatementLatestSummaryAndBulkPeriodNotificationWorkEndToEnd()
+    {
+        WithSqlStore(store =>
+        {
+            PushNotifications.ResetCache();
+            const string riderIqama = "2000000872";
+            const string token = "rmob_" + "2222222222222222222222222222222222222222222222222222222222222222";
+            string sessionId = "mobile:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+            store.Write((c, tx) =>
+            {
+                Store.Save(c, "rider", new()
+                {
+                    ["id"] = riderIqama,
+                    ["iqama"] = riderIqama,
+                    ["name"] = "مندوب كشف مختصر",
+                    ["status"] = "Active",
+                    ["sponsorId"] = FinancialCore.ResolveSponsor("BW").Id
+                }, tx);
+                Store.Save(c, MobileSessions.Kind, new()
+                {
+                    ["id"] = sessionId,
+                    ["iqama"] = riderIqama,
+                    ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"),
+                    ["expiresAtUtc"] = DateTimeOffset.UtcNow.AddHours(8).ToString("O"),
+                    ["fcmDeviceToken"] = "tok-stmt-test"
+                }, tx);
+                Store.Save(c, "run", new()
+                {
+                    ["id"] = "syn-run-2026-10",
+                    ["iqama"] = riderIqama,
+                    ["period"] = "2026-10",
+                    ["sponsorId"] = FinancialCore.ResolveSponsor("BW").Id,
+                    ["approvedAt"] = "2026-11-01T10:00:00Z",
+                    ["result"] = new JsonObject
+                    {
+                        ["policyName"] = "Tier Policy",
+                        ["openingBalance"] = -100m,
+                        ["periodMovement"] = 1850m,
+                        ["closingBalance"] = 1750m,
+                        ["lines"] = new JsonArray(
+                            new JsonObject { ["category"] = "platform_settlement", ["platform"] = "Keeta", ["amount"] = 2200m },
+                            new JsonObject { ["category"] = "company_fee", ["platform"] = "Keeta", ["amount"] = -200m },
+                            new JsonObject { ["category"] = "debt_installment", ["amount"] = -150m }
+                        )
+                    }
+                }, tx);
+                return true;
+            });
+
+            var riderCtx = new DefaultHttpContext();
+            riderCtx.Request.Headers.Authorization = "Bearer " + token;
+
+            var stmt = store.Read(c => PayStatements.Mobile(c, riderCtx, "2026-10"));
+            Assert.IsFalse(stmt.B("legalDocument"));
+            Assert.AreEqual("لك", stmt.S("closingMarkerAr"));
+            Assert.AreEqual("For you (لك)", stmt.S("closingMarkerEn"));
+            Assert.AreEqual("آپ کے حق میں (لك)", stmt.S("closingMarkerUr"));
+
+            var shortLines = stmt["shortLines"]!.AsArray().OfType<JsonObject>().ToList();
+            Assert.IsTrue(shortLines.Count >= 3);
+            Assert.AreEqual("عليك", shortLines[0].S("markerAr")); // carried -100
+            Assert.AreEqual("لك", shortLines[1].S("markerAr"));   // gross +2200
+            Assert.IsFalse(string.IsNullOrWhiteSpace(shortLines[1].S("labelEn")));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(shortLines[1].S("labelUr")));
+
+            // Ensure no company/sponsor IDs leak in mobile statement cards
+            Assert.IsTrue(stmt["cards"]!.AsArray().OfType<JsonObject>().All(card => !card.ContainsKey("companyId") && !card.ContainsKey("sponsorId")));
+
+            // Latest approved summary for Home banner
+            var latest = store.Read(c => PayStatements.LatestApprovedSummary(c, riderIqama));
+            Assert.IsTrue(latest.B("available"));
+            Assert.AreEqual("2026-10", latest.S("period"));
+            Assert.AreEqual(1750m, latest.N("closing"));
+            Assert.AreEqual("لك", latest.S("markerAr"));
+
+            // Bulk statement notify for 2026-10 via outbox (idempotent and no salary numbers in push payload)
+            var bulk1 = store.Write((c, tx) => PushNotifications.NotifyApprovedStatementsForPeriod(c, tx, Admin, "2026-10"));
+            Assert.AreEqual(1, (int)bulk1.N("notifiedRidersCount"));
+            Assert.AreEqual(1, (int)bulk1.N("enqueuedPushCount"));
+
+            var outboxItem = store.Read(c => Store.List(c, PushNotifications.Kind).Single());
+            Assert.IsFalse(outboxItem.S("body").Contains("1750"), "Salary amount must never be sent inside FCM push payload");
+
+            var bulk2 = store.Write((c, tx) => PushNotifications.NotifyApprovedStatementsForPeriod(c, tx, Admin, "2026-10"));
+            Assert.AreEqual(0, (int)bulk2.N("notifiedRidersCount"));
+            Assert.AreEqual(1, (int)bulk2.N("skippedAlreadyNotifiedCount"));
+        });
+    }
+
+    [TestMethod]
+    public void PerRiderRateLimiterEnforcesQuotasWith429AndRetryAfter()
+    {
+        PushNotifications.ResetCache();
+        try
+        {
+            PushNotifications.WritePermitLimitOverride = 3;
+            var ctx = new DefaultHttpContext();
+            ctx.Request.Headers.Authorization = "Bearer rmob_3333333333333333333333333333333333333333333333333333333333333333";
+
+            for (int i = 0; i < 3; i++)
+            {
+                PushNotifications.EnforceRiderRateLimit(ctx, write: true);
+            }
+
+            var err = Assert.ThrowsExactly<ApiError>(() => PushNotifications.EnforceRiderRateLimit(ctx, write: true));
+            Assert.AreEqual(429, err.Status);
+            Assert.AreEqual("60", ctx.Response.Headers.RetryAfter.ToString());
+        }
+        finally
+        {
+            PushNotifications.ResetCache();
+        }
+    }
 }

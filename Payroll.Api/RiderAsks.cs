@@ -434,14 +434,14 @@ public static class RiderAsks
         return RiderView(c, a);
     }
 
-    static bool CanStaffSeeServiceRequest(DbConnection c, ClaimsPrincipal user, JsonObject req)
+    static bool CanStaffSeeServiceRequest(DbConnection c, ClaimsPrincipal user, JsonObject req, DbTransaction? tx = null)
     {
         if (req.B("confidential") || req.S("requestType") == "complaint")
         {
             if (!AccessPolicy.Administrator(user) && !AccessPolicy.Has(user, "mobile.complaints.confidential"))
                 return false;
         }
-        var rider = Store.Get(c, req.S("riderIqama"), "rider");
+        var rider = Store.Get(c, req.S("riderIqama"), "rider", tx);
         if (rider != null && !FinancialScopes.Rider(user, rider) && !FinancialScopes.AllCompanies(user))
             return false;
         return true;
@@ -500,7 +500,7 @@ public static class RiderAsks
     public static JsonObject DecideServiceRequest(DbConnection c, DbTransaction tx, ClaimsPrincipal actor, string id, JsonObject input)
     {
         var req = Store.Get(c, id, ServiceKind, tx)?.Clone() ?? throw new ApiError("الطلب غير موجود.", 404);
-        J.Need(CanStaffSeeServiceRequest(c, actor, req), "الطلب غير موجود.", 404);
+        J.Need(CanStaffSeeServiceRequest(c, actor, req, tx), "الطلب غير موجود.", 404);
         string status = req.S("status");
         J.Need(status is "open" or "first_approved" or "need_info" or "awaiting_rider", "تم البت النهائي في هذا الطلب بالفعل.", 409);
 
@@ -603,7 +603,7 @@ public static class RiderAsks
     public static JsonObject StaffReplyServiceRequest(DbConnection c, DbTransaction tx, ClaimsPrincipal actor, string id, JsonObject input)
     {
         var req = Store.Get(c, id, ServiceKind, tx)?.Clone() ?? throw new ApiError("الطلب غير موجود.", 404);
-        J.Need(CanStaffSeeServiceRequest(c, actor, req), "الطلب غير موجود.", 404);
+        J.Need(CanStaffSeeServiceRequest(c, actor, req, tx), "الطلب غير موجود.", 404);
         string message = input.Required("message").Trim();
         J.Need(message.Length is >= 2 and <= 1000, "اكتب نص الرد (2–1000 حرف).");
         string now = DateTimeOffset.UtcNow.ToString("O");
