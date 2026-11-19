@@ -9,6 +9,7 @@ import { RiderSessionsPanel } from '../../components/riders/RiderSessionsPanel';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { Dialog } from '../../components/ui/Dialog';
 import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../lib/auth-context';
 
 function AccessCodeCard() {
   const { toast } = useToast();
@@ -31,12 +32,12 @@ function AccessCodeCard() {
     }
   };
 
-  const copy = async (text: string) => {
+  const copy = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast('تم نسخ رابط الدخول', 'success');
+      toast(`تم نسخ ${label}`, 'success');
     } catch {
-      toast('تعذر النسخ؛ انسخ الرابط يدويًا', 'warning');
+      toast('تعذر النسخ؛ انسخ يدويًا', 'warning');
     }
   };
 
@@ -71,9 +72,16 @@ function AccessCodeCard() {
             ينتهي في: <span className="num">{new Date(grant.expiresAt).toLocaleTimeString('ar-SA')}</span> — يظهر مرة واحدة فقط.
           </p>
           <div className="flex items-center gap-2">
+            <span className="font-bold shrink-0">الرمز:</span>
+            <code className="font-mono text-[11px]" dir="ltr">{grant.code}</code>
+            <button type="button" onClick={() => copy(grant.code, 'الرمز')} className="px-2 py-1 rounded-lg border border-[var(--line)] inline-flex items-center gap-1">
+              <Copy size={12} /> نسخ الرمز
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
             <code className="flex-1 truncate font-mono text-[11px]" dir="ltr">{grant.url}</code>
-            <button type="button" onClick={() => copy(grant.url)} className="px-2 py-1 rounded-lg border border-[var(--line)] inline-flex items-center gap-1">
-              <Copy size={12} /> نسخ
+            <button type="button" onClick={() => copy(grant.url, 'رابط الدخول')} className="px-2 py-1 rounded-lg border border-[var(--line)] inline-flex items-center gap-1">
+              <Copy size={12} /> نسخ الرابط
             </button>
           </div>
         </div>
@@ -99,9 +107,12 @@ function AccessCodeCard() {
 }
 
 export function AccountsPanel({ canIssueCode }: { canIssueCode: boolean }) {
+  const { can, isAdmin } = useAuth();
+  // InquiryApi requires payroll.view for mobile access codes; hide the card without it.
+  const showIssue = canIssueCode && (isAdmin || can('payroll.view'));
   return (
     <div className="space-y-4">
-      {canIssueCode ? <AccessCodeCard /> : null}
+      {showIssue ? <AccessCodeCard /> : null}
       <RiderSessionsPanel />
     </div>
   );
