@@ -44,6 +44,20 @@ public sealed class SchemaFormAppTests
     }
 
     [TestMethod]
+    public void FilteredUniqueAllowsTwoNullSharingTokens()
+    {
+        using var c=Open();
+        SchemaFormApp.Ensure(c);
+        SchemaSql.Exec(c,null,"INSERT INTO form_campaign(id,title,kind,status,created_at) VALUES(@id,'d1','iban','draft',datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())));
+        SchemaSql.Exec(c,null,"INSERT INTO form_campaign(id,title,kind,status,created_at) VALUES(@id,'d2','iban','draft',datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())));
+        Assert.AreEqual(2L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM form_campaign WHERE sharing_token IS NULL")!));
+        SchemaSql.Exec(c,null,"UPDATE form_campaign SET sharing_token='tok-a' WHERE title='d1'");
+        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"UPDATE form_campaign SET sharing_token='tok-a' WHERE title='d2'"));
+    }
+
+    [TestMethod]
     public void StoreStartupCreatesFormAppSchema()
     {
         string dir=Path.Combine(Path.GetTempPath(),"gate-form-app-"+Guid.NewGuid().ToString("N"));

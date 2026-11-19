@@ -41,10 +41,11 @@ public static class SchemaHrCompany
                   CONSTRAINT PK_hr_company PRIMARY KEY NONCLUSTERED (id),
                   CONSTRAINT UQ_hr_company_code UNIQUE (code),
                   CONSTRAINT UQ_hr_company_unified UNIQUE (unified_number),
-                  CONSTRAINT UQ_hr_company_erp_sponsor UNIQUE (erp_sponsor_id),
                   CONSTRAINT CK_hr_company_status CHECK (status IN (1,2,3))
                 );
                 """);
+            SchemaSql.DropUniqueConstraintIfExists(c,tx,"hr","company","UQ_hr_company_erp_sponsor");
+            SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"hr","company","UQ_hr_company_erp_sponsor","erp_sponsor_id","erp_sponsor_id IS NOT NULL");
         }
         else
         {
@@ -67,10 +68,10 @@ public static class SchemaHrCompany
                   created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
                   CONSTRAINT UQ_hr_company_code UNIQUE (code),
                   CONSTRAINT UQ_hr_company_unified UNIQUE (unified_number),
-                  CONSTRAINT UQ_hr_company_erp_sponsor UNIQUE (erp_sponsor_id),
                   CONSTRAINT CK_hr_company_status CHECK (status IN (1,2,3))
                 );
                 """);
+            SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"hr","company","UQ_hr_company_erp_sponsor","erp_sponsor_id","erp_sponsor_id IS NOT NULL");
         }
     }
 

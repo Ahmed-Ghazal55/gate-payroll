@@ -90,4 +90,20 @@ public static class SchemaSql
         else
             Exec(c,tx,$"CREATE INDEX IF NOT EXISTS {indexName} ON {t}({columns});");
     }
+    /// <summary>Drop a named UNIQUE constraint if present (SQL Server key constraint or SQLite table rebuild is not needed when CREATE IF NOT EXISTS is fresh).</summary>
+    public static void DropUniqueConstraintIfExists(DbConnection c,DbTransaction? tx,string schema,string table,string constraintName)
+    {
+        if(IsSql(c))
+            Exec(c,tx,$"IF EXISTS(SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'{schema}.{table}') AND name=N'{constraintName}') ALTER TABLE {Q(c,schema,table)} DROP CONSTRAINT [{constraintName}];");
+        // SQLite: inline UNIQUE on an already-created table cannot be dropped without rebuild; new CREATE definitions omit it.
+    }
+    /// <summary>Filtered/partial unique index so multiple NULLs are allowed on both providers.</summary>
+    public static void CreateFilteredUniqueIndexIfMissing(DbConnection c,DbTransaction? tx,string schema,string table,string indexName,string columns,string whereSql)
+    {
+        string t=Q(c,schema,table);
+        if(IsSql(c))
+            Exec(c,tx,$"IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'{schema}.{table}') AND name=N'{indexName}') CREATE UNIQUE INDEX [{indexName}] ON {t}({columns}) WHERE {whereSql};");
+        else
+            Exec(c,tx,$"CREATE UNIQUE INDEX IF NOT EXISTS {indexName} ON {t}({columns}) WHERE {whereSql};");
+    }
 }

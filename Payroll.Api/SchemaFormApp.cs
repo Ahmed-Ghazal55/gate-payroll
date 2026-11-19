@@ -37,7 +37,6 @@ public static class SchemaFormApp
                   body_json {SchemaSql.Json(c)} NULL,
                   {SchemaSql.AuditCols(c)},
                   CONSTRAINT PK_form_campaign PRIMARY KEY NONCLUSTERED (id),
-                  CONSTRAINT UQ_form_campaign_token UNIQUE (sharing_token),
                   CONSTRAINT CK_form_campaign_status CHECK (status IN ('draft','open','closed','archived'))
                 );
                 """);
@@ -54,10 +53,11 @@ public static class SchemaFormApp
                   fields_json TEXT NULL,
                   body_json TEXT NULL,
                   created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
-                  CONSTRAINT UQ_form_campaign_token UNIQUE (sharing_token),
                   CONSTRAINT CK_form_campaign_status CHECK (status IN ('draft','open','closed','archived'))
                 );
                 """);
+        SchemaSql.DropUniqueConstraintIfExists(c,tx,"form","campaign","UQ_form_campaign_token");
+        SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"form","campaign","UQ_form_campaign_token","sharing_token","sharing_token IS NOT NULL");
     }
 
     static void EnsureSubmission(DbConnection c,DbTransaction? tx)
@@ -156,7 +156,6 @@ public static class SchemaFormApp
                   body_json {SchemaSql.Json(c)} NULL,
                   {SchemaSql.AuditCols(c)},
                   CONSTRAINT PK_form_custom_form PRIMARY KEY NONCLUSTERED (id),
-                  CONSTRAINT UQ_form_custom_form_token UNIQUE (sharing_token),
                   CONSTRAINT CK_form_custom_form_status CHECK (status IN ('draft','open','closed','archived'))
                 );
                 """);
@@ -171,10 +170,11 @@ public static class SchemaFormApp
                   fields_json TEXT NULL,
                   body_json TEXT NULL,
                   created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
-                  CONSTRAINT UQ_form_custom_form_token UNIQUE (sharing_token),
                   CONSTRAINT CK_form_custom_form_status CHECK (status IN ('draft','open','closed','archived'))
                 );
                 """);
+        SchemaSql.DropUniqueConstraintIfExists(c,tx,"form","custom_form","UQ_form_custom_form_token");
+        SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"form","custom_form","UQ_form_custom_form_token","sharing_token","sharing_token IS NOT NULL");
     }
 
     static void EnsureCustomResponse(DbConnection c,DbTransaction? tx)

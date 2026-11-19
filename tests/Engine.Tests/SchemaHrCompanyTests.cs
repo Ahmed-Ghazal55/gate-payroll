@@ -46,6 +46,21 @@ public sealed class SchemaHrCompanyTests
     }
 
     [TestMethod]
+    public void FilteredUniqueAllowsTwoNullErpSponsorIds()
+    {
+        using var c=Open();
+        SchemaRef.Ensure(c);SchemaHrCompany.Ensure(c);
+        SchemaSql.Exec(c,null,"INSERT INTO hr_company(id,code,unified_number,name_ar,status,created_at) VALUES(@id,'A1','UA1','n',1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())));
+        SchemaSql.Exec(c,null,"INSERT INTO hr_company(id,code,unified_number,name_ar,status,created_at) VALUES(@id,'A2','UA2','n',1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())));
+        Assert.AreEqual(2L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM hr_company WHERE erp_sponsor_id IS NULL")!));
+        string erp=SchemaSql.GuidText(SchemaSql.NewId());
+        SchemaSql.Exec(c,null,"UPDATE hr_company SET erp_sponsor_id=@erp WHERE code='A1'",("@erp",erp));
+        Assert.ThrowsExactly<SqliteException>(()=>SchemaSql.Exec(c,null,"UPDATE hr_company SET erp_sponsor_id=@erp WHERE code='A2'",("@erp",erp)));
+    }
+
+    [TestMethod]
     public void StoreStartupCreatesEmptyCompanyMasters()
     {
         string dir=Path.Combine(Path.GetTempPath(),"gate-hr-company-"+Guid.NewGuid().ToString("N"));

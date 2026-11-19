@@ -174,10 +174,12 @@ public static class SchemaRef
                   target_code varchar(32) NOT NULL,
                   company_id {g} NULL,
                   {SchemaSql.AuditCols(c)},
-                  CONSTRAINT PK_legacy_account_map PRIMARY KEY NONCLUSTERED (id),
-                  CONSTRAINT UQ_legacy_account_map UNIQUE (legacy_code, company_id)
+                  CONSTRAINT PK_legacy_account_map PRIMARY KEY NONCLUSTERED (id)
                 );
                 """);
+            SchemaSql.DropUniqueConstraintIfExists(c,tx,"ref","legacy_account_map","UQ_legacy_account_map");
+            SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"ref","legacy_account_map","UQ_legacy_account_map","legacy_code, company_id","company_id IS NOT NULL");
+            SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"ref","legacy_account_map","UQ_legacy_account_map_global","legacy_code","company_id IS NULL");
         }
         else
         {
@@ -187,10 +189,11 @@ public static class SchemaRef
                   legacy_code TEXT NOT NULL,
                   target_code TEXT NOT NULL,
                   company_id TEXT NULL,
-                  created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
-                  CONSTRAINT UQ_legacy_account_map UNIQUE (legacy_code, company_id)
+                  created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL
                 );
                 """);
+            SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"ref","legacy_account_map","UQ_legacy_account_map","legacy_code, company_id","company_id IS NOT NULL");
+            SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"ref","legacy_account_map","UQ_legacy_account_map_global","legacy_code","company_id IS NULL");
         }
     }
 
