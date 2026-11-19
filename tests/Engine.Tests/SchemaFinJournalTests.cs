@@ -194,8 +194,8 @@ public sealed class SchemaFinJournalTests
                     INSERT INTO fin.journal(id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,currency_code,created_at)
                     VALUES(@id,'V-D',@pid,'2026-11-01','2026-12-15','manual',@sid2,@cid,'manual',1,'SAR',SYSUTCDATETIME())
                     """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",period),("@sid2",SchemaSql.GuidText(SchemaSql.NewId())),("@cid",company)));
-                string posting=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CAST(varchar(36),id) FROM fin.account WHERE is_postable=1 AND is_active=1 ORDER BY code")!;
-                string nonLeaf=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CAST(varchar(36),id) FROM fin.account WHERE is_postable=0 ORDER BY code")!;
+                string posting=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CONVERT(varchar(36),id) FROM fin.account WHERE is_postable=1 AND is_active=1 ORDER BY code")!;
+                string nonLeaf=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CONVERT(varchar(36),id) FROM fin.account WHERE is_postable=0 ORDER BY code")!;
                 string cc=SchemaSql.GuidText(SchemaOrgCostCentre.NoneId);
                 Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,"""
                     INSERT INTO fin.journal_line(id,period_id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at)

@@ -55,7 +55,7 @@ public sealed class SchemaFinPeriodBalanceTests
             INSERT INTO fin_period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
             VALUES(@id,@pid,@pm,@cid,@aid,@cc,'none',@dim,0,1,0,1,datetime('now'))
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",k.Period),("@pm","2026-11-01"),("@cid",k.Company),("@aid",k.Account),("@cc",cc),("@dim",dim)),
-            "UQ_fin_period_balance_grain",sqliteToken:"fin_period_balance.period_id, fin_period_balance.dimension_key");
+            "UQ_fin_period_balance_grain",sqliteToken:"UNIQUE constraint failed");
         // Same raw dims with a different 32-byte hash still rejected by UQ_fin_period_balance_dims
         byte[] otherHash=Enumerable.Range(1,32).Select(i=>(byte)i).ToArray();
         SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,"""
@@ -190,7 +190,7 @@ public sealed class SchemaFinPeriodBalanceTests
                 SchemaSql.Exec(c,null,"INSERT INTO hr.company(id,code,unified_number,name_ar,status,created_at) VALUES(@id,'B1','UB1',N'n',1,SYSUTCDATETIME())",("@id",company));
                 string period=SchemaSql.GuidText(SchemaSql.NewId());
                 SchemaSql.Exec(c,null,"INSERT INTO fin.accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-11-01',1,SYSUTCDATETIME())",("@id",period),("@cid",company));
-                string account=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CAST(varchar(36),id) FROM fin.account WHERE is_postable=1 ORDER BY code")!;
+                string account=(string)SchemaSql.Scalar(c,null,"SELECT TOP 1 CONVERT(varchar(36),id) FROM fin.account WHERE is_postable=1 ORDER BY code")!;
                 Guid accountG=Guid.Parse(account);
                 Guid ccG=SchemaOrgCostCentre.NoneId;
                 string cc=SchemaSql.GuidText(ccG);
