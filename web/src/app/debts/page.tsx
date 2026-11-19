@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Receipt,
@@ -137,6 +137,8 @@ function DebtsPageContent() {
   const [categoryOptions, setCategoryOptions] = useState<DebtCategoryOption[]>(() =>
     debtCategoryOptionsFromCatalog([])
   );
+  const debtsAbortRef = useRef<AbortController | null>(null);
+  const debtsRequestIdRef = useRef(0);
 
   // Data states
   const [loading, setLoading] = useState<boolean>(true);
@@ -236,12 +238,13 @@ function DebtsPageContent() {
     q: search.trim() || undefined,
   });
 
-  const loadDebtsSummary = async () => {
+  const loadDebtsSummary = async (signal?: AbortSignal) => {
     try {
       // Cards/banner stay global (not tied to category/search filters).
-      const summary = await api.getDebtsSummary({});
+      const summary = await api.getDebtsSummary({}, { signal });
       setDebtsSummary(summary);
-    } catch {
+    } catch (err) {
+      if (signal?.aborted) return;
       setDebtsSummary(null);
     }
   };
@@ -251,22 +254,30 @@ function DebtsPageContent() {
     pageSize = debtsPageSize,
     search = debouncedSearch
   ) => {
+    debtsAbortRef.current?.abort();
+    const controller = new AbortController();
+    debtsAbortRef.current = controller;
+    const requestId = ++debtsRequestIdRef.current;
     setLoading(true);
     setError(null);
     try {
-      const debtsRes = (await api.getDebts(debtsListParams(page, pageSize, search))) as PaginatedResult<DebtRecord>;
+      const debtsRes = (await api.getDebts(debtsListParams(page, pageSize, search), {
+        signal: controller.signal,
+      })) as PaginatedResult<DebtRecord>;
+      if (requestId !== debtsRequestIdRef.current) return;
       setDebts(debtsRes.items || []);
       setDebtsTotal(debtsRes.total ?? 0);
       setDebtsPage(debtsRes.page ?? page);
       setDebtsPageSize(debtsRes.pageSize ?? pageSize);
       setDebtsLoaded(true);
-      await loadDebtsSummary();
+      await loadDebtsSummary(controller.signal);
     } catch (err: any) {
+      if (controller.signal.aborted || requestId !== debtsRequestIdRef.current) return;
       const msg = err.message || 'تعذر تحميل بيانات المديونيات';
       setError(msg);
       toast(msg, 'danger');
     } finally {
-      setLoading(false);
+      if (requestId === debtsRequestIdRef.current) setLoading(false);
     }
   };
 
