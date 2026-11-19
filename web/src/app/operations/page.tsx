@@ -575,7 +575,7 @@ function OperationsPageInner() {
       ) : errorMsg && !is503 ? (
         <ErrorState title="تعذر التحميل" message={errorMsg} onRetry={() => void load()} />
       ) : items.length === 0 ? (
-        <EmptyState title="لا بيانات" description={view === 'oil' ? 'اختر مركبة من تقرير الفترة لعرض تغييرات الزيت.' : 'لا صفوف مطابقة للمرشحات.'} />
+        <EmptyState title="لا بيانات" description={view === 'oil' ? 'لا تغييرات زيت في هذه الفترة.' :'لا صفوف مطابقة للمرشحات.'} />
       ) : (
         <DataTable
           columns={columns}
