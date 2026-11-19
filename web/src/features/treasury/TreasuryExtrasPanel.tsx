@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { formatRecordEntries } from '../../lib/formatRecord';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 
 export function TreasuryExtrasPanel() {
   const { can, isAdmin } = useAuth();
@@ -22,6 +23,11 @@ export function TreasuryExtrasPanel() {
   const [liability, setLiability] = useState({ debtId: '', paymentVaultCode: '', amount: '', sourceRef: '', period: '2026-10' });
   const [legacyJson, setLegacyJson] = useState('{}');
   const [legacyPreview, setLegacyPreview] = useState<Record<string, unknown> | null>(null);
+  const legacyEntries = legacyPreview ? formatRecordEntries(legacyPreview) : [];
+  const legacyFilter = useTableAutoFilter(legacyEntries, [
+    { key: 'key', header: 'الحقل', type: 'list', getValue: (e) => e.key || '' },
+    { key: 'value', header: 'القيمة', type: 'text', getValue: (e) => String(e.value ?? '') },
+  ]);
 
   if (!canMada && !canLiability && !canLegacy) {
     return <EmptyState title="صلاحية غير كافية" description="لا تملك صلاحيات مدا أو سداد الالتزام أو التوزيع القديم." />;
@@ -110,9 +116,16 @@ export function TreasuryExtrasPanel() {
           </div>
           {legacyPreview && (
             <div className="rounded-xl border border-[var(--line)] bg-[var(--raised)]/50 p-3 max-h-56 overflow-auto">
+              <AutoFilterBar state={legacyFilter} totalCount={legacyEntries.length} />
               <table className="w-full text-xs text-start">
+                <thead className="text-[var(--muted)] border-b border-[var(--line)]">
+                  <tr>
+                    <AutoFilterTh state={legacyFilter} colKey="key" className="py-1.5 pe-3 text-start" />
+                    <AutoFilterTh state={legacyFilter} colKey="value" className="py-1.5 text-start" />
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-[var(--line)]">
-                  {formatRecordEntries(legacyPreview).map((entry) => (
+                  {legacyFilter.filteredRows.map((entry) => (
                     <tr key={entry.key}>
                       <td className="py-1.5 pe-3 font-semibold text-[var(--muted)] whitespace-nowrap">{entry.key}</td>
                       <td className="py-1.5 break-words">{entry.value}</td>

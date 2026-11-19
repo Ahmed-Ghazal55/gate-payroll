@@ -31,6 +31,7 @@ import { PageHeader } from '../../../components/ui/PageHeader';
 import { Skeleton, EmptyState, ErrorState } from '../../../components/ui/EmptyState';
 import { RiderPicker } from '../../../components/ui/RiderPicker';
 import { IbanDisplay } from '../../../components/ui/IbanDisplay';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../../components/ui/ColumnFilterMenu';
 import type { RiderStatement, RiderProfile360, MonthlyRiderStatement } from '../../../lib/types';
 import { RiderAccountsPanel } from '../../../components/riders/RiderAccountsPanel';
 
@@ -48,6 +49,16 @@ function RiderStatementPageInner() {
   const [statement, setStatement] = useState<RiderStatement | null>(null);
   const [monthlyStatement, setMonthlyStatement] = useState<MonthlyRiderStatement | null>(null);
   const [profile, setProfile] = useState<RiderProfile360 | null>(null);
+
+  const timelineFilter = useTableAutoFilter(statement?.entries || [], [
+    { key: 'date', header: 'التاريخ', type: 'date', getValue: (e) => e.date || '' },
+    { key: 'entryType', header: 'نوع الحركة', type: 'list', getValue: (e) => e.entryType || '' },
+    { key: 'description', header: 'البيان والتفاصيل', type: 'text', getValue: (e) => e.description || '' },
+    { key: 'reference', header: 'رقم المرجع', type: 'text', getValue: (e) => e.reference || '' },
+    { key: 'debit', header: 'مدين (له)', type: 'number', getValue: (e) => Number(e.debit ?? 0) },
+    { key: 'credit', header: 'دائن (عليه)', type: 'number', getValue: (e) => Number(e.credit ?? 0) },
+    { key: 'balance', header: 'الرصيد التراكمي', type: 'number', getValue: (e) => Number(e.balance ?? 0) },
+  ]);
 
   const fetchStatement = async (targetIqama?: string) => {
     const q = (targetIqama || iqama).trim();
@@ -530,27 +541,28 @@ function RiderStatementPageInner() {
             </div>
 
             <div className="overflow-x-auto">
+              <AutoFilterBar state={timelineFilter} totalCount={(statement.entries || []).length} />
               <table className="w-full text-start text-xs sm:text-sm">
                 <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold print:bg-gray-100">
                   <tr>
-                    <th className="p-3 text-start">التاريخ</th>
-                    <th className="p-3 text-start">نوع الحركة</th>
-                    <th className="p-3 text-start">البيان والتفاصيل</th>
-                    <th className="p-3 text-start">رقم المرجع</th>
-                    <th className="p-3 text-start">مدين (له)</th>
-                    <th className="p-3 text-start">دائن (عليه)</th>
-                    <th className="p-3 text-start">الرصيد التراكمي</th>
+                    <AutoFilterTh state={timelineFilter} colKey="date" className="p-3 text-start" />
+                    <AutoFilterTh state={timelineFilter} colKey="entryType" className="p-3 text-start" />
+                    <AutoFilterTh state={timelineFilter} colKey="description" className="p-3 text-start" />
+                    <AutoFilterTh state={timelineFilter} colKey="reference" className="p-3 text-start" />
+                    <AutoFilterTh state={timelineFilter} colKey="debit" className="p-3 text-start" />
+                    <AutoFilterTh state={timelineFilter} colKey="credit" className="p-3 text-start" />
+                    <AutoFilterTh state={timelineFilter} colKey="balance" className="p-3 text-start" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)] print:divide-gray-300">
-                  {(statement.entries || []).length === 0 ? (
+                  {timelineFilter.filteredRows.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="p-6 text-center text-xs text-[var(--muted)]">
                         لا توجد حركات مالية مسجلة خلال الفترة المحددة.
                       </td>
                     </tr>
                   ) : (
-                    (statement.entries || []).map((entry, idx) => (
+                    timelineFilter.filteredRows.map((entry, idx) => (
                       <tr key={idx} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono text-xs text-[var(--muted)] whitespace-nowrap">
                           {entry.date}

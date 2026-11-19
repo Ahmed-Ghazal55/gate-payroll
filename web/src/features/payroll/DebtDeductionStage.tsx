@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { api, type DebtDeductionsView, type PayCycleItem } from '../../lib/api';
 import { useToast } from '../../components/ui/Toast';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 
 type Row = DebtDeductionsView['rows'][number];
 
@@ -51,6 +52,27 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
   const pending = rows.filter((r) => r.status === 'pending');
   const canApproveMore = (cycle.allowedActions ?? []).includes('approve_salaries') && cycle.stage >= 7;
 
+  const debtStageFilter = useTableAutoFilter<Row>(rows, [
+    { key: 'rider', header: 'المندوب', type: 'text', getValue: (r) => r.rider || '' },
+    { key: 'salaryNet', header: 'صافي الراتب', type: 'number', getValue: (r) => Number(r.salaryNet ?? 0) },
+    {
+      key: 'items',
+      header: 'الديون',
+      type: 'text',
+      getValue: (r) =>
+        (r.items || []).map((it) => `${it.labelAr || it.category} ${it.amount}`).join(' | ') || 'لا توجد',
+    },
+    {
+      key: 'status',
+      header: 'الحالة',
+      type: 'list',
+      getValue: (r) => r.status || '',
+      labelOf: (v) => STATUS_AR[String(v ?? '')] ?? String(v ?? '—'),
+      toneOf: (v) =>
+        v === 'confirmed' ? 'success' : v === 'pending' ? 'warning' : 'neutral',
+    },
+  ]);
+
   return (
     <section id="debt-deduction-stage" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -88,12 +110,19 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
         <p className="text-xs text-[var(--muted)]">لا يوجد مناديب في المرحلة دي بعد.</p>
       ) : (
         <div className="overflow-x-auto">
+          <AutoFilterBar state={debtStageFilter} totalCount={rows.length} />
           <table className="w-full text-xs">
             <thead className="text-[var(--muted)]">
-              <tr><th className="p-2 text-start">المندوب</th><th className="p-2 text-start">صافي الراتب</th><th className="p-2 text-start">الديون</th><th className="p-2 text-start">الحالة</th><th className="p-2" /></tr>
+              <tr>
+                <AutoFilterTh state={debtStageFilter} colKey="rider" className="p-2 text-start" />
+                <AutoFilterTh state={debtStageFilter} colKey="salaryNet" className="p-2 text-start" />
+                <AutoFilterTh state={debtStageFilter} colKey="items" className="p-2 text-start" />
+                <AutoFilterTh state={debtStageFilter} colKey="status" className="p-2 text-start" />
+                <th className="p-2" />
+              </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {rows.map((row) => (
+              {debtStageFilter.filteredRows.map((row) => (
                 <tr key={row.rider} data-rider-row>
                   <td className="p-2 font-mono" dir="ltr">{row.rider}</td>
                   <td className="p-2 font-mono">{row.salaryNet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>

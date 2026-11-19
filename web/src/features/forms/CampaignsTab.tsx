@@ -144,7 +144,9 @@ export function CampaignsTab({
     {
       key: 'title',
       header: 'عنوان الحملة',
+      type: 'text',
       filterType: 'text',
+      getValue: (c) => c.title || '',
       render: (c) => {
         const full = campaignLink(c);
         const short = shortCampaignLinkLabel(c);
@@ -177,8 +179,11 @@ export function CampaignsTab({
     {
       key: 'kind',
       header: 'النوع',
+      type: 'list',
       filterType: 'list',
-      getValue: (c) => (c.kind === 'iban' ? 'تحديث الآيبان' : 'اختيار نظام العمل'),
+      getValue: (c) => c.kind,
+      labelOf: (v) => (v === 'iban' ? 'تحديث الآيبان' : 'اختيار نظام العمل'),
+      toneOf: (v) => (v === 'iban' ? 'accent' : 'info'),
       render: (c) => (
         <span
           className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
@@ -194,8 +199,12 @@ export function CampaignsTab({
     {
       key: 'status',
       header: 'الحالة',
+      type: 'list',
       filterType: 'list',
-      getValue: (c) => (c.status === 'open' ? 'نشطة' : c.status === 'closed' ? 'مغلقة' : String(c.status || '')),
+      getValue: (c) => campaignState(c),
+      labelOf: (v) =>
+        v === 'open' ? 'مفتوحة للاستقبال' : v === 'expired' ? 'منتهية الصلاحية' : 'مغلقة',
+      toneOf: (v) => (v === 'open' ? 'success' : v === 'expired' ? 'warning' : 'neutral'),
       render: (c) => (
         <span
           className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -213,7 +222,9 @@ export function CampaignsTab({
     {
       key: 'responseCount',
       header: 'عدد الردود',
+      type: 'number',
       numeric: true,
+      getValue: (c) => Number(c.responseCount ?? 0),
       render: (c) => (
         <span className="num font-bold text-[var(--ink)]">{c.responseCount}</span>
       ),
@@ -221,6 +232,9 @@ export function CampaignsTab({
     {
       key: 'expiresAt',
       header: 'تاريخ الانتهاء',
+      type: 'date',
+      getValue: (c) => c.expiresAt || '',
+      labelOf: (v) => (v ? new Date(String(v)).toLocaleDateString('ar-SA') : '—'),
       render: (c) => (
         <span className="num text-xs text-[var(--muted)]">
           {new Date(c.expiresAt).toLocaleDateString('ar-SA')}

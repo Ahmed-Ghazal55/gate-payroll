@@ -229,7 +229,9 @@ export function ResponsesTab({
     {
       key: 'name',
       header: 'اسم المندوب',
+      type: 'text',
       filterType: 'text',
+      getValue: (s) => s.name || '',
       render: (s) => (
         <div className="flex flex-col">
           <strong className="font-bold text-[var(--ink)]">{s.name}</strong>
@@ -244,12 +246,15 @@ export function ResponsesTab({
     {
       key: 'iqama',
       header: 'رقم الإقامة',
+      type: 'text',
       filterType: 'text',
+      getValue: (s) => s.iqama || '',
       render: (s) => <span className="num font-mono text-xs font-bold">{s.iqama}</span>,
     },
     {
       key: 'choice',
       header: 'البيان / الآيبان',
+      type: 'text',
       filterType: 'text',
       getValue: (s) => (s.iban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : workSystemLabel(s)),
       exportColumns: [
@@ -268,6 +273,7 @@ export function ResponsesTab({
     {
       key: 'campaign',
       header: 'الحملة',
+      type: 'list',
       filterType: 'list',
       getValue: (s) => campaignName(s),
       render: (s) => (
@@ -282,8 +288,13 @@ export function ResponsesTab({
     {
       key: 'status',
       header: 'الحالة',
+      type: 'list',
       filterType: 'list',
-      getValue: (s) => statusLabel(s),
+      getValue: (s) => s.status || 'pending',
+      labelOf: (v) =>
+        v === 'approved' ? 'معتمد' : v === 'rejected' ? 'مرفوض' : 'قيد المراجعة',
+      toneOf: (v) =>
+        v === 'approved' ? 'success' : v === 'rejected' ? 'danger' : 'warning',
       render: (s) => {
         const badges = {
           pending: { label: 'قيد المراجعة', class: 'bg-[var(--warning)]/15 text-[var(--warning)]' },
@@ -297,6 +308,9 @@ export function ResponsesTab({
     {
       key: 'createdAt',
       header: 'تاريخ الإرسال',
+      type: 'date',
+      getValue: (s) => s.createdAt || '',
+      labelOf: (v) => (v ? new Date(String(v)).toLocaleDateString('ar-SA') : '—'),
       render: (s) => (
         <span className="num text-xs text-[var(--muted)]">
           {new Date(s.createdAt).toLocaleDateString('ar-SA')}

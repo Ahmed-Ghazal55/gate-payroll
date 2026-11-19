@@ -48,7 +48,9 @@ export default function DashboardPage() {
     {
       key: 'action',
       header: 'العملية',
+      type: 'list',
       filterType: 'list',
+      getValue: (row) => row.action || '',
       render: (row) => (
         <span className="font-semibold text-[var(--ink)]">{row.action}</span>
       ),
@@ -56,7 +58,10 @@ export default function DashboardPage() {
     {
       key: 'actor',
       header: 'المنفذ',
+      type: 'list',
       filterType: 'list',
+      getValue: (row) => row.actor || '',
+      toneOf: () => 'neutral',
       render: (row) => (
         <span className="px-2 py-0.5 rounded-md bg-[var(--raised)] text-xs text-[var(--muted)]">
           {row.actor}
@@ -66,7 +71,10 @@ export default function DashboardPage() {
     {
       key: 'at',
       header: 'التوقيت',
-      filterType: 'text',
+      type: 'date',
+      filterType: 'date',
+      getValue: (row) => row.at || '',
+      labelOf: (v) => (v ? new Date(String(v)).toLocaleString('ar-SA') : '—'),
       render: (row) => (
         <span className="num text-xs text-[var(--muted)]">
           {new Date(row.at).toLocaleString('ar-SA')}

@@ -652,6 +652,7 @@ export function NinjaInvoiceUploadScreen({
       {
         key: 'row',
         header: '#',
+        type: 'number',
         numeric: true,
         width: '60px',
         getValue: (line) => line.row,
@@ -660,6 +661,7 @@ export function NinjaInvoiceUploadScreen({
       {
         key: 'captainId',
         header: 'معرف الكابتن (Captain ID)',
+        type: 'text',
         filterType: 'text',
         getValue: (line) => line.captainId,
         render: (line) => <span className="font-mono font-bold text-xs text-[var(--ink)]">{line.captainId}</span>,
@@ -667,11 +669,14 @@ export function NinjaInvoiceUploadScreen({
       {
         key: 'status',
         header: 'حالة المطابقة',
+        type: 'list',
         filterType: 'list',
         getValue: (line) => {
           const hasDiffs = (line.diffs && line.diffs.length > 0) || line.status === 'error';
-          return hasDiffs ? 'يوجد فرق' : 'مطابق 100%';
+          return hasDiffs ? 'diff' : 'matched';
         },
+        labelOf: (v) => (v === 'diff' ? 'يوجد فرق' : 'مطابق 100%'),
+        toneOf: (v) => (v === 'diff' ? 'warning' : 'success'),
         render: (line) => {
           const hasDiffs = (line.diffs && line.diffs.length > 0) || line.status === 'error';
           return hasDiffs ? (
@@ -690,6 +695,7 @@ export function NinjaInvoiceUploadScreen({
       {
         key: 'reasons',
         header: 'أسباب الفروقات',
+        type: 'text',
         getValue: (line) => (line.reasons || []).map(mapReasonText).join(', ') || line.reason || '',
         render: (line) => {
           if (line.reasons && line.reasons.length > 0) {
@@ -715,6 +721,7 @@ export function NinjaInvoiceUploadScreen({
       {
         key: 'diffs',
         header: 'تفاصيل الفروقات (الفاتورة vs المحرك)',
+        type: 'text',
         getValue: (line) =>
           (line.diffs || [])
             .map((d) => `${mapFieldLabel(d.field)}: فاتورة ${d.invoice} | محرك ${d.engine}`)
@@ -1708,34 +1715,60 @@ export function NinjaInvoiceUploadScreen({
                     </span>
                   </div>
 
-                  <div className="rounded-xl border border-[var(--line)] overflow-hidden">
-                    <table className="w-full text-xs">
-                      <thead className="bg-[var(--raised)] text-[var(--muted)] border-b border-[var(--line)]">
-                        <tr>
-                          <th className="p-2.5 text-start">السطر</th>
-                          <th className="p-2.5 text-start">المعرف / البند</th>
-                          <th className="p-2.5 text-start">نوع المستوى</th>
-                          <th className="p-2.5 text-start">المبلغ النهائي</th>
-                          <th className="p-2.5 text-start">التكلفة الإجمالية</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--line)]">
-                        {activeInvoice.adjustments.map((adj, i) => (
-                          <tr key={i} className="hover:bg-[var(--row-hover)]">
-                            <td className="p-2.5 font-mono text-[var(--muted)]">{adj.row}</td>
-                            <td className="p-2.5 font-bold text-[var(--ink)]">{adj.captainId}</td>
-                            <td className="p-2.5 text-[var(--muted)]">{adj.levelType || '—'}</td>
-                            <td className="p-2.5 num font-bold text-[var(--ink)]">
-                              {adj.finalAmount?.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                            </td>
-                            <td className="p-2.5 num font-bold text-[var(--ink)]">
-                              {adj.totalCost?.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <DataTable
+                    tableId="ninja-invoice-adjustments"
+                    data={activeInvoice.adjustments}
+                    getRowId={(adj, i) => `${adj.row}-${i}`}
+                    pageSize={10}
+                    columns={[
+                      {
+                        key: 'row',
+                        header: 'السطر',
+                        type: 'number',
+                        numeric: true,
+                        getValue: (adj) => Number(adj.row ?? 0),
+                        render: (adj) => <span className="font-mono text-[var(--muted)]">{adj.row}</span>,
+                      },
+                      {
+                        key: 'captainId',
+                        header: 'المعرف / البند',
+                        type: 'text',
+                        getValue: (adj) => adj.captainId || '',
+                        render: (adj) => <span className="font-bold text-[var(--ink)]">{adj.captainId}</span>,
+                      },
+                      {
+                        key: 'levelType',
+                        header: 'نوع المستوى',
+                        type: 'list',
+                        getValue: (adj) => adj.levelType || '',
+                        render: (adj) => <span className="text-[var(--muted)]">{adj.levelType || '—'}</span>,
+                      },
+                      {
+                        key: 'finalAmount',
+                        header: 'المبلغ النهائي',
+                        type: 'number',
+                        numeric: true,
+                        getValue: (adj) => Number(adj.finalAmount ?? 0),
+                        render: (adj) => (
+                          <span className="num font-bold text-[var(--ink)]">
+                            {adj.finalAmount?.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          </span>
+                        ),
+                      },
+                      {
+                        key: 'totalCost',
+                        header: 'التكلفة الإجمالية',
+                        type: 'number',
+                        numeric: true,
+                        getValue: (adj) => Number(adj.totalCost ?? 0),
+                        render: (adj) => (
+                          <span className="num font-bold text-[var(--ink)]">
+                            {adj.totalCost?.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          </span>
+                        ),
+                      },
+                    ]}
+                  />
                 </div>
               )}
 

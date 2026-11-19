@@ -46,7 +46,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
-import { DataTable, ColumnDef, PAGE_SIZES } from '../../components/ui/DataTable';
+import { DataTable, ColumnDef, PAGE_SIZES, defaultStatusTone } from '../../components/ui/DataTable';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { DebtActionsPanel } from '../../features/debts/DebtActionsPanel';
@@ -230,12 +230,24 @@ function DebtsPageContent() {
     }
   }, [user]);
 
-  const debtsListParams = (page: number, pageSize: number, search: string) => ({
+  const [debtsServerQuery, setDebtsServerQuery] = useState<{
+    filtersParam?: string;
+    sortParam?: string;
+  }>({});
+
+  const debtsListParams = (
+    page: number,
+    pageSize: number,
+    search: string,
+    sq = debtsServerQuery
+  ) => ({
     page,
     pageSize,
     status: selectedStatus !== 'all' ? selectedStatus : undefined,
     category: selectedCategory !== 'all' ? selectedCategory : undefined,
     q: search.trim() || undefined,
+    filters: sq.filtersParam,
+    sort: sq.sortParam,
   });
 
   const loadDebtsSummary = async (signal?: AbortSignal) => {
@@ -252,7 +264,8 @@ function DebtsPageContent() {
   const loadDebts = async (
     page = debtsPage,
     pageSize = debtsPageSize,
-    search = debouncedSearch
+    search = debouncedSearch,
+    sq = debtsServerQuery
   ) => {
     debtsAbortRef.current?.abort();
     const controller = new AbortController();
@@ -261,7 +274,7 @@ function DebtsPageContent() {
     setLoading(true);
     setError(null);
     try {
-      const debtsRes = (await api.getDebts(debtsListParams(page, pageSize, search), {
+      const debtsRes = (await api.getDebts(debtsListParams(page, pageSize, search, sq), {
         signal: controller.signal,
       })) as PaginatedResult<DebtRecord>;
       if (requestId !== debtsRequestIdRef.current) return;
@@ -287,6 +300,8 @@ function DebtsPageContent() {
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
       category: selectedCategory !== 'all' ? selectedCategory : undefined,
       q: debouncedSearch.trim() || undefined,
+      filters: debtsServerQuery.filtersParam,
+      sort: debtsServerQuery.sortParam,
     })) as DebtRecord[];
     const headers = ['رقم الإقامة', 'اسم المندوب', 'فئة البند', 'المبلغ الأصلي', 'المبلغ المتبقي', 'القسط الشهري', 'الحالة'];
     const excelRows = rows.map((d) => [
@@ -770,23 +785,29 @@ function DebtsPageContent() {
       {
         key: 'iqama',
         header: 'رقم الإقامة',
+        type: 'text',
         filterable: true,
         filterType: 'text',
+        getValue: (d) => d.iqama,
         render: (d) => <span className="font-mono font-bold text-[var(--accent)]">{d.iqama}</span>,
       },
       {
         key: 'riderName',
         header: 'اسم المندوب',
+        type: 'text',
         filterable: true,
         filterType: 'text',
+        getValue: (d) => d.riderName || 'مندوب مسجل',
         render: (d) => <span className="font-semibold">{d.riderName || 'مندوب مسجل'}</span>,
       },
       {
         key: 'category',
         header: 'فئة البند',
+        type: 'list',
         filterType: 'list',
         filterColumn: 'categoryAr',
         getValue: (d) => debtCategoryLabel(d),
+        labelOf: (v) => LEGACY_CATEGORY_AR[String(v ?? '')] || String(v ?? ''),
         render: (d) => (
           <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
             {debtCategoryLabel(d)}
@@ -796,8 +817,9 @@ function DebtsPageContent() {
       {
         key: 'originalAmount',
         header: 'المبلغ الأصلي',
+        type: 'number',
         numeric: true,
-        filterType: 'text',
+        filterType: 'number',
         getValue: (d) => d.originalAmount ?? 0,
         render: (d) => (
           <span className="num text-[var(--muted)]">
@@ -808,8 +830,10 @@ function DebtsPageContent() {
       {
         key: 'remainingAmount',
         header: 'المبلغ المتبقي',
+        type: 'number',
         numeric: true,
-        filterType: 'text',
+        filterType: 'number',
+        filterColumn: 'remainingBalance',
         getValue: (d) => d.remainingAmount ?? 0,
         render: (d) => (
           <span className="num font-bold text-sm text-[var(--danger)]">
@@ -820,8 +844,9 @@ function DebtsPageContent() {
       {
         key: 'monthlyInstallment',
         header: 'القسط الشهري',
+        type: 'number',
         numeric: true,
-        filterType: 'text',
+        filterType: 'number',
         getValue: (d) => d.monthlyInstallment || d.monthlyDeduction || 0,
         render: (d) => {
           const val = d.monthlyInstallment || d.monthlyDeduction || 0;
@@ -835,8 +860,16 @@ function DebtsPageContent() {
       {
         key: 'status',
         header: 'الحالة',
+        type: 'list',
         filterType: 'list',
-        getValue: (d) => debtStatusLabel(d.status),
+        getValue: (d) => d.status,
+        labelOf: (v) => debtStatusLabel(String(v ?? '')),
+        toneOf: (v) =>
+          v === 'active' || v === 'قائم'
+            ? 'danger'
+            : v === 'settled' || v === 'مسدد'
+              ? 'success'
+              : 'warning',
         render: (d) => (
           <span
             className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
@@ -879,12 +912,15 @@ function DebtsPageContent() {
       {
         key: 'id',
         header: 'معرف الطلب',
+        type: 'text',
         width: '90px',
+        getValue: (req) => req.id,
         render: (req) => <span className="font-mono text-[11px] text-[var(--muted)]">{req.id}</span>,
       },
       {
         key: 'rider',
         header: 'المندوب والإقامة',
+        type: 'text',
         getValue: (req) => `${req.riderName || ''} ${req.riderIqama || ''}`,
         render: (req) => (
           <div>
@@ -896,6 +932,16 @@ function DebtsPageContent() {
       {
         key: 'type',
         header: 'النوع والخزينة',
+        type: 'list',
+        getValue: (req) => req.type,
+        labelOf: (v) =>
+          v === 'internet'
+            ? 'سلفة نت'
+            : v === 'cash'
+              ? 'نقدية (خزينة)'
+              : v === 'bank'
+                ? 'بنكية (تحويل)'
+                : String(v ?? ''),
         render: (req) => (
           <div>
             <div className="inline-flex items-center gap-1 font-semibold">
@@ -925,6 +971,7 @@ function DebtsPageContent() {
       {
         key: 'amount',
         header: 'المبلغ المطلوب',
+        type: 'number',
         numeric: true,
         getValue: (req) => req.amount,
         render: (req) => (
@@ -936,21 +983,44 @@ function DebtsPageContent() {
       {
         key: 'requestedBy',
         header: 'مقدم الطلب',
+        type: 'list',
+        getValue: (req) => req.requestedBy,
         render: (req) => <span className="font-mono text-xs text-[var(--muted)]">{req.requestedBy}</span>,
       },
       {
         key: 'createdAt',
         header: 'تاريخ التقديم',
+        type: 'date',
+        getValue: (req) => req.createdAt?.split('T')[0] || '',
         render: (req) => <span className="num text-xs text-[var(--muted)]">{req.createdAt?.split('T')[0]}</span>,
       },
       {
         key: 'status',
         header: 'الحالة',
+        type: 'list',
+        getValue: (req) => req.status,
+        labelOf: (v) =>
+          v === 'under_review'
+            ? 'بانتظار المراجعة'
+            : v === 'change_proposed'
+              ? 'اقتراح تعديل'
+              : v === 'approved'
+                ? 'معتمدة (بانتظار الصرف)'
+                : v === 'paid'
+                  ? 'تم الصرف'
+                  : v === 'rejected'
+                    ? 'مرفوضة'
+                    : v === 'cancelled'
+                      ? 'ملغاة'
+                      : String(v ?? ''),
+        toneOf: defaultStatusTone,
         render: (req) => renderAdvanceStatusBadge(req.status),
       },
       {
         key: 'actions',
         header: 'الإجراءات',
+        filterable: false,
+        sortable: false,
         render: (req) => (
           <div className="flex items-center gap-1.5">
             {req.status === 'change_proposed' && req.requestedBy === user?.username && (
@@ -988,22 +1058,29 @@ function DebtsPageContent() {
       {
         key: 'id',
         header: 'معرف الطلب',
+        type: 'text',
         width: '90px',
+        getValue: (app) => app.id,
         render: (app) => <span className="font-mono text-xs">{app.id}</span>,
       },
       {
         key: 'kind',
         header: 'النوع',
+        type: 'list',
+        getValue: (app) => app.kind || app.requestTypeAr || app.requestType || '',
         render: (app) => <span className="font-semibold">{app.kind || app.requestTypeAr || app.requestType}</span>,
       },
       {
         key: 'iqama',
         header: 'المندوب',
+        type: 'text',
+        getValue: (app) => app.iqama,
         render: (app) => <span className="font-mono font-bold text-[var(--accent)]">{app.iqama}</span>,
       },
       {
         key: 'amount',
         header: 'المبلغ',
+        type: 'number',
         numeric: true,
         getValue: (app) => app.amount,
         render: (app) => <span className="num font-bold text-[var(--accent)]">{app.amount} ر.س</span>,
@@ -1011,6 +1088,9 @@ function DebtsPageContent() {
       {
         key: 'status',
         header: 'الحالة',
+        type: 'list',
+        getValue: (app) => app.status,
+        toneOf: defaultStatusTone,
         render: (app) => (
           <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--warning)]/10 text-[var(--warning)]">
             {app.status}
@@ -1020,6 +1100,8 @@ function DebtsPageContent() {
       {
         key: 'actions',
         header: 'الإجراءات',
+        filterable: false,
+        sortable: false,
         render: (app) => (
           <button
             type="button"
@@ -1252,6 +1334,13 @@ function DebtsPageContent() {
               searchable={false}
               serverSide={true}
               distinctEndpoint="/debts/distinct"
+              distinctParams={{ filters: debtsServerQuery.filtersParam }}
+              onServerQueryChange={(sq) => {
+                const next = { filtersParam: sq.filtersParam, sortParam: sq.sortParam };
+                setDebtsServerQuery(next);
+                setDebtsPage(1);
+                void loadDebts(1, debtsPageSize, debouncedSearch, next);
+              }}
               totalCount={debtsTotal}
               page={debtsPage}
               pageSize={debtsPageSize}
@@ -1472,30 +1561,23 @@ function DebtsPageContent() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-start text-xs">
-                  <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-                    <tr>
-                      <th className="p-2.5 text-start">التاريخ</th>
-                      <th className="p-2.5 text-start">البيان / الحركة</th>
-                      <th className="p-2.5 text-start">مدين</th>
-                      <th className="p-2.5 text-start">دائن</th>
-                      <th className="p-2.5 text-start">الرصيد</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--line)]">
-                    {(statementData.entries || []).map((e: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-[var(--row-hover)]">
-                        <td className="p-2.5 font-mono text-[var(--muted)]">{e.date?.split('T')[0] || e.date}</td>
-                        <td className="p-2.5 font-medium">{e.description || e.statement}</td>
-                        <td className="p-2.5 num font-bold text-[var(--danger)]">{e.debit > 0 ? `${e.debit} ر.س` : '—'}</td>
-                        <td className="p-2.5 num font-bold text-[var(--money-pos)]">{e.credit > 0 ? `${e.credit} ر.س` : '—'}</td>
-                        <td className="p-2.5 num font-bold text-[var(--ink)]">{e.balance} ر.س</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                tableId="debts-statement-entries"
+                data={statementData.entries || []}
+                getRowId={(_, i) => String(i)}
+                searchable={false}
+                exportable={true}
+                exportFilename={`statement_${statementData.iqama}`}
+                syncUrl={false}
+                showTotals={true}
+                columns={[
+                  { key: 'date', header: 'التاريخ', type: 'date', getValue: (e: any) => e.date?.split('T')[0] || e.date || '', render: (e: any) => <span className="font-mono text-[var(--muted)]">{e.date?.split('T')[0] || e.date}</span> },
+                  { key: 'description', header: 'البيان / الحركة', type: 'text', getValue: (e: any) => e.description || e.statement || '', render: (e: any) => <span className="font-medium">{e.description || e.statement}</span> },
+                  { key: 'debit', header: 'مدين', type: 'number', numeric: true, getValue: (e: any) => Number(e.debit || 0), render: (e: any) => <span className="num font-bold text-[var(--danger)]">{e.debit > 0 ? `${e.debit} ر.س` : '—'}</span> },
+                  { key: 'credit', header: 'دائن', type: 'number', numeric: true, getValue: (e: any) => Number(e.credit || 0), render: (e: any) => <span className="num font-bold text-[var(--money-pos)]">{e.credit > 0 ? `${e.credit} ر.س` : '—'}</span> },
+                  { key: 'balance', header: 'الرصيد', type: 'number', numeric: true, getValue: (e: any) => Number(e.balance || 0), render: (e: any) => <span className="num font-bold text-[var(--ink)]">{e.balance} ر.س</span> },
+                ]}
+              />
             </div>
           ) : null}
         </div>
@@ -1550,34 +1632,20 @@ function DebtsPageContent() {
               description="لم يتم إصدار أي سندات أمر تنفيذية للتحصيل أو المديونيات بعد."
             />
           ) : (
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
-              <table className="w-full text-start text-xs sm:text-sm">
-                <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                  <tr>
-                    <th className="p-3 text-start">رقم السند</th>
-                    <th className="p-3 text-start">رقم الإقامة</th>
-                    <th className="p-3 text-start">المبلغ</th>
-                    <th className="p-3 text-start">تاريخ الاستحقاق</th>
-                    <th className="p-3 text-start">الحالة</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--line)]">
-                  {promissoryNotes.map((pn) => (
-                    <tr key={pn.id} className="hover:bg-[var(--row-hover)]">
-                      <td className="p-3 font-mono text-xs">{pn.noteNumber || pn.id}</td>
-                      <td className="p-3 font-mono">{pn.iqama}</td>
-                      <td className="p-3 num font-bold">{pn.amount} ر.س</td>
-                      <td className="p-3 num text-xs">{pn.dueDate}</td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
-                          {pn.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              tableId="promissory-notes-list"
+              data={promissoryNotes}
+              getRowId={(pn) => pn.id}
+              exportFilename="promissory_notes"
+              showTotals={true}
+              columns={[
+                { key: 'noteNumber', header: 'رقم السند', type: 'text', getValue: (pn) => pn.noteNumber || pn.id, render: (pn) => <span className="font-mono text-xs">{pn.noteNumber || pn.id}</span> },
+                { key: 'iqama', header: 'رقم الإقامة', type: 'text', getValue: (pn) => pn.iqama, render: (pn) => <span className="font-mono">{pn.iqama}</span> },
+                { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, getValue: (pn) => pn.amount, render: (pn) => <span className="num font-bold">{pn.amount} ر.س</span> },
+                { key: 'dueDate', header: 'تاريخ الاستحقاق', type: 'date', getValue: (pn) => pn.dueDate, render: (pn) => <span className="num text-xs">{pn.dueDate}</span> },
+                { key: 'status', header: 'الحالة', type: 'list', getValue: (pn) => pn.status, toneOf: defaultStatusTone, render: (pn) => <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">{pn.status}</span> },
+              ]}
+            />
           )}
         </div>
       )}

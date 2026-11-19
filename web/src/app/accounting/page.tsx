@@ -29,6 +29,7 @@ import {
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import { ErrorState, EmptyState, Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
@@ -315,7 +316,9 @@ function AccountingPageContent() {
     {
       key: 'code',
       header: 'رمز الحساب',
+      type: 'list',
       filterType: 'list',
+      getValue: (acc) => acc.code || '',
       render: (acc) => (
         <span className="font-mono font-bold text-xs num text-[var(--accent)] bg-[var(--raised)] px-2 py-0.5 rounded border border-[var(--line)]">
           {acc.code}
@@ -325,7 +328,9 @@ function AccountingPageContent() {
     {
       key: 'nameAr',
       header: 'اسم الحساب المحاسبي',
+      type: 'text',
       filterType: 'text',
+      getValue: (acc) => acc.nameAr || '',
       render: (acc) => {
         const indentClass =
           acc.level === 1
@@ -353,8 +358,11 @@ function AccountingPageContent() {
     {
       key: 'posting',
       header: 'نوع الحساب',
+      type: 'list',
       filterType: 'list',
-      getValue: (acc) => ((acc.posting ?? acc.isPosting) ? 'ترحيل مباشر' : 'رئيسي تجميعي'),
+      getValue: (acc) => ((acc.posting ?? acc.isPosting) ? 'posting' : 'group'),
+      labelOf: (v) => (v === 'posting' ? 'ترحيل مباشر' : 'رئيسي تجميعي'),
+      toneOf: (v) => (v === 'posting' ? 'success' : 'neutral'),
       render: (acc) => {
         const isPosting = acc.posting ?? acc.isPosting;
         return isPosting ? (
@@ -373,8 +381,11 @@ function AccountingPageContent() {
     {
       key: 'nature',
       header: 'الطبيعة',
+      type: 'list',
       filterType: 'list',
-      getValue: (acc) => ((acc.nature || '').toLowerCase() === 'debit' ? 'مدين' : 'دائن'),
+      getValue: (acc) => ((acc.nature || '').toLowerCase() === 'debit' ? 'debit' : 'credit'),
+      labelOf: (v) => (v === 'debit' ? 'مدين' : 'دائن'),
+      toneOf: (v) => (v === 'debit' ? 'info' : 'accent'),
       render: (acc) => {
         const isDebit = (acc.nature || '').toLowerCase() === 'debit';
         return (
@@ -387,13 +398,17 @@ function AccountingPageContent() {
     {
       key: 'source',
       header: 'مصدر الاعتماد',
+      type: 'list',
       filterType: 'list',
       getValue: (acc) => {
         const src = (acc.source || acc.sourceType || '').toLowerCase();
-        if (src.includes('excel')) return 'Excel 2024';
-        if (src.includes('mod')) return 'تعديل مالي';
-        return 'حساب جديد';
+        if (src.includes('excel')) return 'excel';
+        if (src.includes('mod')) return 'modified';
+        return 'new';
       },
+      labelOf: (v) =>
+        v === 'excel' ? 'Excel 2024' : v === 'modified' ? 'تعديل مالي' : 'حساب جديد',
+      toneOf: (v) => (v === 'excel' ? 'neutral' : v === 'modified' ? 'warning' : 'info'),
       render: (acc) => {
         const src = (acc.source || acc.sourceType || '').toLowerCase();
         if (src.includes('excel')) {
@@ -437,6 +452,8 @@ function AccountingPageContent() {
     {
       key: 'journalNumber',
       header: 'رقم القيد',
+      type: 'text',
+      getValue: (j) => j.journalNumber || j.id || '',
       render: (j) => (
         <div className="flex flex-col gap-0.5">
           <span className="font-mono font-bold text-xs num text-[var(--accent)]">
@@ -453,6 +470,8 @@ function AccountingPageContent() {
     {
       key: 'date',
       header: 'التاريخ والفترة',
+      type: 'date',
+      getValue: (j) => j.date || j.entryDate || j.createdAt?.slice(0, 10) || '',
       render: (j) => (
         <div className="flex flex-col text-xs">
           <span className="num font-semibold text-[var(--ink)]">{j.date || j.entryDate || j.createdAt?.slice(0, 10)}</span>
@@ -463,6 +482,8 @@ function AccountingPageContent() {
     {
       key: 'description',
       header: 'البيان المحاسبي',
+      type: 'text',
+      getValue: (j) => j.description || '',
       render: (j) => (
         <div className="space-y-1 max-w-[280px]">
           <p className="text-xs font-semibold text-[var(--ink)] line-clamp-2 leading-relaxed" title={j.description}>
@@ -501,6 +522,9 @@ function AccountingPageContent() {
     {
       key: 'totalDebit',
       header: 'إجمالي المدين',
+      type: 'number',
+      numeric: true,
+      getValue: (j) => j.totalDebit ?? j.lines?.reduce((acc, l) => acc + (l.debit || 0), 0) ?? 0,
       render: (j) => {
         const sumDebit = j.totalDebit ?? j.lines?.reduce((acc, l) => acc + (l.debit || 0), 0) ?? 0;
         return (
@@ -513,6 +537,9 @@ function AccountingPageContent() {
     {
       key: 'totalCredit',
       header: 'إجمالي الدائن',
+      type: 'number',
+      numeric: true,
+      getValue: (j) => j.totalCredit ?? j.lines?.reduce((acc, l) => acc + (l.credit || 0), 0) ?? 0,
       render: (j) => {
         const sumCredit = j.totalCredit ?? j.lines?.reduce((acc, l) => acc + (l.credit || 0), 0) ?? 0;
         return (
@@ -525,6 +552,9 @@ function AccountingPageContent() {
     {
       key: 'linesCount',
       header: 'الأسطر',
+      type: 'number',
+      numeric: true,
+      getValue: (j) => j.lines?.length || 0,
       render: (j) => (
         <span className="num text-xs text-[var(--muted)] px-2 py-0.5 rounded bg-[var(--raised)]">
           {j.lines?.length || 0} أسطر
@@ -1057,95 +1087,7 @@ function AccountingPageContent() {
                     )}
 
                     {/* Trial balance table */}
-                    <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
-                      <table className="w-full text-xs text-start border-collapse">
-                        <thead>
-                          <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-                            <th className="py-2.5 px-3">رمز الحساب</th>
-                            <th className="py-2.5 px-3">اسم الحساب</th>
-                            <th className="py-2.5 px-3 text-end num">افتتاح مدين</th>
-                            <th className="py-2.5 px-3 text-end num">افتتاح دائن</th>
-                            <th className="py-2.5 px-3 text-end num">فترة مدين</th>
-                            <th className="py-2.5 px-3 text-end num">فترة دائن</th>
-                            <th className="py-2.5 px-3 text-end num">إغلاق مدين</th>
-                            <th className="py-2.5 px-3 text-end num">إغلاق دائن</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--line)]">
-                          {rows.map((row) => {
-                            const isGroup = !row.posting;
-                            const hasActivity =
-                              (row.openingDebit || 0) > 0 ||
-                              (row.openingCredit || 0) > 0 ||
-                              (row.periodDebit || 0) > 0 ||
-                              (row.periodCredit || 0) > 0 ||
-                              (row.closingDebit || 0) > 0 ||
-                              (row.closingCredit || 0) > 0;
-
-                            return (
-                              <tr
-                                key={row.code}
-                                className={`hover:bg-[var(--raised)]/50 transition ${
-                                  isGroup ? 'font-bold bg-[var(--raised)]/20 text-[var(--ink)]' : 'text-[var(--ink)]'
-                                }`}
-                              >
-                                <td className="py-2 px-3 font-mono text-[var(--accent)] num">
-                                  {row.code}
-                                </td>
-                                <td className="py-2 px-3">
-                                  <span className={row.level === 1 ? 'font-black text-sm' : isGroup ? 'font-bold' : 'ps-3'}>
-                                    {row.nameAr || row.name}
-                                  </span>
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono">
-                                  {(row.openingDebit || 0) > 0 ? (row.openingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono">
-                                  {(row.openingCredit || 0) > 0 ? (row.openingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400">
-                                  {(row.periodDebit || 0) > 0 ? (row.periodDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400">
-                                  {(row.periodCredit || 0) > 0 ? (row.periodCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono font-bold text-blue-700 dark:text-blue-300">
-                                  {(row.closingDebit || 0) > 0 ? (row.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono font-bold text-purple-700 dark:text-purple-300">
-                                  {(row.closingCredit || 0) > 0 ? (row.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot className="bg-[var(--raised)] border-t-2 border-[var(--line)] font-bold text-xs">
-                          <tr>
-                            <td colSpan={2} className="py-3 px-3 text-start">
-                              الإجمالي العام المتوازن
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold">
-                              {(totals.openingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold">
-                              {(totals.openingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold text-blue-600">
-                              {(totals.periodDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold text-purple-600">
-                              {(totals.periodCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold text-blue-700">
-                              {(totals.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold text-purple-700">
-                              {(totals.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
+                    <TrialBalanceTable rows={rows} totals={totals} />
                   </div>
                 );
               })}
@@ -1509,54 +1451,7 @@ function AccountingPageContent() {
               {/* Journal Lines Table */}
               <div className="space-y-2">
                 <h4 className="font-bold text-xs text-[var(--ink)]">أسطر القيد المحاسبي المزدوج</h4>
-                <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
-                  <table className="w-full text-xs text-start border-collapse">
-                    <thead>
-                      <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-                        <th className="py-2 px-3">رقم الحساب</th>
-                        <th className="py-2 px-3">اسم الحساب</th>
-                        <th className="py-2 px-3 text-end num">مدين</th>
-                        <th className="py-2 px-3 text-end num">دائن</th>
-                        <th className="py-2 px-3">البيان</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--line)]">
-                      {(selectedJournal.lines || []).map((line, idx) => (
-                        <tr key={idx} className="hover:bg-[var(--raised)]/40 transition">
-                          <td className="py-2 px-3 font-mono font-bold text-[var(--accent)] num">
-                            {line.accountCode}
-                          </td>
-                          <td className="py-2 px-3 text-[var(--ink)] font-medium">
-                            {line.accountNameAr || '—'}
-                          </td>
-                          <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400 font-bold">
-                            {(line.debit || 0) > 0 ? (line.debit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                          </td>
-                          <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400 font-bold">
-                            {(line.credit || 0) > 0 ? (line.credit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                          </td>
-                          <td className="py-2 px-3 text-[var(--muted)] text-[11px] truncate max-w-[150px]">
-                            {line.description || '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-[var(--raised)] border-t border-[var(--line)] font-bold text-xs">
-                      <tr>
-                        <td colSpan={2} className="py-2 px-3 text-start">
-                          إجمالي القيد
-                        </td>
-                        <td className="py-2 px-3 text-end num font-mono text-blue-600">
-                          {(selectedJournal.lines?.reduce((sum, l) => sum + (l.debit || 0), 0) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="py-2 px-3 text-end num font-mono text-purple-600">
-                          {(selectedJournal.lines?.reduce((sum, l) => sum + (l.credit || 0), 0) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                <JournalDrawerLinesTable lines={selectedJournal.lines || []} />
               </div>
             </div>
 
@@ -1572,6 +1467,172 @@ function AccountingPageContent() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function TrialBalanceTable({
+  rows,
+  totals,
+}: {
+  rows: TrialBalanceCompanyRow[];
+  totals: Record<string, number | undefined>;
+}) {
+  const tf = useTableAutoFilter<TrialBalanceCompanyRow>(rows, [
+    { key: 'code', header: 'رمز الحساب', type: 'list', getValue: (r) => r.code || '' },
+    { key: 'nameAr', header: 'اسم الحساب', type: 'text', getValue: (r) => r.nameAr || r.name || '' },
+    { key: 'openingDebit', header: 'افتتاح مدين', type: 'number', getValue: (r) => Number(r.openingDebit || 0) },
+    { key: 'openingCredit', header: 'افتتاح دائن', type: 'number', getValue: (r) => Number(r.openingCredit || 0) },
+    { key: 'periodDebit', header: 'فترة مدين', type: 'number', getValue: (r) => Number(r.periodDebit || 0) },
+    { key: 'periodCredit', header: 'فترة دائن', type: 'number', getValue: (r) => Number(r.periodCredit || 0) },
+    { key: 'closingDebit', header: 'إغلاق مدين', type: 'number', getValue: (r) => Number(r.closingDebit || 0) },
+    { key: 'closingCredit', header: 'إغلاق دائن', type: 'number', getValue: (r) => Number(r.closingCredit || 0) },
+  ]);
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
+      <AutoFilterBar state={tf} totalCount={rows.length} />
+      <table className="w-full text-xs text-start border-collapse">
+        <thead>
+          <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
+            <AutoFilterTh state={tf} colKey="code" className="py-2.5 px-3" />
+            <AutoFilterTh state={tf} colKey="nameAr" className="py-2.5 px-3" />
+            <AutoFilterTh state={tf} colKey="openingDebit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh state={tf} colKey="openingCredit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh state={tf} colKey="periodDebit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh state={tf} colKey="periodCredit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh state={tf} colKey="closingDebit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh state={tf} colKey="closingCredit" className="py-2.5 px-3 text-end num" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--line)]">
+          {tf.filteredRows.map((row) => {
+            const isGroup = !row.posting;
+            return (
+              <tr
+                key={row.code}
+                className={`hover:bg-[var(--raised)]/50 transition ${
+                  isGroup ? 'font-bold bg-[var(--raised)]/20 text-[var(--ink)]' : 'text-[var(--ink)]'
+                }`}
+              >
+                <td className="py-2 px-3 font-mono text-[var(--accent)] num">
+                  {row.code}
+                </td>
+                <td className="py-2 px-3">
+                  <span className={row.level === 1 ? 'font-black text-sm' : isGroup ? 'font-bold' : 'ps-3'}>
+                    {row.nameAr || row.name}
+                  </span>
+                </td>
+                <td className="py-2 px-3 text-end num font-mono">
+                  {(row.openingDebit || 0) > 0 ? (row.openingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                </td>
+                <td className="py-2 px-3 text-end num font-mono">
+                  {(row.openingCredit || 0) > 0 ? (row.openingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                </td>
+                <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400">
+                  {(row.periodDebit || 0) > 0 ? (row.periodDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                </td>
+                <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400">
+                  {(row.periodCredit || 0) > 0 ? (row.periodCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                </td>
+                <td className="py-2 px-3 text-end num font-mono font-bold text-blue-700 dark:text-blue-300">
+                  {(row.closingDebit || 0) > 0 ? (row.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                </td>
+                <td className="py-2 px-3 text-end num font-mono font-bold text-purple-700 dark:text-purple-300">
+                  {(row.closingCredit || 0) > 0 ? (row.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot className="bg-[var(--raised)] border-t-2 border-[var(--line)] font-bold text-xs">
+          <tr>
+            <td colSpan={2} className="py-3 px-3 text-start">
+              الإجمالي العام المتوازن
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold">
+              {(totals.openingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold">
+              {(totals.openingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold text-blue-600">
+              {(totals.periodDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold text-purple-600">
+              {(totals.periodCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold text-blue-700">
+              {(totals.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold text-purple-700">
+              {(totals.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+function JournalDrawerLinesTable({ lines }: { lines: any[] }) {
+  const tf = useTableAutoFilter<any>(lines, [
+    { key: 'accountCode', header: 'رقم الحساب', type: 'list', getValue: (l) => l.accountCode || '' },
+    { key: 'accountNameAr', header: 'اسم الحساب', type: 'text', getValue: (l) => l.accountNameAr || '' },
+    { key: 'debit', header: 'مدين', type: 'number', getValue: (l) => Number(l.debit || 0) },
+    { key: 'credit', header: 'دائن', type: 'number', getValue: (l) => Number(l.credit || 0) },
+    { key: 'description', header: 'البيان', type: 'text', getValue: (l) => l.description || '' },
+  ]);
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
+      <AutoFilterBar state={tf} totalCount={lines.length} />
+      <table className="w-full text-xs text-start border-collapse">
+        <thead>
+          <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
+            <AutoFilterTh state={tf} colKey="accountCode" className="py-2 px-3" />
+            <AutoFilterTh state={tf} colKey="accountNameAr" className="py-2 px-3" />
+            <AutoFilterTh state={tf} colKey="debit" className="py-2 px-3 text-end num" />
+            <AutoFilterTh state={tf} colKey="credit" className="py-2 px-3 text-end num" />
+            <AutoFilterTh state={tf} colKey="description" className="py-2 px-3" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--line)]">
+          {tf.filteredRows.map((line, idx) => (
+            <tr key={idx} className="hover:bg-[var(--raised)]/40 transition">
+              <td className="py-2 px-3 font-mono font-bold text-[var(--accent)] num">
+                {line.accountCode}
+              </td>
+              <td className="py-2 px-3 text-[var(--ink)] font-medium">
+                {line.accountNameAr || '—'}
+              </td>
+              <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400 font-bold">
+                {(line.debit || 0) > 0 ? (line.debit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+              </td>
+              <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400 font-bold">
+                {(line.credit || 0) > 0 ? (line.credit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+              </td>
+              <td className="py-2 px-3 text-[var(--muted)] text-[11px] truncate max-w-[150px]">
+                {line.description || '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="bg-[var(--raised)] border-t border-[var(--line)] font-bold text-xs">
+          <tr>
+            <td colSpan={2} className="py-2 px-3 text-start">
+              إجمالي القيد
+            </td>
+            <td className="py-2 px-3 text-end num font-mono text-blue-600">
+              {(lines.reduce((sum, l) => sum + (l.debit || 0), 0) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </td>
+            <td className="py-2 px-3 text-end num font-mono text-purple-600">
+              {(lines.reduce((sum, l) => sum + (l.credit || 0), 0) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }

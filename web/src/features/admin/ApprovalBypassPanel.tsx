@@ -6,6 +6,7 @@ import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import type { ApprovalBypassGrant } from '../../lib/types';
 
 export function ApprovalBypassPanel() {
@@ -31,6 +32,20 @@ export function ApprovalBypassPanel() {
   }, [allowed]);
 
   useEffect(() => { load(); }, [load]);
+
+  const bypassFilter = useTableAutoFilter<ApprovalBypassGrant>(rows, [
+    { key: 'username', header: 'المستخدم', type: 'list', getValue: (g) => g.username || '' },
+    { key: 'period', header: 'الفترة', type: 'date', getValue: (g) => g.from || '', labelOf: (v) => String(v ?? '') },
+    { key: 'reason', header: 'السبب', type: 'text', getValue: (g) => g.reason || '' },
+    {
+      key: 'status',
+      header: 'الحالة',
+      type: 'list',
+      getValue: (g) => (g.revokedAt ? 'revoked' : 'active'),
+      labelOf: (v) => (v === 'revoked' ? 'مسحوب' : 'ساري'),
+      toneOf: (v) => (v === 'revoked' ? 'danger' : 'success'),
+    },
+  ]);
 
   if (!allowed) {
     return <EmptyState title="صلاحية غير كافية" description="منح تجاوز الاعتماد متاح لمدير النظام أو من يملك users.manage." />;
@@ -102,18 +117,19 @@ export function ApprovalBypassPanel() {
         <EmptyState title="لا منح حالياً" description="لم يُمنح تجاوز اعتماد بعد." />
       ) : (
         <div className="rounded-2xl border border-[var(--line)] overflow-hidden bg-[var(--surface)]">
+          <AutoFilterBar state={bypassFilter} totalCount={rows.length} />
           <table className="w-full text-xs sm:text-sm">
             <thead className="bg-[var(--raised)]/50 text-[var(--muted)]">
               <tr>
-                <th className="p-3 text-start">المستخدم</th>
-                <th className="p-3 text-start">الفترة</th>
-                <th className="p-3 text-start">السبب</th>
-                <th className="p-3 text-start">الحالة</th>
+                <AutoFilterTh state={bypassFilter} colKey="username" className="p-3 text-start" />
+                <AutoFilterTh state={bypassFilter} colKey="period" className="p-3 text-start" />
+                <AutoFilterTh state={bypassFilter} colKey="reason" className="p-3 text-start" />
+                <AutoFilterTh state={bypassFilter} colKey="status" className="p-3 text-start" />
                 <th className="p-3 text-start">إجراء</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {rows.map((g) => (
+              {bypassFilter.filteredRows.map((g) => (
                 <tr key={g.id}>
                   <td className="p-3 font-mono">{g.username}</td>
                   <td className="p-3 font-mono">{g.from} → {g.to}</td>

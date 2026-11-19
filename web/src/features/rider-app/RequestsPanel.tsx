@@ -9,7 +9,7 @@ import { ExternalLink } from 'lucide-react';
 import { api, type ServiceRequest, type ServiceRequestsSummary } from '../../lib/api';
 import { SectionTabs } from '../../components/ui/SectionTabs';
 import { StatCard } from '../../components/ui/StatCard';
-import { DataTable, type ColumnDef } from '../../components/ui/DataTable';
+import { DataTable, type ColumnDef, defaultStatusTone } from '../../components/ui/DataTable';
 import { Dialog } from '../../components/ui/Dialog';
 import { useToast } from '../../components/ui/Toast';
 
@@ -72,6 +72,7 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [status, setStatus] = useState('');
+  const [serverQuery, setServerQuery] = useState<{ filtersParam?: string; sortParam?: string }>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState<{ row: ServiceRequest; action: string } | null>(null);
@@ -90,6 +91,8 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
           status: status || undefined,
           requestType: SUBTAB_TYPE[active],
           group: active === 'other' ? 'other' : undefined,
+          filters: serverQuery.filtersParam,
+          sort: serverQuery.sortParam,
         }),
         api.getServiceRequestsSummary(),
       ]);
@@ -101,7 +104,7 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
     } finally {
       setLoading(false);
     }
-  }, [active, page, pageSize, status]);
+  }, [active, page, pageSize, status, serverQuery]);
 
   useEffect(() => {
     load();
@@ -125,11 +128,20 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
   };
 
   const columns: ColumnDef<ServiceRequest>[] = [
-    { key: 'id', header: 'رقم الطلب', filterType: 'text', getValue: (r) => r.id.replace(/^sreq:/, '').slice(0, 8), render: (r) => <span className="font-mono text-xs" dir="ltr">{r.id.replace(/^sreq:/, '').slice(0, 8)}</span> },
+    {
+      key: 'id',
+      header: 'رقم الطلب',
+      type: 'text',
+      filterType: 'text',
+      getValue: (r) => r.id.replace(/^sreq:/, '').slice(0, 8),
+      render: (r) => <span className="font-mono text-xs" dir="ltr">{r.id.replace(/^sreq:/, '').slice(0, 8)}</span>,
+    },
     {
       key: 'rider',
       header: 'المندوب والإقامة',
+      type: 'text',
       filterType: 'text',
+      filterColumn: 'riderName',
       getValue: (r) => `${r.riderName ?? ''} ${r.riderIqama}`,
       exportColumns: [
         { header: 'المندوب', value: (r) => r.riderName ?? '' },
@@ -142,11 +154,56 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
         </div>
       ),
     },
-    { key: 'requestType', header: 'النوع', filterType: 'list', filterOptions: Object.values(TYPE_LABEL).map((l) => ({ value: l, label: l })), getValue: (r) => TYPE_LABEL[r.requestType] || r.requestType },
-    { key: 'details', header: 'التفاصيل', filterType: 'text', getValue: details },
-    { key: 'direction', header: 'الاتجاه', filterType: 'list', filterOptions: [{ value: 'من الإدارة للمندوب', label: 'من الإدارة للمندوب' }, { value: 'من المندوب', label: 'من المندوب' }], getValue: (r) => (r.direction === 'admin_to_rider' ? 'من الإدارة للمندوب' : 'من المندوب') },
-    { key: 'createdAt', header: 'تاريخ الإرسال', filterType: 'text', getValue: (r) => (r.createdAt ? new Date(r.createdAt).toLocaleString('ar-SA') : '') },
-    { key: 'status', header: 'الحالة', filterType: 'list', filterOptions: Object.values(STATUS_LABEL).map((l) => ({ value: l, label: l })), getValue: (r) => STATUS_LABEL[r.status] || r.status },
+    {
+      key: 'requestType',
+      header: 'النوع',
+      type: 'list',
+      filterType: 'list',
+      filterOptions: Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label })),
+      getValue: (r) => r.requestType,
+      labelOf: (v) => TYPE_LABEL[String(v ?? '')] || String(v ?? ''),
+      render: (r) => TYPE_LABEL[r.requestType] || r.requestType,
+    },
+    {
+      key: 'details',
+      header: 'التفاصيل',
+      type: 'text',
+      filterType: 'text',
+      filterColumn: 'reason',
+      getValue: details,
+    },
+    {
+      key: 'direction',
+      header: 'الاتجاه',
+      type: 'list',
+      filterType: 'list',
+      filterOptions: [
+        { value: 'admin_to_rider', label: 'من الإدارة للمندوب' },
+        { value: 'rider_to_admin', label: 'من المندوب' },
+      ],
+      getValue: (r) => r.direction || 'rider_to_admin',
+      labelOf: (v) => (v === 'admin_to_rider' ? 'من الإدارة للمندوب' : 'من المندوب'),
+      render: (r) => (r.direction === 'admin_to_rider' ? 'من الإدارة للمندوب' : 'من المندوب'),
+    },
+    {
+      key: 'createdAt',
+      header: 'تاريخ الإرسال',
+      type: 'date',
+      filterType: 'date',
+      getValue: (r) => r.createdAt ?? '',
+      render: (r) => (r.createdAt ? new Date(r.createdAt).toLocaleString('ar-SA') : ''),
+    },
+    {
+      key: 'status',
+      header: 'الحالة',
+      type: 'list',
+      filterType: 'list',
+      filterOptions: Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label })),
+      getValue: (r) => r.status,
+      labelOf: (v) => STATUS_LABEL[String(v ?? '')] || String(v ?? ''),
+      toneOf: defaultStatusTone,
+      render: (r) => STATUS_LABEL[r.status] || r.status,
+    },
     {
       key: 'actions',
       header: 'الإجراء',
@@ -227,6 +284,10 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
             error={error}
             onRetry={load}
             serverSide
+            onServerQueryChange={(sq) => {
+              setServerQuery({ filtersParam: sq.filtersParam, sortParam: sq.sortParam });
+              setPage(1);
+            }}
             page={page}
             pageSize={pageSize}
             onPageChange={setPage}

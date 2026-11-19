@@ -238,6 +238,7 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [kind, setKind] = useState('');
+  const [serverQuery, setServerQuery] = useState<{ filtersParam?: string; sortParam?: string }>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -245,7 +246,13 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.getRiderBroadcastsPage({ page, pageSize, kind: kind || undefined });
+      const res = await api.getRiderBroadcastsPage({
+        page,
+        pageSize,
+        kind: kind || undefined,
+        filters: serverQuery.filtersParam,
+        sort: serverQuery.sortParam,
+      });
       setRows(res.items);
       setTotal(res.total);
     } catch (err: any) {
@@ -253,27 +260,81 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, kind]);
+  }, [page, pageSize, kind, serverQuery]);
 
   useEffect(() => {
     load();
   }, [load, reloadKey]);
 
   const columns: ColumnDef<RiderBroadcast>[] = [
-    { key: 'titleAr', header: 'العنوان', filterType: 'text', render: (b) => <span className="font-bold">{b.titleAr}</span> },
+    {
+      key: 'titleAr',
+      header: 'العنوان',
+      type: 'text',
+      filterType: 'text',
+      getValue: (b) => b.titleAr ?? '',
+      render: (b) => <span className="font-bold">{b.titleAr}</span>,
+    },
     {
       key: 'targetIqama',
       header: 'المستهدف',
+      type: 'text',
       filterType: 'text',
-      getValue: (b) => (b.targetIqama === 'ALL' ? 'كل المناديب' : b.targetIqama),
+      getValue: (b) => b.targetIqama ?? '',
+      labelOf: (v) => (v === 'ALL' ? 'كل المناديب' : String(v ?? '')),
       render: (b) => (b.targetIqama === 'ALL' ? 'كل المناديب' : <span className="font-mono" dir="ltr">{b.targetIqama}</span>),
     },
-    { key: 'kind', header: 'النوع', filterType: 'list', filterOptions: Object.values(KIND_LABEL).map((l) => ({ value: l, label: l })), getValue: (b) => KIND_LABEL[b.kind ?? ''] || b.kind || '' },
-    { key: 'category', header: 'التصنيف', filterType: 'list', filterOptions: Object.values(CATEGORY_LABEL).map((l) => ({ value: l, label: l })), getValue: (b) => CATEGORY_LABEL[b.category ?? ''] || b.category || '' },
-    { key: 'readCount', header: 'قراءات', numeric: true, filterType: 'text', getValue: (b) => b.readCount ?? 0 },
-    { key: 'ackCount', header: 'إقرارات', numeric: true, filterType: 'text', getValue: (b) => b.ackCount ?? 0 },
-    { key: 'sentBy', header: 'أرسله', filterType: 'list', getValue: (b) => b.sentBy ?? '' },
-    { key: 'createdAt', header: 'وقت الإرسال', filterType: 'text', getValue: (b) => (b.createdAt ? new Date(b.createdAt).toLocaleString('ar-SA') : '') },
+    {
+      key: 'kind',
+      header: 'النوع',
+      type: 'list',
+      filterType: 'list',
+      filterOptions: Object.entries(KIND_LABEL).map(([value, label]) => ({ value, label })),
+      getValue: (b) => b.kind ?? '',
+      labelOf: (v) => KIND_LABEL[String(v ?? '')] || String(v ?? ''),
+      render: (b) => KIND_LABEL[b.kind ?? ''] || b.kind || '',
+    },
+    {
+      key: 'category',
+      header: 'التصنيف',
+      type: 'list',
+      filterType: 'list',
+      filterOptions: Object.entries(CATEGORY_LABEL).map(([value, label]) => ({ value, label })),
+      getValue: (b) => b.category ?? '',
+      labelOf: (v) => CATEGORY_LABEL[String(v ?? '')] || String(v ?? ''),
+      render: (b) => CATEGORY_LABEL[b.category ?? ''] || b.category || '',
+    },
+    {
+      key: 'readCount',
+      header: 'قراءات',
+      type: 'number',
+      numeric: true,
+      filterType: 'number',
+      getValue: (b) => b.readCount ?? 0,
+    },
+    {
+      key: 'ackCount',
+      header: 'إقرارات',
+      type: 'number',
+      numeric: true,
+      filterType: 'number',
+      getValue: (b) => b.ackCount ?? 0,
+    },
+    {
+      key: 'sentBy',
+      header: 'أرسله',
+      type: 'list',
+      filterType: 'list',
+      getValue: (b) => b.sentBy ?? '',
+    },
+    {
+      key: 'createdAt',
+      header: 'وقت الإرسال',
+      type: 'date',
+      filterType: 'date',
+      getValue: (b) => b.createdAt ?? '',
+      render: (b) => (b.createdAt ? new Date(b.createdAt).toLocaleString('ar-SA') : ''),
+    },
   ];
 
   return (
@@ -303,6 +364,10 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
         error={error}
         onRetry={load}
         serverSide
+        onServerQueryChange={(sq) => {
+          setServerQuery({ filtersParam: sq.filtersParam, sortParam: sq.sortParam });
+          setPage(1);
+        }}
         page={page}
         pageSize={pageSize}
         onPageChange={setPage}

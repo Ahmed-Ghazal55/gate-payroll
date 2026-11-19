@@ -22,6 +22,7 @@ import {
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { useToast } from '../../components/ui/Toast';
+import { DataTable } from '../../components/ui/DataTable';
 import type { PayConfigDoc } from '../../lib/types';
 
 export interface RuleRecordWorkspaceProps {
@@ -478,30 +479,51 @@ export function RuleRecordWorkspace({
           {localExceptions.length === 0 ? (
             <div className="p-6 text-center text-[var(--muted)]">لا توجد استثناءات فردية مسجلة لهذه القاعدة.</div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
-              <table className="w-full text-start text-xs">
-                <thead className="border-b border-[var(--line)] bg-[var(--raised)] text-[var(--muted)] font-semibold">
-                  <tr>
-                    <th className="p-2.5 text-start">المندوب</th>
-                    <th className="p-2.5 text-start">نوع القاعدة</th>
-                    <th className="p-2.5 text-start">المبلغ اليومي</th>
-                    <th className="p-2.5 text-start">إيجار المركبة</th>
-                    <th className="p-2.5 text-start">سريان من</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--line)]">
-                  {localExceptions.map((ex) => (
-                    <tr key={ex.id}>
-                      <td className="p-2.5 font-mono font-bold text-[var(--ink)]">{ex.rider}</td>
-                      <td className="p-2.5">{ex.ruleType}</td>
-                      <td className="p-2.5 num font-bold text-[var(--accent)]">{ex.dailyAmount} ر.س</td>
-                      <td className="p-2.5 num">{ex.vehicleRent} ر.س</td>
-                      <td className="p-2.5 font-mono text-[var(--muted)]">{ex.validFrom}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              tableId="rule-exceptions"
+              data={localExceptions}
+              getRowId={(ex) => ex.id}
+              pageSize={10}
+              columns={[
+                {
+                  key: 'rider',
+                  header: 'المندوب',
+                  type: 'text',
+                  getValue: (ex) => ex.rider || '',
+                  render: (ex) => <span className="font-mono font-bold text-[var(--ink)]">{ex.rider}</span>,
+                },
+                {
+                  key: 'ruleType',
+                  header: 'نوع القاعدة',
+                  type: 'list',
+                  getValue: (ex) => ex.ruleType || '',
+                  render: (ex) => <span>{ex.ruleType}</span>,
+                },
+                {
+                  key: 'dailyAmount',
+                  header: 'المبلغ اليومي',
+                  type: 'number',
+                  numeric: true,
+                  getValue: (ex) => Number(ex.dailyAmount ?? 0),
+                  render: (ex) => <span className="num font-bold text-[var(--accent)]">{ex.dailyAmount} ر.س</span>,
+                },
+                {
+                  key: 'vehicleRent',
+                  header: 'إيجار المركبة',
+                  type: 'number',
+                  numeric: true,
+                  getValue: (ex) => Number(ex.vehicleRent ?? 0),
+                  render: (ex) => <span className="num">{ex.vehicleRent} ر.س</span>,
+                },
+                {
+                  key: 'validFrom',
+                  header: 'سريان من',
+                  type: 'date',
+                  getValue: (ex) => ex.validFrom || '',
+                  render: (ex) => <span className="font-mono text-[var(--muted)]">{ex.validFrom}</span>,
+                },
+              ]}
+            />
           )}
         </div>
       )}

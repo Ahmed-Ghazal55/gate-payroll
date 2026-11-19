@@ -36,6 +36,7 @@ import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { IbanDisplay } from '../../components/ui/IbanDisplay';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import type {
   FinanceAccount,
   FinanceJournal,
@@ -302,6 +303,67 @@ function TreasuryPageContent() {
     );
   }, [selectedAccount, journals]);
 
+  const vaultsFilter = useTableAutoFilter<FinanceAccount>(vaultAccounts, [
+    { key: 'code', header: 'رمز الحساب', type: 'list', getValue: (a) => a.code || '' },
+    { key: 'nameAr', header: 'اسم البنك / الخزينة', type: 'text', getValue: (a) => a.nameAr || '' },
+    {
+      key: 'type',
+      header: 'النوع والوظيفة',
+      type: 'list',
+      getValue: (a) => (a.code?.startsWith('111') ? 'bank' : 'cash'),
+      labelOf: (v) => (v === 'bank' ? 'حساب بنكي رئيسي' : 'صندوق نقدية تشغيلي'),
+    },
+    { key: 'sponsorName', header: 'الجهة الكفيلة', type: 'list', getValue: (a) => (a as any).sponsorName || 'عام' },
+    {
+      key: 'netBalance',
+      header: 'الرصيد الصافي الفعلي',
+      type: 'number',
+      getValue: (a) => Number(a.netBalance ?? 0),
+      toneOf: (v) => (Number(v ?? 0) < 0 ? 'danger' : 'success'),
+    },
+    { key: 'naturalSideAr', header: 'طبيعة الحساب', type: 'list', getValue: (a) => a.naturalSideAr || '' },
+  ]);
+
+  const payoutsFilter = useTableAutoFilter<AdvanceRequest>(advancePayouts, [
+    { key: 'id', header: 'معرف السلفة', type: 'text', getValue: (r) => r.id || '' },
+    { key: 'rider', header: 'المندوب والإقامة', type: 'text', getValue: (r) => `${r.riderName || ''} ${r.riderIqama || ''}`.trim() },
+    {
+      key: 'type',
+      header: 'النوع والخزينة المكلفة',
+      type: 'list',
+      getValue: (r) => r.type || '',
+      labelOf: (v) => (v === 'internet' ? 'سلفة إنترنت' : v === 'cash' ? 'خزينة نقدية' : 'حساب بنكي'),
+    },
+    { key: 'amount', header: 'المبلغ المعتمد', type: 'number', getValue: (r) => Number(r.amount ?? 0) },
+    { key: 'monthlyInstallment', header: 'القسط الشهري', type: 'number', getValue: (r) => Number(r.monthlyInstallment ?? 0) },
+    { key: 'approvedBy', header: 'المعتمد وتاريخه', type: 'list', getValue: (r) => r.approvedBy || '' },
+    { key: 'reason', header: 'سبب الاعتماد', type: 'text', getValue: (r) => r.coverageReason || r.reason || '' },
+  ]);
+
+  const bankRecordsFilter = useTableAutoFilter(bankFilePreview?.records || [], [
+    { key: 'riderIqama', header: 'رقم الإقامة', type: 'text', getValue: (r) => r.riderIqama || '' },
+    { key: 'riderName', header: 'اسم المندوب', type: 'text', getValue: (r) => r.riderName || '' },
+    { key: 'iban', header: 'الآيبان البنكي', type: 'text', getValue: (r) => `${r.iban || ''} ${r.bankName || ''}`.trim() },
+    { key: 'amount', header: 'مبلغ الصرف المستحق', type: 'number', getValue: (r) => Number(r.amount ?? 0) },
+    {
+      key: 'status',
+      header: 'الحالة',
+      type: 'list',
+      getValue: (r) => r.status || 'excluded',
+      labelOf: (v) => (v === 'valid' ? 'جاهز للصرف' : 'مستبعد'),
+      toneOf: (v) => (v === 'valid' ? 'success' : 'warning'),
+    },
+  ]);
+
+  const movementsFilter = useTableAutoFilter<FinanceJournal>(journals, [
+    { key: 'id', header: 'رقم القيد', type: 'text', getValue: (j) => j.id || '' },
+    { key: 'description', header: 'البيان والوصف', type: 'text', getValue: (j) => j.description || '' },
+    { key: 'entryDate', header: 'تاريخ الحركة', type: 'date', getValue: (j) => j.entryDate?.split('T')[0] || '' },
+    { key: 'totalDebit', header: 'المبلغ الإجمالي', type: 'number', getValue: (j) => Number(j.totalDebit ?? 0) },
+    { key: 'postedBy', header: 'المسؤول', type: 'list', getValue: (j) => (j as any).postedBy || j.createdBy || 'النظام' },
+    { key: 'status', header: 'الحالة', type: 'list', getValue: () => 'posted', labelOf: () => 'مرحل', toneOf: () => 'success' },
+  ]);
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -431,21 +493,22 @@ function TreasuryPageContent() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar state={vaultsFilter} totalCount={vaultAccounts.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">رمز الحساب</th>
-                      <th className="p-3 text-start">اسم البنك / الخزينة</th>
-                      <th className="p-3 text-start">النوع والوظيفة</th>
-                      <th className="p-3 text-start">الجهة الكفيلة</th>
-                      <th className="p-3 text-start">الرصيد الصافي الفعلي</th>
-                      <th className="p-3 text-start">طبيعة الحساب</th>
+                      <AutoFilterTh state={vaultsFilter} colKey="code" className="p-3 text-start" />
+                      <AutoFilterTh state={vaultsFilter} colKey="nameAr" className="p-3 text-start" />
+                      <AutoFilterTh state={vaultsFilter} colKey="type" className="p-3 text-start" />
+                      <AutoFilterTh state={vaultsFilter} colKey="sponsorName" className="p-3 text-start" />
+                      <AutoFilterTh state={vaultsFilter} colKey="netBalance" className="p-3 text-start" />
+                      <AutoFilterTh state={vaultsFilter} colKey="naturalSideAr" className="p-3 text-start" />
                       <th className="p-3 text-start">الإجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {vaultAccounts.map((a) => (
+                    {vaultsFilter.filteredRows.map((a) => (
                       <tr key={a.code} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono font-bold text-[var(--accent)]">{a.code}</td>
                         <td className="p-3 font-semibold">{a.nameAr}</td>
@@ -510,22 +573,23 @@ function TreasuryPageContent() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar state={payoutsFilter} totalCount={advancePayouts.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">معرف السلفة</th>
-                      <th className="p-3 text-start">المندوب والإقامة</th>
-                      <th className="p-3 text-start">النوع والخزينة المكلفة</th>
-                      <th className="p-3 text-start">المبلغ المعتمد</th>
-                      <th className="p-3 text-start">القسط الشهري</th>
-                      <th className="p-3 text-start">المعتمد وتاريخه</th>
-                      <th className="p-3 text-start">سبب الاعتماد</th>
+                      <AutoFilterTh state={payoutsFilter} colKey="id" className="p-3 text-start" />
+                      <AutoFilterTh state={payoutsFilter} colKey="rider" className="p-3 text-start" />
+                      <AutoFilterTh state={payoutsFilter} colKey="type" className="p-3 text-start" />
+                      <AutoFilterTh state={payoutsFilter} colKey="amount" className="p-3 text-start" />
+                      <AutoFilterTh state={payoutsFilter} colKey="monthlyInstallment" className="p-3 text-start" />
+                      <AutoFilterTh state={payoutsFilter} colKey="approvedBy" className="p-3 text-start" />
+                      <AutoFilterTh state={payoutsFilter} colKey="reason" className="p-3 text-start" />
                       <th className="p-3 text-start">الإجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {advancePayouts.map((req) => (
+                    {payoutsFilter.filteredRows.map((req) => (
                       <tr key={req.id} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono text-[11px] text-[var(--muted)]">{req.id}</td>
                         <td className="p-3">
@@ -696,19 +760,20 @@ function TreasuryPageContent() {
               </div>
 
               <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                <AutoFilterBar state={bankRecordsFilter} totalCount={bankFilePreview.records.length} />
                 <div className="overflow-x-auto">
                   <table className="w-full text-start text-xs sm:text-sm">
                     <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                       <tr>
-                        <th className="p-3 text-start">رقم الإقامة</th>
-                        <th className="p-3 text-start">اسم المندوب</th>
-                        <th className="p-3 text-start">الآيبان البنكي</th>
-                        <th className="p-3 text-start">مبلغ الصرف المستحق</th>
-                        <th className="p-3 text-start">الحالة</th>
+                        <AutoFilterTh state={bankRecordsFilter} colKey="riderIqama" className="p-3 text-start" />
+                        <AutoFilterTh state={bankRecordsFilter} colKey="riderName" className="p-3 text-start" />
+                        <AutoFilterTh state={bankRecordsFilter} colKey="iban" className="p-3 text-start" />
+                        <AutoFilterTh state={bankRecordsFilter} colKey="amount" className="p-3 text-start" />
+                        <AutoFilterTh state={bankRecordsFilter} colKey="status" className="p-3 text-start" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--line)]">
-                      {bankFilePreview.records.map((r, idx) => (
+                      {bankRecordsFilter.filteredRows.map((r, idx) => (
                         <tr key={idx} className="hover:bg-[var(--row-hover)] transition">
                           <td className="p-3 font-mono">{r.riderIqama}</td>
                           <td className="p-3 font-semibold">{r.riderName}</td>
@@ -780,20 +845,21 @@ function TreasuryPageContent() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar state={movementsFilter} totalCount={journals.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">رقم القيد</th>
-                      <th className="p-3 text-start">البيان والوصف</th>
-                      <th className="p-3 text-start">تاريخ الحركة</th>
-                      <th className="p-3 text-start">المبلغ الإجمالي</th>
-                      <th className="p-3 text-start">المسؤول</th>
-                      <th className="p-3 text-start">الحالة</th>
+                      <AutoFilterTh state={movementsFilter} colKey="id" className="p-3 text-start" />
+                      <AutoFilterTh state={movementsFilter} colKey="description" className="p-3 text-start" />
+                      <AutoFilterTh state={movementsFilter} colKey="entryDate" className="p-3 text-start" />
+                      <AutoFilterTh state={movementsFilter} colKey="totalDebit" className="p-3 text-start" />
+                      <AutoFilterTh state={movementsFilter} colKey="postedBy" className="p-3 text-start" />
+                      <AutoFilterTh state={movementsFilter} colKey="status" className="p-3 text-start" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {journals.map((j) => (
+                    {movementsFilter.filteredRows.map((j) => (
                       <tr key={j.id} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono text-xs text-[var(--accent)]">#{j.id.substring(0, 8)}</td>
                         <td className="p-3 font-semibold">{j.description}</td>

@@ -31,6 +31,7 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Drawer } from '../../components/ui/Drawer';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import type { ImportCatalogStep, ImportCatalogColumn, ImportPreviewResult } from '../../lib/types';
 
 // =========================================================================
@@ -828,40 +829,9 @@ function ImportCenter() {
                           )}
 
                           {/* Sample Rows Table Preview */}
-                          {curUpload.previewResult.rows && curUpload.previewResult.rows.length > 0 && (() => {
-                            const pRows = curUpload.previewResult.rows.map((r: any) =>
-                              r && typeof r === 'object' && r.data ? r.data : r
-                            );
-                            const sampleCols = Object.keys(pRows[0] || {}).slice(0, 5);
-                            return (
-                              <div className="overflow-x-auto rounded-lg border border-[var(--line)] bg-[var(--surface)] max-h-48">
-                                <table className="w-full text-xs text-start">
-                                  <thead className="bg-[var(--surface-muted)] text-[var(--ink)] sticky top-0">
-                                    <tr>
-                                      <th className="p-2 text-start font-semibold border-b border-[var(--line)]">#</th>
-                                      {sampleCols.map((colKey) => (
-                                        <th key={colKey} className="p-2 text-start font-semibold border-b border-[var(--line)]">
-                                          {colKey}
-                                        </th>
-                                      ))}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {pRows.slice(0, 5).map((row: any, rIdx: number) => (
-                                      <tr key={rIdx} className="border-b border-[var(--line)] last:border-0 hover:bg-[var(--surface-muted)]/30">
-                                        <td className="p-2 text-[var(--ink-muted)]">{rIdx + 1}</td>
-                                        {sampleCols.map((colKey) => (
-                                          <td key={colKey} className="p-2 text-[var(--ink)] truncate max-w-[150px]">
-                                            {String(row[colKey] ?? '')}
-                                          </td>
-                                        ))}
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            );
-                          })()}
+                          {curUpload.previewResult.rows && curUpload.previewResult.rows.length > 0 && (
+                            <ImportSamplePreviewTable rows={curUpload.previewResult.rows} />
+                          )}
 
                           {/* Commit Button */}
                           <div className="flex items-center justify-end gap-2 pt-2">
@@ -1108,95 +1078,11 @@ function ImportCenter() {
             </div>
 
             {/* Columns Table */}
-            <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
-              <table className="w-full text-start">
-                <thead className="bg-[var(--surface-muted)] text-[var(--ink)]">
-                  <tr>
-                    <th className="p-2.5 text-start font-semibold border-b border-[var(--line)]">#</th>
-                    <th className="p-2.5 text-start font-semibold border-b border-[var(--line)]">اسم العمود (Header)</th>
-                    <th className="p-2.5 text-start font-semibold border-b border-[var(--line)]">الإلزامية</th>
-                    <th className="p-2.5 text-start font-semibold border-b border-[var(--line)]">النوع</th>
-                    <th className="p-2.5 text-start font-semibold border-b border-[var(--line)]">الخيارات المسموحة</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--line)]">
-                  {columnDrawerStep.columns.map((col, idx) => {
-                    const isExpanded = expandedChoiceColumns.has(col.name);
-                    const hasChoices = col.choices && col.choices.length > 0;
-                    const choicesList = col.choices || [];
-                    const isCollapsed = hasChoices && choicesList.length > 6 && !isExpanded;
-                    const displayedChoices = isCollapsed ? choicesList.slice(0, 6) : choicesList;
-
-                    return (
-                      <tr key={col.name} className="hover:bg-[var(--surface-muted)]/40">
-                        <td className="p-2.5 text-[var(--ink-muted)]">{idx + 1}</td>
-                        <td className="p-2.5 font-medium text-[var(--ink)]">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono">{col.name}</span>
-                            {col.identity && (
-                              <span className="px-1.5 py-0.2 rounded text-[10px] bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20">
-                                معرّف فريد
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-2.5">
-                          {col.required ? (
-                            <span className="inline-flex items-center gap-1 font-semibold text-red-600 dark:text-red-400">
-                              <span className="text-red-500">●</span>
-                              <span>إلزامي</span>
-                            </span>
-                          ) : (
-                            <span className="text-[var(--ink-muted)]">اختياري</span>
-                          )}
-                        </td>
-                        <td className="p-2.5">
-                          <span className="px-2 py-0.5 rounded text-[11px] bg-[var(--surface-muted)] text-[var(--ink)] border border-[var(--line)]">
-                            {col.type === 'number' ? 'رقم' : col.type === 'choice' ? 'قائمة خيارات' : 'نص'}
-                          </span>
-                        </td>
-                        <td className="p-2.5 max-w-[200px]">
-                          {hasChoices ? (
-                            <div className="space-y-1">
-                              <div className="flex flex-wrap gap-1">
-                                {displayedChoices.map((choice, cIdx) => (
-                                  <span
-                                    key={cIdx}
-                                    className="px-1.5 py-0.2 rounded text-[10px] bg-[var(--surface-muted)] text-[var(--ink-muted)] border border-[var(--line)]"
-                                  >
-                                    {choice}
-                                  </span>
-                                ))}
-                              </div>
-                              {choicesList.length > 6 && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setExpandedChoiceColumns((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(col.name)) next.delete(col.name);
-                                      else next.add(col.name);
-                                      return next;
-                                    });
-                                  }}
-                                  className="text-[11px] text-[var(--accent)] hover:underline font-medium block"
-                                >
-                                  {isExpanded
-                                    ? 'طي الخيارات'
-                                    : `+ ${choicesList.length - 6} خيارات أخرى (عرض الكل)`}
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[var(--ink-muted)]">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <ImportColumnsSpecTable
+              columns={columnDrawerStep.columns}
+              expandedChoiceColumns={expandedChoiceColumns}
+              setExpandedChoiceColumns={setExpandedChoiceColumns}
+            />
 
             {columnDrawerStep.templateUrl && (
               <div className="pt-2 flex justify-end">
