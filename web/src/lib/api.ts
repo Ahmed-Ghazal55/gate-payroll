@@ -1222,6 +1222,54 @@ export const api = {
     return handleRequest<RiderRecord[]>(`/riders${qs}`);
   },
 
+  getWorkforce: (params?: {
+    q?: string;
+    page?: number;
+    pageSize?: number;
+    sponsorship?: string;
+    workType?: string;
+    status?: string;
+    sponsorUnified?: string;
+    platform?: string;
+    city?: string;
+    missingIban?: boolean;
+    sort?: string;
+  }) => {
+    const q = new URLSearchParams();
+    q.set('page', String(params?.page ?? 1));
+    q.set('pageSize', String(params?.pageSize ?? 50));
+    if (params?.q) q.set('q', params.q);
+    if (params?.sponsorship) q.set('sponsorship', params.sponsorship);
+    if (params?.workType) q.set('workType', params.workType);
+    if (params?.status) q.set('status', params.status);
+    if (params?.sponsorUnified) q.set('sponsorUnified', params.sponsorUnified);
+    if (params?.platform) q.set('platform', params.platform);
+    if (params?.city) q.set('city', params.city);
+    if (params?.missingIban) q.set('missingIban', 'true');
+    if (params?.sort) q.set('sort', params.sort);
+    return handleRequest<import('./types').WorkforceListResponse>(`/workforce?${q.toString()}`);
+  },
+
+  getWorkforce360: (id: string) =>
+    handleRequest<import('./types').Workforce360Response>(`/workforce/${encodeURIComponent(id)}/360`),
+
+  getWorkforceSaudi: () =>
+    handleRequest<{ items: any[]; total: number; source?: string }>(`/workforce/saudi-payroll-employees`),
+
+  getWorkforceTerminated: () =>
+    handleRequest<{ items: any[]; total: number; source?: string }>(`/workforce/terminated`),
+
+  getWorkforceAbsenceCases: () =>
+    handleRequest<{ items: any[]; total: number; source?: string }>(`/workforce/absence-cases`),
+
+  getWorkforceDataQuality: () =>
+    handleRequest<{ items: any[]; total: number; source?: string }>(`/workforce/data-quality`),
+
+  getHrCatalog: (kind: string) =>
+    handleRequest<{ items: any[]; total: number; kind?: string; source?: string; message?: string }>(
+      `/hr-catalogs/${encodeURIComponent(kind)}`
+    ),
+
   getRiderProfile360: (iqama: string) =>
     handleRequest<RiderProfile360>(`/riders/${encodeURIComponent(iqama)}/profile-360`),
 

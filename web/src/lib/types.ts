@@ -564,15 +564,70 @@ export interface RiderRecord {
   nationality?: string;
   sponsor?: string;
   sponsorId?: string;
+  sponsorNameAr?: string;
   city?: string;
+  housing?: string;
   engagementType?: 'SponsoredInternal' | 'External' | string;
   operationalRole?: 'Car' | 'Motorcycle' | string;
   drivingLicense?: string;
   platforms?: string;
+  platform?: string;
+  platformWorkId?: string;
+  paymentModel?: string;
   iban?: string;
+  jobTitle?: string;
+  mudadSalary?: string;
+  hasCompanyVehicle?: boolean;
+  companyVehicleType?: string;
+  workType?: string;
   status: string;
   policyId?: string;
   createdAt?: string;
+}
+
+export interface WorkforceSummary {
+  totalCount: number;
+  sponsoredCount: number;
+  sponsoredRiders: number;
+  sponsoredAdmins: number;
+  sponsoredMissingIban: number;
+}
+
+export interface WorkforceListResponse {
+  items: RiderRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+  summary?: WorkforceSummary;
+  source?: string;
+  asOf?: string;
+  allowedActions?: string[];
+}
+
+export interface Workforce360Response {
+  person: RiderRecord;
+  workRecord3Months: Array<{
+    month?: string;
+    platform?: string;
+    workDays?: string | number;
+    orders?: string | number;
+    netDue?: string | number;
+    status?: string;
+  }>;
+  financialEvaluation: { status?: string; message?: string; score?: number; band?: string };
+  iqamaImage: { status?: string; message?: string };
+  ibanImage?: { status?: string; message?: string };
+  promissoryNotes: Array<{ id?: string; noteNumber?: string; date?: string; amount?: string | number; status?: string }>;
+  platformAccounts: Array<{ id?: string; platform?: string; externalAccountId?: string; city?: string; createdAt?: string }>;
+  financialPosition: {
+    statementPath?: string;
+    message?: string;
+    activeDebtsCount?: number;
+    totalRemainingDebt?: number;
+  };
+  source?: string;
+  asOf?: string;
+  allowedActions?: string[];
 }
 
 export interface RiderDocumentChecklistItem {
