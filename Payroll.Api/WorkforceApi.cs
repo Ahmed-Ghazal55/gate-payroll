@@ -334,7 +334,10 @@ public static class WorkforceApi
         try
         {
             var dict = ctx.Request.Query.Keys.ToDictionary(k => k, k => ctx.Request.Query[k].ToString(), StringComparer.OrdinalIgnoreCase);
-            return WorkforceLiveQuery.ParseRequest(dict);
+            var req = WorkforceLiveQuery.ParseRequest(dict);
+            if (req.SponsorUnified.Length > 0 && FinancialCore.FindSponsor(req.SponsorUnified) is { } sponsor && !string.IsNullOrWhiteSpace(sponsor.UnifiedNumber))
+                req = req with { SponsorUnified = sponsor.UnifiedNumber };
+            return req;
         }
         catch (ImportFailure ex) when (ex.Code == "invalid_page") { throw new ApiError("رقم الصفحة وحجمها يجب أن يكونا عددين صحيحين موجبين."); }
         catch (ImportFailure ex) when (ex.Code == "invalid_live_sort") { throw new ApiError("حقل الترتيب غير صالح."); }
@@ -411,7 +414,17 @@ public static class WorkforceApi
         if (request.SponsorUnified.Length > 0)
             q = q.Where(r => r.S("sponsorUnified") == request.SponsorUnified || r.S("sponsorId") == request.SponsorUnified || r.S("sponsor") == request.SponsorUnified);
         if (request.Platform.Length > 0)
-            q = q.Where(r => string.Equals(r.S("platform"), request.Platform, StringComparison.OrdinalIgnoreCase));
+        {
+            var accepted = new HashSet<string>(ErpPlatformCode.AcceptOrSelf(request.Platform), StringComparer.OrdinalIgnoreCase);
+            string reqPlatform = PayPlatforms.For(request.Platform).Platform;
+            q = q.Where(r =>
+            {
+                string rp = r.S("platform");
+                return rp.Length > 0
+                    && (accepted.Contains(rp)
+                        || (reqPlatform != "Other" && string.Equals(PayPlatforms.For(rp).Platform, reqPlatform, StringComparison.OrdinalIgnoreCase)));
+            });
+        }
         if (request.CityCode.Length > 0)
             q = q.Where(r => string.Equals(r.S("cityCode"), request.CityCode, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(r.S("city"), request.CityCode, StringComparison.OrdinalIgnoreCase));
@@ -465,7 +478,7 @@ public static class WorkforceApi
         ["status"] = r.S("status"),
         ["sponsorNameAr"] = r.S("sponsor"),
         ["sponsorId"] = r.S("sponsorId"),
-        ["sponsorUnified"] = "",
+        ["sponsorUnified"] = r.S("sponsorUnified", FinancialCore.FindSponsor(r.S("sponsorId", r.S("sponsor")))?.UnifiedNumber ?? ""),
         ["jobTitle"] = WorkforceLiveQuery.NoSourceYet,
         ["workTypeNameAr"] = r.S("operationalRole"),
         ["city"] = r.S("city"),

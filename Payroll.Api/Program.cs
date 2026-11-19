@@ -144,7 +144,7 @@ Notifications.Map(api,store);
 ErpSponsorMap.Map(api);
 ConfigLists.Map(api,store);
 ImportCatalog.Map(api);
-Companies.Map(api,store);
+Companies.Map(api,store,app.Configuration,app.Environment);
 OrgDirectory.Map(api,store);
 AdvanceRequests.Map(api,store);
 NinjaBilling.Map(api,store);

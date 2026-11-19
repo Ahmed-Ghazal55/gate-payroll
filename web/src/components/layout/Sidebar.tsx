@@ -94,10 +94,8 @@ function SidebarInner({
       defaultHref: '/companies/',
       permission: 'companies.view',
       items: [
-        { id: 'companies-sponsors', href: '/companies/?tab=companies', label: 'الشركات والكفلاء' },
-        { id: 'companies-cr', href: '/companies/?tab=cr', label: 'السجلات التجارية' },
-        { id: 'companies-docs', href: '/companies/?tab=expiring', label: 'الوثائق والانتهاءات' },
-        { id: 'hr-catalogs', href: '/hr/catalogs/', label: 'كتالوجات الموارد البشرية', isNew: true },
+        { id: 'companies-main', href: '/companies/', label: 'الشركات والسجلات', permission: 'companies.view' },
+        { id: 'hr-catalogs', href: '/hr/catalogs/', label: 'كتالوجات الموارد البشرية', permission: 'riders.view', isNew: true },
       ],
     },
     {
@@ -367,6 +365,15 @@ function SidebarInner({
                     const cleanCurrentPath = pathname.replace(/\/$/, '') || '/';
                     const pathMatch = cleanCurrentPath === cleanSubPath;
 
+                    const hasTabbedSibling = group.items.some((sibling) => {
+                      const [sibPath, sibQuery] = sibling.href.split('?');
+                      const cleanSibPath = sibPath.replace(/\/$/, '') || '/';
+                      return (
+                        cleanSibPath === cleanSubPath &&
+                        Boolean(sibQuery && new URLSearchParams(sibQuery).get('tab'))
+                      );
+                    });
+
                     let isSubActive = false;
                     if (pathMatch) {
                       if (subQuery) {
@@ -376,7 +383,7 @@ function SidebarInner({
                         const currentParam = searchParams?.get('tab') ?? defaultTab;
                         isSubActive = currentParam === targetParam;
                       } else {
-                        isSubActive = !searchParams?.get('tab');
+                        isSubActive = hasTabbedSibling ? !searchParams?.get('tab') : true;
                       }
                     }
 
