@@ -55,5 +55,50 @@ try{
  await req('/api/auth/login',{username:'fp1-admin',password});
  rows=await req('/api/submissions');
  assert.equal(rows.length,2,'admin sees all companies');
- console.log(`PASS ${checks} forms all-companies HTTP checks: unscoped deny/allow, scoped unchanged, admin sees all.`);
+
+ // Custom-form analytics + responses: deny / allow
+ const custom=await req('/api/forms/builder',{titleAr:'نموذج FP1',titleEn:'FP1',titleUr:'FP1',expiresAt:new Date(Date.now()+864e5).toISOString(),maxSubmissions:10,fields:[{id:'iqama',labelAr:'الإقامة',type:'iqama',required:true},{id:'system',labelAr:'النظام',type:'radio',required:true,options:['tiers','commission']}]});
+ const publishedCustom=await req(`/api/forms/builder/${custom.id}/publish`,{});
+ const customPub='/api/public/questionnaires/'+publishedCustom.publicUrl.split('/').at(-1);
+ await req(customPub,{iqama:'2000002901',system:'tiers'},200,false);
+ await req(customPub,{iqama:'2000002902',system:'commission'},200,false);
+ await req('/api/auth/login',{username:'fp1-unscoped',password});
+ assert.equal((await req('/api/forms/analytics/'+custom.id)).totalResponses,0,'unscoped deny custom analytics');
+ assert.equal((await req('/api/forms/responses/'+custom.id)).length,0,'unscoped deny custom responses');
+ await req('/api/auth/login',{username:'fp1-allco',password});
+ assert.equal((await req('/api/forms/analytics/'+custom.id)).totalResponses,2,'all-companies allow custom analytics');
+ assert.equal((await req('/api/forms/responses/'+custom.id)).length,2,'all-companies allow custom responses');
+ await req('/api/auth/login',{username:'fp1-scoped',password});
+ assert.equal((await req('/api/forms/analytics/'+custom.id)).totalResponses,1,'scoped custom analytics stays company-bound');
+ assert.equal((await req('/api/forms/responses/'+custom.id)).length,1,'scoped custom responses stay company-bound');
+
+ // Bulk-approve: unscoped deny (count 0), all-companies allow
+ await req('/api/auth/login',{username:'fp1-admin',password});
+ const bulkCamp=await req('/api/campaigns',{title:'FP1 bulk scope',days:2});
+ const bulkPub='/api/public/forms/'+bulkCamp.path.split('/').at(-1);
+ await req(bulkPub,{iqama:'2000002901',name:'Synthetic BW',workSystem:'tiers'},200,false);
+ await req(bulkPub,{iqama:'2000002902',name:'Synthetic Other',workSystem:'commission'},200,false);
+ await req('/api/auth/login',{username:'fp1-unscoped',password});
+ assert.equal((await req('/api/submissions/bulk-approve',{campaignId:bulkCamp.id})).count,0,'unscoped deny bulk-approve');
+ assert.equal((await req('/api/submissions')).length,0);
+ await req('/api/auth/login',{username:'fp1-allco',password});
+ assert.equal((await req('/api/submissions/bulk-approve',{campaignId:bulkCamp.id})).count,2,'all-companies allow bulk-approve');
+ assert.equal((await req('/api/submissions')).filter(r=>r.campaignId===bulkCamp.id&&r.status==='approved').length,2);
+
+ // Custom form without iqama field: deny / allow (empty iqama is still gated for unscoped)
+ await req('/api/auth/login',{username:'fp1-admin',password});
+ const noIqama=await req('/api/forms/builder',{titleAr:'بدون إقامة',titleEn:'No iqama',titleUr:'No iqama',expiresAt:new Date(Date.now()+864e5).toISOString(),maxSubmissions:5,fields:[{id:'note',labelAr:'ملاحظة',type:'text',required:true}]});
+ const publishedNoIqama=await req(`/api/forms/builder/${noIqama.id}/publish`,{});
+ await req('/api/public/questionnaires/'+publishedNoIqama.publicUrl.split('/').at(-1),{note:'hello'},200,false);
+ await req('/api/auth/login',{username:'fp1-unscoped',password});
+ assert.equal((await req('/api/forms/analytics/'+noIqama.id)).totalResponses,0,'unscoped deny no-iqama analytics');
+ assert.equal((await req('/api/forms/responses/'+noIqama.id)).length,0,'unscoped deny no-iqama responses');
+ await req('/api/auth/login',{username:'fp1-allco',password});
+ assert.equal((await req('/api/forms/analytics/'+noIqama.id)).totalResponses,1,'all-companies allow no-iqama analytics');
+ assert.equal((await req('/api/forms/responses/'+noIqama.id)).length,1,'all-companies allow no-iqama responses');
+ await req('/api/auth/login',{username:'fp1-scoped',password});
+ assert.equal((await req('/api/forms/analytics/'+noIqama.id)).totalResponses,1,'scoped allow no-iqama (not company-bound)');
+ assert.equal((await req('/api/forms/responses/'+noIqama.id)).length,1,'scoped allow no-iqama responses');
+
+ console.log(`PASS ${checks} forms all-companies HTTP checks: submissions, custom analytics/responses, bulk-approve, no-iqama.`);
 }catch(e){console.error(logs.slice(-5000));throw e;}finally{if(proc.exitCode===null&&!spawnError){const stopped=new Promise(r=>proc.once('exit',r));proc.kill();await Promise.race([stopped,new Promise(r=>setTimeout(r,5000))]);}rmSync(data,{recursive:true,force:true});}
