@@ -135,7 +135,7 @@ try{
  assert.equal(p360.documentChecklist.length,0);
  assert.equal(p360.iqamaImage.status,'pending_permission');
  assert.ok(p360.financialPosition.statementPath.includes(iq));
- await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',fileName:'iqama.pdf'},403);
+ await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',fileName:'iqama.pdf'},404);
 
  // 8. Opening Balance Debt Import Sheet (Preview Statement + Commit) & Rider Mobile Portal (/rider-app)
  const obCsv='iqama,riderName,debtorType,category,creditorSponsor,entryMode,allocationMode,totalAmount,priorPaidAmount,companyShareAmount,monthlyInstallment,effectiveFrom,contraAccountCode,sourceRef,notes\r\n2491234567,Opening Balance Rider,Rider,Advance,BW,OpeningBalance,RiderFull,3500,500,0,500,2026-10,3101,OB-TEST-01,Opening balance advance\r\n';
