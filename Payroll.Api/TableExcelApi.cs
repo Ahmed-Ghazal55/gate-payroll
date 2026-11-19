@@ -31,14 +31,15 @@ public static class TableExcelApi
             var headers = (input["headers"] as JsonArray)?.Select(x => x?.ToString() ?? "").ToArray() ?? [];
             J.Need(headers.Length is > 0 and <= 100 && headers.All(h => h.Length is > 0 and <= 150), "عناوين تصدير غير صحيحة.");
             var numbers = (input["numericColumns"] as JsonArray)?.Select(x => int.TryParse(x?.ToString(), out int i) ? i : -1).ToHashSet() ?? [];
-            var cols = headers.Select((h, i) => new ExcelColumn(h, numbers.Contains(i))).ToArray();
-            var rows = new List<object?[]>();
+            var sourceRows = new List<string[]>();
             foreach (var item in (input["rows"] as JsonArray ?? throw new ApiError("صفوف التصدير مطلوبة.")))
             {
-                J.Need(item is JsonArray cells && cells.Count == headers.Length && rows.Count < 24999, "حجم أو شكل بيانات التصدير غير صحيح.");
-                rows.Add(((JsonArray)item!).Select((value, i) => numbers.Contains(i) && decimal.TryParse(value?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out decimal n) ? (object)n : value?.ToString() ?? "").ToArray());
+                J.Need(item is JsonArray cells && cells.Count == headers.Length && sourceRows.Count < 24999, "حجم أو شكل بيانات التصدير غير صحيح.");
+                sourceRows.Add(((JsonArray)item!).Select(value => ProtectText(value?.ToString() ?? "")).ToArray());
             }
-            return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "table-export.xlsx");
+            var (outHeaders, outRows, outNumeric) = SplitIbanColumns(headers, sourceRows, numbers);
+            var cols = outHeaders.Select((h, i) => new ExcelColumn(h, outNumeric.Contains(i))).ToArray();
+            return Results.File(ExcelFiles.Write(cols, outRows.Select(r => r.Cast<object?>().ToArray()).ToList()), ExcelFiles.Mime, "table-export.xlsx");
         }).WithTags("Payroll").WithSummary("Submit excel export");
         api.MapPost("/excel/{kind}/preview", (string kind, JsonObject input) => store.Read(c => Preview(c, kind, input))).WithTags("Payroll").WithSummary("Submit excel {kind} preview");
         api.MapPost("/excel/{kind}/commit", (string kind, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -142,5 +143,58 @@ public static class TableExcelApi
         }
         if (rows.Count + errors.Count == 0) errors.Add(new(2, "القالب فارغ؛ أدخل بيانات أولًا."));
         return new(fingerprint, rows, errors);
+    }
+
+    static string ProtectText(string value) =>
+        value.Length > 0 && "=+-@\t\r".Contains(value[0]) ? "'" + value : value;
+
+    static bool IsIbanHeader(string header, IEnumerable<string> values)
+    {
+        bool looksIban = System.Text.RegularExpressions.Regex.IsMatch(header, "(آيبان|ايبان|الآيبان|iban)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        string[] filled = values.Select(IbanChoices.NormalizeIban).Where(v => v != "").ToArray();
+        bool allSaudi = filled.Length > 0 && filled.All(v => System.Text.RegularExpressions.Regex.IsMatch(v, "^SA[0-9]{22}$"));
+        if (looksIban)
+        {
+            if (header.Contains('/') || System.Text.RegularExpressions.Regex.IsMatch(header, "(تنبيه|حالة|ملاحظة)"))
+                return allSaudi;
+            return true;
+        }
+        return allSaudi;
+    }
+
+    static (string[] Headers, List<object?[]> Rows, HashSet<int> Numeric) SplitIbanColumns(string[] headers, List<string[]> rows, HashSet<int> numbers)
+    {
+        var ibanCols = new HashSet<int>();
+        for (int i = 0; i < headers.Length; i++)
+            if (IsIbanHeader(headers[i], rows.Select(r => r[i]))) ibanCols.Add(i);
+        var outHeaders = new List<string>();
+        var outNumeric = new HashSet<int>();
+        for (int i = 0; i < headers.Length; i++)
+        {
+            if (ibanCols.Contains(i)) { outHeaders.Add(headers[i]); outHeaders.Add("كود البنك"); outHeaders.Add("اسم البنك"); continue; }
+            if (numbers.Contains(i)) outNumeric.Add(outHeaders.Count);
+            outHeaders.Add(headers[i]);
+        }
+        var outRows = new List<object?[]>();
+        foreach (var row in rows)
+        {
+            var cells = new List<object?>();
+            for (int i = 0; i < headers.Length; i++)
+            {
+                if (ibanCols.Contains(i))
+                {
+                    string iban = IbanChoices.NormalizeIban(row[i]);
+                    var (code, name) = BankPayrollFiles.ExportBank(iban);
+                    cells.Add(iban); cells.Add(code); cells.Add(name);
+                    continue;
+                }
+                if (numbers.Contains(i) && decimal.TryParse(row[i], NumberStyles.Number, CultureInfo.InvariantCulture, out decimal n))
+                    cells.Add(n);
+                else
+                    cells.Add(row[i]);
+            }
+            outRows.Add(cells.ToArray());
+        }
+        return (outHeaders.ToArray(), outRows, outNumeric);
     }
 }

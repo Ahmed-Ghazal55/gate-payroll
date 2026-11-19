@@ -20,7 +20,14 @@ const SAUDI_IBAN = /^SA\d{22}$/;
 
 /** True when the column is an IBAN column: by its header, or every non-empty value is a Saudi IBAN. */
 export function isIbanColumn(header: string, values: ExportCell[]): boolean {
-  if (IBAN_HEADER.test(header)) return true;
+  // Reject composite/alert headers (e.g. «المنصة / الآيبان», «تنبيه الآيبان») unless cells are pure IBANs.
+  if (IBAN_HEADER.test(header)) {
+    if (/[\/|]/.test(header) || /(تنبيه|حالة|ملاحظة)/.test(header)) {
+      const filled = values.map((v) => cleanIban(v == null ? '' : String(v))).filter((v) => v && v !== '—');
+      return filled.length > 0 && filled.every((v) => SAUDI_IBAN.test(v));
+    }
+    return true;
+  }
   const filled = values.map((v) => cleanIban(v == null ? '' : String(v))).filter((v) => v && v !== '—');
   return filled.length > 0 && filled.every((v) => SAUDI_IBAN.test(v));
 }
