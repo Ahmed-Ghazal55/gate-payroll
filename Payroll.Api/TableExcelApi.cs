@@ -145,8 +145,15 @@ public static class TableExcelApi
         return new(fingerprint, rows, errors);
     }
 
-    static string ProtectText(string value) =>
-        value.Length > 0 && "=+-@\t\r".Contains(value[0]) ? "'" + value : value;
+    // Formula-injection guard. Keep leading + / - when the rest is a phone or number (E.164).
+    static string ProtectText(string value)
+    {
+        if (value.Length == 0) return value;
+        char c = value[0];
+        if (c is '=' or '@' or '\t' or '\r') return "'" + value;
+        if ((c is '+' or '-') && (value.Length == 1 || !char.IsDigit(value[1]))) return "'" + value;
+        return value;
+    }
 
     static bool IsIbanHeader(string header, IEnumerable<string> values)
     {

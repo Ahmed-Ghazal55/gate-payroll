@@ -10601,6 +10601,7 @@ export interface paths {
             parameters: {
                 query: {
                     period: string;
+                    approvedOnly?: boolean;
                 };
                 header?: never;
                 path: {
@@ -10632,6 +10633,9 @@ export interface paths {
                             closing: number;
                             balanceBasis?: string;
                             approvedOnly?: boolean;
+                            closingMarkerAr?: string;
+                            disclaimerAr?: string;
+                            shortLines?: Record<string, never>[];
                             cards: {
                                 app: string;
                                 platform?: string;
@@ -11199,13 +11203,60 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            id: string;
+                            campaignId: string;
+                            campaignTitle?: string;
+                            name?: string;
+                            iqama: string;
+                            phone?: string;
+                            city?: string;
+                            workSystem?: string;
+                            iban?: string;
+                            bank?: string;
+                            bankCode?: string;
+                            platforms?: string[];
+                            status: string;
+                            isEdited?: boolean;
+                            version?: number;
+                            createdAt: string;
+                            updatedAt?: string;
+                            reviewedAt?: string;
+                            reviewNote?: string;
+                            history?: Record<string, never>[];
+                        }[] | {
+                            items: {
+                                id: string;
+                                campaignId: string;
+                                campaignTitle?: string;
+                                name?: string;
+                                iqama: string;
+                                phone?: string;
+                                city?: string;
+                                workSystem?: string;
+                                iban?: string;
+                                bank?: string;
+                                bankCode?: string;
+                                platforms?: string[];
+                                status: string;
+                                isEdited?: boolean;
+                                version?: number;
+                                createdAt: string;
+                                updatedAt?: string;
+                                reviewedAt?: string;
+                                reviewNote?: string;
+                                history?: Record<string, never>[];
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -12787,13 +12838,40 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            id: string;
+                            iqama: string;
+                            riderName?: string;
+                            language?: string;
+                            status: string;
+                            createdAt?: string;
+                            lastSeenAt?: string;
+                            expiresAtUtc?: string;
+                            deviceFingerprint?: string;
+                            fcmRegistered?: boolean;
+                        }[] | {
+                            items: {
+                                id: string;
+                                iqama: string;
+                                riderName?: string;
+                                language?: string;
+                                status: string;
+                                createdAt?: string;
+                                lastSeenAt?: string;
+                                expiresAtUtc?: string;
+                                deviceFingerprint?: string;
+                                fcmRegistered?: boolean;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -15900,13 +15978,34 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            titleAr: string;
+                            status: string;
+                            fields?: Record<string, never>[];
+                            createdAt?: string;
+                            updatedAt?: string;
+                            publicUrl?: string;
+                        }[] | {
+                            items: {
+                                id: string;
+                                titleAr: string;
+                                status: string;
+                                fields?: Record<string, never>[];
+                                createdAt?: string;
+                                updatedAt?: string;
+                                publicUrl?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -16142,13 +16241,34 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            campaignId: string;
+                            campaignTitle?: string;
+                            name?: string;
+                            iqama: string;
+                            phone?: string;
+                            city?: string;
+                            workSystem?: string;
+                            iban?: string;
+                            bank?: string;
+                            bankCode?: string;
+                            platforms?: string[];
+                            status: string;
+                            isEdited?: boolean;
+                            version?: number;
+                            createdAt: string;
+                            updatedAt?: string;
+                            reviewedAt?: string;
+                            reviewNote?: string;
+                            history?: Record<string, never>[];
+                        };
                     };
                 };
             };
@@ -17156,6 +17276,11 @@ export interface paths {
                             expiresAt?: string;
                             path?: string;
                             kind?: string;
+                            publicUrl?: string;
+                            qrCodeUrl?: string;
+                            responseCount?: number;
+                            companyId?: string;
+                            target?: string;
                         }[] | {
                             items: {
                                 id: string;
@@ -17164,6 +17289,11 @@ export interface paths {
                                 expiresAt?: string;
                                 path?: string;
                                 kind?: string;
+                                publicUrl?: string;
+                                qrCodeUrl?: string;
+                                responseCount?: number;
+                                companyId?: string;
+                                target?: string;
                             }[];
                             total: number;
                             page: number;
@@ -17201,6 +17331,11 @@ export interface paths {
                             expiresAt?: string;
                             path?: string;
                             kind?: string;
+                            publicUrl?: string;
+                            qrCodeUrl?: string;
+                            responseCount?: number;
+                            companyId?: string;
+                            target?: string;
                         };
                     };
                 };
@@ -17303,13 +17438,60 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            campaignId: string;
+                            campaignTitle?: string;
+                            name?: string;
+                            iqama: string;
+                            phone?: string;
+                            city?: string;
+                            workSystem?: string;
+                            iban?: string;
+                            bank?: string;
+                            bankCode?: string;
+                            platforms?: string[];
+                            status: string;
+                            isEdited?: boolean;
+                            version?: number;
+                            createdAt: string;
+                            updatedAt?: string;
+                            reviewedAt?: string;
+                            reviewNote?: string;
+                            history?: Record<string, never>[];
+                        }[] | {
+                            items: {
+                                id: string;
+                                campaignId: string;
+                                campaignTitle?: string;
+                                name?: string;
+                                iqama: string;
+                                phone?: string;
+                                city?: string;
+                                workSystem?: string;
+                                iban?: string;
+                                bank?: string;
+                                bankCode?: string;
+                                platforms?: string[];
+                                status: string;
+                                isEdited?: boolean;
+                                version?: number;
+                                createdAt: string;
+                                updatedAt?: string;
+                                reviewedAt?: string;
+                                reviewNote?: string;
+                                history?: Record<string, never>[];
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -17347,13 +17529,34 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            campaignId: string;
+                            campaignTitle?: string;
+                            name?: string;
+                            iqama: string;
+                            phone?: string;
+                            city?: string;
+                            workSystem?: string;
+                            iban?: string;
+                            bank?: string;
+                            bankCode?: string;
+                            platforms?: string[];
+                            status: string;
+                            isEdited?: boolean;
+                            version?: number;
+                            createdAt: string;
+                            updatedAt?: string;
+                            reviewedAt?: string;
+                            reviewNote?: string;
+                            history?: Record<string, never>[];
+                        };
                     };
                 };
             };
@@ -17437,6 +17640,11 @@ export interface paths {
                             expiresAt?: string;
                             path?: string;
                             kind?: string;
+                            publicUrl?: string;
+                            qrCodeUrl?: string;
+                            responseCount?: number;
+                            companyId?: string;
+                            target?: string;
                         };
                     };
                 };
@@ -17472,6 +17680,11 @@ export interface paths {
                             expiresAt?: string;
                             path?: string;
                             kind?: string;
+                            publicUrl?: string;
+                            qrCodeUrl?: string;
+                            responseCount?: number;
+                            companyId?: string;
+                            target?: string;
                         };
                     };
                 };
@@ -17542,13 +17755,34 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfbooleanAndstring"];
+                        "application/json": {
+                            id: string;
+                            campaignId: string;
+                            campaignTitle?: string;
+                            name?: string;
+                            iqama: string;
+                            phone?: string;
+                            city?: string;
+                            workSystem?: string;
+                            iban?: string;
+                            bank?: string;
+                            bankCode?: string;
+                            platforms?: string[];
+                            status: string;
+                            isEdited?: boolean;
+                            version?: number;
+                            createdAt: string;
+                            updatedAt?: string;
+                            reviewedAt?: string;
+                            reviewNote?: string;
+                            history?: Record<string, never>[];
+                        };
                     };
                 };
             };

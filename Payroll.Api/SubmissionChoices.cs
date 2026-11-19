@@ -29,18 +29,18 @@ public static class SubmissionChoices
     }
     /// <summary>
     /// Company scope for a submission/custom-response iqama.
-    /// Riders assigned to a company must match <see cref="FinancialScopes.Rider"/>.
-    /// Missing or company-unassigned riders stay visible to unscoped forms staff (and all-company users).
+    /// Forms staff with no <c>finance.sponsorIds</c> claims keep full forms visibility (legacy Reviewer).
+    /// Company-scoped callers must match <see cref="FinancialScopes.Rider"/> (out of scope → 404).
     /// </summary>
     public static bool InRiderScope(DbConnection c, ClaimsPrincipal user, string iqama, DbTransaction? tx = null)
     {
-        if (iqama == "") return false;
+        // Custom-form answers without an iqama field are not company-scoped.
+        if (iqama == "") return true;
         if (AccessPolicy.Administrator(user) || FinancialScopes.AllCompanies(user)) return true;
-        bool unscoped = !user.FindAll("finance.sponsorIds").Any();
+        // No sponsor claims = unscoped forms staff (see all submissions). Scoped users are restricted below.
+        if (!user.FindAll("finance.sponsorIds").Any()) return true;
         var rider = Store.Get(c, iqama, "rider", tx);
-        if (rider == null) return unscoped;
-        bool assigned = rider.S("financeSponsorId") != "" || rider.S("sponsorId") != "" || FinancialCore.FindSponsor(rider.S("sponsor")) != null;
-        if (!assigned) return unscoped;
+        if (rider == null) return false;
         return FinancialScopes.Rider(user, rider);
     }
     public static void DemandInScope(DbConnection c, ClaimsPrincipal user, JsonObject submission, DbTransaction? tx = null)

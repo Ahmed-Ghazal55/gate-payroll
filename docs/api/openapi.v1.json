@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:37835/"
+      "url": "http://127.0.0.1:36205/"
     }
   ],
   "paths": {
@@ -19100,6 +19100,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "approvedOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -19172,6 +19179,18 @@
                     },
                     "approvedOnly": {
                       "type": "boolean"
+                    },
+                    "closingMarkerAr": {
+                      "type": "string"
+                    },
+                    "disclaimerAr": {
+                      "type": "string"
+                    },
+                    "shortLines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
                     },
                     "cards": {
                       "type": "array",
@@ -19702,10 +19721,195 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "campaignId",
+                          "iqama",
+                          "status",
+                          "createdAt"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "campaignId": {
+                            "type": "string"
+                          },
+                          "campaignTitle": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "phone": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "string"
+                          },
+                          "workSystem": {
+                            "type": "string"
+                          },
+                          "iban": {
+                            "type": "string"
+                          },
+                          "bank": {
+                            "type": "string"
+                          },
+                          "bankCode": {
+                            "type": "string"
+                          },
+                          "platforms": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "isEdited": {
+                            "type": "boolean"
+                          },
+                          "version": {
+                            "type": "number"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          },
+                          "reviewedAt": {
+                            "type": "string"
+                          },
+                          "reviewNote": {
+                            "type": "string"
+                          },
+                          "history": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "pageSize"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "id",
+                              "campaignId",
+                              "iqama",
+                              "status",
+                              "createdAt"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "campaignId": {
+                                "type": "string"
+                              },
+                              "campaignTitle": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "iqama": {
+                                "type": "string"
+                              },
+                              "phone": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "string"
+                              },
+                              "workSystem": {
+                                "type": "string"
+                              },
+                              "iban": {
+                                "type": "string"
+                              },
+                              "bank": {
+                                "type": "string"
+                              },
+                              "bankCode": {
+                                "type": "string"
+                              },
+                              "platforms": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "isEdited": {
+                                "type": "boolean"
+                              },
+                              "version": {
+                                "type": "number"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "updatedAt": {
+                                "type": "string"
+                              },
+                              "reviewedAt": {
+                                "type": "string"
+                              },
+                              "reviewNote": {
+                                "type": "string"
+                              },
+                              "history": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "number"
+                        },
+                        "page": {
+                          "type": "number"
+                        },
+                        "pageSize": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
@@ -21770,10 +21974,119 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "iqama",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "riderName": {
+                            "type": "string"
+                          },
+                          "language": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "lastSeenAt": {
+                            "type": "string"
+                          },
+                          "expiresAtUtc": {
+                            "type": "string"
+                          },
+                          "deviceFingerprint": {
+                            "type": "string"
+                          },
+                          "fcmRegistered": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "pageSize"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "id",
+                              "iqama",
+                              "status"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "iqama": {
+                                "type": "string"
+                              },
+                              "riderName": {
+                                "type": "string"
+                              },
+                              "language": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "lastSeenAt": {
+                                "type": "string"
+                              },
+                              "expiresAtUtc": {
+                                "type": "string"
+                              },
+                              "deviceFingerprint": {
+                                "type": "string"
+                              },
+                              "fcmRegistered": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "number"
+                        },
+                        "page": {
+                          "type": "number"
+                        },
+                        "pageSize": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
@@ -25469,14 +25782,106 @@
         "summary": "Read forms builder",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JsonObject"
-                  }
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "titleAr",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "titleAr": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "fields": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          },
+                          "publicUrl": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "pageSize"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "id",
+                              "titleAr",
+                              "status"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "titleAr": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "fields": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object"
+                                }
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "updatedAt": {
+                                "type": "string"
+                              },
+                              "publicUrl": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "number"
+                        },
+                        "page": {
+                          "type": "number"
+                        },
+                        "pageSize": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -25691,13 +26096,85 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "campaignId",
+                    "iqama",
+                    "status",
+                    "createdAt"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "campaignId": {
+                      "type": "string"
+                    },
+                    "campaignTitle": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "phone": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "workSystem": {
+                      "type": "string"
+                    },
+                    "iban": {
+                      "type": "string"
+                    },
+                    "bank": {
+                      "type": "string"
+                    },
+                    "bankCode": {
+                      "type": "string"
+                    },
+                    "platforms": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "isEdited": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "reviewedAt": {
+                      "type": "string"
+                    },
+                    "reviewNote": {
+                      "type": "string"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
                   }
                 }
               }
@@ -26715,6 +27192,21 @@
                           },
                           "kind": {
                             "type": "string"
+                          },
+                          "publicUrl": {
+                            "type": "string"
+                          },
+                          "qrCodeUrl": {
+                            "type": "string"
+                          },
+                          "responseCount": {
+                            "type": "number"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
                           }
                         }
                       }
@@ -26752,6 +27244,21 @@
                                 "type": "string"
                               },
                               "kind": {
+                                "type": "string"
+                              },
+                              "publicUrl": {
+                                "type": "string"
+                              },
+                              "qrCodeUrl": {
+                                "type": "string"
+                              },
+                              "responseCount": {
+                                "type": "number"
+                              },
+                              "companyId": {
+                                "type": "string"
+                              },
+                              "target": {
                                 "type": "string"
                               }
                             }
@@ -26817,6 +27324,21 @@
                       "type": "string"
                     },
                     "kind": {
+                      "type": "string"
+                    },
+                    "publicUrl": {
+                      "type": "string"
+                    },
+                    "qrCodeUrl": {
+                      "type": "string"
+                    },
+                    "responseCount": {
+                      "type": "number"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "target": {
                       "type": "string"
                     }
                   }
@@ -26888,14 +27410,194 @@
         "summary": "Read submissions",
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JsonObject"
-                  }
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "campaignId",
+                          "iqama",
+                          "status",
+                          "createdAt"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "campaignId": {
+                            "type": "string"
+                          },
+                          "campaignTitle": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "phone": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "string"
+                          },
+                          "workSystem": {
+                            "type": "string"
+                          },
+                          "iban": {
+                            "type": "string"
+                          },
+                          "bank": {
+                            "type": "string"
+                          },
+                          "bankCode": {
+                            "type": "string"
+                          },
+                          "platforms": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "isEdited": {
+                            "type": "boolean"
+                          },
+                          "version": {
+                            "type": "number"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          },
+                          "reviewedAt": {
+                            "type": "string"
+                          },
+                          "reviewNote": {
+                            "type": "string"
+                          },
+                          "history": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "pageSize"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "id",
+                              "campaignId",
+                              "iqama",
+                              "status",
+                              "createdAt"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "campaignId": {
+                                "type": "string"
+                              },
+                              "campaignTitle": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "iqama": {
+                                "type": "string"
+                              },
+                              "phone": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "string"
+                              },
+                              "workSystem": {
+                                "type": "string"
+                              },
+                              "iban": {
+                                "type": "string"
+                              },
+                              "bank": {
+                                "type": "string"
+                              },
+                              "bankCode": {
+                                "type": "string"
+                              },
+                              "platforms": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "isEdited": {
+                                "type": "boolean"
+                              },
+                              "version": {
+                                "type": "number"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "updatedAt": {
+                                "type": "string"
+                              },
+                              "reviewedAt": {
+                                "type": "string"
+                              },
+                              "reviewNote": {
+                                "type": "string"
+                              },
+                              "history": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "number"
+                        },
+                        "page": {
+                          "type": "number"
+                        },
+                        "pageSize": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -26931,11 +27633,86 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "id",
+                    "campaignId",
+                    "iqama",
+                    "status",
+                    "createdAt"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "campaignId": {
+                      "type": "string"
+                    },
+                    "campaignTitle": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "phone": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "workSystem": {
+                      "type": "string"
+                    },
+                    "iban": {
+                      "type": "string"
+                    },
+                    "bank": {
+                      "type": "string"
+                    },
+                    "bankCode": {
+                      "type": "string"
+                    },
+                    "platforms": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "isEdited": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "reviewedAt": {
+                      "type": "string"
+                    },
+                    "reviewNote": {
+                      "type": "string"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -27020,6 +27797,21 @@
                     },
                     "kind": {
                       "type": "string"
+                    },
+                    "publicUrl": {
+                      "type": "string"
+                    },
+                    "qrCodeUrl": {
+                      "type": "string"
+                    },
+                    "responseCount": {
+                      "type": "number"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
                     }
                   }
                 }
@@ -27081,6 +27873,21 @@
                     },
                     "kind": {
                       "type": "string"
+                    },
+                    "publicUrl": {
+                      "type": "string"
+                    },
+                    "qrCodeUrl": {
+                      "type": "string"
+                    },
+                    "responseCount": {
+                      "type": "number"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
                     }
                   }
                 }
@@ -27136,11 +27943,86 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfbooleanAndstring"
+                  "required": [
+                    "id",
+                    "campaignId",
+                    "iqama",
+                    "status",
+                    "createdAt"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "campaignId": {
+                      "type": "string"
+                    },
+                    "campaignTitle": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "phone": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "workSystem": {
+                      "type": "string"
+                    },
+                    "iban": {
+                      "type": "string"
+                    },
+                    "bank": {
+                      "type": "string"
+                    },
+                    "bankCode": {
+                      "type": "string"
+                    },
+                    "platforms": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "isEdited": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "reviewedAt": {
+                      "type": "string"
+                    },
+                    "reviewNote": {
+                      "type": "string"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
                 }
               }
             }
