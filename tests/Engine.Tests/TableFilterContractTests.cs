@@ -211,4 +211,96 @@ public sealed class TableFilterContractTests
         var wfIbanRes = (JsonObject)wfDistinct.Invoke(null, [f.Store, cfg, env, wfIbanCtx])!;
         Assert.AreEqual(0, wfIbanRes["values"]!.AsArray().Count);
     }
+
+    [TestMethod]
+    public void EnforcesWhitelistScopeAndPermissionsOnBroadcastsAndServiceRequests()
+    {
+        using var f = new PayFixture();
+        var sp1 = FinancialCore.Sponsors[0].Id;
+        var sp2 = FinancialCore.Sponsors[1].Id;
+
+        f.Store.Write((c, tx) =>
+        {
+            Store.Save(c, "rider", new JsonObject
+            {
+                ["id"] = "2200000011", ["iqama"] = "2200000011", ["name"] = "مندوب نطاق أول",
+                ["sponsorId"] = sp1, ["financeSponsorId"] = sp1, ["platforms"] = "Jahez", ["status"] = "Active"
+            }, tx);
+            Store.Save(c, "rider", new JsonObject
+            {
+                ["id"] = "2200000022", ["iqama"] = "2200000022", ["name"] = "مندوب نطاق ثان",
+                ["sponsorId"] = sp2, ["financeSponsorId"] = sp2, ["platforms"] = "Jahez", ["status"] = "Active"
+            }, tx);
+            Store.Save(c, "mobile_broadcast", new JsonObject
+            {
+                ["id"] = "mb-1", ["titleAr"] = "إشعار نطاق أول", ["kind"] = "individual", ["category"] = "warning",
+                ["targetIqama"] = "2200000011", ["sentBy"] = "admin", ["createdAt"] = "2026-11-10T10:00:00Z"
+            }, tx);
+            Store.Save(c, "mobile_broadcast", new JsonObject
+            {
+                ["id"] = "mb-2", ["titleAr"] = "إشعار نطاق ثان", ["kind"] = "individual", ["category"] = "warning",
+                ["targetIqama"] = "2200000022", ["sentBy"] = "admin", ["createdAt"] = "2026-11-11T10:00:00Z"
+            }, tx);
+            Store.Save(c, RiderAsks.ServiceKind, new JsonObject
+            {
+                ["id"] = "sreq:1", ["riderIqama"] = "2200000011", ["riderName"] = "مندوب نطاق أول",
+                ["companyId"] = sp1, ["requestType"] = "annual_leave", ["direction"] = "rider_to_admin",
+                ["reason"] = "إجازة سنوية", ["status"] = "open", ["createdAt"] = "2026-11-12T08:00:00Z"
+            }, tx);
+            Store.Save(c, RiderAsks.ServiceKind, new JsonObject
+            {
+                ["id"] = "sreq:2", ["riderIqama"] = "2200000022", ["riderName"] = "مندوب نطاق ثان",
+                ["companyId"] = sp2, ["requestType"] = "annual_leave", ["direction"] = "rider_to_admin",
+                ["reason"] = "إجازة ثانية", ["status"] = "open", ["createdAt"] = "2026-11-13T08:00:00Z"
+            }, tx);
+            return true;
+        });
+
+        // 1. Broadcasts: permission required (403 without mobile.broadcast)
+        var noPerm = ScopedSponsorUser(sp1, "debts.view");
+        var emptyCtx = new DefaultHttpContext();
+        emptyCtx.Request.QueryString = new QueryString("?column=kind");
+        var exPerm = Assert.ThrowsExactly<ApiError>(() =>
+            f.Store.Read(c => FinancialCore.DistinctBroadcasts(c, noPerm, emptyCtx.Request.Query)));
+        Assert.AreEqual(403, exPerm.Status);
+
+        // 2. Broadcasts: rejects unwhitelisted filter column (400)
+        var scopedBroadcastUser = ScopedSponsorUser(sp1, "mobile.broadcast");
+        var badBcCtx = new DefaultHttpContext();
+        badBcCtx.Request.QueryString = new QueryString("?page=1&pageSize=25&filters=[{\"col\":\"secretField\",\"op\":\"eq\",\"value\":\"x\"}]");
+        var exBc = Assert.ThrowsExactly<ApiError>(() =>
+            f.Store.Read(c => ApiPagination.Apply(
+                FinancialCore.ListScopedBroadcasts(c, scopedBroadcastUser, badBcCtx.Request.Query),
+                badBcCtx.Request.Query,
+                whitelist: FinancialCore.BroadcastAllowedColumns)));
+        Assert.AreEqual(400, exBc.Status);
+
+        // 3. Broadcasts: scope enforcement + distinct + counts
+        var okBcCtx = new DefaultHttpContext();
+        okBcCtx.Request.QueryString = new QueryString("?column=targetIqama");
+        var bcDistinct = f.Store.Read(c => FinancialCore.DistinctBroadcasts(c, scopedBroadcastUser, okBcCtx.Request.Query));
+        var bcTargets = bcDistinct["values"]!.AsArray().Select(x => x!.ToString()).ToList();
+        CollectionAssert.AreEqual(new[] { "2200000011" }, bcTargets);
+
+        // 4. Service Requests: rejects unwhitelisted sort column (400)
+        var badSrCtx = new DefaultHttpContext();
+        badSrCtx.Request.QueryString = new QueryString("?page=1&pageSize=25&sort=[{\"col\":\"passwordHash\",\"dir\":\"asc\"}]");
+        var exSr = Assert.ThrowsExactly<ApiError>(() =>
+            f.Store.Read(c => RiderAsks.ListScopedServiceRequests(c, scopedBroadcastUser, null, null, null, null, badSrCtx.Request.Query)));
+        Assert.AreEqual(400, exSr.Status);
+
+        // 5. Service Requests: scope + filters + distinct
+        var okSrCtx = new DefaultHttpContext();
+        okSrCtx.Request.QueryString = new QueryString("?page=1&pageSize=25&filters=[{\"col\":\"requestType\",\"op\":\"eq\",\"value\":\"annual_leave\"}]");
+        var srPage = f.Store.Read(c => JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(
+            RiderAsks.ListScopedServiceRequests(c, scopedBroadcastUser, null, null, null, null, okSrCtx.Request.Query)))!.AsObject());
+        var srItems = srPage["items"]!.AsArray().OfType<JsonObject>().ToList();
+        Assert.AreEqual(1, srItems.Count);
+        Assert.AreEqual("sreq:1", srItems[0].S("id"));
+
+        var srDistinctCtx = new DefaultHttpContext();
+        srDistinctCtx.Request.QueryString = new QueryString("?column=riderIqama");
+        var srDistinct = f.Store.Read(c => RiderAsks.DistinctServiceRequests(c, scopedBroadcastUser, null, null, null, null, srDistinctCtx.Request.Query));
+        CollectionAssert.AreEqual(new[] { "2200000011" }, srDistinct["values"]!.AsArray().Select(x => x!.ToString()).ToList());
+    }
 }

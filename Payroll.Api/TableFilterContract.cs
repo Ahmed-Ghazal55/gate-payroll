@@ -76,7 +76,17 @@ public static class TableFilterContract
         ["rider"] = "مندوب",
         ["admin"] = "إداري",
         ["Car"] = "سيارة",
-        ["Motorcycle"] = "دراجة نارية"
+        ["Motorcycle"] = "دراجة نارية",
+        ["ALL"] = "كل المناديب",
+        ["general"] = "تعميم عام",
+        ["individual"] = "إشعار فردي",
+        ["admin_to_rider"] = "من الإدارة للمندوب",
+        ["rider_to_admin"] = "من المندوب",
+        ["annual_leave"] = "إجازة سنوية",
+        ["appointment"] = "حجز موعد",
+        ["iban_update"] = "تحديث الآيبان",
+        ["data_update"] = "تحديث البيانات",
+        ["complaint"] = "شكوى سرية"
     };
 
     static readonly HashSet<string> SuccessTokens = new(StringComparer.OrdinalIgnoreCase)

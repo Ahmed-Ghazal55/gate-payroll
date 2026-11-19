@@ -927,37 +927,21 @@ public static class FinancialCore
                     var items = Store.ListBroadcastsForRider(c, iqama, PushNotifications.MaxRiderListItems)
                         .Select(b => ProjectRiderBroadcast(b, iqama))
                         .ToList();
-                    return ApiPagination.Apply(items, ctx.Request.Query);
+                    return ApiPagination.Apply(items, ctx.Request.Query, whitelist: BroadcastAllowedColumns);
                 });
             }
             if (ctx.User.Identity?.IsAuthenticated != true) throw new ApiError("سجل الدخول.", 401);
             AccessPolicy.Demand(ctx.User, "mobile.broadcast");
             return store.Read(c =>
             {
-                // R7 history tab: kind/category filters run in SQL; targeted rows stay inside the caller's rider scope.
-                var filters = new List<(string, string)>();
-                string kindFilter = ctx.Request.Query["kind"].ToString().Trim(), categoryFilter = ctx.Request.Query["category"].ToString().Trim();
-                if (kindFilter.Length > 0) filters.Add(("kind", kindFilter));
-                if (categoryFilter.Length > 0) filters.Add(("category", categoryFilter));
-                var rows = Store.ListWhere(c, "mobile_broadcast", null, null, filters.ToArray());
-                bool wide = AccessPolicy.Administrator(ctx.User) || FinancialScopes.AllCompanies(ctx.User);
-                var riders = wide ? new Dictionary<string, JsonObject>(StringComparer.Ordinal)
-                    : Store.ListByIds(c, "rider", rows.Select(b => b.S("targetIqama")).Where(t => t != "ALL").ToList())
-                        .GroupBy(r => r.S("id"), StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
-                var visible = rows
-                    .Where(b => wide || b.S("targetIqama") == "ALL" || riders.TryGetValue(b.S("targetIqama"), out var rider) && FinancialScopes.Rider(ctx.User, rider))
-                    .OrderByDescending(b => b.S("createdAt"), StringComparer.Ordinal)
-                    .Select(b =>
-                    {
-                        var v = b.Clone();
-                        v["ackCount"] = (b["acknowledgedBy"] as JsonArray)?.Count ?? 0;
-                        v["readCount"] = (b["readReceipts"] as JsonArray)?.Count ?? 0;
-                        return v;
-                    })
-                    .ToList();
-                return ApiPagination.Apply(visible, ctx.Request.Query);
+                var visible = ListScopedBroadcasts(c, ctx.User, ctx.Request.Query);
+                return ApiPagination.Apply(visible, ctx.Request.Query, whitelist: BroadcastAllowedColumns);
             });
         }).WithTags("Riders").WithSummary("Read scoped broadcasts with a staff cookie or active rider bearer token");
+
+        api.MapGet("/rider-mobile/broadcasts/distinct", (HttpContext ctx) =>
+            store.Read(c => DistinctBroadcasts(c, ctx.User, ctx.Request.Query)))
+            .WithTags("Riders").WithSummary("Distinct column values for rider mobile broadcasts table filters");
 
         // إعدادات ربط Firebase Cloud Messaging (FCM) وتطبيق Google Play
         api.MapGet("/rider-mobile/firebase-config", (HttpContext ctx) => store.Read(c =>
@@ -1219,6 +1203,48 @@ public static class FinancialCore
             Store.Audit(c, tx, "promissory_note.created", note.S("id"), ctx.User.Identity!.Name!);
             return note;
         })).WithTags("Debts and advances").WithSummary("Submit promissory notes");
+    }
+
+    public static readonly HashSet<string> BroadcastAllowedColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id", "titleAr", "titleEn", "titleUr", "bodyAr", "targetIqama",
+        "kind", "category", "readCount", "ackCount", "sentBy", "createdAt"
+    };
+
+    public static List<JsonObject> ListScopedBroadcasts(DbConnection c, System.Security.Claims.ClaimsPrincipal user, IQueryCollection query)
+    {
+        AccessPolicy.Demand(user, "mobile.broadcast");
+        var filters = new List<(string, string)>();
+        string kindFilter = query["kind"].ToString().Trim(), categoryFilter = query["category"].ToString().Trim();
+        if (kindFilter.Length > 0) filters.Add(("kind", kindFilter));
+        if (categoryFilter.Length > 0) filters.Add(("category", categoryFilter));
+        var rows = Store.ListWhere(c, "mobile_broadcast", null, null, filters.ToArray());
+        bool wide = AccessPolicy.Administrator(user) || FinancialScopes.AllCompanies(user);
+        var riders = wide ? new Dictionary<string, JsonObject>(StringComparer.Ordinal)
+            : Store.ListByIds(c, "rider", rows.Select(b => b.S("targetIqama")).Where(t => t != "ALL").ToList())
+                .GroupBy(r => r.S("id"), StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        return rows
+            .Where(b => wide || b.S("targetIqama") == "ALL" || riders.TryGetValue(b.S("targetIqama"), out var rider) && FinancialScopes.Rider(user, rider))
+            .OrderByDescending(b => b.S("createdAt"), StringComparer.Ordinal)
+            .Select(b =>
+            {
+                var v = b.Clone();
+                v["ackCount"] = (b["acknowledgedBy"] as JsonArray)?.Count ?? 0;
+                v["readCount"] = (b["readReceipts"] as JsonArray)?.Count ?? 0;
+                return v;
+            })
+            .ToList();
+    }
+
+    public static JsonObject DistinctBroadcasts(DbConnection c, System.Security.Claims.ClaimsPrincipal user, IQueryCollection query)
+    {
+        AccessPolicy.Demand(user, "mobile.broadcast");
+        _ = TableFilterContract.ParseFilters(query, BroadcastAllowedColumns);
+        string column = (query["column"].ToString() ?? "").Trim();
+        if (!BroadcastAllowedColumns.Contains(column))
+            return new JsonObject { ["column"] = column, ["values"] = new JsonArray(), ["counts"] = new JsonObject() };
+        var visible = ListScopedBroadcasts(c, user, query);
+        return TableFilterContract.BuildDistinct(visible, column, query, BroadcastAllowedColumns);
     }
 
     private const string RiderAppHtml = """

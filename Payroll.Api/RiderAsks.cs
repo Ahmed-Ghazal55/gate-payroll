@@ -1276,15 +1276,12 @@ public static class RiderAsks
         }).WithTags("Riders").WithSummary("Rider sends a reply on an existing request");
 
         api.MapGet("/rider-mobile/service-requests", (string? requestType, string? status, string? iqama, string? group, HttpContext ctx) =>
-            store.Read(c =>
-            {
-                var rows = StaffServiceRequests(c, ctx.User, requestType, status, iqama);
-                // group=other: every type except annual leave and appointments (the requests tab's «طلبات أخرى»).
-                if (string.Equals(group, "other", StringComparison.Ordinal))
-                    rows = rows.Where(r => r.S("requestType") is not ("annual_leave" or "appointment")).ToList();
-                return ApiPagination.Apply(rows, ctx.Request.Query);
-            }))
+            store.Read(c => ListScopedServiceRequests(c, ctx.User, requestType, status, iqama, group, ctx.Request.Query)))
             .WithTags("Riders").WithSummary("List rider service requests within caller scope, hiding confidential complaints from unauthorized staff");
+
+        api.MapGet("/rider-mobile/service-requests/distinct", (string? requestType, string? status, string? iqama, string? group, HttpContext ctx) =>
+            store.Read(c => DistinctServiceRequests(c, ctx.User, requestType, status, iqama, group, ctx.Request.Query)))
+            .WithTags("Riders").WithSummary("Distinct column values for rider service requests table filters");
 
         api.MapGet("/rider-mobile/service-requests/summary", (HttpContext ctx) =>
             store.Read(c => StaffServiceSummary(c, ctx.User)))
@@ -1322,5 +1319,35 @@ public static class RiderAsks
             .WithTags("Debts and advances").WithSummary("Supervisor converts a rider ask into a formal advance request");
         api.MapPost("/advance-requests/rider-asks/{id}/decline", (string id, JsonObject input, HttpContext ctx) => { var res = store.Write((c, tx) => Decline(c, tx, ctx.User, id, input)); PushNotifications.FlushOutbox(store); return res; })
             .WithTags("Debts and advances").WithSummary("Supervisor declines a rider ask with a reason shown to the rider");
+    }
+
+    public static readonly HashSet<string> ServiceRequestAllowedColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id", "riderName", "riderIqama", "requestType", "reason", "titleAr",
+        "direction", "status", "approvalStage", "companyId", "createdAt", "decidedAt"
+    };
+
+    public static object ListScopedServiceRequests(
+        DbConnection c, ClaimsPrincipal user, string? requestType, string? status, string? iqama, string? group, IQueryCollection query)
+    {
+        _ = TableFilterContract.ParseFilters(query, ServiceRequestAllowedColumns);
+        _ = TableFilterContract.ParseSort(query, ServiceRequestAllowedColumns);
+        var rows = StaffServiceRequests(c, user, requestType, status, iqama);
+        if (string.Equals(group, "other", StringComparison.Ordinal))
+            rows = rows.Where(r => r.S("requestType") is not ("annual_leave" or "appointment")).ToList();
+        return ApiPagination.Apply(rows, query, whitelist: ServiceRequestAllowedColumns);
+    }
+
+    public static JsonObject DistinctServiceRequests(
+        DbConnection c, ClaimsPrincipal user, string? requestType, string? status, string? iqama, string? group, IQueryCollection query)
+    {
+        _ = TableFilterContract.ParseFilters(query, ServiceRequestAllowedColumns);
+        string column = (query["column"].ToString() ?? "").Trim();
+        if (!ServiceRequestAllowedColumns.Contains(column))
+            return new JsonObject { ["column"] = column, ["values"] = new JsonArray(), ["counts"] = new JsonObject() };
+        var rows = StaffServiceRequests(c, user, requestType, status, iqama);
+        if (string.Equals(group, "other", StringComparison.Ordinal))
+            rows = rows.Where(r => r.S("requestType") is not ("annual_leave" or "appointment")).ToList();
+        return TableFilterContract.BuildDistinct(rows, column, query, ServiceRequestAllowedColumns);
     }
 }

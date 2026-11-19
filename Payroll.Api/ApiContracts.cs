@@ -122,7 +122,7 @@ public static class ApiContracts
         if(path=="/api/debts/{id}"||(path=="/api/debts"&&!get)||path.EndsWith("/transfer-sponsor")||path.EndsWith("/collect")&&path.StartsWith("/api/debts"))return path.EndsWith("/collect")?O(new(){["debt"]=Debt(),["settlement"]=Free(),["journal"]=Free()},"debt"):Debt();
         if(path=="/api/debts"&&get)return new(){OneOf=[A(Debt()),Page(Debt())]};
         if(path=="/api/debts/summary"&&get)return O(new(){["totalCount"]=N(),["activeRemainingTotal"]=N(),["advanceRemainingTotal"]=N(),["pendingOpeningCount"]=N(),["pendingOpeningTotal"]=N()},"totalCount","activeRemainingTotal","advanceRemainingTotal","pendingOpeningCount","pendingOpeningTotal");
-        if(get&&path is "/api/debts/distinct" or "/api/workforce/distinct" or "/api/operations/distinct")return O(new(){["column"]=S(),["values"]=A(S())},"column","values");
+        if(get&&path is "/api/debts/distinct" or "/api/workforce/distinct" or "/api/operations/distinct" or "/api/rider-mobile/broadcasts/distinct" or "/api/rider-mobile/service-requests/distinct")return O(new(){["column"]=S(),["values"]=A(S())},"column","values");
         if(path=="/api/riders"&&get)return new(){OneOf=[A(Rider()),Page(Rider())]};
         if(path=="/api/companies/stats"&&get)return CompaniesStats();
         if(path=="/api/companies/{id}/stats"&&get)return CompanySingleStats();
