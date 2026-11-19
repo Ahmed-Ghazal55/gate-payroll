@@ -20,5 +20,12 @@ public static class Connections
         if(!live)throw new ImportFailure("unapproved_source");
         b.ApplicationIntent=ApplicationIntent.ReadOnly;b.Encrypt=true;return new SqlConnection(b.ConnectionString);
     }
+    /// <summary>Payroll staging DB only (reporting tools). Not an ERP copy or sync target.</summary>
+    public static SqlConnection Staging(string envPath)
+    {
+        var b=new SqlConnectionStringBuilder(Env(envPath,"STAGING_DB")){ConnectTimeout=20,CommandTimeout=600,ApplicationName="GatePayroll.Staging"};
+        if(b.InitialCatalog!="db77738")throw new ImportFailure("unapproved_target");
+        b.Encrypt=true;return new SqlConnection(b.ConnectionString);
+    }
 }
 public sealed class ImportFailure(string code):Exception { public string Code { get; }=code; }
