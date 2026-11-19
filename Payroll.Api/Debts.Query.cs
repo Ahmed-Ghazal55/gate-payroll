@@ -61,7 +61,7 @@ public static partial class Debts
         string sql = $"""
             SELECT
               COUNT(*) AS totalCount,
-              COALESCE(SUM(CASE WHEN {status} IN ('active','paused') THEN {rem} ELSE 0 END),0) AS activeRemaining,
+              COALESCE(SUM(CASE WHEN {status}='active' THEN {rem} ELSE 0 END),0) AS activeRemaining,
               COALESCE(SUM(CASE WHEN {category} IN ('Advance','CashAdvance','BankAdvance','advance') THEN {rem} ELSE 0 END),0) AS advanceRemaining,
               COALESCE(SUM(CASE WHEN {entryMode}='OpeningBalance' AND {status}='pending_approval' AND COALESCE({approvalRequestId},'')='' THEN 1 ELSE 0 END),0) AS pendingOpeningCount,
               COALESCE(SUM(CASE WHEN {entryMode}='OpeningBalance' AND {status}='pending_approval' AND COALESCE({approvalRequestId},'')='' THEN {rem} ELSE 0 END),0) AS pendingOpeningTotal
