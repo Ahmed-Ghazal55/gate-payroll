@@ -207,17 +207,18 @@ export interface CustomFormQuestion {
 
 export interface CustomForm {
   id: string;
-  title: string;
+  title?: string;
   titleAr?: string;
-  status: 'draft' | 'published' | 'closed';
-  questions: CustomFormQuestion[];
-  responsesCount: number;
-  createdAt: string;
+  status: 'draft' | 'open' | 'closed' | 'published';
+  questions?: CustomFormQuestion[];
+  responsesCount?: number;
+  createdAt?: string;
   expiresAt?: string;
-  fields?: unknown;
+  fields?: Array<{ id?: string } | string> | unknown;
   target?: string;
   companyId?: string;
   targetCompanyId?: string;
+  publicUrl?: string;
 }
 
 export interface PaginatedResult<T> {
