@@ -287,13 +287,13 @@ public static partial class Companies
     static JsonArray StatsActions(ClaimsPrincipal user)
     {
         var actions = new JsonArray();
-        if (AccessPolicy.Has(user, "companies.view")) actions.Add("view");
-        if (AccessPolicy.Has(user, "companies.manage")) actions.Add("manage");
-        if (AccessPolicy.Has(user, "riders.view"))
+        if (AccessPolicy.Has(user, "companies.view"))
         {
-            actions.Add("filter_workforce");
+            actions.Add("view");
             actions.Add("export");
         }
+        if (AccessPolicy.Has(user, "companies.manage")) actions.Add("manage");
+        if (AccessPolicy.Has(user, "riders.view")) actions.Add("filter_workforce");
         return actions;
     }
 

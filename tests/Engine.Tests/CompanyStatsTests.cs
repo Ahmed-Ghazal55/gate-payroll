@@ -42,6 +42,7 @@ public sealed class CompanyStatsTests
         var admin = Principal("syn-co-admin", "Admin", []);
 
         Assert.IsTrue(AccessPolicy.Allowed(viewer, "GET", "/api/companies/stats"));
+        Assert.IsTrue(AccessPolicy.Allowed(viewer, "POST", "/api/excel/export"));
         Assert.IsTrue(AccessPolicy.Allowed(admin, "GET", "/api/companies/stats"));
         Assert.IsFalse(AccessPolicy.Allowed(noPerm, "GET", "/api/companies/stats"));
         Assert.IsFalse(AccessPolicy.Allowed(viewer, "POST", "/api/companies/stats"));
@@ -244,9 +245,9 @@ public sealed class CompanyStatsTests
             Assert.AreEqual(2m, scopedStats["totals"]!.N("platformAccountsTotal"));
             var scopedActions = scopedStats["allowedActions"]!.AsArray().Select(n => n!.ToString()).ToList();
             CollectionAssert.Contains(scopedActions, "view");
+            CollectionAssert.Contains(scopedActions, "export");
             CollectionAssert.DoesNotContain(scopedActions, "manage");
             CollectionAssert.DoesNotContain(scopedActions, "filter_workforce");
-            CollectionAssert.DoesNotContain(scopedActions, "export");
 
             // Platform-restricted user (BW only, Jahez platform only — must not see KEETA account)
             var jahezOnly = Principal("syn-jahez-only", "Reviewer", ["companies.view"], sponsors: [bw], platforms: ["Jahez"]);

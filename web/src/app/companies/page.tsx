@@ -318,6 +318,11 @@ function CompaniesPageContent() {
     [stats]
   );
 
+  const canExportTable = useMemo(
+    () => (activeTab === 'stats' ? canExportStats : isAdmin || can('companies.view') || can('riders.view')),
+    [activeTab, canExportStats, isAdmin, can]
+  );
+
   // Open drawer and load company documents
   const handleOpenDrawer = async (comp: CompanyContract) => {
     setSelectedCompany(comp);
@@ -735,7 +740,7 @@ function CompaniesPageContent() {
           ) : undefined
         }
         onExport={
-          activeTab !== 'stats' || canExportStats
+          canExportTable
             ? (format) => {
                 if (format === 'excel-all') handleExport('all');
                 else if (format === 'excel-filtered') handleExport('filtered');
