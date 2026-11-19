@@ -889,7 +889,7 @@ public static class RiderAsks
 
     public static IResult SubmitInAppForm(Store store, HttpContext ctx, string token, JsonObject input)
     {
-        var session = MobileSessions.Authenticate(store, ctx);
+        var session = PushNotifications.AuthenticateAndRateLimit(store, ctx, write: true);
         string iqama = session.S("iqama");
         var rider = store.Read(c => Store.Get(c, iqama, "rider")) ?? throw new ApiError("المندوب غير موجود.", 404);
         string riderName = rider.S("name");
@@ -1053,21 +1053,18 @@ public static class RiderAsks
     {
         app.MapGet("/api/rider-mobile/forms", (HttpContext ctx) =>
         {
-            PushNotifications.EnforceRiderRateLimit(ctx, write: false);
-            var session = MobileSessions.Authenticate(store, ctx);
+            var session = PushNotifications.AuthenticateAndRateLimit(store, ctx, write: false);
             return store.Read(c => FormSchemasCatalog(c, session.S("iqama")));
         }).WithTags("Riders").WithSummary("Read unified form schemas and active campaigns for the authenticated rider app");
 
         app.MapPost("/api/rider-mobile/forms/{token}/submit", (string token, JsonObject input, HttpContext ctx) =>
         {
-            PushNotifications.EnforceRiderRateLimit(ctx, write: true);
             return SubmitInAppForm(store, ctx, token, input);
         }).WithTags("Riders").WithSummary("Submit an open form or campaign from inside the rider app using the authenticated session identity");
 
         app.MapGet("/api/rider-mobile/requests", (HttpContext ctx) =>
         {
-            PushNotifications.EnforceRiderRateLimit(ctx, write: false);
-            MobileSessions.Authenticate(store, ctx);
+            PushNotifications.AuthenticateAndRateLimit(store, ctx, write: false);
             return store.Read(c =>
             {
                 string iqama = MobileSessions.Validate(c, ctx).S("iqama");
@@ -1087,8 +1084,7 @@ public static class RiderAsks
 
         app.MapPost("/api/rider-mobile/requests", (JsonObject input, HttpContext ctx) =>
         {
-            PushNotifications.EnforceRiderRateLimit(ctx, write: true);
-            MobileSessions.Authenticate(store, ctx);
+            PushNotifications.AuthenticateAndRateLimit(store, ctx, write: true);
             string reqType = input.S("requestType", "advance").Trim().ToLowerInvariant();
             if (reqType == "" || reqType == "advance")
                 return store.Write((c, tx) => Ask(c, tx, ctx, input));
@@ -1097,15 +1093,13 @@ public static class RiderAsks
 
         app.MapPost("/api/rider-mobile/requests/{id}/cancel", (string id, HttpContext ctx) =>
         {
-            PushNotifications.EnforceRiderRateLimit(ctx, write: true);
-            MobileSessions.Authenticate(store, ctx);
+            PushNotifications.AuthenticateAndRateLimit(store, ctx, write: true);
             return store.Write((c, tx) => Cancel(c, tx, ctx, id));
         }).WithTags("Riders").WithSummary("Rider cancels an open advance ask or service request");
 
         app.MapPost("/api/rider-mobile/requests/{id}/reply", (string id, JsonObject input, HttpContext ctx) =>
         {
-            PushNotifications.EnforceRiderRateLimit(ctx, write: true);
-            MobileSessions.Authenticate(store, ctx);
+            PushNotifications.AuthenticateAndRateLimit(store, ctx, write: true);
             return store.Write((c, tx) => RiderReply(c, tx, ctx, id, input));
         }).WithTags("Riders").WithSummary("Rider sends a reply on an existing request");
 

@@ -920,8 +920,7 @@ public static class FinancialCore
         {
             if (!string.IsNullOrEmpty(ctx.Request.Headers.Authorization))
             {
-                PushNotifications.EnforceRiderRateLimit(ctx, write: false);
-                MobileSessions.Authenticate(store, ctx);
+                PushNotifications.AuthenticateAndRateLimit(store, ctx, write: false);
                 return store.Read(c =>
                 {
                     string iqama = AuthenticatedMobileRider(c, ctx);
@@ -998,8 +997,7 @@ public static class FinancialCore
         // واجهة بيانات تطبيق المندوب (يستدعيها تطبيق الجوال بعد تسجيل الدخول بـ rmob_ token)
         app.MapGet("/api/rider-mobile/portal/{iqama}", (string iqama, HttpContext ctx) =>
         {
-            PushNotifications.EnforceRiderRateLimit(ctx, write: false);
-            var session = MobileSessions.Authenticate(store, ctx, iqama);
+            var session = PushNotifications.AuthenticateAndRateLimit(store, ctx, write: false, iqama);
             return store.Read(c =>
         {
             J.Iqama(iqama);
@@ -1071,8 +1069,7 @@ public static class FinancialCore
 
         app.MapPost("/api/rider-mobile/broadcasts/{id}/read", (string id, HttpContext ctx) =>
         {
-            PushNotifications.EnforceRiderRateLimit(ctx, write: true);
-            MobileSessions.Authenticate(store, ctx);
+            PushNotifications.AuthenticateAndRateLimit(store, ctx, write: true);
             return store.Write((c, tx) =>
             {
                 var session = MobileSessions.Validate(c, ctx, tx: tx);
@@ -1101,10 +1098,10 @@ public static class FinancialCore
 
         app.MapPost("/api/rider-mobile/broadcasts/{id}/ack", (string id, JsonObject input, HttpContext ctx) =>
         {
-            PushNotifications.EnforceRiderRateLimit(ctx, write: true);
+            string requestedIqama = input.S("iqama");
+            PushNotifications.AuthenticateAndRateLimit(store, ctx, write: true, string.IsNullOrWhiteSpace(requestedIqama) ? null : J.Iqama(requestedIqama));
             return store.Write((c, tx) =>
             {
-                string requestedIqama = input.S("iqama");
                 var session = string.IsNullOrWhiteSpace(requestedIqama)
                     ? MobileSessions.Validate(c, ctx, tx: tx)
                     : MobileSessions.Validate(c, ctx, J.Iqama(requestedIqama), tx);

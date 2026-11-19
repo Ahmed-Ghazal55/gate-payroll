@@ -60,8 +60,16 @@ public static class PushNotifications
     public static string? ServiceAccountJsonOverride { get; set; }
     public static int? ReadPermitLimitOverride { get; set; }
     public static int? WritePermitLimitOverride { get; set; }
+    public static int? IpReadPermitLimitOverride { get; set; }
+    public static int? IpWritePermitLimitOverride { get; set; }
+    public static Func<DateTimeOffset>? ClockOverride { get; set; }
+
+    public const int DefaultIpReadLimitPerMinute = 180;
+    public const int DefaultIpWriteLimitPerMinute = 60;
 
     private static readonly ConcurrentDictionary<string, (long WindowMinute, int Count)> _rateWindows = new();
+    private static long _lastEvictionMinute;
+    public static int RateWindowBucketCount => _rateWindows.Count;
 
     public static HttpClient GetHttpClient() => TestHttpMessageHandler != null
         ? new HttpClient(TestHttpMessageHandler, disposeHandler: false) { Timeout = TimeSpan.FromSeconds(10) }
@@ -83,21 +91,32 @@ public static class PushNotifications
         ServiceAccountJsonOverride = null;
         ReadPermitLimitOverride = null;
         WritePermitLimitOverride = null;
+        IpReadPermitLimitOverride = null;
+        IpWritePermitLimitOverride = null;
+        ClockOverride = null;
         _rateWindows.Clear();
+        Interlocked.Exchange(ref _lastEvictionMinute, 0);
         Interlocked.Exchange(ref _isFlushing, 0);
     }
 
-    public static void EnforceRiderRateLimit(HttpContext ctx, bool write)
+    static void EvictStaleRateWindows(long currentMinute)
     {
-        string auth = ctx.Request.Headers.Authorization.ToString();
-        string actorKey = auth.StartsWith("Bearer rmob_", StringComparison.Ordinal) && auth.Length >= 28
-            ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(auth[7..])))[..16]
-            : (ctx.Connection.RemoteIpAddress?.ToString() ?? "anon");
-        string bucketKey = (write ? "W:" : "R:") + actorKey;
-        int limit = write
-            ? (WritePermitLimitOverride ?? DefaultWriteLimitPerMinute)
-            : (ReadPermitLimitOverride ?? DefaultReadLimitPerMinute);
-        long currentMinute = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 60;
+        long prev = Interlocked.Read(ref _lastEvictionMinute);
+        if (currentMinute <= prev && _rateWindows.Count <= 4096) return;
+        if (Interlocked.CompareExchange(ref _lastEvictionMinute, currentMinute, prev) != prev && _rateWindows.Count <= 4096) return;
+        foreach (var kv in _rateWindows)
+        {
+            if (kv.Value.WindowMinute < currentMinute)
+            {
+                _rateWindows.TryRemove(kv);
+            }
+        }
+    }
+
+    static void EnforceBucket(HttpContext ctx, string bucketKey, int limit)
+    {
+        long currentMinute = (ClockOverride?.Invoke() ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds() / 60;
+        EvictStaleRateWindows(currentMinute);
         var updated = _rateWindows.AddOrUpdate(
             bucketKey,
             _ => (currentMinute, 1),
@@ -108,6 +127,37 @@ public static class PushNotifications
             throw new ApiError("طلبات كثيرة؛ حاول بعد قليل.", 429);
         }
     }
+
+    // Per-IP check BEFORE auth: never trusts unauthenticated Authorization headers as bucket keys.
+    public static void EnforceRiderIpRateLimit(HttpContext ctx, bool write)
+    {
+        string ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anon";
+        int limit = write
+            ? (IpWritePermitLimitOverride ?? WritePermitLimitOverride ?? DefaultIpWriteLimitPerMinute)
+            : (IpReadPermitLimitOverride ?? ReadPermitLimitOverride ?? DefaultIpReadLimitPerMinute);
+        EnforceBucket(ctx, (write ? "IP:W:" : "IP:R:") + ip, limit);
+    }
+
+    // Per-session check AFTER auth: enforces per-rider quota on the authenticated session id.
+    public static void EnforceRiderSessionRateLimit(HttpContext ctx, JsonObject session, bool write)
+    {
+        string sessionKey = session.S("id");
+        J.Need(!string.IsNullOrWhiteSpace(sessionKey), "جلسة المندوب غير صالحة.", 401);
+        int limit = write
+            ? (WritePermitLimitOverride ?? DefaultWriteLimitPerMinute)
+            : (ReadPermitLimitOverride ?? DefaultReadLimitPerMinute);
+        EnforceBucket(ctx, (write ? "S:W:" : "S:R:") + sessionKey, limit);
+    }
+
+    public static JsonObject AuthenticateAndRateLimit(Store store, HttpContext ctx, bool write, string? iqama = null)
+    {
+        EnforceRiderIpRateLimit(ctx, write);
+        var session = MobileSessions.Authenticate(store, ctx, iqama);
+        EnforceRiderSessionRateLimit(ctx, session, write);
+        return session;
+    }
+
+    public static void EnforceRiderRateLimit(HttpContext ctx, bool write) => EnforceRiderIpRateLimit(ctx, write);
 
     public static bool HasServiceAccount()
     {
@@ -631,8 +681,7 @@ public static class PushNotifications
         // 1. Device token update for rider's active bearer session
         app.MapPost("/api/rider-mobile/device-token", (JsonObject input, HttpContext ctx) =>
         {
-            EnforceRiderRateLimit(ctx, write: true);
-            MobileSessions.Authenticate(store, ctx);
+            AuthenticateAndRateLimit(store, ctx, write: true);
             return store.Write((c, tx) =>
             {
                 var session = MobileSessions.Validate(c, ctx, tx: tx);
@@ -652,8 +701,7 @@ public static class PushNotifications
         // 2. Language switch for rider's active bearer session (ar / en / ur)
         app.MapPost("/api/rider-mobile/language", (JsonObject input, HttpContext ctx) =>
         {
-            EnforceRiderRateLimit(ctx, write: true);
-            MobileSessions.Authenticate(store, ctx);
+            AuthenticateAndRateLimit(store, ctx, write: true);
             return store.Write((c, tx) =>
             {
                 var session = MobileSessions.Validate(c, ctx, tx: tx);

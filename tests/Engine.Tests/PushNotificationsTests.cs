@@ -934,23 +934,54 @@ public sealed class PushNotificationsTests
     }
 
     [TestMethod]
-    public void PerRiderRateLimiterEnforcesQuotasWith429AndRetryAfter()
+    public void PerRiderRateLimiterEnforcesIpBeforeAuthSessionAfterAndEvictsOldWindows()
     {
         PushNotifications.ResetCache();
         try
         {
-            PushNotifications.WritePermitLimitOverride = 3;
-            var ctx = new DefaultHttpContext();
-            ctx.Request.Headers.Authorization = "Bearer rmob_3333333333333333333333333333333333333333333333333333333333333333";
+            var now = new DateTimeOffset(2026, 11, 19, 10, 0, 0, TimeSpan.Zero);
+            PushNotifications.ClockOverride = () => now;
+            PushNotifications.IpWritePermitLimitOverride = 3;
+            PushNotifications.WritePermitLimitOverride = 2;
 
+            // 1. Forged random Bearer rmob_ tokens from the same IP hit IP limit and do NOT create fresh buckets
             for (int i = 0; i < 3; i++)
             {
-                PushNotifications.EnforceRiderRateLimit(ctx, write: true);
+                var forged = new DefaultHttpContext();
+                forged.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.10");
+                forged.Request.Headers.Authorization = "Bearer rmob_" + new string((char)('a' + i), 64);
+                PushNotifications.EnforceRiderIpRateLimit(forged, write: true);
             }
+            Assert.AreEqual(1, PushNotifications.RateWindowBucketCount);
 
-            var err = Assert.ThrowsExactly<ApiError>(() => PushNotifications.EnforceRiderRateLimit(ctx, write: true));
-            Assert.AreEqual(429, err.Status);
-            Assert.AreEqual("60", ctx.Response.Headers.RetryAfter.ToString());
+            var fourthForged = new DefaultHttpContext();
+            fourthForged.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.10");
+            fourthForged.Request.Headers.Authorization = "Bearer rmob_" + new string('z', 64);
+            var ipErr = Assert.ThrowsExactly<ApiError>(() => PushNotifications.EnforceRiderIpRateLimit(fourthForged, write: true));
+            Assert.AreEqual(429, ipErr.Status);
+            Assert.AreEqual("60", fourthForged.Response.Headers.RetryAfter.ToString());
+            Assert.AreEqual(1, PushNotifications.RateWindowBucketCount);
+
+            // 2. Per-session limit applies after auth even if requests come from distinct IPs
+            var session = new JsonObject { ["id"] = "mobile:syn-session-1" };
+            for (int i = 0; i < 2; i++)
+            {
+                var ctx = new DefaultHttpContext();
+                ctx.Connection.RemoteIpAddress = IPAddress.Parse($"198.51.100.{20 + i}");
+                PushNotifications.EnforceRiderIpRateLimit(ctx, write: true);
+                PushNotifications.EnforceRiderSessionRateLimit(ctx, session, write: true);
+            }
+            var overSession = new DefaultHttpContext();
+            overSession.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.25");
+            PushNotifications.EnforceRiderIpRateLimit(overSession, write: true);
+            Assert.AreEqual(429, Assert.ThrowsExactly<ApiError>(() => PushNotifications.EnforceRiderSessionRateLimit(overSession, session, write: true)).Status);
+
+            // 3. Advancing to a later minute evicts all previous-minute windows
+            now = now.AddMinutes(2);
+            var freshCtx = new DefaultHttpContext();
+            freshCtx.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.99");
+            PushNotifications.EnforceRiderIpRateLimit(freshCtx, write: true);
+            Assert.AreEqual(1, PushNotifications.RateWindowBucketCount);
         }
         finally
         {

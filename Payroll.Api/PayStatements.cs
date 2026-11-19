@@ -232,6 +232,6 @@ public static class PayStatements
     public static void Map(WebApplication app,RouteGroupBuilder api,Store store)
     {
         api.MapGet("/finance/statement/rider/{iqama}/monthly",(string iqama,string period,HttpContext ctx)=>store.Read(c=>Build(c,iqama,period,ctx.User))).WithTags("Payroll").WithSummary("Read scoped monthly rider app cards and explainable net with legacy fallback");
-        app.MapGet("/api/rider-mobile/statement",(string period,HttpContext ctx)=>{PushNotifications.EnforceRiderRateLimit(ctx,write:false);MobileSessions.Authenticate(store,ctx);return store.Read(c=>Mobile(c,ctx,period));}).WithTags("Riders").WithSummary("Read own approved monthly statement using rider bearer session only");
+        app.MapGet("/api/rider-mobile/statement",(string period,HttpContext ctx)=>{PushNotifications.AuthenticateAndRateLimit(store,ctx,write:false);return store.Read(c=>Mobile(c,ctx,period));}).WithTags("Riders").WithSummary("Read own approved monthly statement using rider bearer session only");
     }
 }
