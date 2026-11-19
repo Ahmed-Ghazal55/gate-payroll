@@ -1,4 +1,8 @@
-import type { CompanyStatsItem, CompanyStatsPlatformCount } from '../../lib/api';
+import type {
+  CompaniesStatsTotals,
+  CompanyStatsItem,
+  CompanyStatsPlatformCount,
+} from '../../lib/api';
 
 export type CompaniesTabId = 'companies' | 'cr' | 'expiring' | 'stats';
 
@@ -84,6 +88,86 @@ export function getPlatformColumns(
   }
 
   return columns;
+}
+
+export function filterCompanyStatsItems(
+  items: ReadonlyArray<CompanyStatsItem>,
+  query: string
+): CompanyStatsItem[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [...items];
+  return items.filter(
+    (item) =>
+      item.nameAr.toLowerCase().includes(q) ||
+      item.shortNameAr.toLowerCase().includes(q) ||
+      item.code.toLowerCase().includes(q) ||
+      item.unifiedNumber.includes(q) ||
+      item.commercialReg.includes(q)
+  );
+}
+
+export function computeCompanyStatsTotals(
+  items: ReadonlyArray<CompanyStatsItem>
+): CompaniesStatsTotals {
+  let sponsoredTotal = 0;
+  let sponsoredRiders = 0;
+  let sponsoredAdmins = 0;
+  let sponsoredActive = 0;
+  let sponsoredOnLeave = 0;
+  let platformAccountsTotal = 0;
+  let platformAccountsActive = 0;
+  let platformAccountsAssigned = 0;
+  const byPlatMap = new Map<string, CompanyStatsPlatformCount>();
+
+  for (const item of items) {
+    sponsoredTotal += Number(item.sponsorships.total) || 0;
+    sponsoredRiders += Number(item.sponsorships.riders) || 0;
+    sponsoredAdmins += Number(item.sponsorships.admins) || 0;
+    sponsoredActive += Number(item.sponsorships.active) || 0;
+    sponsoredOnLeave += Number(item.sponsorships.onLeave) || 0;
+    platformAccountsTotal += Number(item.platformAccounts.total) || 0;
+    platformAccountsActive += Number(item.platformAccounts.active) || 0;
+    platformAccountsAssigned += Number(item.platformAccounts.assigned) || 0;
+
+    for (const entry of item.platformAccounts.byPlatform) {
+      const code = normalizePlatformCode(entry.code) || 'OTHER';
+      const cur = byPlatMap.get(code);
+      if (cur) {
+        cur.total += Number(entry.total) || 0;
+        cur.active += Number(entry.active) || 0;
+        cur.assigned += Number(entry.assigned) || 0;
+      } else {
+        byPlatMap.set(code, {
+          code,
+          nameAr: platformLabelAr(code, entry.nameAr),
+          total: Number(entry.total) || 0,
+          active: Number(entry.active) || 0,
+          assigned: Number(entry.assigned) || 0,
+        });
+      }
+    }
+  }
+
+  const canonicalIdx = (code: string) => {
+    const idx = CANONICAL_PLATFORMS.findIndex((p) => p.code === code);
+    return idx >= 0 ? idx : CANONICAL_PLATFORMS.length;
+  };
+  const byPlatform = Array.from(byPlatMap.values()).sort(
+    (a, b) => canonicalIdx(a.code) - canonicalIdx(b.code) || a.code.localeCompare(b.code)
+  );
+
+  return {
+    companiesCount: items.length,
+    sponsoredTotal,
+    sponsoredRiders,
+    sponsoredAdmins,
+    sponsoredActive,
+    sponsoredOnLeave,
+    platformAccountsTotal,
+    platformAccountsActive,
+    platformAccountsAssigned,
+    byPlatform,
+  };
 }
 
 export function platformCountFor(

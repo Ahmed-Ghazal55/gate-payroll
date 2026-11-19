@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Building2,
   FileText,
@@ -50,6 +50,8 @@ import {
   BALANCES_PLACEHOLDER_AR,
   buildCompanyStatsExport,
   buildWorkforceCompanyUrl,
+  computeCompanyStatsTotals,
+  filterCompanyStatsItems,
   getPlatformColumns,
   normalizeCompaniesTab,
   platformCountFor,
@@ -158,6 +160,8 @@ function formatNumber(n: number | undefined): string {
 function CompaniesPageContent() {
   const { toast } = useToast();
   const { isAdmin, can } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const canManage = isAdmin || can('companies.manage');
 
@@ -167,6 +171,20 @@ function CompaniesPageContent() {
   useEffect(() => {
     setActiveTab(normalizeCompaniesTab(searchParams?.get('tab')));
   }, [searchParams]);
+
+  const selectTab = useCallback(
+    (next: CompaniesTabId) => {
+      setActiveTab(next);
+      if (searchParams && router) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (params.get('tab') !== next) {
+          params.set('tab', next);
+          router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+        }
+      }
+    },
+    [pathname, router, searchParams]
+  );
 
   // Core company tables (our DB)
   const [companies, setCompanies] = useState<CompanyContract[]>([]);
@@ -186,6 +204,7 @@ function CompaniesPageContent() {
   const [entityTypeFilter, setEntityTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [expiringOnly, setExpiringOnly] = useState(false);
+  const [expiringBucket, setExpiringBucket] = useState<'all' | 'soon30' | 'expired'>('all');
 
   // Drawer state
   const [selectedCompany, setSelectedCompany] = useState<CompanyContract | null>(null);
@@ -454,23 +473,21 @@ function CompaniesPageContent() {
   }, [companies, searchQuery, entityTypeFilter, statusFilter, expiringOnly]);
 
   // Filtered stats items (honors search query on stats tab too)
-  const filteredStatsItems = useMemo(() => {
-    const list = stats?.items || [];
-    if (!searchQuery.trim()) return list;
-    const q = searchQuery.toLowerCase().trim();
-    return list.filter(
-      (item) =>
-        item.nameAr.toLowerCase().includes(q) ||
-        item.shortNameAr.toLowerCase().includes(q) ||
-        item.code.toLowerCase().includes(q) ||
-        item.unifiedNumber.includes(q) ||
-        item.commercialReg.includes(q)
-    );
-  }, [stats, searchQuery]);
+  const filteredStatsItems = useMemo(
+    () => filterCompanyStatsItems(stats?.items || [], searchQuery),
+    [stats, searchQuery]
+  );
+
+  const filteredStatsTotals = useMemo(
+    () => computeCompanyStatsTotals(filteredStatsItems),
+    [filteredStatsItems]
+  );
+
+  const isStatsFiltered = searchQuery.trim().length > 0;
 
   const statsPlatformColumns = useMemo(
-    () => getPlatformColumns(filteredStatsItems, stats?.totals.byPlatform),
-    [filteredStatsItems, stats]
+    () => getPlatformColumns(filteredStatsItems, filteredStatsTotals.byPlatform),
+    [filteredStatsItems, filteredStatsTotals]
   );
 
   // Registrations list derived from companies
@@ -493,14 +510,42 @@ function CompaniesPageContent() {
       }));
   }, [companies]);
 
-  // Summary metrics
-  const totalCapital = useMemo(() => {
-    return companies.reduce((acc, c) => acc + (Number(c.capitalSar) || 0), 0);
-  }, [companies]);
+  // Summary metrics (recount against active filters per H3 / U-W3-03)
+  const filteredCompanyIds = useMemo(
+    () => new Set(filteredCompanies.map((c) => c.id)),
+    [filteredCompanies]
+  );
 
-  const expiringCount = useMemo(() => {
-    return companies.filter((c) => isDueWithinDays(c.annualConfirmation, 60)).length;
-  }, [companies]);
+  const activeRegsCount = useMemo(
+    () => allRegistrations.filter((r) => filteredCompanyIds.has(r.companyId) && r.status === 'active').length,
+    [allRegistrations, filteredCompanyIds]
+  );
+
+  const expiringSoon30Count = useMemo(
+    () =>
+      expiring.filter((item) => {
+        if (!filteredCompanyIds.has(item.companyId)) return false;
+        const rem = getDaysRemaining(item.annualConfirmation || item.expiryDate);
+        return rem !== null && rem > 0 && rem <= 30;
+      }).length,
+    [expiring, filteredCompanyIds]
+  );
+
+  const expiredDocsCount = useMemo(
+    () =>
+      expiring.filter((item) => {
+        if (!filteredCompanyIds.has(item.companyId)) return false;
+        const rem = getDaysRemaining(item.annualConfirmation || item.expiryDate);
+        return rem !== null && rem <= 0;
+      }).length,
+    [expiring, filteredCompanyIds]
+  );
+
+  const filteredStatsForCompanies = useMemo(() => {
+    if (activeTab === 'stats') return filteredStatsTotals;
+    const matchingStats = (stats?.items || []).filter((item) => filteredCompanyIds.has(item.companyId));
+    return computeCompanyStatsTotals(matchingStats);
+  }, [activeTab, filteredStatsTotals, stats, filteredCompanyIds]);
 
   // Export Excel / CSV
   const handleExport = async (type: 'all' | 'filtered' | 'csv') => {
@@ -634,32 +679,82 @@ function CompaniesPageContent() {
         </button>
       </PageHeader>
 
-      {/* Top Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Top KPI Filter Strip (6 filter cards per U-W3-03 / H3 — recount on active filters) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
         <StatCard
-          label="الشركات والمنشآت"
-          value={formatNumber(companies.length)}
-          hint="كيانات قانونية رئيسية مسجلة"
+          label="إجمالي الشركات"
+          value={formatNumber(filteredCompanies.length)}
+          hint={searchQuery.trim() || statusFilter !== 'all' || entityTypeFilter !== 'all' || expiringOnly ? 'حسب الفلتر الحالي' : 'الكيانات ضمن النطاق'}
           icon={Building2}
+          active={activeTab === 'companies' && statusFilter === 'all' && !expiringOnly}
+          onClick={() => {
+            setStatusFilter('all');
+            setEntityTypeFilter('all');
+            setExpiringOnly(false);
+            setExpiringBucket('all');
+            selectTab('companies');
+          }}
         />
         <StatCard
-          label="السجلات التجارية النشطة"
-          value={formatNumber(allRegistrations.length)}
-          hint="سجلات مركزية معتمدة"
+          label="السجلات النشطة"
+          value={formatNumber(activeRegsCount)}
+          hint="عرض السجلات التجارية"
           icon={FileText}
+          active={activeTab === 'cr'}
+          onClick={() => {
+            setExpiringBucket('all');
+            selectTab('cr');
+          }}
         />
         <StatCard
-          label="استحقاقات التأكيد خلال 60 يومًا"
-          value={formatNumber(expiringCount)}
-          hint="تنبيه قبل الاستحقاق السنوي"
+          label="وثائق تنتهي خلال 30 يومًا"
+          value={formatNumber(expiringSoon30Count)}
+          hint="تصفية المستحقة قريبًا"
+          icon={Clock}
+          active={activeTab === 'expiring' && expiringBucket === 'soon30'}
+          className={expiringSoon30Count > 0 ? 'border-[var(--warning)]/50' : undefined}
+          onClick={() => {
+            if (activeTab === 'expiring' && expiringBucket === 'soon30') {
+              setExpiringBucket('all');
+            } else {
+              setExpiringBucket('soon30');
+              selectTab('expiring');
+            }
+          }}
+        />
+        <StatCard
+          label="وثائق منتهية"
+          value={formatNumber(expiredDocsCount)}
+          hint="تصفية الوثائق المنتهية"
           icon={AlertTriangle}
-          className={expiringCount > 0 ? 'border-[var(--warning)]/50' : undefined}
+          active={activeTab === 'expiring' && expiringBucket === 'expired'}
+          className={expiredDocsCount > 0 ? 'border-[var(--danger)]/50' : undefined}
+          onClick={() => {
+            if (activeTab === 'expiring' && expiringBucket === 'expired') {
+              setExpiringBucket('all');
+            } else {
+              setExpiringBucket('expired');
+              selectTab('expiring');
+            }
+          }}
         />
         <StatCard
-          label="إجمالي رأس المال المثبت"
-          value={showBalances ? `${formatNumber(totalCapital)} ر.س` : '••••••••'}
-          hint="رأس المال الكلي في السجلات"
-          icon={Coins}
+          label="إجمالي المكفولين"
+          value={stats ? formatNumber(filteredStatsForCompanies.sponsoredTotal) : '—'}
+          hint={stats ? `مناديب ${formatNumber(filteredStatsForCompanies.sponsoredRiders)} · إداريون ${formatNumber(filteredStatsForCompanies.sponsoredAdmins)}` : 'من نظام الموارد'}
+          icon={Users}
+          active={activeTab === 'stats'}
+          loading={statsLoading && !stats}
+          onClick={() => selectTab('stats')}
+        />
+        <StatCard
+          label="حسابات المنصات النشطة"
+          value={stats ? formatNumber(filteredStatsForCompanies.platformAccountsActive) : '—'}
+          hint={stats ? `إجمالي ${formatNumber(filteredStatsForCompanies.platformAccountsTotal)} · مسند ${formatNumber(filteredStatsForCompanies.platformAccountsAssigned)}` : 'من نظام الموارد'}
+          icon={Layers}
+          active={activeTab === 'stats'}
+          loading={statsLoading && !stats}
+          onClick={() => selectTab('stats')}
         />
       </div>
 
@@ -788,30 +883,30 @@ function CompaniesPageContent() {
             />
           ) : (
             <>
-              {/* Live KPI Summary Cards */}
+              {/* Live KPI Summary Cards (recomputed from filteredStatsItems per H3) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
-                  label="الشركات ضمن النطاق"
-                  value={formatNumber(stats.totals.companiesCount)}
-                  hint="الكيانات المرتبطة بنظام الموارد"
+                  label={isStatsFiltered ? 'الشركات المطابقة للبحث' : 'الشركات ضمن النطاق'}
+                  value={formatNumber(filteredStatsTotals.companiesCount)}
+                  hint={isStatsFiltered ? 'كل الشركات المفلترة' : 'كل الشركات ضمن صلاحية المستخدم'}
                   icon={Building2}
                 />
                 <StatCard
                   label="إجمالي المكفولين"
-                  value={formatNumber(stats.totals.sponsoredTotal)}
-                  hint={`مناديب: ${formatNumber(stats.totals.sponsoredRiders)} · إداريون: ${formatNumber(stats.totals.sponsoredAdmins)}`}
+                  value={formatNumber(filteredStatsTotals.sponsoredTotal)}
+                  hint={`مناديب: ${formatNumber(filteredStatsTotals.sponsoredRiders)} · إداريون: ${formatNumber(filteredStatsTotals.sponsoredAdmins)}`}
                   icon={Users}
                 />
                 <StatCard
                   label="المكفولون النشطون"
-                  value={formatNumber(stats.totals.sponsoredActive)}
-                  hint={`في إجازة: ${formatNumber(stats.totals.sponsoredOnLeave)}`}
+                  value={formatNumber(filteredStatsTotals.sponsoredActive)}
+                  hint={`في إجازة: ${formatNumber(filteredStatsTotals.sponsoredOnLeave)}`}
                   icon={UserCheck}
                 />
                 <StatCard
                   label="حسابات المنصات المسجلة"
-                  value={formatNumber(stats.totals.platformAccountsTotal)}
-                  hint={`نشط: ${formatNumber(stats.totals.platformAccountsActive)} · مسند: ${formatNumber(stats.totals.platformAccountsAssigned)}`}
+                  value={formatNumber(filteredStatsTotals.platformAccountsTotal)}
+                  hint={`نشط: ${formatNumber(filteredStatsTotals.platformAccountsActive)} · مسند: ${formatNumber(filteredStatsTotals.platformAccountsAssigned)}`}
                   icon={Layers}
                 />
               </div>
@@ -996,7 +1091,9 @@ function CompaniesPageContent() {
                     </h3>
                   </div>
                   <span className="text-[11px] text-[var(--muted)]">
-                    نطاق الإجماليات: كل الشركات ضمن صلاحية المستخدم
+                    {isStatsFiltered
+                      ? 'نطاق الإجماليات: كل الشركات المفلترة'
+                      : 'نطاق الإجماليات: كل الشركات ضمن صلاحية المستخدم'}
                   </span>
                 </div>
 
@@ -1094,24 +1191,26 @@ function CompaniesPageContent() {
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-[var(--line)] bg-[var(--raised)]/60 font-bold text-[var(--ink)]">
-                        <td className="py-3 px-4 whitespace-nowrap">الإجمالي العام</td>
-                        <td className="py-3 px-3 font-mono num">{formatNumber(stats.totals.sponsoredTotal)}</td>
-                        <td className="py-3 px-3 font-mono num">{formatNumber(stats.totals.sponsoredRiders)}</td>
-                        <td className="py-3 px-3 font-mono num">{formatNumber(stats.totals.sponsoredAdmins)}</td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {isStatsFiltered ? 'إجمالي الشركات المفلترة' : 'الإجمالي العام'}
+                        </td>
+                        <td className="py-3 px-3 font-mono num">{formatNumber(filteredStatsTotals.sponsoredTotal)}</td>
+                        <td className="py-3 px-3 font-mono num">{formatNumber(filteredStatsTotals.sponsoredRiders)}</td>
+                        <td className="py-3 px-3 font-mono num">{formatNumber(filteredStatsTotals.sponsoredAdmins)}</td>
                         <td className="py-3 px-3 font-mono num text-[var(--money-pos)]">
-                          {formatNumber(stats.totals.sponsoredActive)}
+                          {formatNumber(filteredStatsTotals.sponsoredActive)}
                         </td>
                         <td className="py-3 px-3 font-mono num text-[var(--accent)]">
-                          {formatNumber(stats.totals.platformAccountsTotal)}
+                          {formatNumber(filteredStatsTotals.platformAccountsTotal)}
                         </td>
                         {statsPlatformColumns.map((plat) => (
                           <td key={plat.code} className="py-3 px-3 font-mono num">
-                            {formatNumber(platformCountFor(stats.totals.byPlatform, plat.code))}
+                            {formatNumber(platformCountFor(filteredStatsTotals.byPlatform, plat.code))}
                           </td>
                         ))}
                         <td className="py-3 px-3 font-mono num whitespace-nowrap">
-                          {formatNumber(stats.totals.platformAccountsActive)} /{' '}
-                          {formatNumber(stats.totals.platformAccountsAssigned)}
+                          {formatNumber(filteredStatsTotals.platformAccountsActive)} /{' '}
+                          {formatNumber(filteredStatsTotals.platformAccountsAssigned)}
                         </td>
                         <td className="py-3 px-3 text-center">—</td>
                       </tr>
