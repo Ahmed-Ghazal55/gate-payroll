@@ -19,13 +19,7 @@ import { ErrorState } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
 import { DeletePreviewDialog, DeleteTarget } from './DeletePreviewDialog';
-
-
-// The server builds the public link from Payroll:PublicBaseUrl; older payloads only had a path.
-function campaignLink(c: Campaign): string {
-  if (c.publicUrl) return c.publicUrl;
-  return c.path ? `${window.location.origin}${c.path}` : '';
-}
+import { campaignLink, shortCampaignLinkLabel } from './campaign-link';
 
 // The public link also checks expiry (Program.cs Campaign()), so an "open" campaign past its date is expired.
 function campaignState(c: Campaign): 'open' | 'expired' | 'closed' {
@@ -127,12 +121,34 @@ export function CampaignsTab({
     {
       key: 'title',
       header: 'عنوان الحملة',
-      render: (c) => (
-        <div className="flex flex-col">
-          <strong className="text-[var(--ink)] font-bold">{c.title}</strong>
-          <span className="text-[11px] text-[var(--muted)] font-mono">{c.path}</span>
-        </div>
-      ),
+      render: (c) => {
+        const full = campaignLink(c);
+        const short = shortCampaignLinkLabel(c);
+        return (
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <strong className="text-[var(--ink)] font-bold">{c.title}</strong>
+            {short ? (
+              <span className="inline-flex items-center gap-1.5 min-w-0">
+                <span className="text-[11px] text-[var(--muted)] font-mono truncate" title={full}>
+                  {short}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void copyToClipboard(full, c.title);
+                  }}
+                  className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-md border border-[var(--line)] text-[10px] font-semibold text-[var(--accent)] hover:bg-[var(--raised)]"
+                  title="نسخ الرابط الكامل"
+                >
+                  <Copy size={11} />
+                  نسخ
+                </button>
+              </span>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       key: 'kind',
