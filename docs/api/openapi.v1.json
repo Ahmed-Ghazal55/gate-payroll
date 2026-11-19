@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:39247/"
+      "url": "http://127.0.0.1:40211/"
     }
   ],
   "paths": {
@@ -15351,6 +15351,12 @@
                           "iban": {
                             "type": "string"
                           },
+                          "ibanAlert": {
+                            "type": "string"
+                          },
+                          "ibanSource": {
+                            "type": "string"
+                          },
                           "engagementType": {
                             "type": "string"
                           },
@@ -15360,10 +15366,22 @@
                           "sponsorNameAr": {
                             "type": "string"
                           },
+                          "sponsor": {
+                            "type": "string"
+                          },
                           "platform": {
                             "type": "string"
                           },
+                          "platforms": {
+                            "type": "string"
+                          },
+                          "platformWorkId": {
+                            "type": "string"
+                          },
                           "city": {
+                            "type": "string"
+                          },
+                          "workType": {
                             "type": "string"
                           },
                           "mudadSalary": {
@@ -15376,6 +15394,12 @@
                             "type": "boolean"
                           },
                           "companyVehicleType": {
+                            "type": "string"
+                          },
+                          "operationalRole": {
+                            "type": "string"
+                          },
+                          "housing": {
                             "type": "string"
                           },
                           "allowedActions": {
@@ -15420,6 +15444,28 @@
                         },
                         "sponsoredMissingIban": {
                           "type": "number"
+                        },
+                        "byCompany": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "sponsorUnified",
+                              "sponsorNameAr",
+                              "totalCount"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "sponsorUnified": {
+                                "type": "string"
+                              },
+                              "sponsorNameAr": {
+                                "type": "string"
+                              },
+                              "totalCount": {
+                                "type": "number"
+                              }
+                            }
+                          }
                         }
                       }
                     },
@@ -15487,6 +15533,28 @@
                         },
                         "sponsoredMissingIban": {
                           "type": "number"
+                        },
+                        "byCompany": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "sponsorUnified",
+                              "sponsorNameAr",
+                              "totalCount"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "sponsorUnified": {
+                                "type": "string"
+                              },
+                              "sponsorNameAr": {
+                                "type": "string"
+                              },
+                              "totalCount": {
+                                "type": "number"
+                              }
+                            }
+                          }
                         }
                       }
                     },
@@ -15503,6 +15571,26 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workforce/export": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "Server-side Excel export of workforce rows (H21)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
                 }
               }
             }
@@ -15572,6 +15660,12 @@
                         "iban": {
                           "type": "string"
                         },
+                        "ibanAlert": {
+                          "type": "string"
+                        },
+                        "ibanSource": {
+                          "type": "string"
+                        },
                         "engagementType": {
                           "type": "string"
                         },
@@ -15581,10 +15675,22 @@
                         "sponsorNameAr": {
                           "type": "string"
                         },
+                        "sponsor": {
+                          "type": "string"
+                        },
                         "platform": {
                           "type": "string"
                         },
+                        "platforms": {
+                          "type": "string"
+                        },
+                        "platformWorkId": {
+                          "type": "string"
+                        },
                         "city": {
+                          "type": "string"
+                        },
+                        "workType": {
                           "type": "string"
                         },
                         "mudadSalary": {
@@ -15597,6 +15703,12 @@
                           "type": "boolean"
                         },
                         "companyVehicleType": {
+                          "type": "string"
+                        },
+                        "operationalRole": {
+                          "type": "string"
+                        },
+                        "housing": {
                           "type": "string"
                         },
                         "allowedActions": {
@@ -15629,6 +15741,12 @@
                       }
                     },
                     "platformAccounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "legalCases": {
                       "type": "array",
                       "items": {
                         "type": "object"
@@ -15687,6 +15805,12 @@
                     "total": {
                       "type": "number"
                     },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
                     "source": {
                       "type": "string"
                     },
@@ -15735,6 +15859,12 @@
                       }
                     },
                     "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
                       "type": "number"
                     },
                     "source": {
@@ -15787,6 +15917,68 @@
                     "total": {
                       "type": "number"
                     },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workforce/legal-cases": {
+      "get": {
+        "tags": [
+          "Workforce"
+        ],
+        "summary": "HR legal cases (H11/H20)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
                     "source": {
                       "type": "string"
                     },
@@ -15835,6 +16027,12 @@
                       }
                     },
                     "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
                       "type": "number"
                     },
                     "source": {
@@ -15895,6 +16093,12 @@
                       }
                     },
                     "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
                       "type": "number"
                     },
                     "source": {
@@ -17601,26 +17805,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonObject"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/riders/enrich-missing": {
-      "post": {
-        "tags": [
-          "Riders"
-        ],
-        "summary": "Submit riders enrich missing",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfintAndintAndint"
                 }
               }
             }
@@ -23939,40 +24123,6 @@
           },
           "settlements": {
             "$ref": "#/components/schemas/JsonArray"
-          }
-        }
-      },
-      "AnonymousTypeOfintAndintAndint": {
-        "required": [
-          "enrichedExisting",
-          "addedFromSources",
-          "totalRidersNow"
-        ],
-        "type": "object",
-        "properties": {
-          "enrichedExisting": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "addedFromSources": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "totalRidersNow": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
           }
         }
       },

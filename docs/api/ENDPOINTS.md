@@ -36,9 +36,9 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/rider-mobile/sessions/mine` | Payroll.Api/MobileSessions.cs:127 | Active rider bearer token; own sessions only | rider app | keep |
 | GET | `/api/rider-mobile/statement` | Payroll.Api/PayStatements.cs:243 | Active rider bearer token; own approved cycles or approved legacy fallback | rider app | keep |
 | GET | `/api/riders` | Payroll.Api/Program.cs:197 | riders.view | old UI | keep |
-| GET | `/api/riders/data-quality` | Payroll.Api/DirectoryApi.cs:226 | riders.view | old UI | keep |
+| GET | `/api/riders/data-quality` | Payroll.Api/DirectoryApi.cs:100 | riders.view | old UI | keep |
 | GET | `/api/riders/lookup` | Payroll.Api/RiderLookup.cs:70 | riders.view | none | keep |
-| GET | `/api/riders/{iqama}/profile-360` | Payroll.Api/DirectoryApi.cs:245 | riders.view_360 + debts.view | old UI | keep |
+| GET | `/api/riders/{iqama}/profile-360` | Payroll.Api/DirectoryApi.cs:119 | riders.view_360 + debts.view | old UI | keep |
 | GET | `/inquiry` | Payroll.Api/InquiryApi.cs:75 | public (rider portal: own authenticated rider) | old UI | keep |
 | GET | `/rider-app` | Payroll.Api/FinancialCore.cs:1146 | public (rider portal: own authenticated rider) | old UI | keep |
 | GET | `/rider-app.js` | Payroll.Api/FinancialCore.cs:1147 | public (rider portal: own authenticated rider) | none | keep |
@@ -64,25 +64,26 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/rider-mobile/sessions/{id}/revoke` | Payroll.Api/MobileSessions.cs:131 | mobile.sessions (Admin / SuperAdmin); company or sponsor scope; safe hash prefix only | none | keep |
 | POST | `/api/rider-mobile/statements/notify-period` | Payroll.Api/PushNotifications.cs:763 | mobile.broadcast | none | keep |
 | POST | `/api/riders` | Payroll.Api/Program.cs:198 | riders.edit (+ riders.financial_edit for financial fields) | old UI | keep |
-| POST | `/api/riders/enrich-missing` | Payroll.Api/DirectoryApi.cs:117 | Admin / SuperAdmin | old UI | keep |
 
 ## القوى العاملة
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/api/workforce` | Payroll.Api/WorkforceApi.cs:16 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/absence-cases` | Payroll.Api/WorkforceApi.cs:26 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/data-quality` | Payroll.Api/WorkforceApi.cs:28 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/saudi-payroll-employees` | Payroll.Api/WorkforceApi.cs:22 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/summary` | Payroll.Api/WorkforceApi.cs:18 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/terminated` | Payroll.Api/WorkforceApi.cs:24 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/{id}/360` | Payroll.Api/WorkforceApi.cs:20 | riders.view_360 + debts.view; live ERP when configured | none | keep |
+| GET | `/api/workforce` | Payroll.Api/WorkforceApi.cs:21 | riders.view; live ERP when configured; always paginated on list | none | keep |
+| GET | `/api/workforce/absence-cases` | Payroll.Api/WorkforceApi.cs:33 | riders.view; live ERP when configured; always paginated on list | none | keep |
+| GET | `/api/workforce/data-quality` | Payroll.Api/WorkforceApi.cs:37 | riders.view; live ERP when configured; always paginated on list | none | keep |
+| GET | `/api/workforce/export` | Payroll.Api/WorkforceApi.cs:25 | riders.view; live ERP when configured; always paginated on list | none | keep |
+| GET | `/api/workforce/legal-cases` | Payroll.Api/WorkforceApi.cs:35 | riders.view; live ERP when configured; always paginated on list | none | keep |
+| GET | `/api/workforce/saudi-payroll-employees` | Payroll.Api/WorkforceApi.cs:29 | riders.view; live ERP when configured; always paginated on list | none | keep |
+| GET | `/api/workforce/summary` | Payroll.Api/WorkforceApi.cs:23 | riders.view; live ERP when configured; always paginated on list | none | keep |
+| GET | `/api/workforce/terminated` | Payroll.Api/WorkforceApi.cs:31 | riders.view; live ERP when configured; always paginated on list | none | keep |
+| GET | `/api/workforce/{id}/360` | Payroll.Api/WorkforceApi.cs:27 | riders.view_360 + debts.view; live ERP when configured | none | keep |
 
 ## كتالوجات الموارد البشرية
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/api/hr-catalogs/{kind}` | Payroll.Api/WorkforceApi.cs:30 | riders.view; live ERP catalogs when configured | none | keep |
+| GET | `/api/hr-catalogs/{kind}` | Payroll.Api/WorkforceApi.cs:39 | riders.view; live ERP catalogs when configured | none | keep |
 
 ## الشركات والسجلات
 
@@ -366,7 +367,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 |---|---|---|---|---|---|
 | GET | `/` | Payroll.Api/LegacyUi.cs:31 | public (rider portal: own authenticated rider) | none | keep |
 | GET | `/api/admin/approval-bypass` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:69 | see AccessPolicy + handler | none | keep |
-| GET | `/api/admin/approval-exceptions` | Payroll.Api/UserAccess.cs:447 | see AccessPolicy + handler | none | keep |
+| GET | `/api/admin/approval-exceptions` | Payroll.Api/UserAccess.cs:452 | see AccessPolicy + handler | none | keep |
 | GET | `/api/audit` | Payroll.Api/Program.cs:327 | Admin / SuperAdmin | old UI | keep |
 | GET | `/api/auth/status` | Payroll.Api/Program.cs:102 | public (rider portal: own authenticated rider) | old UI | keep |
 | GET | `/api/config/lists` | Payroll.Api/ConfigLists.cs:183 | see AccessPolicy + handler | none | keep |
@@ -381,11 +382,11 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/org/responsible` | Payroll.Api/OrgDirectory.cs:117 | org.manage (Admin); dated rows, never deleted | none | keep |
 | GET | `/api/org/routing` | Payroll.Api/OrgDirectory.cs:114 | org.manage (Admin); dated rows, never deleted | none | keep |
 | GET | `/api/org/supervision` | Payroll.Api/OrgDirectory.cs:111 | advances.request (mine=1) or org.manage | none | keep |
-| GET | `/api/roles-catalog` | Payroll.Api/UserAccess.cs:438 | authenticated; category/owner visibility in handler | old UI | keep |
+| GET | `/api/roles-catalog` | Payroll.Api/UserAccess.cs:443 | authenticated; category/owner visibility in handler | old UI | keep |
 | GET | `/api/system/erp-sponsor-map` | Payroll.Api/ErpSponsorMap.cs:10 | Admin / SuperAdmin | none | keep |
 | GET | `/api/system/maintenance/rider-indexes` | Payroll.Api/RiderIndexMaintenance.cs:38 | Admin / SuperAdmin | none | keep |
 | GET | `/api/system/release-check` | Payroll.Api/ReleaseSafety.cs:75 | Admin / SuperAdmin | none | deprecated |
-| GET | `/api/users` | Payroll.Api/UserAccess.cs:448 | Admin / SuperAdmin | old UI | keep |
+| GET | `/api/users` | Payroll.Api/UserAccess.cs:453 | Admin / SuperAdmin | old UI | keep |
 | GET | `/health` | Payroll.Api/Program.cs:100 | public (rider portal: own authenticated rider) | none | keep |
 | GET | `/legacy` | Payroll.Api/LegacyUi.cs:33 | public (rider portal: own authenticated rider) | none | keep |
 | GET | `/openapi/v1.json` | Payroll.Api/Program.cs:59 | Admin / SuperAdmin | none | new |
@@ -398,7 +399,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/config/lists/{group}/fields` | Payroll.Api/ConfigLists.cs:187 | see AccessPolicy + handler | none | keep |
 | POST | `/api/config/lists/{group}/items` | Payroll.Api/ConfigLists.cs:185 | see AccessPolicy + handler | none | keep |
 | POST | `/api/config/lists/{group}/items/{code}/approve` | Payroll.Api/ConfigLists.cs:186 | see AccessPolicy + handler | none | keep |
-| POST | `/api/me/password` | Payroll.Api/UserAccess.cs:504 | see AccessPolicy + handler | none | keep |
+| POST | `/api/me/password` | Payroll.Api/UserAccess.cs:509 | see AccessPolicy + handler | none | keep |
 | POST | `/api/org/delegations` | Payroll.Api/OrgDirectory.cs:109 | org.manage (Admin); dated rows, never deleted | none | keep |
 | POST | `/api/org/delegations/{id}/end` | Payroll.Api/OrgDirectory.cs:110 | org.manage (Admin); dated rows, never deleted | none | keep |
 | POST | `/api/org/memberships` | Payroll.Api/OrgDirectory.cs:106 | org.manage (Admin); dated rows, never deleted | none | keep |
@@ -408,12 +409,12 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/org/supervision` | Payroll.Api/OrgDirectory.cs:112 | org.manage (Admin); dated rows, never deleted | none | keep |
 | POST | `/api/org/supervision/{id}/end` | Payroll.Api/OrgDirectory.cs:113 | org.manage (Admin); dated rows, never deleted | none | keep |
 | POST | `/api/system/maintenance/rider-indexes` | Payroll.Api/RiderIndexMaintenance.cs:44 | Admin / SuperAdmin | none | keep |
-| POST | `/api/users` | Payroll.Api/UserAccess.cs:450 | Admin / SuperAdmin | old UI | keep |
-| POST | `/api/users/{id}/reset-password` | Payroll.Api/UserAccess.cs:496 | Admin / SuperAdmin | old UI | keep |
-| PUT | `/api/roles/{code}/permissions` | Payroll.Api/UserAccess.cs:513 | see AccessPolicy + handler | old UI | keep |
-| PUT | `/api/users/{id}` | Payroll.Api/UserAccess.cs:527 | Admin / SuperAdmin | none | new |
-| PUT | `/api/users/{id}/status` | Payroll.Api/UserAccess.cs:528 | Admin / SuperAdmin | old UI | keep |
-| PUT | `/api/users/{id}/username` | Payroll.Api/UserAccess.cs:525 | Admin / SuperAdmin | old UI | keep |
+| POST | `/api/users` | Payroll.Api/UserAccess.cs:455 | Admin / SuperAdmin | old UI | keep |
+| POST | `/api/users/{id}/reset-password` | Payroll.Api/UserAccess.cs:501 | Admin / SuperAdmin | old UI | keep |
+| PUT | `/api/roles/{code}/permissions` | Payroll.Api/UserAccess.cs:518 | see AccessPolicy + handler | old UI | keep |
+| PUT | `/api/users/{id}` | Payroll.Api/UserAccess.cs:532 | Admin / SuperAdmin | none | new |
+| PUT | `/api/users/{id}/status` | Payroll.Api/UserAccess.cs:533 | Admin / SuperAdmin | old UI | keep |
+| PUT | `/api/users/{id}/username` | Payroll.Api/UserAccess.cs:530 | Admin / SuperAdmin | old UI | keep |
 
 ## Compatibility and deprecations
 

@@ -8753,15 +8753,23 @@ export interface paths {
                                 phone?: string;
                                 nationality?: string;
                                 iban?: string;
+                                ibanAlert?: string;
+                                ibanSource?: string;
                                 engagementType?: string;
                                 status?: string;
                                 sponsorNameAr?: string;
+                                sponsor?: string;
                                 platform?: string;
+                                platforms?: string;
+                                platformWorkId?: string;
                                 city?: string;
+                                workType?: string;
                                 mudadSalary?: string;
                                 jobTitle?: string;
                                 hasCompanyVehicle?: boolean;
                                 companyVehicleType?: string;
+                                operationalRole?: string;
+                                housing?: string;
                                 allowedActions?: string[];
                             }[];
                             total: number;
@@ -8773,6 +8781,11 @@ export interface paths {
                                 sponsoredRiders: number;
                                 sponsoredAdmins: number;
                                 sponsoredMissingIban: number;
+                                byCompany?: {
+                                    sponsorUnified: string;
+                                    sponsorNameAr: string;
+                                    totalCount: number;
+                                }[];
                             };
                             source: string;
                             asOf: string;
@@ -8820,11 +8833,52 @@ export interface paths {
                                 sponsoredRiders: number;
                                 sponsoredAdmins: number;
                                 sponsoredMissingIban: number;
+                                byCompany?: {
+                                    sponsorUnified: string;
+                                    sponsorNameAr: string;
+                                    totalCount: number;
+                                }[];
                             };
                             source: string;
                             asOf: string;
                             allowedActions: string[];
                         };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Server-side Excel export of workforce rows (H21) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
                     };
                 };
             };
@@ -8870,15 +8924,23 @@ export interface paths {
                                 phone?: string;
                                 nationality?: string;
                                 iban?: string;
+                                ibanAlert?: string;
+                                ibanSource?: string;
                                 engagementType?: string;
                                 status?: string;
                                 sponsorNameAr?: string;
+                                sponsor?: string;
                                 platform?: string;
+                                platforms?: string;
+                                platformWorkId?: string;
                                 city?: string;
+                                workType?: string;
                                 mudadSalary?: string;
                                 jobTitle?: string;
                                 hasCompanyVehicle?: boolean;
                                 companyVehicleType?: string;
+                                operationalRole?: string;
+                                housing?: string;
                                 allowedActions?: string[];
                             };
                             workRecord3Months: Record<string, never>[];
@@ -8887,6 +8949,7 @@ export interface paths {
                             ibanImage?: Record<string, never>;
                             promissoryNotes: Record<string, never>[];
                             platformAccounts: Record<string, never>[];
+                            legalCases?: Record<string, never>[];
                             financialPosition: Record<string, never>;
                             source: string;
                             asOf: string;
@@ -8930,6 +8993,8 @@ export interface paths {
                         "application/json": {
                             items: Record<string, never>[];
                             total: number;
+                            page?: number;
+                            pageSize?: number;
                             source: string;
                             asOf: string;
                             allowedActions: string[];
@@ -8972,6 +9037,8 @@ export interface paths {
                         "application/json": {
                             items: Record<string, never>[];
                             total: number;
+                            page?: number;
+                            pageSize?: number;
                             source: string;
                             asOf: string;
                             allowedActions: string[];
@@ -9014,6 +9081,52 @@ export interface paths {
                         "application/json": {
                             items: Record<string, never>[];
                             total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/legal-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** HR legal cases (H11/H20) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
                             source: string;
                             asOf: string;
                             allowedActions: string[];
@@ -9056,6 +9169,8 @@ export interface paths {
                         "application/json": {
                             items: Record<string, never>[];
                             total: number;
+                            page?: number;
+                            pageSize?: number;
                             source: string;
                             asOf: string;
                             allowedActions: string[];
@@ -9100,6 +9215,8 @@ export interface paths {
                         "application/json": {
                             items: Record<string, never>[];
                             total: number;
+                            page?: number;
+                            pageSize?: number;
                             source: string;
                             asOf: string;
                             allowedActions: string[];
@@ -10503,42 +10620,6 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["JsonObject"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/riders/enrich-missing": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit riders enrich missing */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfintAndintAndint"];
                     };
                 };
             };
@@ -16153,14 +16234,6 @@ export interface components {
             /** Format: double */
             totalWaivedBatch: number | string;
             settlements: components["schemas"]["JsonArray"];
-        };
-        AnonymousTypeOfintAndintAndint: {
-            /** Format: int32 */
-            enrichedExisting: number | string;
-            /** Format: int32 */
-            addedFromSources: number | string;
-            /** Format: int32 */
-            totalRidersNow: number | string;
         };
         AnonymousTypeOfintAndintAndintAndint: {
             /** Format: int32 */
