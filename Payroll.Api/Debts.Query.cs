@@ -115,39 +115,42 @@ public static partial class Debts
         string iqamaExpr = RiderDataIndexes.FieldExpr(c, "iqama");
         string nameExpr = RiderDataIndexes.FieldExpr(c, "riderName");
 
-        // Financial scope in SQL (same rules as FinancialScopes.Debt).
-        var sponsors = FinancialCore.Sponsors.Where(s => FinancialScopes.Sponsor(actor, s.Id)).Select(s => s.Id).ToList();
-        var categories = FinancialCore.CategoriesCatalog.Where(cat => FinancialScopes.Category(actor, cat.Code)).Select(cat => cat.Code).ToList();
-        var platforms = new[] { "Jahez", "Keeta", "HungerStation", "Ninja", "Chefz", "Amazon", "Other" }
-            .Where(p => FinancialScopes.Platform(actor, p)).ToList();
-        bool allowEmptySponsor = FinancialScopes.AllCompanies(actor) && IsFinanceRole(actor);
-
-        if (categories.Count == 0) { sb.Append(" AND 1=0"); return (sb.ToString(), parms); }
-        AppendIn(sb, parms, categoryExpr, "cat", categories);
-
-        sb.Append(" AND (");
-        if (sponsors.Count > 0)
+        // Financial scope in SQL — same rows as FinancialScopes.Debt (admin bypasses the three IN checks).
+        if (!AccessPolicy.Administrator(actor))
         {
-            AppendIn(sb, parms, sponsorExpr, "sp", sponsors, bare: true);
-            if (allowEmptySponsor) sb.Append(" OR COALESCE(").Append(sponsorExpr).Append(",'')=''");
-        }
-        else if (allowEmptySponsor) sb.Append("COALESCE(").Append(sponsorExpr).Append(",'')=''");
-        else sb.Append("1=0");
-        sb.Append(')');
+            var categories = FinancialCore.CategoriesCatalog.Where(cat => FinancialScopes.Category(actor, cat.Code)).Select(cat => cat.Code).ToList();
+            if (categories.Count == 0) { sb.Append(" AND 1=0"); return (sb.ToString(), parms); }
+            AppendIn(sb, parms, categoryExpr, "cat", categories);
 
-        sb.Append(" AND (COALESCE(").Append(platformExpr).Append(",'')=''");
-        if (platforms.Count > 0)
-        {
-            sb.Append(" OR ");
-            AppendIn(sb, parms, platformExpr, "pf", platforms, bare: true);
+            // Sponsor aliases (id/code/name/…) like FindSponsor, so scoped users match stored codes/names.
+            var sponsorKeys = SponsorScopeKeys(actor);
+            bool allowEmptySponsor = FinancialScopes.AllCompanies(actor) && IsFinanceRole(actor);
+            sb.Append(" AND (");
+            if (sponsorKeys.Count > 0)
+            {
+                AppendIn(sb, parms, sponsorExpr, "sp", sponsorKeys, bare: true);
+                if (allowEmptySponsor) sb.Append(" OR COALESCE(").Append(sponsorExpr).Append(",'')=''");
+            }
+            else if (allowEmptySponsor) sb.Append("COALESCE(").Append(sponsorExpr).Append(",'')=''");
+            else sb.Append("1=0");
+            sb.Append(')');
+
+            var platforms = new[] { "Jahez", "Keeta", "HungerStation", "Ninja", "Chefz", "Amazon", "Other" }
+                .Where(p => FinancialScopes.Platform(actor, p)).ToList();
+            sb.Append(" AND (COALESCE(").Append(platformExpr).Append(",'')=''");
+            if (platforms.Count > 0)
+            {
+                sb.Append(" OR ");
+                AppendIn(sb, parms, platformExpr, "pf", platforms, bare: true);
+            }
+            sb.Append(')');
         }
-        sb.Append(')');
 
         if (filter.SponsorId != null)
         {
-            string spId = FinancialCore.ResolveSponsor(filter.SponsorId).Id;
-            sb.Append(" AND ").Append(sponsorExpr).Append("=@filterSp");
-            parms.Add(("@filterSp", spId));
+            // Match canonical id plus FindSponsor aliases (stored rows may keep code/name).
+            var aliases = SponsorAliases(FinancialCore.ResolveSponsor(filter.SponsorId));
+            AppendIn(sb, parms, sponsorExpr, "filterSp", aliases);
         }
         if (filter.Status != null)
         {
@@ -180,6 +183,20 @@ public static partial class Debts
         }
         return (sb.ToString(), parms);
     }
+
+    /// <summary>All string keys FindSponsor would resolve to an in-scope sponsor (id, code, names, regs).</summary>
+    static List<string> SponsorScopeKeys(ClaimsPrincipal actor)
+    {
+        var keys = new List<string>();
+        foreach (var sp in FinancialCore.Sponsors.Where(s => FinancialScopes.Sponsor(actor, s.Id)))
+            keys.AddRange(SponsorAliases(sp));
+        return keys.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    static List<string> SponsorAliases(FinancialCore.SponsorDef sp) =>
+    [
+        sp.Id, sp.Code, sp.UnifiedNumber, sp.CommercialReg, sp.NameAr, sp.ShortNameAr
+    ];
 
     /// <summary>Lower + Arabic letter/digit fold for LIKE search (mirrors TextSearch.Normalize).</summary>
     static string SqlFold(DbConnection c, string expr)

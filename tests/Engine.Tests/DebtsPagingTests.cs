@@ -177,4 +177,94 @@ public sealed class DebtsPagingTests
             Assert.AreEqual("bw1", page["items"]![0]!.S("id"));
         });
     }
+
+    static JsonObject DebtFull(string id, string status, string category, decimal remaining, string sponsor, string platform, string iqama = "2000000101", string? name = null)
+    {
+        var d = Debt(id, status, category, remaining, sponsor, iqama, name);
+        d["platform"] = platform;
+        return d;
+    }
+
+    static ClaimsPrincipal ScopedBwAccountant() => UserAccess.Principal(new JsonObject
+    {
+        ["username"] = "synthetic-scoped-parity",
+        ["role"] = "FinancialAccountant",
+        ["financialScope"] = new JsonObject
+        {
+            ["sponsorIds"] = new JsonArray(Bw),
+            ["accountCodes"] = new JsonArray(),
+            ["platforms"] = new JsonArray("Jahez", "Ninja"),
+            ["categoryCodes"] = new JsonArray("CashAdvance", "TrafficFine", "Advance", "BankAdvance", "InternetAdvance")
+        }
+    });
+
+    static List<string> SqlIds(Store store, ClaimsPrincipal actor, params (string Key, string Value)[] filters)
+    {
+        var result = store.Read(c => Debts.ListPaged(c, actor, Q(filters)));
+        return ((IEnumerable<JsonObject>)result).Select(d => d.S("id")).OrderBy(x => x, StringComparer.Ordinal).ToList();
+    }
+
+    static List<string> LegacyIds(Store store, ClaimsPrincipal actor, Func<JsonObject, bool>? extra = null)
+    {
+        return store.Read(c => Store.List(c, "debt")
+            .Where(d => FinancialScopes.Debt(actor, d) && (extra?.Invoke(d) ?? true))
+            .Select(d => d.S("id"))
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToList());
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void SqlList_MatchesStoreListPlusFinancialScopes_OnMixedData(bool sqlServer)
+    {
+        OnProvider(sqlServer, store =>
+        {
+            // Mixed: canonical id, code, name; free-text platform; legacy category; empty platform; out-of-scope.
+            Seed(store,
+                DebtFull("a-id", "active", "CashAdvance", 10m, Bw, ""),
+                DebtFull("a-code", "active", "TrafficFine", 11m, "BW", "Jahez"),
+                DebtFull("a-name", "settled", "CashAdvance", 0m, "سجل البوابا", ""),
+                DebtFull("a-free-plat", "active", "CashAdvance", 12m, Bw, "CustomExcelPlatform"),
+                DebtFull("a-legacy-cat", "active", "hr_cost", 13m, Bw, ""),
+                DebtFull("a-internet", "active", "InternetAdvance", 14m, Bw, "Ninja"),
+                DebtFull("ex-only", "active", "CashAdvance", 15m, Ex, ""),
+                DebtFull("unlinked", "active", "CashAdvance", 16m, "unlinked-sponsor-id", ""));
+
+            var admin = Admin;
+            var scoped = ScopedBwAccountant();
+
+            CollectionAssert.AreEqual(LegacyIds(store, admin), SqlIds(store, admin));
+            CollectionAssert.AreEqual(LegacyIds(store, scoped), SqlIds(store, scoped));
+
+            // Status tab
+            CollectionAssert.AreEqual(
+                LegacyIds(store, admin, d => d.S("status") == "active"),
+                SqlIds(store, admin, ("status", "active")));
+            CollectionAssert.AreEqual(
+                LegacyIds(store, scoped, d => d.S("status") == "active"),
+                SqlIds(store, scoped, ("status", "active")));
+
+            // Category filter (exact CashAdvance group expansion still applies until item #2)
+            CollectionAssert.AreEqual(
+                LegacyIds(store, admin, d => AdvanceCategories.Contains(d.S("category")) || string.Equals(d.S("category"), "advance", StringComparison.OrdinalIgnoreCase)),
+                SqlIds(store, admin, ("category", "CashAdvance")));
+
+            // Admin keeps free-text platform + legacy category; scoped user does not.
+            Assert.IsTrue(SqlIds(store, admin).Contains("a-free-plat"));
+            Assert.IsTrue(SqlIds(store, admin).Contains("a-legacy-cat"));
+            Assert.IsTrue(SqlIds(store, admin).Contains("unlinked"));
+            Assert.IsFalse(SqlIds(store, scoped).Contains("a-free-plat"));
+            Assert.IsFalse(SqlIds(store, scoped).Contains("a-legacy-cat"));
+            Assert.IsFalse(SqlIds(store, scoped).Contains("unlinked"));
+            Assert.IsTrue(SqlIds(store, scoped).Contains("a-code")); // sponsor stored as code
+            Assert.IsTrue(SqlIds(store, scoped).Contains("a-name")); // sponsor stored as short name
+            Assert.IsTrue(SqlIds(store, scoped).Contains("a-internet")); // catalog category in scope
+        });
+    }
+
+    static readonly HashSet<string> AdvanceCategories = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Advance", "CashAdvance", "BankAdvance"
+    };
 }
