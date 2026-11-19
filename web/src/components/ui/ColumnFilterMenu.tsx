@@ -198,6 +198,14 @@ export function ColumnFilterMenu({
   const handleClearColumnFilter = () => {
     setSearchTerm('');
     onFilterChange(undefined);
+    if (sortDir || sortTone) {
+      onSortChange(null, null);
+    }
+  };
+
+  const handleSelectOnly = (rawValue: string) => {
+    const nextFilter: ColumnFilterValue = { ...filter, values: [rawValue] };
+    onFilterChange(nextFilter);
   };
 
   if (typeof document === 'undefined') return null;
@@ -520,11 +528,11 @@ export function ColumnFilterMenu({
               const swatch = opt.tone ? TONE_META[opt.tone]?.swatch : undefined;
 
               return (
-                <label
+                <div
                   key={`${opt.value || '__empty__'}-${idx}`}
-                  className="flex items-center justify-between gap-2 cursor-pointer hover:bg-[var(--row-hover)] px-1.5 py-1 rounded"
+                  className="group flex items-center justify-between gap-1.5 hover:bg-[var(--row-hover)] px-1.5 py-1 rounded"
                 >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <label className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={isChecked}
@@ -541,13 +549,26 @@ export function ColumnFilterMenu({
                     <span className="truncate" title={opt.label}>
                       {opt.label || '(فارغ)'}
                     </span>
+                  </label>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectOnly(opt.value);
+                      }}
+                      aria-label={`تحديد ${opt.label || '(فارغ)'} فقط`}
+                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.2 rounded text-[10px] font-semibold text-[var(--accent)] hover:bg-[var(--accent)]/15 transition"
+                    >
+                      فقط
+                    </button>
+                    {opt.count !== undefined && opt.count > 0 && (
+                      <span className="num text-[10px] text-[var(--muted)] px-1.5 py-0.2 rounded bg-[var(--raised)]">
+                        {opt.count}
+                      </span>
+                    )}
                   </div>
-                  {opt.count !== undefined && opt.count > 0 && (
-                    <span className="num text-[10px] text-[var(--muted)] px-1.5 py-0.2 rounded bg-[var(--raised)] shrink-0">
-                      {opt.count}
-                    </span>
-                  )}
-                </label>
+                </div>
               );
             })}
           </>
@@ -758,20 +779,23 @@ export function useTableAutoFilter<T>(
     []
   );
 
-  const toggleSort = useCallback((key: string) => {
-    setSortKey((prevKey) => {
-      if (prevKey !== key) {
+  const toggleSort = useCallback(
+    (key: string) => {
+      if (sortKey !== key) {
+        setSortKey(key);
         setSortDir('asc');
         setSortTone(null);
-        return key;
+      } else if (sortDir === 'asc') {
+        setSortDir('desc');
+        setSortTone(null);
+      } else {
+        setSortKey(null);
+        setSortDir('asc');
+        setSortTone(null);
       }
-      setSortDir((prevDir) => {
-        if (prevDir === 'asc') return 'desc';
-        return 'asc';
-      });
-      return sortDir === 'desc' ? null : key;
-    });
-  }, [sortDir]);
+    },
+    [sortKey, sortDir]
+  );
 
   const setSort = useCallback(
     (key: string, dir: 'asc' | 'desc' | null, tone?: BadgeTone | null) => {
@@ -931,12 +955,22 @@ export function AutoFilterTh<T>({
 
 export function AutoFilterBar<T>({
   controller,
+  totalCount,
 }: {
   controller: TableAutoFilterController<T>;
+  totalCount?: number;
 }) {
   if (controller.activeCount === 0) return null;
   return (
-    <div className="flex items-center justify-end px-3 py-1.5 bg-[var(--surface)] border-b border-[var(--line)] text-xs">
+    <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-[var(--surface)] border-b border-[var(--line)] text-xs">
+      <div className="text-[11px] text-[var(--muted)]">
+        {totalCount !== undefined && (
+          <span>
+            عرض <strong className="num text-[var(--ink)]">{controller.rows.length}</strong> من{' '}
+            <strong className="num text-[var(--ink)]">{totalCount}</strong>
+          </span>
+        )}
+      </div>
       <button
         type="button"
         onClick={controller.clearAll}

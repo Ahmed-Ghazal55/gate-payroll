@@ -264,9 +264,13 @@ export function DataTable<T extends Record<string, any>>({
 
   // Rich Excel-style per-column filter specs
   const [colFilterSpecs, setColFilterSpecs] = useState<Record<string, ColumnFilterValue>>({});
+  const colFilterSpecsRef = useRef<Record<string, ColumnFilterValue>>({});
+  colFilterSpecsRef.current = colFilterSpecs;
 
   // Legacy quick-filter string map (kept in sync with colFilterSpecs)
   const [internalColumnSearch, setInternalColumnSearch] = useState<Record<string, string>>({});
+  const internalColumnSearchRef = useRef<Record<string, string>>({});
+  internalColumnSearchRef.current = internalColumnSearch;
   const columnSearch = controlledColumnFilters ?? internalColumnSearch;
 
   // Active column filter popover
@@ -782,19 +786,15 @@ export function DataTable<T extends Record<string, any>>({
   // Update a column's rich filter spec (from ColumnFilterMenu or quick filter row)
   const handleColumnFilterSpecChange = useCallback(
     (colKey: string, nextSpec: ColumnFilterValue | undefined) => {
-      const col = columns.find((c) => c.key === colKey);
-      const fType = col ? inferColumnFilterType(col.key, col.type ?? col.filterType) : 'text';
-
-      setColFilterSpecs((prev) => {
-        const updated = { ...prev };
-        if (!nextSpec || !isColumnFilterActive(nextSpec)) {
-          delete updated[colKey];
-        } else {
-          updated[colKey] = nextSpec;
-        }
-        emitServerQuery(updated, sortKey, sortDir, sortTone);
-        return updated;
-      });
+      const updated = { ...colFilterSpecsRef.current };
+      if (!nextSpec || !isColumnFilterActive(nextSpec)) {
+        delete updated[colKey];
+      } else {
+        updated[colKey] = nextSpec;
+      }
+      colFilterSpecsRef.current = updated;
+      setColFilterSpecs(updated);
+      emitServerQuery(updated, sortKey, sortDir, sortTone);
 
       // Sync simple string map for quick-filter row & legacy onColumnFiltersChange
       const simpleVal =
@@ -802,19 +802,17 @@ export function DataTable<T extends Record<string, any>>({
           ? nextSpec.values[0]
           : nextSpec?.value ?? '';
 
-      setInternalColumnSearch((prev) => {
-        const next = { ...prev };
-        if (!simpleVal) delete next[colKey];
-        else next[colKey] = simpleVal;
-        if (onColumnFiltersChange) onColumnFiltersChange(next);
-        updateUrlParams({ colFilters: next, page: 1 });
-        return next;
-      });
+      const nextSearch = { ...internalColumnSearchRef.current };
+      if (!simpleVal) delete nextSearch[colKey];
+      else nextSearch[colKey] = simpleVal;
+      internalColumnSearchRef.current = nextSearch;
+      setInternalColumnSearch(nextSearch);
+      if (onColumnFiltersChange) onColumnFiltersChange(nextSearch);
+      updateUrlParams({ colFilters: nextSearch, page: 1 });
 
       onPageChange(1);
     },
     [
-      columns,
       emitServerQuery,
       sortKey,
       sortDir,
@@ -832,15 +830,14 @@ export function DataTable<T extends Record<string, any>>({
     if (!val || !val.trim()) {
       handleColumnFilterSpecChange(key, undefined);
     } else if (fType === 'list') {
+      const prev = colFilterSpecsRef.current[key];
       handleColumnFilterSpecChange(key, {
-        ...colFilterSpecs[key],
-        op: 'eq',
-        value: val,
+        ...(prev?.colorTone ? { colorTone: prev.colorTone } : {}),
         values: [val],
       });
     } else {
       handleColumnFilterSpecChange(key, {
-        ...colFilterSpecs[key],
+        ...colFilterSpecsRef.current[key],
         op: 'contains',
         value: val,
       });
@@ -850,6 +847,8 @@ export function DataTable<T extends Record<string, any>>({
   // Clear all filters handler («مسح كل الفلاتر»)
   const handleClearAllFilters = () => {
     setGlobalSearch('');
+    colFilterSpecsRef.current = {};
+    internalColumnSearchRef.current = {};
     setColFilterSpecs({});
     setInternalColumnSearch({});
     setSortKey(null);
