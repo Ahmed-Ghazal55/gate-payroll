@@ -928,7 +928,7 @@ function ImportCenter() {
               {step.upload === 'erp' && (
                 <div>
                   <Link
-                    href="/operations/?tab=accounts"
+                    href="/operations/?tab=cities"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90 transition-opacity"
                   >
                     <ExternalLink size={14} />

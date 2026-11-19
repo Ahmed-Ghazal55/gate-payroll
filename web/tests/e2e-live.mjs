@@ -994,17 +994,17 @@ try {
   // 13. F3: Operations and Statements with 0.14.0 Endpoints
   console.log('\nStep 13: Testing F3 (Operations & Statements with 0.14.0 Endpoints)...');
 
-  // Operations tabs call GET /api/operations/{kind}?page=&q=
-  await page.goto(`${baseUrl}/app/operations/?tab=accounts`);
+  // Operations cities tab (O7 removed accounts from operations)
+  await page.goto(`${baseUrl}/app/operations/?tab=cities`);
   await page.waitForLoadState('networkidle');
   const opContent = await page.textContent('body');
-  assert.ok(!opContent.includes('غير متاح بعد'), 'Operations accounts tab must not show "غير متاح بعد"');
-  assert.ok(opContent.includes('حسابات المنصات'), 'Accounts tab header present');
+  assert.ok(!opContent.includes('غير متاح بعد'), 'Operations cities tab must not show "غير متاح بعد"');
+  assert.ok(opContent.includes('المدن والمناطق'), 'Cities tab header present');
 
   const searchInput = page.locator('input[placeholder*="بحث"]');
   await searchInput.fill('synthetic');
   await page.waitForTimeout(500);
-  console.log('✓ Step 13a: Operations accounts tab with search and pagination verified');
+  console.log('✓ Step 13a: Operations cities tab with search verified');
   await page.screenshot({ path: path.join(fix1ResultsDir, 'f3-operations.png') });
 
   // Rider Profile Accounts tab: GET /api/riders/{iqama}/accounts
