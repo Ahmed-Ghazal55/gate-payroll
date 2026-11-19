@@ -920,8 +920,8 @@ export function DataTable<T extends Record<string, any>>({
                   if (idx === 0) {
                     return (
                       <td key="total-label" className="px-3.5 py-2.5 text-start text-[var(--ink)]">
-                        <span>إجمالي المعروض</span>
-                        {filteredData.length !== (totalCount ?? data.length) && (
+                        <span>{serverSide ? 'إجمالي هذه الصفحة' : 'إجمالي المعروض'}</span>
+                        {!serverSide && filteredData.length !== (totalCount ?? data.length) && (
                           <span className="text-[10px] text-[var(--muted)] font-normal ms-1">
                             (الكل: {totalCount ?? data.length})
                           </span>
