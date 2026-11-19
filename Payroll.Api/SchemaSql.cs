@@ -1,0 +1,60 @@
+using System.Data.Common;
+using Microsoft.Data.SqlClient;
+using Microsoft.Data.Sqlite;
+namespace Payroll;
+
+/// <summary>Shared dual-dialect helpers for additive schema Ensure (SQL Server + SQLite).</summary>
+public static class SchemaSql
+{
+    public static bool IsSql(DbConnection c)=>c is SqlConnection;
+    public static Guid NewId()=>Guid.CreateVersion7();
+    public static string GuidType(DbConnection c)=>IsSql(c)?"uniqueidentifier":"TEXT";
+    public static string Text(DbConnection c,int n)=>IsSql(c)?$"nvarchar({n})":"TEXT";
+    public static string Varchar(DbConnection c,int n)=>IsSql(c)?$"varchar({n})":"TEXT";
+    public static string DateTime(DbConnection c)=>IsSql(c)?"datetime2":"TEXT";
+    public static string Date(DbConnection c)=>IsSql(c)?"date":"TEXT";
+    public static string Decimal(DbConnection c)=>IsSql(c)?"decimal(18,2)":"REAL";
+    public static string Binary(DbConnection c,int n)=>IsSql(c)?$"varbinary({n})":"BLOB";
+    public static string Int(DbConnection c)=>IsSql(c)?"int":"INTEGER";
+    public static string Tiny(DbConnection c)=>IsSql(c)?"tinyint":"INTEGER";
+    public static string Bit(DbConnection c)=>IsSql(c)?"bit":"INTEGER";
+    public static string Json(DbConnection c)=>IsSql(c)?"nvarchar(max)":"TEXT";
+    public static string Q(DbConnection c,string schema,string table)=>IsSql(c)?$"[{schema}].[{table}]":$"{schema}_{table}";
+    public static void Exec(DbConnection c,DbTransaction? tx,string sql)
+    {
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;cmd.CommandText=sql;cmd.ExecuteNonQuery();
+    }
+    public static void Exec(DbConnection c,DbTransaction? tx,string sql,params (string Name,object Value)[] values)
+    {
+        using var cmd=Store.Command(c,tx,sql,values);cmd.ExecuteNonQuery();
+    }
+    public static object? Scalar(DbConnection c,DbTransaction? tx,string sql,params (string Name,object Value)[] values)
+    {
+        using var cmd=Store.Command(c,tx,sql,values);return cmd.ExecuteScalar();
+    }
+    public static void EnsureSchema(DbConnection c,DbTransaction? tx,string schema)
+    {
+        if(!IsSql(c))return;
+        Exec(c,tx,$"IF SCHEMA_ID(N'{schema}') IS NULL EXEC(N'CREATE SCHEMA [{schema}]');");
+    }
+    public static void EnsureSchemas(DbConnection c,DbTransaction? tx,params string[] schemas)
+    {foreach(var s in schemas)EnsureSchema(c,tx,s);}
+    public static bool TableExists(DbConnection c,DbTransaction? tx,string schema,string table)
+    {
+        if(IsSql(c))
+            return Convert.ToInt32(Scalar(c,tx,"SELECT CASE WHEN OBJECT_ID(@name,N'U') IS NULL THEN 0 ELSE 1 END",("@name",$"{schema}.{table}"))!)==1;
+        return Convert.ToInt64(Scalar(c,tx,"SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name=@name",("@name",$"{schema}_{table}"))!)>0;
+    }
+    public static string AuditCols(DbConnection c)=>
+        $"created_by {Text(c,128)} NULL, created_at {DateTime(c)} NOT NULL, updated_by {Text(c,128)} NULL, updated_at {DateTime(c)} NULL, row_version {Binary(c,8)} NULL";
+    public static string NowLiteral(DbConnection c)=>IsSql(c)?"SYSUTCDATETIME()":"datetime('now')";
+    public static string GuidLiteral(DbConnection c,Guid id)=>IsSql(c)?$"'{id:D}'":$"'{id:D}'";
+    public static void CreateIndexIfMissing(DbConnection c,DbTransaction? tx,string schema,string table,string indexName,string columns)
+    {
+        string t=Q(c,schema,table);
+        if(IsSql(c))
+            Exec(c,tx,$"IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'{schema}.{table}') AND name=N'{indexName}') CREATE INDEX [{indexName}] ON {t}({columns});");
+        else
+            Exec(c,tx,$"CREATE INDEX IF NOT EXISTS {indexName} ON {t}({columns});");
+    }
+}
