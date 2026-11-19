@@ -1,7 +1,8 @@
 using System.Data.Common;
 namespace Payroll;
 
-/// <summary>U-W1-09 (journal half): fin.journal + fin.journal_line. Design §7 / §7.1 / §14 / §16 / BR §24.8 / §28. Posted-row immutability enforced by posting service later; columns and CHECKs land now.</summary>
+/// <summary>U-W1-09 (journal half): fin.journal + fin.journal_line. Design §7 / §7.1 / §14 / §16 / BR §24.8 / §28. Posted-row immutability enforced by posting service later; columns and CHECKs land now.
+/// Journal date-in-period is enforced by CHECK CK_fin_journal_date_in_period (schema CHECK, not a posting-service guard).</summary>
 public static class SchemaFinJournal
 {
     // journal.status: 1 draft, 2 posted, 3 reversed, 4 cancelled
@@ -18,6 +19,9 @@ public static class SchemaFinJournal
         string t=SchemaSql.Q(c,"fin","journal");string g=SchemaSql.GuidType(c);
         string period=SchemaSql.Q(c,"fin","accounting_period");
         string company=SchemaSql.Q(c,"hr","company");
+        string dateInPeriod=SchemaSql.IsSql(c)
+            ?"journal_date >= period_month AND journal_date < DATEADD(month, 1, period_month)"
+            :"journal_date >= period_month AND journal_date < date(period_month, '+1 month')";
         if(SchemaSql.IsSql(c))
         {
             SchemaSql.Exec(c,tx,$"""
@@ -44,10 +48,12 @@ public static class SchemaFinJournal
                   CONSTRAINT PK_fin_journal PRIMARY KEY NONCLUSTERED (id),
                   CONSTRAINT UQ_fin_journal_voucher UNIQUE (voucher_no),
                   CONSTRAINT UQ_fin_journal_source UNIQUE (source_type, source_id, company_id, purpose),
+                  CONSTRAINT UQ_fin_journal_id_company_period UNIQUE (id, company_id, period_id),
                   CONSTRAINT CK_fin_journal_status CHECK (status IN (1,2,3,4)),
                   CONSTRAINT CK_fin_journal_run_mode CHECK (run_mode IN (0,1)),
                   CONSTRAINT CK_fin_journal_currency CHECK (currency_code = 'SAR'),
-                  CONSTRAINT FK_fin_journal_period FOREIGN KEY (period_id) REFERENCES {period}(id),
+                  CONSTRAINT CK_fin_journal_date_in_period CHECK ({dateInPeriod}),
+                  CONSTRAINT FK_fin_journal_period_company FOREIGN KEY (company_id, period_id) REFERENCES {period}(company_id, id),
                   CONSTRAINT FK_fin_journal_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_journal_reverses FOREIGN KEY (reverses_journal_id) REFERENCES {t}(id)
                 );
@@ -84,10 +90,12 @@ public static class SchemaFinJournal
                   created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
                   CONSTRAINT UQ_fin_journal_voucher UNIQUE (voucher_no),
                   CONSTRAINT UQ_fin_journal_source UNIQUE (source_type, source_id, company_id, purpose),
+                  CONSTRAINT UQ_fin_journal_id_company_period UNIQUE (id, company_id, period_id),
                   CONSTRAINT CK_fin_journal_status CHECK (status IN (1,2,3,4)),
                   CONSTRAINT CK_fin_journal_run_mode CHECK (run_mode IN (0,1)),
                   CONSTRAINT CK_fin_journal_currency CHECK (currency_code = 'SAR'),
-                  CONSTRAINT FK_fin_journal_period FOREIGN KEY (period_id) REFERENCES {period}(id),
+                  CONSTRAINT CK_fin_journal_date_in_period CHECK ({dateInPeriod}),
+                  CONSTRAINT FK_fin_journal_period_company FOREIGN KEY (company_id, period_id) REFERENCES {period}(company_id, id),
                   CONSTRAINT FK_fin_journal_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_journal_reverses FOREIGN KEY (reverses_journal_id) REFERENCES {t}(id)
                 );
@@ -104,17 +112,19 @@ public static class SchemaFinJournal
         string t=SchemaSql.Q(c,"fin","journal_line");string g=SchemaSql.GuidType(c);
         string journal=SchemaSql.Q(c,"fin","journal");
         string account=SchemaSql.Q(c,"fin","account");
+        string period=SchemaSql.Q(c,"fin","accounting_period");
         string company=SchemaSql.Q(c,"hr","company");
         string cc=SchemaSql.Q(c,"org","cost_centre");
         string money=SchemaSql.Decimal(c);
         if(SchemaSql.IsSql(c))
         {
             // Leaf-only posting: composite FK (account_id, is_postable) → account(id, is_postable) with line CHECK is_postable=1.
-            // Activation (is_active/status) stays separate from postability.
+            // Line company/period must match the journal header via composite FK.
             SchemaSql.Exec(c,tx,$"""
                 IF OBJECT_ID(N'fin.journal_line',N'U') IS NULL
                 CREATE TABLE {t}(
                   id {g} NOT NULL,
+                  period_id {g} NOT NULL,
                   period_month {SchemaSql.Date(c)} NOT NULL,
                   journal_id {g} NOT NULL,
                   line_no {SchemaSql.Int(c)} NOT NULL,
@@ -137,7 +147,8 @@ public static class SchemaFinJournal
                   CONSTRAINT CK_fin_journal_line_one_side CHECK (debit = 0 OR credit = 0),
                   CONSTRAINT CK_fin_journal_line_nonzero CHECK (debit + credit > 0),
                   CONSTRAINT CK_fin_journal_line_postable CHECK (is_postable = 1),
-                  CONSTRAINT FK_fin_journal_line_journal FOREIGN KEY (journal_id) REFERENCES {journal}(id),
+                  CONSTRAINT FK_fin_journal_line_journal_scope FOREIGN KEY (journal_id, company_id, period_id) REFERENCES {journal}(id, company_id, period_id),
+                  CONSTRAINT FK_fin_journal_line_period_company FOREIGN KEY (company_id, period_id) REFERENCES {period}(company_id, id),
                   CONSTRAINT FK_fin_journal_line_account_postable FOREIGN KEY (account_id, is_postable) REFERENCES {account}(id, is_postable),
                   CONSTRAINT FK_fin_journal_line_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_journal_line_cc FOREIGN KEY (cost_centre_id) REFERENCES {cc}(id)
@@ -158,6 +169,7 @@ public static class SchemaFinJournal
             SchemaSql.Exec(c,tx,$"""
                 CREATE TABLE IF NOT EXISTS {t}(
                   id {g} NOT NULL PRIMARY KEY,
+                  period_id {g} NOT NULL,
                   period_month TEXT NOT NULL,
                   journal_id {g} NOT NULL,
                   line_no INTEGER NOT NULL,
@@ -179,7 +191,8 @@ public static class SchemaFinJournal
                   CONSTRAINT CK_fin_journal_line_one_side CHECK (debit = 0 OR credit = 0),
                   CONSTRAINT CK_fin_journal_line_nonzero CHECK (debit + credit > 0),
                   CONSTRAINT CK_fin_journal_line_postable CHECK (is_postable = 1),
-                  CONSTRAINT FK_fin_journal_line_journal FOREIGN KEY (journal_id) REFERENCES {journal}(id),
+                  CONSTRAINT FK_fin_journal_line_journal_scope FOREIGN KEY (journal_id, company_id, period_id) REFERENCES {journal}(id, company_id, period_id),
+                  CONSTRAINT FK_fin_journal_line_period_company FOREIGN KEY (company_id, period_id) REFERENCES {period}(company_id, id),
                   CONSTRAINT FK_fin_journal_line_account_postable FOREIGN KEY (account_id, is_postable) REFERENCES {account}(id, is_postable),
                   CONSTRAINT FK_fin_journal_line_company FOREIGN KEY (company_id) REFERENCES {company}(id),
                   CONSTRAINT FK_fin_journal_line_cc FOREIGN KEY (cost_centre_id) REFERENCES {cc}(id)

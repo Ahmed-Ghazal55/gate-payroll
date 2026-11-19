@@ -32,6 +32,7 @@ public static class SchemaFinPeriod
                   {SchemaSql.AuditCols(c)},
                   CONSTRAINT PK_fin_accounting_period PRIMARY KEY NONCLUSTERED (id),
                   CONSTRAINT UQ_fin_accounting_period UNIQUE (company_id, period_month),
+                  CONSTRAINT UQ_fin_accounting_period_company_id UNIQUE (company_id, id),
                   CONSTRAINT CK_fin_accounting_period_state CHECK (state IN (1,2)),
                   CONSTRAINT FK_fin_period_company FOREIGN KEY (company_id) REFERENCES {company}(id)
                 );
@@ -53,6 +54,7 @@ public static class SchemaFinPeriod
                   closed_by TEXT NULL,
                   created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
                   CONSTRAINT UQ_fin_accounting_period UNIQUE (company_id, period_month),
+                  CONSTRAINT UQ_fin_accounting_period_company_id UNIQUE (company_id, id),
                   CONSTRAINT CK_fin_accounting_period_state CHECK (state IN (1,2)),
                   CONSTRAINT FK_fin_period_company FOREIGN KEY (company_id) REFERENCES {company}(id)
                 );
