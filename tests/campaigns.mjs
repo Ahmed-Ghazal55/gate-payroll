@@ -21,7 +21,8 @@ try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
  assert.equal((await req('/health',undefined,200,false)).version,'0.29.1');
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
- for(const [username,role] of [['test-reviewer','Reviewer'],['test-accountant','Accountant']])await req('/api/users',{username,password,role});
+ await req('/api/users',{username:'test-reviewer',password,role:'Reviewer',customPermissions:['forms.responses.allCompanies']});
+ await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
  const campaign=await req('/api/campaigns',{title:'Editable campaign',days:2}),other=await req('/api/campaigns',{title:'Separate campaign',days:2});
  const pub='/api/public/forms/'+campaign.path.split('/').at(-1),otherPub='/api/public/forms/'+other.path.split('/').at(-1);
  const first={iqama:'2000000991',name:'Synthetic Alpha',workSystem:'tiers'},second={iqama:'2000000992',name:'Synthetic Beta',workSystem:'commission'};
