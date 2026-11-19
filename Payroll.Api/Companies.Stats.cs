@@ -63,7 +63,8 @@ public static partial class Companies
             long sponsoredOnLeave = compRiders.Count(r => string.Equals(r.S("status"), "OnLeave", StringComparison.OrdinalIgnoreCase));
 
             var compAccounts = accounts.Where(a =>
-                ResolveCompanyId(a.S("companyId", a.S("sponsorId"))) == cid).ToList();
+                ResolveCompanyId(a.S("companyId", a.S("sponsorId"))) == cid
+                && FinancialScopes.Platform(user, PayPlatforms.For(a.S("platformCode", a.S("platform"))).Platform)).ToList();
 
             var platformGroups = new Dictionary<string, (long Total, long Active, long Assigned)>(StringComparer.OrdinalIgnoreCase);
             long accTotal = 0, accActive = 0, accAssigned = 0;

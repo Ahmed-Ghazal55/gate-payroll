@@ -47,6 +47,7 @@ public static class CompanyStatsLiveQuery
     static string BuildSql(DbCommand cmd, LiveOperationsQuery.Scope? scope)
     {
         string sponsorScope = BuildSponsorScopeSql(scope, cmd);
+        string platformScope = BuildPlatformScopeSql(scope, cmd);
         return $"""
             WITH scoped_sponsors AS (
                 SELECT s.[Id], s.[RegistryNameAr], s.[UnifiedNationalNumber], s.[CommercialRegistrationNumber]
@@ -75,7 +76,7 @@ public static class CompanyStatsLiveQuery
                 FROM [app].[PlatformRiderAccounts] pa
                 INNER JOIN scoped_sponsors ss ON ss.[Id]=pa.[SponsorId]
                 INNER JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=pa.[ClientPlatformId] AND cp.[IsDeleted]=0
-                WHERE pa.[IsDeleted]=0
+                WHERE pa.[IsDeleted]=0{platformScope}
             ),
             acct_agg AS (
                 SELECT a.[SponsorId],
@@ -121,6 +122,14 @@ public static class CompanyStatsLiveQuery
         if (scope.SponsorUnifiedNumbers.Count == 0) return " AND 1=0";
         string regs = InList(cmd, "@cr", scope.SponsorUnifiedNumbers);
         return $" AND s.[UnifiedNationalNumber] IN ({regs})";
+    }
+
+    static string BuildPlatformScopeSql(LiveOperationsQuery.Scope? scope, DbCommand cmd)
+    {
+        if (scope is not { PlatformRestricted: true }) return "";
+        if (scope.PlatformCodes.Count == 0) return " AND 1=0";
+        string codes = InList(cmd, "@pc", scope.PlatformCodes);
+        return $" AND cp.[Code] IN ({codes})";
     }
 
     static string InList(DbCommand cmd, string prefix, IReadOnlyList<string> values)

@@ -9,7 +9,7 @@ using Payroll;
 [TestClass]
 public sealed class CompanyStatsTests
 {
-    static ClaimsPrincipal Principal(string username, string role, string[] perms, string[]? sponsors = null, string[]? denied = null)
+    static ClaimsPrincipal Principal(string username, string role, string[] perms, string[]? sponsors = null, string[]? denied = null, string[]? platforms = null)
     {
         var body = new JsonObject
         {
@@ -19,12 +19,14 @@ public sealed class CompanyStatsTests
         };
         if (denied != null)
             body["deniedPermissions"] = new JsonArray(denied.Select(p => (JsonNode?)p).ToArray());
-        if (sponsors != null)
+        if (sponsors != null || platforms != null)
         {
+            var sponsorIds = sponsors ?? FinancialCore.Sponsors.Select(s => s.Id).ToArray();
+            var platformList = platforms ?? ["Jahez", "Keeta", "HungerStation", "Ninja", "Chefz", "Amazon", "Other"];
             body["financialScope"] = new JsonObject
             {
-                ["sponsorIds"] = new JsonArray(sponsors.Select(s => (JsonNode?)s).ToArray()),
-                ["platforms"] = new JsonArray("Jahez", "Keeta", "HungerStation", "Ninja", "Chefz", "Amazon", "Other"),
+                ["sponsorIds"] = new JsonArray(sponsorIds.Select(s => (JsonNode?)s).ToArray()),
+                ["platforms"] = new JsonArray(platformList.Select(p => (JsonNode?)p).ToArray()),
                 ["accountCodes"] = new JsonArray(),
                 ["categoryCodes"] = new JsonArray()
             };
@@ -92,6 +94,29 @@ public sealed class CompanyStatsTests
         var emptyScope = new LiveOperationsQuery.Scope(false, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>());
         var (blockedSql, _) = CompanyStatsLiveQuery.PreviewSql(emptyScope);
         StringAssert.Contains(blockedSql, "1=0");
+
+        var platScoped = new LiveOperationsQuery.Scope(
+            true,
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            new[] { "JAHEZ", "KEETA" },
+            PlatformRestricted: true);
+        var (platSql, platParams) = CompanyStatsLiveQuery.PreviewSql(platScoped);
+        StringAssert.Contains(platSql, "cp.[Code] IN (@pc0,@pc1)");
+        CollectionAssert.Contains(platParams.ToList(), "@pc0");
+        CollectionAssert.Contains(platParams.ToList(), "@pc1");
+        Assert.DoesNotContain("JAHEZ", platSql, StringComparison.Ordinal);
+
+        var emptyPlatScope = new LiveOperationsQuery.Scope(
+            true,
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            PlatformRestricted: true);
+        var (blockedPlatSql, _) = CompanyStatsLiveQuery.PreviewSql(emptyPlatScope);
+        StringAssert.Contains(blockedPlatSql, "WHERE pa.[IsDeleted]=0 AND 1=0");
 
         using var sqlite = new SqliteConnection("Data Source=:memory:");
         sqlite.Open();
@@ -222,6 +247,23 @@ public sealed class CompanyStatsTests
             CollectionAssert.DoesNotContain(scopedActions, "manage");
             CollectionAssert.DoesNotContain(scopedActions, "filter_workforce");
             CollectionAssert.DoesNotContain(scopedActions, "export");
+
+            // Platform-restricted user (BW only, Jahez platform only — must not see KEETA account)
+            var jahezOnly = Principal("syn-jahez-only", "Reviewer", ["companies.view"], sponsors: [bw], platforms: ["Jahez"]);
+            var jahezStats = store.Read(c => Companies.StoreStats(c, jahezOnly));
+            var jahezItems = jahezStats["items"]!.AsArray().OfType<JsonObject>().ToList();
+            Assert.AreEqual(1, jahezItems.Count);
+            Assert.AreEqual(3m, jahezItems[0]["sponsorships"]!.N("total"));
+            Assert.AreEqual(1m, jahezItems[0]["platformAccounts"]!.N("total"));
+            Assert.AreEqual(1m, jahezStats["totals"]!.N("platformAccountsTotal"));
+            var jahezByPlat = jahezItems[0]["platformAccounts"]!["byPlatform"]!.AsArray().OfType<JsonObject>().ToList();
+            Assert.AreEqual(1, jahezByPlat.Count);
+            Assert.AreEqual("JAHEZ", jahezByPlat[0].S("code"));
+
+            // Platform-restricted user with zero allowed platforms -> 0 platform accounts
+            var noPlatUser = Principal("syn-no-plat", "Reviewer", ["companies.view"], sponsors: [bw], platforms: []);
+            var noPlatStats = store.Read(c => Companies.StoreStats(c, noPlatUser));
+            Assert.AreEqual(0m, noPlatStats["totals"]!.N("platformAccountsTotal"));
 
             // Empty sponsor scope -> 0 companies, 0 totals
             var emptyUser = Principal("syn-empty", "Reviewer", ["companies.view"], sponsors: []);
