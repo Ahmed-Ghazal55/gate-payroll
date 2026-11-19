@@ -1,6 +1,6 @@
 # ERP target document kinds
 
-These are additive `records` documents. Import logic is `tools/ErpImport/ImportPlan.cs`; source columns are explicitly allowlisted in `SourceReader.Catalog`. No relational redesign, accounting posting, deletion or payment-model calculation is included.
+These are additive `records` documents. Projection logic lives in `Payroll.Sync/ImportPlan.cs` (still used for **live** page projection); source columns are explicitly allowlisted in `SourceReader.Catalog`. Full mirror sync into these kinds was removed in S1. No relational redesign, accounting posting, deletion or payment-model calculation is included.
 
 Shared provenance: `erpSourceId` = ERP primary key, `erpSource` = target kind, `erpStatusCode` = original numeric status, `sourceDeleted` = source soft deletion flag. Stable non-rider keys are `erp:<kind>:<source PK>`. Rider keys remain the existing `iqama` contract. Source-key changes that would create a second destination identity stop the import for review. No personal keys are logged.
 

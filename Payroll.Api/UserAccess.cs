@@ -9,13 +9,15 @@ namespace Payroll;
 
 public static class UserAccess
 {
-    public sealed record PermissionDef(string Code, string ModuleCode, string ModuleAr, string NameAr, string DescriptionAr);
+    public sealed record PermissionDef(string Code, string ModuleCode, string ModuleAr, string NameAr, string DescriptionAr, bool Deprecated=false);
     public sealed record RoleDef(string Code, string NameAr, string DefaultDepartment, int DefaultRankLevel, string SummaryAr, string[] DefaultPermissions);
 
     // 1. كتالوج الصلاحيات الذرية الدقيقة (Atomic Permissions) مع الشرح التشغيلي لكل صلاحية
+    // Deprecated entries stay for stored-user aliases but are hidden from the role editor catalog.
+    public static IEnumerable<PermissionDef> EditorPermissionsCatalog=>PermissionsCatalog.Where(p=>!p.Deprecated);
     public static readonly PermissionDef[] PermissionsCatalog =
     [
-        new("erp.sync.run","Admin","إدارة النظام","تشغيل مزامنة ERP","تشغيل ومتابعة مزامنة ERP آمنة بالأعداد فقط دون تجاوز الحدود."),
+        new("erp.sync.run","Admin","إدارة النظام","تشغيل مزامنة ERP (مهجور)","مهجور: أُزيلت نقاط المزامنة؛ الصلاحية تبقى كاسم مستعار فقط.",Deprecated:true),
         new("approval.bypass_maker_checker","Admin","إدارة النظام","تجاوز شرط الشخصين","منح مؤرخ بسحب؛ يرفع شرط المجهّز ≠ المعتمد فقط مع سجل وشارة."),
         new("operations.view","Operations","العمليات","عرض العمليات","عرض العمليات وحسابات المناديب ضمن الشركة والمنصة."),
         new("pay.view","Payroll","الرواتب","عرض إطار الرواتب","عرض إعدادات التطبيقات والدورات والكشوف ضمن النطاق."),
@@ -387,7 +389,6 @@ public static class UserAccess
             ["hash"] = Convert.ToBase64String(Rfc2898DeriveBytes.Pbkdf2(password, salt, 210000, HashAlgorithmName.SHA256, 32))
         };
         if (customPermissions != null) doc["customPermissions"] = customPermissions.DeepClone();
-        ErpSyncRequests.Grant(doc);
         return doc;
     }
 
@@ -437,7 +438,7 @@ public static class UserAccess
         api.MapGet("/roles-catalog", () => new
         {
             roles = RolesCatalog,
-            permissions = PermissionsCatalog,
+            permissions = EditorPermissionsCatalog,
             departments = FinancialCore.DepartmentsCatalog,
             rolePermissions=store.Read(c=>Store.List(c,RolePermissionsKind).ToDictionary(r=>r.S("id"),r=>r["permissions"]?.DeepClone())),
             financialScopeCatalog=new{sponsors=FinancialCore.Sponsors,accounts=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault),categories=FinancialCore.CategoriesCatalog,platforms=new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}}
@@ -482,7 +483,6 @@ public static class UserAccess
                 if (rnk is >= 1 and <= 5) u["rankLevel"] = rnk;
             }
             if(input["customPermissions"] is JsonArray cp){ValidatePermissionList(cp);u["customPermissions"]=cp.DeepClone();}
-            if(roleChanged&&!input.ContainsKey("customPermissions"))ErpSyncRequests.Grant(u);
             if(input["financialScope"] is JsonObject scope)u["financialScope"]=FinancialScopes.Normalize(scope);
             if(input["deniedPermissions"] is JsonArray denied){ValidatePermissionList(denied);u["deniedPermissions"]=denied.DeepClone();}
             J.Need(FinancialCore.DepartmentsCatalog.OfType<JsonObject>().Any(d=>d.S("code")==Department(u)),"قسم غير صالح.");

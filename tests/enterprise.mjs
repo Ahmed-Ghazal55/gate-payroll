@@ -19,7 +19,7 @@ const password=randomBytes(24).toString('hex');let adminCookie='';
 async function put(route,body,expected=200){const r=await fetch(base+route,{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)});const d=await r.json();assert.equal(r.status,expected,JSON.stringify(d));checks++;return d;}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
- assert.equal((await req('/health',undefined,200,false)).version,'0.23.0');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.24.0');
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
  await seedAccountingCash(req);
  const accountant=await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
@@ -31,14 +31,13 @@ try{
  await req('/api/payroll/runs',undefined,403);await req('/api/users',undefined,403);await req('/api/payments',{},403);await req('/api/excel/riders/commit',{},403);
  cookie=adminCookie;await put(`/api/users/${reviewer.id}/status`,{status:'suspended'});cookie=reviewerCookie;await req('/api/me',undefined,401);
  cookie=adminCookie;await put(`/api/users/${other.id}/status`,{role:'Reviewer'});await put('/api/users/administrator/status',{status:'suspended'},400);
- await req('/api/auth/login',{username:'test-accountant',password});assert.equal((await req('/api/me')).role,'Accountant');await req('/api/payroll/approve',{},403);await req('/api/riders/sync-baseline',{},403);await req('/api/users',undefined,403);
+ await req('/api/auth/login',{username:'test-accountant',password});assert.equal((await req('/api/me')).role,'Accountant');await req('/api/payroll/approve',{},403);await req('/api/riders',{iqama:'2000000099',name:'Denied'},403);await req('/api/users',undefined,403);
  cookie=adminCookie;
- const iq='2000000001';const baseline=[{iqama:iq,name:'Synthetic Rider',phone:'0501234567',status:'نشط',nationality:'Test',engagement_type:'OutsideRider',operational_role:'سيارة',personRole:'rider'},{iqama:'2000000002',name:'Synthetic Administrator',personRole:'administrative',isEmployee:true}];
- let sync=await req('/api/riders/sync-baseline',{riders:baseline,mode:'preview'});assert.equal(sync.addCount,1);assert.equal(sync.excludedAdministrative,1);assert.equal(sync.errors.length,0);
- const committed=await req('/api/riders/sync-baseline',{riders:baseline,mode:'commit',fingerprint:sync.fingerprint});assert.equal(committed.count,1);
- assert.equal((await req('/api/riders/sync-baseline',{riders:baseline,mode:'commit',fingerprint:sync.fingerprint})).alreadyImported,true);
+ const iq='2000000001';
+ await req('/api/riders',{iqama:iq,name:'Synthetic Rider',phone:'0501234567',status:'Active',nationality:'Test',engagementType:'External',financeSponsorId:'BW'});
+ await req('/api/riders',{iqama:'bad',name:'Invalid Rider'},400);
  let rider=(await req('/api/riders'))[0];assert.equal(rider.phone,'+966501234567');assert.equal(rider.engagementType,'External');assert.equal(rider.status,'Active');assert.equal(rider.policyId,'');
- const bad=[{iqama:'2000000010',name:'Synthetic Valid'},{iqama:'bad',name:'Invalid Rider'}];sync=await req('/api/riders/sync-baseline',{riders:bad,mode:'preview'});assert.equal(sync.errors.length,1);await req('/api/riders/sync-baseline',{riders:bad,mode:'commit',fingerprint:sync.fingerprint},400);assert.equal((await req('/api/riders')).length,1);
+ assert.equal((await req('/api/riders')).length,1);
  const campaign=await req('/api/campaigns',{title:'Persistent campaign',days:2});let campaigns=await req('/api/campaigns');assert.equal(campaigns[0].publicUrl,campaign.publicUrl);assert.ok(campaign.publicUrl.startsWith('https://'));
  assert.match(await req(campaign.qrCodeUrl,undefined,200),/<svg/);await req(campaign.path,undefined,200,false);
  const choice=await req('/api/public/forms/'+campaign.path.split('/').at(-1),{iqama:iq,name:'Synthetic Rider',workSystem:'tiers'},200,false);
@@ -74,7 +73,7 @@ try{
  access=await req('/api/inquiry-access',{iqama:iq,scope:'debt',identityReviewed:true});const statement=await req('/api/public/inquiry/debt',{iqama:iq,phoneLast4:'4567',code:access.code},200,false);assert.equal(statement.totalRemaining,400);assert.equal(statement.debts[0].notes,undefined);
  await req('/api/public/inquiry/debt',{iqama:iq,phoneLast4:'4567',code:'0'.repeat(64)},401,false);
  await req('/api/public/inquiry/debt',{iqama:iq,phoneLast4:'4567',code:'0'.repeat(64)},429,false);
- assert.ok((await req('/api/audit')).some(x=>x.action==='rider.baseline_imported'));assert.ok((await req('/api/audit')).some(x=>x.action==='admin.user_update'));
+ assert.ok((await req('/api/audit')).some(x=>x.action==='rider.save'));assert.ok((await req('/api/audit')).some(x=>x.action==='admin.user_update'));
 
  // Financial & Debt Management System v0.6 checks: 3 Sponsors, HR Expenses, SharedSplit, Direct Collection + Waiver, Inter-CR Transfer, Approvals, Mobile FCM, Dormant Promissory Flag
  const openingTemplate=await fetch(base+'/api/debts/import-opening/template',{headers:{Cookie:cookie}});assert.equal(openingTemplate.status,200);const openingTemplateBytes=Buffer.from(await openingTemplate.arrayBuffer());
@@ -164,7 +163,7 @@ try{
  await req(uploaded.storagePath,undefined,401,false);
  const download=await fetch(base+uploaded.storagePath,{headers:{Cookie:adminCookie}});assert.equal(download.status,200);assert.deepEqual(Buffer.from(await download.arrayBuffer()),attachment);checks++;
  const editedDocument=await req(`/api/riders/${iq}/documents`,{documentTypeCode:'ResidencyPermit',fileName:'rider.pdf',expiryDate:'2028-01-01'});assert.equal(editedDocument.hasBinary,true);assert.equal(editedDocument.history.length,2);
- const privateResult=await req('/api/system/release-check');assert.equal(privateResult.version,'0.23.0');
+ const privateResult=await req('/api/system/release-check');assert.equal(privateResult.version,'0.24.0');
  const grantAgain=await req('/api/inquiry-access',{iqama:iq,scope:'mobile',identityReviewed:true});assert.ok(grantAgain.url.includes('#access_code='));
  // New financial surfaces retain original staff-role isolation.
  await req('/api/auth/login',{username:'test-reviewer',password});

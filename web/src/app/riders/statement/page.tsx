@@ -30,6 +30,7 @@ import { useToast } from '../../../components/ui/Toast';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Skeleton, EmptyState, ErrorState } from '../../../components/ui/EmptyState';
 import { RiderPicker } from '../../../components/ui/RiderPicker';
+import { IbanDisplay } from '../../../components/ui/IbanDisplay';
 import type { RiderStatement, RiderProfile360, MonthlyRiderStatement } from '../../../lib/types';
 import { RiderAccountsPanel } from '../../../components/riders/RiderAccountsPanel';
 
@@ -129,12 +130,6 @@ function RiderStatementPageInner() {
       { debit: 0, credit: 0 }
     );
   }, [statement]);
-
-  // Mask IBAN
-  const maskIban = (iban?: string) => {
-    if (!iban || iban.length < 10) return iban || 'غير مسجل';
-    return `${iban.slice(0, 4)} **** **** ${iban.slice(-4)}`;
-  };
 
   // Mask Iqama
   const maskIqama = (val: string) => {
@@ -312,7 +307,11 @@ function RiderStatementPageInner() {
                   </div>
                   <div>
                     <span className="font-semibold text-[var(--ink)]">الآيبان البنكي: </span>
-                    <span className="font-mono">{maskIban(profile?.rider?.iban)}</span>
+                    {profile?.rider?.iban ? (
+                      <IbanDisplay iban={profile.rider.iban} masked />
+                    ) : (
+                      <span className="text-[var(--muted)]">غير مسجل</span>
+                    )}
                   </div>
                 </div>
               </div>

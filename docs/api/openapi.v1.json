@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:40137/"
+      "url": "http://127.0.0.1:45581/"
     }
   ],
   "paths": {
@@ -296,23 +296,71 @@
         }
       }
     },
-    "/api/rider-mobile/requests": {
+    "/api/rider-mobile/forms": {
       "get": {
         "tags": [
           "Riders"
         ],
-        "summary": "Read own advance asks and their stage using the rider bearer session",
+        "summary": "Read unified form schemas and active campaigns for the authenticated rider app",
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JsonObject"
-                  }
+                  "$ref": "#/components/schemas/JsonObject"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/forms/{token}/submit": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Submit an open form or campaign from inside the rider app using the authenticated session identity",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/requests": {
+      "get": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Read own advance asks and two-way service requests with status timeline and replies",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           }
@@ -322,7 +370,7 @@
         "tags": [
           "Riders"
         ],
-        "summary": "Rider asks the current supervisor for a cash or bank advance",
+        "summary": "Rider submits an advance ask or a service request (annual leave, IBAN update, data update, statement, complaint, appointment)",
         "requestBody": {
           "content": {
             "application/json": {
@@ -352,7 +400,7 @@
         "tags": [
           "Riders"
         ],
-        "summary": "Rider cancels an open advance ask",
+        "summary": "Rider cancels an open advance ask or service request",
         "parameters": [
           {
             "name": "id",
@@ -363,6 +411,46 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/requests/{id}/reply": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Rider sends a reply on an existing request",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -407,6 +495,36 @@
         }
       }
     },
+    "/api/rider-mobile/language": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Switch rider mobile session language (ar, en, ur)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousTypeOfbooleanAndstring"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/rider-mobile/login": {
       "post": {
         "tags": [
@@ -441,12 +559,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JsonObject"
-                  }
-                }
+                "schema": {}
               }
             }
           }
@@ -475,7 +588,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring"
+                  "$ref": "#/components/schemas/AnonymousTypeOfJsonObjectAndstringAndJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstringAndListOfJsonObjectAndAnonymousTypeOfintAndintAndintAndint"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/broadcasts/{id}/read": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Record rider read receipt for a broadcast or individual notice",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousTypeOfbooleanAndstringAndbooleanAndstring"
                 }
               }
             }
@@ -515,7 +658,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfbooleanAndstringAndint"
+                  "$ref": "#/components/schemas/AnonymousTypeOfbooleanAndstringAndbooleanAndstringAndstringAndint"
                 }
               }
             }
@@ -997,43 +1140,6 @@
         }
       }
     },
-    "/api/system/erp-sync": {
-      "get": {
-        "tags": [
-          "Administration"
-        ],
-        "summary": "Read administrator-only counts and refusal codes for recent ERP sync runs",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JsonObject"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/system/erp-sponsor-map": {
       "get": {
         "tags": [
@@ -1050,187 +1156,6 @@
                   "items": {
                     "$ref": "#/components/schemas/AnonymousTypeOfstringAndboolean"
                   }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/system/jobs": {
-      "get": {
-        "tags": [
-          "Administration"
-        ],
-        "summary": "Read safe background job status",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JobView"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/system/jobs/erp-sync/run": {
-      "post": {
-        "tags": [
-          "Administration"
-        ],
-        "summary": "Queue permission-gated ERP sync with cooldown",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "oneOf": [
-                  {
-                    "type": "null"
-                  },
-                  {
-                    "$ref": "#/components/schemas/JsonObject"
-                  }
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/system/jobs/erp-sync/dry-run": {
-      "post": {
-        "tags": [
-          "Administration"
-        ],
-        "summary": "Queue permission-gated counts-only ERP preview",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "oneOf": [
-                  {
-                    "type": "null"
-                  },
-                  {
-                    "$ref": "#/components/schemas/JsonObject"
-                  }
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/system/jobs/erp-sync/{jobId}": {
-      "get": {
-        "tags": [
-          "Administration"
-        ],
-        "summary": "Read counts-only ERP job progress",
-        "parameters": [
-          {
-            "name": "jobId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/system/jobs/erp-sync/pause": {
-      "post": {
-        "tags": [
-          "Administration"
-        ],
-        "summary": "Pause ERP scheduling with SuperAdmin reason",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonObject"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfboolean"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/system/jobs/erp-sync/resume": {
-      "post": {
-        "tags": [
-          "Administration"
-        ],
-        "summary": "Resume approved ERP scheduling with SuperAdmin reason",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonObject"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfboolean"
                 }
               }
             }
@@ -16147,7 +16072,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"
+                  "$ref": "#/components/schemas/AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"
                 }
               }
             }
@@ -17060,34 +16985,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/JsonObject"
                 }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/riders/sync-baseline": {
-      "post": {
-        "tags": [
-          "Riders"
-        ],
-        "summary": "Submit riders sync baseline",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonObject"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {}
               }
             }
           }
@@ -18262,6 +18159,155 @@
         }
       }
     },
+    "/api/rider-mobile/service-requests": {
+      "get": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "List rider service requests within caller scope, hiding confidential complaints from unauthorized staff",
+        "parameters": [
+          {
+            "name": "requestType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "iqama",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Admin or staff sends a two-way service request to a rider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/service-requests/{id}/decide": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Approve (with second-approver enforcement for IBAN/data), reject, or request info on a rider service request",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/service-requests/{id}/reply": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Staff replies to a rider service request and notifies the rider via FCM",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/advance-requests/rider-asks": {
       "get": {
         "tags": [
@@ -18350,6 +18396,36 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/statements/notify-period": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Enqueue batched statement-ready notifications for riders with approved statements in a period",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18477,7 +18553,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndPermissionDef[]Andboolean"
+                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean"
                 }
               }
             }
@@ -18914,7 +18990,7 @@
         "tags": [
           "Riders"
         ],
-        "summary": "Submit rider mobile broadcast",
+        "summary": "Submit rider mobile broadcast or individual notice",
         "requestBody": {
           "content": {
             "application/json": {
@@ -22747,10 +22823,42 @@
           }
         }
       },
-      "AnonymousTypeOfbooleanAndstringAndint": {
+      "AnonymousTypeOfbooleanAndstringAndbooleanAndstring": {
         "required": [
           "ok",
           "id",
+          "read",
+          "readAt"
+        ],
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "readAt": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AnonymousTypeOfbooleanAndstringAndbooleanAndstringAndstringAndint": {
+        "required": [
+          "ok",
+          "id",
+          "acknowledged",
+          "readAt",
+          "acknowledgedAt",
           "acknowledgedCount"
         ],
         "type": "object",
@@ -22759,6 +22867,21 @@
             "type": "boolean"
           },
           "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acknowledged": {
+            "type": "boolean"
+          },
+          "readAt": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acknowledgedAt": {
             "type": [
               "null",
               "string"
@@ -22919,7 +23042,7 @@
           }
         }
       },
-      "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndPermissionDef[]Andboolean": {
+      "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean": {
         "required": [
           "sponsors",
           "unassignedDebtCount",
@@ -23216,6 +23339,49 @@
           }
         }
       },
+      "AnonymousTypeOfintAndintAndintAndint": {
+        "required": [
+          "maxBroadcasts",
+          "maxDebts",
+          "readRateLimitPerMin",
+          "writeRateLimitPerMin"
+        ],
+        "type": "object",
+        "properties": {
+          "maxBroadcasts": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maxDebts": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "readRateLimitPerMin": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "writeRateLimitPerMin": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "AnonymousTypeOfintAndintAndintAndintAnddecimalAndIEnumerableOfJsonObject": {
         "required": [
           "riders",
@@ -23428,64 +23594,6 @@
           }
         }
       },
-      "AnonymousTypeOfJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring": {
-        "required": [
-          "rider",
-          "totalRemainingDebt",
-          "totalPaidDebt",
-          "totalWaivedDebt",
-          "debts",
-          "broadcasts"
-        ],
-        "type": "object",
-        "properties": {
-          "rider": {
-            "$ref": "#/components/schemas/JsonObject"
-          },
-          "totalRemainingDebt": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "totalPaidDebt": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "totalWaivedDebt": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "debts": {
-            "type": [
-              "null",
-              "array"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstring"
-            }
-          },
-          "broadcasts": {
-            "type": [
-              "null",
-              "array"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring"
-            }
-          }
-        }
-      },
       "AnonymousTypeOfJsonObjectAndJsonObject": {
         "required": [
           "debt",
@@ -23596,6 +23704,79 @@
           }
         }
       },
+      "AnonymousTypeOfJsonObjectAndstringAndJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstringAndListOfJsonObjectAndAnonymousTypeOfintAndintAndintAndint": {
+        "required": [
+          "rider",
+          "language",
+          "latestApprovedStatement",
+          "totalRemainingDebt",
+          "totalPaidDebt",
+          "totalWaivedDebt",
+          "debts",
+          "broadcasts",
+          "loadLimits"
+        ],
+        "type": "object",
+        "properties": {
+          "rider": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "language": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "latestApprovedStatement": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "totalRemainingDebt": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "totalPaidDebt": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "totalWaivedDebt": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "debts": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstring"
+            }
+          },
+          "broadcasts": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/JsonObject"
+            }
+          },
+          "loadLimits": {
+            "$ref": "#/components/schemas/AnonymousTypeOfintAndintAndintAndint"
+          }
+        }
+      },
       "AnonymousTypeOfListOfJsonObjectAnddecimal": {
         "required": [
           "rows",
@@ -23622,7 +23803,7 @@
           }
         }
       },
-      "AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
+      "AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
         "required": [
           "roles",
           "permissions",
@@ -24209,100 +24390,6 @@
           }
         }
       },
-      "AnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstring": {
-        "required": [
-          "id",
-          "category",
-          "categoryAr",
-          "creditorSponsorNameAr",
-          "totalAmount",
-          "paidAmount",
-          "waivedAmount",
-          "remainingBalance",
-          "monthlyInstallment",
-          "status",
-          "effectiveFrom"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "category": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "categoryAr": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "creditorSponsorNameAr": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "totalAmount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "paidAmount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "waivedAmount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "remainingBalance": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "monthlyInstallment": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "status": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "effectiveFrom": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "AnonymousTypeOfstringAndstringAndstringAndstringAndstring": {
         "required": [
           "iqama",
@@ -24465,16 +24552,24 @@
           }
         }
       },
-      "AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring": {
+      "AnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstring": {
         "required": [
           "id",
           "category",
-          "titleAr",
-          "bodyAr",
-          "actionUrl",
-          "requiresAck",
-          "acknowledged",
-          "createdAt"
+          "categoryAr",
+          "categoryEn",
+          "categoryUr",
+          "totalAmount",
+          "paidAmount",
+          "waivedAmount",
+          "remainingBalance",
+          "monthlyInstallment",
+          "direction",
+          "markerAr",
+          "markerEn",
+          "markerUr",
+          "status",
+          "effectiveFrom"
         ],
         "type": "object",
         "properties": {
@@ -24490,31 +24585,95 @@
               "string"
             ]
           },
-          "titleAr": {
+          "categoryAr": {
             "type": [
               "null",
               "string"
             ]
           },
-          "bodyAr": {
+          "categoryEn": {
             "type": [
               "null",
               "string"
             ]
           },
-          "actionUrl": {
+          "categoryUr": {
             "type": [
               "null",
               "string"
             ]
           },
-          "requiresAck": {
-            "type": "boolean"
+          "totalAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           },
-          "acknowledged": {
-            "type": "boolean"
+          "paidAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           },
-          "createdAt": {
+          "waivedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "remainingBalance": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "monthlyInstallment": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "direction": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "markerAr": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "markerEn": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "markerUr": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effectiveFrom": {
             "type": [
               "null",
               "string"
@@ -25329,57 +25488,6 @@
           }
         }
       },
-      "JobView": {
-        "required": [
-          "id",
-          "enabled",
-          "status"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "status": {
-            "type": "string"
-          },
-          "cron": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "timeZone": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "lastRun": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "nextRun": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "lastStatus": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "JsonArray": {
         "type": "array"
       },
@@ -25412,6 +25520,10 @@
           },
           "descriptionAr": {
             "type": "string"
+          },
+          "deprecated": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

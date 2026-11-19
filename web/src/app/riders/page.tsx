@@ -47,7 +47,6 @@ import type {
   RiderRecord,
   RiderProfile360,
   RidersDataQuality,
-  RidersBaselineSyncResult,
 } from '../../lib/types';
 
 function RidersPageInner() {
@@ -89,11 +88,6 @@ function RidersPageInner() {
   const [qualityError, setQualityError] = useState<string | null>(null);
   const [enriching, setEnriching] = useState<boolean>(false);
 
-  // Sync Baseline state
-  const [syncPreview, setSyncPreview] = useState<RidersBaselineSyncResult | null>(null);
-  const [syncLoading, setSyncLoading] = useState<boolean>(false);
-  const [syncCommitting, setSyncCommitting] = useState<boolean>(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
 
   // Document upload dialog state
   const [uploadDialogOpen, setUploadDialogOpen] = useState<boolean>(false);
@@ -205,49 +199,6 @@ function RidersPageInner() {
     }
   };
 
-  // Baseline Sync Preview
-  const handleBaselinePreview = async () => {
-    setSyncLoading(true);
-    setSyncError(null);
-    try {
-      const res = await api.syncRidersBaseline({
-        mode: 'preview',
-        useLocalBaseline: true,
-      });
-      setSyncPreview(res);
-      toast('تم إنشاء معاينة المزامنة بنجاح مع الدليل المرجعي', 'success');
-    } catch (err: any) {
-      const msg = err.message || 'تعذر معاينة المزامنة';
-      setSyncError(msg);
-      toast(msg, 'danger');
-    } finally {
-      setSyncLoading(false);
-    }
-  };
-
-  // Baseline Sync Commit
-  const handleBaselineCommit = async () => {
-    if (!syncPreview?.fingerprint) return;
-    setSyncCommitting(true);
-    setSyncError(null);
-    try {
-      const res = await api.syncRidersBaseline({
-        mode: 'commit',
-        useLocalBaseline: true,
-        fingerprint: syncPreview.fingerprint,
-      });
-      toast(`تم اعتماد المزامنة بنجاح: ${res.count} سجلات جديدة و ${res.updatedCount} تحديثات`, 'success');
-      setSyncPreview(null);
-      loadDirectory();
-      loadDataQuality();
-    } catch (err: any) {
-      const msg = err.message || 'تعذر اعتماد المزامنة';
-      setSyncError(msg);
-      toast(msg, 'danger');
-    } finally {
-      setSyncCommitting(false);
-    }
-  };
 
   // Document Upload
   const handleUploadDocument = async () => {
@@ -442,7 +393,6 @@ function RidersPageInner() {
     { id: 'directory', label: 'دليل المناديب', icon: <Users size={16} /> },
     { id: '360', label: 'ملف المندوب 360°', icon: <UserCheck size={16} /> },
     { id: 'quality', label: 'جودة واكتمال البيانات', icon: <Sparkles size={16} />, badge: qualityData?.needsReviewCount },
-    { id: 'sync', label: 'المزامنة والدليل المرجعي', icon: <RefreshCw size={16} /> },
   ];
 
   // Helper for masking Iqama
@@ -457,7 +407,7 @@ function RidersPageInner() {
       <PageHeader
         title="المناديب وسجلات التشغيل"
         eyebrow="إدارة الكوادر والتشغيل"
-        description="دليل المناديب الموحد، ملف المندوب الشامل 360°، متابعة اكتمال وجودة البيانات، والمزامنة المعتمدة مع ملفات الدليل المرجعي."
+        description="دليل المناديب الموحد، ملف المندوب الشامل 360°، متابعة اكتمال وجودة البيانات."
         primaryAction={{
           label: 'تحديث الدليل',
           icon: <RefreshCw size={15} />,
@@ -913,87 +863,6 @@ function RidersPageInner() {
               </div>
             </div>
           ) : null}
-        </div>
-      )}
-
-      {/* Sub-tab 4: Sync Baseline */}
-      {activeTab === 'sync' && (
-        <div className="space-y-6">
-          <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
-            <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-              مزامنة الدليل الخاص مع الملف المرجعي (Baseline Sync)
-            </h3>
-            <p className="text-xs sm:text-sm text-[var(--muted)] mt-1 leading-relaxed">
-              تتيح هذه الشاشة مطابقة المناديب المسجلين محلياً مع الدليل المرجعي (data/riders-baseline.json)، فحص التعارضات، إضافة المناديب الجدد وتحديث الحقول المكتملة عبر توقيع البصمة (Fingerprint).
-            </p>
-
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-[var(--line)]">
-              <button
-                type="button"
-                disabled={syncLoading}
-                onClick={handleBaselinePreview}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs sm:text-sm font-bold hover:opacity-90 transition disabled:opacity-50 inline-flex items-center gap-2 cursor-pointer shadow-xs"
-              >
-                <RefreshCw size={15} />
-                <span>{syncLoading ? 'جاري الفحص والمعاينة...' : 'معاينة مزامنة الدليل المرجعي'}</span>
-              </button>
-            </div>
-          </div>
-
-          {syncError && (
-            <div className="p-4 rounded-2xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 text-[var(--danger)] text-xs font-bold">
-              {syncError}
-            </div>
-          )}
-
-          {syncPreview && (
-            <div className="p-5 rounded-2xl border border-[var(--accent)]/30 bg-[var(--surface)] shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                  نتيجة معاينة المزامنة مع الدليل
-                </h4>
-                <span className="font-mono text-xs text-[var(--muted)]">
-                  بصمة الحالة: {syncPreview.fingerprint?.slice(0, 16)}...
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3 rounded-xl bg-[var(--raised)]">
-                  <div className="text-[11px] text-[var(--muted)]">إجمالي السجلات المفحوصة</div>
-                  <div className="text-lg font-bold num mt-0.5">{syncPreview.total || 0}</div>
-                </div>
-                <div className="p-3 rounded-xl bg-[var(--raised)]">
-                  <div className="text-[11px] text-[var(--muted)]">مناديب جدد للإضافة</div>
-                  <div className="text-lg font-bold num text-[var(--money-pos)] mt-0.5">
-                    {syncPreview.addCount || 0}
-                  </div>
-                </div>
-                <div className="p-3 rounded-xl bg-[var(--raised)]">
-                  <div className="text-[11px] text-[var(--muted)]">سجلات بحاجة للتحديث</div>
-                  <div className="text-lg font-bold num text-[var(--accent)] mt-0.5">
-                    {syncPreview.updateCount || 0}
-                  </div>
-                </div>
-                <div className="p-3 rounded-xl bg-[var(--raised)]">
-                  <div className="text-[11px] text-[var(--muted)]">التعارضات المكتشفة</div>
-                  <div className="text-lg font-bold num text-[var(--danger)] mt-0.5">
-                    {syncPreview.conflicts?.length || 0}
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-[var(--line)] flex justify-end">
-                <button
-                  type="button"
-                  disabled={syncCommitting}
-                  onClick={handleBaselineCommit}
-                  className="px-5 py-2.5 rounded-xl bg-[var(--money-pos)] text-white text-xs sm:text-sm font-bold hover:opacity-90 transition disabled:opacity-50 cursor-pointer shadow-xs"
-                >
-                  {syncCommitting ? 'جاري الاعتماد...' : 'اعتماد وحفظ المزامنة في قاعدة البيانات'}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 

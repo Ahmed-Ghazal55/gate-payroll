@@ -24,7 +24,6 @@ import {
   ClipboardCheck,
   Banknote,
   FileUp,
-  RefreshCw,
   Volume2,
   VolumeX,
   Calculator,
@@ -37,7 +36,6 @@ import type { UserProfile } from '../../lib/types';
 import { NotificationsPanel } from './NotificationsPanel';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { personalSoundEnabled, setPersonalSoundEnabled, unlockNotificationSound, playPersonalChime } from '../../lib/notification-sound';
-import { ErpSyncDrawer } from '../system/ErpSyncDrawer';
 
 function BreadcrumbsNav() {
   const pathname = usePathname();
@@ -129,7 +127,6 @@ export function Header({
   const lastPersonalRef = useRef<number | null>(null);
 
   // ERP Sync Drawer State
-  const [erpSyncDrawerOpen, setErpSyncDrawerOpen] = useState(false);
 
   // Search modal state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -314,23 +311,6 @@ export function Header({
       icon: <FileUp size={15} className="text-[var(--info)]" />,
       visible: can('pay.view'),
     },
-    {
-      id: 'import-center',
-      label: 'مركز الاستيراد',
-      href: '/imports/',
-      icon: <FileUp size={15} className="text-[var(--accent)]" />,
-      visible: can('imports.view'),
-    },
-    {
-      id: 'erp-sync',
-      label: 'تحديث البيانات من ERP',
-      onClick: () => {
-        setOpenPanel(null);
-        setErpSyncDrawerOpen(true);
-      },
-      icon: <RefreshCw size={15} className="text-[var(--accent)]" />,
-      visible: can('erp.sync.run'),
-    },
   ];
 
   const visibleShortcuts = shortcutItems.filter((s) => s.visible);
@@ -440,8 +420,7 @@ export function Header({
                     <kbd className="text-[9px] font-mono bg-[var(--raised)] px-1.5 py-0.5 rounded text-[var(--muted)]">سريع</kbd>
                   </div>
                   <div className="py-1">
-                    {visibleShortcuts.map((item) =>
-                      item.href ? (
+                    {visibleShortcuts.map((item) => (
                         <Link
                           key={item.id}
                           href={item.href}
@@ -451,18 +430,7 @@ export function Header({
                           {item.icon}
                           <span>{item.label}</span>
                         </Link>
-                      ) : (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={item.onClick}
-                          className="flex w-full items-center gap-2.5 px-3.5 py-2 hover:bg-[var(--row-hover)] transition text-start text-[var(--ink)] font-semibold"
-                        >
-                          {item.icon}
-                          <span>{item.label}</span>
-                        </button>
-                      )
-                    )}
+                    ))}
                   </div>
                 </div>
               )}
@@ -661,11 +629,6 @@ export function Header({
         onClose={() => setSearchModalOpen(false)}
       />
 
-      {/* ERP Sync Drawer */}
-      <ErpSyncDrawer
-        open={erpSyncDrawerOpen}
-        onClose={() => setErpSyncDrawerOpen(false)}
-      />
     </>
   );
 }

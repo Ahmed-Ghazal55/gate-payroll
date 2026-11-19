@@ -93,15 +93,4 @@ public sealed class R10OperationsAccessTests
         });
         CollectionAssert.AreEqual(new[]{"pay.view"},edited);Assert.IsFalse(stored);
     }
-    [TestMethod]
-    public void SyncOverridesNeedAnAdministratorAReasonAndKnownKinds()
-    {
-        var input=new JsonObject{["acceptNewKinds"]=new JsonArray("ninja_daily"),["reason"]="Reviewed the counts"};
-        Assert.IsNull(ErpSyncRequests.ReadOverrides(PayFixture.Checker,new JsonObject()));
-        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>ErpSyncRequests.ReadOverrides(Manager("erp.sync.run"),input)).Status);
-        var admin=UserAccess.Principal(new JsonObject{["id"]="a",["username"]="synthetic-admin",["role"]="Admin"});
-        Assert.AreEqual("ninja_daily",ErpSyncRequests.ReadOverrides(admin,input)!["acceptNewKinds"]![0]!.ToString());
-        Assert.ThrowsExactly<ApiError>(()=>ErpSyncRequests.ReadOverrides(admin,new JsonObject{["acceptNewKinds"]=new JsonArray("ninja_daily")}));
-        Assert.ThrowsExactly<ApiError>(()=>ErpSyncRequests.ReadOverrides(admin,new JsonObject{["acceptNewKinds"]=new JsonArray("made_up"),["reason"]="Reviewed"}));
-    }
 }

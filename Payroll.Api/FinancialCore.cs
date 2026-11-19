@@ -627,7 +627,7 @@ public static class FinancialCore
             vaults = ChartOfAccounts.Where(a => a.IsVault&&FinancialScopes.Account(ctx.User,a.Code)),
             departments = DepartmentsCatalog,
             roles = UserAccess.RolesCatalog,
-            permissions = UserAccess.PermissionsCatalog,
+            permissions = UserAccess.EditorPermissionsCatalog,
             promissoryNotesArchiveEnabled = PromissoryArchiveEnabled(c)
         })).WithTags("Banks and treasury").WithSummary("Read finance catalog");
 

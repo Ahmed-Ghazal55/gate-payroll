@@ -39,9 +39,6 @@ public static partial class AccessPolicy
         if(path is "/api/me" or "/api/roles-catalog")return method=="GET";
         if(path=="/api/me/password")return method=="POST";
         if(path.StartsWith("/api/roles/",StringComparison.Ordinal))return false;
-        if(path is "/api/system/jobs/erp-sync/run" or "/api/system/jobs/erp-sync/dry-run")return method=="POST"&&Has("erp.sync.run");
-        const string syncStatus="/api/system/jobs/erp-sync/";
-        if(method=="GET"&&path.StartsWith(syncStatus,StringComparison.Ordinal)&&System.Text.RegularExpressions.Regex.IsMatch(path[syncStatus.Length..],"^[1-9][0-9]{0,19}$"))return Has("erp.sync.run");
         if(path.StartsWith("/api/config/lists",StringComparison.Ordinal))return method=="GET"||method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return method is "GET" or "POST" or "PUT"&&Has("users.manage"); // Handlers guard escalation and self-edit.
         if(path=="/api/responses")return method=="GET"&&Has("forms.view");
@@ -77,7 +74,7 @@ public static partial class AccessPolicy
         }
         if(path=="/api/dashboard")return method=="GET"&&Has("payroll.view");
         if(path.StartsWith("/api/system/",StringComparison.Ordinal))return false;
-        if(path=="/api/riders/sync-baseline"||path=="/api/riders/enrich-missing")return false;
+        if(path=="/api/riders/enrich-missing")return false;
         if(path=="/api/riders/lookup")return method=="GET"; // RiderLookup.Allowed re-checks the picker permissions in the handler.
         if(path=="/api/riders/data-quality"||path=="/api/riders")return method=="GET"?Has("riders.view"):method=="POST"&&Has("riders.edit");
         if(path.StartsWith("/api/riders/",StringComparison.Ordinal))return path.EndsWith("/profile-360",StringComparison.Ordinal)?method=="GET"&&Has("riders.view_360")&&Has("debts.view"):method=="GET"?Has("riders.view_360"):method=="POST"&&path.EndsWith("/documents",StringComparison.Ordinal)&&Has("riders.edit");

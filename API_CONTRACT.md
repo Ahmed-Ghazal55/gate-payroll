@@ -49,7 +49,6 @@ All administrative endpoints require the live account to be active. Roles are ch
 |---|---|
 | Users (Admin) | GET/POST /api/users; PUT /api/users/{id}/status with role/status. Password12..200; username unique ignoring case; cannot disable final active Admin. |
 | Rider attributes | nationality, phone, engagementType:SponsoredInternal/External, sponsor, city, operationalRole:Car/Motorcycle, status:Active/OnLeave/Archived/NeedsReview; missing source enums remain unassigned. |
-| Baseline (Admin) | POST /api/riders/sync-baseline {riders:[...],mode:preview}; then mode:commit + fingerprint. Administrative people excluded, empty existing attributes may be filled, conflicts preserved, no policy assignment. |
 | Persistent campaigns | GET /api/campaigns returns publicUrl and qrCodeUrl; GET /api/campaigns/{id}/qr.svg renders authenticated same-site SVG. Old hashed tokens remain valid. |
 | Custom builder (Admin) | GET/POST /api/forms/builder; PUT /{id} edits drafts; POST /{id}/publish or /close; GET /{id}/qr.svg. Fields immutable after publishing. |
 | Schema | titleAr/titleEn/titleUr, descriptionAr/En/Ur, expiresAt, maxSubmissions, fields:[{id,labelAr,labelEn,labelUr,type,required,options}]. Types text/number/select/radio/iqama/phone/date; max50fields. Options strings or {value,labelAr,labelEn,labelUr}. |

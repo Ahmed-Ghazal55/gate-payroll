@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/check-env.mjs && next build && node scripts/check-links.mjs",
+    "test": "node --experimental-strip-types --test tests/unit/*.test.mjs",
     "test:e2e": "node tests/e2e.mjs && node tests/ui-qa.mjs",
     "test:e2e:live": "node tests/e2e-live.mjs",
     "api:generate": "node scripts/gen-api-types.mjs",
