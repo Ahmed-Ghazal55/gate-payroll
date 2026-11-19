@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { routeNotificationLink, extractNotificationPeriod } from '../push';
 import { api, esc, money } from '../api';
 import { setSession, getSession } from '../state';
-import { setLanguage, getLanguage, t, validateSaudiIban } from '../i18n';
+import { setLanguage, getLanguage, t, validateSaudiIban, DICT } from '../i18n';
 import { renderStatementHtml } from '../screens/statement';
 import { renderDebtsHtml } from '../screens/debts';
 import { renderNotificationsHtml } from '../screens/notifications';
@@ -65,6 +65,24 @@ describe('3-Language Switcher (ar / en / ur) and RTL/LTR Direction', () => {
     expect(t('onYou')).toContain('آپ کے ذمے');
 
     setLanguage('ar');
+  });
+
+  it('has complete 1:1 i18n key parity and non-empty strings across ar, en, and ur', () => {
+    const arKeys = Object.keys(DICT.ar).sort();
+    const enKeys = Object.keys(DICT.en).sort();
+    const urKeys = Object.keys(DICT.ur).sort();
+
+    expect(arKeys.length).toBeGreaterThan(100);
+    expect(enKeys).toEqual(arKeys);
+    expect(urKeys).toEqual(arKeys);
+
+    for (const lang of ['ar', 'en', 'ur'] as const) {
+      for (const key of arKeys) {
+        const val = DICT[lang][key];
+        expect(typeof val, `${lang}.${key} must be a string`).toBe('string');
+        expect(val.trim().length, `${lang}.${key} must be non-empty`).toBeGreaterThan(0);
+      }
+    }
   });
 });
 
