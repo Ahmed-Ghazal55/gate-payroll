@@ -25,6 +25,31 @@ public sealed class ConfigListMappingTests
         finally{SqliteConnection.ClearAllPools();if(Directory.Exists(dir))Directory.Delete(dir,true);}
     }
     [TestMethod]
+    public void LiveSeededHsWalletMovesOnceFrom112506To112513WithAudit()
+    {
+        string dir=Path.Combine(Path.GetTempPath(),"gate-config-wallet-"+Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store=new Store(dir);ConfigLists.Seed(store);
+            // Simulate live: seeded before U-W1-29 with the old account and no v3 marker.
+            store.Write((c,tx)=>
+            {
+                var item=Store.Get(c,"cfg:deduction_types:HsWalletTopUp",ConfigLists.ItemKind,tx)!;
+                item["current"]!["values"]!["account"]="112506";Store.Save(c,ConfigLists.ItemKind,item,tx);
+                SchemaSql.Exec(c,tx,"DELETE FROM records WHERE id='migration:config-lists:v3-hs-wallet-112513'");return true;
+            });
+            long version=store.Read(c=>(long)Store.Get(c,"cfg:deduction_types:HsWalletTopUp",ConfigLists.ItemKind,null)!.N("version"));
+            ConfigLists.Seed(store);ConfigLists.Seed(store);
+            var migrated=store.Read(c=>Store.Get(c,"cfg:deduction_types:HsWalletTopUp",ConfigLists.ItemKind,null))!;
+            Assert.AreEqual("112513",migrated["current"]!["values"].S("account"));
+            Assert.AreEqual(version+1,(long)migrated.N("version"));
+            Assert.AreEqual("112506",(migrated["history"] as System.Text.Json.Nodes.JsonArray)!.Last()!["values"].S("account"));
+            Assert.AreEqual(1,store.Read(c=>Store.List(c,"audit").Count(a=>a.S("action")=="config.item_migrated"&&a.S("entityId")=="cfg:deduction_types:HsWalletTopUp")));
+            Assert.AreEqual("112506",store.Read(c=>ConfigLists.Current(c,null,"deduction_types","WorkPermit"))!["values"].S("account"));
+        }
+        finally{SqliteConnection.ClearAllPools();if(Directory.Exists(dir))Directory.Delete(dir,true);}
+    }
+    [TestMethod]
     public void HrServicesAndHsWalletHaveDistinctPostableAccounts()
     {
         Assert.AreEqual("112513",ConfigLists.DefaultDeductions.Single(d=>d.Category=="HsWalletTopUp").Account);

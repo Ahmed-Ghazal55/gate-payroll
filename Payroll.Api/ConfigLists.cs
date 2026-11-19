@@ -169,6 +169,25 @@ public static class ConfigLists
             foreach(var (code,name) in new[]{("STC","STC"),("MOBILY","موبايلي"),("ZAIN","زين")})Put("recharge_networks",code,name,new());
             Store.Save(c,"setting",new(){["id"]=marker,["version"]=1},tx);return true;
         },false);
+        // U-W1-29 (Ghazal P14, M-0634): HS wallet top-ups post to 112513; 112506 stays HR services.
+        // Live was seeded with 112506 and the seed never rewrites, so move only that exact old value once,
+        // as a new approved version with an audit row. Any other value an approver chose is kept.
+        const string wallet="migration:config-lists:v3-hs-wallet-112513";
+        store.Write((c,tx)=>
+        {
+            if(Store.Get(c,wallet,"setting",tx)!=null)return false;
+            var item=Store.Get(c,ItemId("deduction_types","HsWalletTopUp"),ItemKind,tx)?.Clone();
+            if(item?["current"] is JsonObject cur&&cur["values"].S("account")=="112506")
+            {
+                if(item["history"] is not JsonArray history)item["history"]=history=new JsonArray();
+                history.Add(cur.DeepClone());
+                var next=(JsonObject)cur.DeepClone();next["values"]!["account"]="112513";
+                next["by"]="system-migration";next["approvedBy"]="system-migration (U-W1-29, Ghazal P14)";next["validFrom"]=Now();
+                item["current"]=next;item["version"]=item.N("version")+1;
+                Store.Save(c,ItemKind,item,tx);Store.Audit(c,tx,"config.item_migrated",item.S("id"),"system-migration");
+            }
+            Store.Save(c,"setting",new(){["id"]=wallet,["version"]=1},tx);return true;
+        },false);
     }
     // BR §29: the phase and order of a deduction category; approved list first, then the built-in default.
     public static (int Phase,int Order,string LabelAr) Phase(DbConnection c,DbTransaction? tx,string category)
