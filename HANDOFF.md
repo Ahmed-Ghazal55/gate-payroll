@@ -4,12 +4,27 @@
 |---|---|
 | Current writer | none |
 | Branch | `feat/rider-app-v2` (worktree `/home/ghazal/Projects/active/gate-payroll-rider-app`) |
-| Updated | 2026-11-19 by Antigravity (Argon, Task M2 complete rider mobile app) |
+| Updated | 2026-11-19 by Antigravity (Task M3 fix round from Review RA1) |
 | Live | `/health` = **0.23.0**; no live deploy or setting change from this branch |
-| Next | Claude reviews `feat/rider-app-v2`; Ghazal places `google-services.json` and runs `mobile/scripts/build-debug.sh` |
+| Next | Planner re-reviews `feat/rider-app-v2` M3 fixes and maps §12.2 DB design note; Ghazal places `google-services.json` and runs `mobile/scripts/build-debug.sh` |
 
 ## Goal now
-Task M2 (`feat/rider-app-v2`) complete and verified locally. Ready for planner review.
+Task M3 (all 13 findings from Review RA1: H1–H3, M1–M6, L1–L4) fixed with one commit per fix and verified locally. Ready for planner re-review.
+
+## Done (Task M3 — Review RA1 Fix Round, 2026-11-19)
+- **H1 (`03cd4e3`)**: Added dedicated permissions `riders.iban_data.approve_first`, `riders.iban_data.approve_second`, and `mobile.complaints.confidential` in `UserAccess.cs` / `AccessPolicy.cs`; enforced per-step permissions and user-ID (`NameIdentifier`) independence check in `RiderAsks.DecideServiceRequest`.
+- **H2 (`3e9afd8`)**: Preserved stored deduction/adjustment sign in `PayStatements.cs` (`BuildShortLines`) so credit adjustments/refunds stay positive («لك»).
+- **H3 (`a214409`)**: Reconciled `BuildShortLines` for both `pay_cycle` (salary/commission/penalties/operating cost) and `legacy_run` (keeping negative `platform_settlement` lines); added `shortLinesBalanced` / `shortLinesMismatch` mismatch guard and tests asserting last `runningBalance == closing`.
+- **M1 (`d45a2c8`)**: Removed phone-side `buildFallbackShortLines` in `mobile/src/screens/statement.ts`; shows localized "not available" when `shortLines` is missing.
+- **M2 (`6a90bb9`)**: Stored 3-language (`ar`/`en`/`ur`) push title/body across all enqueue sites (`FinancialCore.cs`, `RiderAsks.cs`, `PushNotifications.cs`) and resolved payload text by active session `language`.
+- **M3 (`6271398`)**: Evicted stale rate-limit windows in `PushNotifications.cs` and enforced per-IP check before auth (`EnforceRiderIpRateLimit`) followed by per-session check after auth (`EnforceRiderSessionRateLimit`).
+- **M4 (`627bde5`)**: Added filtered SQL queries (`Store.ListWhere`, `ListByIds`, `ListBroadcastsForRider`, `ListIdsByPrefix`) + SQLite partial indexes and switched rider read paths off full `Store.List` scans.
+- **M5 (`a4ebe4a`)**: Removed placeholder `0500000000` / `"الرياض"` defaults on in-app IBAN campaign submit (`RiderAsks.cs`) and added required phone/city inputs in `mobile/src/screens/requests.ts`.
+- **M6 (`22ace78`)**: Added planner note `docs/rider-app/DB-DESIGN-MAPPING-NOTE.md` listing the §12.2 DB-design mappings (`app.broadcast_ack`, `rider_service_request`, `hr.iban_change`) without editing main repo design files.
+- **L1 (`48d4a0a`)**: Always take submitted in-app form name strictly from the rider record.
+- **L2 (`2c1a8de`)**: `CanStaffSeeServiceRequest` denies access when the rider record is missing.
+- **L3 (`f727873`)**: Filtered `FormSchemasCatalog` and enforced `SubmitInAppForm` by rider company and form target.
+- **L4 (`8f1f8f9`)**: Added 1:1 `ar`/`en`/`ur` i18n key-parity and non-empty value test in `mobile/src/__tests__/api-and-routing.test.ts`.
 
 ## Done (Task M2 — Rider Mobile App v2, 2026-11-19)
 - **Short 3-language statement & Home summary (`Payroll.Api/PayStatements.cs`, `mobile/src/screens/statement.ts`)**: `shortLines` with `ar` / `en` / `ur` labels, running balance, and «لك / عليك» (`For you` / `On you`) markers from `PayStatements.Build` (one source rule, approved payrolls only); `LatestApprovedSummary` on `GET /api/rider-mobile/portal/{iqama}`; no company/organisation names on rider-facing screens; non-legal disclaimer.
