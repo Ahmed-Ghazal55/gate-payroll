@@ -120,7 +120,8 @@ export function StatementsPanel({ canSend }: { canSend: boolean }) {
           <div className="p-3 rounded-2xl bg-[var(--accent)] text-[var(--accent-ink)] text-center space-y-1">
             <div className="text-[11px]">{statement.header?.period || period}</div>
             <div className="text-xl font-black num">{money(statement.closing)} ر.س</div>
-            <div className="text-[10px]">{statement.closing >= 0 ? 'لك' : 'عليك'}</div>
+            {/* Same marker as PayStatements.MarkerAr on the server. */}
+            <div className="text-[10px]">{statement.closing > 0 ? 'لك' : statement.closing < 0 ? 'عليك' : 'متوازن'}</div>
           </div>
           {statement.approvedOnly === false || statement.status !== 'approved' ? (
             <p className="text-[11px] text-[var(--warning)] text-center">لا يوجد كشف معتمد لهذه الفترة بعد؛ لن يصل المندوب إشعار له.</p>
