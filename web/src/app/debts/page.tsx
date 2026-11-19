@@ -50,6 +50,12 @@ import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { DebtActionsPanel } from '../../features/debts/DebtActionsPanel';
+import {
+  debtsLoadKindsForTab,
+  pageSlice,
+  DEBTS_CLIENT_PAGE_SIZE,
+  type DebtsTabId,
+} from '../../features/debts/debts-tab-load';
 import type {
   DebtRecord,
   ApprovalRequest,
@@ -60,7 +66,7 @@ import type {
   OrgSupervision,
 } from '../../lib/types';
 
-type TabId = 'debts' | 'actions' | 'advance_requests' | 'statements' | 'approvals' | 'promissory';
+type TabId = DebtsTabId;
 
 
 const LEGACY_CATEGORY_AR: Record<string, string> = {
@@ -127,6 +133,7 @@ function DebtsPageContent() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [debts, setDebts] = useState<DebtRecord[]>([]);
+  const [debtsPage, setDebtsPage] = useState(1);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [promissoryNotes, setPromissoryNotes] = useState<PromissoryNote[]>([]);
   const [promissoryFeatureEnabled, setPromissoryFeatureEnabled] = useState<boolean>(false);
@@ -203,25 +210,61 @@ function DebtsPageContent() {
     }
   }, [user]);
 
-  const loadData = async () => {
+  const loadDebts = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [debtsRes, approvalsRes, pNotesRes] = await Promise.all([
-        api.getDebts(),
-        api.getApprovals(),
-        api.getPromissoryNotes(),
-      ]);
+      const debtsRes = await api.getDebts();
       setDebts(debtsRes || []);
-      setApprovals(approvalsRes || []);
-      setPromissoryNotes(pNotesRes.items || []);
-      setPromissoryFeatureEnabled(pNotesRes.featureEnabled || false);
+      setDebtsPage(1);
     } catch (err: any) {
       const msg = err.message || 'تعذر تحميل بيانات المديونيات';
       setError(msg);
       toast(msg, 'danger');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadApprovals = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const approvalsRes = await api.getApprovals();
+      setApprovals(approvalsRes || []);
+    } catch (err: any) {
+      const msg = err.message || 'تعذر تحميل الاعتمادات';
+      setError(msg);
+      toast(msg, 'danger');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPromissory = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const pNotesRes = await api.getPromissoryNotes();
+      setPromissoryNotes(pNotesRes.items || []);
+      setPromissoryFeatureEnabled(pNotesRes.featureEnabled || false);
+    } catch (err: any) {
+      const msg = err.message || 'تعذر تحميل سندات الأمر';
+      setError(msg);
+      toast(msg, 'danger');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Refresh only what the open tab needs (F-D2). */
+  const loadData = async () => {
+    const kinds = debtsLoadKindsForTab(activeTab);
+    for (const kind of kinds) {
+      if (kind === 'debts') await loadDebts();
+      else if (kind === 'approvals') await loadApprovals();
+      else if (kind === 'promissory') await loadPromissory();
+      else if (kind === 'advances') await loadAdvanceRequests();
     }
   };
 
@@ -250,10 +293,6 @@ function DebtsPageContent() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
     const action = searchParams?.get('action');
     if (action === 'new') {
       setActiveTab('advance_requests');
@@ -280,12 +319,15 @@ function DebtsPageContent() {
     }
   }, [canReviewAdvances, canRequestAdvances]);
 
+  // F-D2: fetch only the open tab's data (never debts+approvals+promissory together).
   useEffect(() => {
-    if (activeTab === 'advance_requests') {
-      loadAdvanceRequests();
-      if (canRequestAdvances) {
-        loadSupervisedRiders();
-      }
+    const kinds = debtsLoadKindsForTab(activeTab);
+    if (kinds.includes('debts')) void loadDebts();
+    if (kinds.includes('approvals')) void loadApprovals();
+    if (kinds.includes('promissory')) void loadPromissory();
+    if (kinds.includes('advances')) {
+      void loadAdvanceRequests();
+      if (canRequestAdvances) void loadSupervisedRiders();
     }
   }, [activeTab, advancesRoleView]);
 
@@ -524,6 +566,13 @@ function DebtsPageContent() {
       return true;
     });
   }, [debts, selectedCategory, selectedStatus, searchQuery]);
+
+  // Client-side page until GET /debts accepts page + pageSize (API need).
+  const debtsPageCount = Math.max(1, Math.ceil(filteredDebts.length / DEBTS_CLIENT_PAGE_SIZE));
+  const pagedDebts = useMemo(
+    () => pageSlice(filteredDebts, Math.min(debtsPage, debtsPageCount)),
+    [filteredDebts, debtsPage, debtsPageCount]
+  );
 
   const categoryOptions = useMemo(() => {
     const m = new Map<string, string>();
@@ -1067,16 +1116,43 @@ function DebtsPageContent() {
           {error ? (
             <ErrorState title="تعذر تحميل بيانات المديونيات" message={error} onRetry={loadData} />
           ) : (
-            <DataTable
-              tableId="debts-list"
-              columns={debtsColumns}
-              data={filteredDebts}
-              loading={loading}
-              emptyTitle="لا توجد مديونيات مسجلة"
-              emptyDescription="لم يتم العثور على أي مديونيات أو سلف تطابق شروط الفلترة الحالية."
-              exportFilename="debts_list"
-              showTotals={true}
-            />
+            <>
+              <DataTable
+                tableId="debts-list"
+                columns={debtsColumns}
+                data={pagedDebts}
+                loading={loading}
+                emptyTitle="لا توجد مديونيات مسجلة"
+                emptyDescription="لم يتم العثور على أي مديونيات أو سلف تطابق شروط الفلترة الحالية."
+                exportFilename="debts_list"
+                showTotals={true}
+              />
+              {filteredDebts.length > DEBTS_CLIENT_PAGE_SIZE && (
+                <div className="flex items-center justify-between gap-3 text-xs text-[var(--muted)]">
+                  <span>
+                    صفحة {Math.min(debtsPage, debtsPageCount)} من {debtsPageCount} · {filteredDebts.length} سجل
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={debtsPage <= 1}
+                      onClick={() => setDebtsPage((p) => Math.max(1, p - 1))}
+                      className="px-3 py-1.5 rounded-lg border border-[var(--line)] disabled:opacity-40"
+                    >
+                      السابق
+                    </button>
+                    <button
+                      type="button"
+                      disabled={debtsPage >= debtsPageCount}
+                      onClick={() => setDebtsPage((p) => Math.min(debtsPageCount, p + 1))}
+                      className="px-3 py-1.5 rounded-lg border border-[var(--line)] disabled:opacity-40"
+                    >
+                      التالي
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
