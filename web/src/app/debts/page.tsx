@@ -131,9 +131,12 @@ function DebtsPageContent() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [debts, setDebts] = useState<DebtRecord[]>([]);
+  const [debtsLoaded, setDebtsLoaded] = useState(false);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
+  const [approvalsLoaded, setApprovalsLoaded] = useState(false);
   const [promissoryNotes, setPromissoryNotes] = useState<PromissoryNote[]>([]);
   const [promissoryFeatureEnabled, setPromissoryFeatureEnabled] = useState<boolean>(false);
+  const [advancesLoaded, setAdvancesLoaded] = useState(false);
 
   // Statement search states
   const [statementIqama, setStatementIqama] = useState<string>('2000000789');
@@ -213,6 +216,7 @@ function DebtsPageContent() {
     try {
       const debtsRes = await api.getDebts();
       setDebts(debtsRes || []);
+      setDebtsLoaded(true);
     } catch (err: any) {
       const msg = err.message || 'تعذر تحميل بيانات المديونيات';
       setError(msg);
@@ -228,6 +232,7 @@ function DebtsPageContent() {
     try {
       const approvalsRes = await api.getApprovals();
       setApprovals(approvalsRes || []);
+      setApprovalsLoaded(true);
     } catch (err: any) {
       const msg = err.message || 'تعذر تحميل الاعتمادات';
       setError(msg);
@@ -271,6 +276,7 @@ function DebtsPageContent() {
       const role = advancesRoleView;
       const list = await api.getAdvanceRequests({ role });
       setAdvanceRequests(Array.isArray(list) ? list : []);
+      setAdvancesLoaded(true);
     } catch (err: any) {
       setAdvancesError(err.message || 'تعذر تحميل طلبات السلف');
     } finally {
@@ -939,7 +945,11 @@ function DebtsPageContent() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="إجمالي المديونيات القائمة"
-          value={`${totalRemainingDebts.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+          value={
+            debtsLoaded
+              ? `${totalRemainingDebts.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`
+              : '—'
+          }
           hint="الأرصدة المتبقية على ذمة المناديب"
           icon={Receipt}
           active={activeTab === 'debts' && selectedCategory === 'all' && selectedStatus === 'all'}
@@ -948,11 +958,15 @@ function DebtsPageContent() {
             setSelectedCategory('all');
             setSelectedStatus('all');
           }}
-          loading={loading}
+          loading={loading && !debtsLoaded}
         />
         <StatCard
           label="أرصدة السلف المتبقية"
-          value={`${totalAdvances.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+          value={
+            debtsLoaded
+              ? `${totalAdvances.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`
+              : '—'
+          }
           hint="السلف النقدية والبنكية الجاري استقطاعها"
           icon={Coins}
           active={activeTab === 'debts' && selectedCategory === 'advance'}
@@ -960,25 +974,25 @@ function DebtsPageContent() {
             handleTabChange('debts');
             setSelectedCategory(selectedCategory === 'advance' ? 'all' : 'advance');
           }}
-          loading={loading}
+          loading={loading && !debtsLoaded}
         />
         <StatCard
           label="طلبات السلف بانتظار المراجعة"
-          value={String(pendingAdvancesCount)}
+          value={advancesLoaded ? String(pendingAdvancesCount) : '—'}
           hint="تحتاج دراسة الملخص المالي والاعتماد"
           icon={Clock}
           active={activeTab === 'advance_requests'}
           onClick={() => handleTabChange(activeTab === 'advance_requests' ? 'debts' : 'advance_requests')}
-          loading={loadingAdvances}
+          loading={loadingAdvances && !advancesLoaded}
         />
         <StatCard
           label="طلبات الاعتمادات المتبادلة"
-          value={String(pendingApprovalsCount)}
+          value={approvalsLoaded ? String(pendingApprovalsCount) : '—'}
           hint="طلبات بانتظار قرار الإدارة أو العمليات"
           icon={ShieldCheck}
           active={activeTab === 'approvals'}
           onClick={() => handleTabChange(activeTab === 'approvals' ? 'debts' : 'approvals')}
-          loading={loading}
+          loading={loading && !approvalsLoaded}
         />
       </div>
 
@@ -986,16 +1000,25 @@ function DebtsPageContent() {
       <div className="border-b border-[var(--line)]">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           {[
-            { id: 'debts' as TabId, label: 'المديونيات والتكاليف', count: filteredDebts.length },
+            {
+              id: 'debts' as TabId,
+              label: 'المديونيات والتكاليف',
+              count: debtsLoaded ? filteredDebts.length : undefined,
+            },
             { id: 'actions' as TabId, label: 'تحصيل وإنشاء' },
             {
               id: 'advance_requests' as TabId,
               label: 'طلبات السلف (نظام الرتب)',
-              count: advanceRequests.length,
-              alert: pendingAdvancesCount > 0,
+              count: advancesLoaded ? advanceRequests.length : undefined,
+              alert: advancesLoaded && pendingAdvancesCount > 0,
             },
             { id: 'statements' as TabId, label: 'كشوف حساب المناديب' },
-            { id: 'approvals' as TabId, label: 'منظومة الاعتمادات', count: pendingApprovalsCount, alert: pendingApprovalsCount > 0 },
+            {
+              id: 'approvals' as TabId,
+              label: 'منظومة الاعتمادات',
+              count: approvalsLoaded ? pendingApprovalsCount : undefined,
+              alert: approvalsLoaded && pendingApprovalsCount > 0,
+            },
             { id: 'promissory' as TabId, label: 'أرشيف سندات الأمر', count: promissoryNotes.length },
           ].map((tab) => (
             <button
