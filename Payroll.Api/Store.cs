@@ -28,8 +28,8 @@ public sealed partial class Store
             connection = config.ConnectionString;
         }
         else connection = new SqliteConnectionStringBuilder { DataSource = Path.Combine(DirectoryPath, "payroll.db"), Mode = SqliteOpenMode.ReadWriteCreate, DefaultTimeout = 30 }.ToString();
-        using var c = Open(); var beforeUpgrade=ReleaseSafety.Checkpoint(c,DirectoryPath); using var cmd = c.CreateCommand();
-        cmd.CommandText = Provider == "sqlite" ? """
+        using var c = Open(); var beforeUpgrade=ReleaseSafety.Checkpoint(c,DirectoryPath);
+        string recordsDdl = Provider == "sqlite" ? """
             PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS ix_records_kind ON records(kind);
@@ -46,11 +46,11 @@ public sealed partial class Store
             IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('dbo.records') AND name='ix_records_kind')
               CREATE INDEX ix_records_kind ON dbo.records(kind);
             """;
-        cmd.ExecuteNonQuery();
-        ErpDataIndexes.Ensure(c);
-        PayRunInputs.Ensure(c);
         SchemaSql.WithMigrationLock(c,(conn,tx)=>
         {
+            using(var cmd=conn.CreateCommand()){cmd.Transaction=tx;cmd.CommandText=recordsDdl;cmd.ExecuteNonQuery();}
+            ErpDataIndexes.Ensure(conn,tx);
+            PayRunInputs.Ensure(conn,tx);
             SchemaRef.Ensure(conn,tx);
             SchemaHrCompany.Ensure(conn,tx);
             SchemaRef.EnsureLegacyAccountMapAfterCompany(conn,tx);
