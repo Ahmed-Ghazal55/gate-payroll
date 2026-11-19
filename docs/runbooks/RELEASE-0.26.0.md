@@ -9,7 +9,7 @@
 - Removed: the rider document upload checklist and its upload routes.
 
 ## Ops step for Ghazal (after deploy)
-- Grant the 4 field permissions to the right roles/users. Until then only admins see IBAN, Saudi salary, legal cases and unified number.
+- Check and grant the 4 field permissions to the right roles/users. Role defaults in this release: SuperAdmin all 4; Accountant and FinancialAccountant `riders.iban.view` only; HRSpecialist all 4; every other role none (add per user if needed).
 - Optional: `Workforce:ExportTimeoutSeconds` (30–600, default 120) if the full export is slow.
 
 ## Live safety
