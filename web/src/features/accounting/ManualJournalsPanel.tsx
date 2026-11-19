@@ -676,7 +676,7 @@ export function ManualJournalsPanel({
                   <span className="font-mono font-bold text-[var(--ink)]">{selectedJournal.reference || '—'}</span>
                 </div>
                 <div>
-                  <span className="text-[var(--muted)] block">منشئ القيد (Maker):</span>
+                  <span className="text-[var(--muted)] block">منشئ القيد:</span>
                   <span className="font-mono font-bold text-[var(--ink)]">{selectedJournal.maker}</span>
                 </div>
               </div>

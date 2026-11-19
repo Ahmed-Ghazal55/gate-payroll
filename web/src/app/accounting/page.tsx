@@ -867,7 +867,7 @@ function AccountingPageContent() {
                       : 'text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  الدليل المستهدف (Target)
+                  الدليل المستهدف
                 </button>
                 <button
                   type="button"
@@ -878,7 +878,7 @@ function AccountingPageContent() {
                       : 'text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  الدليل الحالي (Current)
+                  الدليل الحالي
                 </button>
               </div>
 
@@ -1391,7 +1391,7 @@ function AccountingPageContent() {
                 <div className="flex justify-between py-2 border-b border-[var(--line)]">
                   <span className="text-[var(--muted)]">الطبيعة المحاسبية</span>
                   <span className="font-bold text-[var(--ink)]">
-                    {(selectedAccount.nature || '').toLowerCase() === 'debit' ? 'مدين (Debit)' : 'دائن (Credit)'}
+                    {(selectedAccount.nature || '').toLowerCase() === 'debit' ? 'مدين' : 'دائن'}
                   </span>
                 </div>
 
