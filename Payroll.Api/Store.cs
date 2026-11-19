@@ -58,6 +58,7 @@ public sealed partial class Store
             """;
         cmd.ExecuteNonQuery();
         ErpDataIndexes.Ensure(c);
+        RiderDataIndexes.Ensure(c);
         PayRunInputs.Ensure(c);
         // M9: captured cycle must have freeze rows (in-flight cycles cannot deploy without U2 + rows).
         foreach(var cycle in List(c,PayCycles.Kind).Where(PayRunInputs.Captured))
@@ -179,6 +180,57 @@ public sealed partial class Store
         using var r = cmd.ExecuteReader(); var ids = new HashSet<string>(StringComparer.Ordinal);
         while (r.Read()) ids.Add(r.GetString(0));
         return ids;
+    }
+    /// <summary>Open campaign/custom_form rows for a rider, filtered in SQL by status, expiry, target and company scalars.</summary>
+    public static List<JsonObject> ListOpenFormsForRider(DbConnection c, string kind, string iqama, IReadOnlyCollection<string> companyKeys, string nowIso, DbTransaction? tx = null)
+    {
+        if (kind is not ("campaign" or "custom_form")) throw new ArgumentException("kind must be campaign or custom_form.", nameof(kind));
+        bool sqlite = c is SqliteConnection;
+        var companies = companyKeys.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Take(32).ToList();
+        var sql = new System.Text.StringBuilder();
+        sql.Append("SELECT body FROM records WHERE kind=@kind AND ");
+        sql.Append(sqlite ? "json_extract(body,'$.status')" : "JSON_VALUE(body,'$.status')");
+        sql.Append("='open' AND ");
+        sql.Append(sqlite ? "json_extract(body,'$.expiresAt')" : "JSON_VALUE(body,'$.expiresAt')");
+        sql.Append(" > @now AND (");
+        string targetExpr = sqlite
+            ? "COALESCE(json_extract(body,'$.target'),json_extract(body,'$.targetAudience'),'')"
+            : "COALESCE(JSON_VALUE(body,'$.target'),JSON_VALUE(body,'$.targetAudience'),'')";
+        sql.Append(targetExpr).Append(" IN ('','ALL','rider','riders',@iqama)");
+        sql.Append(')');
+        string targetIqamaExpr = sqlite ? "COALESCE(json_extract(body,'$.targetIqama'),'')" : "COALESCE(JSON_VALUE(body,'$.targetIqama'),'')";
+        sql.Append(" AND (").Append(targetIqamaExpr).Append(" IN ('','ALL',@iqama))");
+        string[] companyFields = ["companyId", "sponsorId", "targetCompanyId", "targetSponsorId"];
+        sql.Append(" AND (");
+        for (int i = 0; i < companyFields.Length; i++)
+        {
+            if (i > 0) sql.Append(" AND ");
+            string expr = JsonFieldExpr(c, companyFields[i]);
+            sql.Append('(').Append("COALESCE(").Append(expr).Append(",'') IN ('','ALL')");
+            if (companies.Count > 0)
+            {
+                sql.Append(" OR ").Append(expr).Append(" IN (");
+                for (int j = 0; j < companies.Count; j++)
+                {
+                    if (j > 0) sql.Append(',');
+                    sql.Append("@c").Append(i).Append('_').Append(j);
+                }
+                sql.Append(')');
+            }
+            sql.Append(')');
+        }
+        sql.Append(')');
+        sql.Append(sqlite
+            ? " ORDER BY rowid DESC"
+            : " ORDER BY COALESCE(JSON_VALUE(body,'$.createdAt'),'') DESC,id DESC");
+        var parameters = new List<(string Name, object Value)> { ("@kind", kind), ("@iqama", iqama), ("@now", nowIso) };
+        for (int i = 0; i < companyFields.Length; i++)
+            for (int j = 0; j < companies.Count; j++)
+                parameters.Add(($"@c{i}_{j}", companies[j]));
+        using var cmd = Command(c, tx, sql.ToString(), parameters.ToArray());
+        using var r = cmd.ExecuteReader(); var rows = new List<JsonObject>();
+        while (r.Read()) rows.Add(JsonNode.Parse(r.GetString(0))!.AsObject());
+        return rows;
     }
     public static JsonObject? Get(DbConnection c, string id, string kind, DbTransaction? tx = null)
     {

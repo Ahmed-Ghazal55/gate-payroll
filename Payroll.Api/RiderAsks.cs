@@ -679,6 +679,27 @@ public static class RiderAsks
         return req;
     }
 
+    public static HashSet<string> RiderCompanyKeys(JsonObject? rider)
+    {
+        var riderCompanies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (rider == null) return riderCompanies;
+        foreach (string key in new[] { "financeSponsorId", "sponsorId", "companyId" })
+        {
+            string val = rider.S(key).Trim();
+            if (string.IsNullOrEmpty(val)) continue;
+            riderCompanies.Add(val);
+            var sp = FinancialCore.Sponsors.FirstOrDefault(s =>
+                string.Equals(s.Id, val, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s.Code, val, StringComparison.OrdinalIgnoreCase));
+            if (sp != null)
+            {
+                riderCompanies.Add(sp.Id);
+                riderCompanies.Add(sp.Code);
+            }
+        }
+        return riderCompanies;
+    }
+
     public static bool IsFormTargetedToRider(JsonObject form, JsonObject? rider, string iqama)
     {
         if (rider == null) return false;
@@ -714,21 +735,7 @@ public static class RiderAsks
                 return false;
         }
 
-        var riderCompanies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (string key in new[] { "financeSponsorId", "sponsorId", "companyId" })
-        {
-            string val = rider.S(key).Trim();
-            if (string.IsNullOrEmpty(val)) continue;
-            riderCompanies.Add(val);
-            var sp = FinancialCore.Sponsors.FirstOrDefault(s =>
-                string.Equals(s.Id, val, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(s.Code, val, StringComparison.OrdinalIgnoreCase));
-            if (sp != null)
-            {
-                riderCompanies.Add(sp.Id);
-                riderCompanies.Add(sp.Code);
-            }
-        }
+        var riderCompanies = RiderCompanyKeys(rider);
 
         foreach (string key in new[] { "companyId", "sponsorId", "targetCompanyId", "targetSponsorId" })
         {
@@ -916,12 +923,11 @@ public static class RiderAsks
         };
 
         var submissions = Store.ListWhere(c, "submission", null, null, ("iqama", iqama)).ToDictionary(s => s.S("campaignId"), s => s);
+        var companyKeys = RiderCompanyKeys(rider);
+        string nowIso = DateTimeOffset.UtcNow.ToString("O");
         var activeCampaigns = new JsonArray();
-        foreach (var camp in Store.List(c, "campaign").Where(x =>
-                     x.S("status") == "open" &&
-                     DateTimeOffset.TryParse(x.S("expiresAt"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var exp) &&
-                     exp > DateTimeOffset.UtcNow &&
-                     IsFormTargetedToRider(x, rider, iqama)))
+        foreach (var camp in Store.ListOpenFormsForRider(c, "campaign", iqama, companyKeys, nowIso)
+                     .Where(x => IsFormTargetedToRider(x, rider, iqama)))
         {
             submissions.TryGetValue(camp.S("id"), out var sub);
             activeCampaigns.Add(new JsonObject
@@ -939,11 +945,8 @@ public static class RiderAsks
                 ["version"] = sub != null ? SubmissionChoices.Version(sub) : 1
             });
         }
-        foreach (var qf in Store.List(c, "custom_form").Where(x =>
-                     x.S("status") == "open" &&
-                     DateTimeOffset.TryParse(x.S("expiresAt"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var exp) &&
-                     exp > DateTimeOffset.UtcNow &&
-                     IsFormTargetedToRider(x, rider, iqama)))
+        foreach (var qf in Store.ListOpenFormsForRider(c, "custom_form", iqama, companyKeys, nowIso)
+                     .Where(x => IsFormTargetedToRider(x, rider, iqama)))
         {
             activeCampaigns.Add(new JsonObject
             {
