@@ -104,7 +104,7 @@ export function JahezWorkspace() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold">جاهز — مطابقة §37 وعمليات الخزينة</h3>
+          <h3 className="text-sm font-bold">جاهز — مطابقة التسوية وعمليات الخزينة</h3>
           <p className="text-xs text-[var(--muted)] mt-0.5">تقارير المطابقة، التحويلات، التسوية، الرسوم، والعهدة.</p>
         </div>
         <button type="button" onClick={load} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--line)] text-xs font-semibold">

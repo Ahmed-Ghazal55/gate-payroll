@@ -612,7 +612,7 @@ function AccountingPageContent() {
               : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
           }`}
         >
-          القيود اليدوية (BR §28)
+          القيود اليدوية
         </button>
 
         <button
@@ -767,7 +767,7 @@ function AccountingPageContent() {
       )}
 
       {/* ======================================================== */}
-      {/* TAB: Manual Journals (BR §28)                            */}
+      {/* TAB: Manual Journals */}
       {/* ======================================================== */}
       {activeTab === 'adjustments' && (
         <AccountingAdjustmentsPanel companies={companies} />

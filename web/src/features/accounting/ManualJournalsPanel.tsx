@@ -550,9 +550,9 @@ export function ManualJournalsPanel({
               <FileText size={20} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-[var(--ink)]">القيود المحاسبية اليدوية (BR §28)</h2>
+              <h2 className="text-base font-bold text-[var(--ink)]">القيود المحاسبية اليدوية</h2>
               <p className="text-xs text-[var(--muted)] mt-0.5">
-                إنشاء واعتماد القيود بنظام التدقيق الثنائي (Maker-Checker) مع موازنة فورية للدائن والمدين ومرفقات ثبوتية.
+                إنشاء واعتماد القيود بنظام الرقابة الثنائية مع موازنة فورية للدائن والمدين ومرفقات ثبوتية.
               </p>
             </div>
           </div>
@@ -823,7 +823,7 @@ export function ManualJournalsPanel({
       <Dialog
         open={newModalOpen}
         onClose={() => setNewModalOpen(false)}
-        title="إنشاء قيد محاسبي يدوي جديد (BR §28)"
+        title="إنشاء قيد محاسبي يدوي جديد"
         actions={
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
@@ -1068,7 +1068,7 @@ export function ManualJournalsPanel({
       <Dialog
         open={reverseModalOpen}
         onClose={() => setReverseModalOpen(false)}
-        title="عكس قيد محاسبي معتمد (BR §28)"
+        title="عكس قيد محاسبي معتمد"
         actions={
           <div className="flex items-center justify-end gap-2 w-full">
             <button
@@ -1126,7 +1126,7 @@ export function ManualJournalsPanel({
       <Dialog
         open={rejectModalOpen}
         onClose={() => setRejectModalOpen(false)}
-        title="رفض مسودة القيد المحاسبي (Maker-Checker)"
+        title="رفض مسودة القيد المحاسبي (رقابة ثنائية)"
         actions={
           <div className="flex items-center justify-end gap-2 w-full">
             <button
