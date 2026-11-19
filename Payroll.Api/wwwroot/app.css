@@ -24,7 +24,7 @@ label,.choice-options .check{color:var(--ink)}.public-form{display:grid;gap:18px
 .iban-field input{margin-top:0;border-radius:0 8px 8px 0;letter-spacing:.06em;font-variant-numeric:tabular-nums;min-width:0;flex:1 1 auto;width:100%}
 .choice-options input[type=checkbox]{display:inline-block;flex:0 0 auto;width:auto;margin:0;accent-color:var(--accent)}
 /* F-R4: RiderForm phone width (360px) — overflow/layout only */
-@media(max-width:360px){
+@media(max-width:480px){
 .rider-public{margin:12px auto;padding:0 12px;max-width:100%;overflow-x:hidden}
 .public-brand{gap:8px;margin-bottom:16px}
 .public-brand h1{font-size:18px}
