@@ -28,6 +28,7 @@ import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { SourceBadge } from '../../components/ui/SourceBadge';
 import { IbanDisplay } from '../../components/ui/IbanDisplay';
+import { platformLabelAr } from '../../features/companies/company-stats';
 import { inApp } from '../../lib/paths';
 import type {
   WorkforceListResponse,
@@ -243,6 +244,8 @@ function WorkforcePageInner() {
       size?: number;
       q?: string;
       iqama?: string;
+      company?: string;
+      platform?: string;
     }) => {
       if (typeof window === 'undefined') return;
       const sp = new URLSearchParams(searchParams?.toString() || '');
@@ -262,6 +265,16 @@ function WorkforcePageInner() {
       if (nextQ.trim()) sp.set('q', nextQ.trim());
       else sp.delete('q');
 
+      const nextCompany = opts.company ?? filters.sponsorUnified;
+      if (nextCompany.trim()) sp.set('company', nextCompany.trim());
+      else sp.delete('company');
+      sp.delete('sponsorUnified');
+      sp.delete('companyId');
+
+      const nextPlatform = opts.platform ?? filters.platform;
+      if (nextPlatform.trim()) sp.set('platform', nextPlatform.trim());
+      else sp.delete('platform');
+
       if (opts.iqama !== undefined) {
         if (opts.iqama.trim()) sp.set('iqama', opts.iqama.trim());
         else sp.delete('iqama');
@@ -271,7 +284,17 @@ function WorkforcePageInner() {
       const qs = sp.toString() ? `?${sp.toString()}` : '';
       router.replace(`${pathname}${qs}`, { scroll: false });
     },
-    [router, pathname, searchParams, activeTab, page, pageSize, debouncedQuery]
+    [
+      router,
+      pathname,
+      searchParams,
+      activeTab,
+      page,
+      pageSize,
+      debouncedQuery,
+      filters.sponsorUnified,
+      filters.platform,
+    ]
   );
 
   const loadDirectory = useCallback(
@@ -466,7 +489,13 @@ function WorkforcePageInner() {
       return;
     }
     setPage(1);
-    updateUrl({ tab: 'directory', page: 1, q: debouncedQuery });
+    updateUrl({
+      tab: 'directory',
+      page: 1,
+      q: debouncedQuery,
+      company: filters.sponsorUnified,
+      platform: filters.platform,
+    });
     loadDirectory(1, pageSize, debouncedQuery, filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload on query/filter change only
   }, [debouncedQuery, filters, activeTab]);
@@ -521,6 +550,37 @@ function WorkforcePageInner() {
     updateUrl({ tab: '360', iqama: row.iqama || key });
     loadProfile360(key);
   };
+
+  const companyFilterOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of summary?.byCompany || []) {
+      if (c.sponsorUnified) {
+        map.set(String(c.sponsorUnified), String(c.sponsorNameAr || c.sponsorUnified));
+      }
+    }
+    if (filters.sponsorUnified && !map.has(filters.sponsorUnified)) {
+      map.set(filters.sponsorUnified, filters.sponsorUnified);
+    }
+    return [
+      { value: 'all', label: 'كل الشركات' },
+      ...Array.from(map.entries()).map(([value, label]) => ({ value, label })),
+    ];
+  }, [summary, filters.sponsorUnified]);
+
+  const platformFilterOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of items) {
+      const p = String(r.platform || r.platforms || '').trim();
+      if (p && !map.has(p)) map.set(p, platformLabelAr(p));
+    }
+    if (filters.platform && !map.has(filters.platform)) {
+      map.set(filters.platform, platformLabelAr(filters.platform));
+    }
+    return [
+      { value: 'all', label: 'كل المنصات' },
+      ...Array.from(map.entries()).map(([value, label]) => ({ value, label })),
+    ];
+  }, [items, filters.platform]);
 
   const sectionTabs: SectionTabItem[] = [
     { id: 'directory', label: 'الدليل', icon: <Users size={16} /> },
@@ -1031,15 +1091,7 @@ function WorkforcePageInner() {
                 ariaLabel="تصفية الشركة"
                 placeholder="كل الشركات"
                 className="w-48"
-                options={[
-                  { value: 'all', label: 'كل الشركات' },
-                  ...((summary?.byCompany || [])
-                    .filter((c) => c.sponsorUnified)
-                    .map((c) => ({
-                      value: String(c.sponsorUnified),
-                      label: String(c.sponsorNameAr || c.sponsorUnified),
-                    })) || []),
-                ]}
+                options={companyFilterOptions}
               />
               <SearchableSelect
                 id="wf-platform"
@@ -1053,12 +1105,7 @@ function WorkforcePageInner() {
                 ariaLabel="تصفية المنصة"
                 placeholder="كل المنصات"
                 className="w-40"
-                options={[
-                  { value: 'all', label: 'كل المنصات' },
-                  ...Array.from(
-                    new Set(items.map((r) => r.platform || r.platforms).filter(Boolean) as string[])
-                  ).map((p) => ({ value: p, label: p })),
-                ]}
+                options={platformFilterOptions}
               />
               <SearchableSelect
                 id="wf-city"

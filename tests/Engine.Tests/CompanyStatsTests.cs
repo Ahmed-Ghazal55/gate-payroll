@@ -357,9 +357,23 @@ public sealed class CompanyStatsTests
         var req = WorkforceLiveQuery.ParseRequest(new Dictionary<string, string>
         {
             ["company"] = "7000000011",
-            ["platform"] = "JAHEZ"
+            ["platform"] = "CHEFZ"
         });
         Assert.AreEqual("7000000011", req.SponsorUnified);
-        Assert.AreEqual("JAHEZ", req.Platform);
+        Assert.AreEqual("CHEFZ", req.Platform);
+
+        var (countSql, _, _, paramNames) = WorkforceLiveQuery.PreviewSql(req);
+        StringAssert.Contains(countSql, "plat.[PlatformCode] IN (@pf0,@pf1,@pf2,@pf3)");
+        CollectionAssert.Contains(paramNames.ToList(), "@pf0");
+        CollectionAssert.Contains(paramNames.ToList(), "@pf3");
+
+        var hungerReq = WorkforceLiveQuery.ParseRequest(new Dictionary<string, string> { ["platform"] = "HungerStation" });
+        var (hungerSql, _, _, hungerParams) = WorkforceLiveQuery.PreviewSql(hungerReq);
+        StringAssert.Contains(hungerSql, "plat.[PlatformCode]=@platform");
+        CollectionAssert.Contains(hungerParams.ToList(), "@platform");
+
+        CollectionAssert.AreEquivalent(new[] { "SHIFTZ", "CHEFZ", "THECHEFZ", "CHEFSZ" }, ErpPlatformCode.AcceptOrSelf("SHIFTZ").ToList());
+        CollectionAssert.AreEquivalent(new[] { "HUNGER" }, ErpPlatformCode.AcceptOrSelf("HungerStation").ToList());
+        CollectionAssert.AreEquivalent(new[] { "CUSTOM_APP" }, ErpPlatformCode.AcceptOrSelf("CUSTOM_APP").ToList());
     }
 }

@@ -414,7 +414,17 @@ public static class WorkforceApi
         if (request.SponsorUnified.Length > 0)
             q = q.Where(r => r.S("sponsorUnified") == request.SponsorUnified || r.S("sponsorId") == request.SponsorUnified || r.S("sponsor") == request.SponsorUnified);
         if (request.Platform.Length > 0)
-            q = q.Where(r => string.Equals(r.S("platform"), request.Platform, StringComparison.OrdinalIgnoreCase));
+        {
+            var accepted = new HashSet<string>(ErpPlatformCode.AcceptOrSelf(request.Platform), StringComparer.OrdinalIgnoreCase);
+            string reqPlatform = PayPlatforms.For(request.Platform).Platform;
+            q = q.Where(r =>
+            {
+                string rp = r.S("platform");
+                return rp.Length > 0
+                    && (accepted.Contains(rp)
+                        || (reqPlatform != "Other" && string.Equals(PayPlatforms.For(rp).Platform, reqPlatform, StringComparison.OrdinalIgnoreCase)));
+            });
+        }
         if (request.CityCode.Length > 0)
             q = q.Where(r => string.Equals(r.S("cityCode"), request.CityCode, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(r.S("city"), request.CityCode, StringComparison.OrdinalIgnoreCase));

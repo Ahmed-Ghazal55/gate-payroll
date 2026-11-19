@@ -663,8 +663,17 @@ public static class WorkforceLiveQuery
         }
         if (request.Platform.Length > 0)
         {
-            Add(cmd, "@platform", request.Platform);
-            parts.Add("plat.[PlatformCode]=@platform");
+            var accepted = ErpPlatformCode.AcceptOrSelf(request.Platform);
+            if (accepted.Count == 1)
+            {
+                Add(cmd, "@platform", accepted[0]);
+                parts.Add("plat.[PlatformCode]=@platform");
+            }
+            else if (accepted.Count > 1)
+            {
+                string codes = InList(cmd, "@pf", accepted);
+                parts.Add($"plat.[PlatformCode] IN ({codes})");
+            }
         }
         if (request.CityCode.Length > 0)
         {
