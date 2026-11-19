@@ -1105,4 +1105,81 @@ public sealed class PushNotificationsTests
             });
         });
     }
+
+    [TestMethod]
+    public void InAppIbanFormRequiresPhoneAndCityWithoutPlaceholderFallback()
+    {
+        WithSqlStore(store =>
+        {
+            const string riderIqama = "2000000931";
+            const string token = "rmob_" + "4444444444444444444444444444444444444444444444444444444444444444";
+            const string campToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            string sessionId = "mobile:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+            store.Write((c, tx) =>
+            {
+                Store.Save(c, "rider", new()
+                {
+                    ["id"] = riderIqama,
+                    ["iqama"] = riderIqama,
+                    ["name"] = "مندوب اختبار",
+                    ["status"] = "Active",
+                    ["phone"] = "",
+                    ["city"] = ""
+                }, tx);
+                Store.Save(c, MobileSessions.Kind, new()
+                {
+                    ["id"] = sessionId,
+                    ["iqama"] = riderIqama,
+                    ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"),
+                    ["expiresAtUtc"] = DateTimeOffset.UtcNow.AddHours(8).ToString("O")
+                }, tx);
+                Store.Save(c, "campaign", new()
+                {
+                    ["id"] = "camp-iban-test",
+                    ["kind"] = IbanChoices.Kind,
+                    ["title"] = "حملة آيبان تجريبية",
+                    ["status"] = "open",
+                    ["sharingToken"] = campToken,
+                    ["expiresAt"] = DateTimeOffset.UtcNow.AddDays(7).ToString("O"),
+                    ["cities"] = new JsonArray(new JsonObject { ["ar"] = "جدة", ["en"] = "Jeddah" })
+                }, tx);
+                return true;
+            });
+
+            var ctx = new DefaultHttpContext();
+            ctx.Request.Headers.Authorization = "Bearer " + token;
+            const string validRajhiIban = "SA0380000000608010167519";
+
+            // Missing phone -> refused (400), never stores 0500000000
+            Assert.AreEqual(400, Assert.ThrowsExactly<ApiError>(() =>
+                RiderAsks.SubmitInAppForm(store, ctx, campToken, new()
+                {
+                    ["iban"] = validRajhiIban,
+                    ["bankCode"] = "80",
+                    ["city"] = "جدة"
+                })).Status);
+
+            // Missing city -> refused (400), never stores "الرياض"
+            Assert.AreEqual(400, Assert.ThrowsExactly<ApiError>(() =>
+                RiderAsks.SubmitInAppForm(store, ctx, campToken, new()
+                {
+                    ["iban"] = validRajhiIban,
+                    ["bankCode"] = "80",
+                    ["phone"] = "0512345678"
+                })).Status);
+
+            // Providing both phone and city succeeds and stores exact values
+            RiderAsks.SubmitInAppForm(store, ctx, campToken, new()
+            {
+                ["iban"] = validRajhiIban,
+                ["bankCode"] = "80",
+                ["phone"] = "0512345678",
+                ["city"] = "جدة"
+            });
+            var saved = store.Read(c => Store.ListWhere(c, "submission", null, null, ("iqama", riderIqama)).Single());
+            Assert.AreEqual("+966512345678", saved.S("phone"));
+            Assert.AreEqual("جدة", saved.S("city"));
+        });
+    }
 }

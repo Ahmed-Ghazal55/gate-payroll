@@ -939,12 +939,18 @@ public static class RiderAsks
 
         if (IbanChoices.Is(campaign))
         {
+            string phone = payload.S("phone").Trim();
+            if (string.IsNullOrEmpty(phone)) phone = rider.S("phone").Trim();
+            J.Need(!string.IsNullOrEmpty(phone), "رقم الجوال مطلوب.");
+            string city = payload.S("city").Trim();
+            if (string.IsNullOrEmpty(city)) city = rider.S("city").Trim();
+            J.Need(!string.IsNullOrEmpty(city), "اختر المدينة من القائمة.");
             var cleanIban = new JsonObject
             {
                 ["iqama"] = iqama,
                 ["name"] = payload.S("name"),
-                ["phone"] = payload.S("phone", rider.S("phone") != "" ? rider.S("phone") : "0500000000"),
-                ["city"] = payload.S("city", (IbanChoices.Cities(campaign).FirstOrDefault() as JsonObject)?.S("ar") ?? "الرياض"),
+                ["phone"] = phone,
+                ["city"] = city,
                 ["iban"] = payload.S("iban"),
                 ["bankCode"] = payload.S("bankCode"),
                 ["platforms"] = (payload["platforms"] as JsonArray)?.DeepClone() ?? new JsonArray("keeta")

@@ -229,6 +229,8 @@ function renderServiceFormFields(selectedType: RequestTypeKey): string {
 function renderActiveCampaignsCard(formsCatalog: any): string {
   const campaigns: any[] = formsCatalog?.activeCampaigns || [];
   if (!campaigns.length) return '';
+  const riderPhone = String(formsCatalog?.rider?.phone || '');
+  const riderCity = String(formsCatalog?.rider?.city || '');
 
   return `
     <div class="mob-card" id="mob-active-campaigns">
@@ -237,6 +239,7 @@ function renderActiveCampaignsCard(formsCatalog: any): string {
         .map(c => {
           const title = pickLang(c, 'title') || c.title || '';
           const isIban = c.schema === 'iban-v1';
+          const cities: any[] = Array.isArray(c.cities) ? c.cities : [];
           return `
             <div style="border-bottom:1px solid var(--line);padding:10px 0">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -247,6 +250,24 @@ function renderActiveCampaignsCard(formsCatalog: any): string {
                 ${
                   isIban
                     ? `
+                      <label>
+                        ${esc(t('fieldPhone'))}
+                        <input name="phone" type="tel" dir="ltr" inputmode="tel" value="${esc(riderPhone)}" required placeholder="05XXXXXXXX">
+                      </label>
+                      <label>
+                        ${esc(t('fieldCity'))}
+                        <select name="city" required>
+                          <option value="">—</option>
+                          ${cities
+                            .map(city => {
+                              const ar = String(city?.ar || '');
+                              const en = String(city?.en || ar);
+                              const label = getLanguage() === 'en' ? en : ar;
+                              return `<option value="${esc(ar)}" ${ar === riderCity ? 'selected' : ''}>${esc(label)}</option>`;
+                            })
+                            .join('')}
+                        </select>
+                      </label>
                       <label>
                         ${esc(t('ibanLabel'))}
                         <input name="iban" required dir="ltr" placeholder="SA00 0000 0000 0000 0000 0000">
