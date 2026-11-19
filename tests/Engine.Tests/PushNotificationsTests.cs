@@ -9,6 +9,7 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Configuration;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Payroll;
 
@@ -981,6 +982,67 @@ public sealed class PushNotificationsTests
             var freshCtx = new DefaultHttpContext();
             freshCtx.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.99");
             PushNotifications.EnforceRiderIpRateLimit(freshCtx, write: true);
+            Assert.AreEqual(1, PushNotifications.RateWindowBucketCount);
+            Assert.IsTrue(PushNotifications.LastEvictionRemovedCount > 0);
+        }
+        finally
+        {
+            PushNotifications.ResetCache();
+        }
+    }
+
+    [TestMethod]
+    public void PerIpLimitsAreConfigurableAndEvictionIsLinearInExpiredBuckets()
+    {
+        PushNotifications.ResetCache();
+        try
+        {
+            Assert.AreEqual(180, PushNotifications.IpReadLimitPerMinute);
+            Assert.AreEqual(60, PushNotifications.IpWriteLimitPerMinute);
+
+            var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["RiderMobile:IpReadLimitPerMinute"] = "12",
+                ["RiderMobile:IpWriteLimitPerMinute"] = "4"
+            }).Build();
+            PushNotifications.ConfigureIpLimits(cfg);
+            Assert.AreEqual(12, PushNotifications.IpReadLimitPerMinute);
+            Assert.AreEqual(4, PushNotifications.IpWriteLimitPerMinute);
+
+            var now = new DateTimeOffset(2026, 11, 19, 12, 0, 0, TimeSpan.Zero);
+            PushNotifications.ClockOverride = () => now;
+            for (int i = 0; i < 4; i++)
+            {
+                var ctx = new DefaultHttpContext();
+                ctx.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.10");
+                PushNotifications.EnforceRiderIpRateLimit(ctx, write: true);
+            }
+            var blocked = new DefaultHttpContext();
+            blocked.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.10");
+            Assert.AreEqual(429, Assert.ThrowsExactly<ApiError>(() => PushNotifications.EnforceRiderIpRateLimit(blocked, write: true)).Status);
+
+            // Fresh clock window: seed many expired IP buckets, then one current request removes only those.
+            PushNotifications.ResetCache();
+            PushNotifications.IpReadLimitPerMinute = 10_000;
+            PushNotifications.IpWriteLimitPerMinute = 10_000;
+            now = new DateTimeOffset(2026, 11, 19, 13, 0, 0, TimeSpan.Zero);
+            PushNotifications.ClockOverride = () => now;
+            for (int i = 0; i < 2500; i++)
+            {
+                var ctx = new DefaultHttpContext();
+                // Distinct /24 hosts so each write/read creates its own bucket without hitting limits.
+                ctx.Connection.RemoteIpAddress = IPAddress.Parse($"198.51.{i / 256}.{i % 256}");
+                PushNotifications.EnforceRiderIpRateLimit(ctx, write: i % 2 == 0);
+            }
+            int before = PushNotifications.RateWindowBucketCount;
+            Assert.AreEqual(2500, before);
+
+            now = now.AddMinutes(3);
+            PushNotifications.ClockOverride = () => now;
+            var fresh = new DefaultHttpContext();
+            fresh.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.250");
+            PushNotifications.EnforceRiderIpRateLimit(fresh, write: false);
+            Assert.AreEqual(before, PushNotifications.LastEvictionRemovedCount);
             Assert.AreEqual(1, PushNotifications.RateWindowBucketCount);
         }
         finally

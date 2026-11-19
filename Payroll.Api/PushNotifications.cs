@@ -66,10 +66,16 @@ public static class PushNotifications
 
     public const int DefaultIpReadLimitPerMinute = 180;
     public const int DefaultIpWriteLimitPerMinute = 60;
+    /// <summary>Live per-IP read limit (config/env); defaults unchanged. Test overrides still win when set.</summary>
+    public static int IpReadLimitPerMinute { get; set; } = DefaultIpReadLimitPerMinute;
+    /// <summary>Live per-IP write limit (config/env); defaults unchanged. Test overrides still win when set.</summary>
+    public static int IpWriteLimitPerMinute { get; set; } = DefaultIpWriteLimitPerMinute;
 
     private static readonly ConcurrentDictionary<string, (long WindowMinute, int Count)> _rateWindows = new();
+    private static readonly ConcurrentDictionary<long, ConcurrentDictionary<string, byte>> _keysByMinute = new();
     private static long _lastEvictionMinute;
     public static int RateWindowBucketCount => _rateWindows.Count;
+    public static int LastEvictionRemovedCount { get; private set; }
 
     public static HttpClient GetHttpClient() => TestHttpMessageHandler != null
         ? new HttpClient(TestHttpMessageHandler, disposeHandler: false) { Timeout = TimeSpan.FromSeconds(10) }
@@ -93,24 +99,41 @@ public static class PushNotifications
         WritePermitLimitOverride = null;
         IpReadPermitLimitOverride = null;
         IpWritePermitLimitOverride = null;
+        IpReadLimitPerMinute = DefaultIpReadLimitPerMinute;
+        IpWriteLimitPerMinute = DefaultIpWriteLimitPerMinute;
         ClockOverride = null;
         _rateWindows.Clear();
+        _keysByMinute.Clear();
+        LastEvictionRemovedCount = 0;
         Interlocked.Exchange(ref _lastEvictionMinute, 0);
         Interlocked.Exchange(ref _isFlushing, 0);
     }
 
+    public static void ConfigureIpLimits(IConfiguration config)
+    {
+        int read = config.GetValue("RiderMobile:IpReadLimitPerMinute", DefaultIpReadLimitPerMinute);
+        int write = config.GetValue("RiderMobile:IpWriteLimitPerMinute", DefaultIpWriteLimitPerMinute);
+        IpReadLimitPerMinute = Math.Clamp(read, 1, 100_000);
+        IpWriteLimitPerMinute = Math.Clamp(write, 1, 100_000);
+    }
+
+    /// <summary>Evict only expired minute buckets (O(expired keys)), never a full dictionary scan.</summary>
     static void EvictStaleRateWindows(long currentMinute)
     {
         long prev = Interlocked.Read(ref _lastEvictionMinute);
-        if (currentMinute <= prev && _rateWindows.Count <= 4096) return;
-        if (Interlocked.CompareExchange(ref _lastEvictionMinute, currentMinute, prev) != prev && _rateWindows.Count <= 4096) return;
-        foreach (var kv in _rateWindows)
+        if (currentMinute <= prev) return;
+        if (Interlocked.CompareExchange(ref _lastEvictionMinute, currentMinute, prev) != prev) return;
+        int removed = 0;
+        foreach (var minute in _keysByMinute.Keys)
         {
-            if (kv.Value.WindowMinute < currentMinute)
+            if (minute >= currentMinute) continue;
+            if (!_keysByMinute.TryRemove(minute, out var keys)) continue;
+            foreach (var key in keys.Keys)
             {
-                _rateWindows.TryRemove(kv);
+                if (_rateWindows.TryRemove(key, out _)) removed++;
             }
         }
+        LastEvictionRemovedCount = removed;
     }
 
     static void EnforceBucket(HttpContext ctx, string bucketKey, int limit)
@@ -121,6 +144,8 @@ public static class PushNotifications
             bucketKey,
             _ => (currentMinute, 1),
             (_, existing) => existing.WindowMinute == currentMinute ? (currentMinute, existing.Count + 1) : (currentMinute, 1));
+        _keysByMinute.GetOrAdd(currentMinute, _ => new ConcurrentDictionary<string, byte>(StringComparer.Ordinal))
+            .TryAdd(bucketKey, 0);
         if (updated.Count > limit)
         {
             ctx.Response.Headers.RetryAfter = "60";
@@ -133,8 +158,8 @@ public static class PushNotifications
     {
         string ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anon";
         int limit = write
-            ? (IpWritePermitLimitOverride ?? WritePermitLimitOverride ?? DefaultIpWriteLimitPerMinute)
-            : (IpReadPermitLimitOverride ?? ReadPermitLimitOverride ?? DefaultIpReadLimitPerMinute);
+            ? (IpWritePermitLimitOverride ?? IpWriteLimitPerMinute)
+            : (IpReadPermitLimitOverride ?? IpReadLimitPerMinute);
         EnforceBucket(ctx, (write ? "IP:W:" : "IP:R:") + ip, limit);
     }
 
