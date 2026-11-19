@@ -228,7 +228,8 @@ public static class WorkforceApi
             return store.Read(c =>
             {
                 var items = Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider)
-                    .Where(r => FinancialScopes.Rider(ctx.User, r))
+                    .Where(r => FinancialScopes.Rider(ctx.User, r) || FinancialScopes.AllCompanies(ctx.User))
+                    .Where(r => StorePlatformInScope(ctx.User, r))
                     .Where(r => r.S("status") is "Terminated" or "Fleeing" or "Archived")
                     .Select(StorePerson)
                     .ToList();
@@ -287,7 +288,9 @@ public static class WorkforceApi
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
             return store.Read(c =>
             {
-                var people = Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider).Where(r => FinancialScopes.Rider(ctx.User, r)).ToList();
+                var people = Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider)
+                    .Where(r => FinancialScopes.Rider(ctx.User, r) || FinancialScopes.AllCompanies(ctx.User))
+                    .Where(r => StorePlatformInScope(ctx.User, r)).ToList();
                 var issues = people.SelectMany(QualityIssues).ToList();
                 long total = issues.Count;
                 var page = issues.Skip(request.Skip).Take(request.Take).ToList();
@@ -341,11 +344,33 @@ public static class WorkforceApi
 
     static StorePage StoreList(DbConnection c, ClaimsPrincipal actor, WorkforceLiveQuery.ListRequest request)
     {
-        var rows = Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider).Where(r => FinancialScopes.Rider(actor, r)).Select(StorePerson).ToList();
+        var rows = Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider)
+            .Where(r => FinancialScopes.Rider(actor, r) || FinancialScopes.AllCompanies(actor))
+            .Where(r => StorePlatformInScope(actor, r))
+            .Select(StorePerson).ToList();
         rows = FilterStore(rows, request);
         long total = rows.Count;
         var page = rows.Skip(request.Skip).Take(request.Take).ToList();
         return new(page, total, StoreSummary(rows));
+    }
+
+    /// <summary>Non-admins are limited to finance.platforms claims (same as live PlatformRestricted).</summary>
+    static bool StorePlatformInScope(ClaimsPrincipal actor, JsonObject rider)
+    {
+        if (AccessPolicy.Administrator(actor)) return true;
+        var allowed = actor.FindAll("finance.platforms").Select(cl => cl.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (allowed.Count == 0) return false;
+        string raw = rider.S("platforms", rider.S("platform"));
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+        foreach (string part in raw.Split([',', ';', '|', '/', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (allowed.Contains(part)) return true;
+            var app = PayPlatforms.Table.FirstOrDefault(a =>
+                string.Equals(a.Platform, part, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(a.App, part, StringComparison.OrdinalIgnoreCase));
+            if (app != null && allowed.Contains(app.Platform)) return true;
+        }
+        return false;
     }
 
     static List<JsonObject> FilterStore(List<JsonObject> rows, WorkforceLiveQuery.ListRequest request)

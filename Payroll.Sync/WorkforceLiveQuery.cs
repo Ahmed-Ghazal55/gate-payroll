@@ -283,7 +283,7 @@ public static class WorkforceLiveQuery
         using var personCmd = source.CreateCommand();
         personCmd.CommandTimeout = CommandTimeoutSeconds;
         Add(personCmd, "@id", employeeId);
-        string scopeSql = ScopeSponsorSql(scope, personCmd, "s");
+        string scopeSql = ScopeSponsorSql(scope, personCmd, "s", includePlatform: true);
         personCmd.CommandText = $"SELECT TOP 1 {SelectSql()} FROM {FromSql()} WHERE e.[IsDeleted]=0 AND e.[Id]=@id{scopeSql}";
         using var cancel = SyncCancellation.Register(personCmd, cancellationToken);
         var people = ReadRows(personCmd, cancellationToken);
@@ -579,6 +579,17 @@ public static class WorkforceLiveQuery
                 parts.Add($"s.[UnifiedNationalNumber] IN ({regs})");
             }
         }
+        // Match store FinancialScopes.Rider + platform claims: company AND platform when restricted.
+        if (scope is { PlatformRestricted: true })
+        {
+            if (scope.PlatformCodes.Count == 0)
+                parts.Add("1=0");
+            else
+            {
+                string codes = InList(cmd, "@pc", scope.PlatformCodes);
+                parts.Add($"plat.[PlatformCode] IN ({codes})");
+            }
+        }
         if (request.Query.Length > 0)
         {
             Add(cmd, "@q", "%" + EscapeLike(request.Query) + "%");
@@ -625,12 +636,22 @@ public static class WorkforceLiveQuery
         return parts.Count == 0 ? "" : " WHERE " + string.Join(" AND ", parts);
     }
 
-    static string ScopeSponsorSql(LiveOperationsQuery.Scope scope, DbCommand cmd, string sponsorAlias)
+    static string ScopeSponsorSql(LiveOperationsQuery.Scope scope, DbCommand cmd, string sponsorAlias, bool includePlatform = false)
     {
-        if (scope.AllCompanies) return "";
-        if (scope.SponsorUnifiedNumbers.Count == 0) return " AND 1=0";
-        string regs = InList(cmd, "@cr", scope.SponsorUnifiedNumbers);
-        return $" AND {sponsorAlias}.[UnifiedNationalNumber] IN ({regs})";
+        var parts = new List<string>();
+        if (!scope.AllCompanies)
+        {
+            if (scope.SponsorUnifiedNumbers.Count == 0) return " AND 1=0";
+            string regs = InList(cmd, "@cr", scope.SponsorUnifiedNumbers);
+            parts.Add($"{sponsorAlias}.[UnifiedNationalNumber] IN ({regs})");
+        }
+        if (includePlatform && scope.PlatformRestricted)
+        {
+            if (scope.PlatformCodes.Count == 0) return " AND 1=0";
+            string codes = InList(cmd, "@pc", scope.PlatformCodes);
+            parts.Add($"plat.[PlatformCode] IN ({codes})");
+        }
+        return parts.Count == 0 ? "" : " AND " + string.Join(" AND ", parts);
     }
 
     static string InList(DbCommand cmd, string prefix, IReadOnlyList<string> values)
