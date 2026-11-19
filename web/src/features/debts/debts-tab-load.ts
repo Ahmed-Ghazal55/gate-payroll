@@ -31,15 +31,28 @@ export function debtsLoadKindsForTab(tab: DebtsTabId): DebtsLoadKind[] {
   }
 }
 
-/** Default client page size while the debts API still returns a full array. */
-export const DEBTS_CLIENT_PAGE_SIZE = 50;
+/** Default server page size for GET /debts?page=&pageSize= (max 200 on the API). */
+export const DEBTS_PAGE_SIZE = 50;
+
+export type DebtCategoryOption = { value: string; label: string };
 
 /**
- * Slice a full list for display. Real server paging needs GET /debts?page=&pageSize=
- * (contract documents a paged shape; the live MapGet still returns the full list).
+ * Category filter choices from the scoped finance catalog, plus the advance group tab.
+ * Built from catalog data (not a fixed 10-item list / not from the current page rows).
  */
-export function pageSlice<T>(items: T[], page: number, pageSize = DEBTS_CLIENT_PAGE_SIZE): T[] {
-  const p = Math.max(1, page);
-  const start = (p - 1) * pageSize;
-  return items.slice(start, start + pageSize);
+export function debtCategoryOptionsFromCatalog(
+  categories: Array<{ code?: string | null; nameAr?: string | null }> | null | undefined
+): DebtCategoryOption[] {
+  const options: DebtCategoryOption[] = [
+    { value: 'all', label: 'كافة الفئات' },
+    { value: 'advance', label: 'سلف (نقدية / بنكية)' },
+  ];
+  const seen = new Set(['all', 'advance']);
+  for (const cat of categories ?? []) {
+    const code = (cat.code || '').trim();
+    if (!code || seen.has(code)) continue;
+    seen.add(code);
+    options.push({ value: code, label: (cat.nameAr || '').trim() || code });
+  }
+  return options;
 }

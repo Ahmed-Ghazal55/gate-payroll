@@ -83,6 +83,7 @@ public static class ApiContracts
         if(path=="/api/finance/sponsors")return A(O(new(){["id"]=S(),["sponsorId"]=S(),["code"]=S(),["nameAr"]=S(),["shortNameAr"]=S(),["vaultBalance"]=N(),["mainVaultBalance"]=N(),["bankBalance"]=N(),["allowedActions"]=A(S())},"id","code"));
         if(path=="/api/debts/{id}"||(path=="/api/debts"&&!get)||path.EndsWith("/transfer-sponsor")||path.EndsWith("/collect")&&path.StartsWith("/api/debts"))return path.EndsWith("/collect")?O(new(){["debt"]=Debt(),["settlement"]=Free(),["journal"]=Free()},"debt"):Debt();
         if(path=="/api/debts"&&get)return new(){OneOf=[A(Debt()),Page(Debt())]};
+        if(path=="/api/debts/summary"&&get)return O(new(){["totalCount"]=N(),["activeRemainingTotal"]=N(),["advanceRemainingTotal"]=N(),["pendingOpeningCount"]=N(),["pendingOpeningTotal"]=N()},"totalCount","activeRemainingTotal","advanceRemainingTotal","pendingOpeningCount","pendingOpeningTotal");
         if(path=="/api/riders"&&get)return new(){OneOf=[A(Rider()),Page(Rider())]};
         if(path=="/api/operations/{kind}"&&get)return OperationsPage();
         if(path=="/api/riders/{iqama}/accounts"&&get)return OperationsPage();
