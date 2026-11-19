@@ -9,7 +9,6 @@ public sealed class HttpContractTests
     [DataRow("r8-contract.mjs",false)]
     [DataRow("r6b-accounting.mjs",false)]
     [DataRow("r6c-imports.mjs",false)]
-    [DataRow("erp-sync.mjs",false)]
     [DataRow("api-cleanup.mjs",false)]
     [DataRow("r2-backend.mjs",false)]
     [DataRow("finance-views.mjs",false)]

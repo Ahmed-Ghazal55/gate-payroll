@@ -75,7 +75,6 @@ function SidebarInner({
       permission: 'payroll.view',
       items: [
         { id: 'dash-kpi', href: '/', label: 'لوحة المؤشرات والمهام' },
-        { id: 'dash-import', href: '/imports/', label: 'مركز الاستيراد', permission: 'imports.view', isNew: true },
       ],
     },
     {
@@ -118,6 +117,7 @@ function SidebarInner({
         { id: 'ops-guarantees', href: '/operations/?tab=guarantees', label: 'الكفالات' },
         { id: 'ops-cases', href: '/operations/?tab=cases', label: 'القضايا والمنازعات' },
         { id: 'ops-accounts', href: '/operations/?tab=accounts', label: 'حسابات المنصات' },
+        { id: 'ops-imports', href: '/imports/', label: 'استيراد الملفات', permission: 'imports.view', isNew: true },
       ],
     },
     {

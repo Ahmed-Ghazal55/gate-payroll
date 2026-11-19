@@ -24,15 +24,12 @@ import {
   FileUp,
   X,
   ArrowRight,
-  Database,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
-import { FreeImportTab } from '../../features/imports/FreeImportTab';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Drawer } from '../../components/ui/Drawer';
-import { ErpSyncDrawer } from '../../components/system/ErpSyncDrawer';
 import type { ImportCatalogStep, ImportCatalogColumn, ImportPreviewResult } from '../../lib/types';
 
 // =========================================================================
@@ -256,9 +253,6 @@ function ImportCenter() {
   // Drawer for columns
   const [columnDrawerStep, setColumnDrawerStep] = useState<ImportCatalogStep | null>(null);
   const [expandedChoiceColumns, setExpandedChoiceColumns] = useState<Set<string>>(new Set());
-
-  // ERP Sync Drawer
-  const [erpDrawerOpen, setErpDrawerOpen] = useState<boolean>(false);
 
   // Active Upload State per step: key -> { file, uploading, previewResult, committing, commitSuccess, error }
   const [uploadState, setUploadState] = useState<
@@ -930,17 +924,16 @@ function ImportCenter() {
                 </div>
               )}
 
-              {/* 3. ERP Flow (Chefz) */}
+              {/* 3. Live ERP read (Chefz) — sync drawer removed in S1 */}
               {step.upload === 'erp' && (
                 <div>
-                  <button
-                    type="button"
-                    onClick={() => setErpDrawerOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+                  <Link
+                    href="/operations/?tab=accounts"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90 transition-opacity"
                   >
-                    <RefreshCw size={14} />
-                    <span>سحب وتشغيل من Gate ERP</span>
-                  </button>
+                    <ExternalLink size={14} />
+                    <span>فتح التشغيل (قراءة مباشرة من نظام عمر)</span>
+                  </Link>
                 </div>
               )}
             </div>
@@ -954,8 +947,8 @@ function ImportCenter() {
     <div className="min-w-0 max-w-full space-y-6">
       {/* Page Header */}
       <PageHeader
-        title="مركز الاستيراد"
-        description="دليل ومسار استيراد البيانات التشغيلية والمالية وفق الترتيب المعتمد (12 خطوة)"
+        title="استيراد الملفات"
+        description="رفع ملفات الرواتب والتشغيل والمديونيات وفق الترتيب المعتمد (نينجا وكيتا وهنقر والأرصدة)"
       >
         <button
           type="button"
@@ -1220,41 +1213,11 @@ function ImportCenter() {
         )}
       </Drawer>
 
-      {/* ERP Sync Drawer (for Chefz operations) */}
-      <ErpSyncDrawer open={erpDrawerOpen} onClose={() => setErpDrawerOpen(false)} />
     </div>
   );
 }
 
-// Two tabs: the ordered catalog (K6) and the free-form column-mapping importer that existed before it.
+/** Pay-file import catalog only (no free-form mapper; ERP sync drawer removed in S1). */
 export default function ImportsPage() {
-  const [tab, setTab] = useState<'center' | 'free'>('center');
-  const tabs: Array<{ id: 'center' | 'free'; label: string }> = [
-    { id: 'center', label: 'مركز الاستيراد (النماذج بالترتيب)' },
-    { id: 'free', label: 'استيراد حر بمطابقة الأعمدة' },
-  ];
-  return (
-    <div className="min-w-0 max-w-full space-y-4">
-      <div role="tablist" aria-label="طريقة الاستيراد" className="flex flex-wrap gap-2 border-b border-[var(--line)] pb-2">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            data-testid={`imports-tab-${t.id}`}
-            onClick={() => setTab(t.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold border transition ${
-              tab === t.id
-                ? 'bg-[var(--accent)] text-[var(--accent-ink)] border-transparent'
-                : 'bg-[var(--surface)] text-[var(--ink)] border-[var(--line)] hover:bg-[var(--row-hover)]'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      {tab === 'center' ? <ImportCenter /> : <FreeImportTab />}
-    </div>
-  );
+  return <ImportCenter />;
 }

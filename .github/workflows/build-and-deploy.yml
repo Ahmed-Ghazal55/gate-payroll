@@ -2,6 +2,7 @@ name: Validate, package and deploy Gate Payroll
 on:
   push:
     branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -76,7 +77,6 @@ jobs:
           node tests/finance-views.mjs
           node tests/r6b-accounting.mjs
           node tests/r6c-imports.mjs
-          node web/tests/import-center.mjs
           node web/tests/r8-ninja-flow.mjs
           node web/tests/r8-keeta-flow.mjs
           node web/tests/r9-pay-settings-flow.mjs

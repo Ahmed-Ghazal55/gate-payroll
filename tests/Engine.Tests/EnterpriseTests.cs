@@ -18,7 +18,7 @@ public sealed class EnterpriseTests
     [DataRow("Accountant","POST","/api/payments",true)]
     [DataRow("Accountant","PUT","/api/users/test/status",false)]
     [DataRow("Reviewer","POST","/api/excel/riders/commit",false)]
-    [DataRow("Admin","POST","/api/riders/sync-baseline",true)]
+    [DataRow("Admin","POST","/api/riders/enrich-missing",true)]
     [DataRow("Reviewer","DELETE","/api/submissions/test",false)]
     [DataRow("Accountant","DELETE","/api/submissions/test",false)]
     [DataRow("Reviewer","POST","/api/submissions/bulk-delete",false)]

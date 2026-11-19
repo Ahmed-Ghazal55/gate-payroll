@@ -34,7 +34,6 @@ import type {
   RiderRecord,
   RiderProfile360,
   RidersDataQuality,
-  RidersBaselineSyncResult,
   RiderStatement,
   TargetCoaResponse,
   TrialBalanceResponse,
@@ -47,8 +46,6 @@ import type {
   OrgSupervision,
   OrgRouting,
   OrgResponsibleUser,
-  ErpSyncJobStatus,
-  ErpSyncRun,
   PayReviewResponse,
   PayReviewRow,
   ConfigListGroup,
@@ -1184,12 +1181,6 @@ export const api = {
   getRidersDataQuality: () =>
     handleRequest<RidersDataQuality>('/riders/data-quality'),
 
-  syncRidersBaseline: (payload: { mode: 'preview' | 'commit'; useLocalBaseline?: boolean; fingerprint?: string; riders?: any[] }) =>
-    handleRequest<RidersBaselineSyncResult>('/riders/sync-baseline', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
   enrichRidersMissing: () =>
     handleRequest<{ enrichedExisting: number; addedFromSources: number; totalRidersNow: number }>('/riders/enrich-missing', {
       method: 'POST',
@@ -1530,26 +1521,7 @@ export const api = {
     const q = new URLSearchParams({ operation });
     return handleRequest<OrgResponsibleUser[]>(`/org/responsible?${q.toString()}`);
   },
-  getHealth: () => handleRequest<{ ok: boolean; jobs?: { enabled: boolean; lastRun?: string; nextRun?: string } }>('/health'),
-  runErpSync: (dryRun: boolean, overrides?: { acceptNewKinds?: string[]; acceptLargeChanges?: string[]; reason?: string; fullResync?: boolean }) =>
-    handleRequest<{ jobId: string }>(dryRun ? '/system/jobs/erp-sync/dry-run' : '/system/jobs/erp-sync/run', {
-      method: 'POST',
-      body: JSON.stringify(overrides ?? {}),
-    }),
-  pauseErpSync: (reason: string) =>
-    handleRequest<{ paused: boolean }>('/system/jobs/erp-sync/pause', {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    }),
-  resumeErpSync: (reason: string) =>
-    handleRequest<{ paused: boolean }>('/system/jobs/erp-sync/resume', {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    }),
-  getErpSyncJobStatus: (jobId: string) =>
-    handleRequest<ErpSyncJobStatus>(`/system/jobs/erp-sync/${encodeURIComponent(jobId)}`),
-  getRecentErpSyncRuns: (limit: number = 5) =>
-    handleRequest<ErpSyncRun[]>(`/system/erp-sync?limit=${limit}`),
+  getHealth: () => handleRequest<{ ok: boolean }>('/health'),
   getPayCycleReview: (cycleId: string, params?: { review?: string; status?: string }) => {
     const q = new URLSearchParams();
     if (params?.review) q.set('review', params.review);
