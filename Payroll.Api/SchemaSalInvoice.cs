@@ -108,10 +108,10 @@ public static class SchemaSalInvoice
         else
         {
             string Parent(string id)=>$"EXISTS(SELECT 1 FROM {invoice} i WHERE i.id={id} AND {Frozen("i")})";
-            SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_platform_invoice_frozen BEFORE UPDATE ON {invoice} WHEN {Frozen("OLD")} AND ({Changed(c,HeaderColumns,"NEW","OLD")}) BEGIN SELECT RAISE(ABORT,'{header}'); END;");
-            SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_platform_invoice_line_frozen_insert BEFORE INSERT ON {line} WHEN {Parent("NEW.invoice_id")} BEGIN SELECT RAISE(ABORT,'{lines}'); END;");
-            SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_platform_invoice_line_frozen_delete BEFORE DELETE ON {line} WHEN {Parent("OLD.invoice_id")} BEGIN SELECT RAISE(ABORT,'{lines}'); END;");
-            SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_platform_invoice_line_frozen_update BEFORE UPDATE ON {line} WHEN ({Parent("OLD.invoice_id")} OR {Parent("NEW.invoice_id")}) AND ({Changed(c,LineColumns,"NEW","OLD")}) BEGIN SELECT RAISE(ABORT,'{lines}'); END;");
+            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_platform_invoice_frozen BEFORE UPDATE ON {invoice} WHEN {Frozen("OLD")} AND ({Changed(c,HeaderColumns,"NEW","OLD")}) BEGIN SELECT RAISE(ABORT,'{header}'); END;");
+            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_platform_invoice_line_frozen_insert BEFORE INSERT ON {line} WHEN {Parent("NEW.invoice_id")} BEGIN SELECT RAISE(ABORT,'{lines}'); END;");
+            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_platform_invoice_line_frozen_delete BEFORE DELETE ON {line} WHEN {Parent("OLD.invoice_id")} BEGIN SELECT RAISE(ABORT,'{lines}'); END;");
+            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_platform_invoice_line_frozen_update BEFORE UPDATE ON {line} WHEN ({Parent("OLD.invoice_id")} OR {Parent("NEW.invoice_id")}) AND ({Changed(c,LineColumns,"NEW","OLD")}) BEGIN SELECT RAISE(ABORT,'{lines}'); END;");
         }
     }
 
@@ -133,6 +133,6 @@ public static class SchemaSalInvoice
                 """);
         else
             foreach(bool insert in new[]{true,false})
-                SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_platform_invoice_overlap_{(insert?"insert":"update")} AFTER {(insert?"INSERT":"UPDATE OF app_code,erp_cr_id,period_from,period_to,status")} ON {invoice} WHEN NEW.status<>4 AND {Overlap("NEW")} BEGIN SELECT RAISE(ABORT,'{message}'); END;");
+                SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_platform_invoice_overlap_{(insert?"insert":"update")} AFTER {(insert?"INSERT":"UPDATE OF app_code,erp_cr_id,period_from,period_to,status")} ON {invoice} WHEN NEW.status<>4 AND {Overlap("NEW")} BEGIN SELECT RAISE(ABORT,'{message}'); END;");
     }
 }

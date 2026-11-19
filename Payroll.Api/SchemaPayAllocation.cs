@@ -127,8 +127,8 @@ public static class SchemaPayAllocation
                 END;
                 """);
         else
-            SchemaSql.Exec(c,tx,$"""
-                CREATE TRIGGER IF NOT EXISTS TR_allocation_transition BEFORE UPDATE ON {a} BEGIN
+            SchemaSql.SqliteTrigger(c,tx,$"""
+                CREATE TRIGGER TR_allocation_transition BEFORE UPDATE ON {a} BEGIN
                   SELECT RAISE(ABORT,'Allocation keys and amount are immutable') WHERE
                     NEW.id<>OLD.id OR NEW.payment_id<>OLD.payment_id OR NEW.payable_id<>OLD.payable_id OR NEW.payment_line_id<>OLD.payment_line_id
                     OR NEW.amount<>OLD.amount OR NEW.company_id<>OLD.company_id OR NEW.period_month<>OLD.period_month
@@ -196,8 +196,8 @@ public static class SchemaPayAllocation
             {
                 bool insert=operation=="INSERT";string targets=insert?"NEW.payable_id":"NEW.payable_id,OLD.payable_id";
                 string fresh=insert?"NEW.claim_status IN (1,2)":"NEW.claim_status IN (1,2) AND NEW.claim_status<>OLD.claim_status";
-                SchemaSql.Exec(c,tx,$"""
-                    CREATE TRIGGER IF NOT EXISTS TR_allocation_{(insert?"insert":"update")} AFTER {operation} ON {a} BEGIN
+                SchemaSql.SqliteTrigger(c,tx,$"""
+                    CREATE TRIGGER TR_allocation_{(insert?"insert":"update")} AFTER {operation} ON {a} BEGIN
                       SELECT RAISE(ABORT,'Simulation or payout-blocked payment cannot claim') WHERE {fresh} AND EXISTS(SELECT 1 FROM {payment} WHERE id=NEW.payment_id AND (run_mode=1 OR (NEW.claim_status=2 AND payout_blocked=1)));
                       SELECT RAISE(ABORT,'Cancelled payable cannot receive claims') WHERE NEW.claim_status IN (1,2) AND (SELECT status FROM {p} WHERE id=NEW.payable_id)=4;
                       UPDATE {p} SET
@@ -210,8 +210,11 @@ public static class SchemaPayAllocation
                     END;
                     """);
             }
-            SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_payment_claim_cover AFTER UPDATE OF amount ON {payment} BEGIN SELECT RAISE(ABORT,'Claims exceed payment amount') WHERE {ClaimedOn(c,"NEW.id")}>NEW.amount; END;");
-            SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_allocation_no_delete BEFORE DELETE ON {a} BEGIN SELECT RAISE(ABORT,'Cancel or release allocations instead of deleting'); END;");
+            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_payment_claim_cover AFTER UPDATE OF amount ON {payment} BEGIN SELECT RAISE(ABORT,'Claims exceed payment amount') WHERE {ClaimedOn(c,"NEW.id")}>NEW.amount; END;");
+            // L4: INSERT OR REPLACE deletes the old claim without firing delete triggers (recursive_triggers is off),
+            // which would bypass the no-delete and transition rules. Reject a reused id or claim key before the delete.
+            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_allocation_no_replace BEFORE INSERT ON {a} WHEN EXISTS(SELECT 1 FROM {a} WHERE id=NEW.id OR (payable_id=NEW.payable_id AND payment_line_id=NEW.payment_line_id)) BEGIN SELECT RAISE(ABORT,'UQ_pay_alloc_payable_line: claim id or key already used; replacing a claim is forbidden'); END;");
+            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_allocation_no_delete BEFORE DELETE ON {a} BEGIN SELECT RAISE(ABORT,'Cancel or release allocations instead of deleting'); END;");
         }
     }
 }

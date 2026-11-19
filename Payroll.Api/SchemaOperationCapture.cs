@@ -101,9 +101,9 @@ public static class SchemaOperationCapture
             SchemaSql.Exec(c,tx,$"CREATE OR ALTER TRIGGER sal.TR_ops_snapshot_immutable ON {snap} INSTEAD OF UPDATE,DELETE AS BEGIN THROW 51010,'Snapshots are append-only evidence',1; END;");
         else
         {
-            foreach(string op in new[]{"UPDATE","DELETE"})SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_ops_snapshot_{op} BEFORE {op} ON {snap} BEGIN SELECT RAISE(ABORT,'Snapshots are append-only evidence'); END;");
+            foreach(string op in new[]{"UPDATE","DELETE"})SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_ops_snapshot_{op} BEFORE {op} ON {snap} BEGIN SELECT RAISE(ABORT,'Snapshots are append-only evidence'); END;");
             // REPLACE deletes silently when recursive_triggers is off (SQLite default). Reject it before the delete.
-            SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_ops_snapshot_no_replace BEFORE INSERT ON {snap} WHEN EXISTS(SELECT 1 FROM {snap} WHERE id=NEW.id) BEGIN SELECT RAISE(ABORT,'Snapshot replacement is forbidden'); END;");
+            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_ops_snapshot_no_replace BEFORE INSERT ON {snap} WHEN EXISTS(SELECT 1 FROM {snap} WHERE id=NEW.id) BEGIN SELECT RAISE(ABORT,'Snapshot replacement is forbidden'); END;");
         }
         foreach(string table in new[]{"operation_snapshot_link","operation_capture_manifest"})
         {
@@ -121,12 +121,12 @@ public static class SchemaOperationCapture
                     """);
             else
             {
-                SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_{table}_no_replace BEFORE INSERT ON {t} WHEN EXISTS(SELECT 1 FROM {t} WHERE id=NEW.id) BEGIN SELECT RAISE(ABORT,'Evidence replacement is forbidden'); END;");
+                SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_{table}_no_replace BEFORE INSERT ON {t} WHEN EXISTS(SELECT 1 FROM {t} WHERE id=NEW.id) BEGIN SELECT RAISE(ABORT,'Evidence replacement is forbidden'); END;");
                 foreach(string op in new[]{"INSERT","UPDATE","DELETE"})
                 {
                     string predicate=op=="INSERT"?Frozen(c,"NEW.operation_type","NEW.operation_id"):op=="DELETE"?Frozen(c,"OLD.operation_type","OLD.operation_id"):$"({Frozen(c,"NEW.operation_type","NEW.operation_id")} OR {Frozen(c,"OLD.operation_type","OLD.operation_id")})";
                     string owner=op=="DELETE"?"":$"SELECT RAISE(ABORT,'Capture owner or period mismatch') WHERE {WrongOwner(c,"NEW")};";
-                    SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_{table}_{op} BEFORE {op} ON {t} BEGIN SELECT RAISE(ABORT,'Frozen operation evidence cannot change') WHERE {predicate}; {owner} END;");
+                    SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_{table}_{op} BEFORE {op} ON {t} BEGIN SELECT RAISE(ABORT,'Frozen operation evidence cannot change') WHERE {predicate}; {owner} END;");
                 }
             }
         }
@@ -173,8 +173,8 @@ public static class SchemaOperationCapture
                     SELECT RAISE(ABORT,'Frozen run cannot reopen or change capture scope') WHERE OLD.capture_state>0
                       AND (NEW.capture_state<OLD.capture_state OR NEW.company_id<>OLD.company_id OR NEW.app_code<>OLD.app_code OR NEW.period_month<>OLD.period_month OR NEW.calc_started_at<>OLD.calc_started_at);
                     """;
-                SchemaSql.Exec(c,tx,$"""
-                    CREATE TRIGGER IF NOT EXISTS TR_run_capture_{op} BEFORE {op} ON {run} BEGIN
+                SchemaSql.SqliteTrigger(c,tx,$"""
+                    CREATE TRIGGER TR_run_capture_{op} BEFORE {op} ON {run} BEGIN
                       {immutable}
                       SELECT RAISE(ABORT,'Calculation requires frozen capture') WHERE NEW.capture_state=0 AND NEW.calc_started_at IS NOT NULL;
                       SELECT RAISE(ABORT,'Capture incomplete or snapshot scope mismatch') WHERE NEW.capture_state>0{(op=="INSERT"?"":" AND OLD.capture_state=0")} AND {Incomplete(c,"NEW")};

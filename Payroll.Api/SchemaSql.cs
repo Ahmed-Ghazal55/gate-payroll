@@ -83,7 +83,15 @@ public static class SchemaSql
     {
         if(IsSql(c))return;
         string t=Q(c,schema,table);
-        Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_{schema}_{table}_version AFTER UPDATE ON {t} WHEN NEW.row_version=OLD.row_version BEGIN UPDATE {t} SET row_version=randomblob(8) WHERE id=NEW.id; END;");
+        SqliteTrigger(c,tx,$"CREATE TRIGGER TR_{schema}_{table}_version AFTER UPDATE ON {t} WHEN NEW.row_version=OLD.row_version BEGIN UPDATE {t} SET row_version=randomblob(8) WHERE id=NEW.id; END;");
+    }
+    /// <summary>L4: SQLite has no CREATE OR ALTER TRIGGER, and IF NOT EXISTS keeps an old trigger body forever.
+    /// Drop and recreate, so a changed trigger is upgraded on the next start (inside the migration lock).</summary>
+    public static void SqliteTrigger(DbConnection c,DbTransaction? tx,string ddl)
+    {
+        var name=System.Text.RegularExpressions.Regex.Match(ddl,@"^\s*CREATE\s+TRIGGER\s+(\w+)\s",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if(!name.Success)throw new ArgumentException("Expected CREATE TRIGGER <name> without IF NOT EXISTS.",nameof(ddl));
+        Exec(c,tx,$"DROP TRIGGER IF EXISTS {name.Groups[1].Value};");Exec(c,tx,ddl);
     }
     public static string Text(DbConnection c,int n)=>IsSql(c)?$"nvarchar({n})":"TEXT";
     public static string Varchar(DbConnection c,int n)=>IsSql(c)?$"varchar({n})":"TEXT";

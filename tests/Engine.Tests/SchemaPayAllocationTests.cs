@@ -64,7 +64,7 @@ public sealed class SchemaPayAllocationTests
         string payable=MoneySchemaFixture.Payable(c,company),payment=MoneySchemaFixture.Payment(c,company,"2026-12-01"),line=MoneySchemaFixture.Id();
         string claim=MoneySchemaFixture.Claim(c,company,payment,payable,40,month:"2026-12-01",line:line);
         // Payment can settle an older entitlement; its own month must still match its header.
-        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Claim(c,company,payment,payable,10,month:"2026-12-01",line:line),"UQ_pay_alloc_payable_line",sqliteToken:"pay_payment_allocation.payable_id, pay_payment_allocation.payment_line_id");
+        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Claim(c,company,payment,payable,10,month:"2026-12-01",line:line),"UQ_pay_alloc_payable_line");
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Claim(c,company,payment,payable,10),"FK_pay_alloc_payment",sqliteToken:"FOREIGN KEY");
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Claim(c,other,payment,payable,10,month:"2026-12-01"),"FK_pay_alloc_payable",sqliteToken:"FOREIGN KEY");
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Claim(c,company,payment,payable,0,month:"2026-12-01"),"CK_pay_alloc_amount");
@@ -146,6 +146,41 @@ public sealed class SchemaPayAllocationTests
         }
         Assert.IsTrue(SchemaPayAllocation.IsRetryable(new SqliteException("busy",5)));
         Assert.IsFalse(SchemaPayAllocation.IsRetryable(new SqliteException("Claims exceed payment amount",19)));
+    }
+
+    [TestMethod]
+    public void SqliteReplaceCannotSwapAPostedClaim()
+    {
+        using var c=MoneySchemaFixture.Payments();string company=MoneySchemaFixture.Company(c),payable=MoneySchemaFixture.Payable(c,company),payment=MoneySchemaFixture.Payment(c,company),line=MoneySchemaFixture.Id();
+        string claim=MoneySchemaFixture.Claim(c,company,payment,payable,40,line:line);
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",claim));
+        foreach(string id in new[]{claim,MoneySchemaFixture.Id()})
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT OR REPLACE INTO pay_payment_allocation(id,payment_id,payment_line_id,payable_id,company_id,payable_period_month,period_month,amount,claim_status) VALUES(@id,@p,@line,@due,@c,'2026-11-01','2026-11-01',10,1)",("@id",id),("@p",payment),("@line",line),("@due",payable),("@c",company)));
+        Assert.AreEqual(2L,MoneySchemaFixture.Scalar(c,null,"SELECT claim_status FROM pay_payment_allocation WHERE id=@id",("@id",claim)));
+        Assert.AreEqual(40m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT amount_paid FROM pay_payable WHERE id=@id",("@id",payable))));
+    }
+
+    [TestMethod]
+    public void SqliteStartupUpgradesEveryMoneyTrigger()
+    {
+        using var c=MoneySchemaFixture.Payments();SchemaSalInvoice.Ensure(c);SchemaSalPayRun.Ensure(c);SchemaOperationCapture.Ensure(c);
+        Dictionary<string,(string Table,string Sql)> Triggers()
+        {
+            var found=new Dictionary<string,(string,string)>();
+            using var cmd=MoneySchemaFixture.Command(c,null,"SELECT name,tbl_name,sql FROM sqlite_master WHERE type='trigger' AND (tbl_name LIKE 'pay%' OR tbl_name LIKE 'sal%' OR tbl_name LIKE 'fin_operation%')");
+            using var reader=cmd.ExecuteReader();while(reader.Read())found[reader.GetString(0)]=(reader.GetString(1),reader.GetString(2));
+            return found;
+        }
+        var expected=Triggers();Assert.IsTrue(expected.Count>30,expected.Count.ToString());
+        // An older release left a different body under every name.
+        foreach(var (name,(table,_)) in expected)
+        {
+            MoneySchemaFixture.Exec(c,null,$"DROP TRIGGER {name}");
+            MoneySchemaFixture.Exec(c,null,$"CREATE TRIGGER {name} AFTER INSERT ON {table} BEGIN SELECT 1; END;");
+        }
+        SchemaPayPayable.Ensure(c);SchemaPayAllocation.Ensure(c);SchemaSalInvoice.Ensure(c);SchemaSalPayRun.Ensure(c);SchemaOperationCapture.Ensure(c);
+        var upgraded=Triggers();
+        foreach(var (name,(_,sql)) in expected)Assert.AreEqual(sql,upgraded[name].Sql,name);
     }
 
     [TestMethod]

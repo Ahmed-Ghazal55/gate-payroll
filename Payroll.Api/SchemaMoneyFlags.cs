@@ -19,8 +19,8 @@ public static class SchemaMoneyFlags
                 END;
                 """);
         else
-            SchemaSql.Exec(c,tx,$"""
-                CREATE TRIGGER IF NOT EXISTS {name} BEFORE UPDATE ON {t}
+            SchemaSql.SqliteTrigger(c,tx,$"""
+                CREATE TRIGGER {name} BEFORE UPDATE ON {t}
                 WHEN ({frozen("OLD")}) AND (NEW.run_mode<>OLD.run_mode OR (OLD.payout_blocked=1 AND NEW.payout_blocked=0))
                 BEGIN SELECT RAISE(ABORT,'Frozen money operation cannot change run mode or remove payout block'); END;
                 """);

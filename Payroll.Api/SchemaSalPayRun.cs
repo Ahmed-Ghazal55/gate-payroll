@@ -144,8 +144,8 @@ public static class SchemaSalPayRun
             foreach(bool insert in new[]{true,false})
             {
                 string op=insert?"INSERT":"UPDATE",suffix=insert?"insert":"update";
-                SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_rider_bank_hold_{suffix} BEFORE {op} ON {rider} WHEN NEW.bank_eligible=1 BEGIN SELECT RAISE(ABORT,'{message}') WHERE EXISTS(SELECT 1 FROM {hold} WHERE erp_rider_id=NEW.erp_rider_id AND period_month=NEW.period_month AND status='open'); END;");
-                SchemaSql.Exec(c,tx,$"CREATE TRIGGER IF NOT EXISTS TR_hold_clears_bank_{suffix} AFTER {(insert?"INSERT":"UPDATE OF status,erp_rider_id,period_month")} ON {hold} WHEN NEW.status='open' BEGIN UPDATE {rider} SET bank_eligible=0 WHERE erp_rider_id=NEW.erp_rider_id AND period_month=NEW.period_month AND bank_eligible=1; END;");
+                SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_rider_bank_hold_{suffix} BEFORE {op} ON {rider} WHEN NEW.bank_eligible=1 BEGIN SELECT RAISE(ABORT,'{message}') WHERE EXISTS(SELECT 1 FROM {hold} WHERE erp_rider_id=NEW.erp_rider_id AND period_month=NEW.period_month AND status='open'); END;");
+                SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_hold_clears_bank_{suffix} AFTER {(insert?"INSERT":"UPDATE OF status,erp_rider_id,period_month")} ON {hold} WHEN NEW.status='open' BEGIN UPDATE {rider} SET bank_eligible=0 WHERE erp_rider_id=NEW.erp_rider_id AND period_month=NEW.period_month AND bank_eligible=1; END;");
             }
     }
 
@@ -170,8 +170,8 @@ public static class SchemaSalPayRun
                 """);
         else
             foreach(bool insert in new[]{true,false})
-                SchemaSql.Exec(c,tx,$"""
-                    CREATE TRIGGER IF NOT EXISTS TR_allocation_run_flags_{(insert?"insert":"update")} BEFORE {(insert?"INSERT":"UPDATE OF claim_status")} ON {a}
+                SchemaSql.SqliteTrigger(c,tx,$"""
+                    CREATE TRIGGER TR_allocation_run_flags_{(insert?"insert":"update")} BEFORE {(insert?"INSERT":"UPDATE OF claim_status")} ON {a}
                     WHEN NEW.claim_status IN (1,2){(insert?"":" AND NEW.claim_status<>OLD.claim_status")} BEGIN
                       SELECT RAISE(ABORT,'{message}') WHERE EXISTS(SELECT 1 FROM {rider} r JOIN {run} pr ON pr.id=r.pay_run_id
                         WHERE r.payable_id=NEW.payable_id AND (pr.run_mode=1 OR (NEW.claim_status=2 AND pr.payout_blocked=1)));
