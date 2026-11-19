@@ -169,7 +169,7 @@ public static class TableExcelApi
         return allSaudi;
     }
 
-    static (string[] Headers, List<object?[]> Rows, HashSet<int> Numeric) SplitIbanColumns(string[] headers, List<string[]> rows, HashSet<int> numbers)
+    public static (string[] Headers, List<object?[]> Rows, HashSet<int> Numeric) SplitIbanColumns(string[] headers, List<string[]> rows, HashSet<int> numbers)
     {
         var ibanCols = new HashSet<int>();
         for (int i = 0; i < headers.Length; i++)

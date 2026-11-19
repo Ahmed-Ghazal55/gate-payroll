@@ -223,4 +223,18 @@ public sealed class RiderAppAdminTests
         Assert.AreEqual(("", ""), BankPayrollFiles.ExportBank(""));
         Assert.AreEqual(("", ""), BankPayrollFiles.ExportBank("GB00X"));
     }
+
+    [TestMethod]
+    public void ExcelExportSplitsIbanIntoOneBankCodeAndNamePair()
+    {
+        var (headers, rows, numeric) = TableExcelApi.SplitIbanColumns(
+            ["الاسم", "الآيبان", "المبلغ"],
+            [ ["مندوب تجريبي", "SA03 8000 0000 6080 1016 7519", "1500"] ],
+            [2]);
+        CollectionAssert.AreEqual(new[] { "الاسم", "الآيبان", "كود البنك", "اسم البنك", "المبلغ" }, headers);
+        Assert.AreEqual(1, headers.Count(h => h == "كود البنك"));
+        Assert.AreEqual(1, headers.Count(h => h == "اسم البنك"));
+        CollectionAssert.AreEqual(new object?[] { "مندوب تجريبي", "SA0380000000608010167519", "RJHI", "مصرف الراجحي", 1500m }, rows[0]);
+        CollectionAssert.AreEqual(new[] { 4 }, numeric.ToArray());
+    }
 }

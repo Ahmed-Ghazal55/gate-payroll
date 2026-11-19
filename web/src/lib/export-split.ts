@@ -36,7 +36,7 @@ const text = (v: ExportCell): string => (v == null ? '' : String(v));
 
 /**
  * Expands every IBAN column into IBAN / كود البنك / اسم البنك and drops number formatting
- * from identifier columns. Pure function: used by api.exportExcel for every export.
+ * from identifier columns. Pure function for client-side CSV only; Excel uses the server split.
  */
 export function splitForExport(
   headers: string[],

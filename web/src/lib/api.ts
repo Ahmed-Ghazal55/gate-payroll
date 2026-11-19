@@ -66,7 +66,7 @@ import type {
   ImportPreviewResult,
 } from './types';
 import type { paths, components } from './api-contract';
-import { splitForExport, type ExportCell } from './export-split';
+import type { ExportCell } from './export-split';
 
 export type ApiResp<
   P extends keyof paths,
@@ -951,17 +951,16 @@ export const api = {
     ),
 
   // Table Export (Strictly adhering to Frontend/src/table-tools.ts:33-38)
-  // R1 / F-R2: every export goes through splitForExport (IBAN → IBAN / bank code / bank name; IDs as text).
+  // R1 / F-R2: IBAN → IBAN / bank code / bank name is applied once on the server (TableExcelApi).
   exportExcel: async (payload: { headers: string[]; rows: ExportCell[][]; numericColumns: number[]; filename?: string }) => {
     if (isMock) {
       return new Blob(['Mock Excel Binary'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     }
-    const table = splitForExport(payload.headers, payload.rows, payload.numericColumns);
     const res = await fetch('/api/excel/export', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(table),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'تعذر تصدير Excel' }));
