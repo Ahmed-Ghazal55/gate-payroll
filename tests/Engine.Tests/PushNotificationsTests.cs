@@ -40,12 +40,27 @@ public sealed class PushNotificationsTests
 
     private static void WithSqlStore(Action<Store> action)
     {
-        string? configured = Environment.GetEnvironmentVariable("PAYROLL_TEST_SQL_CONNECTION")
-            ?? "Server=127.0.0.1,11433;Database=master;User ID=sa;Password=GateSynthetic_CI_Only_723!;Encrypt=True;TrustServerCertificate=True";
+        string? configured = Environment.GetEnvironmentVariable("PAYROLL_TEST_SQL_CONNECTION");
+        string dbName = "GatePushTest_" + Guid.NewGuid().ToString("N");
+        string tempDir = Path.Combine(Path.GetTempPath(), dbName);
+
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            try
+            {
+                var store = new Store(tempDir);
+                action(store);
+            }
+            finally
+            {
+                SqliteConnection.ClearAllPools();
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                PushNotifications.ResetCache();
+            }
+            return;
+        }
 
         var master = new SqlConnectionStringBuilder(configured) { InitialCatalog = "master" };
-        string dbName = "GatePushTest_" + Guid.NewGuid().ToString("N");
-
         using (var masterConn = new SqlConnection(master.ConnectionString))
         {
             masterConn.Open();
@@ -54,7 +69,6 @@ public sealed class PushNotificationsTests
             cmd.ExecuteNonQuery();
         }
 
-        string tempDir = Path.Combine(Path.GetTempPath(), dbName);
         try
         {
             var target = new SqlConnectionStringBuilder(configured) { InitialCatalog = dbName };

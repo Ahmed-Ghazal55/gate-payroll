@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Net.Http.Headers;
 using System.Security.Claims;
@@ -14,6 +15,41 @@ namespace Payroll;
 public static class PushNotifications
 {
     public const string Kind = "push_outbox";
+    public const int OutboxBatchSize = 50;
+    public const int MaxPortalBroadcasts = 50;
+    public const int MaxPortalDebts = 100;
+    public const int MaxRiderListItems = 100;
+    public const int DefaultReadLimitPerMinute = 60;
+    public const int DefaultWriteLimitPerMinute = 20;
+
+    // Individual-only notices that can NEVER be broadcast to ALL riders (Requirement 5b).
+    public static readonly string[] IndividualOnlyNoticeCategories =
+    [
+        "summons",
+        "dismissal_warning",
+        "administrative_deduction",
+        "appointment_alert",
+        "administrative_warning"
+    ];
+
+    public static bool IsIndividualOnlyNotice(string? category) =>
+        !string.IsNullOrWhiteSpace(category) &&
+        IndividualOnlyNoticeCategories.Contains(category.Trim(), StringComparer.OrdinalIgnoreCase);
+
+    public static (string Ar, string En, string Ur) DefaultNoticeTitles(string category) =>
+        category.Trim().ToLowerInvariant() switch
+        {
+            "summons" => ("استدعاء إداري", "Administrative Summons", "انتظامی طلب نامہ"),
+            "dismissal_warning" => ("إنذار فصل", "Dismissal Warning", "برطرفی کی وارننگ"),
+            "administrative_deduction" => ("إشعار خصم إداري", "Administrative Deduction Notice", "انتظامی کٹوتی کی اطلاع"),
+            "appointment_alert" => ("تنبيه موعد مراجعة", "Appointment Alert", "ملاقات کی اطلاع"),
+            "administrative_warning" => ("إنذار إداري", "Administrative Warning", "انتظامی وارننگ"),
+            "financial" => ("إشعار مالي", "Financial Notice", "مالیاتی اطلاع"),
+            "form_link" => ("نموذج مطلوب تعبئته", "Form Required", "فارم پُر کرنے کی اطلاع"),
+            "administrative" => ("تعميم إداري", "Administrative Notice", "انتظامی اعلامیہ"),
+            _ => ("إشعار تشغيلي", "Operational Notice", "آپریشنل اطلاع")
+        };
+
     const string DefaultTokenUri = "https://oauth2.googleapis.com/token";
     const string FcmSendUrlTemplate = "https://fcm.googleapis.com/v1/projects/{0}/messages:send";
 
@@ -22,6 +58,10 @@ public static class PushNotifications
     // Testing hooks for offline unit tests
     public static HttpMessageHandler? TestHttpMessageHandler { get; set; }
     public static string? ServiceAccountJsonOverride { get; set; }
+    public static int? ReadPermitLimitOverride { get; set; }
+    public static int? WritePermitLimitOverride { get; set; }
+
+    private static readonly ConcurrentDictionary<string, (long WindowMinute, int Count)> _rateWindows = new();
 
     public static HttpClient GetHttpClient() => TestHttpMessageHandler != null
         ? new HttpClient(TestHttpMessageHandler, disposeHandler: false) { Timeout = TimeSpan.FromSeconds(10) }
@@ -41,7 +81,32 @@ public static class PushNotifications
         }
         TestHttpMessageHandler = null;
         ServiceAccountJsonOverride = null;
+        ReadPermitLimitOverride = null;
+        WritePermitLimitOverride = null;
+        _rateWindows.Clear();
         Interlocked.Exchange(ref _isFlushing, 0);
+    }
+
+    public static void EnforceRiderRateLimit(HttpContext ctx, bool write)
+    {
+        string auth = ctx.Request.Headers.Authorization.ToString();
+        string actorKey = auth.StartsWith("Bearer rmob_", StringComparison.Ordinal) && auth.Length >= 28
+            ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(auth[7..])))[..16]
+            : (ctx.Connection.RemoteIpAddress?.ToString() ?? "anon");
+        string bucketKey = (write ? "W:" : "R:") + actorKey;
+        int limit = write
+            ? (WritePermitLimitOverride ?? DefaultWriteLimitPerMinute)
+            : (ReadPermitLimitOverride ?? DefaultReadLimitPerMinute);
+        long currentMinute = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 60;
+        var updated = _rateWindows.AddOrUpdate(
+            bucketKey,
+            _ => (currentMinute, 1),
+            (_, existing) => existing.WindowMinute == currentMinute ? (currentMinute, existing.Count + 1) : (currentMinute, 1));
+        if (updated.Count > limit)
+        {
+            ctx.Response.Headers.RetryAfter = "60";
+            throw new ApiError("طلبات كثيرة؛ حاول بعد قليل.", 429);
+        }
     }
 
     public static bool HasServiceAccount()
@@ -431,11 +496,111 @@ public static class PushNotifications
         return Base64Url(Encoding.UTF8.GetBytes(text));
     }
 
+    public static JsonObject NotifyApprovedStatementsForPeriod(DbConnection c, DbTransaction tx, ClaimsPrincipal actor, string period)
+    {
+        AccessPolicy.Demand(actor, "mobile.broadcast");
+        period = J.Period(period);
+        var lineRiders = Store.List(c, PayCycles.LineKind, tx)
+            .Where(l => l.S("period") == period)
+            .GroupBy(l => l.S("cycleId"))
+            .ToDictionary(g => g.Key, g => g.Select(x => x.S("rider")).ToHashSet(StringComparer.Ordinal));
+
+        var cycleRiders = Store.List(c, PayCycles.Kind, tx)
+            .Where(d => d.S("period") == period && d.S("status") is not ("cancelled" or "reversed") && PayCycles.Visible(actor, d))
+            .SelectMany(d =>
+            {
+                if (!lineRiders.TryGetValue(d.S("id"), out var rSet)) return Enumerable.Empty<string>();
+                if (d.S("status") == "approved") return rSet;
+                if (d.S("status") == "partially_approved")
+                {
+                    return (d["riders"] as JsonArray ?? []).OfType<JsonObject>()
+                        .Where(r => r.S("salaryApprovedAt") != "" && rSet.Contains(r.S("rider")))
+                        .Select(r => r.S("rider"));
+                }
+                return Enumerable.Empty<string>();
+            });
+
+        var legacyRiders = Store.List(c, "run", tx)
+            .Where(r => r.S("period") == period && r.S("approvedAt") != "" && FinancialScopes.Ledger(actor, r))
+            .Select(r => r.S("iqama"));
+
+        var targetRiders = cycleRiders.Concat(legacyRiders)
+            .Where(iq => !string.IsNullOrWhiteSpace(iq))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(iq => iq, StringComparer.Ordinal)
+            .ToList();
+
+        var existingBroadcastIds = Store.List(c, "mobile_broadcast", tx)
+            .Select(b => b.S("id"))
+            .ToHashSet(StringComparer.Ordinal);
+
+        int notifiedCount = 0;
+        int enqueuedCount = 0;
+        int skippedCount = 0;
+        string actorName = actor.Identity?.Name ?? "administrator";
+
+        foreach (string iqama in targetRiders)
+        {
+            string noticeId = $"stmt_notice:{period}:{iqama}";
+            if (existingBroadcastIds.Contains(noticeId))
+            {
+                skippedCount++;
+                continue;
+            }
+
+            string titleAr = $"كشف الحساب المعتمد لشهر {period}";
+            string titleEn = $"Approved Statement for {period}";
+            string titleUr = $"ماہ {period} کا منظور شدہ بیان";
+            string bodyAr = "صدر كشف راتبك المعتمد لهذا الشهر. افتح التطبيق للاطلاع على البنود والرصيد النهائي.";
+            string bodyEn = "Your approved monthly statement is ready. Open the app to view the items and final balance.";
+            string bodyUr = "اس مہینے کا منظور شدہ بیان تیار ہے۔ تفصیلات اور حتمی بیلنس دیکھنے کے لیے ایپ کھولیں۔";
+            string link = $"/rider-app/statement?period={period}";
+
+            var notice = new JsonObject
+            {
+                ["id"] = noticeId,
+                ["kind"] = "statement_ready",
+                ["category"] = "financial",
+                ["titleAr"] = titleAr,
+                ["titleEn"] = titleEn,
+                ["titleUr"] = titleUr,
+                ["bodyAr"] = bodyAr,
+                ["bodyEn"] = bodyEn,
+                ["bodyUr"] = bodyUr,
+                ["targetIqama"] = iqama,
+                ["actionUrl"] = link,
+                ["requiresAck"] = false,
+                ["deliveryChannel"] = "in_app",
+                ["deliveryStatus"] = "stored",
+                ["acknowledgedBy"] = new JsonArray(),
+                ["readReceipts"] = new JsonArray(),
+                ["sentBy"] = actorName,
+                ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
+            };
+            Store.Save(c, "mobile_broadcast", notice, tx);
+            var enqueued = EnqueueBroadcast(c, tx, noticeId, iqama, titleAr, bodyAr, link);
+            notifiedCount++;
+            enqueuedCount += enqueued.Count;
+        }
+
+        Store.Audit(c, tx, "mobile.statements_notified", period, actorName);
+        return new JsonObject
+        {
+            ["ok"] = true,
+            ["period"] = period,
+            ["notifiedRidersCount"] = notifiedCount,
+            ["enqueuedPushCount"] = enqueuedCount,
+            ["skippedAlreadyNotifiedCount"] = skippedCount,
+            ["batchSize"] = OutboxBatchSize
+        };
+    }
+
     public static void Map(WebApplication app, RouteGroupBuilder api, Store store)
     {
         // 1. Device token update for rider's active bearer session
         app.MapPost("/api/rider-mobile/device-token", (JsonObject input, HttpContext ctx) =>
         {
+            EnforceRiderRateLimit(ctx, write: true);
             MobileSessions.Authenticate(store, ctx);
             return store.Write((c, tx) =>
             {
@@ -452,5 +617,30 @@ public static class PushNotifications
                 return new { ok = true, fcmRegistered = fcm.Length > 0 };
             }, false);
         }).WithTags("Riders").WithSummary("Update FCM device token for current mobile session");
+
+        // 2. Language switch for rider's active bearer session (ar / en / ur)
+        app.MapPost("/api/rider-mobile/language", (JsonObject input, HttpContext ctx) =>
+        {
+            EnforceRiderRateLimit(ctx, write: true);
+            MobileSessions.Authenticate(store, ctx);
+            return store.Write((c, tx) =>
+            {
+                var session = MobileSessions.Validate(c, ctx, tx: tx);
+                string lang = input.Required("language").Trim().ToLowerInvariant();
+                J.Need(lang is "ar" or "en" or "ur", "اللغة المدعومة: العربية (ar) أو الإنجليزية (en) أو الأردية (ur).");
+                session["language"] = lang;
+                session["lastSeenAt"] = DateTimeOffset.UtcNow.ToString("O");
+                Store.Save(c, MobileSessions.Kind, session, tx);
+                return new { ok = true, language = lang };
+            }, false);
+        }).WithTags("Riders").WithSummary("Switch rider mobile session language (ar, en, ur)");
+
+        // 3. Bulk statement notification via the push outbox in batches (never sends salary amounts in FCM payload)
+        api.MapPost("/rider-mobile/statements/notify-period", (JsonObject input, HttpContext ctx) =>
+        {
+            var res = store.Write((c, tx) => NotifyApprovedStatementsForPeriod(c, tx, ctx.User, input.Required("period")));
+            FlushOutbox(store);
+            return res;
+        }).WithTags("Riders").WithSummary("Enqueue batched statement-ready notifications for riders with approved statements in a period");
     }
 }

@@ -63,13 +63,141 @@ public static class PayStatements
         }
         if(actor!=null&&source=="none")FinancialScopes.DemandRider(actor,person);
         string iban=person.S("iban");var header=new JsonObject{["rider"]=rider,["name"]=person.S("name"),["period"]=period,["status"]=person.S("status"),["ibanMasked"]=iban.Length>=4?"••••"+iban[^4..]:"",["cycles"]=Array(refs)};
-        return new(){["header"]=header,["source"]=source,["status"]=status,["cards"]=Array(cards),["deductions"]=Array(deductions),["phases"]=phases.Count==0?null:phases,["net"]=J.Money(net),["carried"]=J.Money(carried),["closing"]=J.Money(closing),["balanceBasis"]=source=="pay_cycle"?"cycle_snapshot":"approved_legacy_snapshot",["approvedOnly"]=approvedOnly};
+        var shortLines=BuildShortLines(cards,deductions,J.Money(carried));
+        decimal closingMoney=J.Money(closing),netMoney=J.Money(net),carriedMoney=J.Money(carried);
+        return new(){["header"]=header,["source"]=source,["status"]=status,["cards"]=Array(cards),["deductions"]=Array(deductions),["shortLines"]=shortLines,["phases"]=phases.Count==0?null:phases,["net"]=netMoney,["carried"]=carriedMoney,["closing"]=closingMoney,
+            ["closingDirection"]=Direction(closingMoney),["closingMarkerAr"]=MarkerAr(closingMoney),["closingMarkerEn"]=MarkerEn(closingMoney),["closingMarkerUr"]=MarkerUr(closingMoney),
+            ["netDirection"]=Direction(netMoney),["netMarkerAr"]=MarkerAr(netMoney),["netMarkerEn"]=MarkerEn(netMoney),["netMarkerUr"]=MarkerUr(netMoney),
+            ["legalDocument"]=false,
+            ["disclaimerAr"]="بيان استرشادي مختصر للمندوب — لا يُعد مستنداً رسمياً أو قانونياً.",
+            ["disclaimerEn"]="Short informational summary for the rider — not an official or legal document.",
+            ["disclaimerUr"]="رائیڈر کے لیے مختصر معلوماتی خلاصہ — یہ سرکاری یا قانونی دستاویز نہیں ہے۔",
+            ["balanceBasis"]=source=="pay_cycle"?"cycle_snapshot":"approved_legacy_snapshot",["approvedOnly"]=approvedOnly};
     }
+
+    static string Direction(decimal amount)=>amount>0?"credit":amount<0?"debit":"neutral";
+    static string MarkerAr(decimal amount)=>amount>0?"لك":amount<0?"عليك":"متوازن";
+    static string MarkerEn(decimal amount)=>amount>0?"For you (لك)":amount<0?"On you (عليك)":"Balanced";
+    static string MarkerUr(decimal amount)=>amount>0?"آپ کے حق میں (لك)":amount<0?"آپ کے ذمے (عليك)":"متوازن";
+
+    static (string Ar,string En,string Ur) PlatformNames(string raw)
+    {
+        string key=raw.Trim().ToLowerInvariant();
+        return key switch
+        {
+            "keeta"=>("كيتا","Keeta","کیٹا"),
+            "hungerstation" or "hs"=>("هنقرستيشن","HungerStation","ہنگر اسٹیشن"),
+            "ninja"=>("نينجا","Ninja","ننجا"),
+            "jahez"=>("جاهز","Jahez","جاہز"),
+            "chefz" or "thechefz"=>("ذا شفز","The Chefz","دی شیفز"),
+            "amazon"=>("أمازون","Amazon","ایمازون"),
+            "legacy" or "legacy_unattributed"=>("مستحقات معتمدة","Approved earnings","منظور شدہ مستحقات"),
+            _=>("تطبيق العمل","Work app","کام کی ایپ")
+        };
+    }
+
+    static (string Ar,string En,string Ur) DeductionLabels(string category,string fallbackAr)
+    {
+        string key=category.Trim().ToLowerInvariant();
+        return key switch
+        {
+            "debt_installment" or "debt"=>("قسط مديونية","Debt instalment","قرض کی قسط"),
+            "already_paid" or "advance" or "cashadvance" or "bankadvance"=>("سلفة مستلمة","Advance deduction","وصول شدہ ایڈوانس"),
+            "internetadvance" or "internet"=>("سلفة إنترنت","Internet advance","انٹرنیٹ ایڈوانس"),
+            "vehicle_charge" or "vehicleinstallment"=>("إيجار المركبة","Vehicle charge","گاڑی کا کرایہ"),
+            "account_deduction"=>("خصم تشغيل الحساب","Account deduction","اکاؤنٹ کٹوتی"),
+            "fuel" or "fueloverage" or "fuel_deduction"=>("استهلاك الوقود","Fuel deduction","پیٹرول کی کٹوتی"),
+            "housing" or "housingdeduction"=>("استقطاع السكن","Housing deduction","رہائش کی کٹوتی"),
+            "penalty" or "trafficfine" or "violation" or "tga"=>("مخالفة أو غرامة","Violation or fine","خلاف ورزی یا جرمانہ"),
+            "administrativededuction" or "administrative"=>("خصم إداري","Administrative deduction","انتظامی کٹوتی"),
+            "workpermit" or "iqamarenewal" or "driverlicense" or "drivercard" or "medicalinsurance"=>("رسوم خدمات وإقامة","Service & permit fees","سروس اور اقامہ فیس"),
+            "adjustment"=>("تسوية مالية","Financial adjustment","مالیاتی تصفیہ"),
+            _=> (string.IsNullOrWhiteSpace(fallbackAr)?"استقطاع":fallbackAr,"Deduction","کٹوتی")
+        };
+    }
+
+    static JsonArray BuildShortLines(List<JsonObject> cards,List<JsonObject> deductions,decimal carried)
+    {
+        var items=new JsonArray();decimal running=0m;
+        void AddLine(string key,string ar,string en,string ur,decimal signedAmount)
+        {
+            decimal amt=J.Money(signedAmount);if(amt==0m)return;
+            running=J.Money(running+amt);
+            items.Add(new JsonObject
+            {
+                ["key"]=key,["labelAr"]=ar,["labelEn"]=en,["labelUr"]=ur,
+                ["amount"]=amt,["absAmount"]=Math.Abs(amt),
+                ["direction"]=Direction(amt),["markerAr"]=MarkerAr(amt),["markerEn"]=MarkerEn(amt),["markerUr"]=MarkerUr(amt),
+                ["runningBalance"]=running,["runningDirection"]=Direction(running),
+                ["runningMarkerAr"]=MarkerAr(running),["runningMarkerEn"]=MarkerEn(running),["runningMarkerUr"]=MarkerUr(running)
+            });
+        }
+        if(carried!=0m)AddLine("carried_balance","رصيد مرحّل من شهر سابق","Carried balance from previous month","پچھلے مہینے کا منتقل شدہ بیلنس",carried);
+        int cardIdx=0;
+        foreach(var card in cards)
+        {
+            cardIdx++;
+            var (pAr,pEn,pUr)=PlatformNames(card.S("platform",card.S("app")));
+            decimal orders=card.N("orders");
+            string ordAr=orders>0?$" ({orders:0} طلب)":"";
+            string ordEn=orders>0?$" ({orders:0} orders)":"";
+            string ordUr=orders>0?$" ({orders:0} آرڈرز)":"";
+            decimal gross=card.N("gross");
+            if(gross!=0m)AddLine($"card_{cardIdx}_gross",$"مستحقات التوصيل — {pAr}{ordAr}",$"Delivery earnings — {pEn}{ordEn}",$"ڈیلیوری کی آمدنی — {pUr}{ordUr}",gross);
+            decimal comm=Math.Abs(card.N("companyCommission"));
+            if(comm>0m)AddLine($"card_{cardIdx}_commission",$"عمولة التشغيل — {pAr}",$"Operating commission — {pEn}",$"آپریٹنگ کمیشن — {pUr}",-comm);
+            decimal veh=Math.Abs(card.N("vehicleCharge"));
+            if(veh>0m)AddLine($"card_{cardIdx}_vehicle","إيجار المركبة","Vehicle charge","گاڑی کا کرایہ",-veh);
+            decimal accDed=Math.Abs(card.N("accountDeduction"));
+            if(accDed>0m)AddLine($"card_{cardIdx}_account","خصم تشغيل الحساب","Account deduction","اکاؤنٹ کٹوتی",-accDed);
+        }
+        int dedIdx=0;
+        foreach(var d in deductions)
+        {
+            dedIdx++;
+            string cat=d.S("category");
+            var (dAr,dEn,dUr)=DeductionLabels(cat,d.S("labelAr",d.S("description")));
+            decimal raw=d.N("amount");
+            decimal signed=raw<=0m?raw:-raw;
+            AddLine($"ded_{dedIdx}_{cat}",dAr,dEn,dUr,signed);
+        }
+        return items;
+    }
+
+    public static JsonObject LatestApprovedSummary(DbConnection c,string rider)
+    {
+        rider=J.Iqama(rider);
+        var lineCycles=Store.List(c,PayCycles.LineKind).Where(l=>l.S("rider")==rider).Select(l=>l.S("cycleId")).ToHashSet(StringComparer.Ordinal);
+        var cyclePeriods=Store.List(c,PayCycles.Kind)
+            .Where(d=>lineCycles.Contains(d.S("id"))&&d.S("status") is not ("cancelled" or "reversed")&&(d.S("status")=="approved"||d.S("status")=="partially_approved"&&(d["riders"] as JsonArray??[]).OfType<JsonObject>().Any(r=>r.S("rider")==rider&&r.S("salaryApprovedAt")!="")))
+            .Select(d=>d.S("period"));
+        var runPeriods=Store.List(c,"run").Where(r=>r.S("iqama")==rider&&r.S("approvedAt")!="").Select(r=>r.S("period"));
+        string? latest=cyclePeriods.Concat(runPeriods).Where(p=>p.Length==7).OrderByDescending(p=>p,StringComparer.Ordinal).FirstOrDefault();
+        if(string.IsNullOrEmpty(latest))return new JsonObject{["available"]=false};
+        var built=Build(c,rider,latest,null,true);
+        if(built.S("source")=="none")return new JsonObject{["available"]=false};
+        decimal closing=built.N("closing"),net=built.N("net"),carried=built.N("carried");
+        return new JsonObject
+        {
+            ["available"]=true,["period"]=latest,["source"]=built.S("source"),["status"]=built.S("status"),
+            ["net"]=net,["carried"]=carried,["closing"]=closing,
+            ["direction"]=Direction(closing),["markerAr"]=MarkerAr(closing),["markerEn"]=MarkerEn(closing),["markerUr"]=MarkerUr(closing),
+            ["itemsCount"]=(built["shortLines"] as JsonArray)?.Count??0
+        };
+    }
+
     public static JsonObject Mobile(DbConnection c,HttpContext ctx,string period)
-    {if(ctx.Request.Query.Any(q=>q.Key!="period"))throw new ApiError("هوية المندوب تؤخذ من الجلسة فقط.");return Build(c,FinancialCore.AuthenticatedMobileRider(c,ctx),period,null,true);}
+    {
+        if(ctx.Request.Query.Any(q=>q.Key!="period"))throw new ApiError("هوية المندوب تؤخذ من الجلسة فقط.");
+        var result=Build(c,FinancialCore.AuthenticatedMobileRider(c,ctx),period,null,true);
+        // Strip company/sponsor identifiers from rider-facing statement output (not a legal/company document).
+        foreach(var card in (result["cards"] as JsonArray??[]).OfType<JsonObject>()){card.Remove("companyId");card.Remove("sponsorId");}
+        if(result["header"] is JsonObject h)foreach(var cyc in (h["cycles"] as JsonArray??[]).OfType<JsonObject>()){cyc.Remove("companyId");cyc.Remove("sponsorId");}
+        return result;
+    }
     public static void Map(WebApplication app,RouteGroupBuilder api,Store store)
     {
         api.MapGet("/finance/statement/rider/{iqama}/monthly",(string iqama,string period,HttpContext ctx)=>store.Read(c=>Build(c,iqama,period,ctx.User))).WithTags("Payroll").WithSummary("Read scoped monthly rider app cards and explainable net with legacy fallback");
-        app.MapGet("/api/rider-mobile/statement",(string period,HttpContext ctx)=>{MobileSessions.Authenticate(store,ctx);return store.Read(c=>Mobile(c,ctx,period));}).WithTags("Riders").WithSummary("Read own approved monthly statement using rider bearer session only");
+        app.MapGet("/api/rider-mobile/statement",(string period,HttpContext ctx)=>{PushNotifications.EnforceRiderRateLimit(ctx,write:false);MobileSessions.Authenticate(store,ctx);return store.Read(c=>Mobile(c,ctx,period));}).WithTags("Riders").WithSummary("Read own approved monthly statement using rider bearer session only");
     }
 }
