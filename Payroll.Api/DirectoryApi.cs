@@ -1,25 +1,8 @@
-using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json.Nodes;
 namespace Payroll;
 
 public static class RiderDirectory
 {
-    public sealed record DocTypeDef(string Id, string Code, string NameAr, bool RequiresExpiry);
-
-    // أنواع ملفات ومستندات المندوب الرسمية المطابقة تماماً لـ Logistic-ERP (DocumentType.cs)
-    public static readonly DocTypeDef[] DocumentTypes =
-    [
-        new("019c18d5-62e1-7000-8000-000000000030", "ResidencyPermit", "هوية مقيم (الإقامة)", true),
-        new("019c18d5-62e1-7000-8000-000000000031", "DriverLicense", "رخصة القيادة", true),
-        new("019c18d5-62e1-7000-8000-000000000032", "RiderCard", "بطاقة سائق (هيئة النقل)", true),
-        new("019c18d5-62e1-7000-8000-000000000033", "HealthCard", "الكرت الصحي", true),
-        new("019c18d5-62e1-7000-8000-000000000034", "PromissoryNote", "سند لأمر (منصة نافذ)", false),
-        new("019c18d5-62e1-7000-8000-000000000035", "MedicalInsurance", "وثيقة التأمين الطبي", true),
-        new("019c18d5-62e1-7000-8000-000000000036", "AjeerContract", "عقد أجير / تصريح عمل", true)
-    ];
-
     public static string Phone(string value)
     {
         if (string.IsNullOrWhiteSpace(value)) return "";

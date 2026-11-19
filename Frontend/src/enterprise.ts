@@ -1311,68 +1311,36 @@ async function baselineDialog(){
 
 async function riderProfile360Dialog(iqama:string){
  const p=await api(`/riders/${encodeURIComponent(iqama)}/profile-360`);
- const r=p.rider||{};
- const checklist=p.documentChecklist||[];
- const uploadedCount=checklist.filter((d:any)=>d.isUploaded).length;
- modal(`الملف الشامل والوثائق الرسمية للمندوب 360° — ${r.name||iqama}`,`
+ const r=p.person||p.rider||{};
+ const evalMsg=p.financialEvaluation?.message||'لا يوجد مصدر بعد';
+ const imageMsg=p.iqamaImage?.message||'بانتظار صلاحية القراءة من نظام عمر';
+ const pos=p.financialPosition||{};
+ modal(`الملف المختصر 360° — ${r.name||iqama}`,`
   <div class="stats" style="margin-bottom:14px">
-   <div class="stat"><div class="label">رقم الإقامة / الهوية</div><strong class="number">${esc(r.iqama)}</strong><div class="hint">${esc(r.nationality||'—')} · ${esc(r.city||'—')}</div></div>
-   <div class="stat"><div class="label">الكفيل / السجل التجاري</div><strong>${esc(r.sponsor||'غير محدد')}</strong><div class="hint number">${esc(r.sponsorId||'—')}</div></div>
-   <div class="stat"><div class="label">اكتمال الملف الوثائقي</div><strong class="number ${uploadedCount===checklist.length?'money-positive':' warn'}">${uploadedCount} / ${checklist.length} وثائق</strong><div class="hint">مطابق لهيكل وثائق نظام البوابة</div></div>
-   <div class="stat"><div class="label">المديونيات والطلبات</div><strong class="number ${p.totalRemainingDebt>0?'money-negative':'money-positive'}">${money(p.totalRemainingDebt)} ر.س</strong><div class="hint">${p.activeDebtsCount} مديونية نشطة · ${p.totalOrders} طلب مسجل</div></div>
+   <div class="stat"><div class="label">رقم الإقامة / الهوية</div><strong class="number" dir="ltr">${esc(r.iqama)}</strong><div class="hint">${esc(r.nationality||'—')} · ${esc(r.city||'—')}</div></div>
+   <div class="stat"><div class="label">الكفيل / السجل التجاري</div><strong>${esc(r.sponsor||r.sponsorNameAr||'غير محدد')}</strong><div class="hint number">${esc(r.sponsorId||'—')}</div></div>
+   <div class="stat"><div class="label">صورة الإقامة</div><strong class="warn">${esc(imageMsg)}</strong><div class="hint">لا رفع مستندات في نظامنا</div></div>
+   <div class="stat"><div class="label">المديونيات</div><strong class="number ${(pos.totalRemainingDebt||p.totalRemainingDebt||0)>0?'money-negative':'money-positive'}">${money(pos.totalRemainingDebt??p.totalRemainingDebt??0)} ر.س</strong><div class="hint">${pos.activeDebtsCount??p.activeDebtsCount??0} مديونية نشطة</div></div>
   </div>
   <div class="panel" style="margin-bottom:14px">
    <div class="form-grid">
     <div><span class="muted small">الجوال الدولي:</span><br><strong dir="ltr" class="number">${esc(r.phone||'—')}</strong></div>
-    <div><span class="muted small">نوع العلاقة والمركبة:</span><br><strong>${esc({SponsoredInternal:'كفالة الشركة',External:'خارجي'}[r.engagementType]||'—')} · ${esc({Car:'سيارة',Motorcycle:'دباب'}[r.operationalRole]||'—')}</strong></div>
-    <div><span class="muted small">رخصة القيادة والمنصات:</span><br><strong>${esc(r.drivingLicense||'—')} · ${esc(r.platforms||'—')}</strong></div>
-    <div><span class="muted small">الآيبان البنكي (IBAN):</span><br><strong dir="ltr" class="number">${esc(r.iban||'غير متاح لدورك أو غير مسجل')}</strong></div>
+    <div><span class="muted small">التقييم المالي:</span><br><strong>${esc(evalMsg)}</strong></div>
+    <div><span class="muted small">الآيبان البنكي:</span><br><strong dir="ltr" class="number">${esc(r.iban||'غير متاح لدورك أو غير مسجل')}</strong></div>
+    <div><span class="muted small">كشف الحساب:</span><br><a href="${esc(pos.statementPath||('/app/riders/statement/?iqama='+encodeURIComponent(iqama)))}">فتح كشف الحساب التفصيلي</a></div>
    </div>
   </div>
-  <h3>الأرشيف الوثائقي الرسمي للمندوب (7 مستندات أساسية في نظام البوابة ERP)</h3>
-  ${table(
-   ['المستند الرسمي','المعرف القياسي (GUID)','الحالة','رقم الوثيقة','تاريخ الانتهاء','مسار الحفظ المهيأ للدمج'],
-   checklist.map((d:any)=>`<tr>
-    <td><strong>${esc(d.nameAr)}</strong><div class="muted small number">${esc(d.code)}</div></td>
-    <td class="small number muted">${esc(d.documentTypeId)}</td>
-    <td>${badge(d.isUploaded?'مرفوع ومؤرشف':'ناقص (Missing)',d.isUploaded?'good':'warn')}</td>
-    <td class="number">${esc(d.documentNumber||'—')}</td>
-    <td class="number">${esc(d.expiryDate||'—')}</td>
-    <td dir="ltr" class="small muted">${esc(d.storagePath)}</td>
-   </tr>`)
-  )}
-  ${userRole==='Admin'||userRole==='SuperAdmin'?`
-   <hr>
-   <h3>إرفاق / تحديث وثيقة رسمية للمندوب</h3>
-   <form id="rider-doc-form" class="form-grid">
-    <label>نوع المستند الرسمي
-     <select name="documentTypeCode" required>
-      ${options(checklist.map((d:any)=>[d.code,`${d.nameAr} (${d.code})`]))}
-     </select>
-    </label>
-    ${fieldInput('رقم الوثيقة / الرخصة / العقد','documentNumber',r.iqama,'text',true)}
-    ${fieldInput('تاريخ الإصدار','issueDate',new Date().toISOString().slice(0,10),'date')}
-    ${fieldInput('تاريخ الانتهاء','expiryDate',new Date(Date.now()+365*864e5).toISOString().slice(0,10),'date')}
-    <label class="full">ملف الوثيقة المرفق (PDF أو صورة — اختياري)<input id="rider-doc-file" type="file" accept=".pdf,.png,.jpg,.jpeg"></label>
-    <label class="full">ملاحظات الأرشفة<input name="notes" placeholder="مثال: تم التحقق من سريان الوثيقة في مقيم / أبشر / نافذ"></label>
-    <button class="good">حفظ وأرشفة الوثيقة في ملف المندوب</button>
-   </form>
-  `:''}
+  <h3>سجل العمل (آخر 3 أشهر)</h3>
+  ${table(['الشهر','المنصة','أيام العمل','الطلبات','الصافي','الحالة'],(p.workRecord3Months||[]).map((w:any)=>`<tr>
+   <td class="number">${esc(w.month||'—')}</td><td>${esc(w.platform||'—')}</td><td class="number">${esc(String(w.workDays??'—'))}</td>
+   <td class="number">${esc(String(w.orders??'—'))}</td><td class="number">${esc(String(w.netDue??'—'))}</td><td>${esc(w.status||'—')}</td>
+  </tr>`))}
+  <h3>حسابات المنصات</h3>
+  ${table(['المنصة','معرّف العمل','المدينة','تاريخ الإنشاء'],(p.platformAccounts||[]).map((a:any)=>`<tr>
+   <td>${esc(a.platform||'—')}</td><td class="number" dir="ltr">${esc(a.externalAccountId||'—')}</td>
+   <td>${esc(a.city||'—')}</td><td class="number">${esc(a.createdAt||'—')}</td>
+  </tr>`))}
  `);
- const docForm=$('#rider-doc-form');
- if(docForm){
-  docForm.onsubmit=submit(async v=>{
-   let dataBase64='',fileName='',contentType='application/pdf';
-   const file=$('#rider-doc-file')?.files?.[0];
-   if(file){
-    fileName=file.name;contentType=file.type||'application/octet-stream';
-    dataBase64=await new Promise<string>((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result).split(',')[1]);fr.onerror=reject;fr.readAsDataURL(file);});
-   }
-   await api(`/riders/${encodeURIComponent(iqama)}/documents`,{...v,fileName:fileName||undefined,contentType,dataBase64});
-   toast('تم حفظ الوثيقة في أرشيف المندوب بنجاح');
-   await riderProfile360Dialog(iqama);
-  });
- }
 }
 function questionCard(f:any={},index=0){return `<fieldset class="builder-question"><legend>سؤال ${index+1}</legend><div class="form-grid">${fieldInput('معرف إنجليزي فريد','id',f.id||'q'+(index+1),'text',true)}<label>النوع<select name="type">${options(['text','number','select','radio','iqama','phone','date'].map(x=>[x,x]),f.type||'text')}</select></label>${fieldInput('السؤال بالعربية','labelAr',f.labelAr||'','text',true)}${fieldInput('English label','labelEn',f.labelEn||'')}${fieldInput('اردو سوال','labelUr',f.labelUr||'')}<label>الخيارات: قيمة | عربي | English | اردو، سطر لكل خيار<textarea name="options">${esc((f.options||[]).map(x=>typeof x==='string'?x:[x.value,x.labelAr||x.value,x.labelEn||x.value,x.labelUr||x.value].join(' | ')).join('\n'))}</textarea></label><label class="check"><input type="checkbox" name="required" ${f.required?'checked':''}>إجابة مطلوبة</label><button type="button" class="ghost" data-remove-question>حذف السؤال</button></div></fieldset>`;}
 function builderDialog(id?:string){const f=cache.customForms?.find(x=>x.id===id)||{};modal('مصمم النموذج',`<form id="builder-form"> <div class="form-grid">${fieldInput('العنوان بالعربية','titleAr',f.titleAr||'','text',true)}${fieldInput('English title','titleEn',f.titleEn||'')}${fieldInput('اردو عنوان','titleUr',f.titleUr||'')}${fieldInput('انتهاء النموذج','expiresAt',(f.expiresAt||new Date(Date.now()+14*864e5).toISOString()).slice(0,16),'datetime-local',true)}${fieldInput('الحد الأقصى للردود','maxSubmissions',String(f.maxSubmissions||10000),'number',true)}${['Ar','En','Ur'].map(l=>`<label>وصف ${l}<textarea name="description${l}">${esc(f['description'+l])}</textarea></label>`).join('')}</div><div id="builder-questions">${(f.fields||[{}]).map(questionCard).join('')}</div><button type="button" class="secondary" id="add-question">إضافة سؤال</button><button type="submit">حفظ المسودة</button></form>`);$('#add-question').onclick=()=>$('#builder-questions').insertAdjacentHTML('beforeend',questionCard({},document.querySelectorAll('.builder-question').length));$('#builder-form').onclick=e=>{if(e.target.closest('[data-remove-question]'))e.target.closest('.builder-question').remove();};$('#builder-form').onsubmit=submit(async d=>{const fields=[...document.querySelectorAll<HTMLFieldSetElement>('.builder-question')].map(q=>{const value=(n:string)=>(q.querySelector(`[name=${n}]`) as HTMLInputElement).value;return{id:value('id'),labelAr:value('labelAr'),labelEn:value('labelEn'),labelUr:value('labelUr'),type:value('type'),required:(q.querySelector('[name=required]') as HTMLInputElement).checked,options:value('options').split('\n').map(x=>x.trim()).filter(Boolean).map(line=>{const p=line.split('|').map(x=>x.trim());return{value:p[0],labelAr:p[1]||p[0],labelEn:p[2]||p[1]||p[0],labelUr:p[3]||p[1]||p[0]}})}});await api(id?`/forms/builder/${id}`:'/forms/builder',{...d,fields,maxSubmissions:Number(d.maxSubmissions),expiresAt:new Date(d.expiresAt).toISOString()},id?'PUT':'POST');$('#modal').close();await show('builder');});}

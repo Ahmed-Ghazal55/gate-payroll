@@ -1276,28 +1276,6 @@ export const api = {
   getRidersDataQuality: () =>
     handleRequest<RidersDataQuality>('/riders/data-quality'),
 
-  enrichRidersMissing: () =>
-    handleRequest<{ enrichedExisting: number; addedFromSources: number; totalRidersNow: number }>('/riders/enrich-missing', {
-      method: 'POST',
-    }),
-
-  uploadRiderDocument: (
-    iqama: string,
-    input: {
-      documentTypeCode: string;
-      documentNumber?: string;
-      issueDate?: string;
-      expiryDate?: string;
-      fileName?: string;
-      dataBase64?: string;
-      notes?: string;
-    }
-  ) =>
-    handleRequest<any>(`/riders/${encodeURIComponent(iqama)}/documents`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-
   // Operations & Assets APIs (Codex R4.6)
   getOperations: (kind: string, params?: { page?: number; pageSize?: number; q?: string }) => {
     const p = new URLSearchParams();
