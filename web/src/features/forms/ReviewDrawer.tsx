@@ -6,7 +6,7 @@ import { api, ApiError } from '../../lib/api';
 import type { Submission } from '../../lib/types';
 import { Check, X, Copy, ShieldCheck, AlertCircle, Clock, CheckSquare } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
-import { bankLabel } from '../../lib/saudi-banks';
+import { IbanDisplay } from '../../components/ui/IbanDisplay';
 
 export interface ReviewDrawerProps {
   submission: Submission | null;
@@ -162,12 +162,12 @@ export function ReviewDrawer({ submission, onClose, onSuccess }: ReviewDrawerPro
                 <span>نسخ</span>
               </button>
             </div>
-            <div className="num font-mono font-bold text-sm tracking-wider text-[var(--ink)] select-all bg-[var(--surface)] p-2.5 rounded-lg border border-[var(--line)] text-center shadow-2xs">
-              {submission.iban}
-            </div>
-            <div className="flex items-center justify-between text-xs text-[var(--muted)] pt-0.5">
-              <span>البنك المستخرج:</span>
-              <strong className="text-[var(--ink)]">{bankLabel(submission)}</strong>
+            <div className="select-all bg-[var(--surface)] p-2.5 rounded-lg border border-[var(--line)] shadow-2xs">
+              <IbanDisplay
+                iban={submission.iban}
+                bankCode={submission.bankCode}
+                bank={submission.bank}
+              />
             </div>
           </div>
         )}
@@ -263,7 +263,7 @@ export function ReviewDrawer({ submission, onClose, onSuccess }: ReviewDrawerPro
                     <span className="num">{new Date(h.submittedAt).toLocaleDateString('ar-SA')}</span>
                   </div>
                   <div className="font-semibold text-[var(--ink)]">
-                    {h.iban || h.workSystem}
+                    {h.iban ? <IbanDisplay iban={h.iban} /> : h.workSystem}
                   </div>
                   {h.reviewNote && <p className="text-[11px] text-[var(--muted)]">{h.reviewNote}</p>}
                   {h.reviewedBy && (

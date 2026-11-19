@@ -48,13 +48,6 @@ import type {
   FinanceJournalLine,
 } from '../../lib/types';
 
-const COMPANY_NAME_MAP: Record<string, string> = {
-  BW: 'شركة البوابة المقبلة (BW)',
-  EX: 'شركة إكسبرس جايت (EX)',
-  TR: 'مؤسسة النقل والتوزيع (TR)',
-  all: 'كافة المنشآت والسجلات',
-};
-
 function AccountingPageContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -66,12 +59,42 @@ function AccountingPageContent() {
     api.getCompanies().then((res) => setCompanies(res || [])).catch(() => {});
   }, []);
 
+  // Company labels come from GET /companies only — never a fixed code map.
+  // Try each candidate (code and sponsorId) and match code or id/sponsorId.
+  const companyName = (...candidates: Array<string | undefined>) => {
+    const keys = candidates.filter((k): k is string => !!k && k !== 'all');
+    if (keys.length === 0) return 'كافة المنشآت والسجلات';
+    for (const key of keys) {
+      const match = companies.find(
+        (c) => c.code === key || c.id === key || (c as { sponsorId?: string }).sponsorId === key
+      );
+      if (match) return match.nameAr || match.shortNameAr || key;
+    }
+    return keys[0];
+  };
+
   useEffect(() => {
     const action = searchParams?.get('action');
     if (action === 'manual_journal') {
       setActiveTab('manual_journals');
       setOpenNewManualJournal(true);
+      return;
     }
+    // Sidebar ids (trial_balance, income_statement) map to the page's internal tab ids.
+    const tab = searchParams?.get('tab');
+    if (!tab) return;
+    const tabMap: Record<string, typeof activeTab> = {
+      coa: 'coa',
+      manual_journals: 'manual_journals',
+      adjustments: 'adjustments',
+      journals: 'journals',
+      trial: 'trial',
+      trial_balance: 'trial',
+      income: 'income',
+      income_statement: 'income',
+    };
+    const mapped = tabMap[tab];
+    if (mapped) setActiveTab(mapped);
   }, [searchParams]);
 
   // ==========================================
@@ -596,7 +619,7 @@ function AccountingPageContent() {
               : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
           }`}
         >
-          القيود اليدوية (BR §28)
+          القيود اليدوية
         </button>
 
         <button
@@ -751,7 +774,7 @@ function AccountingPageContent() {
       )}
 
       {/* ======================================================== */}
-      {/* TAB: Manual Journals (BR §28)                            */}
+      {/* TAB: Manual Journals */}
       {/* ======================================================== */}
       {activeTab === 'adjustments' && (
         <AccountingAdjustmentsPanel companies={companies} />
@@ -851,7 +874,7 @@ function AccountingPageContent() {
                       : 'text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  الدليل المستهدف (Target)
+                  الدليل المستهدف
                 </button>
                 <button
                   type="button"
@@ -862,7 +885,7 @@ function AccountingPageContent() {
                       : 'text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  الدليل الحالي (Current)
+                  الدليل الحالي
                 </button>
               </div>
 
@@ -872,9 +895,12 @@ function AccountingPageContent() {
                 className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
               >
                 <option value="all">كل المنشآت والسجلات</option>
-                <option value="BW">شركة البوابة المقبلة (BW)</option>
-                <option value="EX">المؤسسة Express (EX)</option>
-                <option value="TR">مؤسسة النقل والتوزيع (TR)</option>
+                {companies.map((c) => (
+                  <option key={c.code || c.id} value={c.code || c.id}>
+                    {c.nameAr || c.shortNameAr || c.code || c.id}
+                    {c.code ? ` (${c.code})` : ''}
+                  </option>
+                ))}
               </select>
 
               <input
@@ -940,7 +966,7 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companyName(company.companyCode, company.sponsorId)}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
@@ -1131,9 +1157,12 @@ function AccountingPageContent() {
                 className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
               >
                 <option value="all">كل المنشآت والسجلات</option>
-                <option value="BW">شركة البوابة المقبلة (BW)</option>
-                <option value="EX">المؤسسة Express (EX)</option>
-                <option value="TR">مؤسسة النقل والتوزيع (TR)</option>
+                {companies.map((c) => (
+                  <option key={c.code || c.id} value={c.code || c.id}>
+                    {c.nameAr || c.shortNameAr || c.code || c.id}
+                    {c.code ? ` (${c.code})` : ''}
+                  </option>
+                ))}
               </select>
 
               <input
@@ -1193,7 +1222,7 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companyName(company.companyCode, company.sponsorId)}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
@@ -1369,7 +1398,7 @@ function AccountingPageContent() {
                 <div className="flex justify-between py-2 border-b border-[var(--line)]">
                   <span className="text-[var(--muted)]">الطبيعة المحاسبية</span>
                   <span className="font-bold text-[var(--ink)]">
-                    {(selectedAccount.nature || '').toLowerCase() === 'debit' ? 'مدين (Debit)' : 'دائن (Credit)'}
+                    {(selectedAccount.nature || '').toLowerCase() === 'debit' ? 'مدين' : 'دائن'}
                   </span>
                 </div>
 

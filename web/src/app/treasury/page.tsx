@@ -35,11 +35,13 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
+import { IbanDisplay } from '../../components/ui/IbanDisplay';
 import type {
   FinanceAccount,
   FinanceJournal,
   BankPayrollFilePreview,
   AdvanceRequest,
+  CompanySponsor,
 } from '../../lib/types';
 import { JahezWorkspace } from '../../features/treasury/JahezWorkspace';
 import { TreasuryExtrasPanel } from '../../features/treasury/TreasuryExtrasPanel';
@@ -77,8 +79,13 @@ function TreasuryPageContent() {
 
   const [selectedPeriod, setSelectedPeriod] = useState<string>('2026-10');
   const [selectedSponsor, setSelectedSponsor] = useState<string>('all');
+  const [companies, setCompanies] = useState<CompanySponsor[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [vaultTypeFilter, setVaultTypeFilter] = useState<string>('all');
+
+  useEffect(() => {
+    api.getCompanies().then((res) => setCompanies(res || [])).catch(() => {});
+  }, []);
 
   // Data states
   const [loading, setLoading] = useState<boolean>(true);
@@ -617,9 +624,12 @@ function TreasuryPageContent() {
                   className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
                 >
                   <option value="all">كافة الكفلاء والشركات</option>
-                  <option value="BW">بوابات الوطن (BW)</option>
-                  <option value="TR">طريق الرواد (TR)</option>
-                  <option value="WZ">وصول الرواد (WZ)</option>
+                  {companies.map((c) => (
+                    <option key={c.code || c.id} value={c.code || c.id}>
+                      {c.nameAr || c.shortNameAr || c.code || c.id}
+                      {c.code ? ` (${c.code})` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
               <label className="inline-flex items-center gap-2 text-xs font-bold mt-5 cursor-pointer">
@@ -692,8 +702,7 @@ function TreasuryPageContent() {
                       <tr>
                         <th className="p-3 text-start">رقم الإقامة</th>
                         <th className="p-3 text-start">اسم المندوب</th>
-                        <th className="p-3 text-start">الآيبان البنكي (IBAN)</th>
-                        <th className="p-3 text-start">البنك</th>
+                        <th className="p-3 text-start">الآيبان البنكي</th>
                         <th className="p-3 text-start">مبلغ الصرف المستحق</th>
                         <th className="p-3 text-start">الحالة</th>
                       </tr>
@@ -703,8 +712,9 @@ function TreasuryPageContent() {
                         <tr key={idx} className="hover:bg-[var(--row-hover)] transition">
                           <td className="p-3 font-mono">{r.riderIqama}</td>
                           <td className="p-3 font-semibold">{r.riderName}</td>
-                          <td className="p-3 font-mono text-xs">{r.iban}</td>
-                          <td className="p-3">{r.bankName}</td>
+                          <td className="p-3">
+                            <IbanDisplay iban={r.iban} bank={r.bankName} />
+                          </td>
                           <td className="p-3 num font-bold text-[var(--accent)]">
                             {r.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
                           </td>
