@@ -236,12 +236,10 @@ function DebtsPageContent() {
     q: search.trim() || undefined,
   });
 
-  const loadDebtsSummary = async (search = debouncedSearch) => {
+  const loadDebtsSummary = async () => {
     try {
-      const summary = await api.getDebtsSummary({
-        category: selectedCategory !== 'all' ? selectedCategory : undefined,
-        q: search.trim() || undefined,
-      });
+      // Cards/banner stay global (not tied to category/search filters).
+      const summary = await api.getDebtsSummary({});
       setDebtsSummary(summary);
     } catch {
       setDebtsSummary(null);
@@ -262,7 +260,7 @@ function DebtsPageContent() {
       setDebtsPage(debtsRes.page ?? page);
       setDebtsPageSize(debtsRes.pageSize ?? pageSize);
       setDebtsLoaded(true);
-      await loadDebtsSummary(search);
+      await loadDebtsSummary();
     } catch (err: any) {
       const msg = err.message || 'تعذر تحميل بيانات المديونيات';
       setError(msg);

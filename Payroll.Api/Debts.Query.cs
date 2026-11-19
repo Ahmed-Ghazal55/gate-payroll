@@ -47,8 +47,8 @@ public static partial class Debts
     /// <summary>Light SQL aggregates for debts stat cards (scoped like the list).</summary>
     public static JsonObject Summary(DbConnection c, ClaimsPrincipal actor, IQueryCollection query)
     {
-        var filter = ParseFilter(query) with { Status = null }; // cards are global for the company/search scope, not the status tab
-        // Keep company/search/category from query when the UI sends them; status stays open for card totals.
+        // Cards are global (old page behavior): ignore status/category/search page filters; company scope still applies.
+        var filter = ParseFilter(query) with { Status = null, Category = null, Search = null };
         var (where, parms) = BuildWhere(c, actor, filter);
         bool sqlite = c is SqliteConnection;
         string rem = sqlite
