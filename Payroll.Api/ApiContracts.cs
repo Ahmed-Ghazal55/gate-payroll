@@ -70,6 +70,9 @@ public static class ApiContracts
     static OpenApiSchema CompaniesStatsTotals()=>O(new(){["companiesCount"]=N(),["sponsoredTotal"]=N(),["sponsoredRiders"]=N(),["sponsoredAdmins"]=N(),["sponsoredActive"]=N(),["sponsoredOnLeave"]=N(),["platformAccountsTotal"]=N(),["platformAccountsActive"]=N(),["platformAccountsAssigned"]=N(),["byPlatform"]=A(CompanyStatsPlatform())},"companiesCount","sponsoredTotal","sponsoredRiders","sponsoredAdmins","sponsoredActive","sponsoredOnLeave","platformAccountsTotal","platformAccountsActive","platformAccountsAssigned","byPlatform");
     static OpenApiSchema CompaniesStats()=>O(new(){["items"]=A(CompanyStatsItem()),["totals"]=CompaniesStatsTotals(),["source"]=S(),["asOf"]=S(),["balancesAvailable"]=B(),["balancesNote"]=S(),["allowedActions"]=A(S())},"items","totals","source","asOf","balancesAvailable","balancesNote","allowedActions");
     static OpenApiSchema CompanySingleStats()=>O(new(){["item"]=CompanyStatsItem(),["source"]=S(),["asOf"]=S(),["balancesAvailable"]=B(),["balancesNote"]=S(),["allowedActions"]=A(S())},"item","source","asOf","balancesAvailable","balancesNote","allowedActions");
+    static OpenApiSchema NinjaLiveCoverage()=>O(new(){["requestedFrom"]=S(),["requestedTo"]=S(),["firstDay"]=S(),["lastDay"]=S(),["total"]=N(),["hasGapAtPeriodEnd"]=B()},"requestedFrom","requestedTo","firstDay","lastDay","total","hasGapAtPeriodEnd");
+    static OpenApiSchema NinjaLiveDailyPerformanceRow()=>O(new(){["id"]=S(),["reportDate"]=S(),["captainId"]=S(),["platformRiderAccountId"]=S(),["externalAccountId"]=S(),["accountCode"]=S(),["riderProfileId"]=S(),["riderClientAssignmentId"]=S(),["sourceId"]=S(),["sourceRowNumber"]=N(),["orders"]=N(),["hours"]=N(),["ownerUnifiedNumber"]=S()},"id","reportDate","captainId","platformRiderAccountId","externalAccountId","riderProfileId");
+    static OpenApiSchema NinjaLivePage(OpenApiSchema row)=>O(new(){["items"]=A(row),["total"]=N(),["page"]=N(),["pageSize"]=N(),["coverage"]=NinjaLiveCoverage(),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","coverage","source","asOf","allowedActions");
 
     /// <summary>Company and finance limits on a staff account (sponsorIds / vaults / platforms / debt categories).</summary>
     static OpenApiSchema FinancialScope()=>O(new(){["sponsorIds"]=A(S()),["accountCodes"]=A(S()),["platforms"]=A(S()),["categoryCodes"]=A(S())},"sponsorIds","accountCodes","platforms","categoryCodes");
@@ -186,6 +189,7 @@ public static class ApiContracts
             if(path is "/api/platforms/ninja/invoices" or "/api/platforms/keeta/invoices")return get?Page(Invoice()):new(){OneOf=[Invoice(),O(new(){["rows"]=A(Invoice()),["canCommit"]=B(),["fingerprint"]=S()},"rows","canCommit","fingerprint")]};
             return Invoice();
         }
+        if(get&&path=="/api/pay/apps/ninja/live/daily-performance")return NinjaLivePage(NinjaLiveDailyPerformanceRow());
         if(path=="/api/pay/settings"||path.StartsWith("/api/pay/settings/{id}")||path.StartsWith("/api/pay/apps/{app}/")&&new[]{"terms","schemes","eligibility"}.Any(s=>path.Contains("/"+s)))return method=="DELETE"?O(new(){["deleted"]=B(),["id"]=S()},"deleted","id"):get?Page(Setting()):Setting();
         if(path=="/api/payroll/preview")return A(PayrollPreview());
         if(path=="/api/payroll/runs")return A(PayrollRun());
