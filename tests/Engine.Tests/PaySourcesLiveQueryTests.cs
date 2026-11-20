@@ -36,6 +36,17 @@ public sealed class PaySourcesLiveQueryTests
     }
 
     [TestMethod]
+    public void PreviewHousingPeriodsSqlScopesByEmployeeSponsor()
+    {
+        var (sql, names) = PaySourcesLiveQuery.PreviewHousingPeriodsSql(OneCompany);
+        Assert.Contains("[app].[HousingResidencePeriods]", sql, StringComparison.Ordinal);
+        Assert.Contains("[app].[HousingRooms]", sql, StringComparison.Ordinal);
+        Assert.Contains("DaysInSelectedPeriod", sql, StringComparison.Ordinal);
+        Assert.Contains("@cr", string.Join(',', names), StringComparison.Ordinal);
+        Assert.DoesNotContain("7000000001", sql, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
     public void EmptyCompanyScopeBecomesFalsePredicate()
     {
         var empty = new LiveOperationsQuery.Scope(false, [], [], [], []);
@@ -43,5 +54,7 @@ public sealed class PaySourcesLiveQueryTests
         Assert.Contains("1=0", fuel, StringComparison.Ordinal);
         var (vehicle, _) = PaySourcesLiveQuery.PreviewVehicleAssignmentPeriodsSql(empty);
         Assert.Contains("1=0", vehicle, StringComparison.Ordinal);
+        var (housing, _) = PaySourcesLiveQuery.PreviewHousingPeriodsSql(empty);
+        Assert.Contains("1=0", housing, StringComparison.Ordinal);
     }
 }

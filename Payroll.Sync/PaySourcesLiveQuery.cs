@@ -277,6 +277,139 @@ public static class PaySourcesLiveQuery
         ["isOpen"] = Bool(r, "IsOpen")
     };
 
+    public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewHousingPeriodsSql(
+        LiveOperationsQuery.Scope? scope = null)
+    {
+        using var cmd = new SqlCommand();
+        Add(cmd, "@from", "2026-10-01");
+        Add(cmd, "@to", "2026-10-31");
+        Add(cmd, "@skip", 0);
+        Add(cmd, "@take", 50);
+        string sql = HousingPeriodsSql(ScopeSponsor(scope, cmd, "s"))
+            + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
+    }
+
+    public static PageResult HousingPeriods(DbConnection source, DateOnly from, DateOnly to,
+        int page, int pageSize, string search, LiveOperationsQuery.Scope scope, CancellationToken ct = default)
+    {
+        EnsureSql(source);
+        if (to < from) throw new ImportFailure("invalid_period");
+        pageSize = Math.Min(Math.Max(1, pageSize), MaxPageSize);
+        page = Math.Max(1, page);
+        int skip = checked((page - 1) * pageSize);
+        using var cmd = source.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        using var cancel = SyncCancellation.Register(cmd, ct);
+        Add(cmd, "@from", from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Add(cmd, "@to", to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        string scopeSql = ScopeHousing(scope, cmd);
+        if (search.Length > 0) Add(cmd, "@q", "%" + EscapeLike(search) + "%");
+        Add(cmd, "@skip", skip);
+        Add(cmd, "@take", pageSize);
+        cmd.CommandText = HousingPeriodsSql(scopeSql, search.Length > 0)
+            + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        long total = 0;
+        var summary = new JsonObject { ["rows"] = 0L, ["openPeriods"] = 0L, ["daysInPeriod"] = 0L };
+        var items = new List<JsonObject>();
+        using (var reader = cmd.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                ct.ThrowIfCancellationRequested();
+                if (items.Count == 0)
+                {
+                    total = Long(reader, "TotalCount");
+                    summary = new JsonObject
+                    {
+                        ["rows"] = total,
+                        ["openPeriods"] = Long(reader, "OpenCount"),
+                        ["daysInPeriod"] = Long(reader, "DaysSum")
+                    };
+                }
+                items.Add(MapHousingPeriodRow(reader));
+            }
+        }
+        return new(items, total, summary, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>
+    /// Housing has no SponsorId; scope by resident employee's sponsor UnifiedNationalNumber when restricted.
+    /// </summary>
+    static string ScopeHousing(LiveOperationsQuery.Scope? scope, DbCommand cmd)
+    {
+        if (scope is null or { AllCompanies: true }) return "";
+        if (scope.SponsorUnifiedNumbers.Count == 0) return " AND 1=0";
+        string regs = InList(cmd, "@cr", scope.SponsorUnifiedNumbers);
+        return $" AND s.[UnifiedNationalNumber] IN ({regs})";
+    }
+
+    static string HousingPeriodsSql(string scopeSql, bool search = false)
+    {
+        string searchPred = search
+            ? " AND (h.[Code] LIKE @q OR h.[NameAr] LIKE @q OR room.[Name] LIKE @q OR e.[FullNameAr] LIKE @q OR e.[IqamaNo] LIKE @q)"
+            : "";
+        return $"""
+            WITH filtered AS (
+                SELECT p.[Id], p.[EmployeeId], p.[RoomId], p.[EffectiveFrom], p.[EffectiveTo],
+                       p.[MoveInReason], p.[MoveOutReason], p.[SourceReference],
+                       room.[Name] AS RoomName, room.[HousingId],
+                       h.[Code] AS HousingCode, h.[NameAr] AS HousingNameAr,
+                       e.[FullNameAr] AS RiderNameAr, e.[IqamaNo],
+                       rp.[Id] AS RiderProfileId,
+                       s.[UnifiedNationalNumber] AS SponsorUnifiedNumber,
+                       CASE WHEN p.[EffectiveTo] IS NULL THEN 1 ELSE 0 END AS IsOpen,
+                       CASE
+                         WHEN p.[EffectiveFrom] > CONVERT(date, @to) THEN 0
+                         WHEN p.[EffectiveTo] IS NOT NULL AND p.[EffectiveTo] < CONVERT(date, @from) THEN 0
+                         ELSE DATEDIFF(DAY,
+                              CASE WHEN p.[EffectiveFrom] > CONVERT(date, @from) THEN p.[EffectiveFrom] ELSE CONVERT(date, @from) END,
+                              CASE WHEN p.[EffectiveTo] IS NULL OR p.[EffectiveTo] > CONVERT(date, @to) THEN CONVERT(date, @to) ELSE p.[EffectiveTo] END
+                         ) + 1
+                       END AS DaysInSelectedPeriod
+                FROM [app].[HousingResidencePeriods] p
+                INNER JOIN [app].[HousingRooms] room ON room.[Id]=p.[RoomId] AND room.[IsDeleted]=0
+                INNER JOIN [app].[Housing] h ON h.[Id]=room.[HousingId] AND h.[IsDeleted]=0
+                LEFT JOIN [app].[Employees] e ON e.[Id]=p.[EmployeeId] AND e.[IsDeleted]=0
+                LEFT JOIN [app].[Sponsors] s ON s.[Id]=e.[SponsorId] AND s.[IsDeleted]=0
+                LEFT JOIN [app].[RiderProfiles] rp ON rp.[EmployeeId]=e.[Id] AND rp.[IsDeleted]=0
+                WHERE p.[EffectiveFrom] <= CONVERT(date, @to)
+                  AND (p.[EffectiveTo] IS NULL OR p.[EffectiveTo] >= CONVERT(date, @from))
+                  {scopeSql}{searchPred}
+            ),
+            agg AS (
+                SELECT COUNT_BIG(*) AS TotalCount,
+                       SUM(IsOpen) AS OpenCount,
+                       ISNULL(SUM(DaysInSelectedPeriod),0) AS DaysSum
+                FROM filtered
+            )
+            SELECT f.*, a.TotalCount, a.OpenCount, a.DaysSum
+            FROM filtered f CROSS JOIN agg a
+            ORDER BY f.EffectiveFrom, f.Id
+            """;
+    }
+
+    static JsonObject MapHousingPeriodRow(IDataRecord r) => new()
+    {
+        ["id"] = Str(r, "Id"),
+        ["employeeId"] = Str(r, "EmployeeId"),
+        ["riderProfileId"] = Str(r, "RiderProfileId"),
+        ["riderNameAr"] = Str(r, "RiderNameAr"),
+        ["iqama"] = Str(r, "IqamaNo"),
+        ["housingId"] = Str(r, "HousingId"),
+        ["housingCode"] = Str(r, "HousingCode"),
+        ["housingNameAr"] = Str(r, "HousingNameAr"),
+        ["roomId"] = Str(r, "RoomId"),
+        ["roomName"] = Str(r, "RoomName"),
+        ["effectiveFrom"] = Str(r, "EffectiveFrom"),
+        ["effectiveTo"] = Str(r, "EffectiveTo"),
+        ["daysInSelectedPeriod"] = Long(r, "DaysInSelectedPeriod"),
+        ["isOpen"] = Bool(r, "IsOpen"),
+        ["moveInReason"] = Str(r, "MoveInReason"),
+        ["moveOutReason"] = Str(r, "MoveOutReason"),
+        ["sponsorUnifiedNumber"] = Str(r, "SponsorUnifiedNumber")
+    };
+
     static void EnsureSql(DbConnection source)
     {
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");

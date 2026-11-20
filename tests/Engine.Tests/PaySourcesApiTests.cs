@@ -35,8 +35,8 @@ public sealed class PaySourcesApiTests
         Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Maker, "GET", "/api/pay/sources/fuel-consumption"));
     }
 
-        [TestMethod]
-    public void StoreModeVehicleKindsAreAvailableForPaySources()
+    [TestMethod]
+    public void StoreModeVehicleAndHousingKindsAreAvailableForPaySources()
     {
         using var f = new PayFixture();
         string company = FinancialCore.Sponsors[0].Id;
@@ -53,9 +53,21 @@ public sealed class PaySourcesApiTests
                 ["endedAt"] = "2026-10-31",
                 ["isRealRider"] = true
             }, tx);
+            Store.Save(c, "housing", new() { ["id"] = "syn-housing", ["companyId"] = company }, tx);
+            Store.Save(c, "housing_residence", new()
+            {
+                ["id"] = "syn-res",
+                ["housingId"] = "syn-housing",
+                ["riderId"] = "2123456789",
+                ["effectiveFrom"] = "2026-10-01",
+                ["effectiveTo"] = "2026-10-15"
+            }, tx);
             return true;
         });
+
         Assert.AreEqual(1, f.Store.Read(c => Operations.List(c, PayFixture.Maker, "vehicle_assignment").Count()));
+        Assert.AreEqual(1, f.Store.Read(c => Operations.List(c, PayFixture.Maker, "housing_residence").Count()));
         Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Maker, "GET", "/api/pay/sources/vehicle-assignment-periods"));
+        Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Maker, "GET", "/api/pay/sources/housing-periods"));
     }
 }

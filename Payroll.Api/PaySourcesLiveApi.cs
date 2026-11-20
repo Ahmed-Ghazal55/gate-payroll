@@ -23,6 +23,8 @@ public static class PaySourcesLiveApi
             .WithTags("Payroll").WithSummary("L1 fuel consumption per rider/card/period (Omar live, facts only)");
         api.MapGet("/pay/sources/vehicle-assignment-periods", (HttpContext ctx) => Vehicles(store, config, env, ctx))
             .WithTags("Payroll").WithSummary("L1 vehicle assignment periods per rider (Omar live, facts only)");
+        api.MapGet("/pay/sources/housing-periods", (HttpContext ctx) => Housing(store, config, env, ctx))
+            .WithTags("Payroll").WithSummary("L1 housing residence periods per rider (Omar live, facts only)");
     }
 
     static object Fuel(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
@@ -155,6 +157,87 @@ public static class PaySourcesLiveApi
         {
             ["rows"] = rows.Count,
             ["openAssignments"] = rows.Count(r => r.B("isOpen"))
+        };
+        return new
+        {
+            items,
+            total = rows.Count,
+            page,
+            pageSize,
+            summary,
+            from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        };
+    }
+    static object Housing(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "pay.view");
+        var (from, to) = ParsePeriod(ctx);
+        var (page, pageSize, search) = ParsePage(ctx);
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            return store.Read(c => Envelope(StoreHousingPeriods(c, ctx.User, from, to, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
+        return LiveRead(ctx, token =>
+        {
+            using var erp = OpenErp(config);
+            return store.Read(c =>
+            {
+                try
+                {
+                    var result = PaySourcesLiveQuery.HousingPeriods(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
+                    return Envelope(new
+                    {
+                        items = result.Items,
+                        total = result.Total,
+                        page,
+                        pageSize,
+                        summary = result.Summary,
+                        from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                    }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                }
+                catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
+            });
+        }, "pay-sources-housing");
+    }
+    static object StoreHousingPeriods(DbConnection c, ClaimsPrincipal user, DateOnly from, DateOnly to, int page, int pageSize)
+    {
+        var rows = Operations.List(c, user, "housing_residence")
+            .Where(r => Overlaps(r, from, to, "effectiveFrom", "effectiveTo", "EffectiveFrom", "EffectiveTo"))
+            .Select(r =>
+            {
+                var start = ParseDate(r.S("effectiveFrom", r.S("EffectiveFrom"))) ?? from;
+                var end = ParseDate(r.S("effectiveTo", r.S("EffectiveTo")));
+                var clipStart = start > from ? start : from;
+                var clipEnd = end is null || end > to ? to : end.Value;
+                int days = clipEnd < clipStart ? 0 : clipEnd.DayNumber - clipStart.DayNumber + 1;
+                return new JsonObject
+                {
+                    ["id"] = r.S("id"),
+                    ["employeeId"] = r.S("employeeId", r.S("EmployeeId")),
+                    ["riderProfileId"] = r.S("riderId", r.S("riderProfileId")),
+                    ["riderNameAr"] = r.S("riderNameAr"),
+                    ["iqama"] = r.S("iqama"),
+                    ["housingId"] = r.S("housingId"),
+                    ["housingCode"] = r.S("housingCode"),
+                    ["housingNameAr"] = r.S("housingNameAr"),
+                    ["roomId"] = r.S("roomId", r.S("RoomId")),
+                    ["roomName"] = r.S("roomName"),
+                    ["effectiveFrom"] = r.S("effectiveFrom", r.S("EffectiveFrom")),
+                    ["effectiveTo"] = r.S("effectiveTo", r.S("EffectiveTo")),
+                    ["daysInSelectedPeriod"] = days,
+                    ["isOpen"] = r.S("effectiveTo", r.S("EffectiveTo")) == "",
+                    ["moveInReason"] = r.S("moveInReason"),
+                    ["moveOutReason"] = r.S("moveOutReason"),
+                    ["sponsorUnifiedNumber"] = ""
+                };
+            }).ToList();
+        int skip = (page - 1) * pageSize;
+        var items = rows.Skip(skip).Take(pageSize).ToList();
+        var summary = new JsonObject
+        {
+            ["rows"] = rows.Count,
+            ["openPeriods"] = rows.Count(r => r.B("isOpen")),
+            ["daysInPeriod"] = rows.Sum(r => (long)r.N("daysInSelectedPeriod"))
         };
         return new
         {
