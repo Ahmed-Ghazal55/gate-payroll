@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useEffect, useState, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -500,7 +502,7 @@ function AccountingPageContent() {
         const sumDebit = j.totalDebit ?? j.lines?.reduce((acc, l) => acc + (l.debit || 0), 0) ?? 0;
         return (
           <span className="num font-bold text-xs text-blue-600 dark:text-blue-400">
-            {sumDebit > 0 ? sumDebit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
+            {formatSar(sumDebit)}
           </span>
         );
       },
@@ -512,7 +514,7 @@ function AccountingPageContent() {
         const sumCredit = j.totalCredit ?? j.lines?.reduce((acc, l) => acc + (l.credit || 0), 0) ?? 0;
         return (
           <span className="num font-bold text-xs text-purple-600 dark:text-purple-400">
-            {sumCredit > 0 ? sumCredit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
+            {formatSar(sumCredit)}
           </span>
         );
       },
@@ -586,7 +588,7 @@ function AccountingPageContent() {
           label="صافي الدخل التقديري"
           value={
             incomeData?.companies && incomeData.companies.length > 0
-              ? (incomeData.companies.reduce((sum, c) => sum + (c.net || 0), 0)).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' ر.س'
+              ? formatSar(incomeData.companies.reduce((sum, c) => sum + (c.net || 0), 0))
               : 'غير معروف'
           }
           hint="مبني على وقائع القيود المعتمدة"
@@ -1017,13 +1019,13 @@ function AccountingPageContent() {
                         <div>
                           <span className="text-[var(--muted)] block">إغلاق مدين:</span>
                           <span className="num font-bold text-blue-600 dark:text-blue-400 text-sm">
-                            {(totals.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatSar((totals.closingDebit || 0))}
                           </span>
                         </div>
                         <div>
                           <span className="text-[var(--muted)] block">إغلاق دائن:</span>
                           <span className="num font-bold text-purple-600 dark:text-purple-400 text-sm">
-                            {(totals.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatSar((totals.closingCredit || 0))}
                           </span>
                         </div>
                       </div>
@@ -1043,7 +1045,7 @@ function AccountingPageContent() {
                                 {u.code} - {u.nameAr || u.name}
                               </span>
                               <span className="num font-bold">
-                                {((u.closingDebit || 0) - (u.closingCredit || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                {formatSar(((u.closingDebit || 0) - (u.closingCredit || 0)))}
                               </span>
                             </div>
                           ))}
@@ -1093,22 +1095,22 @@ function AccountingPageContent() {
                                   </span>
                                 </td>
                                 <td className="py-2 px-3 text-end num font-mono">
-                                  {(row.openingDebit || 0) > 0 ? (row.openingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                                  {(row.openingDebit || 0) > 0 ? formatSar((row.openingDebit || 0)) : '—'}
                                 </td>
                                 <td className="py-2 px-3 text-end num font-mono">
-                                  {(row.openingCredit || 0) > 0 ? (row.openingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                                  {(row.openingCredit || 0) > 0 ? formatSar((row.openingCredit || 0)) : '—'}
                                 </td>
                                 <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400">
-                                  {(row.periodDebit || 0) > 0 ? (row.periodDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                                  {(row.periodDebit || 0) > 0 ? formatSar((row.periodDebit || 0)) : '—'}
                                 </td>
                                 <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400">
-                                  {(row.periodCredit || 0) > 0 ? (row.periodCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                                  {(row.periodCredit || 0) > 0 ? formatSar((row.periodCredit || 0)) : '—'}
                                 </td>
                                 <td className="py-2 px-3 text-end num font-mono font-bold text-blue-700 dark:text-blue-300">
-                                  {(row.closingDebit || 0) > 0 ? (row.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                                  {(row.closingDebit || 0) > 0 ? formatSar((row.closingDebit || 0)) : '—'}
                                 </td>
                                 <td className="py-2 px-3 text-end num font-mono font-bold text-purple-700 dark:text-purple-300">
-                                  {(row.closingCredit || 0) > 0 ? (row.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                                  {(row.closingCredit || 0) > 0 ? formatSar((row.closingCredit || 0)) : '—'}
                                 </td>
                               </tr>
                             );
@@ -1120,22 +1122,22 @@ function AccountingPageContent() {
                               الإجمالي العام المتوازن
                             </td>
                             <td className="py-3 px-3 text-end num font-mono font-bold">
-                              {(totals.openingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              {formatSar((totals.openingDebit || 0))}
                             </td>
                             <td className="py-3 px-3 text-end num font-mono font-bold">
-                              {(totals.openingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              {formatSar((totals.openingCredit || 0))}
                             </td>
                             <td className="py-3 px-3 text-end num font-mono font-bold text-blue-600">
-                              {(totals.periodDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              {formatSar((totals.periodDebit || 0))}
                             </td>
                             <td className="py-3 px-3 text-end num font-mono font-bold text-purple-600">
-                              {(totals.periodCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              {formatSar((totals.periodCredit || 0))}
                             </td>
                             <td className="py-3 px-3 text-end num font-mono font-bold text-blue-700">
-                              {(totals.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              {formatSar((totals.closingDebit || 0))}
                             </td>
                             <td className="py-3 px-3 text-end num font-mono font-bold text-purple-700">
-                              {(totals.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              {formatSar((totals.closingCredit || 0))}
                             </td>
                           </tr>
                         </tfoot>
@@ -1246,7 +1248,7 @@ function AccountingPageContent() {
                           <TrendingUp size={16} className="text-emerald-500" />
                         </div>
                         <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 num">
-                          {revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-bold">ر.س</span>
+                          {formatSar(revenue)}
                         </div>
                         <span className="text-[10px] text-[var(--muted)] mt-1 block">
                           مجموعات إيرادات التشغيل والمنصات (4)
@@ -1259,7 +1261,7 @@ function AccountingPageContent() {
                           <TrendingDown size={16} className="text-rose-500" />
                         </div>
                         <div className="text-xl font-black text-rose-600 dark:text-rose-400 num">
-                          {expense.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-bold">ر.س</span>
+                          {formatSar(expense)}
                         </div>
                         <span className="text-[10px] text-[var(--muted)] mt-1 block">
                           تكاليف التشغيل والرواتب والمصاريف الإدارية (5)
@@ -1272,7 +1274,7 @@ function AccountingPageContent() {
                           <Scale size={16} className={isNetPositive ? 'text-emerald-500' : 'text-rose-500'} />
                         </div>
                         <div className={`text-xl font-black num ${isNetPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                          {net.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-bold">ر.س</span>
+                          {formatSar(net)}
                         </div>
                         <span className="text-[10px] text-[var(--muted)] mt-1 block">
                           {company.netIsComplete ? 'التعيين مكتمل بنسبة 100%' : 'يوجد بنود غير معينة بالكامل'}
@@ -1290,7 +1292,7 @@ function AccountingPageContent() {
                             <span>تفاصيل مجموعات الإيرادات</span>
                           </h4>
                           <span className="num font-bold text-xs text-emerald-600">
-                            {revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(revenue)}
                           </span>
                         </div>
 
@@ -1303,7 +1305,7 @@ function AccountingPageContent() {
                                   <span className="font-mono text-[11px] text-[var(--muted)] num">{grp.code}</span>
                                 </div>
                                 <span className="num font-bold text-[var(--ink)]">
-                                  {grp.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {formatSar(grp.amount)}
                                 </span>
                               </div>
                             ))
@@ -1323,7 +1325,7 @@ function AccountingPageContent() {
                             <span>تفاصيل مجموعات المصروفات</span>
                           </h4>
                           <span className="num font-bold text-xs text-rose-600">
-                            {expense.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(expense)}
                           </span>
                         </div>
 
@@ -1336,7 +1338,7 @@ function AccountingPageContent() {
                                   <span className="font-mono text-[11px] text-[var(--muted)] num">{grp.code}</span>
                                 </div>
                                 <span className="num font-bold text-[var(--ink)]">
-                                  {grp.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {formatSar(grp.amount)}
                                 </span>
                               </div>
                             ))
@@ -1525,10 +1527,10 @@ function AccountingPageContent() {
                             {line.accountNameAr || '—'}
                           </td>
                           <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400 font-bold">
-                            {(line.debit || 0) > 0 ? (line.debit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                            {(line.debit || 0) > 0 ? formatSar((line.debit || 0)) : '—'}
                           </td>
                           <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400 font-bold">
-                            {(line.credit || 0) > 0 ? (line.credit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                            {(line.credit || 0) > 0 ? formatSar((line.credit || 0)) : '—'}
                           </td>
                           <td className="py-2 px-3 text-[var(--muted)] text-[11px] truncate max-w-[150px]">
                             {line.description || '—'}
@@ -1542,10 +1544,10 @@ function AccountingPageContent() {
                           إجمالي القيد
                         </td>
                         <td className="py-2 px-3 text-end num font-mono text-blue-600">
-                          {(selectedJournal.lines?.reduce((sum, l) => sum + (l.debit || 0), 0) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          {formatSar(selectedJournal.lines?.reduce((sum, l) => sum + (l.debit || 0), 0) || 0)}
                         </td>
                         <td className="py-2 px-3 text-end num font-mono text-purple-600">
-                          {(selectedJournal.lines?.reduce((sum, l) => sum + (l.credit || 0), 0) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          {formatSar(selectedJournal.lines?.reduce((sum, l) => sum + (l.credit || 0), 0) || 0)}
                         </td>
                         <td />
                       </tr>

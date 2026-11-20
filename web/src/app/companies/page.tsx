@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -1647,7 +1649,7 @@ function CompaniesPageContent() {
                         <td className="py-3 px-4 font-mono text-xs num">
                           {c.capitalSar
                             ? showBalances
-                              ? `${formatNumber(c.capitalSar)} ر.س`
+                              ? formatSar(c.capitalSar)
                               : '••••••••'
                             : '—'}
                         </td>
@@ -2108,7 +2110,7 @@ function CompaniesPageContent() {
                     <strong className="font-mono text-sm num text-[var(--money-pos)]">
                       {selectedCompany.capitalSar
                         ? showBalances
-                          ? `${formatNumber(selectedCompany.capitalSar)} ر.س`
+                          ? formatSar(selectedCompany.capitalSar)
                           : '••••••••'
                         : '—'}
                     </strong>

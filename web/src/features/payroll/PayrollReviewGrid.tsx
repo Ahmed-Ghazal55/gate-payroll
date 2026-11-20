@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   CheckCircle2,
@@ -141,7 +143,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
         header: 'الإجمالي',
         numeric: true,
         getValue: (r) => r.gross,
-        render: (row) => row.gross.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+        render: (row) => formatSar(row.gross),
       },
       {
         key: 'commission',
@@ -150,7 +152,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
         getValue: (r) => r.commission,
         render: (row) => (
           <span className="text-[var(--warning)]">
-            {row.commission.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatSar(row.commission)}
           </span>
         ),
       },
@@ -159,7 +161,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
         header: 'بعد العمولة',
         numeric: true,
         getValue: (r) => r.afterCommission,
-        render: (row) => row.afterCommission.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+        render: (row) => formatSar(row.afterCommission),
       },
       {
         key: 'phase1',
@@ -168,7 +170,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
         getValue: (r) => r.phase1,
         render: (row) => (
           <span className="text-[var(--danger)]">
-            {row.phase1.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatSar(row.phase1)}
           </span>
         ),
       },
@@ -179,7 +181,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
         getValue: (r) => r.preliminaryDue,
         render: (row) => (
           <span className="font-bold text-[var(--accent)]">
-            {row.preliminaryDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatSar(row.preliminaryDue)}
           </span>
         ),
       },
@@ -190,7 +192,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
         getValue: (r) => r.phase2,
         render: (row) => (
           <span className="text-[var(--danger)]">
-            {row.phase2.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatSar(row.phase2)}
           </span>
         ),
       },
@@ -199,7 +201,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
         header: 'مرحلة 3',
         numeric: true,
         getValue: (r) => r.phase3,
-        render: (row) => row.phase3.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+        render: (row) => formatSar(row.phase3),
       },
       {
         key: 'net',
@@ -212,7 +214,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
               row.net >= 0 ? 'text-[var(--money-pos)]' : 'text-[var(--danger)]'
             }`}
           >
-            {row.net.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatSar(row.net)}
           </span>
         ),
       },
@@ -370,7 +372,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
             <div className="flex items-center gap-2 ps-2 text-[var(--muted)]">
               <span>إجمالي الصافي:</span>
               <span className="font-mono font-bold num text-sm text-[var(--ink)]">
-                {totals.net.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                {formatSar(totals.net)}
               </span>
             </div>
           </div>

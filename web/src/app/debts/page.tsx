@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -806,7 +808,7 @@ function DebtsPageContent() {
         getValue: (d) => d.originalAmount ?? 0,
         render: (d) => (
           <span className="num text-[var(--muted)]">
-            {(d.originalAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar((d.originalAmount ?? 0))}
           </span>
         ),
       },
@@ -817,7 +819,7 @@ function DebtsPageContent() {
         getValue: (d) => d.remainingAmount ?? 0,
         render: (d) => (
           <span className="num font-bold text-sm text-[var(--danger)]">
-            {(d.remainingAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar((d.remainingAmount ?? 0))}
           </span>
         ),
       },
@@ -830,7 +832,7 @@ function DebtsPageContent() {
           const val = d.monthlyInstallment || d.monthlyDeduction || 0;
           return (
             <span className="num text-[var(--muted)]">
-              {val > 0 ? `${val.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س` : '—'}
+              {val > 0 ? `${formatSar(val)}` : '—'}
             </span>
           );
         },
@@ -929,7 +931,7 @@ function DebtsPageContent() {
         getValue: (req) => req.amount,
         render: (req) => (
           <span className="font-bold text-[var(--ink)]">
-            {req.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar(req.amount)}
           </span>
         ),
       },
@@ -1065,7 +1067,7 @@ function DebtsPageContent() {
           label="إجمالي المديونيات القائمة"
           value={
             debtsSummary
-              ? `${totalRemainingDebts.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`
+              ? `${formatSar(totalRemainingDebts)}`
               : '—'
           }
           hint="الأرصدة المتبقية على ذمة المناديب"
@@ -1082,7 +1084,7 @@ function DebtsPageContent() {
           label="أرصدة السلف المتبقية"
           value={
             debtsSummary
-              ? `${totalAdvances.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`
+              ? `${formatSar(totalAdvances)}`
               : '—'
           }
           hint="السلف النقدية والبنكية الجاري استقطاعها"
@@ -1215,7 +1217,7 @@ function DebtsPageContent() {
                 <div className="font-bold">أرصدة افتتاحية بانتظار الاعتماد</div>
                 <div className="text-[var(--muted)] mt-0.5">
                   <span className="num font-bold">{pendingOpeningCount}</span> مديونية بإجمالي{' '}
-                  <span className="num font-bold">{pendingOpeningTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> ر.س — من شيت المديونيات بتاريخ 31-10-2026. الاعتماد يرحّل قيد الافتتاح في شهر الرصيد.
+                  <span className="num font-bold">{formatSar(pendingOpeningTotal)}</span> — من شيت المديونيات بتاريخ 31-10-2026. الاعتماد يرحّل قيد الافتتاح في شهر الرصيد.
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1487,8 +1489,8 @@ function DebtsPageContent() {
                       <tr key={idx} className="hover:bg-[var(--row-hover)]">
                         <td className="p-2.5 font-mono text-[var(--muted)]">{e.date?.split('T')[0] || e.date}</td>
                         <td className="p-2.5 font-medium">{e.description || e.statement}</td>
-                        <td className="p-2.5 num font-bold text-[var(--danger)]">{e.debit > 0 ? `${e.debit} ر.س` : '—'}</td>
-                        <td className="p-2.5 num font-bold text-[var(--money-pos)]">{e.credit > 0 ? `${e.credit} ر.س` : '—'}</td>
+                        <td className="p-2.5 num font-bold text-[var(--danger)]">{e.debit > 0 ? formatSar(e.debit) : '—'}</td>
+                        <td className="p-2.5 num font-bold text-[var(--money-pos)]">{e.credit > 0 ? formatSar(e.credit) : '—'}</td>
                         <td className="p-2.5 num font-bold text-[var(--ink)]">{e.balance} ر.س</td>
                       </tr>
                     ))}
@@ -2430,12 +2432,12 @@ function DebtsPageContent() {
             <div className="p-4 rounded-xl bg-[var(--raised)] space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المبلغ الأصلي:</span>
-                <span className="font-bold num">{(selectedDebt.originalAmount ?? 0).toLocaleString('en-US')} ر.س</span>
+                <span className="font-bold num">{formatSar((selectedDebt.originalAmount ?? 0))}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المتبقي:</span>
                 <span className="font-bold num text-[var(--danger)]">
-                  {(selectedDebt.remainingAmount ?? 0).toLocaleString('en-US')} ر.س
+                  {formatSar((selectedDebt.remainingAmount ?? 0))}
                 </span>
               </div>
               <div className="flex justify-between">

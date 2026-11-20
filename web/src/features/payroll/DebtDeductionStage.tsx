@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useCallback, useEffect, useState } from 'react';
 import { api, type DebtDeductionsView, type PayCycleItem } from '../../lib/api';
 import { useToast } from '../../components/ui/Toast';
@@ -96,7 +98,7 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
               {rows.map((row) => (
                 <tr key={row.rider} data-rider-row>
                   <td className="p-2 font-mono" dir="ltr">{row.rider}</td>
-                  <td className="p-2 font-mono">{row.salaryNet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  <td className="p-2 font-mono">{formatSar(row.salaryNet)}</td>
                   <td className="p-2 space-y-1">
                     {row.items.length === 0 && <span className="text-[var(--muted)]">لا توجد</span>}
                     {row.items.map((item) => {
@@ -105,7 +107,7 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
                       return (
                         <div key={item.key} className="flex flex-wrap items-center gap-1">
                           <span className="min-w-28">{item.labelAr || item.category}</span>
-                          <span className="text-[var(--muted)]">الرصيد {item.remainingBalance.toLocaleString('en-US')} · القسط {item.due.toLocaleString('en-US')}</span>
+                          <span className="text-[var(--muted)]">الرصيد {formatSar(item.remainingBalance)} · القسط {formatSar(item.due)}</span>
                           {editable ? (
                             <>
                               <input aria-label="مبلغ الخصم" inputMode="decimal" value={amounts[id] ?? String(item.amount)} onChange={(e) => setAmounts((p) => ({ ...p, [id]: e.target.value }))} className="w-20 rounded-md border border-[var(--line)] bg-[var(--surface)] p-1 font-mono text-[var(--ink)]" />
@@ -113,7 +115,7 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
                               <button type="button" disabled={busy} onClick={() => run(() => api.actDebtDeductions(cycle.id, { action: 'edit', rider: row.rider, key: item.key, amount: Number(amounts[id] ?? item.amount), reason: reasons[id] }), 'تم حفظ المبلغ.')} className="rounded-md border border-[var(--line)] px-2 py-1 font-bold disabled:opacity-50">حفظ</button>
                             </>
                           ) : (
-                            <span className="font-mono font-bold">{item.amount.toLocaleString('en-US')}</span>
+                            <span className="font-mono font-bold">{formatSar(item.amount)}</span>
                           )}
                         </div>
                       );
