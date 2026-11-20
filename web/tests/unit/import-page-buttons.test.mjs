@@ -18,11 +18,11 @@ test('shared ImportUploadDialog posts preview then commit URLs', () => {
 });
 
 test('template download requires imports.view or endpoint permission via allowedActions', async () => {
-  const { canDownloadImportTemplate, NINJA_OPS_IMPORT, RIDERS_IMPORT } = await import(
+  const { canDownloadImportTemplate, NINJA_OPS_IMPORT, OPENING_DEBTS_IMPORT } = await import(
     '../../src/features/imports/import-steps.ts'
   );
   assert.equal(NINJA_OPS_IMPORT.templatePermission, 'imports.view');
-  assert.equal(RIDERS_IMPORT.templatePermission, 'riders.view');
+  assert.equal(OPENING_DEBTS_IMPORT.templatePermission, 'debts.view');
   const can = (code) => code === 'pay.manage';
   assert.equal(
     canDownloadImportTemplate(NINJA_OPS_IMPORT, { isAdmin: false, can, allowedActions: [] }),
@@ -38,9 +38,9 @@ test('template download requires imports.view or endpoint permission via allowed
     true
   );
   assert.equal(
-    canDownloadImportTemplate(RIDERS_IMPORT, {
+    canDownloadImportTemplate(OPENING_DEBTS_IMPORT, {
       isAdmin: false,
-      can: (c) => c === 'riders.view',
+      can: (c) => c === 'debts.view',
       allowedActions: null,
     }),
     true,
@@ -51,7 +51,6 @@ test('template download requires imports.view or endpoint permission via allowed
 test('data pages expose import buttons gated by permission helpers', () => {
   const cases = [
     ['src/app/companies/page.tsx', 'import-companies', 'COMPANIES_IMPORT'],
-    ['src/app/workforce/page.tsx', 'import-riders', 'RIDERS_IMPORT'],
     ['src/app/debts/page.tsx', 'import-opening-debts', 'OPENING_DEBTS_IMPORT'],
     ['src/app/debts/page.tsx', 'import-bulk-collect', 'BULK_COLLECT_IMPORT'],
     ['src/app/accounting/page.tsx', 'import-treasury-opening', 'TREASURY_OPENING_IMPORT'],
@@ -67,10 +66,18 @@ test('data pages expose import buttons gated by permission helpers', () => {
   }
 });
 
+test('workforce page has no riders-file upload (people data is live from ERP, Ghazal 2026-11-21)', () => {
+  const page = read('src/app/workforce/page.tsx');
+  assert.doesNotMatch(page, /import-riders/);
+  assert.doesNotMatch(page, /RIDERS_IMPORT/);
+  assert.doesNotMatch(page, /ImportUploadDialog/);
+  assert.doesNotMatch(page, /ملف المناديب/);
+  assert.doesNotMatch(read('src/features/imports/import-steps.ts'), /RIDERS_IMPORT|\/api\/excel\/riders/);
+});
+
 test('import step configs keep platform preview/commit endpoints', () => {
   const steps = read('src/features/imports/import-steps.ts');
   assert.match(steps, /\/api\/companies\/import\/preview/);
-  assert.match(steps, /\/api\/excel\/riders\/preview/);
   assert.match(steps, /\/api\/finance\/opening\/preview/);
   assert.match(steps, /\/api\/debts\/import-opening\/preview/);
   assert.match(steps, /\/api\/debts\/bulk-collect\/preview-file/);

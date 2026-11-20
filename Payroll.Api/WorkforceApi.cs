@@ -692,7 +692,6 @@ public static class WorkforceApi
         if (AccessPolicy.Has(user, PermIban)) actions.Add("view_iban");
         if (AccessPolicy.Has(user, PermSaudiSalary)) actions.Add("view_saudi_salary");
         if (AccessPolicy.Has(user, PermLegalCases)) actions.Add("view_legal_cases");
-        ImportTemplateAccess.AddIfAllowed(actions, user, "/api/excel/riders/template");
         return actions;
     }
 

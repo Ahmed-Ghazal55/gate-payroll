@@ -38,19 +38,6 @@ export const COMPANIES_IMPORT: PageImportStep = {
   noteAr: 'الصفوف تُرسل JSON بنفس أسماء الأعمدة؛ حتى 100 شركة. لمسؤول النظام فقط.',
 };
 
-export const RIDERS_IMPORT: PageImportStep = {
-  key: 'riders',
-  labelAr: 'استيراد ملف المناديب',
-  purposeAr: 'إكمال بيانات ناقصة من ملف Excel (القائمة تُقرأ من نظام عمر).',
-  permission: 'riders.edit',
-  extraPermission: 'riders.financial_edit',
-  templatePermission: 'riders.view',
-  templateUrl: '/api/excel/riders/template',
-  previewUrl: '/api/excel/riders/preview',
-  commitUrl: '/api/excel/riders/commit',
-  upload: 'xlsx',
-};
-
 export const TREASURY_OPENING_IMPORT: PageImportStep = {
   key: 'treasury_opening',
   labelAr: 'استيراد الأرصدة الافتتاحية',
