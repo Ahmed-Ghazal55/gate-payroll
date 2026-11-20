@@ -64,7 +64,7 @@ import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
-import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { DataTable, ColumnDef, useTableAutoFilter, AutoFilterTh, AutoFilterBar, defaultStatusTone } from '../../components/ui/DataTable';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { formatRiyadhDateTime } from '../../components/ui/SourceBadge';
@@ -321,8 +321,10 @@ function PayrollPageInner() {
       {
         key: 'rider',
         header: 'إقامة المندوب',
+        type: 'text',
         filterable: true,
         filterType: 'text',
+        getValue: (line) => line.rider || '',
         render: (line) => (
           <Link
             href={`/riders/statement?iqama=${line.rider}&period=${selectedPeriod}`}
@@ -336,19 +338,24 @@ function PayrollPageInner() {
       {
         key: 'app',
         header: 'التطبيق',
+        type: 'list',
         filterable: true,
         filterType: 'list',
+        getValue: (line) => line.app || '',
         render: (line) => <span className="font-mono text-xs">{line.app}</span>,
       },
       {
         key: 'category',
         header: 'الفئة',
+        type: 'list',
         filterType: 'list',
+        getValue: (line) => ('category' in line ? String((line as Record<string, unknown>).category || '') : ''),
         render: (line) => <span className="text-xs text-[var(--muted)]">{'category' in line ? String((line as Record<string, unknown>).category || '-') : '-'}</span>,
       },
       {
         key: 'platformGross',
         header: 'إجمالي المنصة',
+        type: 'number',
         numeric: true,
         getValue: (line) => line.platformGross || line.gross || 0,
         render: (line) => (
@@ -360,6 +367,7 @@ function PayrollPageInner() {
       {
         key: 'vehicleCharge',
         header: 'إيجار المركبة',
+        type: 'number',
         numeric: true,
         getValue: (line) => line.allocatedVehicleCharge ?? 0,
         render: (line) => (
@@ -371,6 +379,7 @@ function PayrollPageInner() {
       {
         key: 'deductions',
         header: 'الاستقطاعات',
+        type: 'number',
         numeric: true,
         getValue: (line) => line.accountDeduction || 0,
         render: (line) => (
@@ -382,6 +391,7 @@ function PayrollPageInner() {
       {
         key: 'net',
         header: 'الصافي النهائي',
+        type: 'number',
         numeric: true,
         getValue: (line) => line.entitlement ?? line.gross ?? 0,
         render: (line) => {
@@ -396,6 +406,11 @@ function PayrollPageInner() {
       {
         key: 'status',
         header: 'الحالة',
+        type: 'list',
+        filterType: 'list',
+        getValue: (line) => line.status || 'needs_decision',
+        labelOf: (v) => (v === 'ready' ? 'جاهز' : v === 'approved' ? 'معتمد' : 'يحتاج قرار'),
+        toneOf: (v) => (v === 'ready' || v === 'approved' ? 'success' : 'danger'),
         render: (line) => (
           <span
             className={`px-2 py-0.5 rounded-full text-xs font-bold ${
@@ -411,6 +426,8 @@ function PayrollPageInner() {
       {
         key: 'explain',
         header: 'شرح الاحتساب',
+        sortable: false,
+        filterable: false,
         render: (line) => (
           <button
             type="button"
@@ -483,17 +500,22 @@ function PayrollPageInner() {
       {
         key: 'accountId',
         header: 'المعرف / الحساب',
+        type: 'text',
         filterable: true,
+        getValue: (acc) => acc.accountId || '',
         render: (acc) => <span className="font-mono font-bold text-[var(--accent)]">{acc.accountId}</span>,
       },
       {
         key: 'sourceLineId',
         header: 'سطر المصدر',
+        type: 'text',
+        getValue: (acc) => acc.sourceLineId || '',
         render: (acc) => <span className="font-mono text-xs text-[var(--muted)]">{acc.sourceLineId || '-'}</span>,
       },
       {
         key: 'orders',
         header: 'الطلبات',
+        type: 'number',
         numeric: true,
         getValue: (acc) => acc.orders || 0,
         render: (acc) => <span className="font-mono">{acc.orders || 0}</span>,
@@ -501,6 +523,7 @@ function PayrollPageInner() {
       {
         key: 'baseGross',
         header: 'الأساسي',
+        type: 'number',
         numeric: true,
         getValue: (acc) => acc.baseGross || 0,
         render: (acc) => <span>{(acc.baseGross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>,
@@ -508,6 +531,7 @@ function PayrollPageInner() {
       {
         key: 'incentives',
         header: 'الحوافز',
+        type: 'number',
         numeric: true,
         getValue: (acc) => acc.incentives || 0,
         render: (acc) => <span>{(acc.incentives || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>,
@@ -515,6 +539,7 @@ function PayrollPageInner() {
       {
         key: 'totalGross',
         header: 'إجمالي الاستحقاق',
+        type: 'number',
         numeric: true,
         getValue: (acc) => (acc.baseGross || 0) + (acc.incentives || 0),
         render: (acc) => (
@@ -526,6 +551,7 @@ function PayrollPageInner() {
       {
         key: 'ridersCount',
         header: 'المناديب المشغلين',
+        type: 'number',
         numeric: true,
         getValue: (acc) => (acc.riders || []).length,
         render: (acc) => (
@@ -999,6 +1025,10 @@ function PayrollPageInner() {
       {
         key: 'metric',
         header: 'المقياس (Metric)',
+        type: 'list',
+        filterType: 'list',
+        getValue: (r) => r.metric || '',
+        labelOf: (v) => NINJA_METRICS_MAP[String(v ?? '')] || String(v ?? ''),
         render: (r) => (
           <div className="font-semibold text-[var(--ink)]">
             <span>{NINJA_METRICS_MAP[r.metric] || r.metric}</span>
@@ -1008,6 +1038,10 @@ function PayrollPageInner() {
       {
         key: 'operator',
         header: 'المعامل',
+        type: 'list',
+        filterType: 'list',
+        getValue: (r) => r.operator || '',
+        labelOf: (v) => OPERATORS_MAP[String(v ?? '')] || String(v ?? ''),
         render: (r) => (
           <span className="font-mono text-xs bg-[var(--raised)] px-2 py-0.5 rounded-md text-[var(--accent)] font-bold">
             {OPERATORS_MAP[r.operator] || r.operator}
@@ -1017,12 +1051,19 @@ function PayrollPageInner() {
       {
         key: 'threshold',
         header: 'الحد الأدنى / القيمة',
+        type: 'number',
         numeric: true,
+        getValue: (r) => Number(r.threshold ?? 0),
         render: (r) => <span className="font-mono font-bold text-[var(--ink)]">{r.threshold}</span>,
       },
       {
         key: 'effect',
         header: 'الأثر عند عدم التحقق',
+        type: 'list',
+        filterType: 'list',
+        getValue: (r) => r.effect?.type || 'zero',
+        labelOf: (v) => EFFECT_TYPES_MAP[String(v ?? 'zero')] || String(v ?? 'zero'),
+        toneOf: (v) => (v === 'zero' ? 'danger' : 'accent'),
         render: (r) => {
           const type = r.effect?.type || 'zero';
           return (
@@ -1037,6 +1078,11 @@ function PayrollPageInner() {
       {
         key: 'included',
         header: 'ضمن القاعدة',
+        type: 'list',
+        filterType: 'list',
+        getValue: (r) => (r.included !== false ? 'enabled' : 'disabled'),
+        labelOf: (v) => (v === 'enabled' ? 'مفعّل' : 'معطّل'),
+        toneOf: (v) => (v === 'enabled' ? 'success' : 'neutral'),
         render: (r) => (
           <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
             r.included !== false ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]' : 'bg-[var(--raised)] text-[var(--muted)]'
@@ -1048,6 +1094,8 @@ function PayrollPageInner() {
       {
         key: 'actions',
         header: 'إجراءات',
+        sortable: false,
+        filterable: false,
         render: (r, idx) => (
           activeNinjaEligibility?.status === 'draft' ? (
             <button
@@ -1679,6 +1727,209 @@ function PayrollPageInner() {
     }
   };
 
+  const legacyPreviewFilterCols = useMemo(
+    () => [
+      {
+        key: 'rider',
+        header: 'المندوب',
+        type: 'text' as const,
+        getValue: (row: LegacyPayrollPreviewRow) => {
+          const rider = ridersList.find((y) => y.iqama === row.iqama);
+          return `${rider?.name || ''} ${row.iqama}`.trim();
+        },
+      },
+      {
+        key: 'orders',
+        header: 'الطلبات',
+        type: 'number' as const,
+        numeric: true,
+        getValue: (row: LegacyPayrollPreviewRow) => {
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          return Number((run?.result || row).orders ?? 0);
+        },
+      },
+      {
+        key: 'policyName',
+        header: 'السياسة',
+        type: 'list' as const,
+        getValue: (row: LegacyPayrollPreviewRow) => {
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          return (run?.result || row).policyName || '';
+        },
+      },
+      {
+        key: 'openingBalance',
+        header: 'رصيد سابق',
+        type: 'number' as const,
+        numeric: true,
+        getValue: (row: LegacyPayrollPreviewRow) => {
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          return Number((run?.result || row).openingBalance ?? 0);
+        },
+      },
+      {
+        key: 'periodMovement',
+        header: 'حركة الشهر',
+        type: 'number' as const,
+        numeric: true,
+        getValue: (row: LegacyPayrollPreviewRow) => {
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          return Number((run?.result || row).periodMovement ?? 0);
+        },
+      },
+      {
+        key: 'closingBalance',
+        header: 'الرصيد الختامي',
+        type: 'number' as const,
+        numeric: true,
+        getValue: (row: LegacyPayrollPreviewRow) => {
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          return Number((run?.result || row).closingBalance ?? 0);
+        },
+      },
+      {
+        key: 'status',
+        header: 'الموقف',
+        type: 'list' as const,
+        getValue: (row: LegacyPayrollPreviewRow) => {
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          if (run) return 'approved';
+          if (row.blockers && row.blockers.length > 0) return 'blocked';
+          return 'ready';
+        },
+        labelOf: (v: unknown) => (v === 'approved' ? 'معتمد' : v === 'blocked' ? 'يوجد موانع' : 'جاهز'),
+        toneOf: (v: unknown) => (v === 'approved' ? 'success' : v === 'blocked' ? 'danger' : 'warning'),
+      },
+    ],
+    [ridersList, legacyRuns, legacyPeriod]
+  );
+  const legacyPreviewFilter = useTableAutoFilter(legacyPreview, legacyPreviewFilterCols);
+
+  const hsInvoicesFilterCols = useMemo(
+    () => [
+      { key: 'invoiceNumber', header: 'رقم الفاتورة', type: 'text' as const, getValue: (inv: HsInvoice) => (inv as any).invoiceNumber || inv.id || '' },
+      { key: 'period', header: 'الشهر', type: 'date' as const, getValue: (inv: HsInvoice) => inv.period || '' },
+      {
+        key: 'amountExclVat',
+        header: 'المبلغ قبل الضريبة',
+        type: 'number' as const,
+        numeric: true,
+        getValue: (inv: HsInvoice) => Number((inv as any).amountExclVat ?? (inv.totalAmount || 0) - (inv.vat || 0)),
+      },
+      {
+        key: 'vatAmount',
+        header: 'الضريبة',
+        type: 'number' as const,
+        numeric: true,
+        getValue: (inv: HsInvoice) => Number((inv as any).vatAmount ?? inv.vat ?? 0),
+      },
+      {
+        key: 'totalAmount',
+        header: 'الإجمالي',
+        type: 'number' as const,
+        numeric: true,
+        getValue: (inv: HsInvoice) => Number(inv.totalAmount ?? 0),
+      },
+      {
+        key: 'deductionsTotal',
+        header: 'الخصومات',
+        type: 'number' as const,
+        numeric: true,
+        getValue: (inv: HsInvoice) => Number((inv as any).deductionsTotal ?? 0),
+      },
+      {
+        key: 'status',
+        header: 'حالة الاعتماد',
+        type: 'list' as const,
+        getValue: (inv: HsInvoice) => inv.status || 'draft',
+        labelOf: (v: unknown) => (v === 'approved' ? 'معتمدة' : v === 'posted' ? 'مرحلة' : 'مسودة'),
+        toneOf: (v: unknown) => (v === 'approved' || v === 'posted' ? 'success' : 'warning'),
+      },
+    ],
+    []
+  );
+  const hsInvoicesFilter = useTableAutoFilter(invoices, hsInvoicesFilterCols);
+
+  const hsDisputesFilterCols = useMemo(
+    () => [
+      { key: 'id', header: 'رقم النزاع', type: 'text' as const, getValue: (d: HsDispute) => d.id || '' },
+      { key: 'amount', header: 'المبلغ', type: 'number' as const, numeric: true, getValue: (d: HsDispute) => Number(d.amount ?? 0) },
+      { key: 'reason', header: 'سبب الاعتراض', type: 'text' as const, getValue: (d: HsDispute) => d.reason || '' },
+      {
+        key: 'status',
+        header: 'الحالة والمسار المحاسبي',
+        type: 'list' as const,
+        getValue: (d: HsDispute) => {
+          if (d.status === 'escalated' || (d.status === 'resolved' && (d.outcome === 'platform_rejected' || (d as any).decision === 'platform_rejected'))) {
+            return 'escalated';
+          }
+          if (d.status === 'resolved') return 'resolved';
+          return 'open';
+        },
+        labelOf: (v: unknown) =>
+          v === 'escalated'
+            ? 'مرحّل لحساب النزاعات 112803 لحين فض النزاع'
+            : v === 'resolved'
+            ? 'مردود بإشعار دائن من المنصة'
+            : 'مفتوح',
+        toneOf: (v: unknown) => (v === 'escalated' ? 'danger' : v === 'resolved' ? 'success' : 'warning'),
+      },
+    ],
+    []
+  );
+  const hsDisputesFilter = useTableAutoFilter(disputes, hsDisputesFilterCols);
+
+  const hsAllocationsFilterCols = useMemo(
+    () => [
+      { key: 'id', header: 'السطر / المعرف', type: 'text' as const, getValue: (a: HsAllocation) => a.id || '' },
+      { key: 'amount', header: 'المبلغ الإجمالي', type: 'number' as const, numeric: true, getValue: (a: HsAllocation) => Number(a.amount ?? 0) },
+      { key: 'companyAmount', header: 'نصيب الشركة', type: 'number' as const, numeric: true, getValue: (a: HsAllocation) => Number(a.companyAmount ?? 0) },
+      { key: 'riderAmount', header: 'نصيب المناديب', type: 'number' as const, numeric: true, getValue: (a: HsAllocation) => Number(a.riderAmount ?? 0) },
+      {
+        key: 'status',
+        header: 'الموقف',
+        type: 'list' as const,
+        getValue: (a: HsAllocation) => (a.status === 'approved' ? 'approved' : 'pending'),
+        labelOf: (v: unknown) => (v === 'approved' ? 'معتمد' : 'بانتظار الاعتماد'),
+        toneOf: (v: unknown) => (v === 'approved' ? 'success' : 'warning'),
+      },
+      { key: 'requestedBy', header: 'مقدم المقترح', type: 'list' as const, getValue: (a: HsAllocation) => a.requestedBy || 'system' },
+    ],
+    []
+  );
+  const hsAllocationsFilter = useTableAutoFilter(allocations, hsAllocationsFilterCols);
+
+  const policiesFilterCols = useMemo(
+    () => [
+      { key: 'name', header: 'اسم السياسة', type: 'text' as const, getValue: (p: any) => p.name || p.id || '' },
+      { key: 'kind', header: 'النوع', type: 'list' as const, getValue: (p: any) => p.kind || '' },
+      { key: 'platform', header: 'المنصة', type: 'list' as const, getValue: (p: any) => p.platform || '' },
+      { key: 'effectiveFrom', header: 'تاريخ السريان', type: 'date' as const, getValue: (p: any) => p.effectiveFrom || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (p: any) => (p.status === 'draft' ? 'draft' : 'approved'),
+        labelOf: (v: unknown) => (v === 'draft' ? 'مسودة' : 'معتمدة'),
+        toneOf: (v: unknown) => (v === 'draft' ? 'warning' : 'success'),
+      },
+    ],
+    []
+  );
+  const policiesFilter = useTableAutoFilter(policies, policiesFilterCols);
+
+  const ledgerRows = ledgerData?.rows || [];
+  const ledgerFilterCols = useMemo(
+    () => [
+      { key: 'period', header: 'الفترة', type: 'date' as const, getValue: (r: any) => r.period || '' },
+      { key: 'kind', header: 'نوع الحركة', type: 'list' as const, getValue: (r: any) => r.kind || '' },
+      { key: 'amount', header: 'المبلغ', type: 'number' as const, numeric: true, getValue: (r: any) => Number(r.amount ?? 0) },
+      { key: 'sourceRef', header: 'المرجع', type: 'text' as const, getValue: (r: any) => r.sourceRef || '' },
+    ],
+    []
+  );
+  const ledgerRowsFilter = useTableAutoFilter(ledgerRows, ledgerFilterCols);
+
   // Section Tabs (Shared across Payroll)
   const sharedSectionTabs: SectionTabItem[] = [
     { id: 'platforms', label: 'منصات التشغيل والفواتير', icon: <Calculator size={16} /> },
@@ -1860,22 +2111,23 @@ function PayrollPageInner() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar controller={legacyPreviewFilter} totalCount={legacyPreview.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">المندوب</th>
-                      <th className="p-3 text-start">الطلبات</th>
-                      <th className="p-3 text-start">السياسة</th>
-                      <th className="p-3 text-start">رصيد سابق</th>
-                      <th className="p-3 text-start">حركة الشهر</th>
-                      <th className="p-3 text-start">الرصيد الختامي</th>
-                      <th className="p-3 text-start">الموقف</th>
+                      <AutoFilterTh controller={legacyPreviewFilter} colKey="rider" className="p-3 text-start" />
+                      <AutoFilterTh controller={legacyPreviewFilter} colKey="orders" className="p-3 text-start" />
+                      <AutoFilterTh controller={legacyPreviewFilter} colKey="policyName" className="p-3 text-start" />
+                      <AutoFilterTh controller={legacyPreviewFilter} colKey="openingBalance" className="p-3 text-start" />
+                      <AutoFilterTh controller={legacyPreviewFilter} colKey="periodMovement" className="p-3 text-start" />
+                      <AutoFilterTh controller={legacyPreviewFilter} colKey="closingBalance" className="p-3 text-start" />
+                      <AutoFilterTh controller={legacyPreviewFilter} colKey="status" className="p-3 text-start" />
                       <th className="p-3 text-start">الإجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {legacyPreview.map((row) => {
+                    {legacyPreviewFilter.rows.map((row) => {
                       const run = legacyRuns.find(
                         (x) => x.iqama === row.iqama && x.period === legacyPeriod
                       );
@@ -2133,21 +2385,22 @@ function PayrollPageInner() {
                     />
                   ) : (
                     <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                      <AutoFilterBar controller={hsInvoicesFilter} totalCount={invoices.length} />
                       <div className="overflow-x-auto">
                         <table className="w-full text-start text-xs sm:text-sm">
                           <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                             <tr>
-                              <th className="p-3 text-start">رقم الفاتورة</th>
-                              <th className="p-3 text-start">الشهر</th>
-                              <th className="p-3 text-start">المبلغ قبل الضريبة</th>
-                              <th className="p-3 text-start">الضريبة</th>
-                              <th className="p-3 text-start">الإجمالي</th>
-                              <th className="p-3 text-start">الخصومات</th>
-                              <th className="p-3 text-start">حالة الاعتماد</th>
+                              <AutoFilterTh controller={hsInvoicesFilter} colKey="invoiceNumber" className="p-3 text-start" />
+                              <AutoFilterTh controller={hsInvoicesFilter} colKey="period" className="p-3 text-start" />
+                              <AutoFilterTh controller={hsInvoicesFilter} colKey="amountExclVat" className="p-3 text-start" />
+                              <AutoFilterTh controller={hsInvoicesFilter} colKey="vatAmount" className="p-3 text-start" />
+                              <AutoFilterTh controller={hsInvoicesFilter} colKey="totalAmount" className="p-3 text-start" />
+                              <AutoFilterTh controller={hsInvoicesFilter} colKey="deductionsTotal" className="p-3 text-start" />
+                              <AutoFilterTh controller={hsInvoicesFilter} colKey="status" className="p-3 text-start" />
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[var(--line)]">
-                            {invoices.map((inv) => (
+                            {hsInvoicesFilter.rows.map((inv) => (
                               <tr key={inv.id} className="hover:bg-[var(--row-hover)] transition">
                                 <td className="p-3 font-mono font-bold text-[var(--ink)]">{(inv as any).invoiceNumber || inv.id}</td>
                                 <td className="p-3 font-mono">{inv.period}</td>
@@ -2188,26 +2441,27 @@ function PayrollPageInner() {
               {activeTab === 'disputes' && (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                    <AutoFilterBar controller={hsDisputesFilter} totalCount={disputes.length} />
                     <div className="overflow-x-auto">
                       <table className="w-full text-start text-xs sm:text-sm">
                         <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                           <tr>
-                            <th className="p-3 text-start">رقم النزاع</th>
-                            <th className="p-3 text-start">المبلغ</th>
-                            <th className="p-3 text-start">سبب الاعتراض</th>
-                            <th className="p-3 text-start">الحالة والمسار المحاسبي</th>
+                            <AutoFilterTh controller={hsDisputesFilter} colKey="id" className="p-3 text-start" />
+                            <AutoFilterTh controller={hsDisputesFilter} colKey="amount" className="p-3 text-start" />
+                            <AutoFilterTh controller={hsDisputesFilter} colKey="reason" className="p-3 text-start" />
+                            <AutoFilterTh controller={hsDisputesFilter} colKey="status" className="p-3 text-start" />
                             <th className="p-3 text-start">الإجراء</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--line)]">
-                          {disputes.length === 0 ? (
+                          {hsDisputesFilter.rows.length === 0 ? (
                             <tr>
                               <td colSpan={5} className="p-6 text-center text-[var(--muted)] text-xs">
                                 لا توجد نزاعات CAR مفتوحة لهذا الشهر.
                               </td>
                             </tr>
                           ) : (
-                            disputes.map((d) => (
+                            hsDisputesFilter.rows.map((d) => (
                               <tr key={d.id} className="hover:bg-[var(--row-hover)] transition">
                                 <td className="p-3 font-mono font-bold text-[var(--ink)]">{d.id}</td>
                                 <td className="p-3 num font-bold text-[var(--danger)]">
@@ -2256,28 +2510,29 @@ function PayrollPageInner() {
               {activeTab === 'allocations' && (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                    <AutoFilterBar controller={hsAllocationsFilter} totalCount={allocations.length} />
                     <div className="overflow-x-auto">
                       <table className="w-full text-start text-xs sm:text-sm">
                         <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                           <tr>
-                            <th className="p-3 text-start">السطر / المعرف</th>
-                            <th className="p-3 text-start">المبلغ الإجمالي</th>
-                            <th className="p-3 text-start">نصيب الشركة</th>
-                            <th className="p-3 text-start">نصيب المناديب</th>
-                            <th className="p-3 text-start">الموقف</th>
-                            <th className="p-3 text-start">مقدم المقترح</th>
+                            <AutoFilterTh controller={hsAllocationsFilter} colKey="id" className="p-3 text-start" />
+                            <AutoFilterTh controller={hsAllocationsFilter} colKey="amount" className="p-3 text-start" />
+                            <AutoFilterTh controller={hsAllocationsFilter} colKey="companyAmount" className="p-3 text-start" />
+                            <AutoFilterTh controller={hsAllocationsFilter} colKey="riderAmount" className="p-3 text-start" />
+                            <AutoFilterTh controller={hsAllocationsFilter} colKey="status" className="p-3 text-start" />
+                            <AutoFilterTh controller={hsAllocationsFilter} colKey="requestedBy" className="p-3 text-start" />
                             <th className="p-3 text-start">الإجراءات</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--line)]">
-                          {allocations.length === 0 ? (
+                          {hsAllocationsFilter.rows.length === 0 ? (
                             <tr>
                               <td colSpan={7} className="p-6 text-center text-[var(--muted)] text-xs">
                                 لا توجد اقتطاعات TGA مسجلة لهذا الشهر.
                               </td>
                             </tr>
                           ) : (
-                            allocations.map((alloc) => {
+                            hsAllocationsFilter.rows.map((alloc) => {
                               const isMaker =
                                 alloc.requestedBy &&
                                 user &&
@@ -2763,50 +3018,7 @@ function PayrollPageInner() {
                         </div>
 
                         {/* 6 Category cells table */}
-                        <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)]">
-                          <table className="w-full text-start text-xs">
-                            <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                              <tr>
-                                <th className="p-2.5 text-start">الفئة التشغيلية (الكفالة × المركبة)</th>
-                                <th className="p-2.5 text-start">الحالة</th>
-                                <th className="p-2.5 text-start">العمولة اليومية</th>
-                                <th className="p-2.5 text-start">العمولة الشهرية</th>
-                                <th className="p-2.5 text-start">نسبة الشركة</th>
-                                <th className="p-2.5 text-start">مركبة الشركة</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[var(--line)]">
-                              {Object.entries(categories).map(([catKey, cell]: [string, any]) => (
-                                <tr key={catKey}>
-                                  <td className="p-2.5 font-bold font-mono">{catKey}</td>
-                                  <td className="p-2.5">
-                                    <span
-                                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                                        cell.enabled
-                                          ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                                          : 'bg-[var(--muted)]/15 text-[var(--muted)]'
-                                      }`}
-                                    >
-                                      {cell.enabled ? 'مفعل' : 'معطل'}
-                                    </span>
-                                  </td>
-                                  <td className="p-2.5 num font-mono">
-                                    {cell.dailyCommission ? `${cell.dailyCommission} ر.س` : '-'}
-                                  </td>
-                                  <td className="p-2.5 num font-mono">
-                                    {cell.monthlyCommission ? `${cell.monthlyCommission} ر.س` : '-'}
-                                  </td>
-                                  <td className="p-2.5 num font-mono">
-                                    {cell.companyPercent ? `${cell.companyPercent}%` : '-'}
-                                  </td>
-                                  <td className="p-2.5 font-mono">
-                                    {cell.chargeCompanyVehicle ? 'نعم (يُخصم)' : 'لا'}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                        <SchemeCategoriesTable categories={categories} />
                       </div>
                     );
                   })}
@@ -3004,30 +3216,7 @@ function PayrollPageInner() {
                             </div>
 
                             {/* Rules table */}
-                            <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)]">
-                              <table className="w-full text-start text-xs">
-                                <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                                  <tr>
-                                    <th className="p-2.5 text-start">المعيار (Metric)</th>
-                                    <th className="p-2.5 text-start">عامل المقارنة</th>
-                                    <th className="p-2.5 text-start">الحد الأدنى (Threshold)</th>
-                                    <th className="p-2.5 text-start">الأثر عند عدم التحقق</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[var(--line)]">
-                                  {rules.map((r: { metric?: string; operator?: string; threshold?: number | string; effect?: { type?: string } }, idx: number) => (
-                                    <tr key={idx}>
-                                      <td className="p-2.5 font-bold font-mono">{r.metric}</td>
-                                      <td className="p-2.5 font-mono">{r.operator}</td>
-                                      <td className="p-2.5 num font-bold">{r.threshold}</td>
-                                      <td className="p-2.5 text-[var(--danger)] font-mono">
-                                        {r.effect?.type || 'zero'}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
+                            <EligibilityRulesMiniTable rules={rules} />
                           </div>
                         );
                       })}
@@ -3799,44 +3988,7 @@ function PayrollPageInner() {
                           </div>
                         </div>
 
-                        <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
-                          <table className="w-full text-start text-xs sm:text-sm" data-testid="cycle-inputs-counts-table">
-                            <thead className="bg-[var(--raised)]/60 border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-                              <tr>
-                                <th className="py-2.5 px-3.5 text-start">النوع</th>
-                                <th className="py-2.5 px-3.5 text-start">عدد الصفوف</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[var(--line)]">
-                              {countEntries.map(([kind, count]) => {
-                                const isZero = count === 0;
-                                const label = CAPTURE_KIND_LABELS[kind] || kind;
-                                return (
-                                  <tr
-                                    key={kind}
-                                    data-kind={kind}
-                                    data-zero={isZero ? 'true' : 'false'}
-                                    className={
-                                      isZero
-                                        ? 'bg-[var(--warning)]/10 text-[var(--warning)] font-bold'
-                                        : 'hover:bg-[var(--row-hover)] text-[var(--ink)]'
-                                    }
-                                  >
-                                    <td className="py-2.5 px-3.5 font-semibold">
-                                      <div className="flex items-center gap-2">
-                                        {isZero && <AlertTriangle size={14} className="shrink-0 text-[var(--warning)]" />}
-                                        <span>{label}</span>
-                                      </div>
-                                    </td>
-                                    <td className="py-2.5 px-3.5">
-                                      <span className="num font-mono font-bold">{count}</span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
+                        <CycleInputsCountsTable countEntries={countEntries} kindLabels={CAPTURE_KIND_LABELS} />
                       </div>
                     )}
                   </div>
@@ -4508,41 +4660,7 @@ function PayrollPageInner() {
                         </p>
                       </div>
 
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-start text-xs sm:text-sm">
-                          <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                            <tr>
-                              <th className="p-3 text-start">البند / الفئة</th>
-                              <th className="p-3 text-start">كفالة × سيارة</th>
-                              <th className="p-3 text-start">كفالة × دباب</th>
-                              <th className="p-3 text-start">كفالة × خاص</th>
-                              <th className="p-3 text-start">خارجي × سيارة</th>
-                              <th className="p-3 text-start">خارجي × دباب</th>
-                              <th className="p-3 text-start">خارجي × خاص</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-[var(--line)]">
-                            <tr>
-                              <td className="p-3 font-semibold">إيجار المركبة اليومي</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_car || '60.00'} ر.س</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_bike || '26.67'} ر.س</td>
-                              <td className="p-3 num text-[var(--muted)]">0.00 ر.س</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_car || '60.00'} ر.س</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_bike || '26.67'} ر.س</td>
-                              <td className="p-3 num text-[var(--muted)]">0.00 ر.س</td>
-                            </tr>
-                            <tr>
-                              <td className="p-3 font-semibold">حساب إيراد الإيجار</td>
-                              <td className="p-3 font-mono text-xs">{acc?.vehicleIncomeCar || '411102'}</td>
-                              <td className="p-3 font-mono text-xs">{acc?.vehicleIncomeBike || '411102'}</td>
-                              <td className="p-3 text-[var(--muted)]">-</td>
-                              <td className="p-3 font-mono text-xs">{acc?.vehicleIncomeCar || '411102'}</td>
-                              <td className="p-3 font-mono text-xs">{acc?.vehicleIncomeBike || '411102'}</td>
-                              <td className="p-3 text-[var(--muted)]">-</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
+                      <GlobalCategoryMatrixTable rent={rent} acc={acc} />
                     </div>
                   </div>
                 );
@@ -4628,20 +4746,21 @@ function PayrollPageInner() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar controller={policiesFilter} totalCount={policies.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">اسم السياسة</th>
-                      <th className="p-3 text-start">النوع</th>
-                      <th className="p-3 text-start">المنصة</th>
-                      <th className="p-3 text-start">تاريخ السريان</th>
-                      <th className="p-3 text-start">الحالة</th>
+                      <AutoFilterTh controller={policiesFilter} colKey="name" className="p-3 text-start" />
+                      <AutoFilterTh controller={policiesFilter} colKey="kind" className="p-3 text-start" />
+                      <AutoFilterTh controller={policiesFilter} colKey="platform" className="p-3 text-start" />
+                      <AutoFilterTh controller={policiesFilter} colKey="effectiveFrom" className="p-3 text-start" />
+                      <AutoFilterTh controller={policiesFilter} colKey="status" className="p-3 text-start" />
                       <th className="p-3 text-start">إجراء</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {policies.map((p) => (
+                    {policiesFilter.rows.map((p) => (
                       <tr key={p.id} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-bold text-[var(--ink)]">{p.name || p.id}</td>
                         <td className="p-3 text-xs text-[var(--muted)]">{p.kind}</td>
@@ -5316,17 +5435,18 @@ function PayrollPageInner() {
               </div>
 
               <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
+                <AutoFilterBar controller={ledgerRowsFilter} totalCount={ledgerRows.length} />
                 <table className="w-full text-start text-xs">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)] text-[var(--muted)]">
                     <tr>
-                      <th className="p-2 text-start">الفترة</th>
-                      <th className="p-2 text-start">نوع الحركة</th>
-                      <th className="p-2 text-start">المبلغ</th>
-                      <th className="p-2 text-start">المرجع</th>
+                      <AutoFilterTh controller={ledgerRowsFilter} colKey="period" className="p-2 text-start" />
+                      <AutoFilterTh controller={ledgerRowsFilter} colKey="kind" className="p-2 text-start" />
+                      <AutoFilterTh controller={ledgerRowsFilter} colKey="amount" className="p-2 text-start" />
+                      <AutoFilterTh controller={ledgerRowsFilter} colKey="sourceRef" className="p-2 text-start" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {ledgerData.rows?.map((row, idx) => (
+                    {ledgerRowsFilter.rows.map((row, idx) => (
                       <tr key={idx}>
                         <td className="p-2 font-mono">{row.period}</td>
                         <td className="p-2">{row.kind}</td>
@@ -5555,5 +5675,280 @@ export default function PayrollPage() {
     >
       <PayrollPageInner />
     </Suspense>
+  );
+}
+
+function SchemeCategoriesTable({ categories }: { categories: Record<string, any> }) {
+  const rows = useMemo(
+    () => Object.entries(categories || {}).map(([catKey, cell]) => ({ catKey, cell: cell || {} })),
+    [categories]
+  );
+  const cols = useMemo(
+    () => [
+      { key: 'catKey', header: 'الفئة التشغيلية (الكفالة × المركبة)', type: 'list' as const, getValue: (r: { catKey: string; cell: any }) => r.catKey },
+      {
+        key: 'enabled',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (r: { catKey: string; cell: any }) => (r.cell.enabled ? 'enabled' : 'disabled'),
+        labelOf: (v: unknown) => (v === 'enabled' ? 'مفعل' : 'معطل'),
+        toneOf: (v: unknown) => (v === 'enabled' ? 'success' : 'neutral'),
+      },
+      { key: 'dailyCommission', header: 'العمولة اليومية', type: 'number' as const, numeric: true, getValue: (r: { catKey: string; cell: any }) => Number(r.cell.dailyCommission ?? 0) },
+      { key: 'monthlyCommission', header: 'العمولة الشهرية', type: 'number' as const, numeric: true, getValue: (r: { catKey: string; cell: any }) => Number(r.cell.monthlyCommission ?? 0) },
+      { key: 'companyPercent', header: 'نسبة الشركة', type: 'number' as const, numeric: true, getValue: (r: { catKey: string; cell: any }) => Number(r.cell.companyPercent ?? 0) },
+      {
+        key: 'chargeCompanyVehicle',
+        header: 'مركبة الشركة',
+        type: 'list' as const,
+        getValue: (r: { catKey: string; cell: any }) => (r.cell.chargeCompanyVehicle ? 'yes' : 'no'),
+        labelOf: (v: unknown) => (v === 'yes' ? 'نعم (يُخصم)' : 'لا'),
+      },
+    ],
+    []
+  );
+  const ctrl = useTableAutoFilter(rows, cols);
+  return (
+    <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)]">
+      <AutoFilterBar controller={ctrl} totalCount={rows.length} />
+      <table className="w-full text-start text-xs">
+        <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
+          <tr>
+            <AutoFilterTh controller={ctrl} colKey="catKey" className="p-2.5 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="enabled" className="p-2.5 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="dailyCommission" className="p-2.5 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="monthlyCommission" className="p-2.5 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="companyPercent" className="p-2.5 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="chargeCompanyVehicle" className="p-2.5 text-start" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--line)]">
+          {ctrl.rows.map(({ catKey, cell }) => (
+            <tr key={catKey}>
+              <td className="p-2.5 font-bold font-mono">{catKey}</td>
+              <td className="p-2.5">
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    cell.enabled
+                      ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+                      : 'bg-[var(--muted)]/15 text-[var(--muted)]'
+                  }`}
+                >
+                  {cell.enabled ? 'مفعل' : 'معطل'}
+                </span>
+              </td>
+              <td className="p-2.5 num font-mono">{cell.dailyCommission ? `${cell.dailyCommission} ر.س` : '-'}</td>
+              <td className="p-2.5 num font-mono">{cell.monthlyCommission ? `${cell.monthlyCommission} ر.س` : '-'}</td>
+              <td className="p-2.5 num font-mono">{cell.companyPercent ? `${cell.companyPercent}%` : '-'}</td>
+              <td className="p-2.5 font-mono">{cell.chargeCompanyVehicle ? 'نعم (يُخصم)' : 'لا'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function EligibilityRulesMiniTable({
+  rules,
+}: {
+  rules: Array<{ metric?: string; operator?: string; threshold?: number | string; effect?: { type?: string } }>;
+}) {
+  const cols = useMemo(
+    () => [
+      { key: 'metric', header: 'المعيار (Metric)', type: 'list' as const, getValue: (r: any) => r.metric || '' },
+      { key: 'operator', header: 'عامل المقارنة', type: 'list' as const, getValue: (r: any) => r.operator || '' },
+      { key: 'threshold', header: 'الحد الأدنى (Threshold)', type: 'number' as const, numeric: true, getValue: (r: any) => Number(r.threshold ?? 0) },
+      {
+        key: 'effect',
+        header: 'الأثر عند عدم التحقق',
+        type: 'list' as const,
+        getValue: (r: any) => r.effect?.type || 'zero',
+        toneOf: (v: unknown) => (v === 'zero' ? 'danger' : 'warning'),
+      },
+    ],
+    []
+  );
+  const ctrl = useTableAutoFilter(rules, cols);
+  return (
+    <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)]">
+      <AutoFilterBar controller={ctrl} totalCount={rules.length} />
+      <table className="w-full text-start text-xs">
+        <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
+          <tr>
+            <AutoFilterTh controller={ctrl} colKey="metric" className="p-2.5 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="operator" className="p-2.5 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="threshold" className="p-2.5 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="effect" className="p-2.5 text-start" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--line)]">
+          {ctrl.rows.map((r, idx) => (
+            <tr key={`${r.metric || 'rule'}-${idx}`}>
+              <td className="p-2.5 font-bold font-mono">{r.metric}</td>
+              <td className="p-2.5 font-mono">{r.operator}</td>
+              <td className="p-2.5 num font-bold">{r.threshold}</td>
+              <td className="p-2.5 text-[var(--danger)] font-mono">{r.effect?.type || 'zero'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CycleInputsCountsTable({
+  countEntries,
+  kindLabels,
+}: {
+  countEntries: Array<[string, number]>;
+  kindLabels: Record<string, string>;
+}) {
+  const rows = useMemo(
+    () => countEntries.map(([kind, count]) => ({ kind, label: kindLabels[kind] || kind, count })),
+    [countEntries, kindLabels]
+  );
+  const cols = useMemo(
+    () => [
+      {
+        key: 'kind',
+        header: 'النوع',
+        type: 'list' as const,
+        getValue: (r: { kind: string; label: string; count: number }) => r.kind,
+        labelOf: (v: unknown) => kindLabels[String(v ?? '')] || String(v ?? ''),
+        toneOf: (_v: unknown, row?: { kind: string; label: string; count: number }) =>
+          row && row.count === 0 ? 'warning' : 'success',
+      },
+      { key: 'count', header: 'عدد الصفوف', type: 'number' as const, numeric: true, getValue: (r: { kind: string; label: string; count: number }) => r.count },
+    ],
+    [kindLabels]
+  );
+  const ctrl = useTableAutoFilter(rows, cols);
+  return (
+    <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
+      <AutoFilterBar controller={ctrl} totalCount={rows.length} />
+      <table className="w-full text-start text-xs sm:text-sm" data-testid="cycle-inputs-counts-table">
+        <thead className="bg-[var(--raised)]/60 border-b border-[var(--line)] text-[var(--muted)] font-semibold">
+          <tr>
+            <AutoFilterTh controller={ctrl} colKey="kind" className="py-2.5 px-3.5 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="count" className="py-2.5 px-3.5 text-start" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--line)]">
+          {ctrl.rows.map(({ kind, label, count }) => {
+            const isZero = count === 0;
+            return (
+              <tr
+                key={kind}
+                data-kind={kind}
+                data-zero={isZero ? 'true' : 'false'}
+                className={
+                  isZero
+                    ? 'bg-[var(--warning)]/10 text-[var(--warning)] font-bold'
+                    : 'hover:bg-[var(--row-hover)] text-[var(--ink)]'
+                }
+              >
+                <td className="py-2.5 px-3.5 font-semibold">
+                  <div className="flex items-center gap-2">
+                    {isZero && <AlertTriangle size={14} className="shrink-0 text-[var(--warning)]" />}
+                    <span>{label}</span>
+                  </div>
+                </td>
+                <td className="py-2.5 px-3.5">
+                  <span className="num font-mono font-bold">{count}</span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function GlobalCategoryMatrixTable({ rent, acc }: { rent: any; acc: any }) {
+  const rows = useMemo(
+    () => [
+      {
+        id: 'rent',
+        label: 'إيجار المركبة اليومي',
+        c1: String(rent?.company_car || '60.00'),
+        c2: String(rent?.company_bike || '26.67'),
+        c3: '0.00',
+        c4: String(rent?.company_car || '60.00'),
+        c5: String(rent?.company_bike || '26.67'),
+        c6: '0.00',
+        isMoney: true,
+      },
+      {
+        id: 'account',
+        label: 'حساب إيراد الإيجار',
+        c1: String(acc?.vehicleIncomeCar || '411102'),
+        c2: String(acc?.vehicleIncomeBike || '411102'),
+        c3: '',
+        c4: String(acc?.vehicleIncomeCar || '411102'),
+        c5: String(acc?.vehicleIncomeBike || '411102'),
+        c6: '',
+        isMoney: false,
+      },
+    ],
+    [rent, acc]
+  );
+  const cols = useMemo(
+    () => [
+      { key: 'label', header: 'البند / الفئة', type: 'list' as const, getValue: (r: any) => r.label },
+      { key: 'c1', header: 'كفالة × سيارة', type: 'text' as const, getValue: (r: any) => r.c1 },
+      { key: 'c2', header: 'كفالة × دباب', type: 'text' as const, getValue: (r: any) => r.c2 },
+      { key: 'c3', header: 'كفالة × خاص', type: 'text' as const, getValue: (r: any) => r.c3 },
+      { key: 'c4', header: 'خارجي × سيارة', type: 'text' as const, getValue: (r: any) => r.c4 },
+      { key: 'c5', header: 'خارجي × دباب', type: 'text' as const, getValue: (r: any) => r.c5 },
+      { key: 'c6', header: 'خارجي × خاص', type: 'text' as const, getValue: (r: any) => r.c6 },
+    ],
+    []
+  );
+  const ctrl = useTableAutoFilter(rows, cols);
+  return (
+    <div className="overflow-x-auto">
+      <AutoFilterBar controller={ctrl} totalCount={rows.length} />
+      <table className="w-full text-start text-xs sm:text-sm">
+        <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
+          <tr>
+            <AutoFilterTh controller={ctrl} colKey="label" className="p-3 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="c1" className="p-3 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="c2" className="p-3 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="c3" className="p-3 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="c4" className="p-3 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="c5" className="p-3 text-start" />
+            <AutoFilterTh controller={ctrl} colKey="c6" className="p-3 text-start" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--line)]">
+          {ctrl.rows.map((r) => (
+            <tr key={r.id}>
+              <td className="p-3 font-semibold">{r.label}</td>
+              {r.isMoney ? (
+                <>
+                  <td className="p-3 num font-bold text-[var(--accent)]">{r.c1} ر.س</td>
+                  <td className="p-3 num font-bold text-[var(--accent)]">{r.c2} ر.س</td>
+                  <td className="p-3 num text-[var(--muted)]">{r.c3} ر.س</td>
+                  <td className="p-3 num font-bold text-[var(--accent)]">{r.c4} ر.س</td>
+                  <td className="p-3 num font-bold text-[var(--accent)]">{r.c5} ر.س</td>
+                  <td className="p-3 num text-[var(--muted)]">{r.c6} ر.س</td>
+                </>
+              ) : (
+                <>
+                  <td className="p-3 font-mono text-xs">{r.c1}</td>
+                  <td className="p-3 font-mono text-xs">{r.c2}</td>
+                  <td className="p-3 text-[var(--muted)]">-</td>
+                  <td className="p-3 font-mono text-xs">{r.c4}</td>
+                  <td className="p-3 font-mono text-xs">{r.c5}</td>
+                  <td className="p-3 text-[var(--muted)]">-</td>
+                </>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
