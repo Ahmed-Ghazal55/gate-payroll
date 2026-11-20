@@ -23,10 +23,25 @@ public sealed class PaySourcesLiveQueryTests
     }
 
     [TestMethod]
+    public void PreviewVehicleAssignmentPeriodsSqlUsesRiyadhDayAndRealRider()
+    {
+        var (sql, names) = PaySourcesLiveQuery.PreviewVehicleAssignmentPeriodsSql(OneCompany);
+        Assert.Contains("[app].[RiderVehicleAssignments]", sql, StringComparison.Ordinal);
+        Assert.Contains("IsRealRider", sql, StringComparison.Ordinal);
+        Assert.Contains("RealRiders", sql, StringComparison.Ordinal);
+        Assert.Contains("SWITCHOFFSET", sql, StringComparison.Ordinal);
+        Assert.Contains("@from", string.Join(',', names), StringComparison.Ordinal);
+        Assert.Contains("@to", string.Join(',', names), StringComparison.Ordinal);
+        Assert.DoesNotContain("].[Vin]", sql, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
     public void EmptyCompanyScopeBecomesFalsePredicate()
     {
         var empty = new LiveOperationsQuery.Scope(false, [], [], [], []);
         var (fuel, _) = PaySourcesLiveQuery.PreviewFuelConsumptionSql(empty);
         Assert.Contains("1=0", fuel, StringComparison.Ordinal);
+        var (vehicle, _) = PaySourcesLiveQuery.PreviewVehicleAssignmentPeriodsSql(empty);
+        Assert.Contains("1=0", vehicle, StringComparison.Ordinal);
     }
 }

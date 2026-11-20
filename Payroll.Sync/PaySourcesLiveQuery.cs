@@ -162,6 +162,121 @@ public static class PaySourcesLiveQuery
         ["sponsorUnifiedNumber"] = Str(r, "SponsorUnifiedNumber")
     };
 
+    public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewVehicleAssignmentPeriodsSql(
+        LiveOperationsQuery.Scope? scope = null)
+    {
+        using var cmd = new SqlCommand();
+        Add(cmd, "@from", "2026-10-01");
+        Add(cmd, "@to", "2026-10-31");
+        Add(cmd, "@skip", 0);
+        Add(cmd, "@take", 50);
+        string sql = VehicleAssignmentPeriodsSql(ScopeSponsor(scope, cmd, "s"))
+            + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
+    }
+
+    public static PageResult VehicleAssignmentPeriods(DbConnection source, DateOnly from, DateOnly to,
+        int page, int pageSize, string search, LiveOperationsQuery.Scope scope, CancellationToken ct = default)
+    {
+        EnsureSql(source);
+        if (to < from) throw new ImportFailure("invalid_period");
+        pageSize = Math.Min(Math.Max(1, pageSize), MaxPageSize);
+        page = Math.Max(1, page);
+        int skip = checked((page - 1) * pageSize);
+        using var cmd = source.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        using var cancel = SyncCancellation.Register(cmd, ct);
+        Add(cmd, "@from", from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Add(cmd, "@to", to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        string scopeSql = ScopeSponsor(scope, cmd, "s");
+        if (search.Length > 0) Add(cmd, "@q", "%" + EscapeLike(search) + "%");
+        Add(cmd, "@skip", skip);
+        Add(cmd, "@take", pageSize);
+        cmd.CommandText = VehicleAssignmentPeriodsSql(scopeSql, search.Length > 0)
+            + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        long total = 0;
+        var summary = new JsonObject { ["rows"] = 0L, ["openAssignments"] = 0L };
+        var items = new List<JsonObject>();
+        using (var reader = cmd.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                ct.ThrowIfCancellationRequested();
+                if (items.Count == 0)
+                {
+                    total = Long(reader, "TotalCount");
+                    summary = new JsonObject
+                    {
+                        ["rows"] = total,
+                        ["openAssignments"] = Long(reader, "OpenCount")
+                    };
+                }
+                items.Add(MapVehicleAssignmentRow(reader));
+            }
+        }
+        return new(items, total, summary, DateTimeOffset.UtcNow);
+    }
+
+    static string VehicleAssignmentPeriodsSql(string scopeSql, bool search = false)
+    {
+        string searchPred = search
+            ? " AND (v.[PlateNumberAr] LIKE @q OR v.[PlateNumberEn] LIKE @q OR v.[AssetNumber] LIKE @q OR e.[FullNameAr] LIKE @q OR e.[IqamaNo] LIKE @q OR rr.[Name] LIKE @q OR rr.[IqamaNo] LIKE @q)"
+            : "";
+        return $"""
+            WITH filtered AS (
+                SELECT a.[Id], a.[RiderProfileId], a.[VehicleId], a.[IsRealRider],
+                       a.[StartedAtUtc], a.[EndedAtUtc], a.[StartOdometer], a.[EndOdometer],
+                       a.[PermissionStartsOn], a.[PermissionEndsOn], a.[Status],
+                       v.[AssetNumber], v.[PlateNumberAr], v.[PlateNumberEn], v.[VehicleType],
+                       s.[UnifiedNationalNumber] AS SponsorUnifiedNumber,
+                       CASE WHEN a.[IsRealRider]=1 THEN e.[FullNameAr] ELSE rr.[Name] END AS RiderNameAr,
+                       CASE WHEN a.[IsRealRider]=1 THEN e.[IqamaNo] ELSE rr.[IqamaNo] END AS IqamaNo,
+                       CASE WHEN a.[EndedAtUtc] IS NULL THEN 1 ELSE 0 END AS IsOpen
+                FROM [app].[RiderVehicleAssignments] a
+                INNER JOIN [app].[Vehicles] v ON v.[Id]=a.[VehicleId] AND v.[IsDeleted]=0
+                LEFT JOIN [app].[Sponsors] s ON s.[Id]=v.[SponsorId] AND s.[IsDeleted]=0
+                LEFT JOIN [app].[RiderProfiles] rp ON rp.[Id]=a.[RiderProfileId] AND rp.[IsDeleted]=0
+                LEFT JOIN [app].[Employees] e ON e.[Id]=rp.[EmployeeId] AND e.[IsDeleted]=0
+                LEFT JOIN [app].[RealRiders] rr ON rr.[RiderVehicleAssignmentId]=a.[Id]
+                WHERE a.[IsDeleted]=0
+                  AND CONVERT(date, SWITCHOFFSET(a.[StartedAtUtc], '+03:00')) <= CONVERT(date, @to)
+                  AND (a.[EndedAtUtc] IS NULL OR CONVERT(date, SWITCHOFFSET(a.[EndedAtUtc], '+03:00')) >= CONVERT(date, @from))
+                  {scopeSql}{searchPred}
+            ),
+            agg AS (
+                SELECT COUNT_BIG(*) AS TotalCount,
+                       SUM(IsOpen) AS OpenCount
+                FROM filtered
+            )
+            SELECT f.*, a.TotalCount, a.OpenCount
+            FROM filtered f CROSS JOIN agg a
+            ORDER BY f.StartedAtUtc, f.Id
+            """;
+    }
+
+    static JsonObject MapVehicleAssignmentRow(IDataRecord r) => new()
+    {
+        ["id"] = Str(r, "Id"),
+        ["riderProfileId"] = Str(r, "RiderProfileId"),
+        ["vehicleId"] = Str(r, "VehicleId"),
+        ["isRealRider"] = Bool(r, "IsRealRider"),
+        ["riderNameAr"] = Str(r, "RiderNameAr"),
+        ["iqama"] = Str(r, "IqamaNo"),
+        ["assetNumber"] = Str(r, "AssetNumber"),
+        ["plateNumberAr"] = Str(r, "PlateNumberAr"),
+        ["plateNumberEn"] = Str(r, "PlateNumberEn"),
+        ["vehicleType"] = Str(r, "VehicleType"),
+        ["startedAt"] = Str(r, "StartedAtUtc"),
+        ["endedAt"] = Str(r, "EndedAtUtc"),
+        ["startOdometer"] = NullLong(r, "StartOdometer"),
+        ["endOdometer"] = NullLong(r, "EndOdometer"),
+        ["permissionStartsOn"] = Str(r, "PermissionStartsOn"),
+        ["permissionEndsOn"] = Str(r, "PermissionEndsOn"),
+        ["status"] = Str(r, "Status"),
+        ["sponsorUnifiedNumber"] = Str(r, "SponsorUnifiedNumber"),
+        ["isOpen"] = Bool(r, "IsOpen")
+    };
+
     static void EnsureSql(DbConnection source)
     {
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");

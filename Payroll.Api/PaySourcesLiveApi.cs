@@ -21,6 +21,8 @@ public static class PaySourcesLiveApi
     {
         api.MapGet("/pay/sources/fuel-consumption", (HttpContext ctx) => Fuel(store, config, env, ctx))
             .WithTags("Payroll").WithSummary("L1 fuel consumption per rider/card/period (Omar live, facts only)");
+        api.MapGet("/pay/sources/vehicle-assignment-periods", (HttpContext ctx) => Vehicles(store, config, env, ctx))
+            .WithTags("Payroll").WithSummary("L1 vehicle assignment periods per rider (Omar live, facts only)");
     }
 
     static object Fuel(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
@@ -90,6 +92,80 @@ public static class PaySourcesLiveApi
             ["totalInclVat"] = rows.Sum(r => r.N("totalInclVat"))
         };
         return new { items, total = rows.Count, page, pageSize, summary, month = period };
+    }
+    static object Vehicles(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "pay.view");
+        var (from, to) = ParsePeriod(ctx);
+        var (page, pageSize, search) = ParsePage(ctx);
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            return store.Read(c => Envelope(StoreVehiclePeriods(c, ctx.User, from, to, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
+        return LiveRead(ctx, token =>
+        {
+            using var erp = OpenErp(config);
+            return store.Read(c =>
+            {
+                try
+                {
+                    var result = PaySourcesLiveQuery.VehicleAssignmentPeriods(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
+                    return Envelope(new
+                    {
+                        items = result.Items,
+                        total = result.Total,
+                        page,
+                        pageSize,
+                        summary = result.Summary,
+                        from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                    }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                }
+                catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
+            });
+        }, "pay-sources-vehicle");
+    }
+    static object StoreVehiclePeriods(DbConnection c, ClaimsPrincipal user, DateOnly from, DateOnly to, int page, int pageSize)
+    {
+        var rows = Operations.List(c, user, "vehicle_assignment")
+            .Where(r => Overlaps(r, from, to, "startedAt", "endedAt", "StartedAtUtc", "EndedAtUtc"))
+            .Select(r => new JsonObject
+            {
+                ["id"] = r.S("id"),
+                ["riderProfileId"] = r.S("riderId", r.S("riderProfileId")),
+                ["vehicleId"] = r.S("vehicleId"),
+                ["isRealRider"] = r.B("isRealRider") || r.B("IsRealRider"),
+                ["riderNameAr"] = r.S("riderNameAr"),
+                ["iqama"] = r.S("iqama"),
+                ["assetNumber"] = r.S("assetNumber"),
+                ["plateNumberAr"] = r.S("plateNumberAr"),
+                ["plateNumberEn"] = r.S("plateNumberEn"),
+                ["vehicleType"] = r.S("vehicleType"),
+                ["startedAt"] = r.S("startedAt", r.S("StartedAtUtc")),
+                ["endedAt"] = r.S("endedAt", r.S("EndedAtUtc")),
+                ["startOdometer"] = r.N("startOdometer"),
+                ["endOdometer"] = r.N("endOdometer"),
+                ["permissionStartsOn"] = r.S("permissionStartsOn"),
+                ["permissionEndsOn"] = r.S("permissionEndsOn"),
+                ["status"] = r.S("status"),
+                ["sponsorUnifiedNumber"] = "",
+                ["isOpen"] = r.S("endedAt", r.S("EndedAtUtc")) == ""
+            }).ToList();
+        int skip = (page - 1) * pageSize;
+        var items = rows.Skip(skip).Take(pageSize).ToList();
+        var summary = new JsonObject
+        {
+            ["rows"] = rows.Count,
+            ["openAssignments"] = rows.Count(r => r.B("isOpen"))
+        };
+        return new
+        {
+            items,
+            total = rows.Count,
+            page,
+            pageSize,
+            summary,
+            from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        };
     }
     static bool Overlaps(JsonObject row, DateOnly from, DateOnly to, params string[] keys)
     {
