@@ -114,8 +114,36 @@ public static class SchemaSalPayRun
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_item","IX_sal_item_account","account_code");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","rider_request","IX_sal_request_company","company_id");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_rider","IX_sal_rider_erp","erp_rider_id,period_month");
+        SchemaMoneyGuard.Retain(c,tx,"sal","pay_run_rider","o.pay_run_id=NEW.pay_run_id AND o.erp_rider_id=NEW.erp_rider_id");
+        EnsureRiderProvenance(c,tx);
         EnsureClaimRunFlags(c,tx);
         EnsureHoldBlocksBank(c,tx);
+    }
+
+    static void EnsureRiderProvenance(DbConnection c,DbTransaction? tx)
+    {
+        string p=SchemaSql.Q(c,"pay","payable"),a=SchemaSql.Q(c,"pay","payment_allocation"),r=SchemaSql.Q(c,"sal","pay_run_rider"),run=SchemaSql.Q(c,"sal","pay_run");
+        SchemaMoneyGuard.Rule(c,tx,"sal","pay_run_rider","TR_rider_provenance",
+            n=>$"""
+                EXISTS(SELECT 1 FROM {run} pr JOIN {a} a ON a.payable_id={n}.payable_id
+                  WHERE pr.id={n}.pay_run_id AND (pr.run_mode=1 AND a.claim_status IN (1,2) OR pr.payout_blocked=1 AND a.claim_status=2))
+                """,
+            (o,n)=>$"{n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"id","pay_run_id","company_id","period_month","run_mode")}) OR ({o}.payable_id IS NOT NULL AND ({SchemaMoneyGuard.Changed(c,n,o,"payable_id")}))");
+        // Fail closed for an unlinked salary source; its source id cannot be redirected to hide the owning run.
+        SchemaMoneyGuard.Rule(c,tx,"pay","payment_allocation","TR_claim_salary_source",
+            n=>$"""
+                {n}.claim_status IN (1,2) AND EXISTS(SELECT 1 FROM {p} p WHERE p.id={n}.payable_id AND (p.kind='pay_run_rider' OR p.source_table='sal.pay_run_rider')
+                  AND (p.kind<>'pay_run_rider' OR p.source_table<>'sal.pay_run_rider' OR NOT EXISTS(SELECT 1 FROM {r} r WHERE r.id=p.source_id AND r.company_id=p.company_id AND r.period_month=p.period_month)))
+                """);
+        SchemaMoneyGuard.Rule(c,tx,"pay","payable","TR_payable_source",n=>"1=0",
+            (o,n)=>$"{n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"source_table","source_id","kind","company_id","period_month")})");
+        // A live, already-paid source cannot be turned into a blocked/simulation source after the fact.
+        SchemaMoneyGuard.Rule(c,tx,"sal","pay_run","TR_run_existing_claims",
+            n=>$"""
+                EXISTS(SELECT 1 FROM {r} r JOIN {p} p ON p.id=r.payable_id OR p.source_id=r.id
+                  JOIN {a} a ON a.payable_id=p.id WHERE r.pay_run_id={n}.id
+                  AND ({n}.run_mode=1 AND a.claim_status IN (1,2) OR {n}.payout_blocked=1 AND a.claim_status=2))
+                """);
     }
 
     /// <summary>L1 / BR shared-rider hold (M-0587): a rider with an open hold for the month is never bank eligible.
@@ -158,7 +186,7 @@ public static class SchemaSalPayRun
     /// Checked only when a claim enters status 1 or 2, so releases and reversals stay possible.</summary>
     static void EnsureClaimRunFlags(DbConnection c,DbTransaction? tx)
     {
-        string a=SchemaSql.Q(c,"pay","payment_allocation"),rider=SchemaSql.Q(c,"sal","pay_run_rider"),run=SchemaSql.Q(c,"sal","pay_run");
+        string p=SchemaSql.Q(c,"pay","payable"),a=SchemaSql.Q(c,"pay","payment_allocation"),rider=SchemaSql.Q(c,"sal","pay_run_rider"),run=SchemaSql.Q(c,"sal","pay_run");
         const string message="Payable of a simulation or payout-blocked run cannot be claimed or paid";
         if(SchemaSql.IsSql(c))
             SchemaSql.Exec(c,tx,$"""
@@ -166,7 +194,8 @@ public static class SchemaSalPayRun
                 BEGIN
                   SET NOCOUNT ON;
                   IF EXISTS(SELECT 1 FROM inserted i LEFT JOIN deleted d ON d.id=i.id
-                    JOIN {rider} r ON r.payable_id=i.payable_id JOIN {run} pr ON pr.id=r.pay_run_id
+                    JOIN {p} p ON p.id=i.payable_id
+                    JOIN {rider} r ON r.payable_id=i.payable_id OR p.source_id=r.id JOIN {run} pr ON pr.id=r.pay_run_id
                     WHERE i.claim_status IN (1,2) AND (d.id IS NULL OR d.claim_status<>i.claim_status)
                       AND (pr.run_mode=1 OR (i.claim_status=2 AND pr.payout_blocked=1)))
                     THROW 51018,'{message}',1;
@@ -177,8 +206,8 @@ public static class SchemaSalPayRun
                 SchemaSql.SqliteTrigger(c,tx,$"""
                     CREATE TRIGGER TR_allocation_run_flags_{(insert?"insert":"update")} BEFORE {(insert?"INSERT":"UPDATE OF claim_status")} ON {a}
                     WHEN NEW.claim_status IN (1,2){(insert?"":" AND NEW.claim_status<>OLD.claim_status")} BEGIN
-                      SELECT RAISE(ABORT,'{message}') WHERE EXISTS(SELECT 1 FROM {rider} r JOIN {run} pr ON pr.id=r.pay_run_id
-                        WHERE r.payable_id=NEW.payable_id AND (pr.run_mode=1 OR (NEW.claim_status=2 AND pr.payout_blocked=1)));
+                      SELECT RAISE(ABORT,'{message}') WHERE EXISTS(SELECT 1 FROM {p} p JOIN {rider} r ON r.payable_id=p.id OR p.source_id=r.id JOIN {run} pr ON pr.id=r.pay_run_id
+                        WHERE p.id=NEW.payable_id AND (pr.run_mode=1 OR (NEW.claim_status=2 AND pr.payout_blocked=1)));
                     END;
                     """);
     }

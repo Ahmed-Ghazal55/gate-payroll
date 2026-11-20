@@ -29,4 +29,18 @@ public static class SchemaMoneyGuard
                     END;
                     """);
     }
+    /// <summary>Retention is unconditional. SQLite REPLACE must be rejected before its implicit delete,
+    /// because the app deliberately does not enable recursive_triggers. Include every alternate unique key.</summary>
+    public static void Retain(DbConnection c,DbTransaction? tx,string schema,string table,string? conflict=null)
+    {
+        string t=SchemaSql.Q(c,schema,table),name=$"TR_{schema}_{table}";
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"CREATE OR ALTER TRIGGER {schema}.{name}_no_delete ON {t} AFTER DELETE AS BEGIN IF EXISTS(SELECT 1 FROM deleted) THROW 51031,'Money rows cannot be deleted',1; END;");
+        else
+        {
+            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER {name}_no_delete BEFORE DELETE ON {t} BEGIN SELECT RAISE(ABORT,'Money rows cannot be deleted'); END;");
+            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER {name}_no_replace BEFORE INSERT ON {t} WHEN EXISTS(SELECT 1 FROM {t} o WHERE o.id=NEW.id{(conflict==null?"":" OR ("+conflict+")")}) BEGIN SELECT RAISE(ABORT,'Money row replacement is forbidden'); END;");
+        }
+    }
+
 }

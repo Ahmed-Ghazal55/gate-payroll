@@ -120,7 +120,7 @@ internal static class MoneySchemaFixture
     public static string Payable(DbConnection c,string company,decimal amount=100,string month="2026-11-01")
     {
         string id=Id();
-        Exec(c,null,"INSERT INTO pay_payable(id,kind,source_table,source_id,company_id,amount_due,period_month) VALUES(@id,'pay_run_rider','sal.pay_run_rider',@id,@company,@amount,@month)",("@id",id),("@company",company),("@amount",amount),("@month",month));
+        Exec(c,null,"INSERT INTO pay_payable(id,kind,source_table,source_id,company_id,amount_due,period_month) VALUES(@id,'document_line','synthetic.document_line',@id,@company,@amount,@month)",("@id",id),("@company",company),("@amount",amount),("@month",month));
         return id;
     }
 }
