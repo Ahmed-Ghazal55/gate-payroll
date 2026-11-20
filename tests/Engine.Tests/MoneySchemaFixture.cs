@@ -85,6 +85,18 @@ internal static class MoneySchemaFixture
         Exec(c,null,"INSERT INTO pay_payment(id,payment_no,company_id,payer_company_id,period_month,paid_on,amount) VALUES(@id,@id,@company,@payer,@month,@month,100)",("@id",id),("@company",company),("@payer",payer??company),("@month",month));
         return id;
     }
+    // Build actual linked reversal evidence before the state change that releases posted claims.
+    public static void PreparePaymentReversal(DbConnection c,string payment)
+    {
+        string company=(string)Scalar(c,null,"SELECT company_id FROM pay_payment WHERE id=@id",("@id",payment))!;
+        string period=Id(),original=Id(),reverse=Id();
+        Exec(c,null,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) SELECT @id,@c,'2026-11-01',1,datetime('now') WHERE NOT EXISTS(SELECT 1 FROM fin_accounting_period WHERE company_id=@c AND period_month='2026-11-01')",("@id",period),("@c",company));
+        period=(string)Scalar(c,null,"SELECT id FROM fin_accounting_period WHERE company_id=@c AND period_month='2026-11-01'",("@c",company))!;
+        void Journal(string id,string purpose,object reverses,int status)=>Exec(c,null,"INSERT INTO fin_journal(id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,reverses_journal_id,created_at) VALUES(@id,@id,@period,'2026-11-01','2026-11-01','payment',@payment,@c,@purpose,@status,@reverses,datetime('now'))",("@id",id),("@period",period),("@payment",payment),("@c",company),("@purpose",purpose),("@status",status),("@reverses",reverses));
+        Journal(original,"payment",DBNull.Value,3);
+        Exec(c,null,"UPDATE pay_payment SET journal_id=@j,status=2 WHERE id=@id",("@j",original),("@id",payment));
+        Journal(reverse,"reversal",original,2);
+    }
     public static string Invoice(DbConnection c,string company,string? cr=null,string month="2026-11-01")
     {
         string id=Id();
