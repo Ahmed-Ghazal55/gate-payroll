@@ -16,6 +16,7 @@ const proc=spawn(published?path.join(published,exeName):dotnetBin,published?[]:[
 let logs='',cookie='',checks=0,spawnError=null;proc.once('error',e=>{spawnError=e;});proc.stdout.on('data',x=>logs+=x);proc.stderr.on('data',x=>logs+=x);
 async function req(route,body,expected=200,auth=true,headers={}){const r=await fetch(base+route,{method:body===undefined?'GET':'POST',headers:{...(body===undefined?{}:{'Content-Type':'application/json'}),...(auth&&cookie?{Cookie:cookie}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)});const raw=await r.text();assert.equal(r.status,expected,`${route}: ${r.status} ${raw}`);checks++;if(r.headers.get('set-cookie'))cookie=r.headers.get('set-cookie').split(';')[0];try{return JSON.parse(raw)}catch{return raw}}
 const password=randomBytes(24).toString('hex');let adminCookie='';
+const scope=(ids)=>({sponsorIds:ids,platforms:['Jahez','Keeta','HungerStation','Ninja','Chefz','Amazon','Other'],categoryCodes:[],accountCodes:[]});
 async function put(route,body,expected=200){const r=await fetch(base+route,{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)});const d=await r.json();assert.equal(r.status,expected,JSON.stringify(d));checks++;return d;}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
@@ -23,7 +24,9 @@ try{
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
  await seedAccountingCash(req);
  const accountant=await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
- const reviewer=await req('/api/users',{username:'test-reviewer',password,role:'Reviewer'});
+ // Preferred: company scope matching the rider under review (BW). Unscoped reviewers without forms.responses.allCompanies get 404.
+ const reviewer=await req('/api/users',{username:'test-reviewer',password,role:'Reviewer',financialScope:scope(['BW'])});
+ await req('/api/users',{username:'test-unscoped-reviewer',password,role:'Reviewer'});
  const other=await req('/api/users',{username:'test-other',password,role:'Admin'});
  await req('/api/users',{username:'TEST-REVIEWER',password,role:'Reviewer'},400);
  assert.ok((await req('/api/users')).every(u=>!('hash'in u)&&!('salt'in u)));
@@ -41,7 +44,9 @@ try{
  const campaign=await req('/api/campaigns',{title:'Persistent campaign',days:2});let campaigns=await req('/api/campaigns');assert.equal(campaigns[0].publicUrl,campaign.publicUrl);assert.ok(campaign.publicUrl.startsWith('https://'));
  assert.match(await req(campaign.qrCodeUrl,undefined,200),/<svg/);await req(campaign.path,undefined,200,false);
  const choice=await req('/api/public/forms/'+campaign.path.split('/').at(-1),{iqama:iq,name:'Synthetic Rider',workSystem:'tiers'},200,false);
- await put(`/api/users/${reviewer.id}/status`,{status:'active'});await req('/api/auth/login',{username:'test-reviewer',password});
+ await req('/api/auth/login',{username:'test-unscoped-reviewer',password});
+ await req('/api/submissions/'+choice.receipt+'/review',{status:'approved',note:'No company scope',identityReviewed:true},404);
+ cookie=adminCookie;await put(`/api/users/${reviewer.id}/status`,{status:'active'});await req('/api/auth/login',{username:'test-reviewer',password});
  await req('/api/submissions/'+choice.receipt+'/review',{status:'approved',note:'Identity checked',identityReviewed:true});
  cookie=adminCookie;assert.equal((await req('/api/riders'))[0].policyId,'');
  const form=await req('/api/forms/builder',{titleAr:'اختبار',titleEn:'Test',titleUr:'ٹیسٹ',expiresAt:new Date(Date.now()+864e5).toISOString(),maxSubmissions:2,fields:[{id:'iqama',labelAr:'الإقامة',labelEn:'Iqama',labelUr:'اقامہ',type:'iqama',required:true},{id:'system',labelAr:'النظام',type:'radio',required:true,options:['tiers','commission']}]});

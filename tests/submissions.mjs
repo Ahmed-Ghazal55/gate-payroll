@@ -19,7 +19,7 @@ async function put(route,body,expected=200){const r=await fetch(base+route,{meth
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
- await req('/api/users',{username:'test-reviewer',password,role:'Reviewer'});
+ await req('/api/users',{username:'test-reviewer',password,role:'Reviewer',customPermissions:['forms.responses.allCompanies']});
  await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
  const campaign=await req('/api/campaigns',{title:'Response edit contracts',days:2}),other=await req('/api/campaigns',{title:'Isolated campaign',days:2});
  const pub='/api/public/forms/'+campaign.path.split('/').at(-1),otherPub='/api/public/forms/'+other.path.split('/').at(-1);

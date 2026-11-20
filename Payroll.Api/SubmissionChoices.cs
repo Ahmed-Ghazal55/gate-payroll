@@ -27,18 +27,21 @@ public static class SubmissionChoices
         if (iban == "") return;
         d["iban"] = iban.Length >= 4 ? "••••" + iban[^4..] : "••••";
     }
+    /// <summary>See responses of every company when the staff account has no company scope.</summary>
+    public const string PermAllCompanies = "forms.responses.allCompanies";
     /// <summary>
     /// Company scope for a submission/custom-response iqama.
-    /// Forms staff with no <c>finance.sponsorIds</c> claims keep full forms visibility (legacy Reviewer).
+    /// Unscoped staff (no <c>finance.sponsorIds</c>) see all responses only with <see cref="PermAllCompanies"/>; without it they see nothing.
     /// Company-scoped callers must match <see cref="FinancialScopes.Rider"/> (out of scope → 404).
     /// </summary>
     public static bool InRiderScope(DbConnection c, ClaimsPrincipal user, string iqama, DbTransaction? tx = null)
     {
-        // Custom-form answers without an iqama field are not company-scoped.
-        if (iqama == "") return true;
         if (AccessPolicy.Administrator(user) || FinancialScopes.AllCompanies(user)) return true;
-        // No sponsor claims = unscoped forms staff (see all submissions). Scoped users are restricted below.
-        if (!user.FindAll("finance.sponsorIds").Any()) return true;
+        // No sponsor claims: need the dedicated all-companies permission; otherwise empty lists / 404.
+        if (!user.FindAll("finance.sponsorIds").Any())
+            return AccessPolicy.Has(user, PermAllCompanies);
+        // Custom-form answers without an iqama field are not company-scoped for scoped staff.
+        if (iqama == "") return true;
         var rider = Store.Get(c, iqama, "rider", tx);
         if (rider == null) return false;
         return FinancialScopes.Rider(user, rider);

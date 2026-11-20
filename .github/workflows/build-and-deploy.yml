@@ -91,6 +91,7 @@ jobs:
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/enterprise.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/accounting.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/submissions.mjs
+          PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/forms-all-companies.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/iban-form.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/campaigns.mjs
       - name: Publish MonsterASP bundle

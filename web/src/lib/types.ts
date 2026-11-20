@@ -1,8 +1,14 @@
+import type { paths } from './api-contract';
+
+type ApiMe = paths['/api/me']['get']['responses'][200]['content']['application/json'];
+
 export interface UserProfile {
   username: string;
   role: string;
   displayNameAr: string;
   permissions?: string[];
+  /** From the OpenAPI User schema — never hand-written. */
+  financialScope?: ApiMe['financialScope'];
 }
 
 export type NotificationCategory = 'general' | 'personal' | 'system' | 'approvals';
