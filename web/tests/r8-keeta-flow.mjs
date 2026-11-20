@@ -318,6 +318,17 @@ try {
       waitUntil: 'networkidle',
     });
 
+    // Pending invoice is company-scoped; checker must pick BW too.
+    const companyInputB = pageB.locator('#select-invoice-company');
+    await companyInputB.waitFor({ state: 'visible', timeout: 10000 });
+    await companyInputB.click();
+    await companyInputB.fill('BW');
+    await pageB.locator('[role="listbox"] [role="option"]', { hasText: 'BW' }).first().click();
+    await pageB.waitForFunction(() => {
+      const el = document.querySelector('#select-invoice-company');
+      return el && typeof el.value === 'string' && el.value.includes('BW');
+    }, null, { timeout: 5000 });
+
     const approveBtn = pageB.locator('#btn-approve-ninja-invoice');
     await approveBtn.waitFor({ state: 'visible', timeout: 8000 });
     await pageB.locator('#ninja-next-step button', { hasText: 'اعتماد الفاتورة' }).click();
