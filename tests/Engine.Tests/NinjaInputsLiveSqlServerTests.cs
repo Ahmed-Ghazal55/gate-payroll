@@ -75,6 +75,15 @@ public sealed class NinjaInputsLiveSqlServerTests
             var blocked = NinjaInputsLiveQuery.DailyPerformance(conn, emptyScope, period);
             Assert.AreEqual(0L, blocked.Total);
             Assert.AreEqual(0, blocked.Items.Count);
+
+            var deductions = NinjaInputsLiveQuery.DailyDeductions(conn, oneCompany, period);
+            Assert.AreEqual(1L, deductions.Total);
+            Assert.AreEqual(1, deductions.Items.Count);
+            Assert.AreEqual(ProfileA.ToString("D"), deductions.Items[0].S("actualRiderProfileId"), ignoreCase: true);
+            Assert.AreEqual(15m, deductions.Items[0]["deductionsAmount"]!.GetValue<decimal>());
+            Assert.AreEqual("2026-10-01", deductions.Coverage.S("firstDay"));
+            Assert.AreEqual("2026-10-01", deductions.Coverage.S("lastDay"));
+            Assert.IsTrue(deductions.Coverage.B("hasGapAtPeriodEnd"));
         }
         finally
         {

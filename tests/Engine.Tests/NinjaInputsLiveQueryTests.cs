@@ -67,6 +67,18 @@ public sealed class NinjaInputsLiveQueryTests
     }
 
     [TestMethod]
+    public void PreviewDailyDeductionsSql_KeysActualRiderAndScopes()
+    {
+        var (sql, names) = NinjaInputsLiveQuery.PreviewDailyDeductionsSql(All, Oct);
+        StringAssert.Contains(sql, "[ninja].[NinjaDailyDeductions]");
+        StringAssert.Contains(sql, "d.[RiderProfileId]");
+        StringAssert.Contains(sql, "cp.[Code]=@ninja");
+        Assert.IsFalse(sql.Contains(';', StringComparison.Ordinal));
+        CollectionAssert.Contains(names.ToList(), "@from");
+        Assert.IsTrue(AccessPolicy.Allowed(Principal("syn-ded", ["pay.view"]), "GET", "/api/pay/apps/ninja/live/daily-deductions"));
+    }
+
+    [TestMethod]
     public void Coverage_FlagsMissingDaysAtPeriodEnd()
     {
         var coverage = NinjaInputsLiveQuery.Coverage(Oct, "2026-10-01", "2026-10-29", 100);

@@ -151,6 +151,101 @@ public static class NinjaInputsLiveQuery
         ["ownerUnifiedNumber"] = Str(r, "OwnerUnifiedNumber")
     };
 
+    /// <summary>Reader 2 — daily deductions keyed by actual rider of that day.</summary>
+    public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewDailyDeductionsSql(
+        LiveOperationsQuery.Scope? scope, PeriodRequest request)
+    {
+        using var cmd = new SqlCommand();
+        string sql = BuildDailyDeductionsSql(cmd, scope, request);
+        return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
+    }
+
+    public static PageResult DailyDeductions(
+        DbConnection source,
+        LiveOperationsQuery.Scope scope,
+        PeriodRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
+        DateTimeOffset asOf = DateTimeOffset.UtcNow;
+        using var cmd = source.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        using var cancel = SyncCancellation.Register(cmd, cancellationToken);
+        cmd.CommandText = BuildDailyDeductionsSql(cmd, scope, request);
+        var items = new List<JsonObject>();
+        long total = 0;
+        string? firstDay = null, lastDay = null;
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (total == 0)
+            {
+                total = Num(reader, "CoverageTotal");
+                firstDay = DateStr(reader, "CoverageFirstDay");
+                lastDay = DateStr(reader, "CoverageLastDay");
+            }
+            items.Add(MapDailyDeductionRow(reader));
+        }
+        return new(items, total, Coverage(request, firstDay, lastDay, total), asOf);
+    }
+
+    static string BuildDailyDeductionsSql(DbCommand cmd, LiveOperationsQuery.Scope? scope, PeriodRequest request)
+    {
+        Add(cmd, "@from", request.From.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Add(cmd, "@to", request.To.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Add(cmd, "@skip", (request.Page - 1) * request.PageSize);
+        Add(cmd, "@take", request.PageSize);
+        Add(cmd, "@ninja", PlatformCode);
+        string sponsorScope = BuildSponsorScopeSql(scope, cmd, "s");
+        return $"""
+            WITH scoped AS (
+                SELECT d.[Id], d.[ReportDate], d.[CaptainId], d.[PlatformRiderAccountId],
+                       d.[RiderClientAssignmentId], d.[RiderProfileId], d.[SourceId], d.[SourceRowNumber],
+                       d.[TotalCollectedAmountAtDelivery], d.[TotalDeductions],
+                       pa.[ExternalAccountId], pa.[Code] AS AccountCode,
+                       s.[UnifiedNationalNumber] AS OwnerUnifiedNumber
+                FROM [ninja].[NinjaDailyDeductions] d
+                INNER JOIN [app].[PlatformRiderAccounts] pa ON pa.[Id]=d.[PlatformRiderAccountId] AND pa.[IsDeleted]=0
+                INNER JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=pa.[ClientPlatformId] AND cp.[IsDeleted]=0 AND cp.[Code]=@ninja
+                INNER JOIN [app].[Sponsors] s ON s.[Id]=pa.[SponsorId] AND s.[IsDeleted]=0
+                WHERE d.[ReportDate]>=@from AND d.[ReportDate]<=@to{sponsorScope}
+            ),
+            coverage AS (
+                SELECT COUNT_BIG(*) AS CoverageTotal,
+                       MIN([ReportDate]) AS CoverageFirstDay,
+                       MAX([ReportDate]) AS CoverageLastDay
+                FROM scoped
+            ),
+            page AS (
+                SELECT * FROM scoped
+                ORDER BY [ReportDate], [CaptainId], [Id]
+                OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY
+            )
+            SELECT p.*, c.[CoverageTotal], c.[CoverageFirstDay], c.[CoverageLastDay]
+            FROM page p
+            CROSS JOIN coverage c
+            ORDER BY p.[ReportDate], p.[CaptainId], p.[Id]
+            """;
+    }
+
+    static JsonObject MapDailyDeductionRow(IDataRecord r) => new()
+    {
+        ["id"] = Str(r, "Id"),
+        ["reportDate"] = DateStr(r, "ReportDate"),
+        ["captainId"] = Str(r, "CaptainId"),
+        ["platformRiderAccountId"] = Str(r, "PlatformRiderAccountId"),
+        ["externalAccountId"] = Str(r, "ExternalAccountId"),
+        ["accountCode"] = Str(r, "AccountCode"),
+        ["actualRiderProfileId"] = Str(r, "RiderProfileId"),
+        ["riderClientAssignmentId"] = Str(r, "RiderClientAssignmentId"),
+        ["sourceId"] = Str(r, "SourceId"),
+        ["sourceRowNumber"] = Num(r, "SourceRowNumber"),
+        ["collectedAmount"] = Dec(r, "TotalCollectedAmountAtDelivery"),
+        ["deductionsAmount"] = Dec(r, "TotalDeductions"),
+        ["ownerUnifiedNumber"] = Str(r, "OwnerUnifiedNumber")
+    };
+
     public static JsonObject Coverage(PeriodRequest request, string? firstDay, string? lastDay, long total) => new()
     {
         ["requestedFrom"] = request.From.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
