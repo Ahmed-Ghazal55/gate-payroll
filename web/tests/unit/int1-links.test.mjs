@@ -21,22 +21,27 @@ test('imports centre page and /imports hrefs are gone', () => {
   assert.doesNotMatch(sidebar, /\/imports\/?/);
   assert.doesNotMatch(sidebar, /استيراد الملفات/);
 
-  const appDir = path.join(root, 'src');
-  const stack = [appDir];
+  const scanRoots = [path.join(root, 'src/app'), path.join(root, 'src/components'), path.join(root, 'src/features')];
   const offenders = [];
-  while (stack.length) {
-    const dir = stack.pop();
-    for (const name of readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, name.name);
-      if (name.isDirectory()) {
-        if (name.name === 'node_modules' || name.name === '.next') continue;
-        stack.push(full);
-        continue;
-      }
-      if (!/\.(tsx|ts|mjs|jsx|js)$/.test(name.name)) continue;
-      const text = readFileSync(full, 'utf8');
-      if (/['"`]\/(?:app\/)?imports\/?['"`]/.test(text) || /href:\s*['"]\/app\/imports/.test(text)) {
-        offenders.push(path.relative(root, full));
+  for (const start of scanRoots) {
+    const stack = [start];
+    while (stack.length) {
+      const dir = stack.pop();
+      for (const name of readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, name.name);
+        if (name.isDirectory()) {
+          stack.push(full);
+          continue;
+        }
+        if (!/\.(tsx|ts|mjs|jsx|js)$/.test(name.name)) continue;
+        const text = readFileSync(full, 'utf8');
+        // Page/nav routes only — /api/imports/* free-upload helpers stay for the old Frontend.
+        if (
+          /['"`]\/(?:app\/)?imports\/?(?:\?[^'"`]*)?['"`]/.test(text) ||
+          /href:\s*['"]\/(?:app\/)?imports/.test(text)
+        ) {
+          offenders.push(path.relative(root, full));
+        }
       }
     }
   }
