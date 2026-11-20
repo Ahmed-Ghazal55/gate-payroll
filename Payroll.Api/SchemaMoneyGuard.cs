@@ -32,12 +32,15 @@ public static class SchemaMoneyGuard
     /// <summary>Retention is unconditional. SQLite REPLACE must be rejected before its implicit delete,
     /// because the app deliberately does not enable recursive_triggers. Include every alternate unique key.
     /// SQL Server: INSTEAD OF DELETE/INSERT so the guard message wins over FK and UNIQUE (AFTER fires too late).</summary>
-    public static void Retain(DbConnection c,DbTransaction? tx,string schema,string table,string? conflict=null)
+    /// <param name="replace">SQL Server allows only one INSTEAD OF INSERT per table; pass false when another
+    /// INSTEAD OF INSERT (e.g. pay.TR_payment_state) already performs the replacement check and insert.</param>
+    public static void Retain(DbConnection c,DbTransaction? tx,string schema,string table,string? conflict=null,bool replace=true)
     {
         string t=SchemaSql.Q(c,schema,table),name=$"TR_{schema}_{table}";
         if(SchemaSql.IsSql(c))
         {
             SchemaSql.Exec(c,tx,$"CREATE OR ALTER TRIGGER {schema}.{name}_no_delete ON {t} INSTEAD OF DELETE AS BEGIN IF EXISTS(SELECT 1 FROM deleted) THROW 51031,'Money rows cannot be deleted',1; END;");
+            if(!replace)return;
             string match=conflict==null?"o.id=n.id":$"o.id=n.id OR ({conflict.Replace("NEW.","n.")})";
             string columns=InsertableColumns(c,tx,schema,table);
             SchemaSql.Exec(c,tx,$"""

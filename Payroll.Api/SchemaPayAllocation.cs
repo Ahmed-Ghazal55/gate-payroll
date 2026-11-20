@@ -81,8 +81,10 @@ public static class SchemaPayAllocation
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payment","payment_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payable","payable_id,company_id,payable_period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_line","payment_line_id");
-        SchemaMoneyFlags.Ensure(c,tx,"pay","payment",o=>$"{o}.status IN (2,3) OR {o}.payout_blocked=1 OR {o}.run_mode=1");
-        SchemaMoneyGuard.Retain(c,tx,"pay","payment","o.payment_no=NEW.payment_no");
+        // SQL Server sticky flags are enforced inside SchemaPaymentState INSTEAD OF (message order vs request flags).
+        if(!SchemaSql.IsSql(c))SchemaMoneyFlags.Ensure(c,tx,"pay","payment",o=>$"{o}.status IN (2,3) OR {o}.payout_blocked=1 OR {o}.run_mode=1");
+        // SQL Server: payment INSTEAD OF INSERT lives in SchemaPaymentState (one per table); it also checks replacement.
+        SchemaMoneyGuard.Retain(c,tx,"pay","payment","o.payment_no=NEW.payment_no",replace:!SchemaSql.IsSql(c));
         SchemaMoneyGuard.Retain(c,tx,"pay","payment_request","o.payable_id=NEW.payable_id AND o.status=1 AND NEW.status=1");
         SchemaPaymentState.Ensure(c,tx);
         EnsureRequestFlags(c,tx);
@@ -91,9 +93,11 @@ public static class SchemaPayAllocation
         SchemaPayPayable.EnsureCounters(c,tx);
     }
 
-    /// <summary>A payment linked to a request must carry the same run_mode and payout_blocked flags.</summary>
+    /// <summary>A payment linked to a request must carry the same run_mode and payout_blocked flags.
+    /// SQL Server: owned by SchemaPaymentState INSTEAD OF triggers (message order vs money_flags / FK).</summary>
     static void EnsureRequestFlags(DbConnection c,DbTransaction? tx)
     {
+        if(SchemaSql.IsSql(c))return;
         string payment=SchemaSql.Q(c,"pay","payment"),request=SchemaSql.Q(c,"pay","payment_request");
         SchemaMoneyGuard.Rule(c,tx,"pay","payment","TR_payment_request_flags",
             n=>$"{n}.request_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM {request} r WHERE r.id={n}.request_id AND r.company_id={n}.company_id AND r.period_month={n}.request_period_month AND r.run_mode={n}.run_mode AND r.payout_blocked={n}.payout_blocked)",
