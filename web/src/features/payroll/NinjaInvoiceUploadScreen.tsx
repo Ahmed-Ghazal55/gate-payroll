@@ -39,21 +39,15 @@ import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { Dialog } from '../../components/ui/Dialog';
 import type { paths } from '../../lib/api-contract';
 import {
+  CompanySponsor,
   NinjaReconcileResponse,
   NinjaInvoiceResult,
   NinjaReconciliationLine,
 } from '../../lib/types';
+import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
+import { formatSar } from '../../lib/money';
 
 type ApiNinjaInvoice = paths['/api/platforms/ninja/invoices']['get']['responses'][200]['content']['application/json']['items'][number];
-
-const COMPANY_LABELS: Record<string, string> = {
-  BW: 'البوابة الموكلة',
-  EX: 'البوابة إكسبريس',
-  TR: 'البوابة للتجارة',
-  '019c18d5-62e1-7000-8000-000000000041': 'البوابة الموكلة',
-  '019c18d5-62e1-7000-8000-000000000042': 'البوابة إكسبريس',
-  '019c18d5-62e1-7000-8000-000000000040': 'البوابة للتجارة',
-};
 
 type DeductionGroup = { category: string; lineIds: string[]; amount: number; unclassified: number; companyOnly: boolean };
 
@@ -95,7 +89,7 @@ const isCompanyMatch = (invoiceCompanyId?: string, target?: string) => {
 };
 
 export function NinjaInvoiceUploadScreen({
-  initialPeriod = '2026-10',
+  initialPeriod = new Date().toISOString().slice(0, 7),
   platform = 'ninja',
 }: NinjaInvoiceUploadScreenProps) {
   const { user } = useAuth();
@@ -105,8 +99,25 @@ export function NinjaInvoiceUploadScreen({
   const platformPrefix = isKeeta ? 'KEETA' : 'NINJA';
 
   const [period, setPeriod] = useState<string>(initialPeriod);
-  const [companyId, setCompanyId] = useState<string>('BW');
+  const [companyOptions, setCompanyOptions] = useState<CompanySponsor[]>([]);
+  const [companyId, setCompanyId] = useState<string>('');
   const [odooVoucherNo, setOdooVoucherNo] = useState<string>('');
+
+  useEffect(() => {
+    loadCompanyOptions()
+      .then((list) => setCompanyOptions(list))
+      .catch(() => setCompanyOptions([]));
+  }, []);
+
+  const companyLabels = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of companyOptions) {
+      const label = companyLabel(c);
+      if (c.code) map[c.code] = label;
+      if (c.id) map[c.id] = label;
+    }
+    return map;
+  }, [companyOptions]);
 
   // Keeta conditional parser inputs (shown only when API needs them or workbook has >1 sheet)
   const [sheetName, setSheetName] = useState<string>('');
@@ -240,6 +251,11 @@ export function NinjaInvoiceUploadScreen({
   }, [companyId, period, platform]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!companyId) {
+      toast('اختر الشركة أولاً', 'warning');
+      e.target.value = '';
+      return;
+    }
     setServerPreview(null);
     setReconcileResult(null);
     const files = Array.from(e.target.files || []);
@@ -380,6 +396,10 @@ export function NinjaInvoiceUploadScreen({
 
   // Step 2: Preview and Reconcile
   const handleRunReconcile = async () => {
+    if (!companyId) {
+      toast('اختر الشركة أولاً', 'warning');
+      return;
+    }
     if (selectedFiles.length === 0) {
       toast(`يرجى اختيار ملف فاتورة ${platformNameAr} واحد على الأقل (.xlsx)`, 'warning');
       return;
@@ -729,12 +749,12 @@ export function NinjaInvoiceUploadScreen({
                     <span className="font-sans font-bold text-[var(--ink)]">
                       {mapFieldLabel(d.field)}:
                     </span>
-                    <span className="text-[var(--muted)]">فاتورة: {d.invoice.toFixed(2)}</span>
+                    <span className="text-[var(--muted)]">فاتورة: {formatSar(d.invoice)}</span>
                     <span>|</span>
-                    <span className="text-[var(--muted)]">محرك: {d.engine.toFixed(2)}</span>
+                    <span className="text-[var(--muted)]">محرك: {formatSar(d.engine)}</span>
                     <span>|</span>
                     <span className="text-amber-600 font-bold">
-                      الفرق: {d.difference > 0 ? `+${d.difference.toFixed(2)}` : d.difference.toFixed(2)}
+                      الفرق: {d.difference > 0 ? `+${formatSar(d.difference)}` : formatSar(d.difference)}
                     </span>
                   </div>
                 ))}
@@ -900,7 +920,7 @@ export function NinjaInvoiceUploadScreen({
         title: 'الفاتورة لم تُحفظ. أصلح السبب المذكور ثم أعد المطابقة.',
         detail: actionError,
         action: selectedFiles.length > 0 ? (
-          <button type="button" disabled={loading} onClick={handleRunReconcile} className={primaryButton}>
+          <button type="button" disabled={loading || !companyId} onClick={handleRunReconcile} className={primaryButton}>
             إعادة المطابقة والمعاينة
           </button>
         ) : undefined,
@@ -908,9 +928,9 @@ export function NinjaInvoiceUploadScreen({
     }
     if (selectedFiles.length > 0) {
       return {
-        title: `الملف جاهز لـ ${COMPANY_LABELS[companyId] ?? companyId} وشهر ${period}. ابدأ المطابقة.`,
+        title: `الملف جاهز لـ ${companyLabels[companyId] ?? companyId} وشهر ${period}. ابدأ المطابقة.`,
         action: (
-          <button type="button" disabled={loading} onClick={handleRunReconcile} className={primaryButton}>
+          <button type="button" disabled={loading || !companyId} onClick={handleRunReconcile} className={primaryButton}>
             بدء المطابقة والمعاينة
           </button>
         ),
@@ -939,18 +959,22 @@ export function NinjaInvoiceUploadScreen({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
-              <Building size={14} className="text-[var(--muted)]" />
-              <span className="text-xs text-[var(--muted)]">الشركة:</span>
-              <select
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] min-w-[12rem]">
+              <Building size={14} className="text-[var(--muted)] shrink-0" />
+              <span className="text-xs text-[var(--muted)] shrink-0">الشركة:</span>
+              <SearchableSelect
+                id="select-invoice-company"
+                ariaLabel="الشركة"
                 value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-                className="text-xs font-bold bg-[var(--surface)] text-[var(--ink)] border-none focus:outline-hidden cursor-pointer"
-              >
-                <option value="BW">البوابة المقبلة (BW)</option>
-                <option value="EX">إكسبرس جايت (EX)</option>
-                <option value="TR">طريق الرواد (TR)</option>
-              </select>
+                onChange={setCompanyId}
+                required
+                placeholder="اختر الشركة"
+                className="min-w-[9rem]"
+                options={companyOptions.map((c) => ({
+                  value: c.code || c.id,
+                  label: c.code ? `${companyLabel(c)} · ${c.code}` : companyLabel(c),
+                }))}
+              />
             </div>
 
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
@@ -1024,7 +1048,7 @@ export function NinjaInvoiceUploadScreen({
                 currentInvoice?.id === i.id ? 'border-[var(--accent)] font-bold' : 'border-[var(--line)]'
               }`}
             >
-              {COMPANY_LABELS[i.companyId] ?? i.companyId}: {i.approvalStatus === 'approved' ? 'معتمدة' : 'بانتظار الاعتماد'}
+              {companyLabels[i.companyId] ?? i.companyId}: {i.approvalStatus === 'approved' ? 'معتمدة' : 'بانتظار الاعتماد'}
             </button>
           ))}
         </div>
@@ -1213,22 +1237,43 @@ export function NinjaInvoiceUploadScreen({
           )}
         </div>
 
-        {/* Drag & Drop File Upload Box */}
-        <div className="border-2 border-dashed border-[var(--line)] hover:border-[var(--accent)]/50 rounded-2xl p-6 text-center transition bg-[var(--raised)]/30">
+        {/* Drag & Drop File Upload Box — disabled until company is chosen */}
+        <div
+          className={`border-2 border-dashed rounded-2xl p-6 text-center transition bg-[var(--raised)]/30 ${
+            companyId
+              ? 'border-[var(--line)] hover:border-[var(--accent)]/50'
+              : 'border-[var(--line)] opacity-60'
+          }`}
+        >
           <input
             type="file"
             id="ninja-file-input"
             multiple={!isKeeta}
             accept=".xlsx"
+            disabled={!companyId}
             onChange={handleFileSelect}
             className="hidden"
           />
-          <label htmlFor="ninja-file-input" className="cursor-pointer flex flex-col items-center justify-center gap-2">
+          <label
+            htmlFor={companyId ? 'ninja-file-input' : undefined}
+            aria-disabled={!companyId}
+            className={`flex flex-col items-center justify-center gap-2 ${companyId ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+            onClick={
+              companyId
+                ? undefined
+                : (e) => {
+                    e.preventDefault();
+                    toast('اختر الشركة أولاً', 'warning');
+                  }
+            }
+          >
             <div className="p-3 rounded-full bg-[var(--surface)] text-[var(--accent)] shadow-xs">
               <Upload size={22} />
             </div>
             <div className="text-xs font-bold text-[var(--ink)]">
-              انقر لاختيار ملف فاتورة {platformNameAr} (.xlsx) أو اسحب الملف هنا
+              {companyId
+                ? `انقر لاختيار ملف فاتورة ${platformNameAr} (.xlsx) أو اسحب الملف هنا`
+                : 'اختر الشركة أولاً ثم ارفع ملف الفاتورة'}
             </div>
             <div className="text-[11px] text-[var(--muted)]">
               {isKeeta ? 'يدعم ملف إكسل رسمي بصيغة .xlsx' : 'يدعم ملفات إكسل رسمية بصيغة .xlsx بحد أقصى 5 ملفات'}
@@ -1266,7 +1311,7 @@ export function NinjaInvoiceUploadScreen({
               <button
                 type="button"
                 id="btn-run-reconcile"
-                disabled={loading}
+                disabled={loading || !companyId}
                 onClick={handleRunReconcile}
                 className="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs sm:text-sm font-bold shadow-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
@@ -1365,7 +1410,7 @@ export function NinjaInvoiceUploadScreen({
                   <div key={group.category} data-category={group.category} className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink)]">
                     <span className="font-bold min-w-40">{DEDUCTION_LABELS[group.category] ?? group.category}</span>
                     <span className="font-mono text-[var(--muted)]">
-                      {group.lineIds.length} سطر · {group.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س · {group.unclassified} بلا تصنيف
+                      {group.lineIds.length} سطر · {formatSar(group.amount)} · {group.unclassified} بلا تصنيف
                     </span>
                     <select
                       aria-label="جهة تحمل الخصم"
@@ -1533,25 +1578,25 @@ export function NinjaInvoiceUploadScreen({
             />
             <StatCard
               label="إجمالي المستحق (Gross)"
-              value={`${gross.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={formatSar(gross)}
               hint="قبل الخصومات"
               icon={DollarSign}
             />
             <StatCard
               label="إجمالي الخصومات"
-              value={`${deductionsTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={formatSar(deductionsTotal)}
               hint="تخضع للتصنيف"
               icon={AlertTriangle}
             />
             <StatCard
               label="الضريبة (VAT)"
-              value={`${vat.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={formatSar(vat)}
               hint="ضريبة القيمة المضافة"
               icon={Percent}
             />
             <StatCard
               label="الإجمالي شامل الضريبة"
-              value={`${totalPayable.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={formatSar(totalPayable)}
               hint="المعتمد في الصرف"
               icon={FileCheck}
             />
@@ -1596,13 +1641,13 @@ export function NinjaInvoiceUploadScreen({
             />
             <StatCard
               label="إجمالي الفاتورة"
-              value={`${overallTotals.invoiceCost.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={formatSar(overallTotals.invoiceCost)}
               hint="المعتمد في الصرف"
               icon={DollarSign}
             />
             <StatCard
               label="صافي الفرق"
-              value={`${Math.abs(overallTotals.diffCost).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={`${formatSar(Math.abs(overallTotals.diffCost))}`}
               hint={overallTotals.diffCost >= 0 ? 'الفاتورة أعلى' : 'المحرك أعلى'}
               icon={Percent}
             />
@@ -1664,13 +1709,13 @@ export function NinjaInvoiceUploadScreen({
                         <div className="flex items-center justify-between text-xs pt-1">
                           <span className="text-[var(--muted)]">الفاتورة:</span>
                           <span className="font-bold num text-[var(--ink)]">
-                            {t.invoice.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(t.invoice)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-[var(--muted)]">المحرك:</span>
                           <span className="font-bold num text-[var(--muted)]">
-                            {t.engine.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(t.engine)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs pt-1 border-t border-[var(--line)]">
@@ -1680,7 +1725,7 @@ export function NinjaInvoiceUploadScreen({
                               diff === 0 ? 'text-emerald-600' : 'text-amber-600'
                             }`}
                           >
-                            {diff === 0 ? '0.00' : diff > 0 ? `+${diff.toFixed(2)}` : diff.toFixed(2)} ر.س
+                            {diff === 0 ? formatSar(0) : diff > 0 ? `+${formatSar(diff)}` : formatSar(diff)}
                           </span>
                         </div>
                       </div>
@@ -1724,10 +1769,10 @@ export function NinjaInvoiceUploadScreen({
                             <td className="p-2.5 font-bold text-[var(--ink)]">{adj.captainId}</td>
                             <td className="p-2.5 text-[var(--muted)]">{adj.levelType || '—'}</td>
                             <td className="p-2.5 num font-bold text-[var(--ink)]">
-                              {adj.finalAmount?.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                              {formatSar(adj.finalAmount)}
                             </td>
                             <td className="p-2.5 num font-bold text-[var(--ink)]">
-                              {adj.totalCost?.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                              {formatSar(adj.totalCost)}
                             </td>
                           </tr>
                         ))}

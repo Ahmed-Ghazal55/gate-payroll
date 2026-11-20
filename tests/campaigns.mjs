@@ -19,9 +19,10 @@ async function put(route,body,expected=200){const r=await fetch(base+route,{meth
 async function removeForm(route,body,expected=200,auth=true){const r=await fetch(base+route,{method:'DELETE',headers:{'Content-Type':'application/json',...(auth?{Cookie:cookie}:{})},body:JSON.stringify(body)});const raw=await r.text();assert.equal(r.status,expected,raw);checks++;return JSON.parse(raw);}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
- assert.equal((await req('/health',undefined,200,false)).version,'0.29.1');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.30.0');
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
- for(const [username,role] of [['test-reviewer','Reviewer'],['test-accountant','Accountant']])await req('/api/users',{username,password,role});
+ await req('/api/users',{username:'test-reviewer',password,role:'Reviewer',customPermissions:['forms.responses.allCompanies']});
+ await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
  const campaign=await req('/api/campaigns',{title:'Editable campaign',days:2}),other=await req('/api/campaigns',{title:'Separate campaign',days:2});
  const pub='/api/public/forms/'+campaign.path.split('/').at(-1),otherPub='/api/public/forms/'+other.path.split('/').at(-1);
  const first={iqama:'2000000991',name:'Synthetic Alpha',workSystem:'tiers'},second={iqama:'2000000992',name:'Synthetic Beta',workSystem:'commission'};
@@ -60,7 +61,7 @@ try{
  assert.equal((await req('/api/submissions/bulk-delete',{campaignId:campaign.id,confirm:true})).count,2);
  assert.equal((await req('/api/campaigns/'+campaign.id+'/analytics')).totalResponses,0);assert.equal((await req('/api/submissions')).length,1);
  assert.equal((await req(pub+'/lookup',{iqama:second.iqama},200,false)).alreadySubmitted,false);
- const audit=await req('/api/audit');assert.equal(audit.filter(x=>x.action==='submission.deleted').length,3);assert.ok(audit.some(x=>x.action==='campaign.updated'&&x.actor==='test-admin'));assert.ok(audit.some(x=>x.action==='submission.bulk_approved'&&x.actor==='test-reviewer'));
+ const audit=(await req('/api/audit')).items;assert.equal(audit.filter(x=>x.action==='submission.deleted').length,3);assert.ok(audit.some(x=>x.action==='campaign.updated'&&x.actor==='test-admin'));assert.ok(audit.some(x=>x.action==='submission.bulk_approved'&&x.actor==='test-reviewer'));
  await put('/api/campaigns/'+campaign.id,{fields:[],status:'closed'});await req(pub,undefined,400,false);await put('/api/campaigns/'+campaign.id,{status:'open',expiresAt:new Date(Date.now()+864e5).toISOString()});await req(pub,first,200,false);
  // Canonical v3 Excel fields remain compatible with the campaign schema and safe import workflow.
  await put('/api/campaigns/'+campaign.id,{fields:['city','phone']});
@@ -84,6 +85,6 @@ try{
  let customDelete=await req('/api/forms/builder/'+custom.id+'/delete-preview');assert.equal(customDelete.responseCount,1);await removeForm('/api/forms/builder/'+custom.id,{confirm:true,fingerprint:customDelete.fingerprint});
  await req(customPub,undefined,404,false);await req(customPub,{choice:'yes'},404,false);await req('/api/forms/responses/'+custom.id,undefined,404);assert.ok(!(await req('/api/forms/catalog')).some(f=>f.id===custom.id));
  customDelete=await req('/api/forms/builder/'+draft.id+'/delete-preview');assert.equal(customDelete.responseCount,0);await removeForm('/api/forms/builder/'+draft.id,{confirm:true,fingerprint:customDelete.fingerprint});
- const deletionAudit=await req('/api/audit');assert.ok(deletionAudit.some(a=>a.action==='campaign.deleted'&&a.entityId===campaign.id&&a.actor==='test-admin'));assert.ok(deletionAudit.some(a=>a.action==='builder.deleted'&&a.entityId===custom.id));assert.ok(deletionAudit.some(a=>a.action==='builder.response_deleted'&&a.entityId===customReply.receipt));assert.ok(deletionAudit.some(a=>a.action==='builder.response_received'&&a.entityId===customReply.receipt));
+ const deletionAudit=(await req('/api/audit')).items;assert.ok(deletionAudit.some(a=>a.action==='campaign.deleted'&&a.entityId===campaign.id&&a.actor==='test-admin'));assert.ok(deletionAudit.some(a=>a.action==='builder.deleted'&&a.entityId===custom.id));assert.ok(deletionAudit.some(a=>a.action==='builder.response_deleted'&&a.entityId===customReply.receipt));assert.ok(deletionAudit.some(a=>a.action==='builder.response_received'&&a.entityId===customReply.receipt));
  console.log(`PASS ${checks} v0.5.4 HTTP checks: hard deletion and reset, campaign-scoped atomic bulk actions and RBAC, optional fields/history, campaign link retention and analytics.`);
 }catch(e){console.error(logs.slice(-5000));throw e;}finally{if(proc.exitCode===null&&!spawnError){const stopped=new Promise(r=>proc.once('exit',r));proc.kill();await Promise.race([stopped,new Promise(r=>setTimeout(r,5000))]);}rmSync(data,{recursive:true,force:true});}

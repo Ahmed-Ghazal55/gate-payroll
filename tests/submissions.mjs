@@ -19,7 +19,7 @@ async function put(route,body,expected=200){const r=await fetch(base+route,{meth
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
- await req('/api/users',{username:'test-reviewer',password,role:'Reviewer'});
+ await req('/api/users',{username:'test-reviewer',password,role:'Reviewer',customPermissions:['forms.responses.allCompanies']});
  await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
  const campaign=await req('/api/campaigns',{title:'Response edit contracts',days:2}),other=await req('/api/campaigns',{title:'Isolated campaign',days:2});
  const pub='/api/public/forms/'+campaign.path.split('/').at(-1),otherPub='/api/public/forms/'+other.path.split('/').at(-1);
@@ -54,7 +54,7 @@ try{
  assert.ok(simple.every(r=>r.status===200));checks+=2;row=(await req('/api/submissions'))[0];assert.equal(row.version,6);assert.equal(row.history.length,5);assert.deepEqual(row.history.map(h=>h.version),[1,2,3,4,5]);assert.equal(row.history[2].reviewNote,'Optional checked note');
  const duplicates=await Promise.all(Array.from({length:2},()=>fetch(base+pub,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)})));assert.ok(duplicates.every(r=>r.status===409));checks+=2;assert.equal((await req('/api/submissions')).length,1);
  const xlsx=await fetch(base+'/api/excel/export',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({headers:['الإقامة','التعديل','النسخة','ملاحظة المراجعة'],rows:[[row.iqama,'رد معدل',row.version,row.reviewNote||'']],numericColumns:[2]})});assert.equal(xlsx.status,200);assert.equal(Buffer.from(await xlsx.arrayBuffer()).subarray(0,2).toString(),'PK');checks++;
- cookie=adminCookie;const audit=await req('/api/audit');assert.equal(audit.filter(x=>x.action==='submission.edited').length,5);assert.ok(audit.some(x=>x.action==='submission.approved'&&x.actor==='test-reviewer'));assert.ok(audit.some(x=>x.action==='submission.rejected'&&x.actor==='test-reviewer'));
+ cookie=adminCookie;const audit=(await req('/api/audit')).items;assert.equal(audit.filter(x=>x.action==='submission.edited').length,5);assert.ok(audit.some(x=>x.action==='submission.approved'&&x.actor==='test-reviewer'));assert.ok(audit.some(x=>x.action==='submission.rejected'&&x.actor==='test-reviewer'));
  const firstRace=await Promise.all(Array.from({length:2},()=>fetch(base+pub,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,iqama:'2000000889'})})));assert.deepEqual(firstRace.map(r=>r.status).sort(),[200,409]);checks+=2;assert.equal((await req('/api/submissions')).length,2);
  // Imported replies have no editTokenHash; public edit without a token stays 404 (no iqama-only overwrite).
  const workbook=await fetch(base+'/api/excel/export',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({headers:['رقم الإقامة','الاسم الكامل','نظام العمل'],rows:[['2000000890','Legacy Rider','نظام الراتب الجديد']],numericColumns:[]})});assert.equal(workbook.status,200);checks++;

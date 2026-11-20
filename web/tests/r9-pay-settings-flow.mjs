@@ -514,6 +514,17 @@ try {
       const pageUp = await contextUpload.newPage();
       await pageUp.goto(`${baseUrl}/app/payroll?tab=ninja_upload&period=2026-10`, { waitUntil: 'networkidle' });
 
+      // Company is required (no default); pick BW explicitly before upload.
+      const companyInput = pageUp.locator('#select-invoice-company');
+      await companyInput.waitFor({ state: 'visible', timeout: 10000 });
+      await companyInput.click();
+      await companyInput.fill('BW');
+      await pageUp.locator('[role="listbox"] [role="option"]', { hasText: 'BW' }).first().click();
+      await pageUp.waitForFunction(() => {
+        const el = document.querySelector('#select-invoice-company');
+        return el && typeof el.value === 'string' && el.value.includes('BW');
+      }, null, { timeout: 5000 });
+
       await pageUp.locator('input[type="file"]').first().setInputFiles({
         name: 'ninja-synthetic-2026-10.xlsx',
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

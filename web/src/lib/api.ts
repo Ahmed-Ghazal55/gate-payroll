@@ -62,7 +62,6 @@ import type {
   PayCopyMonthResponse,
   PayAssignment,
   PayAssignmentPreviewResult,
-  ImportCatalogStep,
   ImportPreviewResult,
 } from './types';
 import type { paths, components } from './api-contract';
@@ -831,6 +830,8 @@ export const api = {
   markAllNotificationsRead: () => handleRequest<{ success: boolean }>('/notifications/read-all', { method: 'POST' }),
   search: (query: string) => handleRequest<SearchResult[]>(`/search?q=${encodeURIComponent(query)}`),
   getCompanies: () => handleRequest<CompanySponsor[]>('/companies'),
+  /** Scoped sponsor list for treasury/accounting filters (treasury.view). */
+  getFinanceSponsors: () => handleRequest<CompanySponsor[]>('/finance/sponsors'),
 
   // Companies & Registrations (Track L2 / M1.2 / U-W2-06)
   getCompaniesList: () => handleRequest<CompanyContract[]>('/companies'),
@@ -860,7 +861,15 @@ export const api = {
     handleRequest<CompanyImportPlanContract>('/companies/import/preview', { method: 'POST', body: JSON.stringify({ companies }) }),
   commitCompanyImport: (payload: { rows: Record<string, unknown>[]; fingerprint: string; confirm: boolean }) =>
     handleRequest<{ counts: Record<string, unknown> }>('/companies/import/commit', { method: 'POST', body: JSON.stringify(payload) }),
-  getAuditLogs: () => handleRequest<Array<{ id: string; action: string; actor: string; at: string }>>('/audit'),
+  getAuditLogs: (params?: { page?: number; pageSize?: number; from?: string; to?: string; q?: string }) => {
+    const q = new URLSearchParams();
+    q.set('page', String(params?.page ?? 1));
+    q.set('pageSize', String(params?.pageSize ?? 50));
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    if (params?.q) q.set('q', params.q);
+    return handleRequest<{ items: Array<{ id: string; action: string; actor: string; at: string }>; total: number; page: number; pageSize: number }>(`/audit?${q}`);
+  },
 
   // Campaigns
   getCampaigns: () => handleRequest<Campaign[]>('/campaigns'),
@@ -1367,8 +1376,7 @@ export const api = {
   getRiderProfile360: (iqama: string) =>
     handleRequest<RiderProfile360>(`/riders/${encodeURIComponent(iqama)}/profile-360`),
 
-  getRidersDataQuality: () =>
-    handleRequest<RidersDataQuality>('/riders/data-quality'),
+
 
   // Operations & Assets APIs (Codex R4.6)
   getOperations: (kind: string, params?: { page?: number; pageSize?: number; q?: string }) => {
@@ -1829,7 +1837,7 @@ export const api = {
     const q = new URLSearchParams({ operation });
     return handleRequest<OrgResponsibleUser[]>(`/org/responsible?${q.toString()}`);
   },
-  getHealth: () => handleRequest<{ ok: boolean }>('/health'),
+
   getPayCycleReview: (cycleId: string, params?: { review?: string; status?: string }) => {
     const q = new URLSearchParams();
     if (params?.review) q.set('review', params.review);
@@ -2134,7 +2142,7 @@ export const api = {
     handleRequest<RiderLookupItem[]>(`/riders/lookup?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(String(limit))}`),
 
   // Pay Settings Lifecycle (C4 / A6)
-  getPayAppDefaults: (app: string) => handleRequest<PayCatalog['defaults']>(`/pay/apps/${encodeURIComponent(app)}/defaults`),
+
   getAppEligibility: (app: string) => handleRequest<PayEligibilityResponse>(`/pay/apps/${encodeURIComponent(app)}/eligibility`),
   createAppEligibility: (app: string, input: Record<string, unknown>, period?: string) =>
     handleRequest<PayEligibilityItem>(`/pay/apps/${encodeURIComponent(app)}/eligibility${period ? `?period=${encodeURIComponent(period)}` : ''}`, {
@@ -2161,8 +2169,7 @@ export const api = {
     return handleRequest<{ id: string; deleted?: boolean }>(url, { method: 'DELETE' });
   },
 
-  // Import Center (K6 / R6c)
-  getImportsCatalog: () => handleRequest<ImportCatalogStep[]>('/imports/catalog'),
+  // Per-page import templates / preview / commit (imports centre removed)
   downloadImportTemplate: async (templateUrl: string, fallbackFileName = 'template.xlsx'): Promise<void> => {
     const url = templateUrl.startsWith('http') ? templateUrl : (templateUrl.startsWith('/api') ? templateUrl : `/api${templateUrl}`);
     const res = await fetch(url, {
@@ -2240,8 +2247,6 @@ export const api = {
     handleRequest<Record<string, unknown>>('/pay/apps/chefz/operations/review', { method: 'POST', body: JSON.stringify(input) }),
 
   listJahezReconciliations: () => handleRequest<JahezReconciliationDoc[]>('/finance/jahez-reconciliations'),
-  getJahezReconciliation: (id: string) =>
-    handleRequest<JahezReconciliationDoc>(`/finance/jahez-reconciliations/${encodeURIComponent(id)}`),
   buildJahezReconciliation: (input: {
     companyId: string; period: string; invoiceNet: number; invoiceVat: number;
     lastTransactionDate: string; invoiceReference?: string; notes?: string;
@@ -2264,8 +2269,6 @@ export const api = {
   jahezFee: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/finance/jahez-fee', { method: 'POST', body: JSON.stringify(input) }),
   listJahezHandovers: () => handleRequest<Array<Record<string, unknown>>>('/finance/jahez-handovers'),
-  submitJahezHandover: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/finance/jahez-handover', { method: 'POST', body: JSON.stringify(input) }),
   confirmJahezHandover: (id: string, input: Record<string, unknown> = {}) =>
     handleRequest<Record<string, unknown>>(`/finance/jahez-handovers/${encodeURIComponent(id)}/confirm`, { method: 'POST', body: JSON.stringify(input) }),
   rejectJahezHandover: (id: string, input: Record<string, unknown> = {}) =>

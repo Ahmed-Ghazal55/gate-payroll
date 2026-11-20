@@ -16,14 +16,17 @@ const proc=spawn(published?path.join(published,exeName):dotnetBin,published?[]:[
 let logs='',cookie='',checks=0,spawnError=null;proc.once('error',e=>{spawnError=e;});proc.stdout.on('data',x=>logs+=x);proc.stderr.on('data',x=>logs+=x);
 async function req(route,body,expected=200,auth=true,headers={}){const r=await fetch(base+route,{method:body===undefined?'GET':'POST',headers:{...(body===undefined?{}:{'Content-Type':'application/json'}),...(auth&&cookie?{Cookie:cookie}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)});const raw=await r.text();assert.equal(r.status,expected,`${route}: ${r.status} ${raw}`);checks++;if(r.headers.get('set-cookie'))cookie=r.headers.get('set-cookie').split(';')[0];try{return JSON.parse(raw)}catch{return raw}}
 const password=randomBytes(24).toString('hex');let adminCookie='';
+const scope=(ids)=>({sponsorIds:ids,platforms:['Jahez','Keeta','HungerStation','Ninja','Chefz','Amazon','Other'],categoryCodes:[],accountCodes:[]});
 async function put(route,body,expected=200){const r=await fetch(base+route,{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)});const d=await r.json();assert.equal(r.status,expected,JSON.stringify(d));checks++;return d;}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
- assert.equal((await req('/health',undefined,200,false)).version,'0.29.1');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.30.0');
  await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
  await seedAccountingCash(req);
  const accountant=await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
- const reviewer=await req('/api/users',{username:'test-reviewer',password,role:'Reviewer'});
+ // Preferred: company scope matching the rider under review (BW). Unscoped reviewers without forms.responses.allCompanies get 404.
+ const reviewer=await req('/api/users',{username:'test-reviewer',password,role:'Reviewer',financialScope:scope(['BW'])});
+ await req('/api/users',{username:'test-unscoped-reviewer',password,role:'Reviewer'});
  const other=await req('/api/users',{username:'test-other',password,role:'Admin'});
  await req('/api/users',{username:'TEST-REVIEWER',password,role:'Reviewer'},400);
  assert.ok((await req('/api/users')).every(u=>!('hash'in u)&&!('salt'in u)));
@@ -41,9 +44,11 @@ try{
  const campaign=await req('/api/campaigns',{title:'Persistent campaign',days:2});let campaigns=await req('/api/campaigns');assert.equal(campaigns[0].publicUrl,campaign.publicUrl);assert.ok(campaign.publicUrl.startsWith('https://'));
  assert.match(await req(campaign.qrCodeUrl,undefined,200),/<svg/);await req(campaign.path,undefined,200,false);
  const choice=await req('/api/public/forms/'+campaign.path.split('/').at(-1),{iqama:iq,name:'Synthetic Rider',workSystem:'tiers'},200,false);
- await put(`/api/users/${reviewer.id}/status`,{status:'active'});await req('/api/auth/login',{username:'test-reviewer',password});
+ await req('/api/auth/login',{username:'test-unscoped-reviewer',password});
+ await req('/api/submissions/'+choice.receipt+'/review',{status:'approved',note:'No company scope',identityReviewed:true},404);
+ cookie=adminCookie;await put(`/api/users/${reviewer.id}/status`,{status:'active'});await req('/api/auth/login',{username:'test-reviewer',password});
  await req('/api/submissions/'+choice.receipt+'/review',{status:'approved',note:'Identity checked',identityReviewed:true});
- assert.equal((await req('/api/riders'))[0].policyId,'');cookie=adminCookie;
+ cookie=adminCookie;assert.equal((await req('/api/riders'))[0].policyId,'');
  const form=await req('/api/forms/builder',{titleAr:'اختبار',titleEn:'Test',titleUr:'ٹیسٹ',expiresAt:new Date(Date.now()+864e5).toISOString(),maxSubmissions:2,fields:[{id:'iqama',labelAr:'الإقامة',labelEn:'Iqama',labelUr:'اقامہ',type:'iqama',required:true},{id:'system',labelAr:'النظام',type:'radio',required:true,options:['tiers','commission']}]});
  const publishedForm=await req(`/api/forms/builder/${form.id}/publish`,{});assert.ok(publishedForm.publicUrl.includes('/questionnaires/'));
  const formToken=publishedForm.publicUrl.split('/').at(-1);const publicForm='/api/public/questionnaires/'+formToken;
@@ -73,7 +78,7 @@ try{
  access=await req('/api/inquiry-access',{iqama:iq,scope:'debt',identityReviewed:true});const statement=await req('/api/public/inquiry/debt',{iqama:iq,phoneLast4:'4567',code:access.code},200,false);assert.equal(statement.totalRemaining,400);assert.equal(statement.debts[0].notes,undefined);
  await req('/api/public/inquiry/debt',{iqama:iq,phoneLast4:'4567',code:'0'.repeat(64)},401,false);
  await req('/api/public/inquiry/debt',{iqama:iq,phoneLast4:'4567',code:'0'.repeat(64)},429,false);
- assert.ok((await req('/api/audit')).some(x=>x.action==='rider.save'));assert.ok((await req('/api/audit')).some(x=>x.action==='admin.user_update'));
+ assert.ok(((await req('/api/audit')).items).some(x=>x.action==='rider.save'));assert.ok(((await req('/api/audit')).items).some(x=>x.action==='admin.user_update'));
 
  // Financial & Debt Management System v0.6 checks: 3 Sponsors, HR Expenses, SharedSplit, Direct Collection + Waiver, Inter-CR Transfer, Approvals, Mobile FCM, Dormant Promissory Flag
  const openingTemplate=await fetch(base+'/api/debts/import-opening/template',{headers:{Cookie:cookie}});assert.equal(openingTemplate.status,200);const openingTemplateBytes=Buffer.from(await openingTemplate.arrayBuffer());
@@ -158,7 +163,7 @@ try{
  await req('/rider-app',undefined,200,false);
  await req(`/api/rider-mobile/portal/${iq}`,undefined,401,false);
  await req(`/api/rider-mobile/portal/2000000002`,undefined,401,false,{Authorization:`Bearer ${mobLogin.accessToken}`});
- const privateResult=await req('/api/system/release-check');assert.equal(privateResult.version,'0.29.1');
+ const privateResult=await req('/api/system/release-check');assert.equal(privateResult.version,'0.30.0');
  const grantAgain=await req('/api/inquiry-access',{iqama:iq,scope:'mobile',identityReviewed:true});assert.ok(grantAgain.url.includes('#access_code='));
  // New financial surfaces retain original staff-role isolation.
  await req('/api/auth/login',{username:'test-reviewer',password});

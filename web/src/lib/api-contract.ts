@@ -1980,42 +1980,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/imports/catalog": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Ordered import steps with template, preview and commit links and the required columns */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["JsonArray"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/imports/templates/{name}": {
         parameters: {
             query?: never;
@@ -10601,7 +10565,6 @@ export interface paths {
             parameters: {
                 query: {
                     period: string;
-                    approvedOnly?: boolean;
                 };
                 header?: never;
                 path: {
@@ -11546,7 +11509,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -11592,7 +11560,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -11654,7 +11627,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -11714,7 +11692,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -11859,7 +11842,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -11921,7 +11909,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -16402,7 +16395,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -17590,7 +17588,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": unknown;
                     };
                 };
             };

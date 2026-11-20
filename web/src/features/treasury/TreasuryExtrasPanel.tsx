@@ -6,6 +6,7 @@ import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { formatSar } from '../../lib/money';
 
 export function TreasuryExtrasPanel() {
   const { can, isAdmin } = useAuth();
@@ -84,7 +85,7 @@ export function TreasuryExtrasPanel() {
               <input value={madaCompany} onChange={(e) => setMadaCompany(e.target.value)} className="block p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] font-mono" />
             </label>
             <button type="button" disabled={busy} onClick={loadMada} className="px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50">قراءة</button>
-            {madaBalance != null && <div className="text-lg font-bold font-mono">{madaBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</div>}
+            {madaBalance != null && <div className="text-lg font-bold font-mono">{formatSar(madaBalance)}</div>}
           </div>
         </div>
       )}

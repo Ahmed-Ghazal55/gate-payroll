@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -77,14 +79,14 @@ function TreasuryPageContent() {
     router.replace(`/treasury/?tab=${newTab}`, { scroll: false });
   };
 
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('2026-10');
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(() => new Date().toISOString().slice(0, 7));
   const [selectedSponsor, setSelectedSponsor] = useState<string>('all');
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [vaultTypeFilter, setVaultTypeFilter] = useState<string>('all');
 
   useEffect(() => {
-    api.getCompanies().then((res) => setCompanies(res || [])).catch(() => {});
+    api.getFinanceSponsors().then((res) => setCompanies(res || [])).catch(() => {});
   }, []);
 
   // Data states
@@ -247,7 +249,7 @@ function TreasuryPageContent() {
         reference: payoutReference.trim(),
         note: payoutNote.trim() || undefined,
       });
-      toast(`تم صرف السلفة بنجاح (${selectedPayoutReq.amount} ر.س) وإنشاء القيد المحاسبي والمديونية`, 'success');
+      toast(`تم صرف السلفة بنجاح (${formatSar(selectedPayoutReq.amount)}) وإنشاء القيد المحاسبي والمديونية`, 'success');
       setPayoutModalOpen(false);
       setSelectedPayoutReq(null);
       setPayoutReference('');
@@ -320,13 +322,13 @@ function TreasuryPageContent() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="إجمالي أرصدة البنوك"
-          value={`${totalBankBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+          value={`${formatSar(totalBankBalance)}`}
           hint="الأرصدة الصافية الفعلية في الحسابات البنكية"
           icon={Landmark}
         />
         <StatCard
           label="إجمالي الصناديق والخزن"
-          value={`${totalCashBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+          value={`${formatSar(totalCashBalance)}`}
           hint="الخزن الرئيسية والفرعية وصناديق العهد"
           icon={Coins}
         />
@@ -338,7 +340,7 @@ function TreasuryPageContent() {
         />
         <StatCard
           label="ملف صرف البنك للفترة"
-          value={bankFilePreview ? `${bankFilePreview.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س` : selectedPeriod}
+          value={bankFilePreview ? `${formatSar(bankFilePreview.totalAmount)}` : selectedPeriod}
           hint={bankFilePreview ? `${bankFilePreview.validRecordsCount} سجلات جاهزة للصرف` : 'اختر تبويب ملف البنك للمعاينة'}
           icon={FileSpreadsheet}
         />
@@ -457,7 +459,7 @@ function TreasuryPageContent() {
                         <td className="p-3 text-[var(--muted)]">{(a as any).sponsorName || 'عام'}</td>
                         <td className="p-3 num font-bold text-sm">
                           <span className={a.netBalance < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'}>
-                            {a.netBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(a.netBalance)}
                           </span>
                         </td>
                         <td className="p-3 text-xs text-[var(--muted)]">{a.naturalSideAr}</td>
@@ -556,10 +558,10 @@ function TreasuryPageContent() {
                           <div className="font-mono text-[10px] text-[var(--muted)]">{req.vaultCode}</div>
                         </td>
                         <td className="p-3 num font-bold text-sm text-[var(--money-pos)]">
-                          {req.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          {formatSar(req.amount)}
                         </td>
                         <td className="p-3 num font-medium text-xs text-[var(--ink)]">
-                          {req.monthlyInstallment ? `${req.monthlyInstallment} ر.س` : '—'}
+                          {req.monthlyInstallment ? formatSar(req.monthlyInstallment) : '—'}
                         </td>
                         <td className="p-3 text-xs">
                           <div className="font-semibold text-[var(--ink)]">{req.approvedBy}</div>
@@ -678,7 +680,7 @@ function TreasuryPageContent() {
                 <div className="p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
                   <div className="text-xs text-[var(--muted)] font-medium">إجمالي مبلغ الصرف</div>
                   <div className="text-lg font-bold num text-[var(--accent)] mt-1">
-                    {bankFilePreview.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                    {formatSar(bankFilePreview.totalAmount)}
                   </div>
                 </div>
                 <div className="p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
@@ -716,7 +718,7 @@ function TreasuryPageContent() {
                             <IbanDisplay iban={r.iban} bank={r.bankName} />
                           </td>
                           <td className="p-3 num font-bold text-[var(--accent)]">
-                            {r.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(r.amount)}
                           </td>
                           <td className="p-3">
                             <span
@@ -799,7 +801,7 @@ function TreasuryPageContent() {
                         <td className="p-3 font-semibold">{j.description}</td>
                         <td className="p-3 num text-xs text-[var(--muted)]">{j.entryDate?.split('T')[0]}</td>
                         <td className="p-3 num font-bold text-[var(--ink)]">
-                          {(j.totalDebit ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          {formatSar((j.totalDebit ?? 0))}
                         </td>
                         <td className="p-3 font-mono text-xs text-[var(--muted)]">{(j as any).postedBy || j.createdBy || 'النظام'}</td>
                         <td className="p-3">
@@ -842,7 +844,7 @@ function TreasuryPageContent() {
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المبلغ المطلوب صرفه:</span>
                 <span className="font-bold num text-sm text-[var(--money-pos)]">
-                  {selectedPayoutReq.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatSar(selectedPayoutReq.amount)}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -911,7 +913,7 @@ function TreasuryPageContent() {
         open={Boolean(payoutDetailsReq)}
         onClose={() => setPayoutDetailsReq(null)}
         title={payoutDetailsReq ? `تفاصيل سلفة: ${payoutDetailsReq.riderName}` : 'تفاصيل السلفة'}
-        subtitle={payoutDetailsReq ? `المبلغ: ${payoutDetailsReq.amount} ر.س` : ''}
+        subtitle={payoutDetailsReq ? `المبلغ: ${formatSar(payoutDetailsReq.amount)}` : ''}
       >
         {payoutDetailsReq && (
           <div className="space-y-4">
@@ -986,7 +988,7 @@ function TreasuryPageContent() {
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">الرصيد الصافي الحالي:</span>
                 <span className="num font-bold text-sm text-[var(--accent)]">
-                  {selectedAccount.netBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatSar(selectedAccount.netBalance)}
                 </span>
               </div>
             </div>

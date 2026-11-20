@@ -42,8 +42,14 @@ export function ResponsesTab({
   onRefresh,
 }: ResponsesTabProps) {
   const { toast } = useToast();
-  const { can, canReview, isAdmin } = useAuth();
+  const { can, canReview, isAdmin, user } = useAuth();
   const canViewIban = isAdmin || can('riders.iban.view');
+  const sponsorIds = user?.financialScope?.sponsorIds;
+  const noCompanyScope =
+    !isAdmin &&
+    !can('forms.responses.allCompanies') &&
+    !(Array.isArray(sponsorIds) && sponsorIds.length > 0);
+  const emptyScopeHint = 'لا توجد شركات ضمن نطاقك';
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [campaignFilter, setCampaignFilter] = useState<string>('');
@@ -436,8 +442,12 @@ export function ResponsesTab({
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           getRowId={(r) => r.id}
-          emptyTitle="لا توجد ردود مسجلة"
-          emptyDescription="لم تصل ردود جديدة تطابق خيارات التصفية المحددة."
+          emptyTitle={noCompanyScope ? emptyScopeHint : 'لا توجد ردود مسجلة'}
+          emptyDescription={
+            noCompanyScope
+              ? emptyScopeHint
+              : 'لم تصل ردود جديدة تطابق خيارات التصفية المحددة.'
+          }
           rowActions={[
             {
               label: 'معاينة وتدقيق',

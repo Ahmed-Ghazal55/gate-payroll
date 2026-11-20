@@ -17,7 +17,12 @@ public static partial class AccessPolicy
         _=>[]
     };
     public static bool Has(ClaimsPrincipal user,string permission)=>user.Identity?.IsAuthenticated==true&&(Administrator(user)||user.HasClaim("permission",permission));
-    public static void Demand(ClaimsPrincipal user,string permission){if(!Has(user,permission))throw new ApiError("ليست لديك صلاحية لهذه العملية: "+permission,403);}
+    public static void Demand(ClaimsPrincipal user,string permission)
+    {
+        if(Has(user,permission))return;
+        string nameAr=UserAccess.PermissionsCatalog.FirstOrDefault(p=>p.Code==permission)?.NameAr??permission;
+        throw new ApiError("ليست لديك صلاحية لهذه العملية: "+nameAr,403);
+    }
     // One mapping for the statements tab / preview: sidebar, AccessPolicy.Allowed, and PayStatements.Build.
     public static bool CanAccessRiderMonthlyStatement(ClaimsPrincipal user)=>
         Administrator(user)||Has(user,"mobile.broadcast")||(Has(user,"pay.view")&&Has(user,"payroll.view")&&Has(user,"debts.view"));
@@ -145,6 +150,8 @@ public static partial class AccessPolicy
             return path.EndsWith("/payout",StringComparison.Ordinal)&&Has("advances.payout");
         }
         if(path.StartsWith("/api/approvals",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&path.EndsWith("/decide",StringComparison.Ordinal)&&Has("approvals.decide");
+        if(path=="/api/audit")return method=="GET"&&Has("audit.view");
+        // DELETE / campaign PUT stay admin-only (blanket deny). forms.delete is deprecated and unused.
         if(method=="DELETE"||path.EndsWith("/delete-preview",StringComparison.Ordinal)||path=="/api/submissions/bulk-delete"||method=="PUT"&&path.StartsWith("/api/campaigns/",StringComparison.Ordinal))return false;
         if(method=="POST"&&path.StartsWith("/api/notifications/center/",StringComparison.Ordinal)&&path.EndsWith("/toggle-todo",StringComparison.Ordinal))return true; // Handler checks view permission or ownership and visibility.
         if(path=="/api/notifications"||path=="/api/notifications/summary")return method=="GET";
@@ -166,9 +173,9 @@ public static partial class AccessPolicy
         if(path=="/api/payments")return method=="POST"&&Has("payments.record");
         if(path=="/api/adjustments")return method=="POST"&&Has("adjustments.create");
         if(path.StartsWith("/api/policies",StringComparison.Ordinal))return method=="GET"?Has("policies.view"):Has("policies.manage");
-        if(Get("/api/imports")||path=="/api/template.csv")return Has("imports.view");
-        // K6 Import Center: the catalog and empty templates are read-only for anyone who may import.
-        if(method=="GET"&&(path=="/api/imports/catalog"||path.StartsWith("/api/imports/templates/",StringComparison.Ordinal)))return Has("imports.view");
+        if((method=="GET"&&path=="/api/imports")||path=="/api/template.csv")return Has("imports.view");
+        // Per-page empty templates (imports centre catalog list removed).
+        if(path.StartsWith("/api/imports/templates/",StringComparison.Ordinal))return method=="GET"&&Has("imports.view");
         if(path.StartsWith("/api/imports/",StringComparison.Ordinal))return method=="POST"&&(path.EndsWith("/commit",StringComparison.Ordinal)?Has("imports.commit"):Has("imports.view"));
         if(path.StartsWith("/api/campaigns",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="DELETE"?Has("forms.delete"):Has("forms.manage");
         if(path.StartsWith("/api/submissions",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="POST"&&(path.EndsWith("/review",StringComparison.Ordinal)||path=="/api/submissions/bulk-approve")&&Has("forms.review");

@@ -196,8 +196,8 @@ api.MapGet("/me", (HttpContext ctx) =>
     if (u != null) return Results.Ok(store.Read(c=>UserAccess.PublicWithBypass(c,null,u)));
     return Results.Ok(new { username = ctx.User.Identity!.Name, role = ctx.User.FindFirstValue(ClaimTypes.Role), permissions=ctx.User.FindAll("permission").Select(p=>p.Value),department=ctx.User.FindFirstValue("department"),rankLevel=ctx.User.FindFirstValue("rankLevel"), id = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) });
 }).WithTags("Administration").WithSummary("Read me");
-api.MapGet("/dashboard", (HttpContext ctx) => store.Read(c => new { riders = Store.List(c, "rider").Count(ErpRiderClassification.ListedAsRider), imports = Store.List(c, "batch").Count, pendingResponses = Store.List(c, "submission").Count(x => x.S("status") == "pending"), approvedRuns = Store.List(c, "run").Count, balance = Store.List(c, "ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)).Sum(x => x.N("amount")), latestAudit = Store.List(c, "audit").Where(_=>AccessPolicy.Administrator(ctx.User)).Take(8) })).WithTags("Home").WithSummary("Read dashboard");
-api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider).Where(r => ctx.Request.Query["status"].ToString() is var st && (st == "" || st == "all" || string.Equals(r.S("status"), st, StringComparison.OrdinalIgnoreCase))).Select(r => !AccessPolicy.Has(ctx.User,"riders.view_360") ? UserAccess.RiderView(r) : r).ToList())).WithTags("Riders").WithSummary("Read riders");
+api.MapGet("/dashboard", (HttpContext ctx) => store.Read(c => new { riders = Store.List(c, "rider").Count(ErpRiderClassification.ListedAsRider), imports = Store.List(c, "batch").Count, pendingResponses = Store.List(c, "submission").Count(x => x.S("status") == "pending" && SubmissionChoices.InRiderScope(c, ctx.User, x.S("iqama"))), approvedRuns = Store.List(c, "run").Count, balance = Store.List(c, "ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)).Sum(x => x.N("amount")), latestAudit = Store.List(c, "audit").Where(_=>AccessPolicy.Administrator(ctx.User)).Take(8) })).WithTags("Home").WithSummary("Read dashboard");
+api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider).Where(r => ctx.Request.Query["status"].ToString() is var st && (st == "" || st == "all" || string.Equals(r.S("status"), st, StringComparison.OrdinalIgnoreCase))).Where(r => AccessPolicy.Administrator(ctx.User) || FinancialScopes.Rider(ctx.User, r) || FinancialScopes.AllCompanies(ctx.User)).Select(r => WorkforceApi.ProjectDirectoryRider(r, ctx.User)).ToList())).WithTags("Riders").WithSummary("Read riders");
 api.MapPost("/riders", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var iqama = J.Iqama(input.Required("iqama")); var existing = Store.Get(c, iqama, "rider", tx);
@@ -309,7 +309,7 @@ api.MapGet("/payroll/export.csv", (string period,HttpContext ctx) => store.Read(
 })).WithTags("Payroll").WithSummary("Read payroll export.csv");
 
 // Public forms are collection links, never a lookup endpoint for existing personal records.
-api.MapGet("/campaigns", (HttpContext ctx) => store.Read(c => { var counts=Store.List(c,"submission").GroupBy(s=>s.S("campaignId")).ToDictionary(g=>g.Key,g=>g.Count()); return Store.List(c, "campaign").Select(x => new { id=x.S("id"), title=x.S("title"), expiresAt=x.S("expiresAt"), createdAt=x.S("createdAt"), status=x.S("status"), kind=x.S("kind","work-choice"), responseCount=counts.GetValueOrDefault(x.S("id")), path="/forms/"+x.S("sharingToken"), fields=CampaignOperations.Fields(x), cities=IbanChoices.Is(x)?IbanChoices.Cities(x):null, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+x.S("sharingToken"), qrCodeUrl="/api/campaigns/"+x.S("id")+"/qr.svg" }); })).WithTags("Forms and responses").WithSummary("Read campaigns");
+api.MapGet("/campaigns", (HttpContext ctx) => store.Read(c => { var counts=Store.List(c,"submission").Where(s=>SubmissionChoices.InRiderScope(c,ctx.User,s.S("iqama"))).GroupBy(s=>s.S("campaignId")).ToDictionary(g=>g.Key,g=>g.Count()); return Store.List(c, "campaign").Select(x => new { id=x.S("id"), title=x.S("title"), expiresAt=x.S("expiresAt"), createdAt=x.S("createdAt"), status=x.S("status"), kind=x.S("kind","work-choice"), responseCount=counts.GetValueOrDefault(x.S("id")), path="/forms/"+x.S("sharingToken"), fields=CampaignOperations.Fields(x), cities=IbanChoices.Is(x)?IbanChoices.Cities(x):null, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+x.S("sharingToken"), qrCodeUrl="/api/campaigns/"+x.S("id")+"/qr.svg" }); })).WithTags("Forms and responses").WithSummary("Read campaigns");
 api.MapGet("/campaigns/{id}/qr.svg", (string id, HttpContext ctx) => store.Read(c => { var d=Store.Get(c,id,"campaign")??throw new ApiError("الحملة غير موجودة.",404); return Results.Text(CampaignLinks.Svg(CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+d.S("sharingToken")),"image/svg+xml"); })).WithTags("Forms and responses").WithSummary("Read campaigns {id} qr.svg");
 api.MapPost("/campaigns", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
@@ -328,7 +328,32 @@ api.MapPost("/submissions/{id}/review", (string id, JsonObject input, HttpContex
     SubmissionChoices.DemandInScope(c, ctx.User, d, tx);
     CampaignOperations.Review(c,tx,d,input,Actor(ctx));return SubmissionChoices.PublicAdmin(d, ctx.User);
 })).WithTags("Forms and responses").WithSummary("Submit submissions {id} review");
-api.MapGet("/audit", () => store.Read(c => Store.List(c, "audit"))).WithTags("Administration").WithSummary("Read audit");
+api.MapGet("/audit", (HttpContext ctx) => store.Read(c =>
+{
+    AccessPolicy.Demand(ctx.User, "audit.view");
+    string from = ctx.Request.Query["from"].ToString().Trim();
+    string to = ctx.Request.Query["to"].ToString().Trim();
+    DateTimeOffset? fromAt = null, toAt = null;
+    if (from.Length > 0)
+    {
+        if (!DateTimeOffset.TryParse(from, out var parsedFrom)) throw new ApiError("تاريخ البداية غير صالح.");
+        fromAt = parsedFrom;
+    }
+    if (to.Length > 0)
+    {
+        if (!DateTimeOffset.TryParse(to, out var parsedTo)) throw new ApiError("تاريخ النهاية غير صالح.");
+        toAt = parsedTo;
+    }
+    var rows = Store.List(c, "audit").Where(a =>
+    {
+        if (!DateTimeOffset.TryParse(a.S("at"), out var at)) return fromAt == null && toAt == null;
+        if (fromAt != null && at < fromAt) return false;
+        if (toAt != null && at > toAt) return false;
+        return true;
+    });
+    // Always page (M-0607); default page=1 when omitted.
+    return ApiPagination.Apply(rows, ctx.Request.Query, always: true);
+})).WithTags("Administration").WithSummary("Read audit");
 app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = IbanChoices.Is(d) ? IbanChoices.Schema : "work-choice-v1", fields=CampaignOperations.Fields(d), cities=IbanChoices.Is(d) ? IbanChoices.Cities(d) : null }); }).WithTags("Forms and responses").WithSummary("Read public forms {token}").RequireRateLimiting("sensitive");
 SubmissionChoices.Map(app, store, Campaign);
 CampaignOperations.Map(api,store);

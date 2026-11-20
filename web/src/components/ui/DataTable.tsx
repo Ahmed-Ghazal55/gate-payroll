@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -53,6 +55,8 @@ export interface ColumnDef<T> {
   key: string;
   header: string;
   numeric?: boolean;
+  /** When true, footer sum uses formatSar (ر.س). */
+  money?: boolean;
   sortable?: boolean;
   filterable?: boolean;
   width?: string;
@@ -951,7 +955,7 @@ export function DataTable<T extends Record<string, any>>({
                         key={`total-${col.key}`}
                         className="px-3.5 py-2.5 text-end num text-[var(--ink)]"
                       >
-                        {sum.toLocaleString('en-US', {
+                        {col.money ? formatSar(sum) : sum.toLocaleString('en-US', {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 2,
                         })}

@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, FilePlus2, Send, CheckCircle2, Scale } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
@@ -154,7 +156,7 @@ export function JahezWorkspace() {
                 {selected.totals && (
                   <div className="grid grid-cols-2 gap-2">
                     {Object.entries(selected.totals).map(([k, v]) => (
-                      <div key={k} className="p-2 rounded-lg bg-[var(--raised)]/50"><div className="text-[var(--muted)]">{k}</div><div className="font-mono font-bold">{Number(v).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div></div>
+                      <div key={k} className="p-2 rounded-lg bg-[var(--raised)]/50"><div className="text-[var(--muted)]">{k}</div><div className="font-mono font-bold">{formatSar(Number(v))}</div></div>
                     ))}
                   </div>
                 )}

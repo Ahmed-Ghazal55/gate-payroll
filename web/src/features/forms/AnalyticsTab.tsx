@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { BarChart3, CheckCircle2, Layers, Clock } from 'lucide-react';
 import type { Submission, Campaign } from '../../lib/types';
 import { StatCard } from '../../components/ui/StatCard';
+import { useAuth } from '../../lib/auth-context';
 
 export interface AnalyticsTabProps {
   submissions: Submission[];
@@ -21,6 +22,13 @@ function pct(part: number, total: number) {
 }
 
 export function AnalyticsTab({ submissions, campaigns }: AnalyticsTabProps) {
+  const { can, isAdmin, user } = useAuth();
+  const sponsorIds = user?.financialScope?.sponsorIds;
+  const noCompanyScope =
+    !isAdmin &&
+    !can('forms.responses.allCompanies') &&
+    !(Array.isArray(sponsorIds) && sponsorIds.length > 0);
+  const emptyScopeHint = 'لا توجد شركات ضمن نطاقك';
   const approvedCount = submissions.filter((s) => s.status === 'approved').length;
   const approvalRate = pct(approvedCount, submissions.length);
   const activeCampaignsCount = campaigns.filter((c) => c.status === 'open').length;
@@ -76,7 +84,7 @@ export function AnalyticsTab({ submissions, campaigns }: AnalyticsTabProps) {
           <h3 className="text-base font-bold text-[var(--ink)] mb-3">توزيع الردود حسب نظام العمل</h3>
           <div className="space-y-3">
             {byWork.length === 0 ? (
-              <p className="text-xs text-[var(--muted)]">لا توجد ردود بعد.</p>
+              <p className="text-xs text-[var(--muted)]">{noCompanyScope ? emptyScopeHint : 'لا توجد ردود بعد.'}</p>
             ) : (
               byWork.map(([label, count]) => (
                 <div key={label} className="space-y-1">
@@ -97,7 +105,7 @@ export function AnalyticsTab({ submissions, campaigns }: AnalyticsTabProps) {
           <h3 className="text-base font-bold text-[var(--ink)] mb-3">توزيع الردود حسب المدن</h3>
           <div className="space-y-3">
             {byCity.length === 0 ? (
-              <p className="text-xs text-[var(--muted)]">لا توجد مدن مسجّلة في الردود.</p>
+              <p className="text-xs text-[var(--muted)]">{noCompanyScope ? emptyScopeHint : 'لا توجد مدن مسجّلة في الردود.'}</p>
             ) : (
               byCity.map(([label, count]) => (
                 <div key={label} className="space-y-1">

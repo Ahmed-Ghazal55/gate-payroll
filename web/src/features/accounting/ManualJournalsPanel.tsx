@@ -28,6 +28,7 @@ import { Drawer } from '../../components/ui/Drawer';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { ManualJournal, ManualJournalLine, CompanySponsor } from '../../lib/types';
+import { formatSar } from '../../lib/money';
 
 interface CoaAccountItem {
   code: string;
@@ -228,7 +229,7 @@ export function ManualJournalsPanel({
       return;
     }
     if (!isBalanced) {
-      toast(`القيد غير متزن! الفرق الحالي: ${diff.toFixed(2)} ر.س`, 'danger');
+      toast(`القيد غير متزن! الفرق الحالي: ${formatSar(diff)}`, 'danger');
       return;
     }
     for (let i = 0; i < lines.length; i++) {
@@ -428,7 +429,7 @@ export function ManualJournalsPanel({
         getValue: (j) => j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0),
         render: (j) => {
           const total = j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0);
-          return <span className="num font-bold text-sm text-[var(--ink)]">{total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>;
+          return <span className="num font-bold text-sm text-[var(--ink)]">{formatSar(total)}</span>;
         },
       },
       {
@@ -723,10 +724,10 @@ export function ManualJournalsPanel({
                           </span>
                         </td>
                         <td className="p-2.5 num font-bold text-[var(--ink)]">
-                          {line.debit ? line.debit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                          {line.debit ? formatSar(line.debit) : '—'}
                         </td>
                         <td className="p-2.5 num font-bold text-[var(--ink)]">
-                          {line.credit ? line.credit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                          {line.credit ? formatSar(line.credit) : '—'}
                         </td>
                         <td className="p-2.5 text-[var(--muted)]">{line.note || '—'}</td>
                       </tr>
@@ -738,14 +739,10 @@ export function ManualJournalsPanel({
                         الإجمالي:
                       </td>
                       <td className="p-2.5 num text-[var(--ink)]">
-                        {(selectedJournal.lines || [])
-                          .reduce((sum, l) => sum + (l.debit || 0), 0)
-                          .toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatSar((selectedJournal.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0))}
                       </td>
                       <td className="p-2.5 num text-[var(--ink)]">
-                        {(selectedJournal.lines || [])
-                          .reduce((sum, l) => sum + (l.credit || 0), 0)
-                          .toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatSar((selectedJournal.lines || []).reduce((sum, l) => sum + (l.credit || 0), 0))}
                       </td>
                       <td className="p-2.5 text-end text-[var(--badge-success-text)] font-semibold">
                         <span className="inline-flex items-center gap-1">
@@ -830,12 +827,12 @@ export function ManualJournalsPanel({
               {isBalanced ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]">
                   <CheckCircle size={15} />
-                  <span>متزن (الفرق: 0.00 ر.س)</span>
+                  <span>متزن (الفرق: {formatSar(0)})</span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-[var(--badge-danger-bg)] text-[var(--badge-danger-text)]">
                   <AlertCircle size={15} />
-                  <span>غير متزن (الفرق: {diff.toFixed(2)} ر.س)</span>
+                  <span>غير متزن (الفرق: {formatSar(diff)})</span>
                 </span>
               )}
             </div>
@@ -951,7 +948,7 @@ export function ManualJournalsPanel({
                     onClick={handleAutoBalance}
                     className="px-2.5 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[11px] font-bold text-[var(--accent)] hover:bg-[var(--raised)] cursor-pointer"
                   >
-                    موازنة السطر الأخير تلقائياً ({diff.toFixed(2)} ر.س)
+                    موازنة السطر الأخير تلقائياً ({formatSar(diff)})
                   </button>
                 )}
                 <button
@@ -1041,8 +1038,8 @@ export function ManualJournalsPanel({
                     <td colSpan={2} className="p-2 text-start text-[var(--ink)]">
                       المجموع:
                     </td>
-                    <td className="p-2 num text-[var(--ink)]">{totalDebit.toFixed(2)}</td>
-                    <td className="p-2 num text-[var(--ink)]">{totalCredit.toFixed(2)}</td>
+                    <td className="p-2 num text-[var(--ink)]">{formatSar(totalDebit)}</td>
+                    <td className="p-2 num text-[var(--ink)]">{formatSar(totalCredit)}</td>
                     <td colSpan={2} className="p-2 text-end">
                       {isBalanced ? (
                         <span className="text-[var(--badge-success-text)] font-bold inline-flex items-center gap-1">
@@ -1052,7 +1049,7 @@ export function ManualJournalsPanel({
                       ) : (
                         <span className="text-[var(--badge-danger-text)] font-bold inline-flex items-center gap-1">
                           <AlertCircle size={13} />
-                          <span>الفرق: {diff.toFixed(2)}</span>
+                          <span>الفرق: {formatSar(diff)}</span>
                         </span>
                       )}
                     </td>

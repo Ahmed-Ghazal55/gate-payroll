@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Globalization;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -110,7 +111,7 @@ public static class FormBuilderApi
                 row["answers"]=answers;return row;
             }).Where(x=>x!=null).Cast<JsonObject>().ToList();
         })).WithTags("Forms and responses").WithSummary("Read forms responses {id}");
-        api.MapGet("/forms/analytics/{id}",(string id)=>store.Read(c=>Analytics(c,id))).WithTags("Forms and responses").WithSummary("Read forms analytics {id}");
+        api.MapGet("/forms/analytics/{id}",(string id,HttpContext ctx)=>store.Read(c=>Analytics(c,id,ctx.User))).WithTags("Forms and responses").WithSummary("Read forms analytics {id}");
         JsonObject Load(string token,DbConnection c,DbTransaction? tx=null)
         { J.Need(token.Length==64&&token.All(Uri.IsHexDigit),"رابط غير صالح.");var f=Store.List(c,"custom_form",tx).FirstOrDefault(x=>x.S("sharingToken")==token)??throw new ApiError("النموذج غير متاح.",404);J.Need(f.S("status")=="open"&&DateTimeOffset.Parse(f.S("expiresAt"),CultureInfo.InvariantCulture)>DateTimeOffset.UtcNow,"النموذج مغلق.");return f; }
         app.MapGet("/api/public/questionnaires/{token}",(string token)=>store.Read(c=>{
@@ -124,10 +125,13 @@ public static class FormBuilderApi
         })).WithTags("Forms and responses").WithSummary("Submit public questionnaires {token}").RequireRateLimiting("sensitive");
         app.MapGet("/questionnaires/{token}",(string token)=>{store.Read(c=>Load(token,c));return Results.File(Path.Combine(AppContext.BaseDirectory,"wwwroot","rider-form.html"),"text/html; charset=utf-8");}).WithTags("Forms and responses").WithSummary("Read  questionnaires {token}");
     }
-    private static object Analytics(DbConnection c,string id)
+    private static object Analytics(DbConnection c,string id,ClaimsPrincipal user)
     {
-        var f=Store.Get(c,id,"custom_form")??throw new ApiError("النموذج غير موجود.",404);var rows=Store.List(c,"custom_response").Where(x=>x.S("formId")==id).ToList();
+        var f=Store.Get(c,id,"custom_form")??throw new ApiError("النموذج غير موجود.",404);
+        var fields=(f["fields"] as JsonArray)?.OfType<JsonObject>().ToList()??[];
+        string iqamaField=fields.FirstOrDefault(x=>x.S("type")=="iqama")?.S("id")??"";
+        var rows=Store.List(c,"custom_response").Where(x=>x.S("formId")==id&&SubmissionChoices.InRiderScope(c,user,(x["answers"] as JsonObject)?.S(iqamaField)??"")).ToList();
         double hours=rows.Count==0?1:Math.Max(1d/60,(DateTimeOffset.UtcNow-rows.Select(x=>DateTimeOffset.Parse(x.S("createdAt"),CultureInfo.InvariantCulture)).Min()).TotalHours);
-        return new{formId=id,totalResponses=rows.Count,responsesPerHour=Math.Round(rows.Count/hours,2),fields=((JsonArray)f["fields"]!).OfType<JsonObject>().Where(q=>q.S("type") is "select" or "radio").Select(q=>new{id=q.S("id"),label=q.S("labelAr"),options=((JsonArray)q["options"]!).OfType<JsonObject>().Select(o=>{int count=rows.Count(r=>r["answers"].S(q.S("id"))==o.S("value"));return new{value=o.S("value"),label=o.S("labelAr"),count,percentage=rows.Count==0?0:Math.Round(100m*count/rows.Count,2)};})})};
+        return new{formId=id,totalResponses=rows.Count,responsesPerHour=Math.Round(rows.Count/hours,2),fields=fields.Where(q=>q.S("type") is "select" or "radio").Select(q=>new{id=q.S("id"),label=q.S("labelAr"),options=((JsonArray)q["options"]!).OfType<JsonObject>().Select(o=>{int count=rows.Count(r=>r["answers"].S(q.S("id"))==o.S("value"));return new{value=o.S("value"),label=o.S("labelAr"),count,percentage=rows.Count==0?0:Math.Round(100m*count/rows.Count,2)};})})};
     }
 }
