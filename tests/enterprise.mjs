@@ -58,7 +58,7 @@ try{
  // Debt preview and posting: gross wage and the installment are separate ledger entries.
  let policy=await req('/api/policies',{name:'Approved pay',kind:'approved_pay',platform:'all',effectiveFrom:'2026-10',config:{}});await req(`/api/policies/${policy.id}/approve`,{});
  await req('/api/riders',{...rider,policyId:policy.id});
- seedWorkRows(data,[{sourceRef:'enterprise-row',iqama:iq,name:'Synthetic Rider',accountId:'1234567890123456',from:'2026-10-01',to:'2026-10-31',orders:1,riderPay:500,isValid:true,platform:'Keeta',period:'2026-10'}]);
+ await seedWorkRows(req,[{sourceRef:'enterprise-row',iqama:iq,name:'Synthetic Rider',accountId:'1234567890123456',from:'2026-10-01',to:'2026-10-31',orders:1,riderPay:500,isValid:true,platform:'Keeta',period:'2026-10'}]);
  const debt=await req('/api/debts',{iqama:iq,category:'Advance',creditorSponsorId:'BW',totalAmount:600,monthlyInstallment:400,sourceRef:'agreed-advance',agreementReviewed:true,effectiveFrom:'2026-10'});
  let pay=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(pay.payable,100);assert.equal((await req('/api/debts'))[0].remainingBalance,600);
  await put('/api/debts/'+debt.id,{monthlyInstallment:200,agreementReviewed:true});await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:pay.fingerprint},400);

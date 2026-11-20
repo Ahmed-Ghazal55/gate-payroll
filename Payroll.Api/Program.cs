@@ -170,6 +170,7 @@ HungerStationInvoices.MapReview(api,store);
 GlobalSearch.Map(api,store);
 ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);
+TestSeed.Map(api, store, app.Environment);
 UserAccess.Map(api, store);
 AccessPolicy.MapBypass(api, store);
 RiderDirectory.Map(api, store);

@@ -904,7 +904,11 @@ try {
   const targetSponsorId = riderPost.financeSponsorId;
   console.log('Rider post res:', riderPostRes.status(), JSON.stringify(riderPost));
 
-  seedWorkRows(tempDir, [{
+  await seedWorkRows(async (route, body) => {
+    const res = await page.request.post(`${baseUrl}${route}`, { data: body });
+    assert.equal(res.status(), 200, await res.text());
+    return res.json();
+  }, [{
     sourceRef: 'live-legacy-row', iqama: testIqama, name: testName, accountId: 'ACC-001',
     from: '2026-10-01', to: '2026-10-31', orders: 10, riderPay: 1500, isValid: true,
     platform: 'Keeta', period: '2026-10',

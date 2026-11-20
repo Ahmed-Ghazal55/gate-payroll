@@ -29,7 +29,7 @@ try{
  const iqama='2000000888',period='2026-10';
  const policy=await req('/api/policies',{name:'Synthetic commission',kind:'commission',platform:'all',effectiveFrom:period,config:{companyFee:500}});await req(`/api/policies/${policy.id}/approve`,{});
  await req('/api/riders',{iqama,name:'Synthetic Rider',financeSponsorId:'BW',policyId:policy.id,iban});
- seedWorkRows(directory,[{sourceRef:'synthetic-work',iqama,name:'Synthetic Rider',accountId:'0000000000000001',from:'2026-10-01',to:'2026-10-31',orders:600,platformRevenue:1500,isValid:true,platform:'Keeta',period}]);
+ await seedWorkRows(req,[{sourceRef:'synthetic-work',iqama,name:'Synthetic Rider',accountId:'0000000000000001',from:'2026-10-01',to:'2026-10-31',orders:600,platformRevenue:1500,isValid:true,platform:'Keeta',period}]);
  const pay=(await req('/api/payroll/preview?period='+period))[0];assert.equal(pay.payable,1000);await req('/api/payroll/approve',{sponsorId:'BW',iqama,period,fingerprint:pay.fingerprint});
  const before=(await req('/api/system/release-check')).snapshot;
  for(const view of ['current','target']){const trial=await req(`/api/finance/trial-balance?sponsorId=BW&from=${period}&to=${period}&view=${view}`);assert.equal(trial.companies.length,1);assert.ok(trial.companies[0].isBalanced);assert.equal(trial.companies[0].totals.periodDebit,trial.companies[0].totals.periodCredit);}

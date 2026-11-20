@@ -29,7 +29,7 @@ try{
  let policy=await req('/api/policies',{name:'Test commission',kind:'commission',platform:'all',effectiveFrom:'2026-10',config:{companyFee:2500}});
  await req(`/api/policies/${policy.id}/approve`,{});
  await req('/api/riders',{iqama:iq,name:'Synthetic Rider',financeSponsorId:'BW',phone:'0501234567',city:'Test',policyId:policy.id});
- assert.equal(seedWorkRows(data,[workRow(3000,'row-1'),workRow(1000,'row-2')]).length,2);
+ assert.equal((await seedWorkRows(req,[workRow(3000,'row-1'),workRow(1000,'row-2')])).length,2);
  await req('/api/imports/inspect',{filename:'x.csv',dataBase64:''},404);
  let result=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(result.periodMovement,1500);assert.equal(result.blockers.length,0);
  await req('/api/adjustments',{iqama:iq,period:'2026-10',amount:-200,category:'fuel',description:'Actual fuel',sourceRef:'fuel-1'});
@@ -38,7 +38,7 @@ try{
  await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:result.fingerprint});await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:result.fingerprint},400);
  await req('/api/adjustments',{iqama:iq,period:'2026-10',amount:-1,category:'fuel',description:'Late',sourceRef:'late'},400);
  await req('/api/payments',{sponsorId:'BW',paymentVaultCode:'BANK.BW',iqama:iq,period:'2026-10',amount:1000,sourceRef:'transfer-1'});assert.equal((await req('/api/ledger/'+iq)).balance,300);
- seedWorkRows(data,[workRow(2000,'nov-1','2026-11')]);
+ await seedWorkRows(req,[workRow(2000,'nov-1','2026-11')]);
  result=(await req('/api/payroll/preview?period=2026-11'))[0];assert.equal(result.openingBalance,300);assert.equal(result.closingBalance,-200);assert.equal(result.debt,200);assert.equal(result.payable,0);
  await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-11',fingerprint:result.fingerprint});assert.equal((await req('/api/ledger/'+iq)).balance,-200);
  const campaign=await req('/api/campaigns',{title:'Synthetic form',days:2});const token=campaign.path.split('/').at(-1);const pub='/api/public/forms/'+token;

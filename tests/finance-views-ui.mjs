@@ -109,7 +109,7 @@ try {
     iban
   });
 
-  seedWorkRows(data,[{sourceRef:'synthetic-work',iqama,name:'Ahmed Test Rider',accountId:'0000000000000001',from:'2026-10-01',to:'2026-10-31',orders:600,platformRevenue:1500,isValid:true,platform:'Keeta',period}]);
+  await seedWorkRows(async (route, body) => apiPost(route, body), [{sourceRef:'synthetic-work',iqama,name:'Ahmed Test Rider',accountId:'0000000000000001',from:'2026-10-01',to:'2026-10-31',orders:600,platformRevenue:1500,isValid:true,platform:'Keeta',period}]);
 
   const previewPay = await (await context.request.get(`${base}/api/payroll/preview?period=${period}`)).json();
   assert.equal(previewPay[0].payable, 1000);
