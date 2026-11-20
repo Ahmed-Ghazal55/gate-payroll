@@ -109,16 +109,27 @@ public static class SchemaOperationCapture
         {
             string t=SchemaSql.Q(c,"fin",table);
             if(SchemaSql.IsSql(c))
+            {
+                // INSTEAD OF so the freeze message wins over FK when a frozen link/manifest row is rewritten or deleted.
+                string cols=InsertableColumns(c,tx,"fin",table);
                 SchemaSql.Exec(c,tx,$"""
-                    CREATE OR ALTER TRIGGER fin.TR_{table}_frozen ON {t} AFTER INSERT,UPDATE,DELETE AS
+                    CREATE OR ALTER TRIGGER fin.TR_{table}_frozen ON {t} INSTEAD OF INSERT,UPDATE,DELETE AS
                     BEGIN
                       SET NOCOUNT ON;
-                      IF EXISTS(SELECT 1 FROM (SELECT operation_type,operation_id FROM inserted UNION SELECT operation_type,operation_id FROM deleted) x WHERE {Frozen(c,"x.operation_type","x.operation_id")})
+                      IF EXISTS(SELECT 1 FROM (SELECT operation_type,operation_id FROM inserted UNION ALL SELECT operation_type,operation_id FROM deleted) x WHERE {Frozen(c,"x.operation_type","x.operation_id")})
                         THROW 51011,'Frozen operation evidence cannot change',1;
                       IF EXISTS(SELECT 1 FROM inserted x WHERE {WrongOwner(c,"x")})
                         THROW 51012,'Capture owner or period mismatch',1;
+                      IF EXISTS(SELECT 1 FROM deleted) AND NOT EXISTS(SELECT 1 FROM inserted)
+                        DELETE FROM {t} WHERE id IN (SELECT id FROM deleted);
+                      ELSE IF EXISTS(SELECT 1 FROM inserted) AND NOT EXISTS(SELECT 1 FROM deleted)
+                        INSERT INTO {t} ({cols}) SELECT {cols} FROM inserted;
+                      ELSE IF EXISTS(SELECT 1 FROM inserted) AND EXISTS(SELECT 1 FROM deleted)
+                        UPDATE tgt SET {string.Join(",",cols.Split(',').Select(col=>$"{col}=n.{col}"))}
+                        FROM {t} tgt INNER JOIN inserted n ON tgt.id=n.id;
                     END;
                     """);
+            }
             else
             {
                 SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_{table}_no_replace BEFORE INSERT ON {t} WHEN EXISTS(SELECT 1 FROM {t} WHERE id=NEW.id) BEGIN SELECT RAISE(ABORT,'Evidence replacement is forbidden'); END;");
@@ -182,5 +193,14 @@ public static class SchemaOperationCapture
                     """);
             }
         }
+    }
+
+    static string InsertableColumns(DbConnection c,DbTransaction? tx,string schema,string table)
+    {
+        using var cmd=c.CreateCommand();
+        cmd.Transaction=tx;
+        cmd.CommandText="SELECT STRING_AGG(QUOTENAME(c.name),',') WITHIN GROUP (ORDER BY c.column_id) FROM sys.columns c WHERE c.object_id=OBJECT_ID(@obj) AND c.is_computed=0 AND c.system_type_id<>189";
+        var p=cmd.CreateParameter();p.ParameterName="@obj";p.Value=$"{schema}.{table}";cmd.Parameters.Add(p);
+        return (string)(cmd.ExecuteScalar()??throw new InvalidOperationException($"No insertable columns for {schema}.{table}."));
     }
 }
