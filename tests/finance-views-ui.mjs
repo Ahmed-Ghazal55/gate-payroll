@@ -55,8 +55,8 @@ try {
   // 1. Initial setup
   const password = randomBytes(24).toString('hex');
   assert.equal((await page.request.post(base + '/api/auth/setup', {data: {username: 'finance-views-tester', password}})).status(), 200);
-  await page.goto(base + '/legacy/');
-  await page.getByRole('heading', {name: 'كل مستحق في مكانه'}).waitFor();
+  await page.goto(base + '/app/accounting/?tab=coa');
+  await page.getByRole('heading', {name: /المحاسبة|دليل الحسابات|لوحة القيادة/}).waitFor({timeout: 15000});
 
   // Helper for API setup
   async function apiPost(route, body) {

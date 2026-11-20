@@ -44,8 +44,8 @@ try {
   const adminContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const setupPage = await adminContext.newPage();
   assert.equal((await setupPage.request.post(base + '/api/auth/setup', {data: {username: 'theme-tester', password: randomBytes(24).toString('hex')}})).status(), 200);
-  await setupPage.goto(base + '/legacy/');
-  await setupPage.getByRole('heading', { name: 'كل مستحق في مكانه' }).waitFor();
+  await setupPage.goto(base + '/app/');
+  await setupPage.getByRole('heading', { name: 'لوحة القيادة الرئيسية' }).waitFor();
 
   // Create sample rider & debts data for rich dashboard & debts screens
   await adminContext.request.post(base + '/api/riders', {
@@ -87,13 +87,13 @@ try {
   }
 
   // 1. Dashboard
-  await captureView('dashboard', base + '/legacy/#/dashboard', false, async (page, theme) => {
-    await page.locator('.stats, .panel').first().waitFor();
+  await captureView('dashboard', base + '/app/', false, async (page, theme) => {
+    await page.getByRole('heading', { name: 'لوحة القيادة الرئيسية' }).waitFor();
   });
 
   // 2. Debts
-  await captureView('debts', base + '/legacy/#/debts', false, async (page, theme) => {
-    await page.locator('[data-view="debts"]').first().click().catch(() => {});
+  await captureView('debts', base + '/app/debts/', false, async (page, theme) => {
+    await page.getByRole('heading', { name: /المديون/ }).waitFor({ timeout: 8000 }).catch(() => {});
     await page.waitForTimeout(400);
   });
 
