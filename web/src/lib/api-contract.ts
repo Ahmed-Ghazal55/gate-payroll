@@ -11399,7 +11399,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List every dated self-approval exception use for pre-launch review */
+        /** Self-approval audit report (dated exceptions and bypass uses) */
         get: {
             parameters: {
                 query?: never;
