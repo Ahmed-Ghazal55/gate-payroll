@@ -123,8 +123,8 @@ export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: str
                 <tr key={String(s.id)}>
                   <td className="p-2 font-mono">{String(s.receiptRef || '')}</td>
                   <td className="p-2 font-mono">{String(s.debtId || '')}</td>
-                  <td className="p-2 font-mono">{formatSar(s.collectedAmount || 0)}</td>
-                  <td className="p-2 font-mono">{formatSar(s.waivedAmount || 0)}</td>
+                  <td className="p-2 font-mono">{formatSar(Number(s.collectedAmount || 0))}</td>
+                  <td className="p-2 font-mono">{formatSar(Number(s.waivedAmount || 0))}</td>
                   <td className="p-2">{String(s.collectionDate || s.createdAt || '')}</td>
                 </tr>
               ))}
