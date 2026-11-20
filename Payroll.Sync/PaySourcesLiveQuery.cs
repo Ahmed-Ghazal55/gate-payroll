@@ -572,6 +572,169 @@ public static class PaySourcesLiveQuery
         catch (JsonException) { return new(null, null, null, null, null, null, null); }
     }
 
+    public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewHsStampQueueSql(
+        LiveOperationsQuery.Scope? scope = null)
+    {
+        using var cmd = new SqlCommand();
+        Add(cmd, "@skip", 0);
+        Add(cmd, "@take", 50);
+        string sql = HsStampQueueSql(ScopeSponsor(scope, cmd, "s"), ScopePlatform(scope, cmd, "cp"))
+            + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
+    }
+
+    public static PageResult HsStampQueue(DbConnection source, int page, int pageSize, string search,
+        string disposition, LiveOperationsQuery.Scope scope, CancellationToken ct = default)
+    {
+        EnsureSql(source);
+        pageSize = Math.Min(Math.Max(1, pageSize), MaxPageSize);
+        page = Math.Max(1, page);
+        int skip = checked((page - 1) * pageSize);
+        using var cmd = source.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        using var cancel = SyncCancellation.Register(cmd, ct);
+        string scopeSql = ScopeSponsor(scope, cmd, "s");
+        string platformSql = ScopePlatform(scope, cmd, "cp");
+        bool dispositionFilter = disposition.Length > 0;
+        if (dispositionFilter) Add(cmd, "@disposition", disposition);
+        if (search.Length > 0) Add(cmd, "@q", "%" + EscapeLike(search) + "%");
+        Add(cmd, "@skip", skip);
+        Add(cmd, "@take", pageSize);
+        cmd.CommandText = HsStampQueueSql(scopeSql, platformSql, search.Length > 0, dispositionFilter)
+            + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        long total = 0;
+        var summary = new JsonObject
+        {
+            ["rows"] = 0L,
+            ["walletPending"] = 0L,
+            ["deferredNextMonth"] = 0L,
+            ["stampedEvents"] = 0L,
+            ["pendingSealEvents"] = 0L
+        };
+        var items = new List<JsonObject>();
+        using (var reader = cmd.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                ct.ThrowIfCancellationRequested();
+                if (items.Count == 0)
+                {
+                    total = Long(reader, "TotalCount");
+                    summary = new JsonObject
+                    {
+                        ["rows"] = total,
+                        ["walletPending"] = Long(reader, "WalletPendingCount"),
+                        ["deferredNextMonth"] = Long(reader, "DeferredCount"),
+                        ["stampedEvents"] = Long(reader, "SealedEventCount"),
+                        ["pendingSealEvents"] = Long(reader, "PendingSealCount")
+                    };
+                }
+                items.Add(MapHsStampRow(reader));
+            }
+        }
+        return new(items, total, summary, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>
+    /// Union of (1) HS accounts with WalletPending/DeferredNextMonth disposition and
+    /// (2) finance_read stamped/pending-seal financial events. Read side only.
+    /// </summary>
+    static string HsStampQueueSql(string scopeSql, string platformSql, bool search = false, bool dispositionFilter = false)
+    {
+        string searchPredAccount = search
+            ? " AND (pa.[ExternalAccountId] LIKE @q OR pa.[Code] LIKE @q OR bd.[OperationalDisposition] LIKE @q)"
+            : "";
+        string searchPredEvent = search
+            ? " AND (pa.[ExternalAccountId] LIKE @q OR pa.[Code] LIKE @q OR ev.[Kind] LIKE @q OR ev.[ApprovalStatus] LIKE @q)"
+            : "";
+        string dispositionPred = dispositionFilter ? " AND bd.[OperationalDisposition]=@disposition" : "";
+        return $"""
+            WITH account_rows AS (
+                SELECT CONVERT(nvarchar(36), pa.[Id]) AS RowId,
+                       N'wallet_status' AS RowKind,
+                       pa.[Id] AS PlatformRiderAccountId,
+                       pa.[ExternalAccountId], pa.[Code] AS AccountCode,
+                       bd.[OperationalDisposition] AS Disposition,
+                       bd.[DispositionReason], bd.[DeferredUntil],
+                       CAST(NULL AS uniqueidentifier) AS EventId,
+                       CAST(NULL AS nvarchar(100)) AS EventKind,
+                       CAST(NULL AS nvarchar(100)) AS EventStatus,
+                       CAST(NULL AS nvarchar(100)) AS ApprovalStatus,
+                       CAST(NULL AS decimal(18,2)) AS Amount,
+                       CAST(NULL AS date) AS BusinessDate,
+                       CAST(NULL AS datetimeoffset) AS ApprovedAtUtc,
+                       bd.[SourceActualRiderProfileId] AS RiderProfileId,
+                       s.[UnifiedNationalNumber] AS SponsorUnifiedNumber,
+                       bd.[UpdatedAtUtc] AS SortAt
+                FROM [app].[PlatformRiderAccounts] pa
+                INNER JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=pa.[ClientPlatformId] AND cp.[IsDeleted]=0
+                INNER JOIN [app].[PlatformAccountBusinessDetails] bd ON bd.[PlatformRiderAccountId]=pa.[Id] AND bd.[IsDeleted]=0
+                LEFT JOIN [app].[Sponsors] s ON s.[Id]=pa.[SponsorId] AND s.[IsDeleted]=0
+                WHERE pa.[IsDeleted]=0
+                  AND bd.[OperationalDisposition] IN (N'WalletPending', N'DeferredNextMonth')
+                  {scopeSql}{platformSql}{dispositionPred}{searchPredAccount}
+            ),
+            event_rows AS (
+                SELECT CONVERT(nvarchar(36), ev.[EventId]) AS RowId,
+                       N'stamp_event' AS RowKind,
+                       ev.[PlatformRiderAccountId],
+                       pa.[ExternalAccountId], pa.[Code] AS AccountCode,
+                       bd.[OperationalDisposition] AS Disposition,
+                       CAST(NULL AS nvarchar(400)) AS DispositionReason,
+                       CAST(NULL AS date) AS DeferredUntil,
+                       ev.[EventId], ev.[Kind] AS EventKind, ev.[Status] AS EventStatus,
+                       ev.[ApprovalStatus], ev.[Amount], ev.[BusinessDate], ev.[ApprovedAtUtc],
+                       ev.[RiderProfileId],
+                       s.[UnifiedNationalNumber] AS SponsorUnifiedNumber,
+                       COALESCE(ev.[ApprovedAtUtc], ev.[CreatedAtUtc]) AS SortAt
+                FROM [finance_read].[vw_hunger_financial_events_v1] ev
+                LEFT JOIN [app].[PlatformRiderAccounts] pa ON pa.[Id]=ev.[PlatformRiderAccountId] AND pa.[IsDeleted]=0
+                LEFT JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=pa.[ClientPlatformId] AND cp.[IsDeleted]=0
+                LEFT JOIN [app].[PlatformAccountBusinessDetails] bd ON bd.[PlatformRiderAccountId]=pa.[Id] AND bd.[IsDeleted]=0
+                LEFT JOIN [app].[Sponsors] s ON s.[Id]=pa.[SponsorId] AND s.[IsDeleted]=0
+                WHERE ev.[ApprovalStatus] IN (N'Sealed', N'PendingSeal')
+                  {scopeSql}{platformSql}{searchPredEvent}
+            ),
+            filtered AS (
+                SELECT * FROM account_rows
+                UNION ALL
+                SELECT * FROM event_rows
+            ),
+            agg AS (
+                SELECT COUNT_BIG(*) AS TotalCount,
+                       SUM(CASE WHEN RowKind=N'wallet_status' AND Disposition=N'WalletPending' THEN 1 ELSE 0 END) AS WalletPendingCount,
+                       SUM(CASE WHEN RowKind=N'wallet_status' AND Disposition=N'DeferredNextMonth' THEN 1 ELSE 0 END) AS DeferredCount,
+                       SUM(CASE WHEN RowKind=N'stamp_event' AND ApprovalStatus=N'Sealed' THEN 1 ELSE 0 END) AS SealedEventCount,
+                       SUM(CASE WHEN RowKind=N'stamp_event' AND ApprovalStatus=N'PendingSeal' THEN 1 ELSE 0 END) AS PendingSealCount
+                FROM filtered
+            )
+            SELECT f.*, a.TotalCount, a.WalletPendingCount, a.DeferredCount, a.SealedEventCount, a.PendingSealCount
+            FROM filtered f CROSS JOIN agg a
+            ORDER BY f.SortAt DESC, f.RowId
+            """;
+    }
+
+    static JsonObject MapHsStampRow(IDataRecord r) => new()
+    {
+        ["id"] = Str(r, "RowId"),
+        ["rowKind"] = Str(r, "RowKind"),
+        ["platformRiderAccountId"] = Str(r, "PlatformRiderAccountId"),
+        ["externalAccountId"] = Str(r, "ExternalAccountId"),
+        ["accountCode"] = Str(r, "AccountCode"),
+        ["disposition"] = Str(r, "Disposition"),
+        ["dispositionReason"] = Str(r, "DispositionReason"),
+        ["deferredUntil"] = Str(r, "DeferredUntil"),
+        ["eventId"] = Str(r, "EventId"),
+        ["eventKind"] = Str(r, "EventKind"),
+        ["eventStatus"] = Str(r, "EventStatus"),
+        ["approvalStatus"] = Str(r, "ApprovalStatus"),
+        ["amount"] = NullDecimal(r, "Amount"),
+        ["businessDate"] = Str(r, "BusinessDate"),
+        ["approvedAt"] = Str(r, "ApprovedAtUtc"),
+        ["riderProfileId"] = Str(r, "RiderProfileId"),
+        ["sponsorUnifiedNumber"] = Str(r, "SponsorUnifiedNumber")
+    };
+
     static void EnsureSql(DbConnection source)
     {
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");

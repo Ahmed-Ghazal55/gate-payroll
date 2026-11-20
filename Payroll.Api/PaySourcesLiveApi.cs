@@ -16,7 +16,6 @@ public static class PaySourcesLiveApi
 {
     static readonly TimeSpan LiveReadTimeout = TimeSpan.FromSeconds(20);
 
-
     public static void Map(RouteGroupBuilder api, Store store, IConfiguration config, IHostEnvironment env)
     {
         api.MapGet("/pay/sources/fuel-consumption", (HttpContext ctx) => Fuel(store, config, env, ctx))
@@ -27,6 +26,8 @@ public static class PaySourcesLiveApi
             .WithTags("Payroll").WithSummary("L1 housing residence periods per rider (Omar live, facts only)");
         api.MapGet("/pay/sources/keeta-eligibility", (HttpContext ctx) => Keeta(store, config, env, ctx))
             .WithTags("Payroll").WithSummary("Keeta expected eligibility result per user/period (Omar live; not approval)");
+        api.MapGet("/pay/sources/hs-stamp-queue", (HttpContext ctx) => Hs(store, config, env, ctx))
+            .WithTags("Payroll").WithSummary("HungerStation WalletPending queue and stamped financial events (read side)");
     }
 
     static object Fuel(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
@@ -54,6 +55,147 @@ public static class PaySourcesLiveApi
             });
         }, "pay-sources-fuel");
     }
+
+    static object Vehicles(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "pay.view");
+        var (from, to) = ParsePeriod(ctx);
+        var (page, pageSize, search) = ParsePage(ctx);
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            return store.Read(c => Envelope(StoreVehiclePeriods(c, ctx.User, from, to, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
+        return LiveRead(ctx, token =>
+        {
+            using var erp = OpenErp(config);
+            return store.Read(c =>
+            {
+                try
+                {
+                    var result = PaySourcesLiveQuery.VehicleAssignmentPeriods(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
+                    return Envelope(new
+                    {
+                        items = result.Items,
+                        total = result.Total,
+                        page,
+                        pageSize,
+                        summary = result.Summary,
+                        from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                    }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                }
+                catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
+            });
+        }, "pay-sources-vehicle");
+    }
+
+    static object Housing(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "pay.view");
+        var (from, to) = ParsePeriod(ctx);
+        var (page, pageSize, search) = ParsePage(ctx);
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            return store.Read(c => Envelope(StoreHousingPeriods(c, ctx.User, from, to, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
+        return LiveRead(ctx, token =>
+        {
+            using var erp = OpenErp(config);
+            return store.Read(c =>
+            {
+                try
+                {
+                    var result = PaySourcesLiveQuery.HousingPeriods(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
+                    return Envelope(new
+                    {
+                        items = result.Items,
+                        total = result.Total,
+                        page,
+                        pageSize,
+                        summary = result.Summary,
+                        from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                    }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                }
+                catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
+            });
+        }, "pay-sources-housing");
+    }
+
+    static object Keeta(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "pay.view");
+        DateOnly month = ParseMonth(ctx);
+        var (page, pageSize, search) = ParsePage(ctx);
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            return store.Read(c => Envelope(new
+            {
+                items = Array.Empty<JsonObject>(),
+                total = 0L,
+                page,
+                pageSize,
+                summary = new JsonObject { ["rows"] = 0L, ["eligible"] = 0L, ["notEligible"] = 0L, ["pending"] = 0L },
+                month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+                noteAr = "أهلية كيتا المتوقعة تُقرأ مباشرة من نظام عمر عند تفعيل القراءة الحية"
+            }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
+        return LiveRead(ctx, token =>
+        {
+            using var erp = OpenErp(config);
+            return store.Read(c =>
+            {
+                var result = PaySourcesLiveQuery.KeetaEligibility(erp, month, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
+                return Envelope(new
+                {
+                    items = result.Items,
+                    total = result.Total,
+                    page,
+                    pageSize,
+                    summary = result.Summary,
+                    month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+                    approval = "expected_only"
+                }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+            });
+        }, "pay-sources-keeta-eligibility");
+    }
+
+    static object Hs(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "pay.view");
+        var (page, pageSize, search) = ParsePage(ctx);
+        string disposition = (ctx.Request.Query["disposition"].ToString() ?? "").Trim();
+        if (disposition.Length > 0 && disposition is not ("WalletPending" or "DeferredNextMonth"))
+            throw new ApiError("قيمة disposition يجب أن تكون WalletPending أو DeferredNextMonth.");
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            return store.Read(c => Envelope(new
+            {
+                items = Array.Empty<JsonObject>(),
+                total = 0L,
+                page,
+                pageSize,
+                summary = new JsonObject
+                {
+                    ["rows"] = 0L,
+                    ["walletPending"] = 0L,
+                    ["deferredNextMonth"] = 0L,
+                    ["stampedEvents"] = 0L,
+                    ["pendingSealEvents"] = 0L
+                },
+                noteAr = "طابور الختم ووضعية المحفظة يُقرآن من نظام عمر بعد تفعيل القراءة الحية"
+            }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
+        return LiveRead(ctx, token =>
+        {
+            using var erp = OpenErp(config);
+            return store.Read(c =>
+            {
+                var result = PaySourcesLiveQuery.HsStampQueue(erp, page, pageSize, search, disposition, Operations.LiveScope(c, ctx.User), token);
+                return Envelope(new
+                {
+                    items = result.Items,
+                    total = result.Total,
+                    page,
+                    pageSize,
+                    summary = result.Summary
+                }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+            });
+        }, "pay-sources-hs-stamp");
+    }
+
     static object StoreFuel(DbConnection c, ClaimsPrincipal user, DateOnly month, int page, int pageSize)
     {
         string period = month.ToString("yyyy-MM", CultureInfo.InvariantCulture);
@@ -97,36 +239,7 @@ public static class PaySourcesLiveApi
         };
         return new { items, total = rows.Count, page, pageSize, summary, month = period };
     }
-    static object Vehicles(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
-    {
-        AccessPolicy.Demand(ctx.User, "pay.view");
-        var (from, to) = ParsePeriod(ctx);
-        var (page, pageSize, search) = ParsePage(ctx);
-        if (Operations.SourceMode(config, env) == Operations.SourceStore)
-            return store.Read(c => Envelope(StoreVehiclePeriods(c, ctx.User, from, to, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
-        return LiveRead(ctx, token =>
-        {
-            using var erp = OpenErp(config);
-            return store.Read(c =>
-            {
-                try
-                {
-                    var result = PaySourcesLiveQuery.VehicleAssignmentPeriods(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
-                    return Envelope(new
-                    {
-                        items = result.Items,
-                        total = result.Total,
-                        page,
-                        pageSize,
-                        summary = result.Summary,
-                        from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                        to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-                    }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
-                }
-                catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
-            });
-        }, "pay-sources-vehicle");
-    }
+
     static object StoreVehiclePeriods(DbConnection c, ClaimsPrincipal user, DateOnly from, DateOnly to, int page, int pageSize)
     {
         var rows = Operations.List(c, user, "vehicle_assignment")
@@ -171,36 +284,7 @@ public static class PaySourcesLiveApi
             to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
         };
     }
-    static object Housing(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
-    {
-        AccessPolicy.Demand(ctx.User, "pay.view");
-        var (from, to) = ParsePeriod(ctx);
-        var (page, pageSize, search) = ParsePage(ctx);
-        if (Operations.SourceMode(config, env) == Operations.SourceStore)
-            return store.Read(c => Envelope(StoreHousingPeriods(c, ctx.User, from, to, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
-        return LiveRead(ctx, token =>
-        {
-            using var erp = OpenErp(config);
-            return store.Read(c =>
-            {
-                try
-                {
-                    var result = PaySourcesLiveQuery.HousingPeriods(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
-                    return Envelope(new
-                    {
-                        items = result.Items,
-                        total = result.Total,
-                        page,
-                        pageSize,
-                        summary = result.Summary,
-                        from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                        to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-                    }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
-                }
-                catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
-            });
-        }, "pay-sources-housing");
-    }
+
     static object StoreHousingPeriods(DbConnection c, ClaimsPrincipal user, DateOnly from, DateOnly to, int page, int pageSize)
     {
         var rows = Operations.List(c, user, "housing_residence")
@@ -252,41 +336,7 @@ public static class PaySourcesLiveApi
             to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
         };
     }
-    static object Keeta(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
-    {
-        AccessPolicy.Demand(ctx.User, "pay.view");
-        DateOnly month = ParseMonth(ctx);
-        var (page, pageSize, search) = ParsePage(ctx);
-        if (Operations.SourceMode(config, env) == Operations.SourceStore)
-            return store.Read(c => Envelope(new
-            {
-                items = Array.Empty<JsonObject>(),
-                total = 0L,
-                page,
-                pageSize,
-                summary = new JsonObject { ["rows"] = 0L, ["eligible"] = 0L, ["notEligible"] = 0L, ["pending"] = 0L },
-                month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture),
-                noteAr = "أهلية كيتا المتوقعة تُقرأ مباشرة من نظام عمر عند تفعيل القراءة الحية"
-            }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
-        return LiveRead(ctx, token =>
-        {
-            using var erp = OpenErp(config);
-            return store.Read(c =>
-            {
-                var result = PaySourcesLiveQuery.KeetaEligibility(erp, month, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
-                return Envelope(new
-                {
-                    items = result.Items,
-                    total = result.Total,
-                    page,
-                    pageSize,
-                    summary = result.Summary,
-                    month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture),
-                    approval = "expected_only"
-                }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
-            });
-        }, "pay-sources-keeta-eligibility");
-    }
+
     static bool Overlaps(JsonObject row, DateOnly from, DateOnly to, params string[] keys)
     {
         string startRaw = "", endRaw = "";

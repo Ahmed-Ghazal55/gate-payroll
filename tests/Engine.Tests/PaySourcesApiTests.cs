@@ -70,5 +70,6 @@ public sealed class PaySourcesApiTests
         Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Maker, "GET", "/api/pay/sources/vehicle-assignment-periods"));
         Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Maker, "GET", "/api/pay/sources/housing-periods"));
         Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Maker, "GET", "/api/pay/sources/keeta-eligibility"));
+        Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Maker, "GET", "/api/pay/sources/hs-stamp-queue"));
     }
 }

@@ -59,6 +59,18 @@ public sealed class PaySourcesLiveQueryTests
     }
 
     [TestMethod]
+    public void PreviewHsStampQueueSqlUnionsWalletPendingAndSealedEvents()
+    {
+        var (sql, _) = PaySourcesLiveQuery.PreviewHsStampQueueSql(All);
+        Assert.Contains("WalletPending", sql, StringComparison.Ordinal);
+        Assert.Contains("DeferredNextMonth", sql, StringComparison.Ordinal);
+        Assert.Contains("[finance_read].[vw_hunger_financial_events_v1]", sql, StringComparison.Ordinal);
+        Assert.Contains("PendingSeal", sql, StringComparison.Ordinal);
+        Assert.Contains("Sealed", sql, StringComparison.Ordinal);
+        Assert.Contains("UNION ALL", sql, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
     public void EmptyCompanyScopeBecomesFalsePredicate()
     {
         var empty = new LiveOperationsQuery.Scope(false, [], [], [], []);
