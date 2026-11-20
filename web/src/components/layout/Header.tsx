@@ -126,8 +126,6 @@ export function Header({
   // null until the first poll, so existing items never ring on page load.
   const lastPersonalRef = useRef<number | null>(null);
 
-  // ERP Sync Drawer State
-
   // Search modal state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
 
@@ -260,7 +258,7 @@ export function Header({
       label: 'السلف',
       href: '/debts/?tab=advance_requests',
       icon: <Banknote size={15} className="text-[var(--money-pos)]" />,
-      visible: can('debts.view') || can('advances.view') || can('advances.request') || can('advances.review'),
+      visible: can('advances.request') || can('advances.review') || can('advances.payout'),
     },
     {
       id: 'deductions-shortcut',

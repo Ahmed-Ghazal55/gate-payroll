@@ -831,6 +831,8 @@ export const api = {
   markAllNotificationsRead: () => handleRequest<{ success: boolean }>('/notifications/read-all', { method: 'POST' }),
   search: (query: string) => handleRequest<SearchResult[]>(`/search?q=${encodeURIComponent(query)}`),
   getCompanies: () => handleRequest<CompanySponsor[]>('/companies'),
+  /** Scoped sponsor list for treasury/accounting filters (treasury.view). */
+  getFinanceSponsors: () => handleRequest<CompanySponsor[]>('/finance/sponsors'),
 
   // Companies & Registrations (Track L2 / M1.2 / U-W2-06)
   getCompaniesList: () => handleRequest<CompanyContract[]>('/companies'),
@@ -860,7 +862,15 @@ export const api = {
     handleRequest<CompanyImportPlanContract>('/companies/import/preview', { method: 'POST', body: JSON.stringify({ companies }) }),
   commitCompanyImport: (payload: { rows: Record<string, unknown>[]; fingerprint: string; confirm: boolean }) =>
     handleRequest<{ counts: Record<string, unknown> }>('/companies/import/commit', { method: 'POST', body: JSON.stringify(payload) }),
-  getAuditLogs: () => handleRequest<Array<{ id: string; action: string; actor: string; at: string }>>('/audit'),
+  getAuditLogs: (params?: { page?: number; pageSize?: number; from?: string; to?: string; q?: string }) => {
+    const q = new URLSearchParams();
+    q.set('page', String(params?.page ?? 1));
+    q.set('pageSize', String(params?.pageSize ?? 50));
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    if (params?.q) q.set('q', params.q);
+    return handleRequest<{ items: Array<{ id: string; action: string; actor: string; at: string }>; total: number; page: number; pageSize: number }>(`/audit?${q}`);
+  },
 
   // Campaigns
   getCampaigns: () => handleRequest<Campaign[]>('/campaigns'),

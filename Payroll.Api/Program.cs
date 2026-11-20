@@ -328,7 +328,32 @@ api.MapPost("/submissions/{id}/review", (string id, JsonObject input, HttpContex
     SubmissionChoices.DemandInScope(c, ctx.User, d, tx);
     CampaignOperations.Review(c,tx,d,input,Actor(ctx));return SubmissionChoices.PublicAdmin(d, ctx.User);
 })).WithTags("Forms and responses").WithSummary("Submit submissions {id} review");
-api.MapGet("/audit", () => store.Read(c => Store.List(c, "audit"))).WithTags("Administration").WithSummary("Read audit");
+api.MapGet("/audit", (HttpContext ctx) => store.Read(c =>
+{
+    AccessPolicy.Demand(ctx.User, "audit.view");
+    string from = ctx.Request.Query["from"].ToString().Trim();
+    string to = ctx.Request.Query["to"].ToString().Trim();
+    DateTimeOffset? fromAt = null, toAt = null;
+    if (from.Length > 0)
+    {
+        if (!DateTimeOffset.TryParse(from, out var parsedFrom)) throw new ApiError("تاريخ البداية غير صالح.");
+        fromAt = parsedFrom;
+    }
+    if (to.Length > 0)
+    {
+        if (!DateTimeOffset.TryParse(to, out var parsedTo)) throw new ApiError("تاريخ النهاية غير صالح.");
+        toAt = parsedTo;
+    }
+    var rows = Store.List(c, "audit").Where(a =>
+    {
+        if (!DateTimeOffset.TryParse(a.S("at"), out var at)) return fromAt == null && toAt == null;
+        if (fromAt != null && at < fromAt) return false;
+        if (toAt != null && at > toAt) return false;
+        return true;
+    });
+    // Always page (M-0607); default page=1 when omitted.
+    return ApiPagination.Apply(rows, ctx.Request.Query, always: true);
+})).WithTags("Administration").WithSummary("Read audit");
 app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = IbanChoices.Is(d) ? IbanChoices.Schema : "work-choice-v1", fields=CampaignOperations.Fields(d), cities=IbanChoices.Is(d) ? IbanChoices.Cities(d) : null }); }).WithTags("Forms and responses").WithSummary("Read public forms {token}").RequireRateLimiting("sensitive");
 SubmissionChoices.Map(app, store, Campaign);
 CampaignOperations.Map(api,store);

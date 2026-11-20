@@ -56,7 +56,7 @@ function AccountingPageContent() {
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
 
   useEffect(() => {
-    api.getCompanies().then((res) => setCompanies(res || [])).catch(() => {});
+    api.getFinanceSponsors().then((res) => setCompanies(res || [])).catch(() => {});
   }, []);
 
   // Company labels come from GET /companies only — never a fixed code map.

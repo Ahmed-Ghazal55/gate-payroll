@@ -169,8 +169,8 @@ function AdminPageInner() {
     setLoadingAudit(true);
     setAuditError(null);
     try {
-      const res = await api.getAuditLogs();
-      setAuditLogs(Array.isArray(res) ? res : []);
+      const res = await api.getAuditLogs({ page: 1, pageSize: 100 });
+      setAuditLogs(Array.isArray(res?.items) ? res.items : []);
     } catch (err: any) {
       setAuditError(err.message || 'تعذر تحميل سجل التدقيق');
     } finally {

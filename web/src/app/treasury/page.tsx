@@ -84,7 +84,7 @@ function TreasuryPageContent() {
   const [vaultTypeFilter, setVaultTypeFilter] = useState<string>('all');
 
   useEffect(() => {
-    api.getCompanies().then((res) => setCompanies(res || [])).catch(() => {});
+    api.getFinanceSponsors().then((res) => setCompanies(res || [])).catch(() => {});
   }, []);
 
   // Data states

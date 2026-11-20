@@ -301,8 +301,8 @@ function CompaniesPageContent() {
       setRegistrations(regLists.flat());
       if (isAdmin) {
         try {
-          const logs = await api.getAuditLogs();
-          setAuditLogs(Array.isArray(logs) ? logs : []);
+          const logs = await api.getAuditLogs({ page: 1, pageSize: 50 });
+          setAuditLogs(Array.isArray(logs?.items) ? logs.items : []);
         } catch {
           setAuditLogs([]);
         }

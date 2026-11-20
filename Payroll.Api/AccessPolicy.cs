@@ -145,6 +145,8 @@ public static partial class AccessPolicy
             return path.EndsWith("/payout",StringComparison.Ordinal)&&Has("advances.payout");
         }
         if(path.StartsWith("/api/approvals",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&path.EndsWith("/decide",StringComparison.Ordinal)&&Has("approvals.decide");
+        if(path=="/api/audit")return method=="GET"&&Has("audit.view");
+        // DELETE / campaign PUT stay admin-only (blanket deny). forms.delete is deprecated and unused.
         if(method=="DELETE"||path.EndsWith("/delete-preview",StringComparison.Ordinal)||path=="/api/submissions/bulk-delete"||method=="PUT"&&path.StartsWith("/api/campaigns/",StringComparison.Ordinal))return false;
         if(method=="POST"&&path.StartsWith("/api/notifications/center/",StringComparison.Ordinal)&&path.EndsWith("/toggle-todo",StringComparison.Ordinal))return true; // Handler checks view permission or ownership and visibility.
         if(path=="/api/notifications"||path=="/api/notifications/summary")return method=="GET";
