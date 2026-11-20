@@ -12,6 +12,40 @@ test('shared ImportUploadDialog posts preview then commit URLs', () => {
   assert.match(dialog, /api\.postImportPreview\(step\.previewUrl/);
   assert.match(dialog, /api\.postImportCommit\(step\.commitUrl/);
   assert.match(dialog, /dataBase64/);
+  assert.match(dialog, /canDownloadImportTemplate/);
+  assert.match(dialog, /allowedActions/);
+  assert.match(dialog, /import-download-template/);
+});
+
+test('template download requires imports.view or endpoint permission via allowedActions', async () => {
+  const { canDownloadImportTemplate, NINJA_OPS_IMPORT, RIDERS_IMPORT } = await import(
+    '../../src/features/imports/import-steps.ts'
+  );
+  assert.equal(NINJA_OPS_IMPORT.templatePermission, 'imports.view');
+  assert.equal(RIDERS_IMPORT.templatePermission, 'riders.view');
+  const can = (code) => code === 'pay.manage';
+  assert.equal(
+    canDownloadImportTemplate(NINJA_OPS_IMPORT, { isAdmin: false, can, allowedActions: [] }),
+    false,
+    'pay.manage alone must not unlock template download'
+  );
+  assert.equal(
+    canDownloadImportTemplate(NINJA_OPS_IMPORT, {
+      isAdmin: false,
+      can,
+      allowedActions: ['download_template'],
+    }),
+    true
+  );
+  assert.equal(
+    canDownloadImportTemplate(RIDERS_IMPORT, {
+      isAdmin: false,
+      can: (c) => c === 'riders.view',
+      allowedActions: null,
+    }),
+    true,
+    'fallback uses templatePermission when allowedActions omitted'
+  );
 });
 
 test('data pages expose import buttons gated by permission helpers', () => {

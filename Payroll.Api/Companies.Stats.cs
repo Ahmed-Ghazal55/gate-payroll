@@ -354,6 +354,7 @@ public static partial class Companies
         if (AccessPolicy.Has(user, "companies.manage")) actions.Add("manage");
         if (AccessPolicy.Has(user, "companies.balances.view")) actions.Add("view_balances");
         if (AccessPolicy.Has(user, "riders.view")) actions.Add("filter_workforce");
+        ImportTemplateAccess.AddIfAllowed(actions, user, "/api/imports/templates/companies");
         return actions;
     }
 

@@ -62,9 +62,14 @@ function AccountingPageContent() {
   const [openNewManualJournal, setOpenNewManualJournal] = useState<boolean>(false);
   const [openingImportOpen, setOpeningImportOpen] = useState(false);
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
+  const [importAllowedActions, setImportAllowedActions] = useState<string[] | null>(null);
 
   useEffect(() => {
     api.getFinanceSponsors().then((res) => setCompanies(res || [])).catch(() => {});
+    api
+      .getFinanceCatalog()
+      .then((cat) => setImportAllowedActions(Array.isArray(cat?.allowedActions) ? cat.allowedActions : []))
+      .catch(() => setImportAllowedActions([]));
   }, []);
 
   // Company labels come from GET /companies only — never a fixed code map.
@@ -573,6 +578,7 @@ function AccountingPageContent() {
         open={openingImportOpen}
         onClose={() => setOpeningImportOpen(false)}
         step={TREASURY_OPENING_IMPORT}
+        allowedActions={importAllowedActions}
       />
 
       {/* 4 Stat Cards */}

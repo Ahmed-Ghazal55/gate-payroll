@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { Dialog } from '../../components/ui/Dialog';
 import type { ImportPreviewResult } from '../../lib/types';
-import { canCommitImportStep, type PageImportStep } from './import-steps';
+import { canCommitImportStep, canDownloadImportTemplate, type PageImportStep } from './import-steps';
 import { fileToBase64, parseBrowserFileToRows } from './parseBrowserFile';
 
 export type ImportUploadDialogProps = {
@@ -15,9 +15,11 @@ export type ImportUploadDialogProps = {
   onClose: () => void;
   step: PageImportStep;
   onCommitted?: () => void;
+  /** Page-level allowedActions from the API (must include download_template to show the button). */
+  allowedActions?: string[] | null;
 };
 
-export function ImportUploadDialog({ open, onClose, step, onCommitted }: ImportUploadDialogProps) {
+export function ImportUploadDialog({ open, onClose, step, onCommitted, allowedActions }: ImportUploadDialogProps) {
   const { can, isAdmin } = useAuth();
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -31,6 +33,7 @@ export function ImportUploadDialog({ open, onClose, step, onCommitted }: ImportU
   const [error, setError] = useState<string | null>(null);
 
   const canCommit = canCommitImportStep(step, { isAdmin, can });
+  const canDownload = canDownloadImportTemplate(step, { isAdmin, can, allowedActions });
 
   const reset = () => {
     setFile(null);
@@ -48,7 +51,7 @@ export function ImportUploadDialog({ open, onClose, step, onCommitted }: ImportU
   };
 
   const handleDownloadTemplate = async () => {
-    if (!step.templateUrl) return;
+    if (!step.templateUrl || !canDownload) return;
     setDownloading(true);
     try {
       await api.downloadImportTemplate(step.templateUrl, `${step.key}-template.xlsx`);
@@ -169,9 +172,10 @@ export function ImportUploadDialog({ open, onClose, step, onCommitted }: ImportU
         )}
 
         <div className="flex flex-wrap gap-2">
-          {step.templateUrl && (
+          {step.templateUrl && canDownload && (
             <button
               type="button"
+              data-testid="import-download-template"
               onClick={handleDownloadTemplate}
               disabled={downloading}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--line)] bg-[var(--surface-muted)]"

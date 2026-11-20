@@ -264,6 +264,22 @@ function PayrollPageInner() {
 
   // Import Dialog states
   const [opsImportStep, setOpsImportStep] = useState<PageImportStep | null>(null);
+  const [importAllowedActions, setImportAllowedActions] = useState<string[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getPayCatalog()
+      .then((cat) => {
+        const actions = (cat as { allowedActions?: string[] } | null)?.allowedActions;
+        if (!cancelled) setImportAllowedActions(Array.isArray(actions) ? actions : []);
+      })
+      .catch(() => {
+        if (!cancelled) setImportAllowedActions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [uploadFiles, setUploadFiles] = useState<HsImportFile[]>([]);
   const [previewResult, setPreviewResult] = useState<HsImportPreviewResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState<boolean>(false);
@@ -1744,6 +1760,7 @@ function PayrollPageInner() {
           open={Boolean(opsImportStep)}
           onClose={() => setOpsImportStep(null)}
           step={opsImportStep}
+          allowedActions={importAllowedActions}
         />
       )}
 

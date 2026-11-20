@@ -1622,6 +1622,7 @@ export const api = {
       sponsors: any[];
       vaults: any[];
       categories?: Array<{ code?: string; nameAr?: string; sector?: string }>;
+      allowedActions?: string[];
     }>('/finance/catalog'),
 
   // Admin & Security APIs

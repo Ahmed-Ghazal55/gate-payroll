@@ -977,6 +977,7 @@ function WorkforcePageInner() {
         open={ridersImportOpen}
         onClose={() => setRidersImportOpen(false)}
         step={RIDERS_IMPORT}
+        allowedActions={allowedActions}
         onCommitted={() => loadDirectory(page, pageSize, debouncedQuery, filters)}
       />
 
