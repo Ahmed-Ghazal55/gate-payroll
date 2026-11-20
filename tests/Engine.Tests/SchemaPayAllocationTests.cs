@@ -20,6 +20,7 @@ public sealed class SchemaPayAllocationTests
         foreach(string set in new[]{"amount=20",$"payment_id='{MoneySchemaFixture.Payment(c,company)}'",$"payable_id='{MoneySchemaFixture.Payable(c,company)}'",$"payment_line_id='{MoneySchemaFixture.Id()}'"})
             MoneySchemaFixture.Reject(()=>Change(set));
         Assert.AreEqual(40m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT amount_paid FROM pay_payable WHERE id=@id",("@id",payable))));
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET status=2 WHERE id=@id",("@id",payment));
         // status 3 on the payment is reversed; status 4 is cancelled.
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET status=3 WHERE id=@id",("@id",payment));
         Change("claim_status=4");
@@ -106,6 +107,7 @@ public sealed class SchemaPayAllocationTests
         foreach(int status in new[]{3,4})
         {
             string closed=MoneySchemaFixture.Payment(c,company),held=MoneySchemaFixture.Claim(c,company,closed,second,10);
+            if(status==3)MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET status=2 WHERE id=@id",("@id",closed));
             MoneySchemaFixture.Exec(c,null,$"UPDATE pay_payment SET status={status} WHERE id=@id",("@id",closed));
             MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,closed,second,10));
             MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",held)));

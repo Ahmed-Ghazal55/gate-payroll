@@ -42,7 +42,7 @@ public sealed class SchemaOperationCaptureTests
         FillEmpty(c,run);Freeze(c,run);
         string invoice=MoneySchemaFixture.Invoice(c,company),payment=MoneySchemaFixture.Payment(c,company);
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_platform_invoice SET approved_at=datetime('now'),status=2,payout_blocked=1 WHERE id=@id",("@id",invoice));
-        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET status=2,payout_blocked=1 WHERE id=@id",("@id",payment));
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET payout_blocked=1 WHERE id=@id",("@id",payment));
         foreach(var (table,id) in new[]{("sal_pay_run",run),("sal_platform_invoice",invoice),("pay_payment",payment)})
         foreach(string set in new[]{"run_mode=1","payout_blocked=0"})
             MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE {table} SET {set} WHERE id=@id",("@id",id)));

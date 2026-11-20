@@ -81,7 +81,8 @@ public static class SchemaPayAllocation
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payment","payment_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payable","payable_id,company_id,payable_period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_line","payment_line_id");
-        SchemaMoneyFlags.Ensure(c,tx,"pay","payment",o=>$"{o}.status IN (2,3)");
+        SchemaMoneyFlags.Ensure(c,tx,"pay","payment",o=>$"{o}.status IN (2,3) OR {o}.payout_blocked=1 OR {o}.run_mode=1");
+        SchemaPaymentState.Ensure(c,tx);
         EnsureTransitions(c,tx);
         EnsureClaims(c,tx);
         SchemaPayPayable.EnsureCounters(c,tx);
@@ -192,7 +193,7 @@ public static class SchemaPayAllocation
         }
         else
         {
-            foreach(string operation in new[]{"INSERT","UPDATE OF payable_id,amount,claim_status"})
+            foreach(string operation in new[]{"INSERT","UPDATE"})
             {
                 bool insert=operation=="INSERT";string targets=insert?"NEW.payable_id":"NEW.payable_id,OLD.payable_id";
                 string fresh=insert?"NEW.claim_status IN (1,2)":"NEW.claim_status IN (1,2) AND NEW.claim_status<>OLD.claim_status";
