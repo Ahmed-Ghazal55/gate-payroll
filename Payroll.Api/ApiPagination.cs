@@ -7,7 +7,8 @@ namespace Payroll;
 public static class ApiPagination
 {
     // /api/debts pages in Debts.ListPaged (SQL); keep it out of the in-memory filter.
-    static readonly HashSet<string> Lists = ["/api/riders", "/api/finance/journals", "/api/submissions", "/api/audit", "/api/ledger", "/api/approvals", "/api/campaigns", "/api/forms/builder"];
+    // /api/audit pages inside its handler (date filter + always-on paging); keep it out of this filter.
+    static readonly HashSet<string> Lists = ["/api/riders", "/api/finance/journals", "/api/submissions", "/api/ledger", "/api/approvals", "/api/campaigns", "/api/forms/builder"];
     public static async ValueTask<object?> Filter(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var result = await next(context);
