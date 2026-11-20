@@ -204,6 +204,13 @@ describe('DataTable & ColumnFilterMenu Excel AutoFilter', () => {
     const descNums = [...nums].sort((a, b) => compareColumnValues(a, b, { type: 'number', dir: 'desc' }));
     assert.deepEqual(descNums, ['1,200', '300', '45', null]);
 
+    // Dates oldest->newest and newest->oldest with blanks at bottom
+    const dates = ['2026-11-15', null, '2026-09-01', '2026-10-20'];
+    const ascDates = [...dates].sort((a, b) => compareColumnValues(a, b, { type: 'date', dir: 'asc' }));
+    assert.deepEqual(ascDates, ['2026-09-01', '2026-10-20', '2026-11-15', null]);
+    const descDates = [...dates].sort((a, b) => compareColumnValues(a, b, { type: 'date', dir: 'desc' }));
+    assert.deepEqual(descDates, ['2026-11-15', '2026-10-20', '2026-09-01', null]);
+
     // Sort by color (badge tone) puts selected tone at the top
     const statuses = ['active', 'pending_approval', 'rejected', 'active'];
     const toneOf = (v) =>
