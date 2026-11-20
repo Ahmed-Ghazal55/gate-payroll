@@ -69,9 +69,26 @@ public static class SchemaSalInvoice
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","platform_invoice","IX_sal_invoice_journal","journal_id");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","platform_invoice_line","IX_sal_invoice_line_parent","invoice_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","platform_invoice_item","IX_sal_invoice_item_parent","line_id,period_month");
-        SchemaMoneyGuard.Retain(c,tx,"sal","platform_invoice","o.status<>4 AND NEW.status<>4 AND (o.app_code=NEW.app_code AND (o.file_hash=NEW.file_hash OR (o.erp_cr_id=NEW.erp_cr_id AND o.period_from=NEW.period_from AND o.period_to=NEW.period_to)))");
-        SchemaMoneyGuard.Retain(c,tx,"sal","platform_invoice_line","o.invoice_id=NEW.invoice_id AND o.source_row=NEW.source_row");
-        SchemaMoneyGuard.Retain(c,tx,"sal","platform_invoice_item","o.line_id=NEW.line_id AND o.item_code=NEW.item_code");
+        // SQL Server: line/item filtered UQ_* names must surface; invoice hash reuse uses a dedicated INSTEAD OF INSERT.
+        bool sqlReplace=!SchemaSql.IsSql(c);
+        SchemaMoneyGuard.Retain(c,tx,"sal","platform_invoice","o.status<>4 AND NEW.status<>4 AND (o.app_code=NEW.app_code AND (o.file_hash=NEW.file_hash OR (o.erp_cr_id=NEW.erp_cr_id AND o.period_from=NEW.period_from AND o.period_to=NEW.period_to)))",replace:sqlReplace);
+        SchemaMoneyGuard.Retain(c,tx,"sal","platform_invoice_line","o.invoice_id=NEW.invoice_id AND o.source_row=NEW.source_row",replace:sqlReplace);
+        SchemaMoneyGuard.Retain(c,tx,"sal","platform_invoice_item","o.line_id=NEW.line_id AND o.item_code=NEW.item_code",replace:sqlReplace);
+        if(SchemaSql.IsSql(c))
+        {
+            string inv=SchemaSql.Q(c,"sal","platform_invoice");
+            string cols=SchemaMoneyRegister.InsertableColumns(c,tx,"sal","platform_invoice");
+            // Same active file_hash → retention message; same CR/period → leave to UQ_sal_invoice_active.
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER sal.TR_sal_platform_invoice_no_replace ON {inv} INSTEAD OF INSERT AS
+                BEGIN
+                  SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM inserted n WHERE EXISTS(SELECT 1 FROM {inv} o WHERE o.id=n.id OR (o.status<>4 AND n.status<>4 AND o.app_code=n.app_code AND o.file_hash=n.file_hash)))
+                    THROW 51032,'Money row replacement is forbidden',1;
+                  INSERT INTO {inv} ({cols}) SELECT {cols} FROM inserted;
+                END;
+                """);
+        }
         EnsureApprovedFrozen(c,tx);EnsureNoOverlap(c,tx);
         SchemaMoneyGuard.Rule(c,tx,"sal","platform_invoice","TR_invoice_state",n=>"1=0",(o,n)=>$"""
             ({o}.approved_at IS NOT NULL AND ({SchemaMoneyGuard.Changed(c,n,o,"approved_at")})) OR
@@ -104,13 +121,23 @@ public static class SchemaSalInvoice
                 END;
                 """);
             SchemaSql.Exec(c,tx,$"""
-                CREATE OR ALTER TRIGGER sal.TR_platform_invoice_line_frozen ON {line} AFTER INSERT,UPDATE,DELETE AS
+                CREATE OR ALTER TRIGGER sal.TR_platform_invoice_line_frozen ON {line} AFTER INSERT,UPDATE AS
                 BEGIN
                   SET NOCOUNT ON;
                   IF EXISTS(SELECT 1 FROM inserted n FULL OUTER JOIN deleted o ON o.id=n.id
                     WHERE (n.id IS NULL OR o.id IS NULL OR {Changed(c,LineColumns,"n","o")})
                       AND EXISTS(SELECT 1 FROM {invoice} i WHERE i.id IN (n.invoice_id,o.invoice_id) AND {Frozen("i")}))
                     THROW 51022,'{lines}',1;
+                END;
+                """);
+            // One INSTEAD OF DELETE: freeze message first, else retention (AFTER DELETE never runs under Retain's INSTEAD OF).
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER sal.TR_sal_platform_invoice_line_no_delete ON {line} INSTEAD OF DELETE AS
+                BEGIN
+                  SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM deleted o JOIN {invoice} i ON i.id=o.invoice_id WHERE {Frozen("i")})
+                    THROW 51022,'{lines}',1;
+                  IF EXISTS(SELECT 1 FROM deleted) THROW 51031,'Money rows cannot be deleted',1;
                 END;
                 """);
         }
