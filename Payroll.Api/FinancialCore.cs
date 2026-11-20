@@ -217,7 +217,8 @@ public static class FinancialCore
         new("CashAdvance", "سلفة نقدية (من الصندوق الداخلي)", "Advances", "5205", "1210", 0m, ["MainInternal"]),
         new("BankAdvance", "سلفة بنكية (من حساب البنك)", "Advances", "5205", "1210", 0m, ["Bank"]),
         new("InternetAdvance", "سلفة إنترنت", "Advances", "5205", "1210", 0m, ["MainInternal", "Bank"]),
-        new("HsWalletTopUp", "سلفة محفظة هنقرستيشن", "Advances", "5205", "1210", 0m, ["MainInternal", "Bank"]),
+        new("HsCustodyAdvance", "سلفة شحن من العهدة", "Advances", "5205", "1210", 0m, ["MainInternal", "Bank"]),
+        new("HsInvoiceCloseAdvance", "سلفة رصيد إقفال هنقرستيشن", "Advances", "5205", "1210", 0m, ["MainInternal", "Bank"]),
         new("LegacyOpeningDebt", "مديونية افتتاحية قديمة — ذمم أخرى", "Admin", "5203", "1210", 0m, ["MainInternal", "Bank"]),
         new("CashCustody", "عهدة نقدية مقابل سند لأمر", "Advances", "5205", "1220", 15000m, ["MainInternal", "Bank"]),
 

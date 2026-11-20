@@ -90,7 +90,7 @@ public static partial class DebtSheetImporter
                 {
                     var row=control.Rows[n-1];string app=App(Cell(row,value-2));decimal actual=Money(Cell(row,value));
                     if(controlCache.Contains(n)){Issue(control.Name,n,"formula_without_cached_value");continue;}
-                    if(typeMap.S("category")=="HsWalletTopUp")app="هنقرستيشن";
+                    if(typeMap.S("category") is "HsCustodyAdvance" or "HsInvoiceCloseAdvance")app="هنقرستيشن";
                     if(app==""&&actual==0)continue;
                     if(!seenLabels.Add(Text(Cell(row,value-2))))Issue(control.Name,n,"summary_app_duplicate");
                     appTotals[app]=appTotals.GetValueOrDefault(app)+actual;total+=actual;

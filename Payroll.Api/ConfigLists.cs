@@ -27,7 +27,7 @@ public static class ConfigLists
     [
         ("FuelOverage","فرق الوقود","112511",1,10),("VehicleInstallment","إيجار / قسط المركبة","112505",1,20),
         ("CashAdvance","سلفة نقدية","112501",1,30),("BankAdvance","سلفة بنكية","112501",1,31),("Advance","سلفة","112501",1,32),
-        ("InternetAdvance","سلفة إنترنت","112503",1,40),("HsWalletTopUp","شحن محفظة هنقرستيشن","112513",1,45),("HousingDeduction","استقطاع سكن","112505",1,50),
+        ("InternetAdvance","سلفة إنترنت","112503",1,40),("HsCustodyAdvance","سلفة شحن من العهدة","112501",1,45),("HsInvoiceCloseAdvance","سلفة رصيد إقفال هنقرستيشن","112513",1,46),("HousingDeduction","استقطاع سكن","112505",1,50),
         ("MudadSalary","راتب منصة مدد","112505",1,55),
         ("AdministrativeDeduction","استقطاع إداري","112505",1,60),("EquipmentLoan","عهدة معدات","112505",1,70),("CashCustody","عهدة نقدية","112505",1,80),
         ("WorkPermit","رخصة عمل","112506",2,10),("IqamaRenewal","تجديد إقامة","112506",2,11),("SponsorshipTransfer","نقل كفالة","112506",2,12),("ExitReEntryVisa","تأشيرة خروج وعودة","112506",2,13),
@@ -169,26 +169,30 @@ public static class ConfigLists
             foreach(var (code,name) in new[]{("STC","STC"),("MOBILY","موبايلي"),("ZAIN","زين")})Put("recharge_networks",code,name,new());
             Store.Save(c,"setting",new(){["id"]=marker,["version"]=1},tx);return true;
         },false);
-        // U-W1-29 (Ghazal P14, M-0634): HS wallet top-ups post to 112513; 112506 stays HR services.
-        // Live was seeded with 112506 and the seed never rewrites, so move only that exact old value once,
-        // as a new approved version with an audit row. Any other value an approver chose is kept.
-        const string wallet="migration:config-lists:v3-hs-wallet-112513";
+        // RM3V M9 / file 68 §4.3: a generic historic top-up cannot prove its funding/close/collection kind.
+        // Keep the old approved account and history; disable that ambiguous item rather than reclassifying money.
         store.Write((c,tx)=>
         {
-            if(Store.Get(c,wallet,"setting",tx)!=null)return false;
-            var item=Store.Get(c,ItemId("deduction_types","HsWalletTopUp"),ItemKind,tx)?.Clone();
-            if(item?["current"] is JsonObject cur&&cur["values"].S("account")=="112506")
+            const string marker="migration:config-lists:v4-hs-event-kinds";
+            if(Store.Get(c,marker,"setting",tx)!=null)return false;
+            foreach(var d in DefaultDeductions.Where(d=>d.Category is "HsCustodyAdvance" or "HsInvoiceCloseAdvance"))
             {
-                if(item["history"] is not JsonArray history)item["history"]=history=new JsonArray();
-                history.Add(cur.DeepClone());
-                var next=(JsonObject)cur.DeepClone();next["values"]!["account"]="112513";
-                next["by"]="system-migration";next["approvedBy"]="system-migration (U-W1-29, Ghazal P14)";next["validFrom"]=Now();
-                item["current"]=next;item["version"]=item.N("version")+1;
-                Store.Save(c,ItemKind,item,tx);Store.Audit(c,tx,"config.item_migrated",item.S("id"),"system-migration");
+                string id=ItemId("deduction_types",d.Category);
+                if(Store.Get(c,id,ItemKind,tx)!=null)continue;
+                var item=new JsonObject{["id"]=id,["group"]="deduction_types",["code"]=d.Category,["version"]=0,["history"]=new JsonArray(),["active"]=true};
+                Apply(item,new JsonObject{["nameAr"]=d.NameAr,["values"]=new JsonObject{["category"]=d.Category,["account"]=d.Account,["phase"]=d.Phase,["order"]=d.Order},["active"]=true,["by"]="system-seed"},"system-seed (68 §4.3)");
+                Store.Save(c,ItemKind,item,tx);
             }
-            Store.Save(c,"setting",new(){["id"]=wallet,["version"]=1},tx);return true;
+            var old=Store.Get(c,ItemId("deduction_types","HsWalletTopUp"),ItemKind,tx)?.Clone();
+            if(old!=null&&old.B("active"))
+            {
+                old["active"]=false;old["classificationRequired"]=true;
+                Store.Save(c,ItemKind,old,tx);Store.Audit(c,tx,"config.wallet_classification_required",old.S("id"),"system-migration");
+            }
+            Store.Save(c,"setting",new(){["id"]=marker,["version"]=1},tx);return true;
         },false);
     }
+
     // BR §29: the phase and order of a deduction category; approved list first, then the built-in default.
     public static (int Phase,int Order,string LabelAr) Phase(DbConnection c,DbTransaction? tx,string category)
     {

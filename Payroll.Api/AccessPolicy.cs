@@ -20,7 +20,7 @@ public static partial class AccessPolicy
     public static void Demand(ClaimsPrincipal user,string permission){if(!Has(user,permission))throw new ApiError("ليست لديك صلاحية لهذه العملية: "+permission,403);}
     public static string CategoryPermission(string category)=>category switch {
         "WorkPermit" or "IqamaRenewal" or "SponsorshipTransfer" or "ExitReEntryVisa" or "MedicalInsurance" or "ProfessionChange" or "DriverLicense" or "DriverCard" or "OtherHrService"=>"debts.create.hr",
-        "Advance" or "CashAdvance" or "BankAdvance" or "InternetAdvance" or "HsWalletTopUp" or "CashCustody"=>"debts.create.advance",
+        "Advance" or "CashAdvance" or "BankAdvance" or "InternetAdvance" or "HsCustodyAdvance" or "HsInvoiceCloseAdvance" or "CashCustody"=>"debts.create.advance",
         "HousingDeduction"=>"debts.create.housing",
         "PlatformTransferredDebt" or "NegativeSalaryCarryover"=>"debts.create.platform",
         "EquipmentLoan"=>"debts.create.equipment",

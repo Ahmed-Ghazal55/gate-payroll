@@ -14,7 +14,7 @@ public static class PipelineSettings
         ["salaryFuelCompanyPaysWhenNoCap"]=false, // m1: never silent "company pays all" when fuelCap is 0
         ["fuelSupplierAccount"]="114106", // §22.9 PetroApp clearing (target CoA)
         ["payrollBankAccount"]="111101", // M1 default payout bank (target CoA)
-        ["hsWalletAccount"]="112513", // U-W1-29: HS wallet; HR services remain 112506
+        ["hsWalletAccount"]="112513", // Invoice R close only (68 §4.3); custody advances use 112501; collected top-ups create no rider debt
         ["keeta95CompanyOnly"]=true, // decision 7 ✅
         ["freezeInvoiceWithInputs"]=true // decision 10 ✅
     };
