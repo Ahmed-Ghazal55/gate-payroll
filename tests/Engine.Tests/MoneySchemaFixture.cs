@@ -14,7 +14,7 @@ internal static class MoneySchemaFixture
         using(var cmd=c.CreateCommand())
         {
             cmd.Transaction=tx; // SQL Server rejects a command outside the connection's open transaction
-            cmd.CommandText="SELECT s.name+'_'+t.name FROM sys.tables t JOIN sys.schemas s ON s.schema_id=t.schema_id";
+            cmd.CommandText="SELECT s.name+'_'+t.name FROM sys.tables t JOIN sys.schemas s ON s.schema_id=t.schema_id UNION ALL SELECT s.name+'_'+v.name FROM sys.views v JOIN sys.schemas s ON s.schema_id=v.schema_id";
             using var reader=cmd.ExecuteReader();while(reader.Read())tables.Add(reader.GetString(0));
         }
         sql=sql.Replace("datetime('now')","SYSUTCDATETIME()").Replace("randomblob(32)","CRYPT_GEN_RANDOM(32)");

@@ -11,7 +11,7 @@ public sealed class SchemaTreasuryTests
     }
     internal static string Registration(DbConnection c,string company)
     {
-        string id=MoneySchemaFixture.Id();MoneySchemaFixture.Exec(c,null,"INSERT INTO hr_commercial_registration(id,company_id,cr_number,status,created_at) VALUES(@id,@c,@id,1,datetime('now'))",("@id",id),("@c",company));return id;
+        string id=MoneySchemaFixture.Id();MoneySchemaFixture.Exec(c,null,"INSERT INTO hr_commercial_registration(id,company_id,cr_number,status,created_at) VALUES(@id,@c,@code,1,datetime('now'))",("@id",id),("@c",company),("@code",id.Replace("-","")[..32]));return id;
     }
     internal static string Account(DbConnection c,string company,string registration,string table="bank_account")
     {
