@@ -23,7 +23,7 @@ internal static class MoneySchemaFixture
     /// <summary>Rewrite SQLite-style schema_table names to SQL Server names. Only names of existing tables are
     /// rewritten; string literals and columns such as pay_run_id are left alone.</summary>
     public static string RewriteTables(string sql,Func<string,bool> isTable,Func<string,string,string> quote)=>
-        Regex.Replace(sql,@"'(?:[^']|'')*'|\b(pay|sal|fin|hr|org|ref)_([a-z][a-z0-9_]*)\b",m=>
+        Regex.Replace(sql,@"'(?:[^']|'')*'|\b(pay|sal|fin|hr|org|ref|debt|treasury|auth)_([a-z][a-z0-9_]*)\b",m=>
             m.Value.StartsWith('\'')||!isTable(m.Value)?m.Value:quote(m.Groups[1].Value,m.Groups[2].Value));
     public static void Exec(DbConnection c,DbTransaction? tx,string sql,params (string Name,object Value)[] values)=>SchemaSql.Exec(c,tx,Sql(c,sql,tx),values);
     public static object? Scalar(DbConnection c,DbTransaction? tx,string sql,params (string Name,object Value)[] values)
