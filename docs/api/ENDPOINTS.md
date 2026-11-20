@@ -422,7 +422,6 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/org/supervision` | Payroll.Api/OrgDirectory.cs:112 | org.manage (Admin); dated rows, never deleted | web | keep |
 | POST | `/api/org/supervision/{id}/end` | Payroll.Api/OrgDirectory.cs:113 | org.manage (Admin); dated rows, never deleted | web | keep |
 | POST | `/api/system/maintenance/rider-indexes` | Payroll.Api/RiderIndexMaintenance.cs:44 | Admin / SuperAdmin | web | keep |
-| POST | `/api/test/seed-work` | Payroll.Api/TestSeed.cs:14 | see AccessPolicy + handler | none | keep |
 | POST | `/api/users` | Payroll.Api/UserAccess.cs:478 | Admin / SuperAdmin | web | keep |
 | POST | `/api/users/{id}/reset-password` | Payroll.Api/UserAccess.cs:526 | Admin / SuperAdmin | web | keep |
 | PUT | `/api/roles/{code}/permissions` | Payroll.Api/UserAccess.cs:543 | see AccessPolicy + handler | web | keep |

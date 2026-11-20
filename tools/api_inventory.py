@@ -86,6 +86,8 @@ def routes():
    method=m[2].upper();p=('/api'+m[3] if m[1]=='api' else m[3]).replace('/api/api/','/api/')
    # Metadata belongs to the declaration before the next route.
    end=re.search(r'\b(?:app|api)\.Map(?:Get|Post|Put|Delete|Patch)\(',s[m.end():]);tail=s[m.end():m.end()+end.start()] if end else s[m.end():]
+   # Hidden from OpenAPI (e.g. Development-only test seed): not part of the API contract.
+   if '.ExcludeFromDescription()' in tail:continue
    tag=re.search(r'\.WithTags\("([^"]+)"',tail);group=tag[1] if tag else 'Administration'
    caller='rider form' if p.startswith(('/api/public/forms','/api/public/questionnaires','/api/public/inquiry')) else 'rider app' if p.startswith('/api/rider-mobile') and ('portal' in p or 'ack' in p or 'login' in p or p.endswith(('/mine','/logout','/statement'))) else 'none'
    if caller=='none':
