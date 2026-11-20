@@ -26,11 +26,11 @@ public static class SchemaSalPayRun
             CONSTRAINT CK_sal_run_flags CHECK (run_mode IN (0,1) AND payout_blocked IN (0,1)),
             CONSTRAINT CK_sal_run_currency CHECK (currency_code='SAR'),
             CONSTRAINT CK_sal_run_month CHECK ({SchemaSql.MonthCheck(c)}),
-            CONSTRAINT CK_sal_run_capture CHECK (capture_state IN (0,1,2) AND (stage<=1 OR capture_state>0) AND (status NOT IN (2,3,5) OR capture_state>0) AND (capture_state=0 OR calc_started_at IS NOT NULL)),
+            CONSTRAINT CK_sal_run_capture CHECK (capture_state IN (0,1,2) AND (stage<=1 OR capture_state>0) AND (capture_state=0 OR calc_started_at IS NOT NULL)),
             CONSTRAINT FK_sal_run_company FOREIGN KEY (company_id) REFERENCES {SchemaSql.Q(c,"hr","company")}(id) ON DELETE NO ACTION
             """);
         SchemaMoneyFlags.Ensure(c,tx,"sal","pay_run",o=>$"{o}.capture_state>0 OR {o}.status IN (2,3,5)");
-        // Trigger repeats the new CHECK for databases created by earlier Ensure versions (no table rebuild/backfill).
+        // Approved/closed status requires capture: owned here (not CK_sal_run_capture) so SQL Server reports TR_run_state, not the CHECK.
         SchemaMoneyGuard.Rule(c,tx,"sal","pay_run","TR_run_state",
             n=>$"{n}.status IN (2,3,5) AND {n}.capture_state=0",
             (o,n)=>$"{o}.status IN (2,3,4,5) AND ({n}.id IS NULL OR {n}.status=1 OR ({o}.status=4 AND {n}.status<>4))");
