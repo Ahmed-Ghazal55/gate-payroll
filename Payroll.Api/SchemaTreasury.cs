@@ -81,8 +81,32 @@ public static class SchemaTreasury
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"treasury","bank_match","UQ_treasury_match_active","statement_line_id,journal_line_id","status=1");
         SchemaMoneyGuard.Retain(c,tx,"treasury","bank_match","o.statement_line_id=NEW.statement_line_id AND o.journal_line_id=NEW.journal_line_id AND o.status=1 AND NEW.status=1");
         SchemaMoneyRegister.Immutable(c,tx,"treasury","bank_match","statement_line_id","journal_line_id","company_id","period_month","amount");
-        SchemaMoneyGuard.Rule(c,tx,"treasury","bank_match","TR_treasury_match_source",n=>$"{n}.status=1 AND NOT EXISTS(SELECT 1 FROM {line} l JOIN {statement} s ON s.id=l.statement_id JOIN {bank} b ON b.id=s.bank_account_id JOIN {jl} jl ON jl.id={n}.journal_line_id JOIN {j} j ON j.id=jl.journal_id WHERE l.id={n}.statement_line_id AND jl.company_id={n}.company_id AND jl.account_id=b.account_id AND j.status=2 AND j.run_mode=0 AND s.status<>5 AND ((l.amount>0 AND jl.debit>0) OR (l.amount<0 AND jl.credit>0)))",
-            (o,n)=>$"{o}.status=5 AND {n}.status<>5");
+        Func<string,string> matchSourceNew=n=>$"{n}.status=1 AND NOT EXISTS(SELECT 1 FROM {line} l JOIN {statement} s ON s.id=l.statement_id JOIN {bank} b ON b.id=s.bank_account_id JOIN {jl} jl ON jl.id={n}.journal_line_id JOIN {j} j ON j.id=jl.journal_id WHERE l.id={n}.statement_line_id AND jl.company_id={n}.company_id AND jl.account_id=b.account_id AND j.status=2 AND j.run_mode=0 AND s.status<>5 AND ((l.amount>0 AND jl.debit>0) OR (l.amount<0 AND jl.credit>0)))";
+        if(SchemaSql.IsSql(c))
+        {
+            // INSTEAD OF UPDATE: cancelled→active reopen must report TR_treasury_match_source before UQ_treasury_match_active.
+            string cols=SchemaMoneyRegister.InsertableColumns(c,tx,"treasury","bank_match");
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER treasury.TR_treasury_match_source ON {match} INSTEAD OF UPDATE AS BEGIN
+                  SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM deleted o LEFT JOIN inserted n ON n.id=o.id WHERE o.status=5 AND n.status<>5)
+                    THROW 51030,'TR_treasury_match_source',1;
+                  IF EXISTS(SELECT 1 FROM inserted n WHERE {matchSourceNew("n")})
+                    THROW 51030,'TR_treasury_match_source',1;
+                  UPDATE t SET {string.Join(",",cols.Split(',').Select(col=>$"{col}=n.{col}"))}
+                  FROM {match} t INNER JOIN inserted n ON t.id=n.id;
+                END;
+                """);
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER treasury.TR_treasury_match_source_ins ON {match} AFTER INSERT AS BEGIN
+                  SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM inserted n WHERE {matchSourceNew("n")})
+                    THROW 51030,'TR_treasury_match_source',1;
+                END;
+                """);
+        }
+        else
+            SchemaMoneyGuard.Rule(c,tx,"treasury","bank_match","TR_treasury_match_source",matchSourceNew,(o,n)=>$"{o}.status=5 AND {n}.status<>5");
         string invalid(string n)=>$"{n}.status=1 AND (EXISTS(SELECT 1 FROM {line} l WHERE l.id={n}.statement_line_id AND ABS(l.amount)<(SELECT COALESCE(SUM(amount),0) FROM {match} x WHERE x.statement_line_id=l.id AND x.status=1)) OR EXISTS(SELECT 1 FROM {jl} l WHERE l.id={n}.journal_line_id AND l.debit+l.credit<(SELECT COALESCE(SUM(amount),0) FROM {match} x WHERE x.journal_line_id=l.id AND x.status=1)))";
         if(SchemaSql.IsSql(c))
             SchemaSql.Exec(c,tx,$"CREATE OR ALTER TRIGGER treasury.TR_bank_match_totals ON {match} AFTER INSERT,UPDATE AS BEGIN SET NOCOUNT ON; DECLARE @locked uniqueidentifier; SELECT @locked=id FROM {line} WITH (UPDLOCK,HOLDLOCK) WHERE id IN(SELECT statement_line_id FROM inserted); SELECT @locked=id FROM {jl} WITH (UPDLOCK,HOLDLOCK) WHERE id IN(SELECT journal_line_id FROM inserted); IF EXISTS(SELECT 1 FROM inserted n WHERE {invalid("n")}) THROW 51041,'Bank match exceeds source amount',1; END;");
@@ -103,10 +127,13 @@ public static class SchemaTreasury
             CONSTRAINT FK_treasury_count_box FOREIGN KEY(cash_box_id,company_id,registration_id) REFERENCES {SchemaSql.Q(c,"treasury","cash_box")}(id,company_id,registration_id) ON DELETE NO ACTION,
             CONSTRAINT FK_treasury_count_journal FOREIGN KEY(journal_id) REFERENCES {SchemaSql.Q(c,"fin","journal")}(id) ON DELETE NO ACTION
             """);
-        SchemaMoneyRegister.Workflow(c,tx,"treasury","vault_count","cash_box_id","company_id","registration_id","period_month","counted_on","book_balance","counted_amount","journal_id");
         // No guessed over/short accounts: the design explicitly names 422202 (over) and 542102 (short).
         string journal=SchemaSql.Q(c,"fin","journal"),jl=SchemaSql.Q(c,"fin","journal_line"),account=SchemaSql.Q(c,"fin","account");
-        SchemaMoneyGuard.Rule(c,tx,"treasury","vault_count","TR_vault_count_journal",n=>$"{n}.status=3 AND {n}.counted_amount<>{n}.book_balance AND NOT EXISTS(SELECT 1 FROM {journal} j JOIN {jl} l ON l.journal_id=j.id JOIN {account} a ON a.id=l.account_id WHERE j.id={n}.journal_id AND j.company_id={n}.company_id AND j.period_month={n}.period_month AND j.status=2 AND j.run_mode=0 AND j.purpose='vault_over_short' AND (({n}.counted_amount>{n}.book_balance AND a.code='422202' AND l.credit={n}.counted_amount-{n}.book_balance) OR ({n}.counted_amount<{n}.book_balance AND a.code='542102' AND l.debit={n}.book_balance-{n}.counted_amount)))");
+        void JournalRule()=>SchemaMoneyGuard.Rule(c,tx,"treasury","vault_count","TR_vault_count_journal",n=>$"{n}.status=3 AND {n}.counted_amount<>{n}.book_balance AND NOT EXISTS(SELECT 1 FROM {journal} j JOIN {jl} l ON l.journal_id=j.id JOIN {account} a ON a.id=l.account_id WHERE j.id={n}.journal_id AND j.company_id={n}.company_id AND j.period_month={n}.period_month AND j.status=2 AND j.run_mode=0 AND j.purpose='vault_over_short' AND (({n}.counted_amount>{n}.book_balance AND a.code='422202' AND l.credit={n}.counted_amount-{n}.book_balance) OR ({n}.counted_amount<{n}.book_balance AND a.code='542102' AND l.debit={n}.book_balance-{n}.counted_amount)))");
+        // SQL Server AFTER: first-created fires first; SQLite BEFORE: last-created fires first — opposite order.
+        if(SchemaSql.IsSql(c))JournalRule();
+        SchemaMoneyRegister.Workflow(c,tx,"treasury","vault_count","cash_box_id","company_id","registration_id","period_month","counted_on","book_balance","counted_amount","journal_id");
+        if(!SchemaSql.IsSql(c))JournalRule();
     }
 
     static void EnsureJahez(DbConnection c,DbTransaction? tx)
