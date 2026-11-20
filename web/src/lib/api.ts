@@ -62,7 +62,6 @@ import type {
   PayCopyMonthResponse,
   PayAssignment,
   PayAssignmentPreviewResult,
-  ImportCatalogStep,
   ImportPreviewResult,
 } from './types';
 import type { paths, components } from './api-contract';
@@ -2170,8 +2169,7 @@ export const api = {
     return handleRequest<{ id: string; deleted?: boolean }>(url, { method: 'DELETE' });
   },
 
-  // Import Center (K6 / R6c)
-  getImportsCatalog: () => handleRequest<ImportCatalogStep[]>('/imports/catalog'),
+  // Per-page import templates / preview / commit (imports centre removed)
   downloadImportTemplate: async (templateUrl: string, fallbackFileName = 'template.xlsx'): Promise<void> => {
     const url = templateUrl.startsWith('http') ? templateUrl : (templateUrl.startsWith('/api') ? templateUrl : `/api${templateUrl}`);
     const res = await fetch(url, {

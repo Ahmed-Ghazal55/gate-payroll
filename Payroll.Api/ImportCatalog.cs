@@ -85,7 +85,7 @@ public static class ImportCatalog
 
     public static void Map(RouteGroupBuilder api)
     {
-        api.MapGet("/imports/catalog",()=>View()).WithTags("Administration").WithSummary("Ordered import steps with template, preview and commit links and the required columns");
+        // Catalog list removed with the imports centre (H2); templates stay for per-page upload buttons.
         api.MapGet("/imports/templates/{name}",(string name)=>Template(name)).WithTags("Administration").WithSummary("Download an empty import template from the catalog");
     }
 }

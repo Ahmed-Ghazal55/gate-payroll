@@ -111,7 +111,6 @@ function SidebarInner({
         { id: 'ops-housing', href: '/operations/?tab=housing', label: 'السكن والإسكان' },
         { id: 'ops-vehicles', href: '/operations/?tab=vehicles', label: 'المركبات والتسليمات' },
         { id: 'ops-fuel', href: '/operations/?tab=fuel', label: 'الوقود' },
-        { id: 'ops-imports', href: '/imports/', label: 'استيراد الملفات', permission: 'imports.view', isNew: true },
       ],
     },
     {

@@ -59,12 +59,12 @@ public sealed class ImportCatalogTests
     }
 
     [TestMethod]
-    public void CatalogAndTemplatesNeedImportsViewAndStayReadOnly()
+    public void TemplatesNeedImportsViewAndCatalogListIsGone()
     {
-        Assert.IsTrue(AccessPolicy.Allowed(User("imports.view"),"GET","/api/imports/catalog"));
+        Assert.IsFalse(AccessPolicy.Allowed(User("imports.view"),"GET","/api/imports/catalog"),"imports centre catalog removed");
         Assert.IsTrue(AccessPolicy.Allowed(User("imports.view"),"GET","/api/imports/templates/operations-ninja"));
-        Assert.IsFalse(AccessPolicy.Allowed(User("advances.request"),"GET","/api/imports/catalog"));
-        Assert.IsFalse(AccessPolicy.Allowed(User("imports.view"),"POST","/api/imports/catalog/commit"),"no write path under the catalog");
+        Assert.IsFalse(AccessPolicy.Allowed(User("advances.request"),"GET","/api/imports/templates/operations-ninja"));
+        Assert.IsFalse(AccessPolicy.Allowed(User("imports.view"),"POST","/api/imports/templates/operations-ninja"),"templates stay read-only");
         var view=ImportCatalog.View();Assert.AreEqual(ImportCatalog.Steps().Count,view.Count);
         var first=view[0]!.AsObject();Assert.AreEqual("companies",first["key"]!.GetValue<string>());
         Assert.IsTrue(first["columns"]!.AsArray().OfType<JsonObject>().Any(c=>c["required"]!.GetValue<bool>()));
