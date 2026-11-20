@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
+import { seedWorkRows } from '../../tests/work-seed.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -150,19 +151,14 @@ try {
   await loginPage.waitForSelector('#username', { timeout: 10000 });
   console.log('✓ W1: Logout successful and redirected to /app/login/');
 
-  // Test 4: Open redirect protection (unsafe returnUrl blocked with 400, safe /legacy/ returnUrl succeeds)
+  // Test 4: Open redirect protection (unsafe and removed /legacy/ returnUrl blocked with 400)
   const badReturnRes = await fetch(`${baseUrl}/app/login/?returnUrl=${encodeURIComponent('https://malicious-site.example/steal-token')}`);
   assert.equal(badReturnRes.status, 400, 'Unsafe returnUrl must be rejected with 400');
   console.log('✓ W1: Malicious returnUrl blocked with HTTP 400 by security guard');
 
-  await unauthContext.clearCookies();
-  await loginPage.goto(`${baseUrl}/app/login/?returnUrl=/legacy/#/dashboard`);
-  await loginPage.waitForSelector('#username', { timeout: 10000 });
-  await loginPage.locator('#username').fill(adminUsername);
-  await loginPage.locator('#password').fill(adminPassword);
-  await loginPage.locator('button[type="submit"]').click();
-  await loginPage.waitForURL(url => url.pathname.includes('/legacy'), { timeout: 8000 });
-  console.log('✓ W1: Safe returnUrl redirected to /legacy/#/dashboard');
+  const legacyReturnRes = await fetch(`${baseUrl}/app/login/?returnUrl=${encodeURIComponent('/legacy/#/dashboard')}`);
+  assert.equal(legacyReturnRes.status, 400, 'Removed /legacy/ returnUrl must be rejected with 400');
+  console.log('✓ W1: /legacy/ returnUrl blocked with HTTP 400');
 
   // Test 5: Wrong password displays 401 error message
   await unauthContext.clearCookies();
@@ -903,26 +899,16 @@ try {
   const targetSponsorId = riderPost.financeSponsorId;
   console.log('Rider post res:', riderPostRes.status(), JSON.stringify(riderPost));
 
-  const legacyCsv = `sourceRef,iqama,name,accountId,from,to,orders,riderPay,isValid\r\nlive-legacy-row,${testIqama},${testName},ACC-001,2026-10-01,2026-10-31,10,1500,true\r\n`;
-  const uploadRes = await page.request.post(`${baseUrl}/api/imports/inspect`, {
-    data: { filename: 'legacy.csv', dataBase64: Buffer.from(legacyCsv).toString('base64') },
-  });
-  const uploadData = await uploadRes.json();
-  console.log('Upload inspect res:', uploadData);
-
-  const legacySpec = {
-    sheet: 'CSV',
-    period: '2026-10',
-    platform: 'Keeta',
-    headerRow: 1,
-    confirmActualRider: true,
-    mapping: { sourceRef: 0, iqama: 1, name: 2, accountId: 3, from: 4, to: 5, orders: 6, riderPay: 7, isValid: 8 },
-  };
-  const prevRes = await page.request.post(`${baseUrl}/api/imports/${uploadData.id}/preview`, { data: legacySpec });
-  console.log('Import preview res:', prevRes.status(), await prevRes.text());
-
-  const commRes = await page.request.post(`${baseUrl}/api/imports/${uploadData.id}/commit`, { data: legacySpec });
-  console.log('Import commit res:', commRes.status(), await commRes.text());
+  await seedWorkRows(async (route, body) => {
+    const res = await page.request.post(`${baseUrl}${route}`, { data: body });
+    assert.equal(res.status(), 200, await res.text());
+    return res.json();
+  }, [{
+    sourceRef: 'live-legacy-row', iqama: testIqama, name: testName, accountId: 'ACC-001',
+    from: '2026-10-01', to: '2026-10-31', orders: 10, riderPay: 1500, isValid: true,
+    platform: 'Keeta', period: '2026-10',
+  }]);
+  console.log('Seeded legacy work row for current-cycle tab');
 
   const checkPreview = await page.request.get(`${baseUrl}/api/payroll/preview?period=2026-10`);
   console.log('Legacy payroll preview check:', checkPreview.status(), await checkPreview.text());

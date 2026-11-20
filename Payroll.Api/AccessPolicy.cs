@@ -5,7 +5,7 @@ namespace Payroll;
 // One route policy is used by the API, UI capability list and offline review tests.
 public static partial class AccessPolicy
 {
-    public static bool Administrator(ClaimsPrincipal user)=>user.IsInRole("Admin")||user.IsInRole("SuperAdmin");
+    public static bool Administrator(ClaimsPrincipal user)=>user.IsInRole("Admin")||user.IsInRole("SuperAdmin")||user.IsInRole("SystemAdmin");
     public static string[] CompatibilityDefaults(string role)=>role switch {
         "Accountant"=>["payments.record","adjustments.create","imports.view","policies.view","inquiry.issue","treasury.disburse","treasury.jahez.receive","treasury.journals","treasury.liability.settle","debts.create.housing","debts.create.administrative","debts.create.equipment"],
         "FinancialAccountant"=>["payments.record","adjustments.create","imports.view","policies.view","inquiry.issue","treasury.disburse","treasury.jahez.receive","treasury.journals","treasury.opening","treasury.liability.settle","debts.create.housing","debts.create.administrative","debts.create.equipment"],
@@ -174,9 +174,8 @@ public static partial class AccessPolicy
         if(path=="/api/adjustments")return method=="POST"&&Has("adjustments.create");
         if(path.StartsWith("/api/policies",StringComparison.Ordinal))return method=="GET"?Has("policies.view"):Has("policies.manage");
         if((method=="GET"&&path=="/api/imports")||path=="/api/template.csv")return Has("imports.view");
-        // Per-page empty templates (imports centre catalog list removed).
+        // Per-page empty templates (imports centre catalog list and free-upload endpoints removed).
         if(path.StartsWith("/api/imports/templates/",StringComparison.Ordinal))return method=="GET"&&Has("imports.view");
-        if(path.StartsWith("/api/imports/",StringComparison.Ordinal))return method=="POST"&&(path.EndsWith("/commit",StringComparison.Ordinal)?Has("imports.commit"):Has("imports.view"));
         if(path.StartsWith("/api/campaigns",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="DELETE"?Has("forms.delete"):Has("forms.manage");
         if(path.StartsWith("/api/submissions",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="POST"&&(path.EndsWith("/review",StringComparison.Ordinal)||path=="/api/submissions/bulk-approve")&&Has("forms.review");
         if(Get("/api/forms/catalog")||Get("/api/forms/analytics")||Get("/api/forms/responses"))return Has("forms.view");

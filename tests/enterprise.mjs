@@ -1,4 +1,5 @@
 import {seedAccountingCash} from './financial-fixtures.mjs';
+import {seedWorkRows} from './work-seed.mjs';
 import {spawn} from 'node:child_process';
 import {mkdtempSync,rmSync,mkdirSync,writeFileSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -12,7 +13,7 @@ const port=19349, base=`http://127.0.0.1:${port}`;
 const published=process.env.PAYROLL_TEST_PUBLISHED;
 const dotnetBin = process.env.DOTNET_PATH || (process.platform === 'win32' && existsSync('D:/Projectes/.codex-tools/dotnet/dotnet.exe') ? 'D:/Projectes/.codex-tools/dotnet/dotnet.exe' : 'dotnet');
 const exeName = process.platform === 'win32' ? 'Payroll.Api.exe' : 'Payroll.Api';
-const proc=spawn(published?path.join(published,exeName):dotnetBin,published?[]:[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:published||path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data},windowsHide:true,stdio:['ignore','pipe','pipe']});
+const proc=spawn(published?path.join(published,exeName):dotnetBin,published?[]:[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:published||path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data,Vouchers__Secret:process.env.Vouchers__Secret||'GateSynthetic_CI_Only_Voucher_Key_000001'},windowsHide:true,stdio:['ignore','pipe','pipe']});
 let logs='',cookie='',checks=0,spawnError=null;proc.once('error',e=>{spawnError=e;});proc.stdout.on('data',x=>logs+=x);proc.stderr.on('data',x=>logs+=x);
 async function req(route,body,expected=200,auth=true,headers={}){const r=await fetch(base+route,{method:body===undefined?'GET':'POST',headers:{...(body===undefined?{}:{'Content-Type':'application/json'}),...(auth&&cookie?{Cookie:cookie}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)});const raw=await r.text();assert.equal(r.status,expected,`${route}: ${r.status} ${raw}`);checks++;if(r.headers.get('set-cookie'))cookie=r.headers.get('set-cookie').split(';')[0];try{return JSON.parse(raw)}catch{return raw}}
 const password=randomBytes(24).toString('hex');let adminCookie='';
@@ -35,6 +36,25 @@ try{
  cookie=adminCookie;await put(`/api/users/${reviewer.id}/status`,{status:'suspended'});cookie=reviewerCookie;await req('/api/me',undefined,401);
  cookie=adminCookie;await put(`/api/users/${other.id}/status`,{role:'Reviewer'});await put('/api/users/administrator/status',{status:'suspended'},400);
  await req('/api/auth/login',{username:'test-accountant',password});assert.equal((await req('/api/me')).role,'Accountant');await req('/api/payroll/approve',{},403);await req('/api/riders',{iqama:'2000000099',name:'Denied'},403);await req('/api/users',undefined,403);
+ cookie=adminCookie;
+ // Delegated users.manage: cannot grant Admin/SystemAdmin or permissions above own; last privileged admin kept.
+ const mgrPassword=randomBytes(24).toString('hex');
+ const manager=await req('/api/users',{username:'test-user-mgr',password:mgrPassword,role:'Reviewer',customPermissions:['users.manage','forms.review']});
+ const peer=await req('/api/users',{username:'test-user-peer',password:mgrPassword,role:'Reviewer',customPermissions:['forms.review']});
+ const sysAdmin=await req('/api/users',{username:'test-sysadmin',password:mgrPassword,role:'SystemAdmin'});
+ await put(`/api/roles/SystemAdmin/permissions`,{permissions:['forms.review'],reason:'synthetic blocked'},400);
+ cookie='';await req('/api/auth/login',{username:'test-user-mgr',password:mgrPassword});
+ await req('/api/users',{username:'escalate-admin',password:mgrPassword,role:'Admin'},403);
+ await req('/api/users',{username:'escalate-sys',password:mgrPassword,role:'SystemAdmin'},403);
+ await req('/api/users',{username:'escalate-perm',password:mgrPassword,role:'Reviewer',customPermissions:['users.manage','pay.approve']},403);
+ await put(`/api/users/${peer.id}`,{role:'Admin'},403);
+ await put(`/api/users/${peer.id}`,{role:'SystemAdmin'},403);
+ await put(`/api/users/${peer.id}`,{customPermissions:['forms.review','pay.approve']},403);
+ await put(`/api/users/${sysAdmin.id}`,{status:'suspended'},403);
+ await req('/api/users',{username:'peer-ok',password:mgrPassword,role:'Reviewer',customPermissions:['forms.review']});
+ cookie=adminCookie;
+ await put(`/api/users/${sysAdmin.id}`,{status:'suspended'});
+ await put('/api/users/administrator/status',{status:'suspended'},400);
  cookie=adminCookie;
  const iq='2000000001';
  await req('/api/riders',{iqama:iq,name:'Synthetic Rider',phone:'0501234567',status:'Active',nationality:'Test',engagementType:'External',financeSponsorId:'BW'});
@@ -62,9 +82,7 @@ try{
  // Debt preview and posting: gross wage and the installment are separate ledger entries.
  let policy=await req('/api/policies',{name:'Approved pay',kind:'approved_pay',platform:'all',effectiveFrom:'2026-10',config:{}});await req(`/api/policies/${policy.id}/approve`,{});
  await req('/api/riders',{...rider,policyId:policy.id});
- const csv=`sourceRef,iqama,name,accountId,from,to,orders,riderPay,isValid\r\nenterprise-row,${iq},Synthetic Rider,1234567890123456,2026-10-01,2026-10-31,1,500,true\r\n`;
- const upload=await req('/api/imports/inspect',{filename:'enterprise.csv',dataBase64:Buffer.from(csv).toString('base64')});
- const spec={sheet:'CSV',period:'2026-10',platform:'Keeta',headerRow:1,confirmActualRider:true,mapping:{sourceRef:0,iqama:1,name:2,accountId:3,from:4,to:5,orders:6,riderPay:7,isValid:8}};const workPreview=await req(`/api/imports/${upload.id}/preview`,spec);assert.equal(workPreview.errors.length,0,JSON.stringify(workPreview.errors));await req(`/api/imports/${upload.id}/commit`,spec);
+ await seedWorkRows(req,[{sourceRef:'enterprise-row',iqama:iq,name:'Synthetic Rider',accountId:'1234567890123456',from:'2026-10-01',to:'2026-10-31',orders:1,riderPay:500,isValid:true,platform:'Keeta',period:'2026-10'}]);
  const debt=await req('/api/debts',{iqama:iq,category:'Advance',creditorSponsorId:'BW',totalAmount:600,monthlyInstallment:400,sourceRef:'agreed-advance',agreementReviewed:true,effectiveFrom:'2026-10'});
  let pay=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(pay.payable,100);assert.equal((await req('/api/debts'))[0].remainingBalance,600);
  await put('/api/debts/'+debt.id,{monthlyInstallment:200,agreementReviewed:true});await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:pay.fingerprint},400);

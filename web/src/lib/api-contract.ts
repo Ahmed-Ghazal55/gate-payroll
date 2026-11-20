@@ -1565,40 +1565,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/legacy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Serve legacy administration to a signed-in session */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/notifications": {
         parameters: {
             query?: never;
@@ -16634,171 +16600,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/imports/inspect": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit imports inspect */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["JsonObject"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndIEnumerableOfAnonymousTypeOfstringAndintAndint"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/imports/{id}/sheet": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read imports {id} sheet */
-        get: {
-            parameters: {
-                query: {
-                    sheet: string;
-                    headerRow?: number | string;
-                };
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfAnonymousTypeOfintAndstringAndIEnumerableOfListOfstringAndint"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/imports/{id}/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit imports {id} preview */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["JsonObject"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Preview"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/imports/{id}/commit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit imports {id} commit */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["JsonObject"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfintAndstring"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/imports": {
         parameters: {
             query?: never;
@@ -18035,12 +17836,6 @@ export interface components {
             defaults: components["schemas"]["JsonObject"];
             defaultsAreDraftOnly: boolean;
         };
-        AnonymousTypeOfIEnumerableOfAnonymousTypeOfintAndstringAndIEnumerableOfListOfstringAndint: {
-            headers: null | components["schemas"]["AnonymousTypeOfintAndstring"][];
-            sample: null | string[][];
-            /** Format: int32 */
-            rowCount: number | string;
-        };
         "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean": {
             sponsors: null | components["schemas"]["SponsorDef"][];
             /** Format: int32 */
@@ -18234,13 +18029,6 @@ export interface components {
             /** Format: int32 */
             level: number | string;
         };
-        AnonymousTypeOfstringAndintAndint: {
-            name: null | string;
-            /** Format: int32 */
-            rows: number | string;
-            /** Format: int32 */
-            columns: number | string;
-        };
         AnonymousTypeOfstringAndintAndintAndJsonArrayAndJsonArrayAndstring: {
             filename: null | string;
             /** Format: int32 */
@@ -18254,11 +18042,6 @@ export interface components {
         AnonymousTypeOfstringAndstring: {
             status: null | string;
             message: null | string;
-        };
-        AnonymousTypeOfstringAndstringAndIEnumerableOfAnonymousTypeOfstringAndintAndint: {
-            id: null | string;
-            filename: null | string;
-            sheets: null | components["schemas"]["AnonymousTypeOfstringAndintAndint"][];
         };
         AnonymousTypeOfstringAndstringAndintAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndbooleanAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAnddecimalAnddecimalAndJsonArrayAndJsonArray: {
             filename: null | string;
@@ -18538,10 +18321,6 @@ export interface components {
             /** @default false */
             deprecated: boolean;
         };
-        Preview: {
-            rows: components["schemas"]["WorkLine"][];
-            errors: string[];
-        };
         RoleDef: {
             code: string;
             nameAr: string;
@@ -18558,27 +18337,6 @@ export interface components {
             nameAr: string;
             shortNameAr: string;
             commercialReg: string;
-        };
-        WorkLine: {
-            sourceRef: string;
-            iqama: string;
-            name: string;
-            platform: string;
-            accountId: string;
-            period: string;
-            from: string;
-            to: string;
-            /** Format: int32 */
-            orders: number | string;
-            /** Format: double */
-            platformRevenue: null | number | string;
-            /** Format: double */
-            riderPay: null | number | string;
-            isValid: null | boolean;
-            company: string;
-            city: string;
-            /** @default false */
-            datesConfirmed: boolean;
         };
     };
     responses: never;
