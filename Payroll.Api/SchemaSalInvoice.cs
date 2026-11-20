@@ -70,9 +70,15 @@ public static class SchemaSalInvoice
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","platform_invoice_line","IX_sal_invoice_line_parent","invoice_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","platform_invoice_item","IX_sal_invoice_item_parent","line_id,period_month");
         EnsureApprovedFrozen(c,tx);EnsureNoOverlap(c,tx);
+        SchemaMoneyGuard.Rule(c,tx,"sal","platform_invoice","TR_invoice_state",n=>"1=0",(o,n)=>$"""
+            ({o}.approved_at IS NOT NULL AND ({SchemaMoneyGuard.Changed(c,n,o,"approved_at")})) OR
+            ({n}.status<>{o}.status AND NOT
+              (({o}.status=1 AND {n}.status IN (2,3,4)) OR ({o}.status=2 AND {n}.status IN (3,4)) OR ({o}.status=3 AND {n}.status IN (4,5)))) OR
+            (({Frozen(o)}) AND ({n}.id IS NULL OR {n}.status=1))
+            """);
     }
 
-    static string Frozen(string alias)=>$"({alias}.approved_at IS NOT NULL OR {alias}.status IN (2,3,5))";
+    static string Frozen(string alias)=>$"({alias}.approved_at IS NOT NULL OR {alias}.status IN (2,3,4,5))";
     static readonly string[] HeaderColumns=["app_code","company_id","erp_cr_id","city_code","period_from","period_to","period_month","file_hash","gross","deductions","net","posting_owner"];
     static readonly string[] LineColumns=["invoice_id","period_month","source_row","account_key","erp_platform_account_id","gross","deductions","net","orders"];
     static string Changed(DbConnection c,string[] columns,string n,string o)=>

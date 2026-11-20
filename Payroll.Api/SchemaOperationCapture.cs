@@ -83,7 +83,7 @@ public static class SchemaOperationCapture
 
     static string Frozen(DbConnection c,string type,string id)=>$"""
         (({type}='pay_run' AND EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"sal","pay_run")} r WHERE r.id={id} AND r.capture_state>0))
-        OR ({type}='platform_invoice' AND EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"sal","platform_invoice")} r WHERE r.id={id} AND (r.approved_at IS NOT NULL OR r.status=3)))
+        OR ({type}='platform_invoice' AND EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"sal","platform_invoice")} r WHERE r.id={id} AND (r.approved_at IS NOT NULL OR r.status IN (2,3,4,5))))
         OR ({type}='payment' AND EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"pay","payment")} r WHERE r.id={id} AND r.status IN (2,3))))
         """;
 
