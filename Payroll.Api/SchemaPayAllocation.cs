@@ -85,9 +85,19 @@ public static class SchemaPayAllocation
         SchemaMoneyGuard.Retain(c,tx,"pay","payment","o.payment_no=NEW.payment_no");
         SchemaMoneyGuard.Retain(c,tx,"pay","payment_request","o.payable_id=NEW.payable_id AND o.status=1 AND NEW.status=1");
         SchemaPaymentState.Ensure(c,tx);
+        EnsureRequestFlags(c,tx);
         EnsureTransitions(c,tx);
         EnsureClaims(c,tx);
         SchemaPayPayable.EnsureCounters(c,tx);
+    }
+
+    /// <summary>A payment linked to a request must carry the same run_mode and payout_blocked flags.</summary>
+    static void EnsureRequestFlags(DbConnection c,DbTransaction? tx)
+    {
+        string payment=SchemaSql.Q(c,"pay","payment"),request=SchemaSql.Q(c,"pay","payment_request");
+        SchemaMoneyGuard.Rule(c,tx,"pay","payment","TR_payment_request_flags",
+            n=>$"{n}.request_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM {request} r WHERE r.id={n}.request_id AND r.company_id={n}.company_id AND r.period_month={n}.request_period_month AND r.run_mode={n}.run_mode AND r.payout_blocked={n}.payout_blocked)",
+            (o,n)=>$"{n}.request_id IS NOT NULL AND ({SchemaMoneyGuard.Changed(c,n,o,"request_id","request_period_month","run_mode","payout_blocked")}) AND NOT EXISTS(SELECT 1 FROM {request} r WHERE r.id={n}.request_id AND r.company_id={n}.company_id AND r.period_month={n}.request_period_month AND r.run_mode={n}.run_mode AND r.payout_blocked={n}.payout_blocked)");
     }
 
     /// <summary>Design §2.1 writer contract. Call inside the claim transaction BEFORE inserting or changing claims on
