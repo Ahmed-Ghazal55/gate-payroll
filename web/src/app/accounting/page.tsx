@@ -27,15 +27,19 @@ import {
   FileText,
   Eye,
   X,
+  Upload,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { ErrorState, EmptyState, Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../lib/auth-context';
 import { api } from '../../lib/api';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
 import { AccountingAdjustmentsPanel } from '../../features/accounting/AccountingAdjustmentsPanel';
+import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
+import { canShowImportStep, TREASURY_OPENING_IMPORT } from '../../features/imports/import-steps';
 import type {
   TargetCoaAccount,
   TargetCoaResponse,
@@ -52,9 +56,11 @@ import type {
 
 function AccountingPageContent() {
   const { toast } = useToast();
+  const { can, isAdmin } = useAuth();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'coa' | 'manual_journals' | 'adjustments' | 'journals' | 'trial' | 'income'>('coa');
   const [openNewManualJournal, setOpenNewManualJournal] = useState<boolean>(false);
+  const [openingImportOpen, setOpeningImportOpen] = useState(false);
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
 
   useEffect(() => {
@@ -550,6 +556,23 @@ function AccountingPageContent() {
         title="المحاسبة والتقارير المالية"
         eyebrow="الدفاتر والتقارير المعتمدة"
         description="استعرض دليل شجرة الحسابات المستهدفة (403 حسابات)، سجل القيود المزدوجة مع روابط القيود العكسية، وميزان المراجعة وقائمة الدخل."
+      >
+        {canShowImportStep(TREASURY_OPENING_IMPORT, { isAdmin, can }) && (
+          <button
+            type="button"
+            data-testid="import-treasury-opening"
+            onClick={() => setOpeningImportOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
+          >
+            <Upload size={15} />
+            استيراد الأرصدة الافتتاحية
+          </button>
+        )}
+      </PageHeader>
+      <ImportUploadDialog
+        open={openingImportOpen}
+        onClose={() => setOpeningImportOpen(false)}
+        step={TREASURY_OPENING_IMPORT}
       />
 
       {/* 4 Stat Cards */}

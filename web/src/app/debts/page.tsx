@@ -12,6 +12,7 @@ import {
   Search,
   Filter,
   Download,
+  Upload,
   Calendar,
   CheckCircle2,
   AlertCircle,
@@ -59,6 +60,13 @@ import {
   type DebtsTabId,
   type DebtCategoryOption,
 } from '../../features/debts/debts-tab-load';
+import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
+import {
+  BULK_COLLECT_IMPORT,
+  canShowImportStep,
+  OPENING_DEBTS_IMPORT,
+  type PageImportStep,
+} from '../../features/imports/import-steps';
 import type { PaginatedResult } from '../../lib/types';
 import type {
   DebtRecord,
@@ -116,6 +124,7 @@ function DebtsPageContent() {
   }, [tabFromUrl]);
 
   const [activeTab, setActiveTab] = useState<TabId>(resolvedTab);
+  const [debtImportStep, setDebtImportStep] = useState<PageImportStep | null>(null);
 
   useEffect(() => {
     if (resolvedTab && resolvedTab !== activeTab) {
@@ -1062,7 +1071,38 @@ function DebtsPageContent() {
                   }
                 : loadData,
         }}
-      />
+      >
+        {canShowImportStep(OPENING_DEBTS_IMPORT, { isAdmin, can }) && (
+          <button
+            type="button"
+            data-testid="import-opening-debts"
+            onClick={() => setDebtImportStep(OPENING_DEBTS_IMPORT)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
+          >
+            <Upload size={15} />
+            استيراد المديونيات الافتتاحية
+          </button>
+        )}
+        {canShowImportStep(BULK_COLLECT_IMPORT, { isAdmin, can }) && (
+          <button
+            type="button"
+            data-testid="import-bulk-collect"
+            onClick={() => setDebtImportStep(BULK_COLLECT_IMPORT)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
+          >
+            <Upload size={15} />
+            تحصيل مجمع من ملف
+          </button>
+        )}
+      </PageHeader>
+      {debtImportStep && (
+        <ImportUploadDialog
+          open={Boolean(debtImportStep)}
+          onClose={() => setDebtImportStep(null)}
+          step={debtImportStep}
+          onCommitted={() => void loadData()}
+        />
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

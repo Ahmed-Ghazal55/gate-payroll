@@ -64,6 +64,8 @@ import {
   platformLabelAr,
   type CompaniesTabId,
 } from '../../features/companies/company-stats';
+import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
+import { canShowImportStep, COMPANIES_IMPORT } from '../../features/imports/import-steps';
 
 // Official signed company certificate baseline from docs/07-companies.md
 const OFFICIAL_COMPANIES_PAYLOAD = [
@@ -279,7 +281,9 @@ function CompaniesPageContent() {
     });
   };
 
-  // Import Modal State (Admin only)
+  // File import dialog (catalog companies → same preview/commit endpoints)
+  const [fileImportOpen, setFileImportOpen] = useState(false);
+  // Import Modal State (Admin only — official certificates payload)
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importPreviewPlan, setImportPreviewPlan] = useState<CompanyImportPlanContract | null>(null);
   const [importLoading, setImportLoading] = useState(false);
@@ -954,6 +958,17 @@ function CompaniesPageContent() {
             : undefined
         }
       >
+        {canShowImportStep(COMPANIES_IMPORT, { isAdmin, can }) && (
+          <button
+            type="button"
+            data-testid="import-companies"
+            onClick={() => setFileImportOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] active:scale-[0.98] transition shadow-xs"
+          >
+            <Download size={15} aria-hidden="true" />
+            <span>استيراد الشركات</span>
+          </button>
+        )}
         {canManage && (
           <button
             type="button"
@@ -2776,6 +2791,15 @@ function CompaniesPageContent() {
           )}
         </div>
       </Dialog>
+
+      <ImportUploadDialog
+        open={fileImportOpen}
+        onClose={() => setFileImportOpen(false)}
+        step={COMPANIES_IMPORT}
+        onCommitted={() => {
+          void fetchData();
+        }}
+      />
     </div>
   );
 }
