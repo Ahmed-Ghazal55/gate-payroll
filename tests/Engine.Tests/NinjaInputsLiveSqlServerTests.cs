@@ -84,6 +84,12 @@ public sealed class NinjaInputsLiveSqlServerTests
             Assert.AreEqual("2026-10-01", deductions.Coverage.S("firstDay"));
             Assert.AreEqual("2026-10-01", deductions.Coverage.S("lastDay"));
             Assert.IsTrue(deductions.Coverage.B("hasGapAtPeriodEnd"));
+
+            var methods = NinjaInputsLiveQuery.PaymentMethods(conn, oneCompany, 1, 50);
+            Assert.AreEqual(1L, methods.Total);
+            Assert.AreEqual("PayPerOrder", methods.Items[0].S("payScheme"));
+            Assert.AreEqual("PayPerOrder", methods.Items[0].S("accountPaymentModel"));
+            Assert.AreEqual(ProfileA.ToString("D"), methods.Items[0].S("openActualRiderProfileId"), ignoreCase: true);
         }
         finally
         {

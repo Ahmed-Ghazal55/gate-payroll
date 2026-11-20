@@ -17,6 +17,26 @@ public static class NinjaInputsLiveApi
             .WithTags("Payroll").WithSummary("Live Ninja daily performance per account and day with coverage (L1)");
         api.MapGet("/pay/apps/ninja/live/daily-deductions", (HttpContext ctx) => DailyDeductions(store, config, env, ctx))
             .WithTags("Payroll").WithSummary("Live Ninja daily deductions per actual rider of each day with coverage (L1)");
+        api.MapGet("/pay/apps/ninja/live/payment-methods", (HttpContext ctx) => PaymentMethods(store, config, env, ctx))
+            .WithTags("Payroll").WithSummary("Live Ninja account payment method / pay scheme from Omar (L1 / U-W2-14)");
+    }
+
+    static object PaymentMethods(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "pay.view");
+        DemandNinjaPlatform(ctx.User);
+        var (page, pageSize) = ParsePage(ctx);
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            return EmptyPage(page, pageSize, ctx.User);
+        return LiveRead(ctx, token =>
+        {
+            using var erp = Operations.OpenErp(config);
+            return store.Read(c =>
+            {
+                var result = NinjaInputsLiveQuery.PaymentMethods(erp, Operations.LiveScope(c, ctx.User), page, pageSize, token);
+                return Envelope(result, page, pageSize, ctx.User);
+            });
+        }, "ninja-payment-methods");
     }
 
     static object DailyDeductions(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)

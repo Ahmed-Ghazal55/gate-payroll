@@ -79,6 +79,18 @@ public sealed class NinjaInputsLiveQueryTests
     }
 
     [TestMethod]
+    public void PreviewPaymentMethodsSql_ReadsOmarPaymentModel()
+    {
+        var (sql, names) = NinjaInputsLiveQuery.PreviewPaymentMethodsSql(All, 1, 50);
+        StringAssert.Contains(sql, "[app].[PlatformRiderAccounts]");
+        StringAssert.Contains(sql, "AccountPaymentModel");
+        StringAssert.Contains(sql, "AssignmentPaymentModel");
+        StringAssert.Contains(sql, "OUTER APPLY");
+        CollectionAssert.Contains(names.ToList(), "@ninja");
+        Assert.IsTrue(AccessPolicy.Allowed(Principal("syn-pay", ["pay.view"]), "GET", "/api/pay/apps/ninja/live/payment-methods"));
+    }
+
+    [TestMethod]
     public void Coverage_FlagsMissingDaysAtPeriodEnd()
     {
         var coverage = NinjaInputsLiveQuery.Coverage(Oct, "2026-10-01", "2026-10-29", 100);
