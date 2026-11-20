@@ -112,8 +112,9 @@ public static class UserAccess
             "صلاحية شاملة للإدارة العليا والرقابة المالية والتشغيلية واعتماد السياسات والرواتب.",
             PermissionsCatalog.Select(p => p.Code).ToArray()),
 
-        new("SystemAdmin", "مسؤول مزامنة النظام", "MGT", 3,
-            "تشغيل المزامنة من الصلاحيات المخصصة؛ لا يمنح إدارة المستخدمين أو التحكم في الجدولة.", []),
+        new("SystemAdmin", "مسؤول النظام", "MGT", 5,
+            "كل صلاحيات الكتالوج والاستثناءات الافتراضية؛ الاعتماد الذاتي يظهر في تقرير المراجعة (M-0667).",
+            PermissionsCatalog.Select(p => p.Code).ToArray()),
 
         new("FinancialManager", "المدير المالي", "FIN", 4,
             "قراءة التقارير المالية ومعاينة وتصدير ملف البنك ضمن النطاق.",
@@ -225,7 +226,7 @@ public static class UserAccess
     public static string[] EffectivePermissions(JsonObject u)
     {
         string role = Role(u);
-        if (role is "Admin" or "SuperAdmin") return PermissionsCatalog.Select(p => p.Code).ToArray();
+        if (role is "Admin" or "SuperAdmin" or "SystemAdmin") return PermissionsCatalog.Select(p => p.Code).ToArray();
         var def = ResolveRoleDef(role);
         // An edited role template is attached by WithRole for the current read only; never stored on the user.
         var baseline = u[RoleBaseline] is JsonArray edited ? edited.Select(p => p?.ToString() ?? "") : def.DefaultPermissions;
@@ -244,6 +245,24 @@ public static class UserAccess
     }
 
     public const string RolePermissionsKind = "role_permissions", RoleBaseline = "__roleBaseline";
+    public const string SystemAdminMigrationMarker = "migration:system-admin-permissions:v1";
+    // M-0667: existing SystemAdmin accounts and role templates get the full permission catalog once.
+    public static void SeedSystemAdmin(Store store)=>store.Write((c,tx)=>
+    {
+        if(Store.Get(c,SystemAdminMigrationMarker,"setting",tx)!=null)return false;
+        var full=new JsonArray(PermissionsCatalog.Select(p=>(JsonNode?)p.Code).ToArray());
+        var template=Store.Get(c,"SystemAdmin",RolePermissionsKind,tx);
+        if(template==null||template["permissions"] is not JsonArray existing||existing.Count!=PermissionsCatalog.Length)
+        {
+            Store.Save(c,RolePermissionsKind,new(){["id"]="SystemAdmin",["permissions"]=full.DeepClone(),["updatedBy"]="system-migration",["updatedAt"]=DateTimeOffset.UtcNow.ToString("O")},tx);
+            Store.Audit(c,tx,"admin.role_permissions","SystemAdmin","system-migration");
+        }
+        foreach(var user in Store.List(c,"user",tx).Where(u=>Role(u)=="SystemAdmin"))
+        {
+            Store.Audit(c,tx,"admin.system_admin_permissions_seeded",user.S("id"),"system-migration");
+        }
+        Store.Save(c,"setting",new(){["id"]=SystemAdminMigrationMarker,["completed"]=true},tx);return true;
+    });
     public static JsonObject WithRole(DbConnection c, DbTransaction? tx, JsonObject u)
     {
         var edited = Store.Get(c, Role(u), RolePermissionsKind, tx);
@@ -259,14 +278,15 @@ public static class UserAccess
         u["hash"] = Convert.ToBase64String(Rfc2898DeriveBytes.Pbkdf2(password, salt, 210000, HashAlgorithmName.SHA256, 32));
         u["mustChangePassword"] = mustChange; u["securityVersion"] = Guid.NewGuid().ToString("N"); u["failedLogins"] = 0; u["lockedUntil"] = "";
     }
+    static bool PrivilegedRole(string role) => role is "Admin" or "SuperAdmin" or "SystemAdmin";
     // A delegated manager never edits administrators or themselves, and never grants what they lack.
     static void GuardManager(DbConnection c, DbTransaction tx, ClaimsPrincipal actor, JsonObject? before, JsonObject after)
     {
         if (AccessPolicy.Administrator(actor)) return;
         AccessPolicy.Demand(actor, "users.manage");
         J.Need(before == null || !string.Equals(before.S("username"), actor.Identity?.Name, StringComparison.OrdinalIgnoreCase), "لا تعدّل صلاحيات حسابك.", 403);
-        J.Need(before == null || Role(before) is not ("Admin" or "SuperAdmin"), "تعديل مسؤول النظام لمسؤول النظام فقط.", 403);
-        J.Need(Role(after) is not ("Admin" or "SuperAdmin"), "منح دور مسؤول النظام لمسؤول النظام فقط.", 403);
+        J.Need(before == null || !PrivilegedRole(Role(before)), "تعديل مسؤول النظام لمسؤول النظام فقط.", 403);
+        J.Need(!PrivilegedRole(Role(after)), "منح دور مسؤول النظام لمسؤول النظام فقط.", 403);
         foreach (string permission in EffectivePermissions(WithRole(c, tx, after)))
             if (before == null || !EffectivePermissions(WithRole(c, tx, before)).Contains(permission))
                 J.Need(AccessPolicy.Has(actor, permission), "لا تمنح صلاحية لا تملكها: " + permission, 403);
@@ -452,7 +472,7 @@ public static class UserAccess
             financialScopeCatalog=new{sponsors=FinancialCore.Sponsors,accounts=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault),categories=FinancialCore.CategoriesCatalog,platforms=new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}}
         }).WithTags("Administration").WithSummary("Read roles catalog");
 
-        api.MapGet("/admin/approval-exceptions",(HttpContext ctx)=>{J.Need(AccessPolicy.Administrator(ctx.User),"للمسؤول فقط.",403);return store.Read(c=>Store.List(c,"audit").Where(a=>a.S("action")=="approval.self_exception").OrderByDescending(a=>a.S("at")));}).WithTags("Administration").WithSummary("List every dated self-approval exception use for pre-launch review");
+        api.MapGet("/admin/approval-exceptions",(HttpContext ctx)=>{J.Need(AccessPolicy.Administrator(ctx.User)||ctx.User.IsInRole("SystemAdmin"),"للمسؤول فقط.",403);return store.Read(c=>Store.List(c,"audit").Where(a=>a.B("selfApprovedException")||a.S("action") is "approval.self_exception" or "approval.bypass_maker_checker").OrderByDescending(a=>a.S("at")));}).WithTags("Administration").WithSummary("Self-approval audit report (dated exceptions and bypass uses)");
         api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(u => Public(WithRole(c, null, u))).ToList())).WithTags("Administration").WithSummary("Read users");
 
         api.MapPost("/users", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -467,6 +487,7 @@ public static class UserAccess
             if(input["deniedPermissions"] is JsonArray denied){ValidatePermissionList(denied);u["deniedPermissions"]=denied.DeepClone();}
             if(input["financialScope"] is JsonObject scope)u["financialScope"]=FinancialScopes.Normalize(scope);
             AccessPolicy.ConfigureApprovalException(c,tx,ctx.User,u,input);
+            GuardManager(c, tx, ctx.User, null, u);
             Store.Save(c, "user", u, tx);
             Store.Audit(c, tx, "admin.user_create", u.S("id"), ctx.User.Identity!.Name!);
             return Public(u);
@@ -478,7 +499,7 @@ public static class UserAccess
             var before = u.Clone();
             string role = input.S("role", Role(u)), status = input.S("status", Status(u));
             J.Need(Roles.Contains(role) && status is "active" or "suspended", "دور أو حالة غير صالحة.");
-            J.Need(!(Role(u) is "Admin" or "SuperAdmin" && Status(u) == "active" && (role is not ("Admin" or "SuperAdmin") || status != "active") && Store.List(c, "user", tx).Count(x => Role(x) is "Admin" or "SuperAdmin" && Status(x) == "active") == 1), "لا يمكن تعطيل آخر مسؤول نشط.");
+            J.Need(!(PrivilegedRole(Role(u)) && Status(u) == "active" && (!PrivilegedRole(role) || status != "active") && Store.List(c, "user", tx).Count(x => PrivilegedRole(Role(x)) && Status(x) == "active") == 1), "لا يمكن تعطيل آخر مسؤول نشط.");
             bool roleChanged=Role(u)!=role;
             if(roleChanged){var definition=ResolveRoleDef(role);if(!input.ContainsKey("department"))u["department"]=definition.DefaultDepartment;if(!input.ContainsKey("rankLevel"))u["rankLevel"]=definition.DefaultRankLevel;}
             u["role"] = role;
@@ -497,6 +518,7 @@ public static class UserAccess
             if(input.ContainsKey("rankLevel"))J.Need(input.N("rankLevel") is >=1 and <=5&&input.N("rankLevel")==Math.Truncate(input.N("rankLevel")),"رتبة غير صالحة.");
             u["securityVersion"] = Guid.NewGuid().ToString("N");
             AccessPolicy.ConfigureApprovalException(c,tx,ctx.User,u,input);
+            GuardManager(c, tx, ctx.User, before, u);
             Store.Save(c, "user", u, tx);
             Store.Audit(c, tx, "admin.user_update", id, ctx.User.Identity!.Name!);
             return Public(u);
@@ -521,7 +543,7 @@ public static class UserAccess
         api.MapPut("/roles/{code}/permissions", (string code, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             J.Need(AccessPolicy.Administrator(ctx.User), "تعديل الأدوار لمسؤول النظام فقط.", 403);
-            var def = ResolveRoleDef(code); J.Need(def.Code is not ("Admin" or "SuperAdmin"), "أدوار مسؤول النظام ثابتة.");
+            var def = ResolveRoleDef(code); J.Need(!PrivilegedRole(def.Code), "أدوار مسؤول النظام ثابتة.");
             var list = input["permissions"] as JsonArray ?? throw new ApiError("حدد صلاحيات الدور."); ValidatePermissionList(list);
             string reason = input.Required("reason").Trim(); J.Need(reason.Length is >= 3 and <= 500, "اكتب سبب تعديل الدور.");
             var before = Store.Get(c, def.Code, RolePermissionsKind, tx)?["permissions"] as JsonArray;

@@ -28,15 +28,19 @@ public static partial class AccessPolicy
                       &&string.CompareOrdinal(a.S("approvalExceptionUntil"),used.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"))>=0)));
         }
         // BR §35: new self-approvals use dated bypass grants only. ApprovalException claims no longer open new approvals; historical self_exception audits stay valid above.
+        // M-0667: SystemAdmin holds the maker-checker exception by default; every use is audited for the monthly self-approval report.
+        bool systemAdmin=actor.IsInRole("SystemAdmin");
         var grant=c!=null?ActiveBypassGrant(c,tx,actor.Identity!.Name!):null;
-        bool bypass=grant!=null||BypassActive(actor,c,tx);
+        bool bypass=systemAdmin||grant!=null||BypassActive(actor,c,tx);
         if(!bypass)return false;
         if(tx!=null)
         {
             J.Need(c!=null&&record!=null&&record.S("id")!="","استثناء الاعتماد يحتاج مستندًا وسجل مراجعة.",409);
             record!["selfApprovedException"]=true;
             grant??=ActiveBypassGrant(c!,tx,actor.Identity!.Name!);
-            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant?.S("id")??"",["reason"]=grant?.S("reason")??actor.FindFirstValue("approvalBypassReason")??"",["approvalBypassUntil"]=grant?.S("to")??actor.FindFirstValue("approvalBypassUntil")??"",["selfApprovedException"]=true,["badge"]="bypass_maker_checker"},tx);
+            string reason=systemAdmin?"system-admin-default":(grant?.S("reason")??actor.FindFirstValue("approvalBypassReason")??"");
+            string badge=systemAdmin?"system_admin":"bypass_maker_checker";
+            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant?.S("id")??"",["reason"]=reason,["approvalBypassUntil"]=grant?.S("to")??actor.FindFirstValue("approvalBypassUntil")??"",["selfApprovedException"]=true,["badge"]=badge},tx);
         }
         return true;
     }

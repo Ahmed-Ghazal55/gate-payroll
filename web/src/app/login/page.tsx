@@ -13,10 +13,10 @@ function sanitizeReturnUrl(raw: string | null): string {
     decoded = decodeURIComponent(raw);
   } catch (_) {}
 
-  // Must be same origin: strictly starts with /app/ or /legacy/
+  // Must be same origin: strictly starts with /app/ (legacy UI removed).
   // Disallow protocol-relative // or backslashes
   if (
-    (decoded.startsWith('/app/') || decoded.startsWith('/legacy/')) &&
+    decoded.startsWith('/app/') &&
     !decoded.startsWith('//') &&
     !decoded.includes('\\')
   ) {

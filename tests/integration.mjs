@@ -1,4 +1,5 @@
 import {seedAccountingCash} from './financial-fixtures.mjs';
+import {seedWorkRows} from './work-seed.mjs';
 import {spawn} from 'node:child_process';
 import {mkdtempSync,rmSync,mkdirSync,writeFileSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -12,17 +13,15 @@ const port=19347, base=`http://127.0.0.1:${port}`;
 const published=process.env.PAYROLL_TEST_PUBLISHED;
 const dotnetBin = process.env.DOTNET_PATH || (process.platform === 'win32' && existsSync('D:/Projectes/.codex-tools/dotnet/dotnet.exe') ? 'D:/Projectes/.codex-tools/dotnet/dotnet.exe' : 'dotnet');
 const exeName = process.platform === 'win32' ? 'Payroll.Api.exe' : 'Payroll.Api';
-const proc=spawn(published?path.join(published,exeName):dotnetBin,published?[]:[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:published||path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data},windowsHide:true,stdio:['ignore','pipe','pipe']});
+const proc=spawn(published?path.join(published,exeName):dotnetBin,published?[]:[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:published||path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data,Vouchers__Secret:process.env.Vouchers__Secret||'GateSynthetic_CI_Only_Voucher_Key_000001'},windowsHide:true,stdio:['ignore','pipe','pipe']});
 let logs='',cookie='',checks=0,spawnError=null;proc.once('error',e=>{spawnError=e;});proc.stdout.on('data',x=>logs+=x);proc.stderr.on('data',x=>logs+=x);
 async function req(route,body,expected=200,auth=true,headers={}){const r=await fetch(base+route,{method:body===undefined?'GET':'POST',headers:{...(body===undefined?{}:{'Content-Type':'application/json'}),...(auth&&cookie?{Cookie:cookie}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)});const raw=await r.text();assert.equal(r.status,expected,`${route}: ${r.status} ${raw}`);checks++;if(r.headers.get('set-cookie'))cookie=r.headers.get('set-cookie').split(';')[0];try{return JSON.parse(raw)}catch{return raw}}
 const iq='2000000001';
-const csv=(revenue,ref='row-1',period='2026-10')=>`sourceRef,iqama,name,accountId,from,to,orders,platformRevenue,isValid\r\n${ref},${iq},Synthetic Rider,1234567890123456,${period}-01,${period}-31,600,${revenue},false\r\n`;
-async function upload(text,period='2026-10'){const u=await req('/api/imports/inspect',{filename:'synthetic.csv',dataBase64:Buffer.from(text).toString('base64')});const spec={sheet:'CSV',period,platform:'Keeta',headerRow:1,confirmActualRider:true,mapping:{sourceRef:0,iqama:1,name:2,accountId:3,from:4,to:5,orders:6,platformRevenue:7,isValid:8}};return {u,spec}}
+const workRow=(revenue,ref,period='2026-10')=>({sourceRef:ref,iqama:iq,name:'Synthetic Rider',accountId:'1234567890123456',from:`${period}-01`,to:period==='2026-11'?`${period}-30`:`${period}-31`,orders:600,platformRevenue:revenue,isValid:false,platform:'Keeta',period});
 try{
  let ready=false; for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error('Test server exited before startup');try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready,'Test server did not become ready');
  await req('/api/riders',undefined,401,false);
- assert.match(await req('/app.css',undefined,200,false),/sidebar/);
- assert.match(await req('/app.js',undefined,200,false),/dashboard/);
+ assert.equal((await fetch(base+'/',{redirect:'manual'})).status,302);
  await req('/api/auth/setup',{username:'test-admin',password:randomBytes(24).toString('hex')});
  await seedAccountingCash(req);
  await req('/api/riders',{iqama:iq,name:'Synthetic Rider'},403,true,{Origin:'https://different.invalid'});
@@ -30,9 +29,8 @@ try{
  let policy=await req('/api/policies',{name:'Test commission',kind:'commission',platform:'all',effectiveFrom:'2026-10',config:{companyFee:2500}});
  await req(`/api/policies/${policy.id}/approve`,{});
  await req('/api/riders',{iqama:iq,name:'Synthetic Rider',financeSponsorId:'BW',phone:'0501234567',city:'Test',policyId:policy.id});
- let {u,spec}=await upload(csv(3000)+csv(1000,'row-2').split('\r\n').slice(1).join('\r\n'));
- const preview=await req(`/api/imports/${u.id}/preview`,spec);assert.equal(preview.errors.length,0);assert.equal(preview.rows[0].accountId,'1234567890123456');
- await req(`/api/imports/${u.id}/commit`,spec);await req(`/api/imports/${u.id}/commit`,spec,400);
+ assert.equal((await seedWorkRows(req,[workRow(3000,'row-1'),workRow(1000,'row-2')])).length,2);
+ await req('/api/imports/inspect',{filename:'x.csv',dataBase64:''},404);
  let result=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(result.periodMovement,1500);assert.equal(result.blockers.length,0);
  await req('/api/adjustments',{iqama:iq,period:'2026-10',amount:-200,category:'fuel',description:'Actual fuel',sourceRef:'fuel-1'});
  await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:result.fingerprint},400);
@@ -40,7 +38,7 @@ try{
  await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:result.fingerprint});await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:result.fingerprint},400);
  await req('/api/adjustments',{iqama:iq,period:'2026-10',amount:-1,category:'fuel',description:'Late',sourceRef:'late'},400);
  await req('/api/payments',{sponsorId:'BW',paymentVaultCode:'BANK.BW',iqama:iq,period:'2026-10',amount:1000,sourceRef:'transfer-1'});assert.equal((await req('/api/ledger/'+iq)).balance,300);
- let nov=await upload(csv(2000,'nov-1','2026-11').replace('2026-11-31','2026-11-30'),'2026-11');await req(`/api/imports/${nov.u.id}/commit`,nov.spec);
+ await seedWorkRows(req,[workRow(2000,'nov-1','2026-11')]);
  result=(await req('/api/payroll/preview?period=2026-11'))[0];assert.equal(result.openingBalance,300);assert.equal(result.closingBalance,-200);assert.equal(result.debt,200);assert.equal(result.payable,0);
  await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-11',fingerprint:result.fingerprint});assert.equal((await req('/api/ledger/'+iq)).balance,-200);
  const campaign=await req('/api/campaigns',{title:'Synthetic form',days:2});const token=campaign.path.split('/').at(-1);const pub='/api/public/forms/'+token;
