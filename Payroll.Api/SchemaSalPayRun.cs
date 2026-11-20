@@ -114,6 +114,8 @@ public static class SchemaSalPayRun
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_item","IX_sal_item_account","account_code");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","rider_request","IX_sal_request_company","company_id");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","pay_run_rider","IX_sal_rider_erp","erp_rider_id,period_month");
+        SchemaMoneyGuard.Retain(c,tx,"sal","pay_run","o.status<>4 AND NEW.status<>4 AND o.app_code=NEW.app_code AND o.company_id=NEW.company_id AND o.period_month=NEW.period_month AND o.run_mode=NEW.run_mode");
+        SchemaMoneyGuard.Retain(c,tx,"sal","pay_run_item","o.pay_run_rider_id=NEW.pay_run_rider_id AND o.line_no=NEW.line_no");
         SchemaMoneyGuard.Retain(c,tx,"sal","pay_run_rider","o.pay_run_id=NEW.pay_run_id AND o.erp_rider_id=NEW.erp_rider_id");
         EnsureRiderProvenance(c,tx);
         EnsureClaimRunFlags(c,tx);

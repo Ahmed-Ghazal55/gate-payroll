@@ -82,6 +82,8 @@ public static class SchemaPayAllocation
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_payable","payable_id,company_id,payable_period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payment_allocation","IX_pay_alloc_line","payment_line_id");
         SchemaMoneyFlags.Ensure(c,tx,"pay","payment",o=>$"{o}.status IN (2,3) OR {o}.payout_blocked=1 OR {o}.run_mode=1");
+        SchemaMoneyGuard.Retain(c,tx,"pay","payment","o.payment_no=NEW.payment_no");
+        SchemaMoneyGuard.Retain(c,tx,"pay","payment_request","o.payable_id=NEW.payable_id AND o.status=1 AND NEW.status=1");
         SchemaPaymentState.Ensure(c,tx);
         EnsureTransitions(c,tx);
         EnsureClaims(c,tx);

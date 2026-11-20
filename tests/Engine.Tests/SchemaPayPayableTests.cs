@@ -34,7 +34,7 @@ public sealed class SchemaPayPayableTests
         foreach(string month in new[]{"2026-11-02"})
             SchemaConstraintAssert.ThrowsNamed(()=>Change($"period_month='{month}'"),"CK_payable_month");
         SchemaConstraintAssert.ThrowsNamed(()=>Change($"company_id='{MoneySchemaFixture.Id()}'"),"FK_payable_company",sqliteToken:"FOREIGN KEY");
-        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO pay_payable(id,kind,source_table,source_id,company_id,amount_due,period_month) SELECT @new,kind,source_table,source_id,company_id,amount_due,period_month FROM pay_payable WHERE id=@id",("@new",MoneySchemaFixture.Id()),("@id",id)),"UQ_payable_source",sqliteToken:"pay_payable.source_table, pay_payable.source_id");
+        SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO pay_payable(id,kind,source_table,source_id,company_id,amount_due,period_month) SELECT @new,kind,source_table,source_id,company_id,amount_due,period_month FROM pay_payable WHERE id=@id",("@new",MoneySchemaFixture.Id()),("@id",id)),"UQ_payable_source",sqliteToken:"Money row replacement is forbidden");
         MoneySchemaFixture.Reject(()=>Change("amount_reserved=25,amount_paid=30"));
         Assert.AreEqual(100m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT available_balance FROM pay_payable WHERE id=@id",("@id",id))));
         SchemaPayPayable.Ensure(c);

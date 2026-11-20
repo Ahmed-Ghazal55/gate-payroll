@@ -38,6 +38,7 @@ public static class SchemaPayPayable
         SchemaSql.EnsureMonthIndex(c,tx,"pay","payable");
         SchemaSql.CreateIndexIfMissing(c,tx,"pay","payable","IX_payable_company","company_id");
         SchemaSql.EnsureRowVersion(c,tx,"pay","payable");
+        SchemaMoneyGuard.Retain(c,tx,"pay","payable","o.source_table=NEW.source_table AND o.source_id=NEW.source_id");
         EnsureCounters(c,tx);
     }
     internal static void EnsureCounters(DbConnection c,DbTransaction? tx)

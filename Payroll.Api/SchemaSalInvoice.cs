@@ -69,6 +69,9 @@ public static class SchemaSalInvoice
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","platform_invoice","IX_sal_invoice_journal","journal_id");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","platform_invoice_line","IX_sal_invoice_line_parent","invoice_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"sal","platform_invoice_item","IX_sal_invoice_item_parent","line_id,period_month");
+        SchemaMoneyGuard.Retain(c,tx,"sal","platform_invoice","o.status<>4 AND NEW.status<>4 AND (o.app_code=NEW.app_code AND (o.file_hash=NEW.file_hash OR (o.erp_cr_id=NEW.erp_cr_id AND o.period_from=NEW.period_from AND o.period_to=NEW.period_to)))");
+        SchemaMoneyGuard.Retain(c,tx,"sal","platform_invoice_line","o.invoice_id=NEW.invoice_id AND o.source_row=NEW.source_row");
+        SchemaMoneyGuard.Retain(c,tx,"sal","platform_invoice_item","o.line_id=NEW.line_id AND o.item_code=NEW.item_code");
         EnsureApprovedFrozen(c,tx);EnsureNoOverlap(c,tx);
         SchemaMoneyGuard.Rule(c,tx,"sal","platform_invoice","TR_invoice_state",n=>"1=0",(o,n)=>$"""
             ({o}.approved_at IS NOT NULL AND ({SchemaMoneyGuard.Changed(c,n,o,"approved_at")})) OR
@@ -80,7 +83,7 @@ public static class SchemaSalInvoice
 
     static string Frozen(string alias)=>$"({alias}.approved_at IS NOT NULL OR {alias}.status IN (2,3,4,5))";
     static readonly string[] HeaderColumns=["app_code","company_id","erp_cr_id","city_code","period_from","period_to","period_month","file_hash","gross","deductions","net","posting_owner"];
-    static readonly string[] LineColumns=["invoice_id","period_month","source_row","account_key","erp_platform_account_id","gross","deductions","net","orders"];
+    static readonly string[] LineColumns=["id","invoice_id","period_month","source_row","account_key","erp_platform_account_id","gross","deductions","net","orders"];
     static string Changed(DbConnection c,string[] columns,string n,string o)=>
         string.Join(" OR ",columns.Select(x=>SchemaSql.IsSql(c)?$"{n}.{x}<>{o}.{x}":$"{n}.{x} IS NOT {o}.{x}"));
 
@@ -96,7 +99,7 @@ public static class SchemaSalInvoice
                 CREATE OR ALTER TRIGGER sal.TR_platform_invoice_frozen ON {invoice} AFTER UPDATE AS
                 BEGIN
                   SET NOCOUNT ON;
-                  IF EXISTS(SELECT 1 FROM inserted n JOIN deleted o ON o.id=n.id WHERE {Frozen("o")} AND ({Changed(c,HeaderColumns,"n","o")}))
+                  IF EXISTS(SELECT 1 FROM deleted o LEFT JOIN inserted n ON n.id=o.id WHERE {Frozen("o")} AND (n.id IS NULL OR {Changed(c,HeaderColumns,"n","o")}))
                     THROW 51022,'{header}',1;
                 END;
                 """);
@@ -114,7 +117,7 @@ public static class SchemaSalInvoice
         else
         {
             string Parent(string id)=>$"EXISTS(SELECT 1 FROM {invoice} i WHERE i.id={id} AND {Frozen("i")})";
-            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_platform_invoice_frozen BEFORE UPDATE ON {invoice} WHEN {Frozen("OLD")} AND ({Changed(c,HeaderColumns,"NEW","OLD")}) BEGIN SELECT RAISE(ABORT,'{header}'); END;");
+            SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_platform_invoice_frozen BEFORE UPDATE ON {invoice} WHEN {Frozen("OLD")} AND (NEW.id<>OLD.id OR {Changed(c,HeaderColumns,"NEW","OLD")}) BEGIN SELECT RAISE(ABORT,'{header}'); END;");
             SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_platform_invoice_line_frozen_insert BEFORE INSERT ON {line} WHEN {Parent("NEW.invoice_id")} BEGIN SELECT RAISE(ABORT,'{lines}'); END;");
             SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_platform_invoice_line_frozen_delete BEFORE DELETE ON {line} WHEN {Parent("OLD.invoice_id")} BEGIN SELECT RAISE(ABORT,'{lines}'); END;");
             SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_platform_invoice_line_frozen_update BEFORE UPDATE ON {line} WHEN ({Parent("OLD.invoice_id")} OR {Parent("NEW.invoice_id")}) AND ({Changed(c,LineColumns,"NEW","OLD")}) BEGIN SELECT RAISE(ABORT,'{lines}'); END;");

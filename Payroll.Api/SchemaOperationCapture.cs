@@ -155,8 +155,8 @@ public static class SchemaOperationCapture
                 CREATE OR ALTER TRIGGER sal.TR_run_capture_gate ON {run} AFTER INSERT,UPDATE AS
                 BEGIN
                   SET NOCOUNT ON;
-                  IF EXISTS(SELECT 1 FROM inserted n JOIN deleted o ON o.id=n.id WHERE o.capture_state>0
-                    AND (n.capture_state<o.capture_state OR n.company_id<>o.company_id OR n.app_code<>o.app_code OR n.period_month<>o.period_month OR n.calc_started_at<>o.calc_started_at))
+                  IF EXISTS(SELECT 1 FROM deleted o LEFT JOIN inserted n ON n.id=o.id WHERE o.capture_state>0
+                    AND (n.id IS NULL OR n.capture_state<o.capture_state OR n.company_id<>o.company_id OR n.app_code<>o.app_code OR n.period_month<>o.period_month OR n.calc_started_at<>o.calc_started_at))
                     THROW 51013,'Frozen run cannot reopen or change capture scope',1;
                   IF EXISTS(SELECT 1 FROM inserted n WHERE n.capture_state=0 AND n.calc_started_at IS NOT NULL)
                     THROW 51014,'Calculation requires frozen capture',1;
@@ -171,7 +171,7 @@ public static class SchemaOperationCapture
             {
                 string immutable=op=="INSERT"?"":$"""
                     SELECT RAISE(ABORT,'Frozen run cannot reopen or change capture scope') WHERE OLD.capture_state>0
-                      AND (NEW.capture_state<OLD.capture_state OR NEW.company_id<>OLD.company_id OR NEW.app_code<>OLD.app_code OR NEW.period_month<>OLD.period_month OR NEW.calc_started_at<>OLD.calc_started_at);
+                      AND (NEW.id<>OLD.id OR NEW.capture_state<OLD.capture_state OR NEW.company_id<>OLD.company_id OR NEW.app_code<>OLD.app_code OR NEW.period_month<>OLD.period_month OR NEW.calc_started_at<>OLD.calc_started_at);
                     """;
                 SchemaSql.SqliteTrigger(c,tx,$"""
                     CREATE TRIGGER TR_run_capture_{op} BEFORE {op} ON {run} BEGIN
