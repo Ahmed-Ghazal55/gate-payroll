@@ -153,7 +153,7 @@ public static class SchemaSalPayRun
                   AND (p.kind<>'pay_run_rider' OR p.source_table<>'sal.pay_run_rider' OR NOT EXISTS(SELECT 1 FROM {r} r WHERE r.id=p.source_id AND r.company_id=p.company_id AND r.period_month=p.period_month)))
                 """);
         SchemaMoneyGuard.Rule(c,tx,"pay","payable","TR_payable_source",n=>"1=0",
-            (o,n)=>$"{n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"source_table","source_id","kind","company_id","period_month")})");
+            (o,n)=>$"{n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"id","source_table","source_id","kind","company_id","period_month")})");
         // A live, already-paid source cannot be turned into a blocked/simulation source after the fact.
         SchemaMoneyGuard.Rule(c,tx,"sal","pay_run","TR_run_existing_claims",
             n=>$"""
