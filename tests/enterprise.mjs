@@ -34,6 +34,25 @@ try{
  cookie=adminCookie;await put(`/api/users/${other.id}/status`,{role:'Reviewer'});await put('/api/users/administrator/status',{status:'suspended'},400);
  await req('/api/auth/login',{username:'test-accountant',password});assert.equal((await req('/api/me')).role,'Accountant');await req('/api/payroll/approve',{},403);await req('/api/riders',{iqama:'2000000099',name:'Denied'},403);await req('/api/users',undefined,403);
  cookie=adminCookie;
+ // Delegated users.manage: cannot grant Admin/SystemAdmin or permissions above own; last privileged admin kept.
+ const mgrPassword=randomBytes(24).toString('hex');
+ const manager=await req('/api/users',{username:'test-user-mgr',password:mgrPassword,role:'Reviewer',customPermissions:['users.manage','forms.review']});
+ const peer=await req('/api/users',{username:'test-user-peer',password:mgrPassword,role:'Reviewer',customPermissions:['forms.review']});
+ const sysAdmin=await req('/api/users',{username:'test-sysadmin',password:mgrPassword,role:'SystemAdmin'});
+ await put(`/api/roles/SystemAdmin/permissions`,{permissions:['forms.review'],reason:'synthetic blocked'},400);
+ cookie='';await req('/api/auth/login',{username:'test-user-mgr',password:mgrPassword});
+ await req('/api/users',{username:'escalate-admin',password:mgrPassword,role:'Admin'},403);
+ await req('/api/users',{username:'escalate-sys',password:mgrPassword,role:'SystemAdmin'},403);
+ await req('/api/users',{username:'escalate-perm',password:mgrPassword,role:'Reviewer',customPermissions:['users.manage','pay.approve']},403);
+ await put(`/api/users/${peer.id}`,{role:'Admin'},403);
+ await put(`/api/users/${peer.id}`,{role:'SystemAdmin'},403);
+ await put(`/api/users/${peer.id}`,{customPermissions:['forms.review','pay.approve']},403);
+ await put(`/api/users/${sysAdmin.id}`,{status:'suspended'},403);
+ await req('/api/users',{username:'peer-ok',password:mgrPassword,role:'Reviewer',customPermissions:['forms.review']});
+ cookie=adminCookie;
+ await put(`/api/users/${sysAdmin.id}`,{status:'suspended'});
+ await put('/api/users/administrator/status',{status:'suspended'},400);
+ cookie=adminCookie;
  const iq='2000000001';
  await req('/api/riders',{iqama:iq,name:'Synthetic Rider',phone:'0501234567',status:'Active',nationality:'Test',engagementType:'External',financeSponsorId:'BW'});
  await req('/api/riders',{iqama:'bad',name:'Invalid Rider'},400);

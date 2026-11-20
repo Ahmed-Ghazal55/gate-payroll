@@ -276,14 +276,15 @@ public static class UserAccess
         u["hash"] = Convert.ToBase64String(Rfc2898DeriveBytes.Pbkdf2(password, salt, 210000, HashAlgorithmName.SHA256, 32));
         u["mustChangePassword"] = mustChange; u["securityVersion"] = Guid.NewGuid().ToString("N"); u["failedLogins"] = 0; u["lockedUntil"] = "";
     }
+    static bool PrivilegedRole(string role) => role is "Admin" or "SuperAdmin" or "SystemAdmin";
     // A delegated manager never edits administrators or themselves, and never grants what they lack.
     static void GuardManager(DbConnection c, DbTransaction tx, ClaimsPrincipal actor, JsonObject? before, JsonObject after)
     {
         if (AccessPolicy.Administrator(actor)) return;
         AccessPolicy.Demand(actor, "users.manage");
         J.Need(before == null || !string.Equals(before.S("username"), actor.Identity?.Name, StringComparison.OrdinalIgnoreCase), "لا تعدّل صلاحيات حسابك.", 403);
-        J.Need(before == null || Role(before) is not ("Admin" or "SuperAdmin"), "تعديل مسؤول النظام لمسؤول النظام فقط.", 403);
-        J.Need(Role(after) is not ("Admin" or "SuperAdmin"), "منح دور مسؤول النظام لمسؤول النظام فقط.", 403);
+        J.Need(before == null || !PrivilegedRole(Role(before)), "تعديل مسؤول النظام لمسؤول النظام فقط.", 403);
+        J.Need(!PrivilegedRole(Role(after)), "منح دور مسؤول النظام لمسؤول النظام فقط.", 403);
         foreach (string permission in EffectivePermissions(WithRole(c, tx, after)))
             if (before == null || !EffectivePermissions(WithRole(c, tx, before)).Contains(permission))
                 J.Need(AccessPolicy.Has(actor, permission), "لا تمنح صلاحية لا تملكها: " + permission, 403);
@@ -484,6 +485,7 @@ public static class UserAccess
             if(input["deniedPermissions"] is JsonArray denied){ValidatePermissionList(denied);u["deniedPermissions"]=denied.DeepClone();}
             if(input["financialScope"] is JsonObject scope)u["financialScope"]=FinancialScopes.Normalize(scope);
             AccessPolicy.ConfigureApprovalException(c,tx,ctx.User,u,input);
+            GuardManager(c, tx, ctx.User, null, u);
             Store.Save(c, "user", u, tx);
             Store.Audit(c, tx, "admin.user_create", u.S("id"), ctx.User.Identity!.Name!);
             return Public(u);
@@ -495,7 +497,7 @@ public static class UserAccess
             var before = u.Clone();
             string role = input.S("role", Role(u)), status = input.S("status", Status(u));
             J.Need(Roles.Contains(role) && status is "active" or "suspended", "دور أو حالة غير صالحة.");
-            J.Need(!(Role(u) is "Admin" or "SuperAdmin" && Status(u) == "active" && (role is not ("Admin" or "SuperAdmin") || status != "active") && Store.List(c, "user", tx).Count(x => Role(x) is "Admin" or "SuperAdmin" && Status(x) == "active") == 1), "لا يمكن تعطيل آخر مسؤول نشط.");
+            J.Need(!(PrivilegedRole(Role(u)) && Status(u) == "active" && (!PrivilegedRole(role) || status != "active") && Store.List(c, "user", tx).Count(x => PrivilegedRole(Role(x)) && Status(x) == "active") == 1), "لا يمكن تعطيل آخر مسؤول نشط.");
             bool roleChanged=Role(u)!=role;
             if(roleChanged){var definition=ResolveRoleDef(role);if(!input.ContainsKey("department"))u["department"]=definition.DefaultDepartment;if(!input.ContainsKey("rankLevel"))u["rankLevel"]=definition.DefaultRankLevel;}
             u["role"] = role;
@@ -514,6 +516,7 @@ public static class UserAccess
             if(input.ContainsKey("rankLevel"))J.Need(input.N("rankLevel") is >=1 and <=5&&input.N("rankLevel")==Math.Truncate(input.N("rankLevel")),"رتبة غير صالحة.");
             u["securityVersion"] = Guid.NewGuid().ToString("N");
             AccessPolicy.ConfigureApprovalException(c,tx,ctx.User,u,input);
+            GuardManager(c, tx, ctx.User, before, u);
             Store.Save(c, "user", u, tx);
             Store.Audit(c, tx, "admin.user_update", id, ctx.User.Identity!.Name!);
             return Public(u);
@@ -538,7 +541,7 @@ public static class UserAccess
         api.MapPut("/roles/{code}/permissions", (string code, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
             J.Need(AccessPolicy.Administrator(ctx.User), "تعديل الأدوار لمسؤول النظام فقط.", 403);
-            var def = ResolveRoleDef(code); J.Need(def.Code is not ("Admin" or "SuperAdmin"), "أدوار مسؤول النظام ثابتة.");
+            var def = ResolveRoleDef(code); J.Need(!PrivilegedRole(def.Code), "أدوار مسؤول النظام ثابتة.");
             var list = input["permissions"] as JsonArray ?? throw new ApiError("حدد صلاحيات الدور."); ValidatePermissionList(list);
             string reason = input.Required("reason").Trim(); J.Need(reason.Length is >= 3 and <= 500, "اكتب سبب تعديل الدور.");
             var before = Store.Get(c, def.Code, RolePermissionsKind, tx)?["permissions"] as JsonArray;
