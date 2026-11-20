@@ -1,7 +1,8 @@
 using System.Data.Common;
 namespace Payroll;
 
-/// <summary>U-W1-09 (journal half): fin.journal + fin.journal_line. Design §7 / §7.1 / §14 / §16 / BR §24.8 / §28. Posted-row immutability enforced by posting service later; columns and CHECKs land now.
+/// <summary>U-W1-09 (journal half): fin.journal + fin.journal_line. Design §7 / §7.1 / §14 / §16 / BR §24.8 / §28.
+/// Posted/reversed/cancelled journals and their lines are frozen and never deleted (design §7.1 step 8).
 /// Journal period_month is FK-bound to the period row; CK_fin_journal_date_in_period keeps journal_date inside that month.</summary>
 public static class SchemaFinJournal
 {
@@ -12,6 +13,7 @@ public static class SchemaFinJournal
         SchemaSql.EnsureSchema(c,tx,"fin");
         EnsureJournal(c,tx);
         EnsureJournalLine(c,tx);
+        EnsurePostedGuards(c,tx);
     }
 
     static void EnsureJournal(DbConnection c,DbTransaction? tx)
@@ -206,5 +208,21 @@ public static class SchemaFinJournal
             SchemaSql.CreateIndexIfMissing(c,tx,"fin","journal_line","IX_fin_journal_line_cc_id","cost_centre_id");
             SchemaSql.CreateIndexIfMissing(c,tx,"fin","journal_line","IX_fin_journal_line_platform","erp_platform_account_id");
         }
+    }
+
+    /// <summary>Design §7.1 step 8: reject later UPDATE of posted journal/lines; never delete money evidence.</summary>
+    static void EnsurePostedGuards(DbConnection c,DbTransaction? tx)
+    {
+        string journal=SchemaSql.Q(c,"fin","journal");
+        string[] frozen=["voucher_no","period_id","period_month","journal_date","source_type","source_id","company_id","purpose","run_mode","payout_blocked","currency_code","reverses_journal_id","posted_at","posted_by","narration_ar"];
+        SchemaMoneyGuard.Retain(c,tx,"fin","journal","o.voucher_no=NEW.voucher_no OR (o.source_type=NEW.source_type AND o.source_id=NEW.source_id AND o.company_id=NEW.company_id AND o.purpose=NEW.purpose)");
+        SchemaMoneyGuard.Retain(c,tx,"fin","journal_line","o.journal_id=NEW.journal_id AND o.line_no=NEW.line_no");
+        SchemaMoneyFlags.Ensure(c,tx,"fin","journal",o=>$"{o}.status IN (2,3,4)");
+        SchemaMoneyGuard.Rule(c,tx,"fin","journal","TR_fin_journal_state",
+            n=>$"{n}.status IN (2,3) AND {n}.run_mode=1",
+            (o,n)=>$"{n}.id IS NULL OR ({o}.status<>{n}.status AND NOT (({o}.status=1 AND {n}.status IN (2,4)) OR ({o}.status=2 AND {n}.status=3))) OR ({o}.status IN (2,3,4) AND ({SchemaMoneyGuard.Changed(c,n,o,frozen)}))");
+        SchemaMoneyGuard.Rule(c,tx,"fin","journal_line","TR_fin_journal_line_frozen",
+            n=>$"EXISTS(SELECT 1 FROM {journal} j WHERE j.id={n}.journal_id AND j.status IN (2,3,4))",
+            (o,n)=>$"{n}.id IS NULL OR EXISTS(SELECT 1 FROM {journal} j WHERE j.id={o}.journal_id AND j.status IN (2,3,4)) OR EXISTS(SELECT 1 FROM {journal} j WHERE j.id={n}.journal_id AND j.status IN (2,3,4))");
     }
 }

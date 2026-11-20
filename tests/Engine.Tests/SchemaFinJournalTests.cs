@@ -80,7 +80,7 @@ public sealed class SchemaFinJournalTests
             INSERT INTO fin_journal(id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,currency_code,created_at)
             VALUES(@id,@vno,@pid,@pm,@jd,@stype,@sid,@cid,@purpose,1,'SAR',datetime('now'))
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@vno","V-2"),("@pid",h.Period),("@pm","2026-11-01"),("@jd","2026-11-15"),("@stype","manual"),("@sid",source),("@cid",h.Company),("@purpose","manual")),
-            "UQ_fin_journal_source",sqliteToken:"fin_journal.source_type, fin_journal.source_id, fin_journal.company_id, fin_journal.purpose");
+            "UQ_fin_journal_source",sqliteToken:"Money row replacement is forbidden");
     }
 
     [TestMethod]

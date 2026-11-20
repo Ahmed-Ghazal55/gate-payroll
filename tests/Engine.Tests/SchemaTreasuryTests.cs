@@ -31,8 +31,10 @@ public sealed class SchemaTreasuryTests
         string period=MoneySchemaFixture.Id(),journal=MoneySchemaFixture.Id(),line=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) SELECT @id,@c,'2026-11-01',1,datetime('now') WHERE NOT EXISTS(SELECT 1 FROM fin_accounting_period WHERE company_id=@c AND period_month='2026-11-01')",("@id",period),("@c",company));
         period=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_accounting_period WHERE company_id=@c AND period_month='2026-11-01'",("@c",company))!;
-        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal(id,voucher_no,period_id,company_id,period_month,journal_date,source_type,source_id,purpose,status,created_at) VALUES(@id,@id,@p,@c,'2026-11-01','2026-11-20','synthetic',@id,'manual',2,datetime('now'))",("@id",journal),("@p",period),("@c",company));
-        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal_line(id,period_id,company_id,period_month,journal_id,line_no,account_id,cost_centre_id,debit,credit,created_at) SELECT @id,@p,@c,'2026-11-01',@j,1,b.account_id,@cc,@a,0,datetime('now') FROM treasury_bank_account b WHERE b.id=@b",("@id",line),("@p",period),("@c",company),("@j",journal),("@cc",SchemaSql.GuidText(SchemaOrgCostCentre.NoneId)),("@a",amount),("@b",bank));return line;
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal(id,voucher_no,period_id,company_id,period_month,journal_date,source_type,source_id,purpose,status,created_at) VALUES(@id,@id,@p,@c,'2026-11-01','2026-11-20','synthetic',@id,'manual',1,datetime('now'))",("@id",journal),("@p",period),("@c",company));
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal_line(id,period_id,company_id,period_month,journal_id,line_no,account_id,cost_centre_id,debit,credit,created_at) SELECT @id,@p,@c,'2026-11-01',@j,1,b.account_id,@cc,@a,0,datetime('now') FROM treasury_bank_account b WHERE b.id=@b",("@id",line),("@p",period),("@c",company),("@j",journal),("@cc",SchemaSql.GuidText(SchemaOrgCostCentre.NoneId)),("@a",amount),("@b",bank));
+        MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal SET status=2,posted_at=datetime('now'),posted_by='tester' WHERE id=@id",("@id",journal));
+        return line;
     }
     static string Match(DbConnection c,string company,string statementLine,string journalLine,decimal amount)
     {
