@@ -25,6 +25,8 @@ public static class PaySourcesLiveApi
             .WithTags("Payroll").WithSummary("L1 vehicle assignment periods per rider (Omar live, facts only)");
         api.MapGet("/pay/sources/housing-periods", (HttpContext ctx) => Housing(store, config, env, ctx))
             .WithTags("Payroll").WithSummary("L1 housing residence periods per rider (Omar live, facts only)");
+        api.MapGet("/pay/sources/keeta-eligibility", (HttpContext ctx) => Keeta(store, config, env, ctx))
+            .WithTags("Payroll").WithSummary("Keeta expected eligibility result per user/period (Omar live; not approval)");
     }
 
     static object Fuel(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
@@ -249,6 +251,41 @@ public static class PaySourcesLiveApi
             from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
         };
+    }
+    static object Keeta(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "pay.view");
+        DateOnly month = ParseMonth(ctx);
+        var (page, pageSize, search) = ParsePage(ctx);
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            return store.Read(c => Envelope(new
+            {
+                items = Array.Empty<JsonObject>(),
+                total = 0L,
+                page,
+                pageSize,
+                summary = new JsonObject { ["rows"] = 0L, ["eligible"] = 0L, ["notEligible"] = 0L, ["pending"] = 0L },
+                month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+                noteAr = "أهلية كيتا المتوقعة تُقرأ مباشرة من نظام عمر عند تفعيل القراءة الحية"
+            }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
+        return LiveRead(ctx, token =>
+        {
+            using var erp = OpenErp(config);
+            return store.Read(c =>
+            {
+                var result = PaySourcesLiveQuery.KeetaEligibility(erp, month, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
+                return Envelope(new
+                {
+                    items = result.Items,
+                    total = result.Total,
+                    page,
+                    pageSize,
+                    summary = result.Summary,
+                    month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+                    approval = "expected_only"
+                }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+            });
+        }, "pay-sources-keeta-eligibility");
     }
     static bool Overlaps(JsonObject row, DateOnly from, DateOnly to, params string[] keys)
     {

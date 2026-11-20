@@ -410,6 +410,168 @@ public static class PaySourcesLiveQuery
         ["sponsorUnifiedNumber"] = Str(r, "SponsorUnifiedNumber")
     };
 
+    public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewKeetaEligibilitySql(
+        LiveOperationsQuery.Scope? scope = null)
+    {
+        using var cmd = new SqlCommand();
+        Add(cmd, "@month", new DateTime(2026, 11, 1));
+        Add(cmd, "@skip", 0);
+        Add(cmd, "@take", 50);
+        string sql = KeetaEligibilitySql(ScopeSponsor(scope, cmd, "s"), ScopePlatform(scope, cmd, "cp"))
+            + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
+    }
+
+    public static PageResult KeetaEligibility(DbConnection source, DateOnly month, int page, int pageSize,
+        string search, LiveOperationsQuery.Scope scope, CancellationToken ct = default)
+    {
+        EnsureSql(source);
+        pageSize = Math.Min(Math.Max(1, pageSize), MaxPageSize);
+        page = Math.Max(1, page);
+        int skip = checked((page - 1) * pageSize);
+        using var cmd = source.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        using var cancel = SyncCancellation.Register(cmd, ct);
+        Add(cmd, "@month", new DateTime(month.Year, month.Month, 1));
+        string scopeSql = ScopeSponsor(scope, cmd, "s");
+        string platformSql = ScopePlatform(scope, cmd, "cp");
+        if (search.Length > 0) Add(cmd, "@q", "%" + EscapeLike(search) + "%");
+        Add(cmd, "@skip", skip);
+        Add(cmd, "@take", pageSize);
+        cmd.CommandText = KeetaEligibilitySql(scopeSql, platformSql, search.Length > 0)
+            + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        long total = 0;
+        var summary = new JsonObject { ["rows"] = 0L, ["eligible"] = 0L, ["notEligible"] = 0L, ["pending"] = 0L };
+        var items = new List<JsonObject>();
+        using (var reader = cmd.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                ct.ThrowIfCancellationRequested();
+                if (items.Count == 0)
+                {
+                    total = Long(reader, "TotalCount");
+                    summary = new JsonObject
+                    {
+                        ["rows"] = total,
+                        ["eligible"] = Long(reader, "EligibleCount"),
+                        ["notEligible"] = Long(reader, "NotEligibleCount"),
+                        ["pending"] = Long(reader, "PendingCount")
+                    };
+                }
+                items.Add(MapKeetaEligibilityRow(reader, month));
+            }
+        }
+        return new(items, total, summary, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>
+    /// Newest expected eligibility row per account+rider+month+source from keeta.vw_keeta_eligibility_v1.
+    /// Settlement scheme from PlatformAccountBusinessDetails (raw ERP value). Days lost / orders required from ResultJson.
+    /// </summary>
+    static string KeetaEligibilitySql(string scopeSql, string platformSql, bool search = false)
+    {
+        string searchPred = search
+            ? " AND (pa.[ExternalAccountId] LIKE @q OR pa.[Code] LIKE @q OR CONVERT(nvarchar(36), e.[PlatformRiderAccountId]) LIKE @q)"
+            : "";
+        return $"""
+            WITH ranked AS (
+                SELECT e.[SnapshotId], e.[PlatformRiderAccountId], e.[RiderProfileId], e.[SponsorId],
+                       e.[OperatingCityId], e.[Month], e.[DataThrough], e.[Source], e.[RuleSetId], e.[RuleVersion],
+                       e.[Status], e.[ValidDays], e.[OrdersDelivered], e.[ExpectedExperienceTier],
+                       e.[ExpectedCapacityTier], e.[ResultJson], e.[CreatedAtUtc],
+                       pa.[ExternalAccountId] AS KeetaId, pa.[Code] AS AccountCode,
+                       bd.[SettlementModel] AS SettlementScheme,
+                       s.[UnifiedNationalNumber] AS SponsorUnifiedNumber,
+                       ROW_NUMBER() OVER (
+                         PARTITION BY e.[PlatformRiderAccountId], e.[RiderProfileId], e.[Month], e.[Source]
+                         ORDER BY e.[CreatedAtUtc] DESC, e.[SnapshotId] DESC
+                       ) AS rn
+                FROM [keeta].[vw_keeta_eligibility_v1] e
+                INNER JOIN [app].[PlatformRiderAccounts] pa ON pa.[Id]=e.[PlatformRiderAccountId] AND pa.[IsDeleted]=0
+                INNER JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=pa.[ClientPlatformId] AND cp.[IsDeleted]=0
+                LEFT JOIN [app].[Sponsors] s ON s.[Id]=e.[SponsorId] AND s.[IsDeleted]=0
+                LEFT JOIN [app].[PlatformAccountBusinessDetails] bd ON bd.[PlatformRiderAccountId]=pa.[Id] AND bd.[IsDeleted]=0
+                WHERE e.[Month]=@month{scopeSql}{platformSql}{searchPred}
+            ),
+            filtered AS (
+                SELECT * FROM ranked WHERE rn=1
+            ),
+            agg AS (
+                SELECT COUNT_BIG(*) AS TotalCount,
+                       SUM(CASE WHEN Status=N'Valid' THEN 1 ELSE 0 END) AS EligibleCount,
+                       SUM(CASE WHEN Status=N'NotValid' THEN 1 ELSE 0 END) AS NotEligibleCount,
+                       SUM(CASE WHEN Status=N'Pending' OR Status IS NULL OR Status=N'' THEN 1 ELSE 0 END) AS PendingCount
+                FROM filtered
+            )
+            SELECT f.*, a.TotalCount, a.EligibleCount, a.NotEligibleCount, a.PendingCount
+            FROM filtered f CROSS JOIN agg a
+            ORDER BY f.CreatedAtUtc DESC, f.SnapshotId
+            """;
+    }
+
+    static JsonObject MapKeetaEligibilityRow(IDataRecord r, DateOnly month)
+    {
+        string resultJson = Str(r, "ResultJson");
+        var fromJson = ReadEligibilityJson(resultJson);
+        return new()
+        {
+            ["id"] = Str(r, "SnapshotId"),
+            ["platformRiderAccountId"] = Str(r, "PlatformRiderAccountId"),
+            ["keetaId"] = Str(r, "KeetaId"),
+            ["accountCode"] = Str(r, "AccountCode"),
+            ["riderProfileId"] = Str(r, "RiderProfileId"),
+            ["sponsorId"] = Str(r, "SponsorId"),
+            ["sponsorUnifiedNumber"] = Str(r, "SponsorUnifiedNumber"),
+            ["operatingCityId"] = Str(r, "OperatingCityId"),
+            ["period"] = month.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+            ["month"] = month.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["dataThrough"] = Str(r, "DataThrough"),
+            ["source"] = Str(r, "Source"),
+            ["ruleSetId"] = Str(r, "RuleSetId"),
+            ["ruleVersion"] = NullLong(r, "RuleVersion"),
+            ["expectedStatus"] = Str(r, "Status"),
+            ["validDays"] = NullLong(r, "ValidDays") ?? fromJson.ValidDays,
+            ["invalidDays"] = fromJson.InvalidDays,
+            ["allowedLossDays"] = fromJson.AllowedLossDays,
+            ["requiredValidDays"] = fromJson.RequiredValidDays,
+            ["ordersDelivered"] = NullLong(r, "OrdersDelivered") ?? fromJson.OrdersDelivered,
+            ["monthlyOrdersRequired"] = fromJson.MonthlyOrdersRequired,
+            ["ordersRequiredSoFar"] = fromJson.OrdersRequiredSoFar,
+            ["settlementScheme"] = Str(r, "SettlementScheme"),
+            ["expectedExperienceTier"] = Str(r, "ExpectedExperienceTier"),
+            ["expectedCapacityTier"] = Str(r, "ExpectedCapacityTier"),
+            ["createdAt"] = Str(r, "CreatedAtUtc"),
+            ["approval"] = "expected_only"
+        };
+    }
+
+    sealed record EligibilityJson(
+        long? ValidDays, long? InvalidDays, long? AllowedLossDays, long? RequiredValidDays,
+        long? OrdersDelivered, long? MonthlyOrdersRequired, long? OrdersRequiredSoFar);
+
+    static EligibilityJson ReadEligibilityJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new(null, null, null, null, null, null, null);
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            long? N(string name)
+            {
+                if (!root.TryGetProperty(name, out var p) || p.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+                    return null;
+                if (p.ValueKind == JsonValueKind.Number && p.TryGetInt64(out long v)) return v;
+                if (p.ValueKind == JsonValueKind.String && long.TryParse(p.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out long s))
+                    return s;
+                return null;
+            }
+            return new(N("validDays"), N("invalidDays"), N("allowedLossDays"), N("requiredValidDays"),
+                N("ordersDelivered"), N("monthlyOrdersRequired"), N("ordersRequiredSoFar"));
+        }
+        catch (JsonException) { return new(null, null, null, null, null, null, null); }
+    }
+
     static void EnsureSql(DbConnection source)
     {
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");

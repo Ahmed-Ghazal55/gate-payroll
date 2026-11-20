@@ -47,6 +47,18 @@ public sealed class PaySourcesLiveQueryTests
     }
 
     [TestMethod]
+    public void PreviewKeetaEligibilitySqlUsesViewAndNewestRow()
+    {
+        var (sql, names) = PaySourcesLiveQuery.PreviewKeetaEligibilitySql(All);
+        Assert.Contains("[keeta].[vw_keeta_eligibility_v1]", sql, StringComparison.Ordinal);
+        Assert.Contains("ROW_NUMBER()", sql, StringComparison.Ordinal);
+        Assert.Contains("SettlementModel", sql, StringComparison.Ordinal);
+        Assert.Contains("PlatformAccountBusinessDetails", sql, StringComparison.Ordinal);
+        Assert.Contains("@month", string.Join(',', names), StringComparison.Ordinal);
+        Assert.DoesNotContain("INSERT ", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [TestMethod]
     public void EmptyCompanyScopeBecomesFalsePredicate()
     {
         var empty = new LiveOperationsQuery.Scope(false, [], [], [], []);

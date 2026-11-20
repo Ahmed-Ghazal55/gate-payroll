@@ -69,5 +69,6 @@ public sealed class PaySourcesApiTests
         Assert.AreEqual(1, f.Store.Read(c => Operations.List(c, PayFixture.Maker, "housing_residence").Count()));
         Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Maker, "GET", "/api/pay/sources/vehicle-assignment-periods"));
         Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Maker, "GET", "/api/pay/sources/housing-periods"));
+        Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Maker, "GET", "/api/pay/sources/keeta-eligibility"));
     }
 }
