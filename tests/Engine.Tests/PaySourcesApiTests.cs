@@ -1,0 +1,37 @@
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Payroll;
+
+[TestClass]
+public sealed class PaySourcesApiTests
+{
+    [TestMethod]
+    public void StoreModeFuelUsageKindIsAvailableForPaySources()
+    {
+        using var f = new PayFixture();
+        string company = FinancialCore.Sponsors[0].Id;
+        f.Store.Write((c, tx) =>
+        {
+            Store.Save(c, "rider", new() { ["id"] = "2123456789", ["sponsorId"] = company }, tx);
+            Store.Save(c, "fuel_usage", new()
+            {
+                ["id"] = "syn-fuel-1",
+                ["riderId"] = "2123456789",
+                ["companyId"] = company,
+                ["month"] = "2026-10",
+                ["period"] = "2026-10",
+                ["ReportMonth"] = "2026-10-01",
+                ["amount"] = 80,
+                ["totalAmount"] = 80,
+                ["liters"] = 40,
+                ["fuelCardId"] = "card-1"
+            }, tx);
+            return true;
+        });
+
+        var listed = f.Store.Read(c => Operations.List(c, PayFixture.Maker, "fuel_usage").ToList());
+        Assert.AreEqual(1, listed.Count);
+        Assert.AreEqual(80m, listed[0].N("totalAmount", listed[0].N("amount")));
+        Assert.AreEqual(40m, listed[0].N("liters"));
+        Assert.IsTrue(AccessPolicy.Allowed(PayFixture.Maker, "GET", "/api/pay/sources/fuel-consumption"));
+    }
+}

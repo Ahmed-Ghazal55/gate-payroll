@@ -158,6 +158,8 @@ public static class ApiContracts
         if(get&&path=="/api/operations/vehicles/{id}/oil-changes")return OpsOilPage();
         if(get&&path=="/api/operations/vehicles/purchase-invoices/{id}")return O(new(){["id"]=S(),["receiptNumber"]=S(),["lines"]=A(Free()),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"id","source","asOf","allowedActions");
         if(get&&path.StartsWith("/api/operations/",StringComparison.Ordinal)&&path.EndsWith("/export",StringComparison.Ordinal))return Free();
+        if(get&&path is "/api/pay/sources/fuel-consumption")
+            return OpsFleetPage(Free());
         if(path=="/api/riders/{iqama}/accounts"&&get)return OperationsPage();
         if(path=="/api/riders/lookup"&&get)return A(Rider());
         if(path=="/api/rider-mobile/service-requests"&&get)return new(){OneOf=[A(ServiceRequest()),Page(ServiceRequest())]};
