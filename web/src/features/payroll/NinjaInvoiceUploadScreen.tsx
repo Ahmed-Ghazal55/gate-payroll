@@ -103,10 +103,9 @@ export function NinjaInvoiceUploadScreen({
   const [odooVoucherNo, setOdooVoucherNo] = useState<string>('');
 
   useEffect(() => {
-    loadCompanyOptions().then((list) => {
-      setCompanyOptions(list);
-      if (!companyId && list[0]) setCompanyId(list[0].code || list[0].id);
-    }).catch(() => setCompanyOptions([]));
+    loadCompanyOptions()
+      .then((list) => setCompanyOptions(list))
+      .catch(() => setCompanyOptions([]));
   }, []);
 
   const companyLabels = useMemo(() => {
@@ -251,6 +250,11 @@ export function NinjaInvoiceUploadScreen({
   }, [companyId, period, platform]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!companyId) {
+      toast('اختر الشركة أولاً', 'warning');
+      e.target.value = '';
+      return;
+    }
     setServerPreview(null);
     setReconcileResult(null);
     const files = Array.from(e.target.files || []);
@@ -391,6 +395,10 @@ export function NinjaInvoiceUploadScreen({
 
   // Step 2: Preview and Reconcile
   const handleRunReconcile = async () => {
+    if (!companyId) {
+      toast('اختر الشركة أولاً', 'warning');
+      return;
+    }
     if (selectedFiles.length === 0) {
       toast(`يرجى اختيار ملف فاتورة ${platformNameAr} واحد على الأقل (.xlsx)`, 'warning');
       return;
@@ -911,7 +919,7 @@ export function NinjaInvoiceUploadScreen({
         title: 'الفاتورة لم تُحفظ. أصلح السبب المذكور ثم أعد المطابقة.',
         detail: actionError,
         action: selectedFiles.length > 0 ? (
-          <button type="button" disabled={loading} onClick={handleRunReconcile} className={primaryButton}>
+          <button type="button" disabled={loading || !companyId} onClick={handleRunReconcile} className={primaryButton}>
             إعادة المطابقة والمعاينة
           </button>
         ) : undefined,
@@ -921,7 +929,7 @@ export function NinjaInvoiceUploadScreen({
       return {
         title: `الملف جاهز لـ ${companyLabels[companyId] ?? companyId} وشهر ${period}. ابدأ المطابقة.`,
         action: (
-          <button type="button" disabled={loading} onClick={handleRunReconcile} className={primaryButton}>
+          <button type="button" disabled={loading || !companyId} onClick={handleRunReconcile} className={primaryButton}>
             بدء المطابقة والمعاينة
           </button>
         ),
@@ -950,24 +958,22 @@ export function NinjaInvoiceUploadScreen({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
-              <Building size={14} className="text-[var(--muted)]" />
-              <span className="text-xs text-[var(--muted)]">الشركة:</span>
-              <select
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] min-w-[12rem]">
+              <Building size={14} className="text-[var(--muted)] shrink-0" />
+              <span className="text-xs text-[var(--muted)] shrink-0">الشركة:</span>
+              <SearchableSelect
+                id="select-invoice-company"
+                ariaLabel="الشركة"
                 value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-                className="text-xs font-bold bg-[var(--surface)] text-[var(--ink)] border-none focus:outline-hidden cursor-pointer"
-              >
-                {companyOptions.length === 0 ? (
-                  <option value="">—</option>
-                ) : (
-                  companyOptions.map((c) => (
-                    <option key={c.id || c.code} value={c.code || c.id}>
-                      {companyLabel(c)}
-                    </option>
-                  ))
-                )}
-              </select>
+                onChange={setCompanyId}
+                required
+                placeholder="اختر الشركة"
+                className="min-w-[9rem]"
+                options={companyOptions.map((c) => ({
+                  value: c.code || c.id,
+                  label: c.code ? `${companyLabel(c)} · ${c.code}` : companyLabel(c),
+                }))}
+              />
             </div>
 
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
@@ -1230,22 +1236,43 @@ export function NinjaInvoiceUploadScreen({
           )}
         </div>
 
-        {/* Drag & Drop File Upload Box */}
-        <div className="border-2 border-dashed border-[var(--line)] hover:border-[var(--accent)]/50 rounded-2xl p-6 text-center transition bg-[var(--raised)]/30">
+        {/* Drag & Drop File Upload Box — disabled until company is chosen */}
+        <div
+          className={`border-2 border-dashed rounded-2xl p-6 text-center transition bg-[var(--raised)]/30 ${
+            companyId
+              ? 'border-[var(--line)] hover:border-[var(--accent)]/50'
+              : 'border-[var(--line)] opacity-60'
+          }`}
+        >
           <input
             type="file"
             id="ninja-file-input"
             multiple={!isKeeta}
             accept=".xlsx"
+            disabled={!companyId}
             onChange={handleFileSelect}
             className="hidden"
           />
-          <label htmlFor="ninja-file-input" className="cursor-pointer flex flex-col items-center justify-center gap-2">
+          <label
+            htmlFor={companyId ? 'ninja-file-input' : undefined}
+            aria-disabled={!companyId}
+            className={`flex flex-col items-center justify-center gap-2 ${companyId ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+            onClick={
+              companyId
+                ? undefined
+                : (e) => {
+                    e.preventDefault();
+                    toast('اختر الشركة أولاً', 'warning');
+                  }
+            }
+          >
             <div className="p-3 rounded-full bg-[var(--surface)] text-[var(--accent)] shadow-xs">
               <Upload size={22} />
             </div>
             <div className="text-xs font-bold text-[var(--ink)]">
-              انقر لاختيار ملف فاتورة {platformNameAr} (.xlsx) أو اسحب الملف هنا
+              {companyId
+                ? `انقر لاختيار ملف فاتورة ${platformNameAr} (.xlsx) أو اسحب الملف هنا`
+                : 'اختر الشركة أولاً ثم ارفع ملف الفاتورة'}
             </div>
             <div className="text-[11px] text-[var(--muted)]">
               {isKeeta ? 'يدعم ملف إكسل رسمي بصيغة .xlsx' : 'يدعم ملفات إكسل رسمية بصيغة .xlsx بحد أقصى 5 ملفات'}
@@ -1283,7 +1310,7 @@ export function NinjaInvoiceUploadScreen({
               <button
                 type="button"
                 id="btn-run-reconcile"
-                disabled={loading}
+                disabled={loading || !companyId}
                 onClick={handleRunReconcile}
                 className="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs sm:text-sm font-bold shadow-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
