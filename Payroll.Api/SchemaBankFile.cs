@@ -53,7 +53,7 @@ public static class SchemaBankFile
         foreach(string table in new[]{"bank_file","bank_file_line"}){SchemaSql.EnsureMonthIndex(c,tx,"sal",table);SchemaSql.EnsureRowVersion(c,tx,"sal",table);}
         SchemaMoneyGuard.Retain(c,tx,"sal","bank_file");
         SchemaMoneyGuard.Retain(c,tx,"sal","bank_file_line","o.allocation_id=NEW.allocation_id OR (o.pay_run_rider_id=NEW.pay_run_rider_id AND o.status=1 AND NEW.status=1)");
-        SchemaMoneyRegister.Immutable(c,tx,"sal","bank_file_line","bank_file_id","period_month","pay_run_rider_id","payable_id","company_id","registration_id","payable_period_month","payment_id","allocation_id","amount","bank_short_code","generation");
+        SchemaMoneyRegister.ImmutableInsteadOfUpdate(c,tx,"sal","bank_file_line","bank_file_id","period_month","pay_run_rider_id","payable_id","company_id","registration_id","payable_period_month","payment_id","allocation_id","amount","bank_short_code","generation");
         SchemaMoneyFlags.Ensure(c,tx,"sal","bank_file",o=>$"{o}.status>=2 OR {o}.payout_blocked=1");
         EnsureLines(c,tx);
         EnsureSettlement(c,tx);
