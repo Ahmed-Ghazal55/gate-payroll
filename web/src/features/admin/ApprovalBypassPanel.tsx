@@ -117,19 +117,19 @@ export function ApprovalBypassPanel() {
         <EmptyState title="لا منح حالياً" description="لم يُمنح تجاوز اعتماد بعد." />
       ) : (
         <div className="rounded-2xl border border-[var(--line)] overflow-hidden bg-[var(--surface)]">
-          <AutoFilterBar state={bypassFilter} totalCount={rows.length} />
+          <AutoFilterBar controller={bypassFilter} totalCount={rows.length} />
           <table className="w-full text-xs sm:text-sm">
             <thead className="bg-[var(--raised)]/50 text-[var(--muted)]">
               <tr>
-                <AutoFilterTh state={bypassFilter} colKey="username" className="p-3 text-start" />
-                <AutoFilterTh state={bypassFilter} colKey="period" className="p-3 text-start" />
-                <AutoFilterTh state={bypassFilter} colKey="reason" className="p-3 text-start" />
-                <AutoFilterTh state={bypassFilter} colKey="status" className="p-3 text-start" />
+                <AutoFilterTh controller={bypassFilter} colKey="username" className="p-3 text-start" />
+                <AutoFilterTh controller={bypassFilter} colKey="period" className="p-3 text-start" />
+                <AutoFilterTh controller={bypassFilter} colKey="reason" className="p-3 text-start" />
+                <AutoFilterTh controller={bypassFilter} colKey="status" className="p-3 text-start" />
                 <th className="p-3 text-start">إجراء</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {bypassFilter.filteredRows.map((g) => (
+              {bypassFilter.rows.map((g) => (
                 <tr key={g.id}>
                   <td className="p-3 font-mono">{g.username}</td>
                   <td className="p-3 font-mono">{g.from} → {g.to}</td>

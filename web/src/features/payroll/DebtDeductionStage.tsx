@@ -110,19 +110,19 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
         <p className="text-xs text-[var(--muted)]">لا يوجد مناديب في المرحلة دي بعد.</p>
       ) : (
         <div className="overflow-x-auto">
-          <AutoFilterBar state={debtStageFilter} totalCount={rows.length} />
+          <AutoFilterBar controller={debtStageFilter} totalCount={rows.length} />
           <table className="w-full text-xs">
             <thead className="text-[var(--muted)]">
               <tr>
-                <AutoFilterTh state={debtStageFilter} colKey="rider" className="p-2 text-start" />
-                <AutoFilterTh state={debtStageFilter} colKey="salaryNet" className="p-2 text-start" />
-                <AutoFilterTh state={debtStageFilter} colKey="items" className="p-2 text-start" />
-                <AutoFilterTh state={debtStageFilter} colKey="status" className="p-2 text-start" />
+                <AutoFilterTh controller={debtStageFilter} colKey="rider" className="p-2 text-start" />
+                <AutoFilterTh controller={debtStageFilter} colKey="salaryNet" className="p-2 text-start" />
+                <AutoFilterTh controller={debtStageFilter} colKey="items" className="p-2 text-start" />
+                <AutoFilterTh controller={debtStageFilter} colKey="status" className="p-2 text-start" />
                 <th className="p-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {debtStageFilter.filteredRows.map((row) => (
+              {debtStageFilter.rows.map((row) => (
                 <tr key={row.rider} data-rider-row>
                   <td className="p-2 font-mono" dir="ltr">{row.rider}</td>
                   <td className="p-2 font-mono">{row.salaryNet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>

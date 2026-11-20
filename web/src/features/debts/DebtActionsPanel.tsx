@@ -116,19 +116,19 @@ export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: str
           <div className="p-4 text-xs text-[var(--muted)]">لا تحصيلات معروضة.</div>
         ) : (
           <div>
-            <AutoFilterBar state={settlementFilter} totalCount={settlements.length} />
+            <AutoFilterBar controller={settlementFilter} totalCount={settlements.length} />
             <table className="w-full text-xs">
               <thead className="bg-[var(--raised)]/50 text-[var(--muted)]">
                 <tr>
-                  <AutoFilterTh state={settlementFilter} colKey="receiptRef" className="p-2 text-start" />
-                  <AutoFilterTh state={settlementFilter} colKey="debtId" className="p-2 text-start" />
-                  <AutoFilterTh state={settlementFilter} colKey="collectedAmount" className="p-2 text-start" />
-                  <AutoFilterTh state={settlementFilter} colKey="waivedAmount" className="p-2 text-start" />
-                  <AutoFilterTh state={settlementFilter} colKey="date" className="p-2 text-start" />
+                  <AutoFilterTh controller={settlementFilter} colKey="receiptRef" className="p-2 text-start" />
+                  <AutoFilterTh controller={settlementFilter} colKey="debtId" className="p-2 text-start" />
+                  <AutoFilterTh controller={settlementFilter} colKey="collectedAmount" className="p-2 text-start" />
+                  <AutoFilterTh controller={settlementFilter} colKey="waivedAmount" className="p-2 text-start" />
+                  <AutoFilterTh controller={settlementFilter} colKey="date" className="p-2 text-start" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]">
-                {settlementFilter.filteredRows.slice(0, 100).map((s) => (
+                {settlementFilter.rows.slice(0, 100).map((s) => (
                   <tr key={String(s.id)}>
                     <td className="p-2 font-mono">{String(s.receiptRef || '')}</td>
                     <td className="p-2 font-mono">{String(s.debtId || '')}</td>

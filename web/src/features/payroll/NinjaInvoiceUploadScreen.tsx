@@ -1718,7 +1718,7 @@ export function NinjaInvoiceUploadScreen({
                   <DataTable
                     tableId="ninja-invoice-adjustments"
                     data={activeInvoice.adjustments}
-                    getRowId={(adj, i) => `${adj.row}-${i}`}
+                    getRowId={(adj) => `${adj.row}-${adj.captainId || ''}-${adj.finalAmount ?? ''}`}
                     pageSize={10}
                     columns={[
                       {

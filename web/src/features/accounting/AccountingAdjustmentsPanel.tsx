@@ -148,19 +148,19 @@ export function AccountingAdjustmentsPanel({ companies }: { companies: Array<{ i
         <EmptyState title="لا تسويات" description="أنشئ مسودة أولاً." />
       ) : (
         <div className="rounded-2xl border border-[var(--line)] overflow-hidden bg-[var(--surface)]">
-          <AutoFilterBar state={adjFilter} totalCount={rows.length} />
+          <AutoFilterBar controller={adjFilter} totalCount={rows.length} />
           <table className="w-full text-xs sm:text-sm">
             <thead className="bg-[var(--raised)]/50 text-[var(--muted)]">
               <tr>
-                <AutoFilterTh state={adjFilter} colKey="type" className="p-3 text-start" />
-                <AutoFilterTh state={adjFilter} colKey="reference" className="p-3 text-start" />
-                <AutoFilterTh state={adjFilter} colKey="amount" className="p-3 text-start" />
-                <AutoFilterTh state={adjFilter} colKey="status" className="p-3 text-start" />
+                <AutoFilterTh controller={adjFilter} colKey="type" className="p-3 text-start" />
+                <AutoFilterTh controller={adjFilter} colKey="reference" className="p-3 text-start" />
+                <AutoFilterTh controller={adjFilter} colKey="amount" className="p-3 text-start" />
+                <AutoFilterTh controller={adjFilter} colKey="status" className="p-3 text-start" />
                 <th className="p-3 text-start">إجراء</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {adjFilter.filteredRows.map((r) => {
+              {adjFilter.rows.map((r) => {
                 const id = String(r.id || '');
                 const status = String(r.status || '');
                 return (

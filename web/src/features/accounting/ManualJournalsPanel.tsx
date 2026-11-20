@@ -775,19 +775,19 @@ export function ManualJournalsPanel({
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-[var(--ink)]">أسطر القيد وتوزيع المبالغ:</h4>
               <div className="rounded-xl border border-[var(--line)] overflow-hidden">
-                <AutoFilterBar state={drawerLinesFilter} totalCount={(selectedJournal.lines || []).length} />
+                <AutoFilterBar controller={drawerLinesFilter} totalCount={(selectedJournal.lines || []).length} />
                 <table className="w-full text-xs">
                   <thead className="bg-[var(--raised)] text-[var(--muted)] border-b border-[var(--line)]">
                     <tr>
-                      <AutoFilterTh state={drawerLinesFilter} colKey="idx" className="p-2.5 text-start w-12" />
-                      <AutoFilterTh state={drawerLinesFilter} colKey="accountCode" className="p-2.5 text-start" />
-                      <AutoFilterTh state={drawerLinesFilter} colKey="debit" className="p-2.5 text-start w-32" />
-                      <AutoFilterTh state={drawerLinesFilter} colKey="credit" className="p-2.5 text-start w-32" />
-                      <AutoFilterTh state={drawerLinesFilter} colKey="note" className="p-2.5 text-start" />
+                      <AutoFilterTh controller={drawerLinesFilter} colKey="idx" className="p-2.5 text-start w-12" />
+                      <AutoFilterTh controller={drawerLinesFilter} colKey="accountCode" className="p-2.5 text-start" />
+                      <AutoFilterTh controller={drawerLinesFilter} colKey="debit" className="p-2.5 text-start w-32" />
+                      <AutoFilterTh controller={drawerLinesFilter} colKey="credit" className="p-2.5 text-start w-32" />
+                      <AutoFilterTh controller={drawerLinesFilter} colKey="note" className="p-2.5 text-start" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {drawerLinesFilter.filteredRows.map((line) => (
+                    {drawerLinesFilter.rows.map((line) => (
                       <tr key={line._idx} className="hover:bg-[var(--row-hover)]">
                         <td className="p-2.5 font-mono text-[var(--muted)]">{line._idx}</td>
                         <td className="p-2.5">
@@ -1041,20 +1041,20 @@ export function ManualJournalsPanel({
             </div>
 
             <div className="rounded-xl border border-[var(--line)] overflow-hidden">
-              <AutoFilterBar state={draftLinesFilter} totalCount={lines.length} />
+              <AutoFilterBar controller={draftLinesFilter} totalCount={lines.length} />
               <table className="w-full text-xs">
                 <thead className="bg-[var(--raised)] text-[var(--muted)] border-b border-[var(--line)]">
                   <tr>
-                    <AutoFilterTh state={draftLinesFilter} colKey="idx" className="p-2 text-start w-8" />
-                    <AutoFilterTh state={draftLinesFilter} colKey="accountCode" className="p-2 text-start" />
-                    <AutoFilterTh state={draftLinesFilter} colKey="debit" className="p-2 text-start w-28" />
-                    <AutoFilterTh state={draftLinesFilter} colKey="credit" className="p-2 text-start w-28" />
-                    <AutoFilterTh state={draftLinesFilter} colKey="note" className="p-2 text-start" />
+                    <AutoFilterTh controller={draftLinesFilter} colKey="idx" className="p-2 text-start w-8" />
+                    <AutoFilterTh controller={draftLinesFilter} colKey="accountCode" className="p-2 text-start" />
+                    <AutoFilterTh controller={draftLinesFilter} colKey="debit" className="p-2 text-start w-28" />
+                    <AutoFilterTh controller={draftLinesFilter} colKey="credit" className="p-2 text-start w-28" />
+                    <AutoFilterTh controller={draftLinesFilter} colKey="note" className="p-2 text-start" />
                     <th className="p-2 text-center w-10">حذف</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)]">
-                  {draftLinesFilter.filteredRows.map((line) => (
+                  {draftLinesFilter.rows.map((line) => (
                     <tr key={line._idx} className="bg-[var(--surface)]">
                       <td className="p-2 font-mono text-[var(--muted)] text-center">{line._idx + 1}</td>
                       <td className="p-2">

@@ -364,9 +364,41 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
         error={error}
         onRetry={load}
         serverSide
+        searchable={false}
+        distinctEndpoint="/rider-mobile/broadcasts/distinct"
+        distinctParams={{ kind: kind || undefined, filters: serverQuery.filtersParam }}
         onServerQueryChange={(sq) => {
           setServerQuery({ filtersParam: sq.filtersParam, sortParam: sq.sortParam });
           setPage(1);
+        }}
+        onExport={async () => {
+          const allRes = await api.getRiderBroadcastsPage({
+            page: 1,
+            pageSize: 200,
+            kind: kind || undefined,
+            filters: serverQuery.filtersParam,
+            sort: serverQuery.sortParam,
+          });
+          const headers = ['العنوان', 'المستهدف', 'النوع', 'التصنيف', 'قراءات', 'إقرارات', 'أرسله', 'وقت الإرسال'];
+          const excelRows = allRes.items.map((b) => [
+            b.titleAr ?? '',
+            b.targetIqama === 'ALL' ? 'كل المناديب' : b.targetIqama ?? '',
+            KIND_LABEL[b.kind ?? ''] || b.kind || '',
+            CATEGORY_LABEL[b.category ?? ''] || b.category || '',
+            b.readCount ?? 0,
+            b.ackCount ?? 0,
+            b.sentBy ?? '',
+            b.createdAt ?? '',
+          ]);
+          const blob = await api.exportExcel({ headers, rows: excelRows, numericColumns: [4, 5], filename: 'rider-app-notifications.xlsx' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'rider-app-notifications.xlsx';
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
         }}
         page={page}
         pageSize={pageSize}

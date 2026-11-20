@@ -323,7 +323,7 @@ export function PaySettingsCycleReview({
                         <DataTable
                           tableId={`pay-setting-diff-${item.id}`}
                           data={item.diffs}
-                          getRowId={(d, idx) => `${d.key || d.labelAr}-${idx}`}
+                          getRowId={(d) => `${d.labelAr}-${String(d.prevValue ?? '')}-${String(d.curValue ?? '')}`}
                           pageSize={20}
                           columns={[
                             {

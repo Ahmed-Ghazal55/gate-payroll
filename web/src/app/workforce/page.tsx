@@ -1417,7 +1417,7 @@ function WorkforcePageInner() {
                   <DataTable
                     tableId="workforce-360-work-records"
                     data={profileData.workRecord3Months}
-                    getRowId={(r, i) => `${r.month}-${r.platform}-${i}`}
+                    getRowId={(r: any) => `${r.month ?? ''}-${r.platform ?? ''}-${r.workDays ?? ''}-${r.orders ?? ''}`}
                     searchable={false}
                     exportable={false}
                     syncUrl={false}
@@ -1459,7 +1459,7 @@ function WorkforcePageInner() {
                   <DataTable
                     tableId="workforce-360-promissory"
                     data={profileData.promissoryNotes}
-                    getRowId={(note, i) => String(note.id || note.noteNumber || i)}
+                    getRowId={(note: any) => String(note.id || note.noteNumber || `${note.date ?? ''}-${note.amount ?? ''}`)}
                     searchable={false}
                     exportable={false}
                     syncUrl={false}
@@ -1520,7 +1520,7 @@ function WorkforcePageInner() {
                   <DataTable
                     tableId="workforce-360-platform-accounts"
                     data={profileData.platformAccounts}
-                    getRowId={(acc, i) => String(acc.id || i)}
+                    getRowId={(acc: any) => String(acc.id || `${acc.platform ?? ''}-${acc.externalAccountId ?? ''}`)}
                     searchable={false}
                     exportable={false}
                     syncUrl={false}

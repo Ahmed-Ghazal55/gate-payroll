@@ -116,16 +116,16 @@ export function TreasuryExtrasPanel() {
           </div>
           {legacyPreview && (
             <div className="rounded-xl border border-[var(--line)] bg-[var(--raised)]/50 p-3 max-h-56 overflow-auto">
-              <AutoFilterBar state={legacyFilter} totalCount={legacyEntries.length} />
+              <AutoFilterBar controller={legacyFilter} totalCount={legacyEntries.length} />
               <table className="w-full text-xs text-start">
                 <thead className="text-[var(--muted)] border-b border-[var(--line)]">
                   <tr>
-                    <AutoFilterTh state={legacyFilter} colKey="key" className="py-1.5 pe-3 text-start" />
-                    <AutoFilterTh state={legacyFilter} colKey="value" className="py-1.5 text-start" />
+                    <AutoFilterTh controller={legacyFilter} colKey="key" className="py-1.5 pe-3 text-start" />
+                    <AutoFilterTh controller={legacyFilter} colKey="value" className="py-1.5 text-start" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)]">
-                  {legacyFilter.filteredRows.map((entry) => (
+                  {legacyFilter.rows.map((entry) => (
                     <tr key={entry.key}>
                       <td className="py-1.5 pe-3 font-semibold text-[var(--muted)] whitespace-nowrap">{entry.key}</td>
                       <td className="py-1.5 break-words">{entry.value}</td>

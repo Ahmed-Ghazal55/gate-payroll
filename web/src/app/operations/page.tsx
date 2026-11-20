@@ -875,6 +875,8 @@ function OperationsPageInner() {
         <EmptyState title="لا بيانات" description={view === 'oil' ? 'لا تغييرات زيت في هذه الفترة.' :'لا صفوف مطابقة للمرشحات.'} />
       ) : (
         <DataTable
+          key={`ops-${tab}-${view}`}
+          tableId={`ops-${tab}-${view}`}
           columns={columns}
           data={items}
           getRowId={(r) => String(r.id || Math.random())}

@@ -1491,22 +1491,22 @@ function TrialBalanceTable({
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
-      <AutoFilterBar state={tf} totalCount={rows.length} />
+      <AutoFilterBar controller={tf} totalCount={rows.length} />
       <table className="w-full text-xs text-start border-collapse">
         <thead>
           <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-            <AutoFilterTh state={tf} colKey="code" className="py-2.5 px-3" />
-            <AutoFilterTh state={tf} colKey="nameAr" className="py-2.5 px-3" />
-            <AutoFilterTh state={tf} colKey="openingDebit" className="py-2.5 px-3 text-end num" />
-            <AutoFilterTh state={tf} colKey="openingCredit" className="py-2.5 px-3 text-end num" />
-            <AutoFilterTh state={tf} colKey="periodDebit" className="py-2.5 px-3 text-end num" />
-            <AutoFilterTh state={tf} colKey="periodCredit" className="py-2.5 px-3 text-end num" />
-            <AutoFilterTh state={tf} colKey="closingDebit" className="py-2.5 px-3 text-end num" />
-            <AutoFilterTh state={tf} colKey="closingCredit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="code" className="py-2.5 px-3" />
+            <AutoFilterTh controller={tf} colKey="nameAr" className="py-2.5 px-3" />
+            <AutoFilterTh controller={tf} colKey="openingDebit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="openingCredit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="periodDebit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="periodCredit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="closingDebit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="closingCredit" className="py-2.5 px-3 text-end num" />
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--line)]">
-          {tf.filteredRows.map((row) => {
+          {tf.rows.map((row) => {
             const isGroup = !row.posting;
             return (
               <tr
@@ -1586,19 +1586,19 @@ function JournalDrawerLinesTable({ lines }: { lines: any[] }) {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
-      <AutoFilterBar state={tf} totalCount={lines.length} />
+      <AutoFilterBar controller={tf} totalCount={lines.length} />
       <table className="w-full text-xs text-start border-collapse">
         <thead>
           <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-            <AutoFilterTh state={tf} colKey="accountCode" className="py-2 px-3" />
-            <AutoFilterTh state={tf} colKey="accountNameAr" className="py-2 px-3" />
-            <AutoFilterTh state={tf} colKey="debit" className="py-2 px-3 text-end num" />
-            <AutoFilterTh state={tf} colKey="credit" className="py-2 px-3 text-end num" />
-            <AutoFilterTh state={tf} colKey="description" className="py-2 px-3" />
+            <AutoFilterTh controller={tf} colKey="accountCode" className="py-2 px-3" />
+            <AutoFilterTh controller={tf} colKey="accountNameAr" className="py-2 px-3" />
+            <AutoFilterTh controller={tf} colKey="debit" className="py-2 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="credit" className="py-2 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="description" className="py-2 px-3" />
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--line)]">
-          {tf.filteredRows.map((line, idx) => (
+          {tf.rows.map((line, idx) => (
             <tr key={idx} className="hover:bg-[var(--raised)]/40 transition">
               <td className="py-2 px-3 font-mono font-bold text-[var(--accent)] num">
                 {line.accountCode}

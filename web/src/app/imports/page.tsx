@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { formatReadableValue } from '../../lib/formatRecord';
 import {
@@ -1107,4 +1107,198 @@ function ImportCenter() {
 /** Pay-file import catalog only (no free-form mapper; ERP sync drawer removed in S1). */
 export default function ImportsPage() {
   return <ImportCenter />;
+}
+
+function ImportSamplePreviewTable({ rows }: { rows: any[] }) {
+  const normalizedRows = useMemo(
+    () =>
+      rows.slice(0, 50).map((r: any, idx: number) => {
+        const obj = r && typeof r === 'object' && r.data ? r.data : r;
+        return { __rowNum: idx + 1, ...(obj || {}) } as Record<string, any>;
+      }),
+    [rows]
+  );
+
+  const sampleCols = useMemo(
+    () => Object.keys(normalizedRows[0] || {}).filter((k) => k !== '__rowNum').slice(0, 5),
+    [normalizedRows]
+  );
+
+  const filterCols = useMemo(
+    () => [
+      { key: '__rowNum', header: '#', type: 'number' as const, getValue: (r: Record<string, any>) => r.__rowNum },
+      ...sampleCols.map((colKey) => ({
+        key: colKey,
+        header: colKey,
+        type: 'text' as const,
+        getValue: (r: Record<string, any>) => String(r[colKey] ?? ''),
+      })),
+    ],
+    [sampleCols]
+  );
+
+  const controller = useTableAutoFilter(normalizedRows, filterCols);
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-[var(--line)] bg-[var(--surface)] max-h-48">
+      <AutoFilterBar controller={controller} totalCount={normalizedRows.length} />
+      <table className="w-full text-xs text-start">
+        <thead className="bg-[var(--surface-muted)] text-[var(--ink)] sticky top-0">
+          <tr>
+            <AutoFilterTh controller={controller} colKey="__rowNum" className="p-2 text-start font-semibold border-b border-[var(--line)]" />
+            {sampleCols.map((colKey) => (
+              <AutoFilterTh key={colKey} controller={controller} colKey={colKey} className="p-2 text-start font-semibold border-b border-[var(--line)]" />
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {controller.rows.slice(0, 10).map((row) => (
+            <tr key={row.__rowNum} className="border-b border-[var(--line)] last:border-0 hover:bg-[var(--surface-muted)]/30">
+              <td className="p-2 text-[var(--ink-muted)] num">{row.__rowNum}</td>
+              {sampleCols.map((colKey) => (
+                <td key={colKey} className="p-2 text-[var(--ink)] truncate max-w-[150px]">
+                  {String(row[colKey] ?? '')}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ImportColumnsSpecTable({
+  columns,
+  expandedChoiceColumns,
+  setExpandedChoiceColumns,
+}: {
+  columns: ImportCatalogColumn[];
+  expandedChoiceColumns: Set<string>;
+  setExpandedChoiceColumns: React.Dispatch<React.SetStateAction<Set<string>>>;
+}) {
+  const indexed = useMemo(() => columns.map((col, idx) => ({ ...col, __idx: idx + 1 })), [columns]);
+  const filterCols = useMemo(
+    () => [
+      { key: '__idx', header: '#', type: 'number' as const, getValue: (c: ImportCatalogColumn & { __idx: number }) => c.__idx },
+      { key: 'name', header: 'اسم العمود (Header)', type: 'text' as const, getValue: (c: ImportCatalogColumn & { __idx: number }) => c.name || '' },
+      {
+        key: 'required',
+        header: 'الإلزامية',
+        type: 'list' as const,
+        getValue: (c: ImportCatalogColumn & { __idx: number }) => (c.required ? 'required' : 'optional'),
+        labelOf: (v: unknown) => (v === 'required' ? 'إلزامي' : 'اختياري'),
+        toneOf: (v: unknown) => (v === 'required' ? 'danger' : 'neutral'),
+      },
+      {
+        key: 'type',
+        header: 'النوع',
+        type: 'list' as const,
+        getValue: (c: ImportCatalogColumn & { __idx: number }) => c.type || 'text',
+        labelOf: (v: unknown) => (v === 'number' ? 'رقم' : v === 'choice' ? 'قائمة خيارات' : 'نص'),
+      },
+      {
+        key: 'choices',
+        header: 'الخيارات المسموحة',
+        type: 'text' as const,
+        getValue: (c: ImportCatalogColumn & { __idx: number }) => (c.choices || []).join('، '),
+      },
+    ],
+    []
+  );
+
+  const controller = useTableAutoFilter(indexed, filterCols);
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
+      <AutoFilterBar controller={controller} totalCount={indexed.length} />
+      <table className="w-full text-start">
+        <thead className="bg-[var(--surface-muted)] text-[var(--ink)]">
+          <tr>
+            <AutoFilterTh controller={controller} colKey="__idx" className="p-2.5 text-start font-semibold border-b border-[var(--line)]" />
+            <AutoFilterTh controller={controller} colKey="name" className="p-2.5 text-start font-semibold border-b border-[var(--line)]" />
+            <AutoFilterTh controller={controller} colKey="required" className="p-2.5 text-start font-semibold border-b border-[var(--line)]" />
+            <AutoFilterTh controller={controller} colKey="type" className="p-2.5 text-start font-semibold border-b border-[var(--line)]" />
+            <AutoFilterTh controller={controller} colKey="choices" className="p-2.5 text-start font-semibold border-b border-[var(--line)]" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--line)]">
+          {controller.rows.map((col) => {
+            const isExpanded = expandedChoiceColumns.has(col.name);
+            const hasChoices = col.choices && col.choices.length > 0;
+            const choicesList = col.choices || [];
+            const isCollapsed = hasChoices && choicesList.length > 6 && !isExpanded;
+            const displayedChoices = isCollapsed ? choicesList.slice(0, 6) : choicesList;
+
+            return (
+              <tr key={col.name} className="hover:bg-[var(--surface-muted)]/40">
+                <td className="p-2.5 text-[var(--ink-muted)] num">{col.__idx}</td>
+                <td className="p-2.5 font-medium text-[var(--ink)]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono">{col.name}</span>
+                    {col.identity && (
+                      <span className="px-1.5 py-0.2 rounded text-[10px] bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20">
+                        معرّف فريد
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="p-2.5">
+                  {col.required ? (
+                    <span className="inline-flex items-center gap-1 font-semibold text-red-600 dark:text-red-400">
+                      <span className="text-red-500">●</span>
+                      <span>إلزامي</span>
+                    </span>
+                  ) : (
+                    <span className="text-[var(--ink-muted)]">اختياري</span>
+                  )}
+                </td>
+                <td className="p-2.5">
+                  <span className="px-2 py-0.5 rounded text-[11px] bg-[var(--surface-muted)] text-[var(--ink)] border border-[var(--line)]">
+                    {col.type === 'number' ? 'رقم' : col.type === 'choice' ? 'قائمة خيارات' : 'نص'}
+                  </span>
+                </td>
+                <td className="p-2.5 max-w-[200px]">
+                  {hasChoices ? (
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap gap-1">
+                        {displayedChoices.map((choice, cIdx) => (
+                          <span
+                            key={cIdx}
+                            className="px-1.5 py-0.2 rounded text-[10px] bg-[var(--surface-muted)] text-[var(--ink-muted)] border border-[var(--line)]"
+                          >
+                            {choice}
+                          </span>
+                        ))}
+                      </div>
+                      {choicesList.length > 6 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExpandedChoiceColumns((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(col.name)) next.delete(col.name);
+                              else next.add(col.name);
+                              return next;
+                            });
+                          }}
+                          className="text-[11px] text-[var(--accent)] hover:underline font-medium block"
+                        >
+                          {isExpanded
+                            ? 'طي الخيارات'
+                            : `+ ${choicesList.length - 6} خيارات أخرى (عرض الكل)`}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-[var(--ink-muted)]">-</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }

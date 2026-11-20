@@ -339,35 +339,35 @@ export function ConfigListsPanel() {
 
           {/* Items Table */}
           <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs overflow-hidden">
-            <AutoFilterBar state={configFilter} totalCount={(activeGroup.items || []).length} />
+            <AutoFilterBar controller={configFilter} totalCount={(activeGroup.items || []).length} />
             <div className="overflow-x-auto">
               <table className="w-full text-start text-xs border-collapse">
                 <thead>
                   <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-                    <AutoFilterTh state={configFilter} colKey="code" className="py-2.5 px-3 text-start" />
-                    <AutoFilterTh state={configFilter} colKey="nameAr" className="py-2.5 px-3 text-start" />
+                    <AutoFilterTh controller={configFilter} colKey="code" className="py-2.5 px-3 text-start" />
+                    <AutoFilterTh controller={configFilter} colKey="nameAr" className="py-2.5 px-3 text-start" />
                     {activeGroup.fields?.map((f) => (
                       <AutoFilterTh
                         key={f.key}
-                        state={configFilter}
+                        controller={configFilter}
                         colKey={`field_${f.key}`}
                         className="py-2.5 px-2 text-start"
                       />
                     ))}
-                    <AutoFilterTh state={configFilter} colKey="active" className="py-2.5 px-2 text-center" />
-                    <AutoFilterTh state={configFilter} colKey="status" className="py-2.5 px-2 text-center" />
+                    <AutoFilterTh controller={configFilter} colKey="active" className="py-2.5 px-2 text-center" />
+                    <AutoFilterTh controller={configFilter} colKey="status" className="py-2.5 px-2 text-center" />
                     <th className="py-2.5 px-3 text-end">الإجراءات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)]">
-                  {configFilter.filteredRows.length === 0 ? (
+                  {configFilter.rows.length === 0 ? (
                     <tr>
                       <td colSpan={5 + (activeGroup.fields?.length || 0)} className="py-12 text-center text-xs text-[var(--muted)]">
                         لا توجد عناصر مسجلة في هذه القائمة حتى الآن.
                       </td>
                     </tr>
                   ) : (
-                    configFilter.filteredRows.map((item) => (
+                    configFilter.rows.map((item) => (
                       <tr key={item.code} className="hover:bg-[var(--row-hover)] transition">
                         <td className="py-2.5 px-3 font-mono font-bold text-[var(--accent)] num">
                           {item.code}

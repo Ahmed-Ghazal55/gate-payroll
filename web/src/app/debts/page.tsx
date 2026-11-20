@@ -1564,7 +1564,7 @@ function DebtsPageContent() {
               <DataTable
                 tableId="debts-statement-entries"
                 data={statementData.entries || []}
-                getRowId={(_, i) => String(i)}
+                getRowId={(e: any) => String(e.id || `${e.date}-${e.description || e.statement || ''}-${e.debit ?? 0}-${e.credit ?? 0}-${e.balance ?? 0}`)}
                 searchable={false}
                 exportable={true}
                 exportFilename={`statement_${statementData.iqama}`}

@@ -541,28 +541,28 @@ function RiderStatementPageInner() {
             </div>
 
             <div className="overflow-x-auto">
-              <AutoFilterBar state={timelineFilter} totalCount={(statement.entries || []).length} />
+              <AutoFilterBar controller={timelineFilter} totalCount={(statement.entries || []).length} />
               <table className="w-full text-start text-xs sm:text-sm">
                 <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold print:bg-gray-100">
                   <tr>
-                    <AutoFilterTh state={timelineFilter} colKey="date" className="p-3 text-start" />
-                    <AutoFilterTh state={timelineFilter} colKey="entryType" className="p-3 text-start" />
-                    <AutoFilterTh state={timelineFilter} colKey="description" className="p-3 text-start" />
-                    <AutoFilterTh state={timelineFilter} colKey="reference" className="p-3 text-start" />
-                    <AutoFilterTh state={timelineFilter} colKey="debit" className="p-3 text-start" />
-                    <AutoFilterTh state={timelineFilter} colKey="credit" className="p-3 text-start" />
-                    <AutoFilterTh state={timelineFilter} colKey="balance" className="p-3 text-start" />
+                    <AutoFilterTh controller={timelineFilter} colKey="date" className="p-3 text-start" />
+                    <AutoFilterTh controller={timelineFilter} colKey="entryType" className="p-3 text-start" />
+                    <AutoFilterTh controller={timelineFilter} colKey="description" className="p-3 text-start" />
+                    <AutoFilterTh controller={timelineFilter} colKey="reference" className="p-3 text-start" />
+                    <AutoFilterTh controller={timelineFilter} colKey="debit" className="p-3 text-start" />
+                    <AutoFilterTh controller={timelineFilter} colKey="credit" className="p-3 text-start" />
+                    <AutoFilterTh controller={timelineFilter} colKey="balance" className="p-3 text-start" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)] print:divide-gray-300">
-                  {timelineFilter.filteredRows.length === 0 ? (
+                  {timelineFilter.rows.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="p-6 text-center text-xs text-[var(--muted)]">
                         لا توجد حركات مالية مسجلة خلال الفترة المحددة.
                       </td>
                     </tr>
                   ) : (
-                    timelineFilter.filteredRows.map((entry, idx) => (
+                    timelineFilter.rows.map((entry, idx) => (
                       <tr key={idx} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono text-xs text-[var(--muted)] whitespace-nowrap">
                           {entry.date}

@@ -284,9 +284,48 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
             error={error}
             onRetry={load}
             serverSide
+            searchable={false}
+            distinctEndpoint="/rider-mobile/service-requests/distinct"
+            distinctParams={{
+              status: status || undefined,
+              requestType: SUBTAB_TYPE[active],
+              group: active === 'other' ? 'other' : undefined,
+              filters: serverQuery.filtersParam,
+            }}
             onServerQueryChange={(sq) => {
               setServerQuery({ filtersParam: sq.filtersParam, sortParam: sq.sortParam });
               setPage(1);
+            }}
+            onExport={async () => {
+              const allRes = await api.getServiceRequestsPage({
+                page: 1,
+                pageSize: 200,
+                status: status || undefined,
+                requestType: SUBTAB_TYPE[active],
+                group: active === 'other' ? 'other' : undefined,
+                filters: serverQuery.filtersParam,
+                sort: serverQuery.sortParam,
+              });
+              const headers = ['رقم الطلب', 'المندوب', 'رقم الإقامة', 'النوع', 'التفاصيل', 'الاتجاه', 'تاريخ الإرسال', 'الحالة'];
+              const excelRows = allRes.items.map((r) => [
+                r.id.replace(/^sreq:/, '').slice(0, 8),
+                r.riderName ?? '',
+                r.riderIqama ?? '',
+                TYPE_LABEL[r.requestType] || r.requestType,
+                details(r),
+                r.direction === 'admin_to_rider' ? 'من الإدارة للمندوب' : 'من المندوب',
+                r.createdAt ?? '',
+                STATUS_LABEL[r.status] || r.status,
+              ]);
+              const blob = await api.exportExcel({ headers, rows: excelRows, numericColumns: [], filename: 'rider-app-requests.xlsx' });
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'rider-app-requests.xlsx';
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              document.body.removeChild(a);
             }}
             page={page}
             pageSize={pageSize}

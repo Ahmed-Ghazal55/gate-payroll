@@ -493,22 +493,22 @@ function TreasuryPageContent() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-              <AutoFilterBar state={vaultsFilter} totalCount={vaultAccounts.length} />
+              <AutoFilterBar controller={vaultsFilter} totalCount={vaultAccounts.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <AutoFilterTh state={vaultsFilter} colKey="code" className="p-3 text-start" />
-                      <AutoFilterTh state={vaultsFilter} colKey="nameAr" className="p-3 text-start" />
-                      <AutoFilterTh state={vaultsFilter} colKey="type" className="p-3 text-start" />
-                      <AutoFilterTh state={vaultsFilter} colKey="sponsorName" className="p-3 text-start" />
-                      <AutoFilterTh state={vaultsFilter} colKey="netBalance" className="p-3 text-start" />
-                      <AutoFilterTh state={vaultsFilter} colKey="naturalSideAr" className="p-3 text-start" />
+                      <AutoFilterTh controller={vaultsFilter} colKey="code" className="p-3 text-start" />
+                      <AutoFilterTh controller={vaultsFilter} colKey="nameAr" className="p-3 text-start" />
+                      <AutoFilterTh controller={vaultsFilter} colKey="type" className="p-3 text-start" />
+                      <AutoFilterTh controller={vaultsFilter} colKey="sponsorName" className="p-3 text-start" />
+                      <AutoFilterTh controller={vaultsFilter} colKey="netBalance" className="p-3 text-start" />
+                      <AutoFilterTh controller={vaultsFilter} colKey="naturalSideAr" className="p-3 text-start" />
                       <th className="p-3 text-start">الإجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {vaultsFilter.filteredRows.map((a) => (
+                    {vaultsFilter.rows.map((a) => (
                       <tr key={a.code} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono font-bold text-[var(--accent)]">{a.code}</td>
                         <td className="p-3 font-semibold">{a.nameAr}</td>
@@ -573,23 +573,23 @@ function TreasuryPageContent() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-              <AutoFilterBar state={payoutsFilter} totalCount={advancePayouts.length} />
+              <AutoFilterBar controller={payoutsFilter} totalCount={advancePayouts.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <AutoFilterTh state={payoutsFilter} colKey="id" className="p-3 text-start" />
-                      <AutoFilterTh state={payoutsFilter} colKey="rider" className="p-3 text-start" />
-                      <AutoFilterTh state={payoutsFilter} colKey="type" className="p-3 text-start" />
-                      <AutoFilterTh state={payoutsFilter} colKey="amount" className="p-3 text-start" />
-                      <AutoFilterTh state={payoutsFilter} colKey="monthlyInstallment" className="p-3 text-start" />
-                      <AutoFilterTh state={payoutsFilter} colKey="approvedBy" className="p-3 text-start" />
-                      <AutoFilterTh state={payoutsFilter} colKey="reason" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="id" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="rider" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="type" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="amount" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="monthlyInstallment" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="approvedBy" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="reason" className="p-3 text-start" />
                       <th className="p-3 text-start">الإجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {payoutsFilter.filteredRows.map((req) => (
+                    {payoutsFilter.rows.map((req) => (
                       <tr key={req.id} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono text-[11px] text-[var(--muted)]">{req.id}</td>
                         <td className="p-3">
@@ -760,20 +760,20 @@ function TreasuryPageContent() {
               </div>
 
               <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-                <AutoFilterBar state={bankRecordsFilter} totalCount={bankFilePreview.records.length} />
+                <AutoFilterBar controller={bankRecordsFilter} totalCount={bankFilePreview.records.length} />
                 <div className="overflow-x-auto">
                   <table className="w-full text-start text-xs sm:text-sm">
                     <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                       <tr>
-                        <AutoFilterTh state={bankRecordsFilter} colKey="riderIqama" className="p-3 text-start" />
-                        <AutoFilterTh state={bankRecordsFilter} colKey="riderName" className="p-3 text-start" />
-                        <AutoFilterTh state={bankRecordsFilter} colKey="iban" className="p-3 text-start" />
-                        <AutoFilterTh state={bankRecordsFilter} colKey="amount" className="p-3 text-start" />
-                        <AutoFilterTh state={bankRecordsFilter} colKey="status" className="p-3 text-start" />
+                        <AutoFilterTh controller={bankRecordsFilter} colKey="riderIqama" className="p-3 text-start" />
+                        <AutoFilterTh controller={bankRecordsFilter} colKey="riderName" className="p-3 text-start" />
+                        <AutoFilterTh controller={bankRecordsFilter} colKey="iban" className="p-3 text-start" />
+                        <AutoFilterTh controller={bankRecordsFilter} colKey="amount" className="p-3 text-start" />
+                        <AutoFilterTh controller={bankRecordsFilter} colKey="status" className="p-3 text-start" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--line)]">
-                      {bankRecordsFilter.filteredRows.map((r, idx) => (
+                      {bankRecordsFilter.rows.map((r, idx) => (
                         <tr key={idx} className="hover:bg-[var(--row-hover)] transition">
                           <td className="p-3 font-mono">{r.riderIqama}</td>
                           <td className="p-3 font-semibold">{r.riderName}</td>
@@ -845,21 +845,21 @@ function TreasuryPageContent() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
-              <AutoFilterBar state={movementsFilter} totalCount={journals.length} />
+              <AutoFilterBar controller={movementsFilter} totalCount={journals.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <AutoFilterTh state={movementsFilter} colKey="id" className="p-3 text-start" />
-                      <AutoFilterTh state={movementsFilter} colKey="description" className="p-3 text-start" />
-                      <AutoFilterTh state={movementsFilter} colKey="entryDate" className="p-3 text-start" />
-                      <AutoFilterTh state={movementsFilter} colKey="totalDebit" className="p-3 text-start" />
-                      <AutoFilterTh state={movementsFilter} colKey="postedBy" className="p-3 text-start" />
-                      <AutoFilterTh state={movementsFilter} colKey="status" className="p-3 text-start" />
+                      <AutoFilterTh controller={movementsFilter} colKey="id" className="p-3 text-start" />
+                      <AutoFilterTh controller={movementsFilter} colKey="description" className="p-3 text-start" />
+                      <AutoFilterTh controller={movementsFilter} colKey="entryDate" className="p-3 text-start" />
+                      <AutoFilterTh controller={movementsFilter} colKey="totalDebit" className="p-3 text-start" />
+                      <AutoFilterTh controller={movementsFilter} colKey="postedBy" className="p-3 text-start" />
+                      <AutoFilterTh controller={movementsFilter} colKey="status" className="p-3 text-start" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {movementsFilter.filteredRows.map((j) => (
+                    {movementsFilter.rows.map((j) => (
                       <tr key={j.id} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono text-xs text-[var(--accent)]">#{j.id.substring(0, 8)}</td>
                         <td className="p-3 font-semibold">{j.description}</td>
