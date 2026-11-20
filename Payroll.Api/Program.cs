@@ -58,6 +58,7 @@ CampaignLinks.Migrate(store);
 Companies.Seed(store);
 ConfigLists.Seed(store);
 ManualJournals.Seed(store);
+UserAccess.SeedSystemAdmin(store);
 app.MapOpenApi("/openapi/{documentName}.json").WithTags("Administration").WithSummary("Administrator-only OpenAPI document").RequireAuthorization().AddEndpointFilter(async (context, next) =>
     AccessPolicy.Administrator(context.HttpContext.User) ? await next(context) : Results.Json(new { error="التوثيق لمسؤول النظام فقط.", code="forbidden" }, statusCode:403));
 app.UseForwardedHeaders();

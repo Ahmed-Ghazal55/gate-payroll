@@ -110,8 +110,9 @@ public static class UserAccess
             "صلاحية شاملة للإدارة العليا والرقابة المالية والتشغيلية واعتماد السياسات والرواتب.",
             PermissionsCatalog.Select(p => p.Code).ToArray()),
 
-        new("SystemAdmin", "مسؤول مزامنة النظام", "MGT", 3,
-            "تشغيل المزامنة من الصلاحيات المخصصة؛ لا يمنح إدارة المستخدمين أو التحكم في الجدولة.", []),
+        new("SystemAdmin", "مسؤول النظام", "MGT", 5,
+            "كل صلاحيات الكتالوج والاستثناءات الافتراضية؛ الاعتماد الذاتي يظهر في تقرير المراجعة (M-0667).",
+            PermissionsCatalog.Select(p => p.Code).ToArray()),
 
         new("FinancialManager", "المدير المالي", "FIN", 4,
             "قراءة التقارير المالية ومعاينة وتصدير ملف البنك ضمن النطاق.",
@@ -223,7 +224,7 @@ public static class UserAccess
     public static string[] EffectivePermissions(JsonObject u)
     {
         string role = Role(u);
-        if (role is "Admin" or "SuperAdmin") return PermissionsCatalog.Select(p => p.Code).ToArray();
+        if (role is "Admin" or "SuperAdmin" or "SystemAdmin") return PermissionsCatalog.Select(p => p.Code).ToArray();
         var def = ResolveRoleDef(role);
         // An edited role template is attached by WithRole for the current read only; never stored on the user.
         var baseline = u[RoleBaseline] is JsonArray edited ? edited.Select(p => p?.ToString() ?? "") : def.DefaultPermissions;
@@ -242,6 +243,24 @@ public static class UserAccess
     }
 
     public const string RolePermissionsKind = "role_permissions", RoleBaseline = "__roleBaseline";
+    public const string SystemAdminMigrationMarker = "migration:system-admin-permissions:v1";
+    // M-0667: existing SystemAdmin accounts and role templates get the full permission catalog once.
+    public static void SeedSystemAdmin(Store store)=>store.Write((c,tx)=>
+    {
+        if(Store.Get(c,SystemAdminMigrationMarker,"setting",tx)!=null)return false;
+        var full=new JsonArray(PermissionsCatalog.Select(p=>(JsonNode?)p.Code).ToArray());
+        var template=Store.Get(c,"SystemAdmin",RolePermissionsKind,tx);
+        if(template==null||template["permissions"] is not JsonArray existing||existing.Count!=PermissionsCatalog.Length)
+        {
+            Store.Save(c,RolePermissionsKind,new(){["id"]="SystemAdmin",["permissions"]=full.DeepClone(),["updatedBy"]="system-migration",["updatedAt"]=DateTimeOffset.UtcNow.ToString("O")},tx);
+            Store.Audit(c,tx,"admin.role_permissions","SystemAdmin","system-migration");
+        }
+        foreach(var user in Store.List(c,"user",tx).Where(u=>Role(u)=="SystemAdmin"))
+        {
+            Store.Audit(c,tx,"admin.system_admin_permissions_seeded",user.S("id"),"system-migration");
+        }
+        Store.Save(c,"setting",new(){["id"]=SystemAdminMigrationMarker,["completed"]=true},tx);return true;
+    });
     public static JsonObject WithRole(DbConnection c, DbTransaction? tx, JsonObject u)
     {
         var edited = Store.Get(c, Role(u), RolePermissionsKind, tx);
@@ -450,7 +469,7 @@ public static class UserAccess
             financialScopeCatalog=new{sponsors=FinancialCore.Sponsors,accounts=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault),categories=FinancialCore.CategoriesCatalog,platforms=new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}}
         }).WithTags("Administration").WithSummary("Read roles catalog");
 
-        api.MapGet("/admin/approval-exceptions",(HttpContext ctx)=>{J.Need(AccessPolicy.Administrator(ctx.User),"للمسؤول فقط.",403);return store.Read(c=>Store.List(c,"audit").Where(a=>a.S("action")=="approval.self_exception").OrderByDescending(a=>a.S("at")));}).WithTags("Administration").WithSummary("List every dated self-approval exception use for pre-launch review");
+        api.MapGet("/admin/approval-exceptions",(HttpContext ctx)=>{J.Need(AccessPolicy.Administrator(ctx.User)||ctx.User.IsInRole("SystemAdmin"),"للمسؤول فقط.",403);return store.Read(c=>Store.List(c,"audit").Where(a=>a.B("selfApprovedException")||a.S("action") is "approval.self_exception" or "approval.bypass_maker_checker").OrderByDescending(a=>a.S("at")));}).WithTags("Administration").WithSummary("Self-approval audit report (dated exceptions and bypass uses)");
         api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(u => Public(WithRole(c, null, u))).ToList())).WithTags("Administration").WithSummary("Read users");
 
         api.MapPost("/users", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>

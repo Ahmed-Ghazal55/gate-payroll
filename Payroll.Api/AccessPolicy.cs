@@ -5,7 +5,7 @@ namespace Payroll;
 // One route policy is used by the API, UI capability list and offline review tests.
 public static partial class AccessPolicy
 {
-    public static bool Administrator(ClaimsPrincipal user)=>user.IsInRole("Admin")||user.IsInRole("SuperAdmin");
+    public static bool Administrator(ClaimsPrincipal user)=>user.IsInRole("Admin")||user.IsInRole("SuperAdmin")||user.IsInRole("SystemAdmin");
     public static string[] CompatibilityDefaults(string role)=>role switch {
         "Accountant"=>["payments.record","adjustments.create","imports.view","policies.view","inquiry.issue","treasury.disburse","treasury.jahez.receive","treasury.journals","treasury.liability.settle","debts.create.housing","debts.create.administrative","debts.create.equipment"],
         "FinancialAccountant"=>["payments.record","adjustments.create","imports.view","policies.view","inquiry.issue","treasury.disburse","treasury.jahez.receive","treasury.journals","treasury.opening","treasury.liability.settle","debts.create.housing","debts.create.administrative","debts.create.equipment"],
