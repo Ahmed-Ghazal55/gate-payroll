@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:36205/"
+      "url": "http://127.0.0.1:36541/"
     }
   ],
   "paths": {
@@ -1181,19 +1181,6 @@
           "Administration"
         ],
         "summary": "Redirect to the current administration app",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/legacy": {
-      "get": {
-        "tags": [
-          "Administration"
-        ],
-        "summary": "Serve legacy administration to a signed-in session",
         "responses": {
           "200": {
             "description": "OK"
@@ -19100,13 +19087,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "approvedOnly",
-            "in": "query",
-            "schema": {
-              "type": "boolean"
-            }
           }
         ],
         "responses": {
@@ -26606,166 +26586,6 @@
         }
       }
     },
-    "/api/imports/inspect": {
-      "post": {
-        "tags": [
-          "Payroll"
-        ],
-        "summary": "Submit imports inspect",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonObject"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndIEnumerableOfAnonymousTypeOfstringAndintAndint"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/imports/{id}/sheet": {
-      "get": {
-        "tags": [
-          "Payroll"
-        ],
-        "summary": "Read imports {id} sheet",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "sheet",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "headerRow",
-            "in": "query",
-            "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfAnonymousTypeOfintAndstringAndIEnumerableOfListOfstringAndint"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/imports/{id}/preview": {
-      "post": {
-        "tags": [
-          "Payroll"
-        ],
-        "summary": "Submit imports {id} preview",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonObject"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Preview"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/imports/{id}/commit": {
-      "post": {
-        "tags": [
-          "Payroll"
-        ],
-        "summary": "Submit imports {id} commit",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonObject"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfintAndstring"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/imports": {
       "get": {
         "tags": [
@@ -28543,45 +28363,6 @@
           }
         }
       },
-      "AnonymousTypeOfIEnumerableOfAnonymousTypeOfintAndstringAndIEnumerableOfListOfstringAndint": {
-        "required": [
-          "headers",
-          "sample",
-          "rowCount"
-        ],
-        "type": "object",
-        "properties": {
-          "headers": {
-            "type": [
-              "null",
-              "array"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/AnonymousTypeOfintAndstring"
-            }
-          },
-          "sample": {
-            "type": [
-              "null",
-              "array"
-            ],
-            "items": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          "rowCount": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          }
-        }
-      },
       "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean": {
         "required": [
           "sponsors",
@@ -29540,38 +29321,6 @@
           }
         }
       },
-      "AnonymousTypeOfstringAndintAndint": {
-        "required": [
-          "name",
-          "rows",
-          "columns"
-        ],
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "rows": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "columns": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          }
-        }
-      },
       "AnonymousTypeOfstringAndintAndintAndJsonArrayAndJsonArrayAndstring": {
         "required": [
           "filename",
@@ -29637,37 +29386,6 @@
               "null",
               "string"
             ]
-          }
-        }
-      },
-      "AnonymousTypeOfstringAndstringAndIEnumerableOfAnonymousTypeOfstringAndintAndint": {
-        "required": [
-          "id",
-          "filename",
-          "sheets"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "filename": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "sheets": {
-            "type": [
-              "null",
-              "array"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/AnonymousTypeOfstringAndintAndint"
-            }
           }
         }
       },
@@ -31107,27 +30825,6 @@
           }
         }
       },
-      "Preview": {
-        "required": [
-          "rows",
-          "errors"
-        ],
-        "type": "object",
-        "properties": {
-          "rows": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/WorkLine"
-            }
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
       "RoleDef": {
         "required": [
           "code",
@@ -31195,93 +30892,6 @@
           },
           "commercialReg": {
             "type": "string"
-          }
-        }
-      },
-      "WorkLine": {
-        "required": [
-          "sourceRef",
-          "iqama",
-          "name",
-          "platform",
-          "accountId",
-          "period",
-          "from",
-          "to",
-          "orders",
-          "platformRevenue",
-          "riderPay",
-          "isValid",
-          "company",
-          "city"
-        ],
-        "type": "object",
-        "properties": {
-          "sourceRef": {
-            "type": "string"
-          },
-          "iqama": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "platform": {
-            "type": "string"
-          },
-          "accountId": {
-            "type": "string"
-          },
-          "period": {
-            "type": "string"
-          },
-          "from": {
-            "type": "string"
-          },
-          "to": {
-            "type": "string"
-          },
-          "orders": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "platformRevenue": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "null",
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "riderPay": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "null",
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "isValid": {
-            "type": [
-              "null",
-              "boolean"
-            ]
-          },
-          "company": {
-            "type": "string"
-          },
-          "city": {
-            "type": "string"
-          },
-          "datesConfirmed": {
-            "type": "boolean",
-            "default": false
           }
         }
       }

@@ -10,15 +10,15 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/api/approvals` | Payroll.Api/FinancialCore.cs:721 | approvals.view | old UI | keep |
-| GET | `/api/dashboard` | Payroll.Api/Program.cs:199 | payroll.view | old UI | keep |
+| GET | `/api/approvals` | Payroll.Api/FinancialCore.cs:721 | approvals.view | web | keep |
+| GET | `/api/dashboard` | Payroll.Api/Program.cs:199 | payroll.view | web | keep |
 | GET | `/api/notifications` | Payroll.Api/Notifications.cs:109 | authenticated; category/owner visibility in handler | none | new |
-| GET | `/api/notifications/center` | Payroll.Api/FinancialCore.cs:782 | approvals.view | old UI | keep |
+| GET | `/api/notifications/center` | Payroll.Api/FinancialCore.cs:782 | approvals.view | web | keep |
 | GET | `/api/notifications/summary` | Payroll.Api/Notifications.cs:117 | authenticated; category/owner visibility in handler | none | new |
 | GET | `/api/search` | Payroll.Api/GlobalSearch.cs:28 | authenticated; category/owner visibility in handler | none | new |
-| POST | `/api/approvals/{id}/decide` | Payroll.Api/FinancialCore.cs:729 | approvals.decide + department/rank + maker-checker | old UI | keep |
-| POST | `/api/notifications/center` | Payroll.Api/FinancialCore.cs:797 | mobile.broadcast | old UI | keep |
-| POST | `/api/notifications/center/{id}/toggle-todo` | Payroll.Api/FinancialCore.cs:821 | approvals.view OR owner; department visibility | old UI | keep |
+| POST | `/api/approvals/{id}/decide` | Payroll.Api/FinancialCore.cs:729 | approvals.decide + department/rank + maker-checker | web | keep |
+| POST | `/api/notifications/center` | Payroll.Api/FinancialCore.cs:797 | mobile.broadcast | web | keep |
+| POST | `/api/notifications/center/{id}/toggle-todo` | Payroll.Api/FinancialCore.cs:821 | approvals.view OR owner; department visibility | web | keep |
 | POST | `/api/notifications/read-all` | Payroll.Api/Notifications.cs:126 | authenticated; category/owner visibility in handler | none | new |
 | POST | `/api/notifications/{id}/read` | Payroll.Api/Notifications.cs:122 | authenticated; category/owner visibility in handler | none | new |
 
@@ -26,65 +26,65 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/api/rider-mobile/broadcasts` | Payroll.Api/FinancialCore.cs:919 | mobile.broadcast + company scope OR active rider bearer token (own and ALL) | old UI | keep |
-| GET | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:963 | Admin / SuperAdmin | old UI | keep |
-| GET | `/api/rider-mobile/forms` | Payroll.Api/RiderAsks.cs:1253 | mobile.broadcast | none | keep |
+| GET | `/api/rider-mobile/broadcasts` | Payroll.Api/FinancialCore.cs:919 | mobile.broadcast + company scope OR active rider bearer token (own and ALL) | web | keep |
+| GET | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:963 | Admin / SuperAdmin | web | keep |
+| GET | `/api/rider-mobile/forms` | Payroll.Api/RiderAsks.cs:1253 | mobile.broadcast | web | keep |
 | GET | `/api/rider-mobile/portal/{iqama}` | Payroll.Api/FinancialCore.cs:1014 | own rider session / one-time inquiry code | rider app | keep |
-| GET | `/api/rider-mobile/requests` | Payroll.Api/RiderAsks.cs:1264 | Active rider bearer token; own asks only; routed to current supervisor | none | keep |
-| GET | `/api/rider-mobile/service-requests` | Payroll.Api/RiderAsks.cs:1303 | mobile.broadcast | none | keep |
-| GET | `/api/rider-mobile/service-requests/summary` | Payroll.Api/RiderAsks.cs:1314 | mobile.broadcast | none | keep |
-| GET | `/api/rider-mobile/sessions` | Payroll.Api/MobileSessions.cs:125 | mobile.sessions (Admin / SuperAdmin); company or sponsor scope; safe hash prefix only | none | keep |
+| GET | `/api/rider-mobile/requests` | Payroll.Api/RiderAsks.cs:1264 | Active rider bearer token; own asks only; routed to current supervisor | web | keep |
+| GET | `/api/rider-mobile/service-requests` | Payroll.Api/RiderAsks.cs:1303 | mobile.broadcast | web | keep |
+| GET | `/api/rider-mobile/service-requests/summary` | Payroll.Api/RiderAsks.cs:1314 | mobile.broadcast | web | keep |
+| GET | `/api/rider-mobile/sessions` | Payroll.Api/MobileSessions.cs:125 | mobile.sessions (Admin / SuperAdmin); company or sponsor scope; safe hash prefix only | web | keep |
 | GET | `/api/rider-mobile/sessions/mine` | Payroll.Api/MobileSessions.cs:127 | Active rider bearer token; own sessions only | rider app | keep |
 | GET | `/api/rider-mobile/statement` | Payroll.Api/PayStatements.cs:257 | Active rider bearer token; own approved cycles or approved legacy fallback | rider app | keep |
-| GET | `/api/riders` | Payroll.Api/Program.cs:200 | riders.view | old UI | keep |
-| GET | `/api/riders/data-quality` | Payroll.Api/DirectoryApi.cs:100 | riders.view | old UI | keep |
-| GET | `/api/riders/lookup` | Payroll.Api/RiderLookup.cs:70 | riders.view | none | keep |
-| GET | `/api/riders/{iqama}/profile-360` | Payroll.Api/DirectoryApi.cs:119 | riders.view_360 + debts.view | old UI | keep |
-| GET | `/inquiry` | Payroll.Api/InquiryApi.cs:75 | public (rider portal: own authenticated rider) | old UI | keep |
-| GET | `/rider-app` | Payroll.Api/FinancialCore.cs:1165 | public (rider portal: own authenticated rider) | old UI | keep |
-| GET | `/rider-app.js` | Payroll.Api/FinancialCore.cs:1166 | public (rider portal: own authenticated rider) | none | keep |
-| POST | `/api/inquiry-access` | Payroll.Api/InquiryApi.cs:37 | inquiry.issue + full company/category scope (+ payroll.view for payslip/mobile) | old UI | keep |
+| GET | `/api/riders` | Payroll.Api/Program.cs:200 | riders.view | web | keep |
+| GET | `/api/riders/data-quality` | Payroll.Api/DirectoryApi.cs:100 | riders.view | web | keep |
+| GET | `/api/riders/lookup` | Payroll.Api/RiderLookup.cs:70 | riders.view | web | keep |
+| GET | `/api/riders/{iqama}/profile-360` | Payroll.Api/DirectoryApi.cs:119 | riders.view_360 + debts.view | web | keep |
+| GET | `/inquiry` | Payroll.Api/InquiryApi.cs:75 | public (rider portal: own authenticated rider) | web | keep |
+| GET | `/rider-app` | Payroll.Api/FinancialCore.cs:1165 | public (rider portal: own authenticated rider) | web | keep |
+| GET | `/rider-app.js` | Payroll.Api/FinancialCore.cs:1166 | public (rider portal: own authenticated rider) | web | keep |
+| POST | `/api/inquiry-access` | Payroll.Api/InquiryApi.cs:37 | inquiry.issue + full company/category scope (+ payroll.view for payslip/mobile) | web | keep |
 | POST | `/api/public/inquiry/debt` | Payroll.Api/InquiryApi.cs:49 | public (rider portal: own authenticated rider) | rider form | keep |
 | POST | `/api/public/inquiry/payslip` | Payroll.Api/InquiryApi.cs:49 | public (rider portal: own authenticated rider) | rider form | keep |
-| POST | `/api/rider-mobile/broadcast` | Payroll.Api/FinancialCore.cs:856 | mobile.broadcast | old UI | keep |
+| POST | `/api/rider-mobile/broadcast` | Payroll.Api/FinancialCore.cs:856 | mobile.broadcast | web | keep |
 | POST | `/api/rider-mobile/broadcasts/{id}/ack` | Payroll.Api/FinancialCore.cs:1112 | own rider session / one-time inquiry code | rider app | keep |
-| POST | `/api/rider-mobile/broadcasts/{id}/read` | Payroll.Api/FinancialCore.cs:1083 | mobile.broadcast | old UI | keep |
-| POST | `/api/rider-mobile/device-token` | Payroll.Api/PushNotifications.cs:727 | mobile.broadcast | none | keep |
-| POST | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:990 | Admin / SuperAdmin | old UI | keep |
-| POST | `/api/rider-mobile/forms/{token}/submit` | Payroll.Api/RiderAsks.cs:1259 | mobile.broadcast | none | keep |
-| POST | `/api/rider-mobile/language` | Payroll.Api/PushNotifications.cs:747 | mobile.broadcast | none | keep |
+| POST | `/api/rider-mobile/broadcasts/{id}/read` | Payroll.Api/FinancialCore.cs:1083 | mobile.broadcast | web | keep |
+| POST | `/api/rider-mobile/device-token` | Payroll.Api/PushNotifications.cs:727 | mobile.broadcast | web | keep |
+| POST | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:990 | Admin / SuperAdmin | web | keep |
+| POST | `/api/rider-mobile/forms/{token}/submit` | Payroll.Api/RiderAsks.cs:1259 | mobile.broadcast | web | keep |
+| POST | `/api/rider-mobile/language` | Payroll.Api/PushNotifications.cs:747 | mobile.broadcast | web | keep |
 | POST | `/api/rider-mobile/login` | Payroll.Api/FinancialCore.cs:838 | own rider session / one-time inquiry code | rider app | keep |
 | POST | `/api/rider-mobile/logout` | Payroll.Api/MobileSessions.cs:135 | Active rider bearer token; own sessions only | rider app | keep |
-| POST | `/api/rider-mobile/requests` | Payroll.Api/RiderAsks.cs:1282 | Active rider bearer token; own asks only; routed to current supervisor | none | keep |
-| POST | `/api/rider-mobile/requests/{id}/cancel` | Payroll.Api/RiderAsks.cs:1291 | Active rider bearer token; own asks only; routed to current supervisor | none | keep |
-| POST | `/api/rider-mobile/requests/{id}/reply` | Payroll.Api/RiderAsks.cs:1297 | Active rider bearer token; own asks only; routed to current supervisor | none | keep |
-| POST | `/api/rider-mobile/service-requests` | Payroll.Api/RiderAsks.cs:1318 | mobile.broadcast | none | keep |
-| POST | `/api/rider-mobile/service-requests/{id}/decide` | Payroll.Api/RiderAsks.cs:1325 | mobile.broadcast | none | keep |
-| POST | `/api/rider-mobile/service-requests/{id}/reply` | Payroll.Api/RiderAsks.cs:1332 | mobile.broadcast | none | keep |
-| POST | `/api/rider-mobile/sessions/revoke-all` | Payroll.Api/MobileSessions.cs:133 | mobile.sessions (Admin / SuperAdmin); company or sponsor scope; safe hash prefix only | none | keep |
-| POST | `/api/rider-mobile/sessions/{id}/revoke` | Payroll.Api/MobileSessions.cs:131 | mobile.sessions (Admin / SuperAdmin); company or sponsor scope; safe hash prefix only | none | keep |
-| POST | `/api/rider-mobile/statements/notify-period` | Payroll.Api/PushNotifications.cs:763 | mobile.broadcast | none | keep |
-| POST | `/api/riders` | Payroll.Api/Program.cs:201 | riders.edit (+ riders.financial_edit for financial fields) | old UI | keep |
+| POST | `/api/rider-mobile/requests` | Payroll.Api/RiderAsks.cs:1282 | Active rider bearer token; own asks only; routed to current supervisor | web | keep |
+| POST | `/api/rider-mobile/requests/{id}/cancel` | Payroll.Api/RiderAsks.cs:1291 | Active rider bearer token; own asks only; routed to current supervisor | web | keep |
+| POST | `/api/rider-mobile/requests/{id}/reply` | Payroll.Api/RiderAsks.cs:1297 | Active rider bearer token; own asks only; routed to current supervisor | web | keep |
+| POST | `/api/rider-mobile/service-requests` | Payroll.Api/RiderAsks.cs:1318 | mobile.broadcast | web | keep |
+| POST | `/api/rider-mobile/service-requests/{id}/decide` | Payroll.Api/RiderAsks.cs:1325 | mobile.broadcast | web | keep |
+| POST | `/api/rider-mobile/service-requests/{id}/reply` | Payroll.Api/RiderAsks.cs:1332 | mobile.broadcast | web | keep |
+| POST | `/api/rider-mobile/sessions/revoke-all` | Payroll.Api/MobileSessions.cs:133 | mobile.sessions (Admin / SuperAdmin); company or sponsor scope; safe hash prefix only | web | keep |
+| POST | `/api/rider-mobile/sessions/{id}/revoke` | Payroll.Api/MobileSessions.cs:131 | mobile.sessions (Admin / SuperAdmin); company or sponsor scope; safe hash prefix only | web | keep |
+| POST | `/api/rider-mobile/statements/notify-period` | Payroll.Api/PushNotifications.cs:763 | mobile.broadcast | web | keep |
+| POST | `/api/riders` | Payroll.Api/Program.cs:201 | riders.edit (+ riders.financial_edit for financial fields) | web | keep |
 
 ## القوى العاملة
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/api/workforce` | Payroll.Api/WorkforceApi.cs:22 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/absence-cases` | Payroll.Api/WorkforceApi.cs:34 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/data-quality` | Payroll.Api/WorkforceApi.cs:38 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/export` | Payroll.Api/WorkforceApi.cs:26 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/legal-cases` | Payroll.Api/WorkforceApi.cs:36 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/saudi-payroll-employees` | Payroll.Api/WorkforceApi.cs:30 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/summary` | Payroll.Api/WorkforceApi.cs:24 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/terminated` | Payroll.Api/WorkforceApi.cs:32 | riders.view; live ERP when configured; always paginated on list | none | keep |
-| GET | `/api/workforce/{id}/360` | Payroll.Api/WorkforceApi.cs:28 | riders.view_360 + debts.view; live ERP when configured | none | keep |
+| GET | `/api/workforce` | Payroll.Api/WorkforceApi.cs:22 | riders.view; live ERP when configured; always paginated on list | web | keep |
+| GET | `/api/workforce/absence-cases` | Payroll.Api/WorkforceApi.cs:34 | riders.view; live ERP when configured; always paginated on list | web | keep |
+| GET | `/api/workforce/data-quality` | Payroll.Api/WorkforceApi.cs:38 | riders.view; live ERP when configured; always paginated on list | web | keep |
+| GET | `/api/workforce/export` | Payroll.Api/WorkforceApi.cs:26 | riders.view; live ERP when configured; always paginated on list | web | keep |
+| GET | `/api/workforce/legal-cases` | Payroll.Api/WorkforceApi.cs:36 | riders.view; live ERP when configured; always paginated on list | web | keep |
+| GET | `/api/workforce/saudi-payroll-employees` | Payroll.Api/WorkforceApi.cs:30 | riders.view; live ERP when configured; always paginated on list | web | keep |
+| GET | `/api/workforce/summary` | Payroll.Api/WorkforceApi.cs:24 | riders.view; live ERP when configured; always paginated on list | web | keep |
+| GET | `/api/workforce/terminated` | Payroll.Api/WorkforceApi.cs:32 | riders.view; live ERP when configured; always paginated on list | web | keep |
+| GET | `/api/workforce/{id}/360` | Payroll.Api/WorkforceApi.cs:28 | riders.view_360 + debts.view; live ERP when configured | web | keep |
 
 ## كتالوجات الموارد البشرية
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/api/hr-catalogs/{kind}` | Payroll.Api/WorkforceApi.cs:40 | riders.view; live ERP catalogs when configured | none | keep |
+| GET | `/api/hr-catalogs/{kind}` | Payroll.Api/WorkforceApi.cs:40 | riders.view; live ERP catalogs when configured | web | keep |
 
 ## الشركات والسجلات
 
@@ -159,281 +159,276 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| DELETE | `/api/pay/apps/{app}/eligibility/{id}` | Payroll.Api/PaySettings.Lifecycle.cs:32 | pay.manage; app scope; shared writes need all companies | none | keep |
-| DELETE | `/api/pay/apps/{app}/schemes/{id}` | Payroll.Api/PaySettings.Lifecycle.cs:30 | pay.manage; app scope; shared writes need all companies | none | keep |
-| DELETE | `/api/pay/apps/{app}/terms/{id}` | Payroll.Api/PaySettings.Lifecycle.cs:28 | pay.manage; app scope; shared writes need all companies | none | keep |
-| DELETE | `/api/pay/settings/{id}` | Payroll.Api/PaySettings.Lifecycle.cs:34 | pay.manage; app scope; shared writes need all companies | none | keep |
-| GET | `/api/excel/{kind}/template` | Payroll.Api/TableExcelApi.cs:28 | imports.view | old UI | keep |
-| GET | `/api/finance/statement/rider/{iqama}/monthly` | Payroll.Api/PayStatements.cs:252 | pay.view + payroll.view + debts.view; full company/app/debt scope | old UI | keep |
-| GET | `/api/imports` | Payroll.Api/Program.cs:255 | imports.view | old UI | deprecated |
-| GET | `/api/imports/{id}/sheet` | Payroll.Api/Program.cs:230 | imports.view | old UI | keep |
-| GET | `/api/ledger` | Payroll.Api/Program.cs:286 | payroll.view | old UI | keep |
-| GET | `/api/ledger/{iqama}` | Payroll.Api/Program.cs:287 | payroll.view | old UI | keep |
-| GET | `/api/pay/apps/{app}/assignments` | Payroll.Api/PayAssignments.cs:79 | pay.view; app scope; shared writes need all companies | none | keep |
-| GET | `/api/pay/apps/{app}/eligibility` | Payroll.Api/PaySettings.cs:86 | pay.view; app scope; shared writes need all companies | none | keep |
-| GET | `/api/pay/apps/{app}/operations/imports/{id}` | Payroll.Api/OperationsImports.cs:137 | pay.view; company/platform/rider scope; signed review only, no payroll posting | none | keep |
-| GET | `/api/pay/apps/{app}/schemes` | Payroll.Api/PaySettings.cs:85 | pay.view; app scope; shared writes need all companies | none | keep |
-| GET | `/api/pay/apps/{app}/terms` | Payroll.Api/PaySettings.cs:84 | pay.view; app scope; shared writes need all companies | none | keep |
-| GET | `/api/pay/catalog` | Payroll.Api/PaySettings.cs:83 | pay.view; app scope; shared writes need all companies | none | keep |
-| GET | `/api/pay/cycles` | Payroll.Api/PayCycles.cs:230 | pay.view; company and every app scope | none | keep |
-| GET | `/api/pay/cycles/{id}/debt-deductions` | Payroll.Api/PayCycles.cs:194 | pay.view; company and every app scope | none | keep |
-| GET | `/api/pay/cycles/{id}/lines` | Payroll.Api/PayCycles.cs:233 | pay.view; company and every app scope | none | keep |
-| GET | `/api/pay/cycles/{id}/pipeline` | Payroll.Api/PayCycles.cs:234 | pay.view; company and every app scope | none | keep |
-| GET | `/api/pay/cycles/{id}/review` | Payroll.Api/PayCycles.Review.cs:145 | pay.view; company and every app scope | none | keep |
-| GET | `/api/pay/cycles/{id}/unrecovered-costs` | Payroll.Api/PayCycles.cs:193 | pay.view; company and every app scope | none | keep |
-| GET | `/api/pay/review-draft` | Payroll.Api/PayReviewDraft.cs:141 | pay.view; app scope; shared writes need all companies | none | keep |
-| GET | `/api/pay/settings` | Payroll.Api/PaySettings.cs:94 | pay.view; app scope; shared writes need all companies | none | keep |
-| GET | `/api/pay/shared-riders` | Payroll.Api/PayCycles.cs:235 | pay.view; app scope; shared writes need all companies | none | keep |
-| GET | `/api/pay/validate-gaps` | Payroll.Api/PayCycles.cs:176 | pay.view; app scope; shared writes need all companies | none | keep |
-| GET | `/api/payroll/export.csv` | Payroll.Api/Program.cs:302 | payroll.view | old UI | keep |
-| GET | `/api/payroll/fingerprint` | Payroll.Api/Program.cs:285 | payroll.view | none | deprecated |
-| GET | `/api/payroll/preview` | Payroll.Api/Program.cs:268 | payroll.view | old UI | keep |
-| GET | `/api/payroll/runs` | Payroll.Api/Program.cs:269 | payroll.view | old UI | keep |
-| GET | `/api/policies` | Payroll.Api/Program.cs:213 | policies.view | old UI | keep |
-| GET | `/api/template.csv` | Payroll.Api/Program.cs:256 | imports.view | none | deprecated |
-| POST | `/api/adjustments` | Payroll.Api/Program.cs:257 | adjustments.create | old UI | keep |
-| POST | `/api/excel/export` | Payroll.Api/TableExcelApi.cs:29 | riders.view | old UI | keep |
-| POST | `/api/excel/{kind}/commit` | Payroll.Api/TableExcelApi.cs:45 | imports.commit | old UI | keep |
-| POST | `/api/excel/{kind}/preview` | Payroll.Api/TableExcelApi.cs:44 | imports.view | old UI | keep |
-| POST | `/api/imports/inspect` | Payroll.Api/Program.cs:222 | imports.view | old UI | keep |
-| POST | `/api/imports/{id}/commit` | Payroll.Api/Program.cs:236 | imports.commit | old UI | keep |
-| POST | `/api/imports/{id}/preview` | Payroll.Api/Program.cs:235 | imports.view | old UI | keep |
-| POST | `/api/pay/apps/chefz/operations/review` | Payroll.Api/ChefzOperations.cs:116 | pay.view; company/Chefz/rider scope; read-only projection, no first load | none | keep |
-| POST | `/api/pay/apps/{app}/assignments/import/commit` | Payroll.Api/PayAssignments.cs:81 | Admin / SuperAdmin + pay.manage; signed source-approved pre-month choices | none | keep |
-| POST | `/api/pay/apps/{app}/assignments/import/preview` | Payroll.Api/PayAssignments.cs:80 | Admin / SuperAdmin + pay.manage; signed source-approved pre-month choices | none | keep |
-| POST | `/api/pay/apps/{app}/copy` | Payroll.Api/PaySettings.cs:93 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/apps/{app}/eligibility` | Payroll.Api/PaySettings.cs:89 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/apps/{app}/eligibility/{id}/approve` | Payroll.Api/PaySettings.cs:92 | pay.approve + independent FIN checker; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/apps/{app}/eligibility/{id}/reject` | Payroll.Api/PaySettings.Lifecycle.cs:31 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/apps/{app}/operations/import/commit` | Payroll.Api/OperationsImports.cs:136 | pay.manage; company/platform/rider scope; signed review only, no payroll posting | none | keep |
-| POST | `/api/pay/apps/{app}/operations/import/preview` | Payroll.Api/OperationsImports.cs:135 | pay.manage; company/platform/rider scope; signed review only, no payroll posting | none | keep |
-| POST | `/api/pay/apps/{app}/schemes` | Payroll.Api/PaySettings.cs:88 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/apps/{app}/schemes/{id}/approve` | Payroll.Api/PaySettings.cs:91 | pay.approve + independent FIN checker; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/apps/{app}/schemes/{id}/reject` | Payroll.Api/PaySettings.Lifecycle.cs:29 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/apps/{app}/terms` | Payroll.Api/PaySettings.cs:87 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/apps/{app}/terms/{id}/approve` | Payroll.Api/PaySettings.cs:90 | pay.approve + independent FIN checker; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/apps/{app}/terms/{id}/reject` | Payroll.Api/PaySettings.Lifecycle.cs:27 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/cycles` | Payroll.Api/PayCycles.cs:231 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
-| POST | `/api/pay/cycles/{id}/advance` | Payroll.Api/PayCycles.cs:232 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
-| POST | `/api/pay/cycles/{id}/capture-inputs` | Payroll.Api/PayCycles.cs:196 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
-| POST | `/api/pay/cycles/{id}/debt-deductions` | Payroll.Api/PayCycles.cs:195 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
-| POST | `/api/pay/cycles/{id}/review/approve-all` | Payroll.Api/PayCycles.Review.cs:146 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
-| POST | `/api/pay/cycles/{id}/review/{iqama}` | Payroll.Api/PayCycles.Review.cs:147 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | none | keep |
-| POST | `/api/pay/settings` | Payroll.Api/PaySettings.cs:95 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/settings/{id}/approve` | Payroll.Api/PaySettings.cs:96 | pay.approve + independent FIN checker; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/settings/{id}/reject` | Payroll.Api/PaySettings.Lifecycle.cs:33 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/shared-riders/{rider}/{period}/release` | Payroll.Api/PayCycles.cs:236 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/payments` | Payroll.Api/Program.cs:288 | payments.record | old UI | keep |
-| POST | `/api/payroll/approve` | Payroll.Api/Program.cs:270 | payroll.approve | old UI | keep |
-| POST | `/api/policies` | Payroll.Api/Program.cs:214 | policies.manage | old UI | keep |
-| POST | `/api/policies/{id}/approve` | Payroll.Api/Program.cs:221 | policies.manage | old UI | keep |
+| DELETE | `/api/pay/apps/{app}/eligibility/{id}` | Payroll.Api/PaySettings.Lifecycle.cs:32 | pay.manage; app scope; shared writes need all companies | web | keep |
+| DELETE | `/api/pay/apps/{app}/schemes/{id}` | Payroll.Api/PaySettings.Lifecycle.cs:30 | pay.manage; app scope; shared writes need all companies | web | keep |
+| DELETE | `/api/pay/apps/{app}/terms/{id}` | Payroll.Api/PaySettings.Lifecycle.cs:28 | pay.manage; app scope; shared writes need all companies | web | keep |
+| DELETE | `/api/pay/settings/{id}` | Payroll.Api/PaySettings.Lifecycle.cs:34 | pay.manage; app scope; shared writes need all companies | web | keep |
+| GET | `/api/excel/{kind}/template` | Payroll.Api/TableExcelApi.cs:28 | imports.view | web | keep |
+| GET | `/api/finance/statement/rider/{iqama}/monthly` | Payroll.Api/PayStatements.cs:252 | pay.view + payroll.view + debts.view; full company/app/debt scope | web | keep |
+| GET | `/api/imports` | Payroll.Api/Program.cs:222 | imports.view | web | deprecated |
+| GET | `/api/ledger` | Payroll.Api/Program.cs:253 | payroll.view | web | keep |
+| GET | `/api/ledger/{iqama}` | Payroll.Api/Program.cs:254 | payroll.view | web | keep |
+| GET | `/api/pay/apps/{app}/assignments` | Payroll.Api/PayAssignments.cs:79 | pay.view; app scope; shared writes need all companies | web | keep |
+| GET | `/api/pay/apps/{app}/eligibility` | Payroll.Api/PaySettings.cs:86 | pay.view; app scope; shared writes need all companies | web | keep |
+| GET | `/api/pay/apps/{app}/operations/imports/{id}` | Payroll.Api/OperationsImports.cs:137 | pay.view; company/platform/rider scope; signed review only, no payroll posting | web | keep |
+| GET | `/api/pay/apps/{app}/schemes` | Payroll.Api/PaySettings.cs:85 | pay.view; app scope; shared writes need all companies | web | keep |
+| GET | `/api/pay/apps/{app}/terms` | Payroll.Api/PaySettings.cs:84 | pay.view; app scope; shared writes need all companies | web | keep |
+| GET | `/api/pay/catalog` | Payroll.Api/PaySettings.cs:83 | pay.view; app scope; shared writes need all companies | web | keep |
+| GET | `/api/pay/cycles` | Payroll.Api/PayCycles.cs:230 | pay.view; company and every app scope | web | keep |
+| GET | `/api/pay/cycles/{id}/debt-deductions` | Payroll.Api/PayCycles.cs:194 | pay.view; company and every app scope | web | keep |
+| GET | `/api/pay/cycles/{id}/lines` | Payroll.Api/PayCycles.cs:233 | pay.view; company and every app scope | web | keep |
+| GET | `/api/pay/cycles/{id}/pipeline` | Payroll.Api/PayCycles.cs:234 | pay.view; company and every app scope | web | keep |
+| GET | `/api/pay/cycles/{id}/review` | Payroll.Api/PayCycles.Review.cs:145 | pay.view; company and every app scope | web | keep |
+| GET | `/api/pay/cycles/{id}/unrecovered-costs` | Payroll.Api/PayCycles.cs:193 | pay.view; company and every app scope | web | keep |
+| GET | `/api/pay/review-draft` | Payroll.Api/PayReviewDraft.cs:141 | pay.view; app scope; shared writes need all companies | web | keep |
+| GET | `/api/pay/settings` | Payroll.Api/PaySettings.cs:94 | pay.view; app scope; shared writes need all companies | web | keep |
+| GET | `/api/pay/shared-riders` | Payroll.Api/PayCycles.cs:235 | pay.view; app scope; shared writes need all companies | web | keep |
+| GET | `/api/pay/validate-gaps` | Payroll.Api/PayCycles.cs:176 | pay.view; app scope; shared writes need all companies | web | keep |
+| GET | `/api/payroll/export.csv` | Payroll.Api/Program.cs:269 | payroll.view | web | keep |
+| GET | `/api/payroll/fingerprint` | Payroll.Api/Program.cs:252 | payroll.view | web | deprecated |
+| GET | `/api/payroll/preview` | Payroll.Api/Program.cs:235 | payroll.view | web | keep |
+| GET | `/api/payroll/runs` | Payroll.Api/Program.cs:236 | payroll.view | web | keep |
+| GET | `/api/policies` | Payroll.Api/Program.cs:213 | policies.view | web | keep |
+| GET | `/api/template.csv` | Payroll.Api/Program.cs:223 | imports.view | web | deprecated |
+| POST | `/api/adjustments` | Payroll.Api/Program.cs:224 | adjustments.create | web | keep |
+| POST | `/api/excel/export` | Payroll.Api/TableExcelApi.cs:29 | riders.view | web | keep |
+| POST | `/api/excel/{kind}/commit` | Payroll.Api/TableExcelApi.cs:45 | imports.commit | web | keep |
+| POST | `/api/excel/{kind}/preview` | Payroll.Api/TableExcelApi.cs:44 | imports.view | web | keep |
+| POST | `/api/pay/apps/chefz/operations/review` | Payroll.Api/ChefzOperations.cs:116 | pay.view; company/Chefz/rider scope; read-only projection, no first load | web | keep |
+| POST | `/api/pay/apps/{app}/assignments/import/commit` | Payroll.Api/PayAssignments.cs:81 | Admin / SuperAdmin + pay.manage; signed source-approved pre-month choices | web | keep |
+| POST | `/api/pay/apps/{app}/assignments/import/preview` | Payroll.Api/PayAssignments.cs:80 | Admin / SuperAdmin + pay.manage; signed source-approved pre-month choices | web | keep |
+| POST | `/api/pay/apps/{app}/copy` | Payroll.Api/PaySettings.cs:93 | pay.manage; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/apps/{app}/eligibility` | Payroll.Api/PaySettings.cs:89 | pay.manage; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/apps/{app}/eligibility/{id}/approve` | Payroll.Api/PaySettings.cs:92 | pay.approve + independent FIN checker; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/apps/{app}/eligibility/{id}/reject` | Payroll.Api/PaySettings.Lifecycle.cs:31 | pay.manage; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/apps/{app}/operations/import/commit` | Payroll.Api/OperationsImports.cs:136 | pay.manage; company/platform/rider scope; signed review only, no payroll posting | web | keep |
+| POST | `/api/pay/apps/{app}/operations/import/preview` | Payroll.Api/OperationsImports.cs:135 | pay.manage; company/platform/rider scope; signed review only, no payroll posting | web | keep |
+| POST | `/api/pay/apps/{app}/schemes` | Payroll.Api/PaySettings.cs:88 | pay.manage; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/apps/{app}/schemes/{id}/approve` | Payroll.Api/PaySettings.cs:91 | pay.approve + independent FIN checker; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/apps/{app}/schemes/{id}/reject` | Payroll.Api/PaySettings.Lifecycle.cs:29 | pay.manage; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/apps/{app}/terms` | Payroll.Api/PaySettings.cs:87 | pay.manage; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/apps/{app}/terms/{id}/approve` | Payroll.Api/PaySettings.cs:90 | pay.approve + independent FIN checker; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/apps/{app}/terms/{id}/reject` | Payroll.Api/PaySettings.Lifecycle.cs:27 | pay.manage; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/cycles` | Payroll.Api/PayCycles.cs:231 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | web | keep |
+| POST | `/api/pay/cycles/{id}/advance` | Payroll.Api/PayCycles.cs:232 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | web | keep |
+| POST | `/api/pay/cycles/{id}/capture-inputs` | Payroll.Api/PayCycles.cs:196 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | web | keep |
+| POST | `/api/pay/cycles/{id}/debt-deductions` | Payroll.Api/PayCycles.cs:195 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | web | keep |
+| POST | `/api/pay/cycles/{id}/review/approve-all` | Payroll.Api/PayCycles.Review.cs:146 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | web | keep |
+| POST | `/api/pay/cycles/{id}/review/{iqama}` | Payroll.Api/PayCycles.Review.cs:147 | pay.manage or pay.approve; handler checks next stage; independent FIN approval; company and every app scope | web | keep |
+| POST | `/api/pay/settings` | Payroll.Api/PaySettings.cs:95 | pay.manage; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/settings/{id}/approve` | Payroll.Api/PaySettings.cs:96 | pay.approve + independent FIN checker; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/settings/{id}/reject` | Payroll.Api/PaySettings.Lifecycle.cs:33 | pay.manage; app scope; shared writes need all companies | web | keep |
+| POST | `/api/pay/shared-riders/{rider}/{period}/release` | Payroll.Api/PayCycles.cs:236 | pay.manage; app scope; shared writes need all companies | web | keep |
+| POST | `/api/payments` | Payroll.Api/Program.cs:255 | payments.record | web | keep |
+| POST | `/api/payroll/approve` | Payroll.Api/Program.cs:237 | payroll.approve | web | keep |
+| POST | `/api/policies` | Payroll.Api/Program.cs:214 | policies.manage | web | keep |
+| POST | `/api/policies/{id}/approve` | Payroll.Api/Program.cs:221 | policies.manage | web | keep |
 
 ## العمليات
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/api/operations/cities-summary` | Payroll.Api/OperationsLiveApi.cs:18 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/cities-summary/export` | Payroll.Api/OperationsLiveApi.cs:42 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/cities/{id}` | Payroll.Api/OperationsLiveApi.cs:20 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/fuel-cards` | Payroll.Api/OperationsLiveApi.cs:38 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/fuel-cards/assignments` | Payroll.Api/OperationsLiveApi.cs:40 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/fuel-cards/export` | Payroll.Api/OperationsLiveApi.cs:48 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/housing` | Payroll.Api/OperationsLiveApi.cs:22 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/housing/export` | Payroll.Api/OperationsLiveApi.cs:44 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/housing/{id}/rooms` | Payroll.Api/OperationsLiveApi.cs:24 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/vehicles/oil-changes` | Payroll.Api/OperationsLiveApi.cs:32 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/vehicles/period-report` | Payroll.Api/OperationsLiveApi.cs:26 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/vehicles/period-report/export` | Payroll.Api/OperationsLiveApi.cs:46 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/vehicles/purchase-invoices` | Payroll.Api/OperationsLiveApi.cs:28 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/vehicles/purchase-invoices/{id}` | Payroll.Api/OperationsLiveApi.cs:30 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/vehicles/{id}` | Payroll.Api/OperationsLiveApi.cs:36 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/vehicles/{id}/oil-changes` | Payroll.Api/OperationsLiveApi.cs:34 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/operations/{kind}` | Payroll.Api/Operations.cs:217 | operations.view; company/platform scope; always paginated | none | keep |
-| GET | `/api/riders/{iqama}/accounts` | Payroll.Api/Operations.cs:232 | operations.view; company/platform scope; always paginated | old UI | keep |
+| GET | `/api/operations/cities-summary` | Payroll.Api/OperationsLiveApi.cs:18 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/cities-summary/export` | Payroll.Api/OperationsLiveApi.cs:42 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/cities/{id}` | Payroll.Api/OperationsLiveApi.cs:20 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/fuel-cards` | Payroll.Api/OperationsLiveApi.cs:38 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/fuel-cards/assignments` | Payroll.Api/OperationsLiveApi.cs:40 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/fuel-cards/export` | Payroll.Api/OperationsLiveApi.cs:48 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/housing` | Payroll.Api/OperationsLiveApi.cs:22 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/housing/export` | Payroll.Api/OperationsLiveApi.cs:44 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/housing/{id}/rooms` | Payroll.Api/OperationsLiveApi.cs:24 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/vehicles/oil-changes` | Payroll.Api/OperationsLiveApi.cs:32 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/vehicles/period-report` | Payroll.Api/OperationsLiveApi.cs:26 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/vehicles/period-report/export` | Payroll.Api/OperationsLiveApi.cs:46 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/vehicles/purchase-invoices` | Payroll.Api/OperationsLiveApi.cs:28 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/vehicles/purchase-invoices/{id}` | Payroll.Api/OperationsLiveApi.cs:30 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/vehicles/{id}` | Payroll.Api/OperationsLiveApi.cs:36 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/vehicles/{id}/oil-changes` | Payroll.Api/OperationsLiveApi.cs:34 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/operations/{kind}` | Payroll.Api/Operations.cs:217 | operations.view; company/platform scope; always paginated | web | keep |
+| GET | `/api/riders/{iqama}/accounts` | Payroll.Api/Operations.cs:232 | operations.view; company/platform scope; always paginated | web | keep |
 
 ## المديونيات والسلف
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/api/advance-requests` | Payroll.Api/AdvanceRequests.cs:229 | advances.request / advances.review / advances.payout; handler shows own, assigned or custodian rows | none | keep |
-| GET | `/api/advance-requests/rider-asks` | Payroll.Api/RiderAsks.cs:1339 | advances.request / advances.review / advances.payout; handler shows own, assigned or custodian rows | none | keep |
-| GET | `/api/advance-requests/{id}` | Payroll.Api/AdvanceRequests.cs:238 | advances.request / advances.review / advances.payout; handler shows own, assigned or custodian rows | none | keep |
-| GET | `/api/advance-requests/{id}/summary` | Payroll.Api/AdvanceRequests.cs:239 | advances.review + routed responsible (Admin oversight) | none | keep |
-| GET | `/api/debts` | Payroll.Api/Debts.cs:132 | debts.view | old UI | keep |
-| GET | `/api/debts/bulk-collect/template` | Payroll.Api/Debts.cs:442 | debts.view | old UI | keep |
-| GET | `/api/debts/import-opening/template` | Payroll.Api/Debts.cs:668 | debts.view | old UI | keep |
-| GET | `/api/debts/settlements` | Payroll.Api/Debts.cs:136 | debts.view | none | deprecated |
-| GET | `/api/debts/summary` | Payroll.Api/Debts.cs:134 | debts.view | none | keep |
-| GET | `/api/debts/{id}` | Payroll.Api/Debts.cs:143 | debts.view | old UI | keep |
-| GET | `/api/promissory-notes` | Payroll.Api/FinancialCore.cs:1184 | debts.view (promissory writes: Admin + feature enabled) | old UI | keep |
-| POST | `/api/advance-requests` | Payroll.Api/AdvanceRequests.cs:228 | advances.request | none | keep |
-| POST | `/api/advance-requests/rider-asks/{id}/convert` | Payroll.Api/RiderAsks.cs:1346 | advances.payout + routed vault custodian | none | keep |
-| POST | `/api/advance-requests/rider-asks/{id}/decline` | Payroll.Api/RiderAsks.cs:1348 | advances.payout + routed vault custodian | none | keep |
-| POST | `/api/advance-requests/{id}/payout` | Payroll.Api/AdvanceRequests.cs:244 | advances.payout + routed vault custodian | none | keep |
-| POST | `/api/advance-requests/{id}/respond` | Payroll.Api/AdvanceRequests.cs:243 | advances.request | none | keep |
-| POST | `/api/advance-requests/{id}/review` | Payroll.Api/AdvanceRequests.cs:242 | advances.review + routed responsible (BR §25) | none | keep |
-| POST | `/api/debts` | Payroll.Api/Debts.cs:149 | debts.create.<category> (+ treasury.opening for opening balances) | old UI | keep |
-| POST | `/api/debts/bulk-collect/commit` | Payroll.Api/Debts.cs:539 | debts.collect (+ debts.waive when waived) | old UI | keep |
-| POST | `/api/debts/bulk-collect/preview-file` | Payroll.Api/Debts.cs:470 | debts.collect (+ debts.waive when waived) | old UI | keep |
-| POST | `/api/debts/import-opening/commit` | Payroll.Api/Debts.cs:867 | debts.import_opening + treasury.opening | old UI | keep |
-| POST | `/api/debts/import-opening/preview` | Payroll.Api/Debts.cs:682 | debts.import_opening | old UI | keep |
-| POST | `/api/debts/opening/decide` | Payroll.Api/DebtOpeningApproval.cs:52 | debts.create.<category> (+ treasury.opening for opening balances) | none | keep |
-| POST | `/api/debts/{id}/collect` | Payroll.Api/Debts.cs:321 | debts.collect (+ debts.waive when waived) | old UI | keep |
-| POST | `/api/debts/{id}/reconcile-opening/commit` | Payroll.Api/TreasuryEntries.cs:53 | treasury.opening | old UI | keep |
-| POST | `/api/debts/{id}/reconcile-opening/preview` | Payroll.Api/TreasuryEntries.cs:49 | treasury.opening | old UI | keep |
-| POST | `/api/debts/{id}/transfer-sponsor` | Payroll.Api/Debts.cs:439 | debts.transfer_sponsor | old UI | keep |
-| POST | `/api/finance/features/promissory-notes` | Payroll.Api/FinancialCore.cs:1169 | Admin / SuperAdmin | old UI | keep |
-| POST | `/api/promissory-notes` | Payroll.Api/FinancialCore.cs:1190 | debts.view (promissory writes: Admin + feature enabled) | old UI | keep |
-| PUT | `/api/debts/{id}` | Payroll.Api/Debts.cs:290 | debts.reschedule | old UI | keep |
+| GET | `/api/advance-requests` | Payroll.Api/AdvanceRequests.cs:229 | advances.request / advances.review / advances.payout; handler shows own, assigned or custodian rows | web | keep |
+| GET | `/api/advance-requests/rider-asks` | Payroll.Api/RiderAsks.cs:1339 | advances.request / advances.review / advances.payout; handler shows own, assigned or custodian rows | web | keep |
+| GET | `/api/advance-requests/{id}` | Payroll.Api/AdvanceRequests.cs:238 | advances.request / advances.review / advances.payout; handler shows own, assigned or custodian rows | web | keep |
+| GET | `/api/advance-requests/{id}/summary` | Payroll.Api/AdvanceRequests.cs:239 | advances.review + routed responsible (Admin oversight) | web | keep |
+| GET | `/api/debts` | Payroll.Api/Debts.cs:132 | debts.view | web | keep |
+| GET | `/api/debts/bulk-collect/template` | Payroll.Api/Debts.cs:442 | debts.view | web | keep |
+| GET | `/api/debts/import-opening/template` | Payroll.Api/Debts.cs:668 | debts.view | web | keep |
+| GET | `/api/debts/settlements` | Payroll.Api/Debts.cs:136 | debts.view | web | deprecated |
+| GET | `/api/debts/summary` | Payroll.Api/Debts.cs:134 | debts.view | web | keep |
+| GET | `/api/debts/{id}` | Payroll.Api/Debts.cs:143 | debts.view | web | keep |
+| GET | `/api/promissory-notes` | Payroll.Api/FinancialCore.cs:1184 | debts.view (promissory writes: Admin + feature enabled) | web | keep |
+| POST | `/api/advance-requests` | Payroll.Api/AdvanceRequests.cs:228 | advances.request | web | keep |
+| POST | `/api/advance-requests/rider-asks/{id}/convert` | Payroll.Api/RiderAsks.cs:1346 | advances.payout + routed vault custodian | web | keep |
+| POST | `/api/advance-requests/rider-asks/{id}/decline` | Payroll.Api/RiderAsks.cs:1348 | advances.payout + routed vault custodian | web | keep |
+| POST | `/api/advance-requests/{id}/payout` | Payroll.Api/AdvanceRequests.cs:244 | advances.payout + routed vault custodian | web | keep |
+| POST | `/api/advance-requests/{id}/respond` | Payroll.Api/AdvanceRequests.cs:243 | advances.request | web | keep |
+| POST | `/api/advance-requests/{id}/review` | Payroll.Api/AdvanceRequests.cs:242 | advances.review + routed responsible (BR §25) | web | keep |
+| POST | `/api/debts` | Payroll.Api/Debts.cs:149 | debts.create.<category> (+ treasury.opening for opening balances) | web | keep |
+| POST | `/api/debts/bulk-collect/commit` | Payroll.Api/Debts.cs:539 | debts.collect (+ debts.waive when waived) | web | keep |
+| POST | `/api/debts/bulk-collect/preview-file` | Payroll.Api/Debts.cs:470 | debts.collect (+ debts.waive when waived) | web | keep |
+| POST | `/api/debts/import-opening/commit` | Payroll.Api/Debts.cs:867 | debts.import_opening + treasury.opening | web | keep |
+| POST | `/api/debts/import-opening/preview` | Payroll.Api/Debts.cs:682 | debts.import_opening | web | keep |
+| POST | `/api/debts/opening/decide` | Payroll.Api/DebtOpeningApproval.cs:52 | debts.create.<category> (+ treasury.opening for opening balances) | web | keep |
+| POST | `/api/debts/{id}/collect` | Payroll.Api/Debts.cs:321 | debts.collect (+ debts.waive when waived) | web | keep |
+| POST | `/api/debts/{id}/reconcile-opening/commit` | Payroll.Api/TreasuryEntries.cs:53 | treasury.opening | web | keep |
+| POST | `/api/debts/{id}/reconcile-opening/preview` | Payroll.Api/TreasuryEntries.cs:49 | treasury.opening | web | keep |
+| POST | `/api/debts/{id}/transfer-sponsor` | Payroll.Api/Debts.cs:439 | debts.transfer_sponsor | web | keep |
+| POST | `/api/finance/features/promissory-notes` | Payroll.Api/FinancialCore.cs:1169 | Admin / SuperAdmin | web | keep |
+| POST | `/api/promissory-notes` | Payroll.Api/FinancialCore.cs:1190 | debts.view (promissory writes: Admin + feature enabled) | web | keep |
+| PUT | `/api/debts/{id}` | Payroll.Api/Debts.cs:290 | debts.reschedule | web | keep |
 
 ## البنوك والصناديق والخزن
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/api/finance/accounts` | Payroll.Api/FinancialCore.cs:576 | treasury.view | old UI | keep |
-| GET | `/api/finance/catalog` | Payroll.Api/FinancialCore.cs:622 | debts.view OR treasury.view | old UI | keep |
-| GET | `/api/finance/jahez-handovers` | Payroll.Api/JahezHandovers.cs:67 | treasury.view | old UI | keep |
-| GET | `/api/finance/jahez-reconciliations` | Payroll.Api/JahezReconciliation.cs:118 | treasury.view | none | keep |
-| GET | `/api/finance/jahez-reconciliations/{id}` | Payroll.Api/JahezReconciliation.cs:123 | treasury.view | none | keep |
-| GET | `/api/finance/journals` | Payroll.Api/FinancialCore.cs:635 | treasury.view | old UI | keep |
-| GET | `/api/finance/mada/balance` | Payroll.Api/MadaAccounting.cs:83 | advances.payout OR treasury.view; company scope | none | keep |
-| GET | `/api/finance/opening/template` | Payroll.Api/TreasuryEntries.cs:63 | treasury.opening | old UI | keep |
-| GET | `/api/finance/sponsors` | Payroll.Api/FinancialCore.cs:527 | treasury.view | old UI | keep |
-| GET | `/api/finance/statement/rider/{iqama}` | Payroll.Api/FinancialCore.cs:716 | debts.view (promissory writes: Admin + feature enabled) | old UI | keep |
-| GET | `/api/finance/statement/rider/{iqama}/simple` | Payroll.Api/FinancialCore.cs:717 | debts.view (promissory writes: Admin + feature enabled) | old UI | keep |
-| GET | `/api/finance/treasury/summary` | Payroll.Api/TreasurySummary.cs:47 | treasury.view | none | keep |
-| POST | `/api/finance/bank-file/export` | Payroll.Api/BankPayrollFiles.cs:191 | finance.bankfile.export + payroll.view | old UI | keep |
-| POST | `/api/finance/bank-file/preview` | Payroll.Api/BankPayrollFiles.cs:190 | finance.bankfile.export + payroll.view | old UI | keep |
-| POST | `/api/finance/jahez-fee` | Payroll.Api/FinancialCore.cs:685 | treasury.jahez.manage | old UI | keep |
-| POST | `/api/finance/jahez-fee-deposit` | Payroll.Api/JahezTreasury.cs:31 | treasury.transfer | old UI | keep |
-| POST | `/api/finance/jahez-handover` | Payroll.Api/JahezHandovers.cs:66 | treasury.jahez.handover | old UI | keep |
-| POST | `/api/finance/jahez-handovers/{id}/confirm` | Payroll.Api/JahezHandovers.cs:68 | treasury.jahez.receive | old UI | keep |
-| POST | `/api/finance/jahez-handovers/{id}/reject` | Payroll.Api/JahezHandovers.cs:69 | treasury.jahez.receive | old UI | keep |
-| POST | `/api/finance/jahez-platform-settlement` | Payroll.Api/JahezTreasury.cs:21 | treasury.transfer | old UI | keep |
-| POST | `/api/finance/jahez-reconciliations` | Payroll.Api/JahezReconciliation.cs:128 | Admin / SuperAdmin | none | keep |
-| POST | `/api/finance/jahez-reconciliations/{id}/approve` | Payroll.Api/JahezReconciliation.cs:131 | Admin / SuperAdmin | none | keep |
-| POST | `/api/finance/jahez-reconciliations/{id}/submit` | Payroll.Api/JahezReconciliation.cs:129 | Admin / SuperAdmin | none | keep |
-| POST | `/api/finance/jahez-reconciliations/{id}/variance` | Payroll.Api/JahezReconciliation.cs:130 | Admin / SuperAdmin | none | keep |
-| POST | `/api/finance/jahez-transfer` | Payroll.Api/JahezTreasury.cs:10 | treasury.transfer | old UI | keep |
-| POST | `/api/finance/legacy-cash-allocation/commit` | Payroll.Api/LegacyCashAllocation.cs:47 | treasury.opening | old UI | keep |
-| POST | `/api/finance/legacy-cash-allocation/preview` | Payroll.Api/LegacyCashAllocation.cs:46 | treasury.opening | old UI | keep |
-| POST | `/api/finance/liability-payment` | Payroll.Api/TreasuryEntries.cs:91 | treasury.liability.settle | old UI | keep |
-| POST | `/api/finance/opening/commit` | Payroll.Api/TreasuryEntries.cs:78 | treasury.opening | old UI | keep |
-| POST | `/api/finance/opening/preview` | Payroll.Api/TreasuryEntries.cs:64 | treasury.opening | old UI | keep |
-| POST | `/api/finance/vault-transfer` | Payroll.Api/FinancialCore.cs:653 | treasury.transfer | old UI | keep |
+| GET | `/api/finance/accounts` | Payroll.Api/FinancialCore.cs:576 | treasury.view | web | keep |
+| GET | `/api/finance/catalog` | Payroll.Api/FinancialCore.cs:622 | debts.view OR treasury.view | web | keep |
+| GET | `/api/finance/jahez-handovers` | Payroll.Api/JahezHandovers.cs:67 | treasury.view | web | keep |
+| GET | `/api/finance/jahez-reconciliations` | Payroll.Api/JahezReconciliation.cs:118 | treasury.view | web | keep |
+| GET | `/api/finance/jahez-reconciliations/{id}` | Payroll.Api/JahezReconciliation.cs:123 | treasury.view | web | keep |
+| GET | `/api/finance/journals` | Payroll.Api/FinancialCore.cs:635 | treasury.view | web | keep |
+| GET | `/api/finance/mada/balance` | Payroll.Api/MadaAccounting.cs:83 | advances.payout OR treasury.view; company scope | web | keep |
+| GET | `/api/finance/opening/template` | Payroll.Api/TreasuryEntries.cs:63 | treasury.opening | web | keep |
+| GET | `/api/finance/sponsors` | Payroll.Api/FinancialCore.cs:527 | treasury.view | web | keep |
+| GET | `/api/finance/statement/rider/{iqama}` | Payroll.Api/FinancialCore.cs:716 | debts.view (promissory writes: Admin + feature enabled) | web | keep |
+| GET | `/api/finance/statement/rider/{iqama}/simple` | Payroll.Api/FinancialCore.cs:717 | debts.view (promissory writes: Admin + feature enabled) | web | keep |
+| GET | `/api/finance/treasury/summary` | Payroll.Api/TreasurySummary.cs:47 | treasury.view | web | keep |
+| POST | `/api/finance/bank-file/export` | Payroll.Api/BankPayrollFiles.cs:191 | finance.bankfile.export + payroll.view | web | keep |
+| POST | `/api/finance/bank-file/preview` | Payroll.Api/BankPayrollFiles.cs:190 | finance.bankfile.export + payroll.view | web | keep |
+| POST | `/api/finance/jahez-fee` | Payroll.Api/FinancialCore.cs:685 | treasury.jahez.manage | web | keep |
+| POST | `/api/finance/jahez-fee-deposit` | Payroll.Api/JahezTreasury.cs:31 | treasury.transfer | web | keep |
+| POST | `/api/finance/jahez-handover` | Payroll.Api/JahezHandovers.cs:66 | treasury.jahez.handover | web | keep |
+| POST | `/api/finance/jahez-handovers/{id}/confirm` | Payroll.Api/JahezHandovers.cs:68 | treasury.jahez.receive | web | keep |
+| POST | `/api/finance/jahez-handovers/{id}/reject` | Payroll.Api/JahezHandovers.cs:69 | treasury.jahez.receive | web | keep |
+| POST | `/api/finance/jahez-platform-settlement` | Payroll.Api/JahezTreasury.cs:21 | treasury.transfer | web | keep |
+| POST | `/api/finance/jahez-reconciliations` | Payroll.Api/JahezReconciliation.cs:128 | Admin / SuperAdmin | web | keep |
+| POST | `/api/finance/jahez-reconciliations/{id}/approve` | Payroll.Api/JahezReconciliation.cs:131 | Admin / SuperAdmin | web | keep |
+| POST | `/api/finance/jahez-reconciliations/{id}/submit` | Payroll.Api/JahezReconciliation.cs:129 | Admin / SuperAdmin | web | keep |
+| POST | `/api/finance/jahez-reconciliations/{id}/variance` | Payroll.Api/JahezReconciliation.cs:130 | Admin / SuperAdmin | web | keep |
+| POST | `/api/finance/jahez-transfer` | Payroll.Api/JahezTreasury.cs:10 | treasury.transfer | web | keep |
+| POST | `/api/finance/legacy-cash-allocation/commit` | Payroll.Api/LegacyCashAllocation.cs:47 | treasury.opening | web | keep |
+| POST | `/api/finance/legacy-cash-allocation/preview` | Payroll.Api/LegacyCashAllocation.cs:46 | treasury.opening | web | keep |
+| POST | `/api/finance/liability-payment` | Payroll.Api/TreasuryEntries.cs:91 | treasury.liability.settle | web | keep |
+| POST | `/api/finance/opening/commit` | Payroll.Api/TreasuryEntries.cs:78 | treasury.opening | web | keep |
+| POST | `/api/finance/opening/preview` | Payroll.Api/TreasuryEntries.cs:64 | treasury.opening | web | keep |
+| POST | `/api/finance/vault-transfer` | Payroll.Api/FinancialCore.cs:653 | treasury.transfer | web | keep |
 
 ## المحاسبة والتقارير
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| DELETE | `/api/finance/journals/manual/{id}` | Payroll.Api/ManualJournals.cs:110 | finance.journal.create; company/account scope; independent approval | none | keep |
-| GET | `/api/finance/accounting-adjustments` | Payroll.Api/MadaAccounting.cs:82 | finance.journal.create; company/account scope; independent approval | none | keep |
-| GET | `/api/finance/coa/target` | Payroll.Api/FinanceViews.cs:136 | treasury.view | old UI | keep |
-| GET | `/api/finance/income-statement` | Payroll.Api/FinanceViews.cs:138 | treasury.journals | old UI | keep |
-| GET | `/api/finance/journals/manual` | Payroll.Api/ManualJournals.cs:112 | finance.journal.create OR finance.journal.approve; company/account scope; independent approval | none | keep |
-| GET | `/api/finance/journals/manual/{id}/attachment` | Payroll.Api/ManualJournals.cs:117 | finance.journal.create OR finance.journal.approve; company/account scope; independent approval | none | keep |
-| GET | `/api/finance/trial-balance` | Payroll.Api/FinanceViews.cs:137 | treasury.journals | old UI | keep |
-| GET | `/api/vouchers/verify/{no}` | Payroll.Api/Vouchers.cs:107 | public; rate-limited; status/type only | none | keep |
-| POST | `/api/finance/accounting-adjustments` | Payroll.Api/MadaAccounting.cs:80 | finance.journal.create; company/account scope; independent approval | none | keep |
-| POST | `/api/finance/accounting-adjustments/{id}/approve` | Payroll.Api/MadaAccounting.cs:81 | finance.journal.approve; company/account scope; independent approval | none | keep |
-| POST | `/api/finance/journals/manual` | Payroll.Api/ManualJournals.cs:107 | finance.journal.create; company/account scope; independent approval | none | keep |
-| POST | `/api/finance/journals/manual/{id}/approve` | Payroll.Api/ManualJournals.cs:108 | finance.journal.approve; company/account scope; independent approval | none | keep |
-| POST | `/api/finance/journals/manual/{id}/reject` | Payroll.Api/ManualJournals.cs:109 | finance.journal.create; company/account scope; independent approval | none | keep |
-| POST | `/api/finance/journals/manual/{id}/reverse` | Payroll.Api/ManualJournals.cs:111 | finance.journal.create; company/account scope; independent approval | none | keep |
+| DELETE | `/api/finance/journals/manual/{id}` | Payroll.Api/ManualJournals.cs:110 | finance.journal.create; company/account scope; independent approval | web | keep |
+| GET | `/api/finance/accounting-adjustments` | Payroll.Api/MadaAccounting.cs:82 | finance.journal.create; company/account scope; independent approval | web | keep |
+| GET | `/api/finance/coa/target` | Payroll.Api/FinanceViews.cs:136 | treasury.view | web | keep |
+| GET | `/api/finance/income-statement` | Payroll.Api/FinanceViews.cs:138 | treasury.journals | web | keep |
+| GET | `/api/finance/journals/manual` | Payroll.Api/ManualJournals.cs:112 | finance.journal.create OR finance.journal.approve; company/account scope; independent approval | web | keep |
+| GET | `/api/finance/journals/manual/{id}/attachment` | Payroll.Api/ManualJournals.cs:117 | finance.journal.create OR finance.journal.approve; company/account scope; independent approval | web | keep |
+| GET | `/api/finance/trial-balance` | Payroll.Api/FinanceViews.cs:137 | treasury.journals | web | keep |
+| GET | `/api/vouchers/verify/{no}` | Payroll.Api/Vouchers.cs:107 | public; rate-limited; status/type only | web | keep |
+| POST | `/api/finance/accounting-adjustments` | Payroll.Api/MadaAccounting.cs:80 | finance.journal.create; company/account scope; independent approval | web | keep |
+| POST | `/api/finance/accounting-adjustments/{id}/approve` | Payroll.Api/MadaAccounting.cs:81 | finance.journal.approve; company/account scope; independent approval | web | keep |
+| POST | `/api/finance/journals/manual` | Payroll.Api/ManualJournals.cs:107 | finance.journal.create; company/account scope; independent approval | web | keep |
+| POST | `/api/finance/journals/manual/{id}/approve` | Payroll.Api/ManualJournals.cs:108 | finance.journal.approve; company/account scope; independent approval | web | keep |
+| POST | `/api/finance/journals/manual/{id}/reject` | Payroll.Api/ManualJournals.cs:109 | finance.journal.create; company/account scope; independent approval | web | keep |
+| POST | `/api/finance/journals/manual/{id}/reverse` | Payroll.Api/ManualJournals.cs:111 | finance.journal.create; company/account scope; independent approval | web | keep |
 
 ## النماذج والردود
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| DELETE | `/api/campaigns/{id}` | Payroll.Api/FormDeletion.cs:29 | Admin / SuperAdmin | old UI | keep |
-| DELETE | `/api/forms/builder/{id}` | Payroll.Api/FormDeletion.cs:29 | Admin / SuperAdmin | old UI | keep |
-| DELETE | `/api/submissions/{id}` | Payroll.Api/CampaignOperations.cs:110 | Admin / SuperAdmin | old UI | keep |
-| GET | `/api/campaigns` | Payroll.Api/Program.cs:312 | forms.view | old UI | keep |
-| GET | `/api/campaigns/{id}/analytics` | Payroll.Api/CampaignOperations.cs:109 | forms.view | old UI | keep |
-| GET | `/api/campaigns/{id}/delete-preview` | Payroll.Api/FormDeletion.cs:25 | Admin / SuperAdmin | old UI | keep |
-| GET | `/api/campaigns/{id}/qr.svg` | Payroll.Api/Program.cs:313 | forms.view | old UI | keep |
-| GET | `/api/forms/analytics/{id}` | Payroll.Api/FormBuilder.cs:113 | forms.view | old UI | keep |
-| GET | `/api/forms/builder` | Payroll.Api/FormBuilder.cs:87 | forms.manage | old UI | keep |
-| GET | `/api/forms/builder/{id}/delete-preview` | Payroll.Api/FormDeletion.cs:25 | Admin / SuperAdmin | old UI | keep |
-| GET | `/api/forms/builder/{id}/qr.svg` | Payroll.Api/FormBuilder.cs:98 | forms.manage | old UI | keep |
-| GET | `/api/forms/catalog` | Payroll.Api/FormBuilder.cs:86 | forms.view | old UI | keep |
-| GET | `/api/forms/responses/{id}` | Payroll.Api/FormBuilder.cs:99 | forms.view | old UI | keep |
-| GET | `/api/public/forms/{token}` | Payroll.Api/Program.cs:332 | public (rider portal: own authenticated rider) | rider form | keep |
+| DELETE | `/api/campaigns/{id}` | Payroll.Api/FormDeletion.cs:29 | Admin / SuperAdmin | web | keep |
+| DELETE | `/api/forms/builder/{id}` | Payroll.Api/FormDeletion.cs:29 | Admin / SuperAdmin | web | keep |
+| DELETE | `/api/submissions/{id}` | Payroll.Api/CampaignOperations.cs:110 | Admin / SuperAdmin | web | keep |
+| GET | `/api/campaigns` | Payroll.Api/Program.cs:279 | forms.view | web | keep |
+| GET | `/api/campaigns/{id}/analytics` | Payroll.Api/CampaignOperations.cs:109 | forms.view | web | keep |
+| GET | `/api/campaigns/{id}/delete-preview` | Payroll.Api/FormDeletion.cs:25 | Admin / SuperAdmin | web | keep |
+| GET | `/api/campaigns/{id}/qr.svg` | Payroll.Api/Program.cs:280 | forms.view | web | keep |
+| GET | `/api/forms/analytics/{id}` | Payroll.Api/FormBuilder.cs:113 | forms.view | web | keep |
+| GET | `/api/forms/builder` | Payroll.Api/FormBuilder.cs:87 | forms.manage | web | keep |
+| GET | `/api/forms/builder/{id}/delete-preview` | Payroll.Api/FormDeletion.cs:25 | Admin / SuperAdmin | web | keep |
+| GET | `/api/forms/builder/{id}/qr.svg` | Payroll.Api/FormBuilder.cs:98 | forms.manage | web | keep |
+| GET | `/api/forms/catalog` | Payroll.Api/FormBuilder.cs:86 | forms.view | web | keep |
+| GET | `/api/forms/responses/{id}` | Payroll.Api/FormBuilder.cs:99 | forms.view | web | keep |
+| GET | `/api/public/forms/{token}` | Payroll.Api/Program.cs:299 | public (rider portal: own authenticated rider) | rider form | keep |
 | GET | `/api/public/questionnaires/{token}` | Payroll.Api/FormBuilder.cs:116 | public (rider portal: own authenticated rider) | rider form | keep |
 | GET | `/api/responses` | Payroll.Api/ResponsesInbox.cs:49 | forms.view | none | new |
-| GET | `/api/submissions` | Payroll.Api/Program.cs:324 | forms.view | old UI | keep |
-| GET | `/forms/{token}` | Payroll.Api/Program.cs:336 | public (rider portal: own authenticated rider) | old UI | keep |
-| GET | `/questionnaires/{token}` | Payroll.Api/FormBuilder.cs:125 | public (rider portal: own authenticated rider) | none | keep |
-| POST | `/api/campaigns` | Payroll.Api/Program.cs:314 | forms.manage | old UI | keep |
-| POST | `/api/campaigns/{id}/close` | Payroll.Api/Program.cs:323 | forms.manage | old UI | keep |
-| POST | `/api/forms/builder` | Payroll.Api/FormBuilder.cs:88 | forms.manage | old UI | keep |
-| POST | `/api/forms/builder/{id}/close` | Payroll.Api/FormBuilder.cs:97 | forms.manage | old UI | keep |
-| POST | `/api/forms/builder/{id}/publish` | Payroll.Api/FormBuilder.cs:94 | forms.manage | old UI | keep |
+| GET | `/api/submissions` | Payroll.Api/Program.cs:291 | forms.view | web | keep |
+| GET | `/forms/{token}` | Payroll.Api/Program.cs:303 | public (rider portal: own authenticated rider) | web | keep |
+| GET | `/questionnaires/{token}` | Payroll.Api/FormBuilder.cs:125 | public (rider portal: own authenticated rider) | web | keep |
+| POST | `/api/campaigns` | Payroll.Api/Program.cs:281 | forms.manage | web | keep |
+| POST | `/api/campaigns/{id}/close` | Payroll.Api/Program.cs:290 | forms.manage | web | keep |
+| POST | `/api/forms/builder` | Payroll.Api/FormBuilder.cs:88 | forms.manage | web | keep |
+| POST | `/api/forms/builder/{id}/close` | Payroll.Api/FormBuilder.cs:97 | forms.manage | web | keep |
+| POST | `/api/forms/builder/{id}/publish` | Payroll.Api/FormBuilder.cs:94 | forms.manage | web | keep |
 | POST | `/api/public/forms/{token}` | Payroll.Api/SubmissionChoices.cs:122 | public (rider portal: own authenticated rider) | rider form | keep |
 | POST | `/api/public/forms/{token}/edit` | Payroll.Api/SubmissionChoices.cs:143 | public (rider portal: own authenticated rider) | rider form | keep |
 | POST | `/api/public/forms/{token}/lookup` | Payroll.Api/SubmissionChoices.cs:117 | public (rider portal: own authenticated rider) | rider form | keep |
 | POST | `/api/public/forms/{token}/resume` | Payroll.Api/SubmissionChoices.cs:138 | public (rider portal: own authenticated rider) | rider form | deprecated |
 | POST | `/api/public/questionnaires/{token}` | Payroll.Api/FormBuilder.cs:119 | public (rider portal: own authenticated rider) | rider form | keep |
-| POST | `/api/submissions/bulk-approve` | Payroll.Api/CampaignOperations.cs:112 | forms.review | old UI | keep |
-| POST | `/api/submissions/bulk-delete` | Payroll.Api/CampaignOperations.cs:111 | Admin / SuperAdmin | old UI | keep |
-| POST | `/api/submissions/{id}/review` | Payroll.Api/Program.cs:325 | forms.review | old UI | keep |
-| PUT | `/api/campaigns/{id}` | Payroll.Api/CampaignOperations.cs:103 | Admin / SuperAdmin | old UI | keep |
-| PUT | `/api/forms/builder/{id}` | Payroll.Api/FormBuilder.cs:91 | forms.manage | old UI | keep |
+| POST | `/api/submissions/bulk-approve` | Payroll.Api/CampaignOperations.cs:112 | forms.review | web | keep |
+| POST | `/api/submissions/bulk-delete` | Payroll.Api/CampaignOperations.cs:111 | Admin / SuperAdmin | web | keep |
+| POST | `/api/submissions/{id}/review` | Payroll.Api/Program.cs:292 | forms.review | web | keep |
+| PUT | `/api/campaigns/{id}` | Payroll.Api/CampaignOperations.cs:103 | Admin / SuperAdmin | web | keep |
+| PUT | `/api/forms/builder/{id}` | Payroll.Api/FormBuilder.cs:91 | forms.manage | web | keep |
 
 ## الإدارة
 
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
-| GET | `/` | Payroll.Api/LegacyUi.cs:31 | public (rider portal: own authenticated rider) | none | keep |
-| GET | `/api/admin/approval-bypass` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:69 | see AccessPolicy + handler | none | keep |
-| GET | `/api/admin/approval-exceptions` | Payroll.Api/UserAccess.cs:453 | see AccessPolicy + handler | none | keep |
-| GET | `/api/audit` | Payroll.Api/Program.cs:331 | Admin / SuperAdmin | old UI | keep |
-| GET | `/api/auth/status` | Payroll.Api/Program.cs:104 | public (rider portal: own authenticated rider) | old UI | keep |
-| GET | `/api/config/lists` | Payroll.Api/ConfigLists.cs:183 | see AccessPolicy + handler | none | keep |
-| GET | `/api/config/lists/{group}` | Payroll.Api/ConfigLists.cs:184 | see AccessPolicy + handler | none | keep |
-| GET | `/api/health` | Payroll.Api/Program.cs:103 | see AccessPolicy + handler | none | keep |
-| GET | `/api/imports/catalog` | Payroll.Api/ImportCatalog.cs:88 | imports.view | none | keep |
-| GET | `/api/imports/templates/{name}` | Payroll.Api/ImportCatalog.cs:89 | imports.view | none | keep |
-| GET | `/api/me` | Payroll.Api/Program.cs:193 | authenticated; category/owner visibility in handler | old UI | keep |
-| GET | `/api/org/catalog` | Payroll.Api/OrgDirectory.cs:104 | authenticated | none | keep |
-| GET | `/api/org/delegations` | Payroll.Api/OrgDirectory.cs:108 | org.manage (Admin); dated rows, never deleted | none | keep |
-| GET | `/api/org/memberships` | Payroll.Api/OrgDirectory.cs:105 | org.manage (Admin); dated rows, never deleted | none | keep |
-| GET | `/api/org/responsible` | Payroll.Api/OrgDirectory.cs:117 | org.manage (Admin); dated rows, never deleted | none | keep |
-| GET | `/api/org/routing` | Payroll.Api/OrgDirectory.cs:114 | org.manage (Admin); dated rows, never deleted | none | keep |
-| GET | `/api/org/supervision` | Payroll.Api/OrgDirectory.cs:111 | advances.request (mine=1) or org.manage | none | keep |
-| GET | `/api/roles-catalog` | Payroll.Api/UserAccess.cs:444 | authenticated; category/owner visibility in handler | old UI | keep |
-| GET | `/api/system/erp-sponsor-map` | Payroll.Api/ErpSponsorMap.cs:10 | Admin / SuperAdmin | none | keep |
-| GET | `/api/system/maintenance/rider-indexes` | Payroll.Api/RiderIndexMaintenance.cs:38 | Admin / SuperAdmin | none | keep |
-| GET | `/api/system/release-check` | Payroll.Api/ReleaseSafety.cs:75 | Admin / SuperAdmin | none | deprecated |
-| GET | `/api/users` | Payroll.Api/UserAccess.cs:454 | Admin / SuperAdmin | old UI | keep |
-| GET | `/health` | Payroll.Api/Program.cs:102 | public (rider portal: own authenticated rider) | none | keep |
-| GET | `/legacy` | Payroll.Api/LegacyUi.cs:33 | public (rider portal: own authenticated rider) | none | keep |
+| GET | `/` | Payroll.Api/LegacyUi.cs:30 | public (rider portal: own authenticated rider) | none | keep |
+| GET | `/api/admin/approval-bypass` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:69 | see AccessPolicy + handler | web | keep |
+| GET | `/api/admin/approval-exceptions` | Payroll.Api/UserAccess.cs:453 | see AccessPolicy + handler | web | keep |
+| GET | `/api/audit` | Payroll.Api/Program.cs:298 | Admin / SuperAdmin | web | keep |
+| GET | `/api/auth/status` | Payroll.Api/Program.cs:104 | public (rider portal: own authenticated rider) | web | keep |
+| GET | `/api/config/lists` | Payroll.Api/ConfigLists.cs:183 | see AccessPolicy + handler | web | keep |
+| GET | `/api/config/lists/{group}` | Payroll.Api/ConfigLists.cs:184 | see AccessPolicy + handler | web | keep |
+| GET | `/api/health` | Payroll.Api/Program.cs:103 | see AccessPolicy + handler | web | keep |
+| GET | `/api/imports/catalog` | Payroll.Api/ImportCatalog.cs:88 | imports.view | web | keep |
+| GET | `/api/imports/templates/{name}` | Payroll.Api/ImportCatalog.cs:89 | imports.view | web | keep |
+| GET | `/api/me` | Payroll.Api/Program.cs:193 | authenticated; category/owner visibility in handler | web | keep |
+| GET | `/api/org/catalog` | Payroll.Api/OrgDirectory.cs:104 | authenticated | web | keep |
+| GET | `/api/org/delegations` | Payroll.Api/OrgDirectory.cs:108 | org.manage (Admin); dated rows, never deleted | web | keep |
+| GET | `/api/org/memberships` | Payroll.Api/OrgDirectory.cs:105 | org.manage (Admin); dated rows, never deleted | web | keep |
+| GET | `/api/org/responsible` | Payroll.Api/OrgDirectory.cs:117 | org.manage (Admin); dated rows, never deleted | web | keep |
+| GET | `/api/org/routing` | Payroll.Api/OrgDirectory.cs:114 | org.manage (Admin); dated rows, never deleted | web | keep |
+| GET | `/api/org/supervision` | Payroll.Api/OrgDirectory.cs:111 | advances.request (mine=1) or org.manage | web | keep |
+| GET | `/api/roles-catalog` | Payroll.Api/UserAccess.cs:444 | authenticated; category/owner visibility in handler | web | keep |
+| GET | `/api/system/erp-sponsor-map` | Payroll.Api/ErpSponsorMap.cs:10 | Admin / SuperAdmin | web | keep |
+| GET | `/api/system/maintenance/rider-indexes` | Payroll.Api/RiderIndexMaintenance.cs:38 | Admin / SuperAdmin | web | keep |
+| GET | `/api/system/release-check` | Payroll.Api/ReleaseSafety.cs:75 | Admin / SuperAdmin | web | deprecated |
+| GET | `/api/users` | Payroll.Api/UserAccess.cs:454 | Admin / SuperAdmin | web | keep |
+| GET | `/health` | Payroll.Api/Program.cs:102 | public (rider portal: own authenticated rider) | web | keep |
 | GET | `/openapi/v1.json` | Payroll.Api/Program.cs:61 | Admin / SuperAdmin | none | new |
-| GET | `/rider-form.js` | Payroll.Api/Program.cs:337 | public (rider portal: own authenticated rider) | none | keep |
-| POST | `/api/admin/approval-bypass` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:74 | see AccessPolicy + handler | none | keep |
-| POST | `/api/admin/approval-bypass/{id}/revoke` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:75 | see AccessPolicy + handler | none | keep |
-| POST | `/api/auth/login` | Payroll.Api/Program.cs:115 | public (rider portal: own authenticated rider) | old UI | keep |
-| POST | `/api/auth/logout` | Payroll.Api/Program.cs:135 | public (rider portal: own authenticated rider) | old UI | keep |
-| POST | `/api/auth/setup` | Payroll.Api/Program.cs:105 | public (rider portal: own authenticated rider) | old UI | keep |
-| POST | `/api/config/lists/{group}/fields` | Payroll.Api/ConfigLists.cs:187 | see AccessPolicy + handler | none | keep |
-| POST | `/api/config/lists/{group}/items` | Payroll.Api/ConfigLists.cs:185 | see AccessPolicy + handler | none | keep |
-| POST | `/api/config/lists/{group}/items/{code}/approve` | Payroll.Api/ConfigLists.cs:186 | see AccessPolicy + handler | none | keep |
-| POST | `/api/me/password` | Payroll.Api/UserAccess.cs:510 | see AccessPolicy + handler | none | keep |
-| POST | `/api/org/delegations` | Payroll.Api/OrgDirectory.cs:109 | org.manage (Admin); dated rows, never deleted | none | keep |
-| POST | `/api/org/delegations/{id}/end` | Payroll.Api/OrgDirectory.cs:110 | org.manage (Admin); dated rows, never deleted | none | keep |
-| POST | `/api/org/memberships` | Payroll.Api/OrgDirectory.cs:106 | org.manage (Admin); dated rows, never deleted | none | keep |
-| POST | `/api/org/memberships/{id}/end` | Payroll.Api/OrgDirectory.cs:107 | org.manage (Admin); dated rows, never deleted | none | keep |
-| POST | `/api/org/routing` | Payroll.Api/OrgDirectory.cs:115 | org.manage (Admin); dated rows, never deleted | none | keep |
-| POST | `/api/org/routing/{id}/end` | Payroll.Api/OrgDirectory.cs:116 | org.manage (Admin); dated rows, never deleted | none | keep |
-| POST | `/api/org/supervision` | Payroll.Api/OrgDirectory.cs:112 | org.manage (Admin); dated rows, never deleted | none | keep |
-| POST | `/api/org/supervision/{id}/end` | Payroll.Api/OrgDirectory.cs:113 | org.manage (Admin); dated rows, never deleted | none | keep |
-| POST | `/api/system/maintenance/rider-indexes` | Payroll.Api/RiderIndexMaintenance.cs:44 | Admin / SuperAdmin | none | keep |
-| POST | `/api/users` | Payroll.Api/UserAccess.cs:456 | Admin / SuperAdmin | old UI | keep |
-| POST | `/api/users/{id}/reset-password` | Payroll.Api/UserAccess.cs:502 | Admin / SuperAdmin | old UI | keep |
-| PUT | `/api/roles/{code}/permissions` | Payroll.Api/UserAccess.cs:519 | see AccessPolicy + handler | old UI | keep |
+| GET | `/rider-form.js` | Payroll.Api/Program.cs:304 | public (rider portal: own authenticated rider) | web | keep |
+| POST | `/api/admin/approval-bypass` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:74 | see AccessPolicy + handler | web | keep |
+| POST | `/api/admin/approval-bypass/{id}/revoke` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:75 | see AccessPolicy + handler | web | keep |
+| POST | `/api/auth/login` | Payroll.Api/Program.cs:115 | public (rider portal: own authenticated rider) | web | keep |
+| POST | `/api/auth/logout` | Payroll.Api/Program.cs:135 | public (rider portal: own authenticated rider) | web | keep |
+| POST | `/api/auth/setup` | Payroll.Api/Program.cs:105 | public (rider portal: own authenticated rider) | web | keep |
+| POST | `/api/config/lists/{group}/fields` | Payroll.Api/ConfigLists.cs:187 | see AccessPolicy + handler | web | keep |
+| POST | `/api/config/lists/{group}/items` | Payroll.Api/ConfigLists.cs:185 | see AccessPolicy + handler | web | keep |
+| POST | `/api/config/lists/{group}/items/{code}/approve` | Payroll.Api/ConfigLists.cs:186 | see AccessPolicy + handler | web | keep |
+| POST | `/api/me/password` | Payroll.Api/UserAccess.cs:510 | see AccessPolicy + handler | web | keep |
+| POST | `/api/org/delegations` | Payroll.Api/OrgDirectory.cs:109 | org.manage (Admin); dated rows, never deleted | web | keep |
+| POST | `/api/org/delegations/{id}/end` | Payroll.Api/OrgDirectory.cs:110 | org.manage (Admin); dated rows, never deleted | web | keep |
+| POST | `/api/org/memberships` | Payroll.Api/OrgDirectory.cs:106 | org.manage (Admin); dated rows, never deleted | web | keep |
+| POST | `/api/org/memberships/{id}/end` | Payroll.Api/OrgDirectory.cs:107 | org.manage (Admin); dated rows, never deleted | web | keep |
+| POST | `/api/org/routing` | Payroll.Api/OrgDirectory.cs:115 | org.manage (Admin); dated rows, never deleted | web | keep |
+| POST | `/api/org/routing/{id}/end` | Payroll.Api/OrgDirectory.cs:116 | org.manage (Admin); dated rows, never deleted | web | keep |
+| POST | `/api/org/supervision` | Payroll.Api/OrgDirectory.cs:112 | org.manage (Admin); dated rows, never deleted | web | keep |
+| POST | `/api/org/supervision/{id}/end` | Payroll.Api/OrgDirectory.cs:113 | org.manage (Admin); dated rows, never deleted | web | keep |
+| POST | `/api/system/maintenance/rider-indexes` | Payroll.Api/RiderIndexMaintenance.cs:44 | Admin / SuperAdmin | web | keep |
+| POST | `/api/users` | Payroll.Api/UserAccess.cs:456 | Admin / SuperAdmin | web | keep |
+| POST | `/api/users/{id}/reset-password` | Payroll.Api/UserAccess.cs:502 | Admin / SuperAdmin | web | keep |
+| PUT | `/api/roles/{code}/permissions` | Payroll.Api/UserAccess.cs:519 | see AccessPolicy + handler | web | keep |
 | PUT | `/api/users/{id}` | Payroll.Api/UserAccess.cs:533 | Admin / SuperAdmin | none | new |
-| PUT | `/api/users/{id}/status` | Payroll.Api/UserAccess.cs:534 | Admin / SuperAdmin | old UI | keep |
-| PUT | `/api/users/{id}/username` | Payroll.Api/UserAccess.cs:531 | Admin / SuperAdmin | old UI | keep |
+| PUT | `/api/users/{id}/status` | Payroll.Api/UserAccess.cs:534 | Admin / SuperAdmin | web | keep |
+| PUT | `/api/users/{id}/username` | Payroll.Api/UserAccess.cs:531 | Admin / SuperAdmin | web | keep |
 
 ## Compatibility and deprecations
 
@@ -446,7 +441,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | `POST /api/public/forms/{token}/resume` | New callers use `/lookup` and `/edit`; retain the receipt-based legacy route. |
 | `GET /api/system/release-check` | Tests/diagnostics only, administrator access; public deployment metadata is `/health`. |
 
-Root GET redirects to `/app/`; legacy administration is at session-protected `/legacy/`, with the existing public forms/inquiry/rider pages retained.
+Root GET redirects to `/app/`; the Next.js app is the only administration UI. Public forms, inquiry and the rider portal stay.
 
 No route is removed. OpenAPI flags the same six operations as deprecated. HTML/static routes and `/health` are included in the inventory but remain outside `/api`.
 
