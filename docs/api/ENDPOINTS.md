@@ -27,11 +27,13 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | Method | Path | Source | Permission | Caller | Status |
 |---|---|---|---|---|---|
 | GET | `/api/rider-mobile/broadcasts` | Payroll.Api/FinancialCore.cs:919 | mobile.broadcast + company scope OR active rider bearer token (own and ALL) | old UI | keep |
+| GET | `/api/rider-mobile/broadcasts/distinct` | Payroll.Api/FinancialCore.cs:943 | mobile.broadcast + company scope; distinct values for column filters | web | keep |
 | GET | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:963 | Admin / SuperAdmin | old UI | keep |
 | GET | `/api/rider-mobile/forms` | Payroll.Api/RiderAsks.cs:1228 | mobile.broadcast | none | keep |
 | GET | `/api/rider-mobile/portal/{iqama}` | Payroll.Api/FinancialCore.cs:1014 | own rider session / one-time inquiry code | rider app | keep |
 | GET | `/api/rider-mobile/requests` | Payroll.Api/RiderAsks.cs:1239 | Active rider bearer token; own asks only; routed to current supervisor | none | keep |
 | GET | `/api/rider-mobile/service-requests` | Payroll.Api/RiderAsks.cs:1278 | mobile.broadcast | none | keep |
+| GET | `/api/rider-mobile/service-requests/distinct` | Payroll.Api/RiderAsks.cs:1282 | mobile.broadcast / forms / complaints / iban approvers + rider scope; distinct values for column filters | web | keep |
 | GET | `/api/rider-mobile/service-requests/summary` | Payroll.Api/RiderAsks.cs:1289 | mobile.broadcast | none | keep |
 | GET | `/api/rider-mobile/sessions` | Payroll.Api/MobileSessions.cs:125 | mobile.sessions (Admin / SuperAdmin); company or sponsor scope; safe hash prefix only | none | keep |
 | GET | `/api/rider-mobile/sessions/mine` | Payroll.Api/MobileSessions.cs:127 | Active rider bearer token; own sessions only | rider app | keep |
