@@ -936,6 +936,7 @@ export interface PayCatalog {
   ninjaMetrics?: string[];
   defaults?: { values: PayGlobalValues };
   defaultsAreDraftOnly?: boolean;
+  allowedActions?: string[];
 }
 
 export interface PayConfigDoc {

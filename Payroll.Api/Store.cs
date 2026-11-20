@@ -50,6 +50,7 @@ public sealed partial class Store
             CREATE INDEX IF NOT EXISTS ix_submission_iqama ON records(json_extract(body,'$.iqama')) WHERE kind='submission';
             CREATE INDEX IF NOT EXISTS ix_advance_req_iqama ON records(json_extract(body,'$.riderIqama')) WHERE kind='advance_request';
             CREATE INDEX IF NOT EXISTS ix_push_outbox_status ON records(json_extract(body,'$.status'),json_extract(body,'$.createdAt')) WHERE kind='push_outbox';
+            CREATE INDEX IF NOT EXISTS ix_audit_at ON records(json_extract(body,'$.at'),id) WHERE kind='audit';
             """ : """
             IF OBJECT_ID(N'dbo.records', N'U') IS NULL
               CREATE TABLE dbo.records(id nvarchar(128) NOT NULL PRIMARY KEY, kind nvarchar(40) NOT NULL, body nvarchar(max) NOT NULL CHECK(ISJSON(body)=1));

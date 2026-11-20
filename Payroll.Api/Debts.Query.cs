@@ -70,13 +70,17 @@ public static partial class Debts
         using var cmd = Store.Command(c, null, sql, parms.ToArray());
         using var r = cmd.ExecuteReader();
         r.Read();
+        var actions = new JsonArray();
+        ImportTemplateAccess.AddIfAllowed(actions, actor, "/api/debts/import-opening/template");
+        ImportTemplateAccess.AddIfAllowed(actions, actor, "/api/debts/bulk-collect/template");
         return new JsonObject
         {
             ["totalCount"] = Convert.ToInt64(r["totalCount"], CultureInfo.InvariantCulture),
             ["activeRemainingTotal"] = J.Money(Convert.ToDecimal(r["activeRemaining"], CultureInfo.InvariantCulture)),
             ["advanceRemainingTotal"] = J.Money(Convert.ToDecimal(r["advanceRemaining"], CultureInfo.InvariantCulture)),
             ["pendingOpeningCount"] = Convert.ToInt64(r["pendingOpeningCount"], CultureInfo.InvariantCulture),
-            ["pendingOpeningTotal"] = J.Money(Convert.ToDecimal(r["pendingOpeningTotal"], CultureInfo.InvariantCulture))
+            ["pendingOpeningTotal"] = J.Money(Convert.ToDecimal(r["pendingOpeningTotal"], CultureInfo.InvariantCulture)),
+            ["allowedActions"] = actions
         };
     }
 

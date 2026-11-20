@@ -162,6 +162,7 @@ function DebtsPageContent() {
     advanceRemainingTotal: number;
     pendingOpeningCount: number;
     pendingOpeningTotal: number;
+    allowedActions?: string[];
   } | null>(null);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [approvalsLoaded, setApprovalsLoaded] = useState(false);
@@ -1100,6 +1101,7 @@ function DebtsPageContent() {
           open={Boolean(debtImportStep)}
           onClose={() => setDebtImportStep(null)}
           step={debtImportStep}
+          allowedActions={debtsSummary?.allowedActions}
           onCommitted={() => void loadData()}
         />
       )}

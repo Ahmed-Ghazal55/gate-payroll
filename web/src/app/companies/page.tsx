@@ -2796,6 +2796,7 @@ function CompaniesPageContent() {
         open={fileImportOpen}
         onClose={() => setFileImportOpen(false)}
         step={COMPANIES_IMPORT}
+        allowedActions={stats?.allowedActions}
         onCommitted={() => {
           void fetchData();
         }}
