@@ -30,6 +30,8 @@ export interface NavSubItem {
   badge?: number | string;
   isNew?: boolean;
   permission?: string | string[];
+  /** When true, every listed permission is required (default: any one). */
+  requireAll?: boolean;
 }
 
 export interface NavGroup {
@@ -84,7 +86,7 @@ function SidebarInner({
       permission: 'riders.view',
       items: [
         { id: 'wf-directory', href: '/workforce/', label: 'القوى العاملة' },
-        { id: 'wf-statement', href: '/riders/statement/', label: 'كشف حساب المندوب', isNew: true },
+        { id: 'wf-statement', href: '/riders/statement/', label: 'كشف حساب المندوب', permission: 'debts.view', isNew: true },
       ],
     },
     {
@@ -109,7 +111,6 @@ function SidebarInner({
         { id: 'ops-housing', href: '/operations/?tab=housing', label: 'السكن والإسكان' },
         { id: 'ops-vehicles', href: '/operations/?tab=vehicles', label: 'المركبات والتسليمات' },
         { id: 'ops-fuel', href: '/operations/?tab=fuel', label: 'الوقود' },
-        { id: 'ops-imports', href: '/imports/', label: 'استيراد الملفات', permission: 'imports.view', isNew: true },
       ],
     },
     {
@@ -151,7 +152,7 @@ function SidebarInner({
       items: [
         { id: 'treasury-vaults', href: '/treasury/?tab=vaults', label: 'أرصدة الخزينة (1110-1140)', permission: 'treasury.view' },
         { id: 'treasury-advance-payouts', href: '/treasury/?tab=advance_payouts', label: 'صرف السلف المعتمدة', permission: 'advances.payout' },
-        { id: 'treasury-bankfile', href: '/treasury/?tab=bank_file', label: 'ملف صرف الرواتب البنكي', permission: 'treasury.view' },
+        { id: 'treasury-bankfile', href: '/treasury/?tab=bank_file', label: 'ملف صرف الرواتب البنكي', permission: ['finance.bankfile.export', 'payroll.view'], requireAll: true },
         { id: 'treasury-jahez', href: '/treasury/?tab=jahez', label: 'جاهز — مطابقة وخزينة', permission: 'treasury.view' },
         { id: 'treasury-extras', href: '/treasury/?tab=extras', label: 'مدا والتزامات وتوزيع قديم', permission: 'treasury.view' },
         { id: 'treasury-movements', href: '/treasury/?tab=movements', label: 'سجل القيود والحركات', permission: 'treasury.view' },
@@ -162,12 +163,12 @@ function SidebarInner({
       label: 'المحاسبة والتقارير',
       icon: <FileSpreadsheet size={18} />,
       defaultHref: '/accounting/',
-      permission: 'payroll.view',
+      permission: ['treasury.view', 'finance.journal.create', 'finance.journal.approve', 'treasury.journals'],
       items: [
-        { id: 'acc-coa', href: '/accounting/?tab=coa', label: 'دليل الحسابات' },
-        { id: 'acc-journals', href: '/accounting/?tab=journals', label: 'سجل القيود اليومية' },
-        { id: 'acc-trial', href: '/accounting/?tab=trial_balance', label: 'ميزان المراجعة' },
-        { id: 'acc-income', href: '/accounting/?tab=income_statement', label: 'قائمة الدخل' },
+        { id: 'acc-coa', href: '/accounting/?tab=coa', label: 'دليل الحسابات', permission: 'treasury.view' },
+        { id: 'acc-journals', href: '/accounting/?tab=journals', label: 'سجل القيود اليومية', permission: ['finance.journal.create', 'finance.journal.approve'] },
+        { id: 'acc-trial', href: '/accounting/?tab=trial_balance', label: 'ميزان المراجعة', permission: 'treasury.journals' },
+        { id: 'acc-income', href: '/accounting/?tab=income_statement', label: 'قائمة الدخل', permission: 'treasury.journals' },
       ],
     },
     {
@@ -219,7 +220,7 @@ function SidebarInner({
       items: [
         { id: 'admin-users', href: '/admin/?tab=users', label: 'المستخدمون والصلاحيات', permission: 'users.manage' },
         { id: 'admin-org', href: '/admin/?tab=org', label: 'الأقسام والرتب والتفويضات', permission: 'org.manage' },
-        { id: 'admin-audit', href: '/admin/?tab=audit', label: 'سجل التدقيق والعمليات', permission: 'users.manage' },
+        { id: 'admin-audit', href: '/admin/?tab=audit', label: 'سجل التدقيق والعمليات', permission: 'audit.view' },
         { id: 'admin-settings', href: '/admin/?tab=settings', label: 'إعدادات النظام', permission: 'users.manage' },
       ],
     },
@@ -256,24 +257,29 @@ function SidebarInner({
     setOpenGroupId((prev) => (prev === groupId ? null : groupId));
   };
 
-  const isItemVisible = (item: NavSubItem) => {
-    if (!user || isAdmin || !item.permission) return true;
-    if (Array.isArray(item.permission)) {
-      return item.permission.some((p) => can(p));
+  const matchesPermission = (permission?: string | string[], requireAll = false) => {
+    if (!permission) return true;
+    if (Array.isArray(permission)) {
+      return requireAll ? permission.every((p) => can(p)) : permission.some((p) => can(p));
     }
-    return can(item.permission);
+    return can(permission);
+  };
+
+  // An item with no permission inherits the group's permission (INT1).
+  const isItemVisible = (item: NavSubItem, group: NavGroup) => {
+    if (!user || isAdmin) return true;
+    return matchesPermission(item.permission ?? group.permission, item.requireAll);
   };
 
   const visibleGroups = navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter(isItemVisible),
+      items: group.items.filter((item) => isItemVisible(item, group)),
     }))
     .filter((group) => {
       if (!user) return true;
       if (isAdmin) return true;
-      const hasGroupPerm = !group.permission || (Array.isArray(group.permission) ? group.permission.some((p) => can(p)) : can(group.permission));
-      return hasGroupPerm || group.items.length > 0;
+      return group.items.length > 0;
     });
 
   const sidebarContent = (

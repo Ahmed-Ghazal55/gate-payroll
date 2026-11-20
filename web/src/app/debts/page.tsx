@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -10,6 +12,7 @@ import {
   Search,
   Filter,
   Download,
+  Upload,
   Calendar,
   CheckCircle2,
   AlertCircle,
@@ -57,6 +60,13 @@ import {
   type DebtsTabId,
   type DebtCategoryOption,
 } from '../../features/debts/debts-tab-load';
+import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
+import {
+  BULK_COLLECT_IMPORT,
+  canShowImportStep,
+  OPENING_DEBTS_IMPORT,
+  type PageImportStep,
+} from '../../features/imports/import-steps';
 import type { PaginatedResult } from '../../lib/types';
 import type {
   DebtRecord,
@@ -80,7 +90,7 @@ const LEGACY_CATEGORY_AR: Record<string, string> = {
   hr_cost: 'تكلفة HR',
 };
 function debtCategoryLabel(d: DebtRecord): string {
-  return d.categoryAr || LEGACY_CATEGORY_AR[d.category] || d.category || '—';
+  return d.categoryAr || LEGACY_CATEGORY_AR[d.category] || 'غير معروف';
 }
 const DEBT_STATUS_AR: Record<string, string> = {
   active: 'قائم',
@@ -91,7 +101,7 @@ const DEBT_STATUS_AR: Record<string, string> = {
   cancelled: 'ملغي',
 };
 function debtStatusLabel(status: string): string {
-  return DEBT_STATUS_AR[status] || status || '—';
+  return DEBT_STATUS_AR[status] || 'غير معروف';
 }
 const isPendingOpening = (d: DebtRecord) =>
   d.entryMode === 'OpeningBalance' && d.status === 'pending_approval' && !d.approvalRequestId;
@@ -114,6 +124,7 @@ function DebtsPageContent() {
   }, [tabFromUrl]);
 
   const [activeTab, setActiveTab] = useState<TabId>(resolvedTab);
+  const [debtImportStep, setDebtImportStep] = useState<PageImportStep | null>(null);
 
   useEffect(() => {
     if (resolvedTab && resolvedTab !== activeTab) {
@@ -159,9 +170,12 @@ function DebtsPageContent() {
   const [advancesLoaded, setAdvancesLoaded] = useState(false);
 
   // Statement search states
-  const [statementIqama, setStatementIqama] = useState<string>('2000000789');
-  const [statementFrom, setStatementFrom] = useState<string>('2026-01-01');
-  const [statementTo, setStatementTo] = useState<string>('2026-10-31');
+  const [statementIqama, setStatementIqama] = useState<string>('');
+  const [statementFrom, setStatementFrom] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [statementTo, setStatementTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [statementMode, setStatementMode] = useState<'detailed' | 'simple'>('detailed');
   const [statementData, setStatementData] = useState<RiderStatement | null>(null);
   const [loadingStatement, setLoadingStatement] = useState<boolean>(false);
@@ -394,6 +408,8 @@ function DebtsPageContent() {
       setNewReqFulfilment('recharge_card');
       setNewRequestOpen(true);
     }
+    const debtId = searchParams?.get('id');
+    if (debtId) setActiveTab('debts');
   }, [searchParams]);
 
   useEffect(() => {
@@ -443,6 +459,14 @@ function DebtsPageContent() {
       if (canRequestAdvances) void loadSupervisedRiders();
     }
   }, [activeTab, advancesRoleView, selectedCategory, selectedStatus, debouncedSearch]);
+
+  // Deep-link from global search: /debts/?tab=debts&id=…
+  useEffect(() => {
+    const debtId = searchParams?.get('id');
+    if (!debtId || !debtsLoaded) return;
+    const match = debts.find((d) => d.id === debtId);
+    if (match) setSelectedDebt(match);
+  }, [searchParams, debts, debtsLoaded]);
 
   const handleOpenReviewDrawer = async (req: AdvanceRequest) => {
     setSelectedAdvance(req);
@@ -625,7 +649,7 @@ function DebtsPageContent() {
         const simple = await api.getRiderStatementSimple(statementIqama.trim(), statementFrom, statementTo);
         setStatementData({
           iqama: statementIqama.trim(),
-          riderName: simple.riderName || 'مندوب تجريبي',
+          riderName: simple.riderName || '—',
           period: { from: statementFrom, to: statementTo },
           openingBalance: simple.openingBalance || 0,
           closingBalance: simple.closingBalance || 0,
@@ -796,7 +820,7 @@ function DebtsPageContent() {
         getValue: (d) => d.originalAmount ?? 0,
         render: (d) => (
           <span className="num text-[var(--muted)]">
-            {(d.originalAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar((d.originalAmount ?? 0))}
           </span>
         ),
       },
@@ -807,7 +831,7 @@ function DebtsPageContent() {
         getValue: (d) => d.remainingAmount ?? 0,
         render: (d) => (
           <span className="num font-bold text-sm text-[var(--danger)]">
-            {(d.remainingAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar((d.remainingAmount ?? 0))}
           </span>
         ),
       },
@@ -820,7 +844,7 @@ function DebtsPageContent() {
           const val = d.monthlyInstallment || d.monthlyDeduction || 0;
           return (
             <span className="num text-[var(--muted)]">
-              {val > 0 ? `${val.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س` : '—'}
+              {val > 0 ? `${formatSar(val)}` : '—'}
             </span>
           );
         },
@@ -919,7 +943,7 @@ function DebtsPageContent() {
         getValue: (req) => req.amount,
         render: (req) => (
           <span className="font-bold text-[var(--ink)]">
-            {req.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar(req.amount)}
           </span>
         ),
       },
@@ -996,7 +1020,7 @@ function DebtsPageContent() {
         header: 'المبلغ',
         numeric: true,
         getValue: (app) => app.amount,
-        render: (app) => <span className="num font-bold text-[var(--accent)]">{app.amount} ر.س</span>,
+        render: (app) => <span className="num font-bold text-[var(--accent)]">{formatSar(app.amount)}</span>,
       },
       {
         key: 'status',
@@ -1047,7 +1071,38 @@ function DebtsPageContent() {
                   }
                 : loadData,
         }}
-      />
+      >
+        {canShowImportStep(OPENING_DEBTS_IMPORT, { isAdmin, can }) && (
+          <button
+            type="button"
+            data-testid="import-opening-debts"
+            onClick={() => setDebtImportStep(OPENING_DEBTS_IMPORT)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
+          >
+            <Upload size={15} />
+            استيراد المديونيات الافتتاحية
+          </button>
+        )}
+        {canShowImportStep(BULK_COLLECT_IMPORT, { isAdmin, can }) && (
+          <button
+            type="button"
+            data-testid="import-bulk-collect"
+            onClick={() => setDebtImportStep(BULK_COLLECT_IMPORT)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
+          >
+            <Upload size={15} />
+            تحصيل مجمع من ملف
+          </button>
+        )}
+      </PageHeader>
+      {debtImportStep && (
+        <ImportUploadDialog
+          open={Boolean(debtImportStep)}
+          onClose={() => setDebtImportStep(null)}
+          step={debtImportStep}
+          onCommitted={() => void loadData()}
+        />
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -1055,7 +1110,7 @@ function DebtsPageContent() {
           label="إجمالي المديونيات القائمة"
           value={
             debtsSummary
-              ? `${totalRemainingDebts.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`
+              ? `${formatSar(totalRemainingDebts)}`
               : '—'
           }
           hint="الأرصدة المتبقية على ذمة المناديب"
@@ -1072,7 +1127,7 @@ function DebtsPageContent() {
           label="أرصدة السلف المتبقية"
           value={
             debtsSummary
-              ? `${totalAdvances.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`
+              ? `${formatSar(totalAdvances)}`
               : '—'
           }
           hint="السلف النقدية والبنكية الجاري استقطاعها"
@@ -1205,7 +1260,7 @@ function DebtsPageContent() {
                 <div className="font-bold">أرصدة افتتاحية بانتظار الاعتماد</div>
                 <div className="text-[var(--muted)] mt-0.5">
                   <span className="num font-bold">{pendingOpeningCount}</span> مديونية بإجمالي{' '}
-                  <span className="num font-bold">{pendingOpeningTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> ر.س — من شيت المديونيات بتاريخ 31-10-2026. الاعتماد يرحّل قيد الافتتاح في شهر الرصيد.
+                  <span className="num font-bold">{formatSar(pendingOpeningTotal)}</span> — من شيت المديونيات بتاريخ 31-10-2026. الاعتماد يرحّل قيد الافتتاح في شهر الرصيد.
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1450,12 +1505,12 @@ function DebtsPageContent() {
                 <div className="flex items-center gap-4 text-xs">
                   <div>
                     <span className="text-[var(--muted)]">الرصيد الافتتاحي: </span>
-                    <span className="num font-bold">{statementData.openingBalance?.toLocaleString('en-US') || 0} ر.س</span>
+                    <span className="num font-bold">{formatSar(statementData.openingBalance)}</span>
                   </div>
                   <div>
                     <span className="text-[var(--muted)]">الرصيد الختامي: </span>
                     <span className="num font-bold text-[var(--accent)]">
-                      {statementData.closingBalance?.toLocaleString('en-US') || 0} ر.س
+                      {formatSar(statementData.closingBalance)}
                     </span>
                   </div>
                 </div>
@@ -1477,9 +1532,9 @@ function DebtsPageContent() {
                       <tr key={idx} className="hover:bg-[var(--row-hover)]">
                         <td className="p-2.5 font-mono text-[var(--muted)]">{e.date?.split('T')[0] || e.date}</td>
                         <td className="p-2.5 font-medium">{e.description || e.statement}</td>
-                        <td className="p-2.5 num font-bold text-[var(--danger)]">{e.debit > 0 ? `${e.debit} ر.س` : '—'}</td>
-                        <td className="p-2.5 num font-bold text-[var(--money-pos)]">{e.credit > 0 ? `${e.credit} ر.س` : '—'}</td>
-                        <td className="p-2.5 num font-bold text-[var(--ink)]">{e.balance} ر.س</td>
+                        <td className="p-2.5 num font-bold text-[var(--danger)]">{e.debit > 0 ? formatSar(e.debit) : '—'}</td>
+                        <td className="p-2.5 num font-bold text-[var(--money-pos)]">{e.credit > 0 ? formatSar(e.credit) : '—'}</td>
+                        <td className="p-2.5 num font-bold text-[var(--ink)]">{formatSar(e.balance)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1555,7 +1610,7 @@ function DebtsPageContent() {
                     <tr key={pn.id} className="hover:bg-[var(--row-hover)]">
                       <td className="p-3 font-mono text-xs">{pn.noteNumber || pn.id}</td>
                       <td className="p-3 font-mono">{pn.iqama}</td>
-                      <td className="p-3 num font-bold">{pn.amount} ر.س</td>
+                      <td className="p-3 num font-bold">{formatSar(pn.amount)}</td>
                       <td className="p-3 num text-xs">{pn.dueDate}</td>
                       <td className="p-3">
                         <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
@@ -1764,7 +1819,7 @@ function DebtsPageContent() {
                         .filter((p) => !newReqNetwork || p.values?.network === newReqNetwork)
                         .map((p) => ({
                           value: p.code,
-                          label: `${p.nameAr || p.code} (${p.values?.price ?? 0} ر.س)`,
+                          label: `${p.nameAr || p.code} (${formatSar(p.values?.price ?? 0)})`,
                         }))}
                     />
                   </div>
@@ -1854,7 +1909,7 @@ function DebtsPageContent() {
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المبلغ المقترح:</span>
-                <span className="font-bold num">{proposalReq.proposal?.amount} ر.س</span>
+                <span className="font-bold num">{formatSar(proposalReq.proposal?.amount)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">الخزينة المقترحة:</span>
@@ -1945,7 +2000,7 @@ function DebtsPageContent() {
         }
         subtitle={
           selectedAdvance
-            ? `إقامة: ${selectedAdvance.riderIqama} · ${selectedAdvance.type === 'cash' ? 'سلفة نقدية' : 'سلفة بنكية'} ${selectedAdvance.amount} ر.س`
+            ? `إقامة: ${selectedAdvance.riderIqama} · ${selectedAdvance.type === 'cash' ? 'سلفة نقدية' : 'سلفة بنكية'} ${formatSar(selectedAdvance.amount)}`
             : ''
         }
       >
@@ -2004,18 +2059,18 @@ function DebtsPageContent() {
                     <div className="p-2.5 rounded-lg bg-[var(--raised)]/60">
                       <div className="text-[11px] text-[var(--muted)]">الصافي التقديري للمسير</div>
                       <div className="font-bold text-sm text-[var(--accent)] num">
-                        {advanceSummary.statement?.net != null ? `${advanceSummary.statement.net.toFixed(2)} ر.س` : 'غير متوفر بعد'}
+                        {advanceSummary.statement?.net != null ? formatSar(advanceSummary.statement.net) : 'غير متوفر بعد'}
                       </div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-[var(--raised)]/60">
                       <div className="text-[11px] text-[var(--muted)]">المديونيات المفتوحة</div>
                       <div className="font-bold text-sm text-[var(--danger)] num">
-                        {advanceSummary.openDebtBalance.toFixed(2)} ر.س ({advanceSummary.openDebts})
+                        {formatSar(advanceSummary.openDebtBalance)} ({advanceSummary.openDebts})
                       </div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-[var(--raised)]/60">
                       <div className="text-[11px] text-[var(--muted)]">الأقساط الشهرية المخططة</div>
-                      <div className="font-bold text-sm text-[var(--ink)] num">{advanceSummary.plannedInstallments.toFixed(2)} ر.س</div>
+                      <div className="font-bold text-sm text-[var(--ink)] num">{formatSar(advanceSummary.plannedInstallments)}</div>
                     </div>
                   </div>
 
@@ -2029,7 +2084,7 @@ function DebtsPageContent() {
                         {advanceSummary.advancesSinceLastSettlement.map((as, idx) => (
                           <div key={idx} className="p-2 rounded-lg bg-[var(--raised)] text-xs flex justify-between">
                             <span>{as.category === 'CashAdvance' ? 'سلفة نقدية' : 'سلفة بنكية'} ({as.status})</span>
-                            <span className="font-bold num">{as.amount} ر.س</span>
+                            <span className="font-bold num">{formatSar(as.amount)}</span>
                           </div>
                         ))}
                       </div>
@@ -2060,7 +2115,7 @@ function DebtsPageContent() {
                             )}
                           </div>
                           <div className="font-mono text-[11px] text-[var(--muted)] truncate">{v.code || '—'}</div>
-                          <div className="font-bold text-xs num mt-1">الرصيد: {v.balance.toFixed(2)} ر.س</div>
+                          <div className="font-bold text-xs num mt-1">الرصيد: {formatSar(v.balance)}</div>
                         </div>
                       ))}
                     </div>
@@ -2288,7 +2343,7 @@ function DebtsPageContent() {
                         </span>
                         {dec.monthlyInstallment && (
                           <span className="text-[11px] text-[var(--muted)]">
-                            (قسط: {dec.monthlyInstallment} ر.س)
+                            (قسط: {formatSar(dec.monthlyInstallment)})
                           </span>
                         )}
                         {dec.reference && (
@@ -2329,7 +2384,7 @@ function DebtsPageContent() {
               {selectedApproval.amount && (
                 <div className="flex justify-between">
                   <span className="text-[var(--muted)]">المبلغ:</span>
-                  <span className="font-bold num text-[var(--accent)]">{selectedApproval.amount} ر.س</span>
+                  <span className="font-bold num text-[var(--accent)]">{formatSar(selectedApproval.amount)}</span>
                 </div>
               )}
             </div>
@@ -2420,12 +2475,12 @@ function DebtsPageContent() {
             <div className="p-4 rounded-xl bg-[var(--raised)] space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المبلغ الأصلي:</span>
-                <span className="font-bold num">{(selectedDebt.originalAmount ?? 0).toLocaleString('en-US')} ر.س</span>
+                <span className="font-bold num">{formatSar((selectedDebt.originalAmount ?? 0))}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المتبقي:</span>
                 <span className="font-bold num text-[var(--danger)]">
-                  {(selectedDebt.remainingAmount ?? 0).toLocaleString('en-US')} ر.س
+                  {formatSar((selectedDebt.remainingAmount ?? 0))}
                 </span>
               </div>
               <div className="flex justify-between">

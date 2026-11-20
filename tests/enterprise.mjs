@@ -43,7 +43,7 @@ try{
  const choice=await req('/api/public/forms/'+campaign.path.split('/').at(-1),{iqama:iq,name:'Synthetic Rider',workSystem:'tiers'},200,false);
  await put(`/api/users/${reviewer.id}/status`,{status:'active'});await req('/api/auth/login',{username:'test-reviewer',password});
  await req('/api/submissions/'+choice.receipt+'/review',{status:'approved',note:'Identity checked',identityReviewed:true});
- assert.equal((await req('/api/riders'))[0].policyId,'');cookie=adminCookie;
+ cookie=adminCookie;assert.equal((await req('/api/riders'))[0].policyId,'');
  const form=await req('/api/forms/builder',{titleAr:'اختبار',titleEn:'Test',titleUr:'ٹیسٹ',expiresAt:new Date(Date.now()+864e5).toISOString(),maxSubmissions:2,fields:[{id:'iqama',labelAr:'الإقامة',labelEn:'Iqama',labelUr:'اقامہ',type:'iqama',required:true},{id:'system',labelAr:'النظام',type:'radio',required:true,options:['tiers','commission']}]});
  const publishedForm=await req(`/api/forms/builder/${form.id}/publish`,{});assert.ok(publishedForm.publicUrl.includes('/questionnaires/'));
  const formToken=publishedForm.publicUrl.split('/').at(-1);const publicForm='/api/public/questionnaires/'+formToken;
@@ -73,7 +73,7 @@ try{
  access=await req('/api/inquiry-access',{iqama:iq,scope:'debt',identityReviewed:true});const statement=await req('/api/public/inquiry/debt',{iqama:iq,phoneLast4:'4567',code:access.code},200,false);assert.equal(statement.totalRemaining,400);assert.equal(statement.debts[0].notes,undefined);
  await req('/api/public/inquiry/debt',{iqama:iq,phoneLast4:'4567',code:'0'.repeat(64)},401,false);
  await req('/api/public/inquiry/debt',{iqama:iq,phoneLast4:'4567',code:'0'.repeat(64)},429,false);
- assert.ok((await req('/api/audit')).some(x=>x.action==='rider.save'));assert.ok((await req('/api/audit')).some(x=>x.action==='admin.user_update'));
+ assert.ok(((await req('/api/audit')).items).some(x=>x.action==='rider.save'));assert.ok(((await req('/api/audit')).items).some(x=>x.action==='admin.user_update'));
 
  // Financial & Debt Management System v0.6 checks: 3 Sponsors, HR Expenses, SharedSplit, Direct Collection + Waiver, Inter-CR Transfer, Approvals, Mobile FCM, Dormant Promissory Flag
  const openingTemplate=await fetch(base+'/api/debts/import-opening/template',{headers:{Cookie:cookie}});assert.equal(openingTemplate.status,200);const openingTemplateBytes=Buffer.from(await openingTemplate.arrayBuffer());

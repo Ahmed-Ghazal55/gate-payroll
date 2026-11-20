@@ -124,8 +124,9 @@ public static class WorkforceApi
             }, "workforce-export", TimeSpan.FromSeconds(exportTimeout));
         }
         bool showIban = AccessPolicy.Has(ctx.User, PermIban);
+        bool showSaudiSalary = AccessPolicy.Has(ctx.User, PermSaudiSalary);
         // R1: IBAN, bank short code and bank name are three separate columns in the export.
-        var headers = new[] { "الاسم", "رقم الإقامة", "الجوال", "الجنسية", "الحالة", "نوع العلاقة", "نوع العمل", "الكفيل", "المنصة", "معرف المنصة", "المدينة", "السكن", "المسمى", "نموذج الدفع", "مركبة الشركة", "الرخصة", showIban ? "الآيبان" : "الآيبان (مخفي)", "كود البنك", "اسم البنك", "تنبيه الآيبان", "راتب مدد" };
+        var headers = new[] { "الاسم", "رقم الإقامة", "الجوال", "الجنسية", "الحالة", "نوع العلاقة", "نوع العمل", "الكفيل", "المنصة", "معرف المنصة", "المدينة", "السكن", "المسمى", "نموذج الدفع", "مركبة الشركة", "الرخصة", showIban ? "الآيبان" : "الآيبان (مخفي)", "كود البنك", "اسم البنك", "تنبيه الآيبان", showSaudiSalary ? "راتب مدد" : "راتب مدد (مخفي)" };
         var cols = headers.Select(h => new ExcelColumn(h)).ToArray();
         var rows = all.Select(r =>
         {
@@ -152,7 +153,7 @@ public static class WorkforceApi
             bank.Item1,
             bank.Item2,
             r.S("ibanAlert"),
-            r.S("mudadSalary")
+            showSaudiSalary ? r.S("mudadSalary") : ""
         };
         }).ToList();
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "workforce-export.xlsx");
@@ -615,17 +616,30 @@ public static class WorkforceApi
         return person;
     }
 
-    static JsonObject StripSensitive(JsonObject person, ClaimsPrincipal user)
+    /// <summary>Mask IBAN fields and muda salary unless the caller has the matching field permission (H20 / INT1).</summary>
+    internal static JsonObject StripSensitive(JsonObject person, ClaimsPrincipal user)
     {
         var copy = person.DeepClone().AsObject();
         if (!AccessPolicy.Has(user, PermIban))
         {
             copy["iban"] = "";
+            copy["verifiedIban"] = "";
             copy.Remove("personalIban");
             copy.Remove("formIban");
             copy.Remove("mudadIban");
         }
+        if (!AccessPolicy.Has(user, PermSaudiSalary))
+            copy["mudadSalary"] = "";
         return copy;
+    }
+
+    /// <summary>Directory/list projection: RiderView without 360, full clone with 360, then field masks.</summary>
+    internal static JsonObject ProjectDirectoryRider(JsonObject rider, ClaimsPrincipal user)
+    {
+        var view = AccessPolicy.Has(user, "riders.view_360")
+            ? rider.DeepClone().AsObject()
+            : UserAccess.RiderView(rider);
+        return StripSensitive(view, user);
     }
 
     static JsonObject StripSaudi(JsonObject row, ClaimsPrincipal user)

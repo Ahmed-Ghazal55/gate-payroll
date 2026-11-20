@@ -17,10 +17,14 @@ import {
   Briefcase,
   Flag,
   AlertTriangle,
+  Upload,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
+import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
+import { canShowImportStep, RIDERS_IMPORT } from '../../features/imports/import-steps';
 import { StatCard } from '../../components/ui/StatCard';
 import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
@@ -30,6 +34,7 @@ import { SourceBadge } from '../../components/ui/SourceBadge';
 import { IbanDisplay } from '../../components/ui/IbanDisplay';
 import { platformLabelAr } from '../../features/companies/company-stats';
 import { inApp } from '../../lib/paths';
+import { formatSar } from '../../lib/money';
 import type {
   WorkforceListResponse,
   Workforce360Response,
@@ -160,9 +165,11 @@ function pickField(row: Record<string, unknown>, ...keys: string[]): string {
 
 function WorkforcePageInner() {
   const { toast } = useToast();
+  const { can, isAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [ridersImportOpen, setRidersImportOpen] = useState(false);
 
   const tabFromUrl = searchParams?.get('tab') || 'directory';
   const pageFromUrl = parseInt(searchParams?.get('page') || '1', 10);
@@ -953,8 +960,25 @@ function WorkforcePageInner() {
           },
         }}
       >
+        {canShowImportStep(RIDERS_IMPORT, { isAdmin, can }) && (
+          <button
+            type="button"
+            data-testid="import-riders"
+            onClick={() => setRidersImportOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
+          >
+            <Upload size={15} />
+            استيراد ملف المناديب
+          </button>
+        )}
         {activeSource ? <SourceBadge source={activeSource} asOf={asOf} /> : null}
       </PageHeader>
+      <ImportUploadDialog
+        open={ridersImportOpen}
+        onClose={() => setRidersImportOpen(false)}
+        step={RIDERS_IMPORT}
+        onCommitted={() => loadDirectory(page, pageSize, debouncedQuery, filters)}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         <StatCard
@@ -1387,10 +1411,7 @@ function WorkforcePageInner() {
                   <div className="p-3 rounded-xl bg-[var(--raised)]/50">
                     <div className="text-[11px] text-[var(--muted)]">إجمالي المتبقي</div>
                     <div className="text-base font-bold num text-[var(--danger)] mt-0.5">
-                      {Number(profileData.financialPosition?.totalRemainingDebt ?? 0).toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                      })}{' '}
-                      ر.س
+                      {formatSar(profileData.financialPosition?.totalRemainingDebt ?? 0)}
                     </div>
                   </div>
                 </div>

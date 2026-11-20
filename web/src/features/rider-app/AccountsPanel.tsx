@@ -110,10 +110,14 @@ export function AccountsPanel({ canIssueCode }: { canIssueCode: boolean }) {
   const { can, isAdmin } = useAuth();
   // InquiryApi requires payroll.view for mobile access codes; hide the card without it.
   const showIssue = canIssueCode && (isAdmin || can('payroll.view'));
+  const showSessions = isAdmin || can('mobile.sessions');
   return (
     <div className="space-y-4">
       {showIssue ? <AccessCodeCard /> : null}
-      <RiderSessionsPanel />
+      {showSessions ? <RiderSessionsPanel /> : null}
+      {!showIssue && !showSessions ? (
+        <p className="text-sm text-[var(--muted)]">ليست لديك صلاحية لعرض الحسابات أو الأجهزة.</p>
+      ) : null}
     </div>
   );
 }

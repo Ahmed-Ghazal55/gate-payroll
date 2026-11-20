@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Smartphone } from 'lucide-react';
 import { api } from '../../lib/api';
+import { formatSar } from '../../lib/money';
 import { useToast } from '../ui/Toast';
 import { Dialog } from '../ui/Dialog';
 
@@ -100,7 +101,7 @@ export function RiderAsksCard({ onConverted }: { onConverted: () => void }) {
                   {a.riderName} <span className="num text-xs text-[var(--muted)]">{a.riderIqama}</span>
                 </div>
                 <div className="text-xs text-[var(--muted)]">
-                  <span className="num font-bold text-[var(--ink)]">{a.amount.toLocaleString('en-US')}</span> ر.س · {a.type === 'bank' ? 'بنكي' : 'نقدي'} · {a.reason}
+                  <span className="num font-bold text-[var(--ink)]">{formatSar(a.amount)}</span> · {a.type === 'bank' ? 'بنكي' : 'نقدي'} · {a.reason}
                 </div>
               </div>
               <div className="flex gap-2">

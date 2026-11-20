@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useState, useEffect, useMemo, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ShieldCheck,
@@ -97,9 +98,6 @@ function AdminPageInner() {
   const [auditActionFilter, setAuditActionFilter] = useState<string>('all');
 
   // Firebase Config State
-  const [fbProjectId, setFbProjectId] = useState<string>('gate-payroll-app');
-  const [fbClientEmail, setFbClientEmail] = useState<string>('firebase-adminsdk@gate-payroll.iam.gserviceaccount.com');
-
   // ========================================================
   // R5-3 ORG DIRECTORY STATES (BR §25.1)
   // ========================================================
@@ -169,8 +167,8 @@ function AdminPageInner() {
     setLoadingAudit(true);
     setAuditError(null);
     try {
-      const res = await api.getAuditLogs();
-      setAuditLogs(Array.isArray(res) ? res : []);
+      const res = await api.getAuditLogs({ page: 1, pageSize: 100 });
+      setAuditLogs(Array.isArray(res?.items) ? res.items : []);
     } catch (err: any) {
       setAuditError(err.message || 'تعذر تحميل سجل التدقيق');
     } finally {
@@ -1203,44 +1201,19 @@ function AdminPageInner() {
       {/* ======================================================== */}
       {activeTab === 'settings' && (
         <div className="space-y-6">
-          <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
+          <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-3">
             <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-              إعدادات الربط والمنظومة الخارجية
+              إعدادات المنظومة
             </h3>
-            <p className="text-xs text-[var(--muted)] mt-0.5">
-              تهيئة وإدارة اتصالات Firebase Cloud Messaging لإشعارات المناديب ومفاتيح التكامل الرسمية.
+            <p className="text-xs text-[var(--muted)]">
+              إعدادات إشعارات تطبيق المناديب تُدار من شاشة «إعدادات التطبيق» داخل قسم تطبيق المناديب والنماذج — وليست نموذجًا وهميًا هنا.
             </p>
-
-            <div className="mt-4 pt-4 border-t border-[var(--line)] space-y-4 max-w-xl">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[var(--ink)]">معرف مشروع Firebase (Project ID):</label>
-                <input
-                  type="text"
-                  placeholder="gate-payroll-app"
-                  value={fbProjectId}
-                  onChange={(e) => setFbProjectId(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[var(--ink)]">البريد الإلكتروني للخدمة (Client Email):</label>
-                <input
-                  type="text"
-                  placeholder="firebase-adminsdk@gate-payroll.iam.gserviceaccount.com"
-                  value={fbClientEmail}
-                  onChange={(e) => setFbClientEmail(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
-                />
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-[var(--raised)] border border-[var(--line)] text-xs text-[var(--muted)] flex items-center gap-2">
-                <ShieldCheck size={16} className="text-[var(--accent)] shrink-0" />
-                <span>
-                  مفاتيح الربط الحساسة (Private Keys) محمية بالكامل ومخزنة مشفرة داخل الخادم، ولا يتم عرضها بنصوص صريحة حفاظاً على الأمان.
-                </span>
-              </div>
-            </div>
+            <Link
+              href="/rider-app/?tab=settings"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold"
+            >
+              فتح إعدادات التطبيق
+            </Link>
           </div>
         </div>
       )}

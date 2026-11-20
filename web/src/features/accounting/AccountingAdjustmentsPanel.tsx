@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Plus, CheckCircle2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
@@ -143,7 +145,7 @@ export function AccountingAdjustmentsPanel({ companies }: { companies: Array<{ i
                   <tr key={id}>
                     <td className="p-3">{String(r.type || '')}</td>
                     <td className="p-3 font-mono">{String(r.reference || '')}</td>
-                    <td className="p-3 font-mono">{Number(r.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3 font-mono">{formatSar(Number(r.amount || 0))}</td>
                     <td className="p-3">{status}</td>
                     <td className="p-3">
                       {canApprove && status === 'draft' && (

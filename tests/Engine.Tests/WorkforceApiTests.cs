@@ -68,9 +68,11 @@ public sealed class WorkforceApiTests
         var person = new JsonObject
         {
             ["iban"] = Iban("444"),
+            ["verifiedIban"] = Iban("445"),
             ["personalIban"] = Iban("555"),
             ["formIban"] = Iban("666"),
             ["mudadIban"] = Iban("777"),
+            ["mudadSalary"] = "4500",
             ["salary"] = "5000",
             ["unifiedNationalNumber"] = "7015658094",
             ["legalCases"] = new JsonArray(new JsonObject { ["id"] = "c1" })
@@ -78,12 +80,20 @@ public sealed class WorkforceApiTests
         var plain = Principal("strip-plain", "Reviewer", ["riders.view"]);
         var stripped = InvokeStrip("StripSensitive", person, plain);
         Assert.AreEqual("", stripped.S("iban"));
+        Assert.AreEqual("", stripped.S("verifiedIban"));
+        Assert.AreEqual("", stripped.S("mudadSalary"));
         Assert.IsFalse(stripped.ContainsKey("personalIban"));
         Assert.IsFalse(stripped.ContainsKey("formIban"));
         Assert.IsFalse(stripped.ContainsKey("mudadIban"));
 
         var withIban = Principal("strip-iban", "Reviewer", ["riders.view", WorkforceApi.PermIban]);
-        Assert.AreEqual(Iban("444"), InvokeStrip("StripSensitive", person, withIban).S("iban"));
+        var keptIban = InvokeStrip("StripSensitive", person, withIban);
+        Assert.AreEqual(Iban("444"), keptIban.S("iban"));
+        Assert.AreEqual(Iban("445"), keptIban.S("verifiedIban"));
+        Assert.AreEqual("", keptIban.S("mudadSalary"));
+
+        var withSaudi = Principal("strip-saudi-salary", "Reviewer", ["riders.view", WorkforceApi.PermSaudiSalary]);
+        Assert.AreEqual("4500", InvokeStrip("StripSensitive", person, withSaudi).S("mudadSalary"));
 
         var saudiPlain = InvokeStrip("StripSaudi", person, plain);
         Assert.AreEqual("", saudiPlain.S("salary"));
@@ -104,6 +114,51 @@ public sealed class WorkforceApiTests
         Assert.IsFalse(withoutLegal.ContainsKey("legalCases"));
         var withLegal = (JsonObject)strip360.Invoke(null, [body, Principal("strip-legal", "Reviewer", [WorkforceApi.PermLegalCases])])!;
         Assert.IsTrue(withLegal["legalCases"] is JsonArray);
+    }
+
+    [TestMethod]
+    public void ProjectDirectoryRiderMasksIbanForView360RolesWithoutIbanPermission()
+    {
+        var rider = new JsonObject
+        {
+            ["id"] = "2000000401",
+            ["iqama"] = "2000000401",
+            ["name"] = "Synthetic Ops Rider",
+            ["status"] = "Active",
+            ["iban"] = Iban("401"),
+            ["verifiedIban"] = Iban("402"),
+            ["financeSponsorId"] = "BW",
+            ["mudadSalary"] = "3200",
+            ["phone"] = "0500000401"
+        };
+        var project = typeof(WorkforceApi).GetMethod("ProjectDirectoryRider", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new AssertFailedException("missing ProjectDirectoryRider");
+
+        foreach (string role in new[] { "OperationsManager", "PlatformsSupervisor", "FleetSupervisor", "Supervisor" })
+        {
+            var rolePerms = UserAccess.RolesCatalog.First(r => r.Code == role).DefaultPermissions;
+            Assert.IsTrue(rolePerms.Contains("riders.view_360"), role);
+            Assert.IsFalse(rolePerms.Contains(WorkforceApi.PermIban), role);
+            var user = Principal("syn-" + role, role, rolePerms);
+            var view = (JsonObject)project.Invoke(null, [rider, user])!;
+            Assert.AreEqual("", view.S("iban"), role);
+            Assert.AreEqual("", view.S("verifiedIban"), role);
+            Assert.AreEqual("", view.S("mudadSalary"), role);
+            Assert.AreEqual("Synthetic Ops Rider", view.S("name"), role);
+        }
+
+        var accountant = Principal("syn-acct", "Accountant",
+            UserAccess.RolesCatalog.First(r => r.Code == "Accountant").DefaultPermissions);
+        var withIban = (JsonObject)project.Invoke(null, [rider, accountant])!;
+        Assert.AreEqual(Iban("401"), withIban.S("iban"));
+        Assert.AreEqual(Iban("402"), withIban.S("verifiedIban"));
+
+        var reviewer = Principal("syn-rev", "Reviewer", ["riders.view"]);
+        var limited = (JsonObject)project.Invoke(null, [rider, reviewer])!;
+        Assert.AreEqual("", limited.S("iban"));
+        Assert.AreEqual("", limited.S("verifiedIban"));
+        Assert.AreEqual("Synthetic Ops Rider", limited.S("name"));
+        Assert.IsFalse(limited.ContainsKey("financeSponsorId"), "RiderView omits sponsor finance fields");
     }
 
     [TestMethod]

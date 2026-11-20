@@ -21,18 +21,18 @@ public static class ImportCatalog
 
     public static IReadOnlyList<Step> Steps()=>
     [
-        new(1,"companies","setup","الشركات (السجلات التجارية)","أساس كل الأرصدة والقيود: كل مديونية وحساب يتبع سجلًا.",[],"Admin",
+        new(1,"companies","setup","الشركات (السجلات التجارية)","أساس كل الأرصدة والقيود: كل مديونية وحساب يتبع سجلًا.",[],"companies.manage",
             "/api/imports/templates/companies","/api/companies/import/preview","/api/companies/import/commit","json-rows","ready",CompanyColumns,["code","nameAr","unifiedNumber","crNumber"],
             "الصفوف تُرسل JSON بنفس أسماء الأعمدة؛ حتى 100 شركة."),
         new(2,"riders","setup","المناديب","هوية المندوب وشركته ونوع المركبة؛ كل الاستيرادات التالية تطابق برقم الإقامة.",["companies"],"riders.edit",
             "/api/excel/riders/template","/api/excel/riders/preview","/api/excel/riders/commit","xlsx","ready",TableExcelApi.Columns("riders"),["رقم الإقامة","الاسم الكامل","الكفيل"],
-            "المناديب المسحوبين من ERP لا يحتاجوا رفع؛ الملف للتكملة فقط."),
+            "قائمة المناديب تُقرأ مباشرة من نظام عمر؛ ارفع ملفًا فقط لإكمال بيانات ناقصة."),
         new(3,"treasury_opening","opening","الأرصدة الافتتاحية للخزائن والبنوك","رصيد كل صندوق وبنك أول المدة، قبل أي صرف.",["companies"],"treasury.opening",
             "/api/finance/opening/template","/api/finance/opening/preview","/api/finance/opening/commit","xlsx","ready",TreasuryEntries.OpeningColumns,["accountCode","sponsorCode","verifiedBalance"]),
         new(4,"opening_debts","opening","المديونيات الافتتاحية","رصيد مديونية كل مندوب بنهاية الشهر بالبند والسجل الدائن والقسط.",["riders","treasury_opening"],"debts.import_opening",
             "/api/debts/import-opening/template","/api/debts/import-opening/preview","/api/debts/import-opening/commit","xlsx","ready",Debts.OpeningTemplateColumns(),
             ["رقم الإقامة (10 أرقام)","كود البند أو الخدمة (Category)","السجل التجاري الدائن (BW/EX/TR)","إجمالي مبلغ المديونية على المندوب","القسط الشهري المستقطع","شهر بداية الاستقطاع (YYYY-MM)"],
-            "شيت المديونيات الكبير (نهاية أكتوبر) يتحمّل بأداة المطابقة R6c بعد «حمّل»، مش من هنا."),
+            "ارفع شيت المديونيات من مسار الاستيراد الافتتاحي هنا (معاينة ثم اعتماد)."),
         new(5,"bulk_collect","opening","التحصيل المجمع للمديونيات","سداد نقدي أو إعفاء على مديونيات قائمة.",["opening_debts"],"debts.collect",
             "/api/debts/bulk-collect/template","/api/debts/bulk-collect/preview-file","/api/debts/bulk-collect/commit","xlsx","ready",Debts.BulkCollectColumns([]),["رقم الإقامة","المبلغ المحصل","رمز الصندوق أو البنك","رقم السند / المرجع"]),
         new(6,"ninja_invoice","invoices","فاتورة نينجا","الفاتورة المعتمدة هي النهائي (BR §31)؛ الحساب المتوقع للعلم.",["riders"],"pay.manage",
@@ -50,8 +50,8 @@ public static class ImportCatalog
         new(11,"hungerstation_operations","operations","تشغيل هنقرستيشن للمناديب","الطلبات والساعات لكل مندوب على كل حساب.",["hungerstation_invoice"],"pay.manage",
             "/api/imports/templates/operations-hungerstation","/api/pay/apps/hs/operations/import/preview","/api/pay/apps/hs/operations/import/commit","xlsx","ready",Operations(new("hsRiderId",Identity:true),new("hours",Numeric:true),new("distanceKm",Numeric:true)),OperationsRequired,
             "يلزم مصدر فاتورة معياري مراجع يثبت إجمالي اليوزر والخصومات؛ لا نخمن من صافي المندوب."),
-        new(12,"chefz_operations","operations","تشغيل شفز","يُسحب من Gate ERP (قراءة فقط)؛ لا يوجد ملف للرفع.",["riders"],"pay.view",
-            null,"/api/pay/apps/chefz/operations/review",null,"erp","erp",[],[],"نموذج قراءة فقط لما سُحب بالفعل؛ أدخل الطلبات المُسلّمة الفعلية والفئة. أول تحميل يحتاج «حمّل»."),
+        new(12,"chefz_operations","operations","تشغيل شفز","قراءة مباشرة من نظام عمر؛ لا يوجد ملف للرفع.",["riders"],"pay.view",
+            null,"/api/pay/apps/chefz/operations/review",null,"erp","erp",[],[],"مراجعة قراءة فقط لبيانات التشغيل الحية؛ أدخل الطلبات المسلّمة الفعلية والفئة من شاشة الرواتب."),
     ];
 
     static readonly Dictionary<string,(string File,Func<IReadOnlyList<ExcelColumn>> Columns)> Templates=new(StringComparer.Ordinal)
@@ -85,7 +85,7 @@ public static class ImportCatalog
 
     public static void Map(RouteGroupBuilder api)
     {
-        api.MapGet("/imports/catalog",()=>View()).WithTags("Administration").WithSummary("Ordered import steps with template, preview and commit links and the required columns");
+        // Catalog list removed with the imports centre (H2); templates stay for per-page upload buttons.
         api.MapGet("/imports/templates/{name}",(string name)=>Template(name)).WithTags("Administration").WithSummary("Download an empty import template from the catalog");
     }
 }

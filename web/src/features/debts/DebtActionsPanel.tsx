@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useCallback, useEffect, useState } from 'react';
 import { Banknote, Plus, RefreshCw } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
@@ -121,8 +123,8 @@ export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: str
                 <tr key={String(s.id)}>
                   <td className="p-2 font-mono">{String(s.receiptRef || '')}</td>
                   <td className="p-2 font-mono">{String(s.debtId || '')}</td>
-                  <td className="p-2 font-mono">{Number(s.collectedAmount || 0).toFixed(2)}</td>
-                  <td className="p-2 font-mono">{Number(s.waivedAmount || 0).toFixed(2)}</td>
+                  <td className="p-2 font-mono">{formatSar(Number(s.collectedAmount || 0))}</td>
+                  <td className="p-2 font-mono">{formatSar(Number(s.waivedAmount || 0))}</td>
                   <td className="p-2">{String(s.collectionDate || s.createdAt || '')}</td>
                 </tr>
               ))}

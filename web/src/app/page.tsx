@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Users,
   Upload,
@@ -17,12 +18,25 @@ import {
 import { api } from '../lib/api';
 import type { DashboardMetrics } from '../lib/types';
 import { inApp } from '../lib/paths';
+import { useAuth } from '../lib/auth-context';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
 import { DataTable, ColumnDef } from '../components/ui/DataTable';
 import { ErrorState, Skeleton } from '../components/ui/EmptyState';
 
+/** First landing page a role can open when the dashboard (payroll.view) is closed. */
+const FALLBACK_HOMES: Array<{ permission: string | string[]; href: string }> = [
+  { permission: 'riders.view', href: '/workforce/' },
+  { permission: 'debts.view', href: '/debts/' },
+  { permission: 'operations.view', href: '/operations/' },
+  { permission: 'forms.view', href: '/rider-app/?tab=campaigns' },
+  { permission: 'treasury.view', href: '/treasury/' },
+  { permission: 'users.manage', href: '/admin/' },
+];
+
 export default function DashboardPage() {
+  const router = useRouter();
+  const { can, isAdmin, loading: authLoading, user } = useAuth();
   const [data, setData] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,8 +55,16 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchDashboard();
-  }, []);
+    if (authLoading || !user) return;
+    if (isAdmin || can('payroll.view')) {
+      fetchDashboard();
+      return;
+    }
+    const match = FALLBACK_HOMES.find((h) =>
+      Array.isArray(h.permission) ? h.permission.some((p) => can(p)) : can(h.permission)
+    );
+    router.replace(match?.href ?? '/workforce/');
+  }, [authLoading, user, isAdmin, can, router]);
 
   const auditColumns: ColumnDef<any>[] = [
     {
@@ -81,7 +103,7 @@ export default function DashboardPage() {
         primaryAction={{
           label: 'بيانات التشغيل',
           onClick: () => {
-            window.location.href = inApp('/operations/');
+            router.push('/operations/');
           },
           icon: <Upload size={16} />,
         }}
