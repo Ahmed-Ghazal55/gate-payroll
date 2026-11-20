@@ -21,8 +21,7 @@ async function upload(text,period='2026-10'){const u=await req('/api/imports/ins
 try{
  let ready=false; for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error('Test server exited before startup');try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready,'Test server did not become ready');
  await req('/api/riders',undefined,401,false);
- assert.match(await req('/app.css',undefined,200,false),/sidebar/);
- assert.match(await req('/app.js',undefined,200,false),/dashboard/);
+ assert.equal((await fetch(base+'/')).status,302);
  await req('/api/auth/setup',{username:'test-admin',password:randomBytes(24).toString('hex')});
  await seedAccountingCash(req);
  await req('/api/riders',{iqama:iq,name:'Synthetic Rider'},403,true,{Origin:'https://different.invalid'});

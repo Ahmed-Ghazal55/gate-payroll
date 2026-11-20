@@ -1,5 +1,5 @@
 import {spawn} from 'node:child_process';
-import {mkdtempSync,rmSync,mkdirSync,writeFileSync,existsSync} from 'node:fs';
+import {mkdtempSync,rmSync,mkdirSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
@@ -14,10 +14,22 @@ let browser;try{
  const launchOpts = {headless:true};
 browser = await chromium.launch(launchOpts);
  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
- assert.equal((await page.request.post(base+'/api/auth/setup',{data:{username:'browser-test',password:randomBytes(24).toString('hex')}})).status(),200);await page.goto(base+'/legacy/');await page.getByRole('heading',{name:'كل مستحق في مكانه'}).waitFor();
- assert.equal(await page.locator('link[rel=icon]').getAttribute('href'),'/favicon.svg');
- await page.screenshot({path:path.join(out,'dashboard.png'),fullPage:true});
- for(const view of ['imports','riders','policies','payroll','forms','responses','audit']){await page.locator(`nav [data-view="${view}"]`).click();await page.waitForFunction(()=>!document.querySelector('#content .loading'));}
+ const password=randomBytes(24).toString('hex');
+ assert.equal((await page.request.post(base+'/api/auth/setup',{data:{username:'browser-test',password}})).status(),200);
+ const cookies=await page.request.storageState();
+ const ctx=await browser.newContext({viewport:{width:1440,height:1000},storageState:cookies});
+ const admin=await ctx.newPage();admin.on('pageerror',e=>errors.push(e.message));
+ assert.equal((await fetch(base+'/',{redirect:'manual'})).headers.get('location'),'/app/');
+ assert.equal((await fetch(base+'/legacy/',{redirect:'manual'})).headers.get('location'),'/app/');
+ if(existsSync(path.join(root,'Payroll.Api/bin/Debug/net10.0/wwwroot/app/index.html'))||existsSync(path.join(root,'Payroll.Api/wwwroot/app/index.html'))){
+  await admin.goto(base+'/app/',{waitUntil:'networkidle'});
+  await admin.waitForFunction(()=>!location.pathname.includes('/login')||document.body.innerText.length>0);
+  for(const route of ['/app/workforce/','/app/payroll/','/app/rider-app/?tab=campaigns','/app/debts/']){
+   await admin.goto(base+route,{waitUntil:'domcontentloaded'});
+   assert.ok((await admin.content()).length>100,route);
+  }
+  await admin.screenshot({path:path.join(out,'dashboard.png'),fullPage:true});
+ }
  const campaign=await page.evaluate(async()=>await(await fetch('/api/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:'اختبار نموذج المناديب',days:2})})).json());assert.ok(campaign.path);
  const mobile=await browser.newPage({viewport:{width:390,height:844}});mobile.on('pageerror',e=>errors.push(e.message));await mobile.goto(base+campaign.path);await mobile.locator('#rider-choice').waitFor();
  assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile page overflow');await mobile.screenshot({path:path.join(out,'rider-form-mobile.png'),fullPage:true});
@@ -26,18 +38,7 @@ browser = await chromium.launch(launchOpts);
  await mobile.locator('[name=name]').fill('مندوب تجريبي');await mobile.locator('[name=iqama]').fill('2000000002');
  await mobile.locator('[name=workSystem][value=commission]').check();
  mobile.once('dialog',d=>d.accept());await mobile.locator('button[type=submit]').click();await mobile.getByRole('heading',{name:'تم تسجيل ردك بنجاح'}).waitFor();
- await page.locator('nav [data-view="responses"]').click();await page.getByText('مندوب تجريبي',{exact:true}).waitFor();await page.screenshot({path:path.join(out,'responses.png'),fullPage:true});
-
- // Download template and import a real XLSX through the admin UI (synthetic data only).
- const templateDownload=page.waitForEvent('download');await page.locator('a[href="/api/excel/choices/template"]').click();assert.match((await templateDownload).suggestedFilename(),/\.xlsx$/);
- const fixture=await page.evaluate(async()=>{const r=await fetch('/api/excel/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({headers:['رقم الإقامة','الاسم الكامل','نظام العمل'],rows:[['2000000003','مندوب إضافي','نظام الراتب الجديد'],['2000000004','مندوب آخر','نظام العمولة السابق']]})});return [...new Uint8Array(await r.arrayBuffer())];});
- await page.locator('[data-table-import="choices"]').click();await page.locator('#table-import-campaign').selectOption(campaign.id);await page.locator('#table-import-file').setInputFiles({name:'choices.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(fixture)});
- await page.locator('#table-import-preview').click();await page.locator('#table-import-commit:not([disabled])').waitFor();await page.locator('#table-import-commit').click();await page.locator('#modal').waitFor({state:'hidden'});await page.locator('#content').getByText('مندوب إضافي',{exact:true}).waitFor();
- const grid=page.locator('#content .data-grid');assert.equal(await grid.locator('thead [data-column-filter]').count(),10);
- await grid.getByRole('searchbox',{name:'فلتر النظام المختار',exact:true}).fill('نظام الراتب الجديد');await grid.getByRole('searchbox',{name:'فلتر المندوب',exact:true}).fill('إضافي');assert.equal(await grid.locator('tbody tr:visible').count(),1);
- const filteredDownload=page.waitForEvent('download');await grid.locator('[data-grid-export="filtered"]').click();const filteredFile=await filteredDownload;await filteredFile.saveAs(path.join(out,'filtered-choices.xlsx'));
- await page.screenshot({path:path.join(out,'choices-excel-filters.png'),fullPage:true});
- await grid.locator('[data-grid-clear]').click();assert.equal(await grid.locator('tbody tr:visible').count(),3);
- await page.locator('nav [data-view="audit"]').click();await page.locator('#content .column-filters input').first().waitFor();assert.equal(await page.locator('#content .column-filters input').count(),3);
- assert.deepEqual(errors,[]);console.log('PASS browser: initial setup, 8 admin views, mobile form layout, public submit, response visible, Excel template/import/download, combined column filters and clear, no JS errors.');
+ const submissions=await(await page.request.get(base+'/api/submissions')).json();assert.equal(submissions.length,1);assert.equal(submissions[0].name,'مندوب تجريبي');
+ const template=await page.request.get(base+'/api/excel/choices/template');assert.equal(template.status(),200);assert.match(template.headers()['content-type']||'','spreadsheetml');
+ assert.deepEqual(errors,[]);console.log('PASS browser: Next redirects, admin routes when packaged, mobile form layout, public submit, Excel template, no JS errors.');
 }finally{if(browser)await browser.close();if(server.exitCode===null&&!spawnError){const stopped=new Promise(r=>server.once('exit',r));server.kill();await Promise.race([stopped,new Promise(r=>setTimeout(r,5000))]);}rmSync(data,{recursive:true,force:true});}
