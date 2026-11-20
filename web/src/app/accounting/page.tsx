@@ -131,6 +131,14 @@ function AccountingPageContent() {
   const [selectedSponsor, setSelectedSponsor] = useState<string>('all');
   const [periodMonth, setPeriodMonth] = useState<string>(new Date().toISOString().slice(0, 7));
 
+  // Deep-link from search: /accounting/?tab=journals&voucherNo=…
+  useEffect(() => {
+    const voucherNo = searchParams?.get('voucherNo');
+    if (!voucherNo) return;
+    setActiveTab('journals');
+    setJournalSearch(voucherNo);
+  }, [searchParams]);
+
   // ==========================================
   // Data Fetching
   // ==========================================

@@ -394,6 +394,8 @@ function DebtsPageContent() {
       setNewReqFulfilment('recharge_card');
       setNewRequestOpen(true);
     }
+    const debtId = searchParams?.get('id');
+    if (debtId) setActiveTab('debts');
   }, [searchParams]);
 
   useEffect(() => {
@@ -443,6 +445,14 @@ function DebtsPageContent() {
       if (canRequestAdvances) void loadSupervisedRiders();
     }
   }, [activeTab, advancesRoleView, selectedCategory, selectedStatus, debouncedSearch]);
+
+  // Deep-link from global search: /debts/?tab=debts&id=…
+  useEffect(() => {
+    const debtId = searchParams?.get('id');
+    if (!debtId || !debtsLoaded) return;
+    const match = debts.find((d) => d.id === debtId);
+    if (match) setSelectedDebt(match);
+  }, [searchParams, debts, debtsLoaded]);
 
   const handleOpenReviewDrawer = async (req: AdvanceRequest) => {
     setSelectedAdvance(req);

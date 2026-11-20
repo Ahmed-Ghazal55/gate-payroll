@@ -908,7 +908,7 @@ function ImportCenter() {
 
                   {step.key === 'hungerstation_invoice' && (
                     <Link
-                      href="/payroll/?platform=hungerstation&subTab=settlements"
+                      href="/payroll/?tab=platforms&app=hungerstation&sub=settlements"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90 transition-opacity"
                     >
                       <ExternalLink size={14} />
@@ -924,15 +924,15 @@ function ImportCenter() {
                 </div>
               )}
 
-              {/* 3. Live ERP read (Chefz) — sync drawer removed in S1 */}
+              {/* 3. Live ERP read (Chefz) — review lives on the payroll platforms tab */}
               {step.upload === 'erp' && (
                 <div>
                   <Link
-                    href="/operations/?tab=cities"
+                    href="/payroll/?tab=platforms&app=thechefz&sub=settlements"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90 transition-opacity"
                   >
                     <ExternalLink size={14} />
-                    <span>فتح التشغيل (قراءة مباشرة من نظام عمر)</span>
+                    <span>فتح مراجعة شيفز في الرواتب</span>
                   </Link>
                 </div>
               )}

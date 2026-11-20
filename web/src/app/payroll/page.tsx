@@ -2386,7 +2386,7 @@ function PayrollPageInner() {
             <div className="p-6 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-3 text-xs">
               <p className="font-bold text-sm">جاهز: المطابقة وعمليات الخزينة في صفحة الخزينة</p>
               <p className="text-[var(--muted)]">تقارير §37 والتحويلات والتسويات والعهدة متاحة من تبويب جاهز في الخزينة.</p>
-              <a href="/treasury/?tab=jahez" className="inline-flex px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold">فتح خزينة جاهز</a>
+              <Link href="/treasury/?tab=jahez" className="inline-flex px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold">فتح خزينة جاهز</Link>
             </div>
           )}
 

@@ -15,9 +15,9 @@ public static class GlobalSearch
         if(AccessPolicy.Allowed(user,"GET","/api/riders"))
             hits.AddRange(Store.List(c,"rider").Where(ErpRiderClassification.ListedAsRider).Where(r=>Match(r.S("iqama"),r.S("name"))).Select(r=>new Hit("rider",r.S("iqama",r.S("id")),r.S("name"),r.S("iqama"),"/app/riders?iqama="+Uri.EscapeDataString(r.S("iqama",r.S("id"))))));
         if(AccessPolicy.Allowed(user,"GET","/api/companies"))
-            hits.AddRange(Companies.List(c,user).Where(r=>r.S("status")!="archived"&&Match(r.S("nameAr"),r.S("shortNameAr"),r.S("code"))).Select(r=>new Hit("company",r.S("id"),r.S("nameAr"),r.S("code"),"/app/companies?id="+Uri.EscapeDataString(r.S("id")))));
+            hits.AddRange(Companies.List(c,user).Where(r=>r.S("status")!="archived"&&Match(r.S("nameAr"),r.S("shortNameAr"),r.S("code"))).Select(r=>new Hit("company",r.S("id"),r.S("nameAr"),r.S("code"),"/app/companies/?id="+Uri.EscapeDataString(r.S("id")))));
         if(AccessPolicy.Allowed(user,"GET","/api/debts"))
-            hits.AddRange(Store.List(c,"debt").Where(r=>FinancialScopes.Debt(user,r)&&Match(r.S("id"),r.S("iqama"),r.S("riderName"),r.S("description"),r.S("sourceRef"))).Select(r=>new Hit("debt",r.S("id"),r.S("description",r.S("sourceRef",r.S("id"))),r.S("iqama"),"/app/debts?id="+Uri.EscapeDataString(r.S("id")))));
+            hits.AddRange(Store.List(c,"debt").Where(r=>FinancialScopes.Debt(user,r)&&Match(r.S("id"),r.S("iqama"),r.S("riderName"),r.S("description"),r.S("sourceRef"))).Select(r=>new Hit("debt",r.S("id"),r.S("description",r.S("sourceRef",r.S("id"))),r.S("iqama"),"/app/debts/?tab=debts&id="+Uri.EscapeDataString(r.S("id")))));
         if(AccessPolicy.Allowed(user,"GET","/api/campaigns"))
             hits.AddRange(Store.List(c,"campaign").Where(r=>Match(r.S("title"))).Select(r=>new Hit("campaign",r.S("id"),r.S("title"),r.S("status"),"/app/rider-app/?tab=campaigns&campaignId="+Uri.EscapeDataString(r.S("id")))));
         hits.AddRange(Vouchers.Search(c,user,q));

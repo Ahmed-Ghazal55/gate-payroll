@@ -357,6 +357,17 @@ function CompaniesPageContent() {
     };
   }, [fetchStats]);
 
+  // Deep-link from global search: /companies/?id=…
+  useEffect(() => {
+    const id = searchParams?.get('id');
+    if (!id || companies.length === 0) return;
+    const match = companies.find((c) => c.id === id);
+    if (match) {
+      setSelectedCompany(match);
+      setDrawerOpen(true);
+    }
+  }, [searchParams, companies]);
+
   const statsByCompanyId = useMemo(() => {
     const map = new Map<string, CompanyStatsItem>();
     for (const item of stats?.items || []) {
