@@ -18,6 +18,10 @@ internal static class MoneySchemaFixture
             using var reader=cmd.ExecuteReader();while(reader.Read())tables.Add(reader.GetString(0));
         }
         sql=sql.Replace("datetime('now')","SYSUTCDATETIME()").Replace("randomblob(32)","CRYPT_GEN_RANDOM(32)");
+        // SQLite "SELECT … LIMIT n" → SQL Server "SELECT TOP n …" (fixture SQL only; no nested SELECTs with LIMIT).
+        sql=Regex.Replace(sql,@"\bSELECT\b(?!\s+TOP\b)(.*?)\s+LIMIT\s+(\d+)\b",
+            m=>$"SELECT TOP {m.Groups[2].Value}{m.Groups[1].Value}",
+            RegexOptions.IgnoreCase|RegexOptions.Singleline);
         return RewriteTables(sql,tables.Contains,(schema,table)=>SchemaSql.Q(c,schema,table));
     }
     /// <summary>Rewrite SQLite-style schema_table names to SQL Server names. Only names of existing tables are

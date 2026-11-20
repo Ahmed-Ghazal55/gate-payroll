@@ -30,6 +30,17 @@ public sealed class MoneySchemaFixtureTests
     }
 
     [TestMethod]
+    public void SqlServerRewriteTurnsLimitIntoTop()
+    {
+        string? configured=Environment.GetEnvironmentVariable("PAYROLL_TEST_SQL_CONNECTION");
+        if(string.IsNullOrWhiteSpace(configured))Assert.Inconclusive("PAYROLL_TEST_SQL_CONNECTION not set");
+        using var c=MoneySchemaFixture.Open(true);
+        string sql=MoneySchemaFixture.Sql(c,"SELECT id FROM fin_account WHERE is_postable=1 ORDER BY code LIMIT 1");
+        StringAssert.Contains(sql,"SELECT TOP 1 ",StringComparison.OrdinalIgnoreCase);
+        Assert.IsFalse(sql.Contains("LIMIT",StringComparison.OrdinalIgnoreCase),sql);
+    }
+
+    [TestMethod]
     public void SyntheticCompanyFitsSqlServerColumns()
     {
         using var c=MoneySchemaFixture.Open();string id=MoneySchemaFixture.Company(c),other=MoneySchemaFixture.Company(c);
