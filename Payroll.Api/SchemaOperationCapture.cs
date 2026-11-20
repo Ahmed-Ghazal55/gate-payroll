@@ -118,8 +118,7 @@ public static class SchemaOperationCapture
                       SET NOCOUNT ON;
                       IF EXISTS(SELECT 1 FROM (SELECT operation_type,operation_id FROM inserted UNION ALL SELECT operation_type,operation_id FROM deleted) x WHERE {Frozen(c,"x.operation_type","x.operation_id")})
                         THROW 51011,'Frozen operation evidence cannot change',1;
-                      IF EXISTS(SELECT 1 FROM inserted x WHERE {WrongOwner(c,"x")})
-                        THROW 51012,'Capture owner or period mismatch',1;
+                      -- Apply first so composite FKs (e.g. FK_op_snap_snapshot) win over WrongOwner on open runs.
                       IF EXISTS(SELECT 1 FROM deleted) AND NOT EXISTS(SELECT 1 FROM inserted)
                         DELETE FROM {t} WHERE id IN (SELECT id FROM deleted);
                       ELSE IF EXISTS(SELECT 1 FROM inserted) AND NOT EXISTS(SELECT 1 FROM deleted)
@@ -127,6 +126,8 @@ public static class SchemaOperationCapture
                       ELSE IF EXISTS(SELECT 1 FROM inserted) AND EXISTS(SELECT 1 FROM deleted)
                         UPDATE tgt SET {string.Join(",",cols.Split(',').Select(col=>$"{col}=n.{col}"))}
                         FROM {t} tgt INNER JOIN inserted n ON tgt.id=n.id;
+                      IF EXISTS(SELECT 1 FROM inserted x WHERE {WrongOwner(c,"x")})
+                        THROW 51012,'Capture owner or period mismatch',1;
                     END;
                     """);
             }

@@ -215,8 +215,10 @@ public static class SchemaFinJournal
     {
         string journal=SchemaSql.Q(c,"fin","journal");
         string[] frozen=["voucher_no","period_id","period_month","journal_date","source_type","source_id","company_id","purpose","run_mode","payout_blocked","currency_code","reverses_journal_id","posted_at","posted_by","narration_ar"];
-        SchemaMoneyGuard.Retain(c,tx,"fin","journal","o.voucher_no=NEW.voucher_no OR (o.source_type=NEW.source_type AND o.source_id=NEW.source_id AND o.company_id=NEW.company_id AND o.purpose=NEW.purpose)");
-        SchemaMoneyGuard.Retain(c,tx,"fin","journal_line","o.journal_id=NEW.journal_id AND o.line_no=NEW.line_no");
+        // SQL Server: UQ_fin_journal_source must surface; SQLite no_replace covers the same key.
+        bool sqlReplace=!SchemaSql.IsSql(c);
+        SchemaMoneyGuard.Retain(c,tx,"fin","journal","o.voucher_no=NEW.voucher_no OR (o.source_type=NEW.source_type AND o.source_id=NEW.source_id AND o.company_id=NEW.company_id AND o.purpose=NEW.purpose)",replace:sqlReplace);
+        SchemaMoneyGuard.Retain(c,tx,"fin","journal_line","o.journal_id=NEW.journal_id AND o.line_no=NEW.line_no",replace:sqlReplace);
         // SQL Server AFTER triggers fire in create order; SQLite BEFORE fires last-created first — opposite.
         // Create state before money_flags on SQL Server (and the reverse on SQLite) so TR_fin_journal_state wins.
         void State()=>SchemaMoneyGuard.Rule(c,tx,"fin","journal","TR_fin_journal_state",

@@ -26,7 +26,7 @@ public static class SchemaBankFile
             CONSTRAINT UQ_sal_bank_file_month UNIQUE(id,period_month),
             CONSTRAINT CK_bank_file_month CHECK({SchemaSql.MonthCheck(c)}),
             CONSTRAINT CK_bank_file_scope CHECK((issuance_choice='per_company' AND scope_company_id IS NOT NULL) OR (issuance_choice='combined' AND scope_company_id IS NULL AND scope_registration_id IS NULL)),
-            CONSTRAINT CK_bank_file_sent CHECK(status<>3 OR (payout_blocked=0 AND sent_by IS NOT NULL AND sent_at IS NOT NULL)),
+            CONSTRAINT CK_bank_file_sent CHECK(status<>3 OR (sent_by IS NOT NULL AND sent_at IS NOT NULL)),
             CONSTRAINT CK_bank_file_approved CHECK(status NOT IN (2,3) OR (approved_by IS NOT NULL AND approved_at IS NOT NULL AND created_by IS NOT NULL)),
             CONSTRAINT FK_bank_file_bank FOREIGN KEY(paying_bank_id,paying_company_id,paying_registration_id) REFERENCES {SchemaSql.Q(c,"treasury","bank_account")}(id,company_id,registration_id) ON DELETE NO ACTION,
             CONSTRAINT FK_bank_file_scope FOREIGN KEY(scope_company_id) REFERENCES {company}(id) ON DELETE NO ACTION,
@@ -54,10 +54,12 @@ public static class SchemaBankFile
         SchemaMoneyGuard.Retain(c,tx,"sal","bank_file");
         SchemaMoneyGuard.Retain(c,tx,"sal","bank_file_line","o.allocation_id=NEW.allocation_id OR (o.pay_run_rider_id=NEW.pay_run_rider_id AND o.status=1 AND NEW.status=1)");
         SchemaMoneyRegister.ImmutableInsteadOfUpdate(c,tx,"sal","bank_file_line","bank_file_id","period_month","pay_run_rider_id","payable_id","company_id","registration_id","payable_period_month","payment_id","allocation_id","amount","bank_short_code","generation");
-        SchemaMoneyFlags.Ensure(c,tx,"sal","bank_file",o=>$"{o}.status>=2 OR {o}.payout_blocked=1");
         EnsureLines(c,tx);
         EnsureSettlement(c,tx);
+        // SQL Server AFTER: create TR_bank_file_state before money_flags; SQLite BEFORE: flags first so state wins last.
+        if(!SchemaSql.IsSql(c))SchemaMoneyFlags.Ensure(c,tx,"sal","bank_file",o=>$"{o}.status>=2 OR {o}.payout_blocked=1");
         EnsureHeader(c,tx);
+        if(SchemaSql.IsSql(c))SchemaMoneyFlags.Ensure(c,tx,"sal","bank_file",o=>$"{o}.status>=2 OR {o}.payout_blocked=1");
         foreach(var (table,columns) in new[]{("bank_file","paying_bank_id,paying_company_id,paying_registration_id"),("bank_file","scope_company_id"),("bank_file","scope_registration_id"),("bank_file_line","bank_file_id,period_month"),("bank_file_line","pay_run_rider_id,payable_period_month"),("bank_file_line","payable_id,company_id,payable_period_month"),("bank_file_line","payment_id,period_month"),("bank_file_line","registration_id")})
             SchemaSql.CreateIndexIfMissing(c,tx,"sal",table,$"IX_{table}_{columns.Split(',')[0]}",columns);
         SchemaMoneyRegister.BusinessKey(c,tx,"sal","bank_file_line",n=>SchemaMoneyRegister.IdString(c,$"{n}.allocation_id"));
@@ -93,6 +95,8 @@ public static class SchemaBankFile
             (o,n)=>$"{o}.status<>{n}.status AND ({o}.status<>1 OR {n}.status<>4 OR EXISTS(SELECT 1 FROM {a} a WHERE a.id={n}.allocation_id AND a.claim_status IN (1,2)))");
         // A bank allocation cannot be posted while its file is draft or comparison-only, even through direct SQL.
         SchemaMoneyGuard.Rule(c,tx,"pay","payment_allocation","TR_bank_claim_state",n=>$"{n}.claim_status=2 AND EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"sal","bank_file_line")} l JOIN {f} f ON f.id=l.bank_file_id WHERE l.allocation_id={n}.id AND (l.status<>1 OR f.status NOT IN (2,3) OR f.payout_blocked=1))");
+        // SalPayRun installs TR_allocation_run_flags earlier; on SQL Server first-created fires first — force bank claim first.
+        if(SchemaSql.IsSql(c))SchemaSql.Exec(c,tx,"EXEC sp_settriggerorder @triggername=N'pay.TR_bank_claim_state', @order=N'First', @stmttype=N'UPDATE';");
         // Freeze the paying company/amount on a queued payment as soon as a bank line claims it.
         SchemaMoneyGuard.Rule(c,tx,"pay","payment","TR_bank_payment_identity",_=>"1=0",
             (o,n)=>$"EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"sal","bank_file_line")} l WHERE l.payment_id={o}.id) AND ({n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"payer_company_id","company_id","period_month","amount","run_mode")}))");
