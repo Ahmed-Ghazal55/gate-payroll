@@ -90,6 +90,15 @@ public sealed class NinjaInputsLiveSqlServerTests
             Assert.AreEqual("PayPerOrder", methods.Items[0].S("payScheme"));
             Assert.AreEqual("PayPerOrder", methods.Items[0].S("accountPaymentModel"));
             Assert.AreEqual(ProfileA.ToString("D"), methods.Items[0].S("openActualRiderProfileId"), ignoreCase: true);
+
+            var bearers = NinjaInputsLiveQuery.AccountBearers(conn, oneCompany, period);
+            Assert.AreEqual(1L, bearers.Total);
+            Assert.AreEqual(EmpA.ToString("D"), bearers.Items[0].S("ownerEmployeeId"), ignoreCase: true);
+            Assert.AreEqual(ProfileA.ToString("D"), bearers.Items[0].S("actualRiderProfileId"), ignoreCase: true);
+            Assert.AreEqual(ProfileA.ToString("D"), bearers.Items[0].S("holderRiderProfileId"), ignoreCase: true); // same person in seed: owner=EmpA → ProfileA
+            Assert.AreEqual("7000000001", bearers.Items[0].S("owningUnifiedNumber"));
+            Assert.AreEqual("2026-10-01", bearers.Items[0].S("effectiveFrom"));
+            Assert.AreEqual("", bearers.Items[0].S("effectiveTo"));
         }
         finally
         {

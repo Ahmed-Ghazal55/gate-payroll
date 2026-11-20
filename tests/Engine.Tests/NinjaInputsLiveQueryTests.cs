@@ -91,6 +91,18 @@ public sealed class NinjaInputsLiveQueryTests
     }
 
     [TestMethod]
+    public void PreviewAccountBearersSql_SeparatesOwnerAndActualRiderDates()
+    {
+        var (sql, names) = NinjaInputsLiveQuery.PreviewAccountBearersSql(All, Oct);
+        StringAssert.Contains(sql, "[app].[RiderClientAssignments]");
+        StringAssert.Contains(sql, "RegisteredEmployeeId");
+        StringAssert.Contains(sql, "ActualRiderProfileId");
+        StringAssert.Contains(sql, "EffectiveFrom");
+        CollectionAssert.Contains(names.ToList(), "@from");
+        Assert.IsTrue(AccessPolicy.Allowed(Principal("syn-bear", ["pay.view"]), "GET", "/api/pay/apps/ninja/live/account-bearers"));
+    }
+
+    [TestMethod]
     public void Coverage_FlagsMissingDaysAtPeriodEnd()
     {
         var coverage = NinjaInputsLiveQuery.Coverage(Oct, "2026-10-01", "2026-10-29", 100);

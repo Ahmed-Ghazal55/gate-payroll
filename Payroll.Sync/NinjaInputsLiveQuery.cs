@@ -346,6 +346,107 @@ public static class NinjaInputsLiveQuery
         };
     }
 
+    /// <summary>Reader 4 — owning registration + owner vs actual rider periods (Keeta-style holder dates).</summary>
+    public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewAccountBearersSql(
+        LiveOperationsQuery.Scope? scope, PeriodRequest request)
+    {
+        using var cmd = new SqlCommand();
+        string sql = BuildAccountBearersSql(cmd, scope, request);
+        return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
+    }
+
+    public static PageResult AccountBearers(
+        DbConnection source,
+        LiveOperationsQuery.Scope scope,
+        PeriodRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
+        DateTimeOffset asOf = DateTimeOffset.UtcNow;
+        using var cmd = source.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        using var cancel = SyncCancellation.Register(cmd, cancellationToken);
+        cmd.CommandText = BuildAccountBearersSql(cmd, scope, request);
+        var items = new List<JsonObject>();
+        long total = 0;
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (total == 0) total = Num(reader, "CoverageTotal");
+            items.Add(MapAccountBearerRow(reader));
+        }
+        return new(items, total, new JsonObject
+        {
+            ["total"] = total,
+            ["requestedFrom"] = request.From.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["requestedTo"] = request.To.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        }, asOf);
+    }
+
+    static string BuildAccountBearersSql(DbCommand cmd, LiveOperationsQuery.Scope? scope, PeriodRequest request)
+    {
+        Add(cmd, "@from", request.From.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Add(cmd, "@to", request.To.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Add(cmd, "@skip", (request.Page - 1) * request.PageSize);
+        Add(cmd, "@take", request.PageSize);
+        Add(cmd, "@ninja", PlatformCode);
+        string sponsorScope = BuildSponsorScopeSql(scope, cmd, "s");
+        return $"""
+            WITH scoped AS (
+                SELECT a.[Id] AS AssignmentId,
+                       a.[PlatformRiderAccountId],
+                       a.[RiderProfileId] AS ActualRiderProfileId,
+                       a.[EffectiveFrom],
+                       a.[EffectiveTo],
+                       a.[PaymentModel] AS AssignmentPaymentModel,
+                       a.[Status] AS AssignmentStatus,
+                       pa.[ExternalAccountId],
+                       pa.[Code] AS AccountCode,
+                       pa.[RegisteredEmployeeId] AS OwnerEmployeeId,
+                       pa.[SponsorId] AS OwningSponsorId,
+                       s.[UnifiedNationalNumber] AS OwningUnifiedNumber,
+                       owner_rp.[Id] AS OwnerRiderProfileId
+                FROM [app].[RiderClientAssignments] a
+                INNER JOIN [app].[PlatformRiderAccounts] pa ON pa.[Id]=a.[PlatformRiderAccountId] AND pa.[IsDeleted]=0
+                INNER JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=pa.[ClientPlatformId] AND cp.[IsDeleted]=0 AND cp.[Code]=@ninja
+                INNER JOIN [app].[Sponsors] s ON s.[Id]=pa.[SponsorId] AND s.[IsDeleted]=0
+                LEFT JOIN [app].[RiderProfiles] owner_rp ON owner_rp.[EmployeeId]=pa.[RegisteredEmployeeId] AND owner_rp.[IsDeleted]=0
+                WHERE a.[IsDeleted]=0
+                  AND a.[EffectiveFrom]<=@to
+                  AND (a.[EffectiveTo] IS NULL OR a.[EffectiveTo]>=@from){sponsorScope}
+            ),
+            coverage AS (SELECT COUNT_BIG(*) AS CoverageTotal FROM scoped),
+            page AS (
+                SELECT * FROM scoped
+                ORDER BY [ExternalAccountId], [EffectiveFrom], [AssignmentId]
+                OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY
+            )
+            SELECT p.*, c.[CoverageTotal]
+            FROM page p
+            CROSS JOIN coverage c
+            ORDER BY p.[ExternalAccountId], p.[EffectiveFrom], p.[AssignmentId]
+            """;
+    }
+
+    static JsonObject MapAccountBearerRow(IDataRecord r) => new()
+    {
+        ["assignmentId"] = Str(r, "AssignmentId"),
+        ["platformRiderAccountId"] = Str(r, "PlatformRiderAccountId"),
+        ["externalAccountId"] = Str(r, "ExternalAccountId"),
+        ["accountCode"] = Str(r, "AccountCode"),
+        ["owningSponsorId"] = Str(r, "OwningSponsorId"),
+        ["owningUnifiedNumber"] = Str(r, "OwningUnifiedNumber"),
+        ["ownerEmployeeId"] = Str(r, "OwnerEmployeeId"),
+        ["ownerRiderProfileId"] = Str(r, "OwnerRiderProfileId"),
+        ["actualRiderProfileId"] = Str(r, "ActualRiderProfileId"),
+        ["holderRiderProfileId"] = Str(r, "OwnerRiderProfileId"),
+        ["effectiveFrom"] = DateStr(r, "EffectiveFrom"),
+        ["effectiveTo"] = DateStr(r, "EffectiveTo"),
+        ["assignmentPaymentModel"] = PaymentModelName(Str(r, "AssignmentPaymentModel")),
+        ["assignmentStatus"] = Str(r, "AssignmentStatus")
+    };
+
     public static JsonObject Coverage(PeriodRequest request, string? firstDay, string? lastDay, long total) => new()
     {
         ["requestedFrom"] = request.From.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
