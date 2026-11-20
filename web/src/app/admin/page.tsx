@@ -42,6 +42,7 @@ import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RiderPicker } from '../../components/ui/RiderPicker';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import { ConfigListsPanel } from '../../features/admin/ConfigListsPanel';
 import { ApprovalBypassPanel } from '../../features/admin/ApprovalBypassPanel';
 import { RolePermissionsEditor, UserAccessDialog, type AccessCatalog, type AccessUser } from '../../features/admin/UserAccessDialog';
@@ -436,6 +437,123 @@ function AdminPageInner() {
     });
   }, [auditLogs, auditActionFilter, auditSearch]);
 
+  const usersFilterCols = useMemo(
+    () => [
+      { key: 'username', header: 'اسم المستخدم', type: 'text' as const, getValue: (u: any) => u.username || '' },
+      { key: 'role', header: 'الدور الوظيفي', type: 'list' as const, getValue: (u: any) => u.roleNameAr || u.role || '' },
+      { key: 'department', header: 'القسم', type: 'list' as const, getValue: (u: any) => u.department || 'ALL' },
+      {
+        key: 'customPermissions',
+        header: 'الصلاحيات المخصصة',
+        type: 'text' as const,
+        getValue: (u: any) => (u.customPermissions?.length ? u.customPermissions.join(', ') : 'حسب الدور الأساسي'),
+      },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (u: any) => (u.status === 'suspended' ? 'suspended' : 'active'),
+        labelOf: (v: unknown) => (v === 'suspended' ? 'موقوف' : 'نشط'),
+        toneOf: (v: unknown) => (v === 'suspended' ? 'danger' : 'success'),
+      },
+    ],
+    []
+  );
+  const usersFilter = useTableAutoFilter(filteredUsers, usersFilterCols);
+
+  const membershipsFilterCols = useMemo(
+    () => [
+      { key: 'userId', header: 'المستخدم', type: 'list' as const, getValue: (m: any) => m.userId || '' },
+      { key: 'department', header: 'القسم', type: 'list' as const, getValue: (m: any) => m.department || '' },
+      { key: 'rank', header: 'الرتبة', type: 'list' as const, getValue: (m: any) => m.rank || '' },
+      { key: 'validFrom', header: 'سارٍ من', type: 'date' as const, getValue: (m: any) => m.validFrom?.split('T')[0] || '' },
+      { key: 'validTo', header: 'سارٍ حتى', type: 'date' as const, getValue: (m: any) => m.validTo?.split('T')[0] || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (m: any) => (m.validTo ? 'ended' : 'active'),
+        labelOf: (v: unknown) => (v === 'ended' ? 'منتهية' : 'نشطة'),
+        toneOf: (v: unknown) => (v === 'ended' ? 'neutral' : 'success'),
+      },
+    ],
+    []
+  );
+  const membershipsFilter = useTableAutoFilter(memberships, membershipsFilterCols);
+
+  const delegationsFilterCols = useMemo(
+    () => [
+      { key: 'fromUser', header: 'المفوض (من)', type: 'list' as const, getValue: (d: any) => d.fromUser || '' },
+      { key: 'toUser', header: 'المفوض إليه (إلى)', type: 'list' as const, getValue: (d: any) => d.toUser || '' },
+      { key: 'operation', header: 'العملية المفوضة', type: 'list' as const, getValue: (d: any) => d.operation || '' },
+      { key: 'validFrom', header: 'سارٍ من', type: 'date' as const, getValue: (d: any) => d.validFrom?.split('T')[0] || '' },
+      { key: 'until', header: 'حتى تاريخ', type: 'date' as const, getValue: (d: any) => d.until?.split('T')[0] || '' },
+      { key: 'reason', header: 'السبب', type: 'text' as const, getValue: (d: any) => d.reason || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (d: any) => (d.until && new Date(d.until).getTime() < Date.now() ? 'expired' : 'active'),
+        labelOf: (v: unknown) => (v === 'expired' ? 'منتهٍ' : 'نشط'),
+        toneOf: (v: unknown) => (v === 'expired' ? 'neutral' : 'success'),
+      },
+    ],
+    []
+  );
+  const delegationsFilter = useTableAutoFilter(delegations, delegationsFilterCols);
+
+  const supervisionsFilterCols = useMemo(
+    () => [
+      { key: 'supervisorUserId', header: 'المشرف المسؤول', type: 'list' as const, getValue: (s: any) => s.supervisorUserId || '' },
+      { key: 'riderName', header: 'اسم المندوب', type: 'text' as const, getValue: (s: any) => s.riderName || 'مندوب مسجل' },
+      { key: 'riderIqama', header: 'رقم الإقامة', type: 'text' as const, getValue: (s: any) => s.riderIqama || '' },
+      { key: 'validFrom', header: 'سارٍ من', type: 'date' as const, getValue: (s: any) => s.validFrom?.split('T')[0] || '' },
+      { key: 'validTo', header: 'سارٍ حتى', type: 'date' as const, getValue: (s: any) => s.validTo?.split('T')[0] || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (s: any) => (s.validTo ? 'ended' : 'active'),
+        labelOf: (v: unknown) => (v === 'ended' ? 'منتهٍ' : 'نشط'),
+        toneOf: (v: unknown) => (v === 'ended' ? 'neutral' : 'success'),
+      },
+    ],
+    []
+  );
+  const supervisionsFilter = useTableAutoFilter(supervisions, supervisionsFilterCols);
+
+  const routingsFilterCols = useMemo(
+    () => [
+      { key: 'operation', header: 'العملية الموجهة', type: 'list' as const, getValue: (r: any) => r.operation || '' },
+      { key: 'department', header: 'القسم', type: 'list' as const, getValue: (r: any) => r.department || '' },
+      { key: 'minRank', header: 'الحد الأدنى للرتبة', type: 'list' as const, getValue: (r: any) => r.minRank || '' },
+      { key: 'users', header: 'المستخدمون المكلفون', type: 'text' as const, getValue: (r: any) => (r.users || []).join(', ') },
+      { key: 'validFrom', header: 'سارٍ من', type: 'date' as const, getValue: (r: any) => r.validFrom?.split('T')[0] || '' },
+      { key: 'validTo', header: 'سارٍ حتى', type: 'date' as const, getValue: (r: any) => r.validTo?.split('T')[0] || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (r: any) => (r.validTo ? 'ended' : 'active'),
+        labelOf: (v: unknown) => (v === 'ended' ? 'منتهٍ' : 'نشط'),
+        toneOf: (v: unknown) => (v === 'ended' ? 'neutral' : 'success'),
+      },
+    ],
+    []
+  );
+  const routingsFilter = useTableAutoFilter(routings, routingsFilterCols);
+
+  const auditFilterCols = useMemo(
+    () => [
+      { key: 'id', header: 'المعرف', type: 'text' as const, getValue: (l: any) => String(l.id ?? '') },
+      { key: 'action', header: 'نوع العملية (Action)', type: 'list' as const, getValue: (l: any) => l.action || '' },
+      { key: 'actor', header: 'المنفذ (Actor)', type: 'list' as const, getValue: (l: any) => l.actor || 'system' },
+      { key: 'at', header: 'التاريخ والوقت', type: 'date' as const, getValue: (l: any) => l.at || l.createdAt || '' },
+    ],
+    []
+  );
+  const auditFilter = useTableAutoFilter(filteredAudit, auditFilterCols);
+
   const sectionTabs: SectionTabItem[] = [
     { id: 'users', label: 'المستخدمون والصلاحيات', icon: <Users size={16} /> },
     { id: 'org', label: 'الأقسام والرتب والتفويضات', icon: <Building2 size={16} /> },
@@ -534,20 +652,21 @@ function AdminPageInner() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar controller={usersFilter} totalCount={filteredUsers.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">اسم المستخدم</th>
-                      <th className="p-3 text-start">الدور الوظيفي</th>
-                      <th className="p-3 text-start">القسم</th>
-                      <th className="p-3 text-start">الصلاحيات المخصصة</th>
-                      <th className="p-3 text-start">الحالة</th>
+                      <AutoFilterTh controller={usersFilter} colKey="username" className="p-3 text-start" />
+                      <AutoFilterTh controller={usersFilter} colKey="role" className="p-3 text-start" />
+                      <AutoFilterTh controller={usersFilter} colKey="department" className="p-3 text-start" />
+                      <AutoFilterTh controller={usersFilter} colKey="customPermissions" className="p-3 text-start" />
+                      <AutoFilterTh controller={usersFilter} colKey="status" className="p-3 text-start" />
                       <th className="p-3 text-start">إجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {filteredUsers.map((u) => (
+                    {usersFilter.rows.map((u) => (
                       <tr key={u.id || u.username} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono font-bold text-[var(--ink)]">
                           @{u.username}
@@ -687,21 +806,22 @@ function AdminPageInner() {
                 />
               ) : (
                 <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                  <AutoFilterBar controller={membershipsFilter} totalCount={memberships.length} />
                   <div className="overflow-x-auto">
                     <table className="w-full text-start text-xs sm:text-sm">
                       <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                         <tr>
-                          <th className="p-3 text-start">المستخدم</th>
-                          <th className="p-3 text-start">القسم</th>
-                          <th className="p-3 text-start">الرتبة</th>
-                          <th className="p-3 text-start">سارٍ من</th>
-                          <th className="p-3 text-start">سارٍ حتى</th>
-                          <th className="p-3 text-start">الحالة</th>
+                          <AutoFilterTh controller={membershipsFilter} colKey="userId" className="p-3 text-start" />
+                          <AutoFilterTh controller={membershipsFilter} colKey="department" className="p-3 text-start" />
+                          <AutoFilterTh controller={membershipsFilter} colKey="rank" className="p-3 text-start" />
+                          <AutoFilterTh controller={membershipsFilter} colKey="validFrom" className="p-3 text-start" />
+                          <AutoFilterTh controller={membershipsFilter} colKey="validTo" className="p-3 text-start" />
+                          <AutoFilterTh controller={membershipsFilter} colKey="status" className="p-3 text-start" />
                           <th className="p-3 text-start">الإجراءات</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--line)]">
-                        {memberships.map((m) => {
+                        {membershipsFilter.rows.map((m) => {
                           const isEnded = Boolean(m.validTo);
                           return (
                             <tr
@@ -786,22 +906,23 @@ function AdminPageInner() {
                 />
               ) : (
                 <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                  <AutoFilterBar controller={delegationsFilter} totalCount={delegations.length} />
                   <div className="overflow-x-auto">
                     <table className="w-full text-start text-xs sm:text-sm">
                       <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                         <tr>
-                          <th className="p-3 text-start">المفوض (من)</th>
-                          <th className="p-3 text-start">المفوض إليه (إلى)</th>
-                          <th className="p-3 text-start">العملية المفوضة</th>
-                          <th className="p-3 text-start">سارٍ من</th>
-                          <th className="p-3 text-start">حتى تاريخ</th>
-                          <th className="p-3 text-start">السبب</th>
-                          <th className="p-3 text-start">الحالة</th>
+                          <AutoFilterTh controller={delegationsFilter} colKey="fromUser" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="toUser" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="operation" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="validFrom" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="until" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="reason" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="status" className="p-3 text-start" />
                           <th className="p-3 text-start">الإجراءات</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--line)]">
-                        {delegations.map((d) => {
+                        {delegationsFilter.rows.map((d) => {
                           const isExpired = d.until && new Date(d.until).getTime() < Date.now();
                           return (
                             <tr
@@ -883,21 +1004,22 @@ function AdminPageInner() {
                 />
               ) : (
                 <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                  <AutoFilterBar controller={supervisionsFilter} totalCount={supervisions.length} />
                   <div className="overflow-x-auto">
                     <table className="w-full text-start text-xs sm:text-sm">
                       <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                         <tr>
-                          <th className="p-3 text-start">المشرف المسؤول</th>
-                          <th className="p-3 text-start">اسم المندوب</th>
-                          <th className="p-3 text-start">رقم الإقامة</th>
-                          <th className="p-3 text-start">سارٍ من</th>
-                          <th className="p-3 text-start">سارٍ حتى</th>
-                          <th className="p-3 text-start">الحالة</th>
+                          <AutoFilterTh controller={supervisionsFilter} colKey="supervisorUserId" className="p-3 text-start" />
+                          <AutoFilterTh controller={supervisionsFilter} colKey="riderName" className="p-3 text-start" />
+                          <AutoFilterTh controller={supervisionsFilter} colKey="riderIqama" className="p-3 text-start" />
+                          <AutoFilterTh controller={supervisionsFilter} colKey="validFrom" className="p-3 text-start" />
+                          <AutoFilterTh controller={supervisionsFilter} colKey="validTo" className="p-3 text-start" />
+                          <AutoFilterTh controller={supervisionsFilter} colKey="status" className="p-3 text-start" />
                           <th className="p-3 text-start">الإجراءات</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--line)]">
-                        {supervisions.map((s) => {
+                        {supervisionsFilter.rows.map((s) => {
                           const isEnded = Boolean(s.validTo);
                           return (
                             <tr
@@ -1027,22 +1149,23 @@ function AdminPageInner() {
                 />
               ) : (
                 <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                  <AutoFilterBar controller={routingsFilter} totalCount={routings.length} />
                   <div className="overflow-x-auto">
                     <table className="w-full text-start text-xs sm:text-sm">
                       <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                         <tr>
-                          <th className="p-3 text-start">العملية الموجهة</th>
-                          <th className="p-3 text-start">القسم</th>
-                          <th className="p-3 text-start">الحد الأدنى للرتبة</th>
-                          <th className="p-3 text-start">المستخدمون المكلفون</th>
-                          <th className="p-3 text-start">سارٍ من</th>
-                          <th className="p-3 text-start">سارٍ حتى</th>
-                          <th className="p-3 text-start">الحالة</th>
+                          <AutoFilterTh controller={routingsFilter} colKey="operation" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="department" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="minRank" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="users" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="validFrom" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="validTo" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="status" className="p-3 text-start" />
                           <th className="p-3 text-start">الإجراءات</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--line)]">
-                        {routings.map((r) => {
+                        {routingsFilter.rows.map((r) => {
                           const isEnded = Boolean(r.validTo);
                           return (
                             <tr
@@ -1163,18 +1286,19 @@ function AdminPageInner() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar controller={auditFilter} totalCount={filteredAudit.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">المعرف</th>
-                      <th className="p-3 text-start">نوع العملية (Action)</th>
-                      <th className="p-3 text-start">المنفذ (Actor)</th>
-                      <th className="p-3 text-start">التاريخ والوقت</th>
+                      <AutoFilterTh controller={auditFilter} colKey="id" className="p-3 text-start" />
+                      <AutoFilterTh controller={auditFilter} colKey="action" className="p-3 text-start" />
+                      <AutoFilterTh controller={auditFilter} colKey="actor" className="p-3 text-start" />
+                      <AutoFilterTh controller={auditFilter} colKey="at" className="p-3 text-start" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {filteredAudit.map((log, idx) => (
+                    {auditFilter.rows.map((log, idx) => (
                       <tr key={log.id || idx} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono text-xs text-[var(--muted)]">{log.id || idx + 1}</td>
                         <td className="p-3">
