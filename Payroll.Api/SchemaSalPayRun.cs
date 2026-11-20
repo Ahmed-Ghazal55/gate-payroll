@@ -117,9 +117,24 @@ public static class SchemaSalPayRun
         SchemaMoneyGuard.Retain(c,tx,"sal","pay_run","o.status<>4 AND NEW.status<>4 AND o.app_code=NEW.app_code AND o.company_id=NEW.company_id AND o.period_month=NEW.period_month AND o.run_mode=NEW.run_mode");
         SchemaMoneyGuard.Retain(c,tx,"sal","pay_run_item","o.pay_run_rider_id=NEW.pay_run_rider_id AND o.line_no=NEW.line_no");
         SchemaMoneyGuard.Retain(c,tx,"sal","pay_run_rider","o.pay_run_id=NEW.pay_run_id AND o.erp_rider_id=NEW.erp_rider_id");
+        EnsureApprovedAmounts(c,tx);
         EnsureRiderProvenance(c,tx);
         EnsureClaimRunFlags(c,tx);
         EnsureHoldBlocksBank(c,tx);
+    }
+
+    /// <summary>After salary approval, rider money figures and their items are fixed; linked payable.amount_due follows.</summary>
+    static void EnsureApprovedAmounts(DbConnection c,DbTransaction? tx)
+    {
+        string rider=SchemaSql.Q(c,"sal","pay_run_rider"),item=SchemaSql.Q(c,"sal","pay_run_item"),payable=SchemaSql.Q(c,"pay","payable");
+        string approved(string alias)=>SchemaSql.IsSql(c)?$"{alias}.salary_approved_at IS NOT NULL":$"{alias}.salary_approved_at IS NOT NULL";
+        SchemaMoneyGuard.Rule(c,tx,"sal","pay_run_rider","TR_rider_amounts_frozen",_=>"1=0",
+            (o,n)=>$"{approved(o)} AND ({n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"salary_net","gross","commission","old_debt_instalment")}))");
+        SchemaMoneyGuard.Rule(c,tx,"sal","pay_run_item","TR_item_amounts_frozen",
+            n=>$"EXISTS(SELECT 1 FROM {rider} r WHERE r.id={n}.pay_run_rider_id AND {approved("r")})",
+            (o,n)=>$"{n}.id IS NULL OR EXISTS(SELECT 1 FROM {rider} r WHERE r.id=COALESCE({n}.pay_run_rider_id,{o}.pay_run_rider_id) AND {approved("r")})");
+        SchemaMoneyGuard.Rule(c,tx,"pay","payable","TR_payable_due_frozen",_=>"1=0",
+            (o,n)=>$"({SchemaMoneyGuard.Changed(c,n,o,"amount_due")}) AND EXISTS(SELECT 1 FROM {rider} r WHERE r.payable_id={o}.id AND {approved("r")})");
     }
 
     static void EnsureRiderProvenance(DbConnection c,DbTransaction? tx)

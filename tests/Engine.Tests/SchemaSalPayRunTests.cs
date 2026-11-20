@@ -51,13 +51,13 @@ public sealed class SchemaSalPayRunTests
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET payable_id=@p WHERE id=@id",("@id",rider),("@p",wrong)),"FK_sal_rider_payable",sqliteToken:"FOREIGN KEY");
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET salary_approved_at=datetime('now') WHERE id=@id",("@id",rider)),"CK_sal_rider_approval");
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET debt_confirm_status='deferred',old_debt_instalment=1 WHERE id=@id",("@id",rider)),"CK_sal_rider_debt");
+        void Item(string month,string stage,int line)=>MoneySchemaFixture.Exec(c,null,"INSERT INTO sal_pay_run_item(id,period_month,pay_run_rider_id,line_no,stage_code,item_code,amount,affects_net,account_code) VALUES(@id,@month,@r,@line,@stage,'synthetic',1,1,'112507')",("@id",MoneySchemaFixture.Id()),("@r",rider),("@month",month),("@stage",stage),("@line",line));
+        SchemaConstraintAssert.ThrowsNamed(()=>Item("2026-12-01","level1",1),"FK_sal_item_rider",sqliteToken:"FOREIGN KEY");
+        Item("2026-11-01","level1",1);Item("2026-11-01","net",2);Item("2026-11-01","level2",3);Item("2026-11-01","old_debt",4);
         byte[] version=(byte[])MoneySchemaFixture.Scalar(c,null,"SELECT row_version FROM sal_pay_run_rider WHERE id=@id",("@id",rider))!;
         int Approve(){using var cmd=MoneySchemaFixture.Command(c,null,"UPDATE sal_pay_run_rider SET debt_confirm_status='deferred',salary_approved_at=datetime('now') WHERE id=@id AND row_version=@v",("@id",rider),("@v",version));return cmd.ExecuteNonQuery();}
         Assert.AreEqual(1,Approve());Assert.AreEqual(0,Approve());
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET bank_eligible=1 WHERE id=@id",("@id",rider)),"CK_sal_rider_bank");
-        void Item(string month,string stage,int line)=>MoneySchemaFixture.Exec(c,null,"INSERT INTO sal_pay_run_item(id,period_month,pay_run_rider_id,line_no,stage_code,item_code,amount,affects_net,account_code) VALUES(@id,@month,@r,@line,@stage,'synthetic',1,1,'112507')",("@id",MoneySchemaFixture.Id()),("@r",rider),("@month",month),("@stage",stage),("@line",line));
-        SchemaConstraintAssert.ThrowsNamed(()=>Item("2026-12-01","level1",1),"FK_sal_item_rider",sqliteToken:"FOREIGN KEY");
-        Item("2026-11-01","level1",1);Item("2026-11-01","net",2);Item("2026-11-01","level2",3);Item("2026-11-01","old_debt",4);
         Assert.AreEqual(4L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM sal_pay_run_item"));
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_pay_run WHERE id=@id",("@id",run)));
     }
