@@ -1,10 +1,10 @@
 // U1 Operations Live UI Comprehensive Browser & API Verification
 import { spawn } from 'node:child_process';
-import { once } from 'node:events';
+import { createServer } from 'node:net';
 import { mkdtempSync, rmSync, cpSync, mkdirSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,9 +12,19 @@ const __dirname = path.dirname(__filename);
 const webDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(webDir, '..');
 
-// Playwright loader from /tmp/gate-browser
-const pwModulePath = '/tmp/gate-browser/node_modules/playwright/index.mjs';
-const { chromium } = await import(pwModulePath);
+const pwModulePath = process.env.PLAYWRIGHT_MODULE || '/tmp/gate-browser/node_modules/playwright/index.mjs';
+const { chromium } = await import(pathToFileURL(pwModulePath));
+
+async function freePort() {
+  const probe = createServer();
+  await new Promise((resolve, reject) => {
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', resolve);
+  });
+  const { port } = probe.address();
+  await new Promise((resolve) => probe.close(resolve));
+  return port;
+}
 
 async function main() {
   console.log('--- Starting Gate Payroll U1 Operations UI Verification ---');
@@ -28,40 +38,40 @@ async function main() {
 
   // 2. Set up synthetic isolated directory for server
   const testDir = mkdtempSync(path.join(tmpdir(), 'gate-u1-ops-'));
-  const port = 19695;
+  const port = await freePort();
   const baseUrl = `http://127.0.0.1:${port}`;
 
   console.log(`2. Starting Dotnet API on ${baseUrl}...`);
   const server = spawn(
-    'dotnet',
-    ['run', '--project', path.join(repoRoot, 'Payroll.Api/Payroll.Api.csproj'), '--no-build', '--urls', baseUrl],
+    process.env.DOTNET_PATH || 'dotnet',
+    [path.join(repoRoot, 'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],
     {
+      cwd: path.join(repoRoot, 'Payroll.Api'),
       env: {
         ...process.env,
         ASPNETCORE_ENVIRONMENT: 'Development',
+        ASPNETCORE_URLS: baseUrl,
         DOTNET_CLI_TELEMETRY_OPTOUT: '1',
         PAYROLL_DATA_DIR: testDir,
         Operations__Source: 'store',
+        Vouchers__Secret: process.env.Vouchers__Secret || 'GateSynthetic_CI_Only_Voucher_Key_000001',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     }
   );
 
-  server.stdout.on('data', (d) => {
-    const text = d.toString();
-    if (text.includes('Application started') || text.includes('Hosting started')) {
-      server.emit('ready');
-    }
-  });
-
-  server.stderr.on('data', (d) => {
-    // console.error('[SERVER STDERR]', d.toString());
-  });
-
-  await Promise.race([
-    once(server, 'ready'),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Server start timed out after 30s')), 30000)),
-  ]);
+  let ready = false;
+  for (let n = 0; n < 150; n++) {
+    if (server.exitCode !== null) throw new Error('Ops live server exited before startup');
+    try {
+      if ((await fetch(baseUrl + '/health')).ok) {
+        ready = true;
+        break;
+      }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  assert.ok(ready, 'Ops live server did not become ready');
   console.log('✓ Dotnet live API started successfully');
 
   try {

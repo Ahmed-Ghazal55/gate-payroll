@@ -48,7 +48,7 @@ try{
  const rows=await(await admin.request.get(base+'/api/submissions')).json();assert.equal(rows.length,1);assert.equal(rows[0].iban,'SA0380000000608010167519');assert.deepEqual(rows[0].platforms,['keeta','jahez']);assert.equal(rows[0].city,'جدة');assert.equal(rows[0].bankCode,'80');assert.equal(rows[0].phone,'+966500000911');
  await page.click('#btn-edit-choice');await page.locator('#edit-notice:not([hidden])').waitFor();assert.match(await page.locator('#edit-notice').textContent(),/•••• 7519/);assert.equal(await page.locator('[name=ibanBody]').inputValue(),'');assert.equal(await page.locator('[name=platforms][value=jahez]').isChecked(),true);
  const listed=await(await admin.request.get(base+'/api/submissions')).json();assert.equal(listed.length,1);assert.equal(listed[0].iban,'SA0380000000608010167519');assert.deepEqual(listed[0].platforms,['keeta','jahez']);
- assert.equal((await admin.request.post(base+'/api/submissions/'+listed[0].receipt+'/review',{data:{status:'approved',note:'IBAN ownership checked',identityReviewed:true,ibanOwnershipReviewed:true}})).status(),200);
+ assert.equal((await admin.request.post(base+'/api/submissions/'+listed[0].id+'/review',{data:{status:'approved',note:'IBAN ownership checked',identityReviewed:true,ibanOwnershipReviewed:true}})).status(),200);
  const secondCampaign=await(await admin.request.post(base+'/api/campaigns',{data:{title:'تحديث بيانات الآيبان',days:2,kind:'iban'}})).json();
  const created=(await(await admin.request.get(base+'/api/campaigns')).json()).filter(c=>c.kind==='iban');assert.equal(created.length,2);
  const fresh=await phone.newPage();await fresh.goto(base+secondCampaign.path);await fresh.locator('[name=ibanBody]').waitFor();await fresh.close();

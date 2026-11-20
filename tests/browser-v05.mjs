@@ -47,21 +47,21 @@ try{
  await context.request.post(base+endpoint,{data:{iqama:'2000000004',name:'Second Response',workSystem:'tiers'}});
  let submissions=await(await context.request.get(base+'/api/submissions')).json();assert.equal(submissions.length,2);
  const edited=submissions.find(s=>s.iqama==='2000000003');assert.equal(edited.version,2);assert.equal(edited.workSystem,'commission');
- assert.equal((await context.request.post(base+'/api/submissions/'+edited.receipt+'/review',{data:{status:'approved',note:'Synthetic',identityReviewed:true}})).status(),200);
+ assert.equal((await context.request.post(base+'/api/submissions/'+edited.id+'/review',{data:{status:'approved',note:'Synthetic',identityReviewed:true}})).status(),200);
  const second=submissions.find(s=>s.iqama==='2000000004');
- assert.equal((await context.request.post(base+'/api/submissions/'+second.receipt+'/review',{data:{status:'rejected',note:'Synthetic',identityReviewed:true}})).status(),200);
+ assert.equal((await context.request.post(base+'/api/submissions/'+second.id+'/review',{data:{status:'rejected',note:'Synthetic',identityReviewed:true}})).status(),200);
  const edit=await context.request.post(base+endpoint+'/edit',{data:{iqama:'2000000003',name:'Browser Updated',workSystem:'tiers',version:2,editToken}});assert.equal(edit.status(),200);
  const concurrent=await context.request.post(base+endpoint+'/edit',{data:{iqama:'2000000003',name:'Browser Latest',workSystem:'commission',version:3,editToken}});assert.equal(concurrent.status(),200);
  submissions=await(await context.request.get(base+'/api/submissions')).json();
  const latest=submissions.find(s=>s.iqama==='2000000003');assert.equal(latest.name,'Browser Latest');assert.ok(latest.version>=3);
- assert.equal((await context.request.post(base+'/api/submissions/'+latest.receipt+'/review',{data:{status:'approved',note:'Synthetic final',identityReviewed:true}})).status(),200);
+ assert.equal((await context.request.post(base+'/api/submissions/'+latest.id+'/review',{data:{status:'approved',note:'Synthetic final',identityReviewed:true}})).status(),200);
  const dynamic=await(await context.request.post(base+'/api/campaigns',{data:{title:'Dynamic city test',days:2}})).json();
  assert.equal((await context.request.put(base+'/api/campaigns/'+dynamic.id,{data:{title:'Dynamic city test',fields:['city','phone']}})).status(),200);
  const publicPage=await context.newPage();await publicPage.setViewportSize({width:390,height:844});publicPage.on('pageerror',e=>errors.push(String(e)));await publicPage.goto(base+dynamic.path);
  for(const lang of ['en','ur','ar']){await publicPage.locator('[data-lang='+lang+']').click();await publicPage.locator('[name=city]').waitFor();assert.ok(await publicPage.locator('[name=city]').getAttribute('placeholder'));assert.ok(await publicPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}
  await publicPage.locator('[name=iqama]').fill('2000000053');await publicPage.locator('[name=name]').fill('Dynamic Synthetic');await publicPage.locator('[name=city]').fill('Riyadh');await publicPage.locator('[name=phone]').fill('+966500000053');await publicPage.locator('[value=tiers]').check();publicPage.once('dialog',d=>d.accept());await publicPage.locator('button[type=submit]').click();await publicPage.locator('#btn-edit-choice').click();assert.equal(await publicPage.locator('[name=city]').inputValue(),'Riyadh');assert.equal(await publicPage.locator('[name=phone]').inputValue(),'',"H20: public lookup never returns the phone");
  const dynamicRows=await(await context.request.get(base+'/api/submissions')).json();const dyn=dynamicRows.find(s=>s.iqama==='2000000053');assert.ok(dyn);
- assert.equal((await context.request.post(base+'/api/submissions/'+dyn.receipt+'/review',{data:{status:'approved',note:'ok',identityReviewed:true}})).status(),200);
+ assert.equal((await context.request.post(base+'/api/submissions/'+dyn.id+'/review',{data:{status:'approved',note:'ok',identityReviewed:true}})).status(),200);
  assert.equal((await context.request.delete(base+'/api/submissions/'+dyn.id)).status(),200);
  const lookup=await(await context.request.post(base+'/api/public/forms/'+dynamic.path.split('/').at(-1)+'/lookup',{data:{iqama:'2000000053'}})).json();assert.equal(lookup.alreadySubmitted,false);
  await publicPage.goto(base+dynamic.path);await publicPage.locator('[name=iqama]').fill('2000000053');await publicPage.locator('[name=name]').fill('Dynamic Synthetic');await publicPage.locator('[name=city]').fill('Jeddah');await publicPage.locator('[name=phone]').fill('+966500000053');await publicPage.locator('[value=commission]').check();publicPage.once('dialog',d=>d.accept());await publicPage.locator('button[type=submit]').click();await publicPage.locator('#btn-download-receipt').waitFor();
