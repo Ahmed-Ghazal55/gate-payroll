@@ -79,7 +79,7 @@ function TreasuryPageContent() {
     router.replace(`/treasury/?tab=${newTab}`, { scroll: false });
   };
 
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('2026-10');
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(() => new Date().toISOString().slice(0, 7));
   const [selectedSponsor, setSelectedSponsor] = useState<string>('all');
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');

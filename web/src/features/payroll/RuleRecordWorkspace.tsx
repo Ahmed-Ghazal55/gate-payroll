@@ -123,9 +123,8 @@ export function RuleRecordWorkspace({
       <div className="p-3.5 rounded-2xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-xs text-[var(--ink)] flex items-start gap-2.5">
         <AlertTriangle size={16} className="text-[var(--accent)] shrink-0 mt-0.5" />
         <div className="leading-relaxed">
-          <strong>ملاحظة هيكلة السجلات (Ghazal 2026-11-08):</strong> يتم تخزين محددات الفوترة، الأنظمة، والأهلية
-          مباشرة عبر API الرواتب المعتمد. الحقول الموسعة (تحديد المدينة، التواريخ الممتدة، وسجل الأداء الشهري للحسابات)
-          مربوطة شكلياً وموثقة تحت «طلبات Codex P6» لحين اكتمال الـ endpoints المقابلة.
+          <strong>ملاحظة:</strong> محددات الفوترة والأنظمة والأهلية تُحفظ عبر واجهة الرواتب المعتمدة.
+          بعض الحقول الموسعة (المدينة، التواريخ الممتدة، وسجل الأداء الشهري) ما زالت قيد التطوير.
         </div>
       </div>
 
@@ -518,9 +517,9 @@ export function RuleRecordWorkspace({
 
           <div className="p-6 text-center bg-[var(--raised)]/40 rounded-xl border border-[var(--line)] space-y-2">
             <Clock size={28} className="mx-auto text-[var(--accent)] opacity-80" />
-            <div className="font-bold text-sm text-[var(--ink)]">بانتظار تفعيل Endpoint سجل الأداء في Codex P6</div>
+            <div className="font-bold text-sm text-[var(--ink)]">قيد التطوير</div>
             <p className="text-[11px] text-[var(--muted)] max-w-md mx-auto">
-              سيتم عرض سجل الأداء الشهري التفصيلي لكل حساب (طلبات، شفتات، ساعات، ونسب الامتثال) فور اكتمال نقطة النهاية المقابلة في خادم الرواتب P6.
+              سجل الأداء الشهري التفصيلي لكل حساب (طلبات، ورديات، ساعات، ونسب الامتثال) سيظهر هنا عند اكتمال نقطة النهاية في خادم الرواتب.
             </p>
           </div>
         </div>

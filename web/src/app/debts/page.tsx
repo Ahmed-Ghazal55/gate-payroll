@@ -82,7 +82,7 @@ const LEGACY_CATEGORY_AR: Record<string, string> = {
   hr_cost: 'تكلفة HR',
 };
 function debtCategoryLabel(d: DebtRecord): string {
-  return d.categoryAr || LEGACY_CATEGORY_AR[d.category] || d.category || '—';
+  return d.categoryAr || LEGACY_CATEGORY_AR[d.category] || 'غير معروف';
 }
 const DEBT_STATUS_AR: Record<string, string> = {
   active: 'قائم',
@@ -93,7 +93,7 @@ const DEBT_STATUS_AR: Record<string, string> = {
   cancelled: 'ملغي',
 };
 function debtStatusLabel(status: string): string {
-  return DEBT_STATUS_AR[status] || status || '—';
+  return DEBT_STATUS_AR[status] || 'غير معروف';
 }
 const isPendingOpening = (d: DebtRecord) =>
   d.entryMode === 'OpeningBalance' && d.status === 'pending_approval' && !d.approvalRequestId;
@@ -161,9 +161,12 @@ function DebtsPageContent() {
   const [advancesLoaded, setAdvancesLoaded] = useState(false);
 
   // Statement search states
-  const [statementIqama, setStatementIqama] = useState<string>('2000000789');
-  const [statementFrom, setStatementFrom] = useState<string>('2026-01-01');
-  const [statementTo, setStatementTo] = useState<string>('2026-10-31');
+  const [statementIqama, setStatementIqama] = useState<string>('');
+  const [statementFrom, setStatementFrom] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [statementTo, setStatementTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [statementMode, setStatementMode] = useState<'detailed' | 'simple'>('detailed');
   const [statementData, setStatementData] = useState<RiderStatement | null>(null);
   const [loadingStatement, setLoadingStatement] = useState<boolean>(false);
@@ -637,7 +640,7 @@ function DebtsPageContent() {
         const simple = await api.getRiderStatementSimple(statementIqama.trim(), statementFrom, statementTo);
         setStatementData({
           iqama: statementIqama.trim(),
-          riderName: simple.riderName || 'مندوب تجريبي',
+          riderName: simple.riderName || '—',
           period: { from: statementFrom, to: statementTo },
           openingBalance: simple.openingBalance || 0,
           closingBalance: simple.closingBalance || 0,

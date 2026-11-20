@@ -24,7 +24,8 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { useToast } from '../../components/ui/Toast';
 import { api, type PayCatalog } from '../../lib/api';
-import type { PayConfigDoc } from '../../lib/types';
+import type { CompanySponsor, PayConfigDoc } from '../../lib/types';
+import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
 import {
   PAY_CATEGORIES_META,
   SCHEME_TYPES_META,
@@ -85,6 +86,7 @@ export function PaySettingsEditorModal({
   // Account Exception State (S5)
   const [exceptionRider, setExceptionRider] = useState('');
   const [exceptionCompany, setExceptionCompany] = useState('');
+  const [companyOptions, setCompanyOptions] = useState<CompanySponsor[]>([]);
   const [exceptionRuleType, setExceptionRuleType] = useState('daily_commission');
   const [exceptionDailyAmount, setExceptionDailyAmount] = useState('');
   const [exceptionVehicleRent, setExceptionVehicleRent] = useState('');
@@ -95,6 +97,10 @@ export function PaySettingsEditorModal({
 
   // Active Category Tab for Scheme Form
   const [activeCategoryKey, setActiveCategoryKey] = useState<string>(PAY_CATEGORIES_META[0].key);
+
+  useEffect(() => {
+    loadCompanyOptions().then(setCompanyOptions).catch(() => setCompanyOptions([]));
+  }, []);
 
   // Reset or load initial doc when opened
   useEffect(() => {
@@ -1382,11 +1388,10 @@ export function PaySettingsEditorModal({
                   onChange={setExceptionCompany}
                   placeholder="اختر الشركة..."
                   ariaLabel="الشركة"
-                  options={[
-                    { value: 'TR', label: 'شركة طرد (TR)' },
-                    { value: 'BW', label: 'شركة بروق (BW)' },
-                    { value: 'EX', label: 'شركة إكسبريس (EX)' },
-                  ]}
+                  options={companyOptions.map((c) => ({
+                    value: c.code || c.id,
+                    label: companyLabel(c),
+                  }))}
                 />
               </div>
             </div>

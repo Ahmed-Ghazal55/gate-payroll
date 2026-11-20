@@ -140,6 +140,7 @@ const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
   import_operations: { label: 'استيراد التشغيل والمناديب', href: '/app/imports' },
   import_scheme_choices: { label: 'خيارات الأنظمة', href: '/app/payroll?tab=rules' },
   review_operations: { label: 'مراجعة بيانات التشغيل اليومي', href: '/app/operations' },
+  review_rider_record: { label: 'مراجعة سجل المندوب', href: '/app/riders' },
   sync_riders: { label: 'مراجعة سجل المندوب', href: '/app/riders' },
   review_rider: { label: 'مراجعة بيانات المندوب', href: '/app/riders' },
   review_posting: { label: 'مراجعة الترحيل والقيود', href: '/app/treasury' },
@@ -190,7 +191,7 @@ function PayrollPageInner() {
   const tabFromUrl = searchParams?.get('tab') || 'platforms';
   const appFromUrl = searchParams?.get('app') || 'hungerstation';
   const subFromUrl = (searchParams?.get('sub') as PayAppSubTab) || 'settlements';
-  const periodFromUrl = searchParams?.get('period') || '2026-10';
+  const periodFromUrl = searchParams?.get('period') || new Date().toISOString().slice(0, 7);
   const [mainTab, setMainTab] = useState<string>(tabFromUrl);
 
   // Selected App within platforms tab
@@ -538,14 +539,14 @@ function PayrollPageInner() {
   const [globalSettings, setGlobalSettings] = useState<PayConfigDoc[]>([]);
   const [loadingGlobalSettings, setLoadingGlobalSettings] = useState<boolean>(false);
   const [globalSettingsError, setGlobalSettingsError] = useState<string | null>(null);
-  const [rulesMonth, setRulesMonth] = useState<string>('2026-10');
+  const [rulesMonth, setRulesMonth] = useState<string>(() => new Date().toISOString().slice(0, 7));
 
   const [copyingMonth, setCopyingMonth] = useState<boolean>(false);
 
   // ========================================================
   // LEGACY PRODUCTION PAYROLL RUN STATES (F2)
   // ========================================================
-  const [legacyPeriod, setLegacyPeriod] = useState<string>('2026-10');
+  const [legacyPeriod, setLegacyPeriod] = useState<string>(() => new Date().toISOString().slice(0, 7));
   const [legacyPreview, setLegacyPreview] = useState<LegacyPayrollPreviewRow[]>([]);
   const [legacyRuns, setLegacyRuns] = useState<LegacyPayrollRun[]>([]);
   const [ridersList, setRidersList] = useState<any[]>([]);

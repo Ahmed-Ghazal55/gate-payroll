@@ -39,21 +39,14 @@ import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { Dialog } from '../../components/ui/Dialog';
 import type { paths } from '../../lib/api-contract';
 import {
+  CompanySponsor,
   NinjaReconcileResponse,
   NinjaInvoiceResult,
   NinjaReconciliationLine,
 } from '../../lib/types';
+import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
 
 type ApiNinjaInvoice = paths['/api/platforms/ninja/invoices']['get']['responses'][200]['content']['application/json']['items'][number];
-
-const COMPANY_LABELS: Record<string, string> = {
-  BW: 'البوابة الموكلة',
-  EX: 'البوابة إكسبريس',
-  TR: 'البوابة للتجارة',
-  '019c18d5-62e1-7000-8000-000000000041': 'البوابة الموكلة',
-  '019c18d5-62e1-7000-8000-000000000042': 'البوابة إكسبريس',
-  '019c18d5-62e1-7000-8000-000000000040': 'البوابة للتجارة',
-};
 
 type DeductionGroup = { category: string; lineIds: string[]; amount: number; unclassified: number; companyOnly: boolean };
 
@@ -95,7 +88,7 @@ const isCompanyMatch = (invoiceCompanyId?: string, target?: string) => {
 };
 
 export function NinjaInvoiceUploadScreen({
-  initialPeriod = '2026-10',
+  initialPeriod = new Date().toISOString().slice(0, 7),
   platform = 'ninja',
 }: NinjaInvoiceUploadScreenProps) {
   const { user } = useAuth();
@@ -105,8 +98,26 @@ export function NinjaInvoiceUploadScreen({
   const platformPrefix = isKeeta ? 'KEETA' : 'NINJA';
 
   const [period, setPeriod] = useState<string>(initialPeriod);
-  const [companyId, setCompanyId] = useState<string>('BW');
+  const [companyOptions, setCompanyOptions] = useState<CompanySponsor[]>([]);
+  const [companyId, setCompanyId] = useState<string>('');
   const [odooVoucherNo, setOdooVoucherNo] = useState<string>('');
+
+  useEffect(() => {
+    loadCompanyOptions().then((list) => {
+      setCompanyOptions(list);
+      if (!companyId && list[0]) setCompanyId(list[0].code || list[0].id);
+    }).catch(() => setCompanyOptions([]));
+  }, []);
+
+  const companyLabels = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of companyOptions) {
+      const label = companyLabel(c);
+      if (c.code) map[c.code] = label;
+      if (c.id) map[c.id] = label;
+    }
+    return map;
+  }, [companyOptions]);
 
   // Keeta conditional parser inputs (shown only when API needs them or workbook has >1 sheet)
   const [sheetName, setSheetName] = useState<string>('');
@@ -908,7 +919,7 @@ export function NinjaInvoiceUploadScreen({
     }
     if (selectedFiles.length > 0) {
       return {
-        title: `الملف جاهز لـ ${COMPANY_LABELS[companyId] ?? companyId} وشهر ${period}. ابدأ المطابقة.`,
+        title: `الملف جاهز لـ ${companyLabels[companyId] ?? companyId} وشهر ${period}. ابدأ المطابقة.`,
         action: (
           <button type="button" disabled={loading} onClick={handleRunReconcile} className={primaryButton}>
             بدء المطابقة والمعاينة
@@ -947,9 +958,15 @@ export function NinjaInvoiceUploadScreen({
                 onChange={(e) => setCompanyId(e.target.value)}
                 className="text-xs font-bold bg-[var(--surface)] text-[var(--ink)] border-none focus:outline-hidden cursor-pointer"
               >
-                <option value="BW">البوابة المقبلة (BW)</option>
-                <option value="EX">إكسبرس جايت (EX)</option>
-                <option value="TR">طريق الرواد (TR)</option>
+                {companyOptions.length === 0 ? (
+                  <option value="">—</option>
+                ) : (
+                  companyOptions.map((c) => (
+                    <option key={c.id || c.code} value={c.code || c.id}>
+                      {companyLabel(c)}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -1024,7 +1041,7 @@ export function NinjaInvoiceUploadScreen({
                 currentInvoice?.id === i.id ? 'border-[var(--accent)] font-bold' : 'border-[var(--line)]'
               }`}
             >
-              {COMPANY_LABELS[i.companyId] ?? i.companyId}: {i.approvalStatus === 'approved' ? 'معتمدة' : 'بانتظار الاعتماد'}
+              {companyLabels[i.companyId] ?? i.companyId}: {i.approvalStatus === 'approved' ? 'معتمدة' : 'بانتظار الاعتماد'}
             </button>
           ))}
         </div>

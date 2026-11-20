@@ -17,7 +17,12 @@ public static partial class AccessPolicy
         _=>[]
     };
     public static bool Has(ClaimsPrincipal user,string permission)=>user.Identity?.IsAuthenticated==true&&(Administrator(user)||user.HasClaim("permission",permission));
-    public static void Demand(ClaimsPrincipal user,string permission){if(!Has(user,permission))throw new ApiError("ليست لديك صلاحية لهذه العملية: "+permission,403);}
+    public static void Demand(ClaimsPrincipal user,string permission)
+    {
+        if(Has(user,permission))return;
+        string nameAr=UserAccess.PermissionsCatalog.FirstOrDefault(p=>p.Code==permission)?.NameAr??permission;
+        throw new ApiError("ليست لديك صلاحية لهذه العملية: "+nameAr,403);
+    }
     // One mapping for the statements tab / preview: sidebar, AccessPolicy.Allowed, and PayStatements.Build.
     public static bool CanAccessRiderMonthlyStatement(ClaimsPrincipal user)=>
         Administrator(user)||Has(user,"mobile.broadcast")||(Has(user,"pay.view")&&Has(user,"payroll.view")&&Has(user,"debts.view"));

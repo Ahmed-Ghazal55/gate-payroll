@@ -1377,8 +1377,7 @@ export const api = {
   getRiderProfile360: (iqama: string) =>
     handleRequest<RiderProfile360>(`/riders/${encodeURIComponent(iqama)}/profile-360`),
 
-  getRidersDataQuality: () =>
-    handleRequest<RidersDataQuality>('/riders/data-quality'),
+
 
   // Operations & Assets APIs (Codex R4.6)
   getOperations: (kind: string, params?: { page?: number; pageSize?: number; q?: string }) => {
@@ -1839,7 +1838,7 @@ export const api = {
     const q = new URLSearchParams({ operation });
     return handleRequest<OrgResponsibleUser[]>(`/org/responsible?${q.toString()}`);
   },
-  getHealth: () => handleRequest<{ ok: boolean }>('/health'),
+
   getPayCycleReview: (cycleId: string, params?: { review?: string; status?: string }) => {
     const q = new URLSearchParams();
     if (params?.review) q.set('review', params.review);
@@ -2144,7 +2143,7 @@ export const api = {
     handleRequest<RiderLookupItem[]>(`/riders/lookup?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(String(limit))}`),
 
   // Pay Settings Lifecycle (C4 / A6)
-  getPayAppDefaults: (app: string) => handleRequest<PayCatalog['defaults']>(`/pay/apps/${encodeURIComponent(app)}/defaults`),
+
   getAppEligibility: (app: string) => handleRequest<PayEligibilityResponse>(`/pay/apps/${encodeURIComponent(app)}/eligibility`),
   createAppEligibility: (app: string, input: Record<string, unknown>, period?: string) =>
     handleRequest<PayEligibilityItem>(`/pay/apps/${encodeURIComponent(app)}/eligibility${period ? `?period=${encodeURIComponent(period)}` : ''}`, {
@@ -2250,8 +2249,6 @@ export const api = {
     handleRequest<Record<string, unknown>>('/pay/apps/chefz/operations/review', { method: 'POST', body: JSON.stringify(input) }),
 
   listJahezReconciliations: () => handleRequest<JahezReconciliationDoc[]>('/finance/jahez-reconciliations'),
-  getJahezReconciliation: (id: string) =>
-    handleRequest<JahezReconciliationDoc>(`/finance/jahez-reconciliations/${encodeURIComponent(id)}`),
   buildJahezReconciliation: (input: {
     companyId: string; period: string; invoiceNet: number; invoiceVat: number;
     lastTransactionDate: string; invoiceReference?: string; notes?: string;
@@ -2274,8 +2271,6 @@ export const api = {
   jahezFee: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/finance/jahez-fee', { method: 'POST', body: JSON.stringify(input) }),
   listJahezHandovers: () => handleRequest<Array<Record<string, unknown>>>('/finance/jahez-handovers'),
-  submitJahezHandover: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/finance/jahez-handover', { method: 'POST', body: JSON.stringify(input) }),
   confirmJahezHandover: (id: string, input: Record<string, unknown> = {}) =>
     handleRequest<Record<string, unknown>>(`/finance/jahez-handovers/${encodeURIComponent(id)}/confirm`, { method: 'POST', body: JSON.stringify(input) }),
   rejectJahezHandover: (id: string, input: Record<string, unknown> = {}) =>

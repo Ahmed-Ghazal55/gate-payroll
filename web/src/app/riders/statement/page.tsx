@@ -40,8 +40,11 @@ function RiderStatementPageInner() {
   const searchParams = useSearchParams();
 
   const [iqama, setIqama] = useState<string>(searchParams?.get('iqama') || '');
-  const [fromDate, setFromDate] = useState<string>('2026-01-01');
-  const [toDate, setToDate] = useState<string>('2026-10-31');
+  const [fromDate, setFromDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [toDate, setToDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,7 +83,7 @@ function RiderStatementPageInner() {
             const simple = await api.getRiderStatementSimple(q, fromDate, toDate);
             return {
               iqama: q,
-              riderName: simple.riderName || monthlyData?.header?.name || 'مندوب تجريبي',
+              riderName: simple.riderName || monthlyData?.header?.name || '—',
               period: { from: fromDate, to: toDate },
               openingBalance: simple.openingBalance || monthlyData?.carried || 0,
               closingBalance: simple.closingBalance || monthlyData?.closing || 0,

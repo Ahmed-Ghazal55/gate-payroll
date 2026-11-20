@@ -32,7 +32,8 @@ import {
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
-import type { UserProfile } from '../../lib/types';
+import type { CompanySponsor, UserProfile } from '../../lib/types';
+import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
 import { NotificationsPanel } from './NotificationsPanel';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { personalSoundEnabled, setPersonalSoundEnabled, unlockNotificationSound, playPersonalChime } from '../../lib/notification-sound';
@@ -106,7 +107,7 @@ export function Header({
   onToggleMobileNav,
   selectedCompany = 'all',
   onCompanyChange,
-  selectedPeriod = '2026-10',
+  selectedPeriod = new Date().toISOString().slice(0, 7),
   onPeriodChange,
 }: HeaderProps) {
   // Panel and menu open state (strictly one open at a time: R6ui-2)
@@ -114,6 +115,11 @@ export function Header({
 
   // Auth context for permissions and current user
   const { can, isAdmin, user } = useAuth();
+  const [companyOptions, setCompanyOptions] = useState<CompanySponsor[]>([]);
+
+  useEffect(() => {
+    loadCompanyOptions().then(setCompanyOptions).catch(() => setCompanyOptions([]));
+  }, []);
 
   // Theme state
   const [currentTheme, setCurrentTheme] = useState<'sand' | 'light' | 'dim'>('sand');
@@ -362,9 +368,11 @@ export function Header({
               className="bg-transparent font-semibold text-[var(--ink)] focus:outline-hidden cursor-pointer"
             >
               <option value="all">كل الشركات</option>
-              <option value="BW">البوابة (BW)</option>
-              <option value="EX">إكسبريس (EX)</option>
-              <option value="TR">ترانس (TR)</option>
+              {companyOptions.map((c) => (
+                <option key={c.id || c.code} value={c.code || c.id}>
+                  {companyLabel(c)}
+                </option>
+              ))}
             </select>
           </div>
 
