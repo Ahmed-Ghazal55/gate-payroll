@@ -35,5 +35,7 @@ public sealed class SchemaReviewFreezeTests
         string cancelled=MoneySchemaFixture.Run(c,company,"cancelled");
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET status=4 WHERE id=@id",("@id",cancelled));
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET status=1 WHERE id=@id",("@id",cancelled)));
+        foreach(int status in new[]{2,3,5})
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE sal_pay_run SET status={status},capture_state=1,calc_started_at=datetime('now') WHERE id=@id",("@id",cancelled)));
     }
 }
