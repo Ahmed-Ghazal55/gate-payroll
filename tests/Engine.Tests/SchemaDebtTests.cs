@@ -9,9 +9,9 @@ public sealed class SchemaDebtTests
     {
         var c=MoneySchemaFixture.Payments(sqlServer);SchemaSalPayRun.Ensure(c);SchemaDebt.Ensure(c);return c;
     }
-    internal static string Debt(DbConnection c,string company,decimal balance=0)
+    internal static string Debt(DbConnection c,string company,decimal balance=0,string? rider=null)
     {
-        string id=MoneySchemaFixture.Id();MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_debt(id,erp_rider_id,company_id,category,principal,balance,instalment) VALUES(@id,@id,@c,'synthetic',100,@b,20)",("@id",id),("@c",company),("@b",balance));return id;
+        string id=MoneySchemaFixture.Id();MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_debt(id,erp_rider_id,company_id,category,principal,balance,instalment) VALUES(@id,@r,@c,'synthetic',100,@b,20)",("@id",id),("@r",rider??id),("@c",company),("@b",balance));return id;
     }
     internal static string Move(DbConnection c,string company,string debt,decimal amount,string? source=null)
     {
@@ -50,9 +50,35 @@ public sealed class SchemaDebtTests
         foreach(string set in new[]{"amount=21","status=1","run_mode=1","payout_blocked=1"})
             MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE debt_waiver SET {set} WHERE id=@id",("@id",waiver)));
         string run=MoneySchemaFixture.Run(c,company),rider=MoneySchemaFixture.Rider(c,run,company,net:100);
+        debt=Debt(c,company,rider:rider);
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET debt_confirm_status='deferred' WHERE id=@id",("@id",rider));
         Move(c,company,debt,100);
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_debt_movement(id,debt_id,company_id,period_month,occurred_on,amount,source_type,source_id,pay_run_rider_id) VALUES(@id,@d,@c,'2026-11-01','2026-11-20',-10,'salary_deduction',@id,@r)",("@id",MoneySchemaFixture.Id()),("@d",debt),("@c",company),("@r",rider)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_debt_movement(id,debt_id,company_id,period_month,occurred_on,amount,source_type,source_id,pay_run_rider_id,pay_run_period_month) VALUES(@id,@d,@c,'2026-11-01','2026-11-20',-10,'salary_deduction',@id,@r,'2026-11-01')",("@id",MoneySchemaFixture.Id()),("@d",debt),("@c",company),("@r",rider)));
         Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM debt_debt_movement"));
+    }
+    [TestMethod,DataRow(false),DataRow(true)]
+    public void ApprovedImportAndCollectionApplyOnceAndConfirmedInstalmentCapsAllDebts(bool sqlServer)
+    {
+        using var c=Open(sqlServer);
+        string company=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company),rider=MoneySchemaFixture.Rider(c,run,company,net:100),debt=Debt(c,company,rider:rider),batch=MoneySchemaFixture.Id(),line=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_import_batch(id,company_id,period_month,amount,reason,file_hash,import_kind) VALUES(@id,@c,'2026-11-01',100,'Synthetic import',randomblob(32),'opening')",("@id",batch),("@c",company));
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_import_line(id,import_batch_id,period_month,line_no,debt_id,company_id,amount) VALUES(@id,@b,'2026-11-01',1,@d,@c,100)",("@id",line),("@b",batch),("@d",debt),("@c",company));
+        void Apply(string kind,string source,decimal amount,string? salaryRider=null)=>MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_debt_movement(id,debt_id,company_id,period_month,occurred_on,amount,source_type,source_id,pay_run_rider_id,pay_run_period_month) VALUES(@id,@d,@c,'2026-11-01','2026-11-20',@a,@kind,@s,@r,@rp)",("@id",MoneySchemaFixture.Id()),("@d",debt),("@c",company),("@a",amount),("@kind",kind),("@s",source),("@r",(object?)salaryRider??DBNull.Value),("@rp",salaryRider is null?DBNull.Value:"2026-11-01"));
+        MoneySchemaFixture.Reject(()=>Apply("import",line,100));
+        void Approve(string table,string id)
+        {
+            MoneySchemaFixture.Exec(c,null,$"UPDATE debt_{table} SET status=2 WHERE id=@id",("@id",id));
+            MoneySchemaFixture.Exec(c,null,$"UPDATE debt_{table} SET status=3,approved_by=@u,approved_at=datetime('now') WHERE id=@id",("@id",id),("@u",MoneySchemaFixture.Id()));
+        }
+        Approve("import_batch",batch);Apply("import",line,100);
+        MoneySchemaFixture.Reject(()=>Apply("import",line,100));
+        string receipt=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_collection(id,company_id,period_month,debt_id,amount,reason) VALUES(@id,@c,'2026-11-01',@d,20,'Synthetic receipt')",("@id",receipt),("@c",company),("@d",debt));
+        Approve("collection",receipt);Apply("collection",receipt,-20);
+        MoneySchemaFixture.Reject(()=>Apply("collection",receipt,-20));
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET debt_confirm_status='confirmed',old_debt_instalment=20 WHERE id=@id",("@id",rider));
+        Apply("salary_deduction",MoneySchemaFixture.Id(),-10,rider);Apply("salary_deduction",MoneySchemaFixture.Id(),-10,rider);
+        MoneySchemaFixture.Reject(()=>Apply("salary_deduction",MoneySchemaFixture.Id(),-1,rider));
+        Assert.AreEqual(60m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT balance FROM debt_debt WHERE id=@id",("@id",debt))));
     }
 }

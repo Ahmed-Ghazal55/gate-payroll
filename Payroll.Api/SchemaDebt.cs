@@ -24,16 +24,17 @@ public static class SchemaDebt
             id {g} NOT NULL, period_month {SchemaSql.Date(c)} NOT NULL, debt_id {g} NOT NULL, company_id {g} NOT NULL,
             occurred_on {SchemaSql.Date(c)} NOT NULL, amount {m} NOT NULL CHECK(amount<>0),
             source_type {SchemaSql.Varchar(c,40)} NOT NULL, source_id {g} NOT NULL,
-            pay_run_rider_id {g} NULL, payment_id {g} NULL, journal_id {g} NULL,
+            pay_run_rider_id {g} NULL, pay_run_period_month {SchemaSql.Date(c)} NULL, payment_id {g} NULL, journal_id {g} NULL,
             run_mode {SchemaSql.Tiny(c)} NOT NULL DEFAULT 0 CHECK(run_mode=0),
             payout_blocked {SchemaSql.Bit(c)} NOT NULL DEFAULT 0 CHECK(payout_blocked IN (0,1)),
             {SchemaSql.MoneyAuditCols(c)}, CONSTRAINT PK_debt_movement {SchemaSql.PrimaryKey(c)}(id),
             CONSTRAINT UQ_debt_mov_source UNIQUE(source_type,source_id),
             CONSTRAINT CK_debt_mov_month CHECK({SchemaSql.MonthCheck(c)} AND {DateInMonth(c,"occurred_on")}),
             CONSTRAINT CK_debt_mov_salary CHECK(source_type NOT IN ('salary_deduction','carryover_112507') OR pay_run_rider_id IS NOT NULL),
+            CONSTRAINT CK_debt_mov_salary_month CHECK((pay_run_rider_id IS NULL AND pay_run_period_month IS NULL) OR (pay_run_rider_id IS NOT NULL AND pay_run_period_month IS NOT NULL)),
             CONSTRAINT CK_debt_mov_disbursement CHECK(source_type<>'new_disbursement' OR payment_id IS NOT NULL),
             CONSTRAINT FK_debt_mov_debt FOREIGN KEY(debt_id,company_id) REFERENCES {d}(id,company_id) ON DELETE NO ACTION,
-            CONSTRAINT FK_debt_mov_rider FOREIGN KEY(pay_run_rider_id,period_month) REFERENCES {SchemaSql.Q(c,"sal","pay_run_rider")}(id,period_month) ON DELETE NO ACTION,
+            CONSTRAINT FK_debt_mov_rider FOREIGN KEY(pay_run_rider_id,pay_run_period_month) REFERENCES {SchemaSql.Q(c,"sal","pay_run_rider")}(id,period_month) ON DELETE NO ACTION,
             CONSTRAINT FK_debt_mov_payment FOREIGN KEY(payment_id,period_month) REFERENCES {SchemaSql.Q(c,"pay","payment")}(id,period_month) ON DELETE NO ACTION,
             CONSTRAINT FK_debt_mov_journal FOREIGN KEY(journal_id) REFERENCES {SchemaSql.Q(c,"fin","journal")}(id) ON DELETE NO ACTION
             """);
@@ -58,13 +59,14 @@ public static class SchemaDebt
         SchemaSql.EnsureRowVersion(c,tx,"debt","debt");
         SchemaSql.CreateIndexIfMissing(c,tx,"debt","debt","IX_debt_rider","erp_rider_id,company_id");
         SchemaSql.CreateIndexIfMissing(c,tx,"debt","debt","IX_debt_company","company_id");
-        foreach(var (column,index) in new[]{("debt_id,company_id","debt"),("pay_run_rider_id,period_month","rider"),("payment_id,period_month","payment"),("journal_id","journal")})
+        foreach(var (column,index) in new[]{("debt_id,company_id","debt"),("pay_run_rider_id,pay_run_period_month","rider"),("payment_id,period_month","payment"),("journal_id","journal")})
             SchemaSql.CreateIndexIfMissing(c,tx,"debt","debt_movement","IX_debt_mov_"+index,column);
         SchemaMoneyGuard.Retain(c,tx,"debt","debt");
         SchemaMoneyGuard.Retain(c,tx,"debt","debt_movement","o.source_type=NEW.source_type AND o.source_id=NEW.source_id");
-        SchemaMoneyRegister.Immutable(c,tx,"debt","debt_movement","period_month","debt_id","company_id","occurred_on","amount","source_type","source_id","journal_id","payment_id","pay_run_rider_id","run_mode","payout_blocked","generation");
+        SchemaMoneyRegister.Immutable(c,tx,"debt","debt_movement","period_month","debt_id","company_id","occurred_on","amount","source_type","source_id","journal_id","payment_id","pay_run_rider_id","pay_run_period_month","run_mode","payout_blocked","generation");
         SchemaMoneyRegister.BusinessKey(c,tx,"debt","debt_movement",n=>SchemaMoneyRegister.Join(c,$"{n}.source_type",SchemaMoneyRegister.IdString(c,$"{n}.source_id")));
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"debt","debt_movement","UQ_debt_disb_payment","payment_id","source_type='new_disbursement' AND payment_id IS NOT NULL");
+        SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"debt","debt_movement","UQ_debt_carryover_rider","pay_run_rider_id","source_type='carryover_112507' AND pay_run_rider_id IS NOT NULL");
         EnsureMovementRules(c,tx);
         EnsureBalance(c,tx);
     }

@@ -43,7 +43,7 @@ public static class SchemaBankFile
             CONSTRAINT UQ_bank_file_line_month UNIQUE(id,period_month),
             CONSTRAINT UQ_bank_file_allocation UNIQUE(allocation_id),
             CONSTRAINT FK_bank_line_file FOREIGN KEY(bank_file_id,period_month) REFERENCES {file}(id,period_month) ON DELETE NO ACTION,
-            CONSTRAINT FK_bank_line_rider FOREIGN KEY(pay_run_rider_id,period_month) REFERENCES {SchemaSql.Q(c,"sal","pay_run_rider")}(id,period_month) ON DELETE NO ACTION,
+            CONSTRAINT FK_bank_line_rider FOREIGN KEY(pay_run_rider_id,payable_period_month) REFERENCES {SchemaSql.Q(c,"sal","pay_run_rider")}(id,period_month) ON DELETE NO ACTION,
             CONSTRAINT FK_bank_line_payable FOREIGN KEY(payable_id,company_id,payable_period_month) REFERENCES {SchemaSql.Q(c,"pay","payable")}(id,company_id,period_month) ON DELETE NO ACTION,
             CONSTRAINT FK_bank_line_payment FOREIGN KEY(payment_id,period_month) REFERENCES {SchemaSql.Q(c,"pay","payment")}(id,period_month) ON DELETE NO ACTION,
             CONSTRAINT FK_bank_line_allocation FOREIGN KEY(allocation_id) REFERENCES {allocation}(id) ON DELETE NO ACTION,
@@ -58,7 +58,7 @@ public static class SchemaBankFile
         EnsureLines(c,tx);
         EnsureSettlement(c,tx);
         EnsureHeader(c,tx);
-        foreach(var (table,columns) in new[]{("bank_file","paying_bank_id,paying_company_id,paying_registration_id"),("bank_file","scope_company_id"),("bank_file","scope_registration_id"),("bank_file_line","bank_file_id,period_month"),("bank_file_line","pay_run_rider_id,period_month"),("bank_file_line","payable_id,company_id,payable_period_month"),("bank_file_line","payment_id,period_month"),("bank_file_line","registration_id")})
+        foreach(var (table,columns) in new[]{("bank_file","paying_bank_id,paying_company_id,paying_registration_id"),("bank_file","scope_company_id"),("bank_file","scope_registration_id"),("bank_file_line","bank_file_id,period_month"),("bank_file_line","pay_run_rider_id,payable_period_month"),("bank_file_line","payable_id,company_id,payable_period_month"),("bank_file_line","payment_id,period_month"),("bank_file_line","registration_id")})
             SchemaSql.CreateIndexIfMissing(c,tx,"sal",table,$"IX_{table}_{columns.Split(',')[0]}",columns);
         SchemaMoneyRegister.BusinessKey(c,tx,"sal","bank_file_line",n=>SchemaMoneyRegister.IdString(c,$"{n}.allocation_id"));
         // The comparison label is data returned by the export projection; no external vault balances enter it.
