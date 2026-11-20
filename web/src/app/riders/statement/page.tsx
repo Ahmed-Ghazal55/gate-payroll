@@ -33,6 +33,7 @@ import { RiderPicker } from '../../../components/ui/RiderPicker';
 import { IbanDisplay } from '../../../components/ui/IbanDisplay';
 import type { RiderStatement, RiderProfile360, MonthlyRiderStatement } from '../../../lib/types';
 import { RiderAccountsPanel } from '../../../components/riders/RiderAccountsPanel';
+import { formatSar } from '../../../lib/money';
 
 function RiderStatementPageInner() {
   const { user } = useAuth();
@@ -326,7 +327,7 @@ function RiderStatementPageInner() {
               <div className="p-3.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)] print:bg-white">
                 <div className="text-xs text-[var(--muted)] font-medium">الرصيد الافتتاحي</div>
                 <div className="text-lg font-bold num text-[var(--ink)] mt-1">
-                  {(statement.openingBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatSar((statement.openingBalance || 0))}
                 </div>
                 <div className="text-[10px] text-[var(--muted)] mt-0.5">الرصيد المرحل قبل هذه الفترة</div>
               </div>
@@ -334,8 +335,8 @@ function RiderStatementPageInner() {
               <div className="p-3.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)] print:bg-white">
                 <div className="text-xs text-[var(--muted)] font-medium">إجمالي الحركات (مدين / دائن)</div>
                 <div className="text-xs font-bold num text-[var(--ink)] mt-1.5 flex justify-between">
-                  <span>مدين: {totals.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  <span>دائن: {totals.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  <span>مدين: {formatSar(totals.debit)}</span>
+                  <span>دائن: {formatSar(totals.credit)}</span>
                 </div>
                 <div className="text-[10px] text-[var(--muted)] mt-0.5">{(statement.entries || []).length} حركات مالية مسجلة</div>
               </div>
@@ -349,7 +350,7 @@ function RiderStatementPageInner() {
               }`}>
                 <div className="text-xs font-medium">الرصيد الختامي المعتمد</div>
                 <div className="text-xl font-black num mt-1">
-                  {Math.abs(statement.closingBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatSar(Math.abs(statement.closingBalance || 0))}
                 </div>
                 <div className="text-xs font-bold mt-0.5">
                   {isDueToRider ? 'مستحق للمندوب (له)' : isDueToCompany ? 'مستحق على المندوب (عليه)' : 'حساب مطابق (صفر)'}
@@ -371,7 +372,7 @@ function RiderStatementPageInner() {
                   </p>
                 </div>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--accent)]/15 text-[var(--accent)]">
-                  صافي الشهر: {monthlyStatement.net.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  صافي الشهر: {formatSar(monthlyStatement.net)}
                 </span>
               </div>
 
@@ -393,49 +394,49 @@ function RiderStatementPageInner() {
                     <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
                       <span className="text-[10px] text-[var(--muted)] block">الإجمالي (Gross)</span>
                       <span className="num font-mono font-bold text-[var(--ink)]">
-                        {monthlyStatement.phases.gross.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatSar(monthlyStatement.phases.gross)}
                       </span>
                     </div>
 
                     <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
                       <span className="text-[10px] text-[var(--muted)] block">بعد العمولة</span>
                       <span className="num font-mono font-bold text-[var(--ink)]">
-                        {monthlyStatement.phases.afterCommission.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatSar(monthlyStatement.phases.afterCommission)}
                       </span>
                     </div>
 
                     <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
                       <span className="text-[10px] text-[var(--muted)] block">المرحلة 1 (تشغيلي)</span>
                       <span className="num font-mono font-bold text-[var(--danger)]">
-                        {monthlyStatement.phases.phase1.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatSar(monthlyStatement.phases.phase1)}
                       </span>
                     </div>
 
                     <div className="p-2.5 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/40">
                       <span className="text-[10px] font-bold text-[var(--accent)] block">المستحق الأولي</span>
                       <span className="num font-mono font-black text-[var(--accent)]">
-                        {monthlyStatement.phases.preliminaryDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatSar(monthlyStatement.phases.preliminaryDue)}
                       </span>
                     </div>
 
                     <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
                       <span className="text-[10px] text-[var(--muted)] block">المرحلة 2 (مديونيات)</span>
                       <span className="num font-mono font-bold text-[var(--danger)]">
-                        {monthlyStatement.phases.phase2.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatSar(monthlyStatement.phases.phase2)}
                       </span>
                     </div>
 
                     <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
                       <span className="text-[10px] text-[var(--muted)] block">المرحلة 3 (تسويات)</span>
                       <span className="num font-mono font-bold text-[var(--ink)]">
-                        {monthlyStatement.phases.phase3.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatSar(monthlyStatement.phases.phase3)}
                       </span>
                     </div>
 
                     <div className="p-2.5 rounded-xl bg-[var(--money-pos)]/10 border border-[var(--money-pos)]/40">
                       <span className="text-[10px] font-bold text-[var(--money-pos)] block">الصافي النهائي</span>
                       <span className="num font-mono font-black text-[var(--money-pos)]">
-                        {monthlyStatement.net.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatSar(monthlyStatement.net)}
                       </span>
                     </div>
                   </div>
@@ -456,7 +457,7 @@ function RiderStatementPageInner() {
                       <div className="text-end">
                         <span className="text-xs text-[var(--muted)] block">الصافي قبل التحملات:</span>
                         <span className="text-base font-bold num text-[var(--money-pos)]">
-                          {(card.netBeforePersonal ?? card.earnedGross ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          {formatSar((card.netBeforePersonal ?? card.earnedGross ?? 0))}
                         </span>
                       </div>
                     </div>
@@ -464,15 +465,15 @@ function RiderStatementPageInner() {
                     <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-[var(--raised)]/50 text-xs">
                       <div>
                         <span className="text-[10px] text-[var(--muted)] block">إجمالي المنصة:</span>
-                        <span className="font-bold num">{(card.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+                        <span className="font-bold num">{formatSar((card.gross || 0))}</span>
                       </div>
                       <div>
                         <span className="text-[10px] text-[var(--muted)] block">إيجار المركبة:</span>
-                        <span className="font-bold num text-[var(--danger)]">{(card.vehicleCharge || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+                        <span className="font-bold num text-[var(--danger)]">{formatSar((card.vehicleCharge || 0))}</span>
                       </div>
                       <div>
                         <span className="text-[10px] text-[var(--muted)] block">الحوافز:</span>
-                        <span className="font-bold num text-[var(--accent)]">{(card.incentives || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+                        <span className="font-bold num text-[var(--accent)]">{formatSar((card.incentives || 0))}</span>
                       </div>
                     </div>
 
@@ -489,7 +490,7 @@ function RiderStatementPageInner() {
                                 )}
                               </div>
                               <span className={`num font-bold ${exp.amount < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'}`}>
-                                {(exp.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                {formatSar((exp.amount || 0))}
                               </span>
                             </div>
                           ))}
@@ -511,7 +512,7 @@ function RiderStatementPageInner() {
                           <span className="text-[10px] text-[var(--muted)] block font-mono">{d.source}</span>
                         </div>
                         <span className="num font-bold text-[var(--danger)]">
-                          -{(d.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          -{formatSar((d.amount || 0))}
                         </span>
                       </div>
                     ))}
@@ -566,13 +567,13 @@ function RiderStatementPageInner() {
                         <td className="p-3 font-medium max-w-sm">{entry.description}</td>
                         <td className="p-3 font-mono text-xs text-[var(--muted)]">{entry.reference || '-'}</td>
                         <td className="p-3 num font-bold text-[var(--money-pos)]">
-                          {entry.debit > 0 ? `${entry.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '-'}
+                          {entry.debit > 0 ? `${formatSar(entry.debit)}` : '-'}
                         </td>
                         <td className="p-3 num font-bold text-[var(--danger)]">
-                          {entry.credit > 0 ? `${entry.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '-'}
+                          {entry.credit > 0 ? `${formatSar(entry.credit)}` : '-'}
                         </td>
                         <td className="p-3 num font-mono font-bold text-[var(--ink)]">
-                          {entry.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          {formatSar(entry.balance)}
                         </td>
                       </tr>
                     ))
@@ -591,7 +592,7 @@ function RiderStatementPageInner() {
                   الرصيد النهائي المستحق:
                 </span>
                 <span className={`text-xl sm:text-2xl font-black num ${isDueToRider ? 'text-[var(--money-pos)]' : isDueToCompany ? 'text-[var(--danger)]' : 'text-[var(--ink)]'}`}>
-                  {Math.abs(statement.closingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatSar(Math.abs(statement.closingBalance))}
                 </span>
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
                   isDueToRider

@@ -23,6 +23,7 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { useToast } from '../../components/ui/Toast';
 import type { PayConfigDoc } from '../../lib/types';
+import { formatSar } from '../../lib/money';
 
 export interface RuleRecordWorkspaceProps {
   appSlug: string;
@@ -493,8 +494,8 @@ export function RuleRecordWorkspace({
                     <tr key={ex.id}>
                       <td className="p-2.5 font-mono font-bold text-[var(--ink)]">{ex.rider}</td>
                       <td className="p-2.5">{ex.ruleType}</td>
-                      <td className="p-2.5 num font-bold text-[var(--accent)]">{ex.dailyAmount} ر.س</td>
-                      <td className="p-2.5 num">{ex.vehicleRent} ر.س</td>
+                      <td className="p-2.5 num font-bold text-[var(--accent)]">{formatSar(ex.dailyAmount)}</td>
+                      <td className="p-2.5 num">{formatSar(ex.vehicleRent)}</td>
                       <td className="p-2.5 font-mono text-[var(--muted)]">{ex.validFrom}</td>
                     </tr>
                   ))}

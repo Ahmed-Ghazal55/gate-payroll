@@ -114,6 +114,7 @@ import type {
   LegacyPayrollPreviewRow,
   LegacyPayrollRun,
 } from '../../lib/types';
+import { formatSar } from '../../lib/money';
 
 function getPreviousMonth(period: string): string {
   if (!period || !period.includes('-')) return '2026-09';
@@ -361,7 +362,7 @@ function PayrollPageInner() {
         getValue: (line) => line.platformGross || line.gross || 0,
         render: (line) => (
           <span>
-            {(line.platformGross || line.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar((line.platformGross || line.gross || 0))}
           </span>
         ),
       },
@@ -372,7 +373,7 @@ function PayrollPageInner() {
         getValue: (line) => line.allocatedVehicleCharge ?? 0,
         render: (line) => (
           <span className="text-[var(--muted)]">
-            {(line.allocatedVehicleCharge ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar((line.allocatedVehicleCharge ?? 0))}
           </span>
         ),
       },
@@ -383,7 +384,7 @@ function PayrollPageInner() {
         getValue: (line) => line.accountDeduction || 0,
         render: (line) => (
           <span className="text-[var(--danger)]">
-            {(line.accountDeduction || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar((line.accountDeduction || 0))}
           </span>
         ),
       },
@@ -396,7 +397,7 @@ function PayrollPageInner() {
           const net = line.entitlement ?? line.gross ?? 0;
           return (
             <span className={`font-bold ${net < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'}`}>
-              {net.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+              {formatSar(net)}
             </span>
           );
         },
@@ -511,14 +512,14 @@ function PayrollPageInner() {
         header: 'الأساسي',
         numeric: true,
         getValue: (acc) => acc.baseGross || 0,
-        render: (acc) => <span>{(acc.baseGross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>,
+        render: (acc) => <span>{formatSar((acc.baseGross || 0))}</span>,
       },
       {
         key: 'incentives',
         header: 'الحوافز',
         numeric: true,
         getValue: (acc) => acc.incentives || 0,
-        render: (acc) => <span>{(acc.incentives || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>,
+        render: (acc) => <span>{formatSar((acc.incentives || 0))}</span>,
       },
       {
         key: 'totalGross',
@@ -527,7 +528,7 @@ function PayrollPageInner() {
         getValue: (acc) => (acc.baseGross || 0) + (acc.incentives || 0),
         render: (acc) => (
           <span className="font-bold text-[var(--money-pos)]">
-            {((acc.baseGross || 0) + (acc.incentives || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar(((acc.baseGross || 0) + (acc.incentives || 0)))}
           </span>
         ),
       },
@@ -1917,16 +1918,10 @@ function PayrollPageInner() {
                             {displayRow.policyName || '-'}
                           </td>
                           <td className="p-3 num">
-                            {(displayRow.openingBalance || 0).toLocaleString('en-US', {
-                              minimumFractionDigits: 2,
-                            })}{' '}
-                            ر.س
+                            {formatSar(displayRow.openingBalance || 0)}
                           </td>
                           <td className="p-3 num font-medium">
-                            {(displayRow.periodMovement || 0).toLocaleString('en-US', {
-                              minimumFractionDigits: 2,
-                            })}{' '}
-                            ر.س
+                            {formatSar(displayRow.periodMovement || 0)}
                           </td>
                           <td
                             className={`p-3 num font-bold ${
@@ -1935,10 +1930,7 @@ function PayrollPageInner() {
                                 : 'text-[var(--money-pos)]'
                             }`}
                           >
-                            {(displayRow.closingBalance || 0).toLocaleString('en-US', {
-                              minimumFractionDigits: 2,
-                            })}{' '}
-                            ر.س
+                            {formatSar(displayRow.closingBalance || 0)}
                           </td>
                           <td className="p-3">
                             {run ? (
@@ -2077,7 +2069,7 @@ function PayrollPageInner() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <StatCard
                   label="إجمالي الصفحة الحالية"
-                  value={`${totalInvoicesAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+                  value={formatSar(totalInvoicesAmount)}
                   hint={`فواتير شهر ${selectedPeriod}`}
                   icon={FileSpreadsheet}
                 />
@@ -2182,16 +2174,16 @@ function PayrollPageInner() {
                                 <td className="p-3 font-mono font-bold text-[var(--ink)]">{(inv as any).invoiceNumber || inv.id}</td>
                                 <td className="p-3 font-mono">{inv.period}</td>
                                 <td className="p-3 num">
-                                  {((inv as any).amountExclVat || (inv.totalAmount || 0) - (inv.vat || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {formatSar(((inv as any).amountExclVat || (inv.totalAmount || 0) - (inv.vat || 0)))}
                                 </td>
                                 <td className="p-3 num text-[var(--muted)]">
-                                  {((inv as any).vatAmount || inv.vat || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {formatSar(((inv as any).vatAmount || inv.vat || 0))}
                                 </td>
                                 <td className="p-3 num font-bold text-[var(--accent)]">
-                                  {(inv.totalAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {formatSar((inv.totalAmount || 0))}
                                 </td>
                                 <td className="p-3 num text-[var(--danger)]">
-                                  {((inv as any).deductionsTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {formatSar(((inv as any).deductionsTotal || 0))}
                                 </td>
                                 <td className="p-3">
                                   <span
@@ -2241,7 +2233,7 @@ function PayrollPageInner() {
                               <tr key={d.id} className="hover:bg-[var(--row-hover)] transition">
                                 <td className="p-3 font-mono font-bold text-[var(--ink)]">{d.id}</td>
                                 <td className="p-3 num font-bold text-[var(--danger)]">
-                                  {(d.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {formatSar((d.amount || 0))}
                                 </td>
                                 <td className="p-3 text-xs text-[var(--muted)]">{d.reason || '-'}</td>
                                 <td className="p-3">
@@ -2316,13 +2308,13 @@ function PayrollPageInner() {
                                 <tr key={alloc.id} className="hover:bg-[var(--row-hover)] transition">
                                   <td className="p-3 font-mono font-bold text-[var(--accent)]">{alloc.id}</td>
                                   <td className="p-3 num font-bold">
-                                    {(alloc.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                    {formatSar((alloc.amount || 0))}
                                   </td>
                                   <td className="p-3 num text-[var(--ink)]">
-                                    {(alloc.companyAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                    {formatSar((alloc.companyAmount || 0))}
                                   </td>
                                   <td className="p-3 num text-[var(--muted)]">
-                                    {(alloc.riderAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                    {formatSar((alloc.riderAmount || 0))}
                                   </td>
                                   <td className="p-3">
                                     <span
@@ -2834,10 +2826,10 @@ function PayrollPageInner() {
                                     </span>
                                   </td>
                                   <td className="p-2.5 num font-mono">
-                                    {cell.dailyCommission ? `${cell.dailyCommission} ر.س` : '-'}
+                                    {cell.dailyCommission ? formatSar(cell.dailyCommission) : '-'}
                                   </td>
                                   <td className="p-2.5 num font-mono">
-                                    {cell.monthlyCommission ? `${cell.monthlyCommission} ر.س` : '-'}
+                                    {cell.monthlyCommission ? formatSar(cell.monthlyCommission) : '-'}
                                   </td>
                                   <td className="p-2.5 num font-mono">
                                     {cell.companyPercent ? `${cell.companyPercent}%` : '-'}
@@ -3201,27 +3193,27 @@ function PayrollPageInner() {
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     <StatCard
                       label="إجمالي الفاتورة (Gross)"
-                      value={`${(reviewDraft.totals?.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+                      value={`${formatSar((reviewDraft.totals?.gross || 0))}`}
                       icon={Coins}
                     />
                     <StatCard
                       label="الاستقطاعات والخصم"
-                      value={`${(reviewDraft.totals?.deductions || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+                      value={`${formatSar((reviewDraft.totals?.deductions || 0))}`}
                       hint="خصومات المنصة"
                       icon={DollarSign}
                     />
                     <StatCard
                       label="ضريبة القيمة المضافة"
-                      value={`${(reviewDraft.totals?.vat || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+                      value={`${formatSar((reviewDraft.totals?.vat || 0))}`}
                       icon={Scale}
                     />
                     <StatCard
                       label="صافي الفاتورة المستحق"
-                      value={`${(
+                      value={formatSar(
                         (reviewDraft.totals?.gross || 0) -
-                        (reviewDraft.totals?.deductions || 0) +
-                        (reviewDraft.totals?.vat || 0)
-                      ).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+                          (reviewDraft.totals?.deductions || 0) +
+                          (reviewDraft.totals?.vat || 0),
+                      )}
                       icon={ShieldCheck}
                     />
                     <StatCard
@@ -4036,49 +4028,49 @@ function PayrollPageInner() {
                   <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
                     <span className="text-[10px] text-[var(--muted)] block">الإجمالي (Gross)</span>
                     <span className="num font-mono font-bold text-[var(--ink)]">
-                      {gross.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatSar(gross)}
                     </span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
                     <span className="text-[10px] text-[var(--muted)] block">بعد العمولة</span>
                     <span className="num font-mono font-bold text-[var(--ink)]">
-                      {afterCommission.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatSar(afterCommission)}
                     </span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
                     <span className="text-[10px] text-[var(--muted)] block">المرحلة 1 (تشغيلي)</span>
                     <span className="num font-mono font-bold text-[var(--danger)]">
-                      {phase1.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatSar(phase1)}
                     </span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/40">
                     <span className="text-[10px] font-bold text-[var(--accent)] block">المستحق الأولي</span>
                     <span className="num font-mono font-black text-[var(--accent)]">
-                      {preliminaryDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatSar(preliminaryDue)}
                     </span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
                     <span className="text-[10px] text-[var(--muted)] block">المرحلة 2 (مديونيات)</span>
                     <span className="num font-mono font-bold text-[var(--danger)]">
-                      {phase2.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatSar(phase2)}
                     </span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
                     <span className="text-[10px] text-[var(--muted)] block">المرحلة 3 (تسويات)</span>
                     <span className="num font-mono font-bold text-[var(--ink)]">
-                      {phase3.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatSar(phase3)}
                     </span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-[var(--money-pos)]/10 border border-[var(--money-pos)]/40">
                     <span className="text-[10px] font-bold text-[var(--money-pos)] block">الصافي النهائي</span>
                     <span className="num font-mono font-black text-[var(--money-pos)]">
-                      {net.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatSar(net)}
                     </span>
                   </div>
                 </div>
@@ -4547,7 +4539,7 @@ function PayrollPageInner() {
                           مصفوفة الفئات (الكفالة × المركبة) · شبكة الـ 6 أعمدة المعتمدة
                         </h4>
                         <p className="text-xs text-[var(--muted)] mt-0.5">
-                          تحديد تكلفة إيجار المركبة اليومي (سيارة {rent?.company_car || 60} ر.س / دباب {rent?.company_bike || 26.67} ر.س / خاص 0 ر.س) وحسابات التوجيه.
+                          تحديد تكلفة إيجار المركبة اليومي (سيارة {formatSar(rent?.company_car || 60)} / دباب {formatSar(rent?.company_bike || 26.67)} / خاص {formatSar(0)}) وحسابات التوجيه.
                         </p>
                       </div>
 
@@ -4567,12 +4559,12 @@ function PayrollPageInner() {
                           <tbody className="divide-y divide-[var(--line)]">
                             <tr>
                               <td className="p-3 font-semibold">إيجار المركبة اليومي</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_car || '60.00'} ر.س</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_bike || '26.67'} ر.س</td>
-                              <td className="p-3 num text-[var(--muted)]">0.00 ر.س</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_car || '60.00'} ر.س</td>
-                              <td className="p-3 num font-bold text-[var(--accent)]">{rent?.company_bike || '26.67'} ر.س</td>
-                              <td className="p-3 num text-[var(--muted)]">0.00 ر.س</td>
+                              <td className="p-3 num font-bold text-[var(--accent)]">{formatSar(rent?.company_car || 60)}</td>
+                              <td className="p-3 num font-bold text-[var(--accent)]">{formatSar(rent?.company_bike || 26.67)}</td>
+                              <td className="p-3 num text-[var(--muted)]">{formatSar(0)}</td>
+                              <td className="p-3 num font-bold text-[var(--accent)]">{formatSar(rent?.company_car || 60)}</td>
+                              <td className="p-3 num font-bold text-[var(--accent)]">{formatSar(rent?.company_bike || 26.67)}</td>
+                              <td className="p-3 num text-[var(--muted)]">{formatSar(0)}</td>
                             </tr>
                             <tr>
                               <td className="p-3 font-semibold">حساب إيراد الإيجار</td>
@@ -4862,13 +4854,13 @@ function PayrollPageInner() {
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">إجمالي المنصة:</span>
                 <span className="num font-bold">
-                  {(selectedLineForExplain.platformGross || selectedLineForExplain.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatSar((selectedLineForExplain.platformGross || selectedLineForExplain.gross || 0))}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">صافي المستحق:</span>
                 <span className="num font-bold text-[var(--money-pos)]">
-                  {(selectedLineForExplain.entitlement ?? selectedLineForExplain.gross ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatSar((selectedLineForExplain.entitlement ?? selectedLineForExplain.gross ?? 0))}
                 </span>
               </div>
             </div>
@@ -4896,7 +4888,7 @@ function PayrollPageInner() {
                             (l.amount || 0) < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'
                           }`}
                         >
-                          {(l.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          {formatSar((l.amount || 0))}
                         </span>
                       </div>
                       {l.formula && (
@@ -5094,11 +5086,11 @@ function PayrollPageInner() {
               </div>
               <div>
                 <span className="text-[var(--muted)] block">الرصيد الافتتاحي:</span>
-                <span className="font-bold num">{detailPreviewRow.openingBalance} ر.س</span>
+                <span className="font-bold num">{formatSar(detailPreviewRow.openingBalance)}</span>
               </div>
               <div>
                 <span className="text-[var(--muted)] block">حركة الشهر:</span>
-                <span className="font-bold num">{detailPreviewRow.periodMovement} ر.س</span>
+                <span className="font-bold num">{formatSar(detailPreviewRow.periodMovement)}</span>
               </div>
             </div>
 
@@ -5132,7 +5124,7 @@ function PayrollPageInner() {
             <div className="p-3 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs space-y-1">
               <div>المندوب: <span className="font-mono font-bold">{approvePreviewRow.iqama}</span></div>
               <div>الشهر: <span className="font-mono">{legacyPeriod}</span></div>
-              <div>صافي الرصيد الختامي: <span className="num font-bold text-[var(--accent)]">{approvePreviewRow.closingBalance} ر.س</span></div>
+              <div>صافي الرصيد الختامي: <span className="num font-bold text-[var(--accent)]">{formatSar(approvePreviewRow.closingBalance)}</span></div>
             </div>
 
             <div className="space-y-1">
@@ -5354,7 +5346,7 @@ function PayrollPageInner() {
                     ledgerData.balance < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'
                   }`}
                 >
-                  {(ledgerData.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatSar((ledgerData.balance || 0))}
                 </span>
               </div>
 
@@ -5378,7 +5370,7 @@ function PayrollPageInner() {
                             row.amount < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'
                           }`}
                         >
-                          {(row.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          {formatSar((row.amount || 0))}
                         </td>
                         <td className="p-2 font-mono text-[10px] text-[var(--muted)]">{row.sourceRef}</td>
                       </tr>
@@ -5410,7 +5402,7 @@ function PayrollPageInner() {
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المبلغ المتنازع عليه:</span>
                 <span className="num font-bold text-[var(--danger)]">
-                  {selectedDispute.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatSar(selectedDispute.amount)}
                 </span>
               </div>
             </div>

@@ -45,6 +45,7 @@ import {
   NinjaReconciliationLine,
 } from '../../lib/types';
 import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
+import { formatSar } from '../../lib/money';
 
 type ApiNinjaInvoice = paths['/api/platforms/ninja/invoices']['get']['responses'][200]['content']['application/json']['items'][number];
 
@@ -748,12 +749,12 @@ export function NinjaInvoiceUploadScreen({
                     <span className="font-sans font-bold text-[var(--ink)]">
                       {mapFieldLabel(d.field)}:
                     </span>
-                    <span className="text-[var(--muted)]">فاتورة: {d.invoice.toFixed(2)}</span>
+                    <span className="text-[var(--muted)]">فاتورة: {formatSar(d.invoice)}</span>
                     <span>|</span>
-                    <span className="text-[var(--muted)]">محرك: {d.engine.toFixed(2)}</span>
+                    <span className="text-[var(--muted)]">محرك: {formatSar(d.engine)}</span>
                     <span>|</span>
                     <span className="text-amber-600 font-bold">
-                      الفرق: {d.difference > 0 ? `+${d.difference.toFixed(2)}` : d.difference.toFixed(2)}
+                      الفرق: {d.difference > 0 ? `+${formatSar(d.difference)}` : formatSar(d.difference)}
                     </span>
                   </div>
                 ))}
@@ -1409,7 +1410,7 @@ export function NinjaInvoiceUploadScreen({
                   <div key={group.category} data-category={group.category} className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink)]">
                     <span className="font-bold min-w-40">{DEDUCTION_LABELS[group.category] ?? group.category}</span>
                     <span className="font-mono text-[var(--muted)]">
-                      {group.lineIds.length} سطر · {group.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س · {group.unclassified} بلا تصنيف
+                      {group.lineIds.length} سطر · {formatSar(group.amount)} · {group.unclassified} بلا تصنيف
                     </span>
                     <select
                       aria-label="جهة تحمل الخصم"
@@ -1577,25 +1578,25 @@ export function NinjaInvoiceUploadScreen({
             />
             <StatCard
               label="إجمالي المستحق (Gross)"
-              value={`${gross.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={formatSar(gross)}
               hint="قبل الخصومات"
               icon={DollarSign}
             />
             <StatCard
               label="إجمالي الخصومات"
-              value={`${deductionsTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={formatSar(deductionsTotal)}
               hint="تخضع للتصنيف"
               icon={AlertTriangle}
             />
             <StatCard
               label="الضريبة (VAT)"
-              value={`${vat.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={formatSar(vat)}
               hint="ضريبة القيمة المضافة"
               icon={Percent}
             />
             <StatCard
               label="الإجمالي شامل الضريبة"
-              value={`${totalPayable.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={formatSar(totalPayable)}
               hint="المعتمد في الصرف"
               icon={FileCheck}
             />
@@ -1640,13 +1641,13 @@ export function NinjaInvoiceUploadScreen({
             />
             <StatCard
               label="إجمالي الفاتورة"
-              value={`${overallTotals.invoiceCost.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={formatSar(overallTotals.invoiceCost)}
               hint="المعتمد في الصرف"
               icon={DollarSign}
             />
             <StatCard
               label="صافي الفرق"
-              value={`${Math.abs(overallTotals.diffCost).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+              value={`${formatSar(Math.abs(overallTotals.diffCost))}`}
               hint={overallTotals.diffCost >= 0 ? 'الفاتورة أعلى' : 'المحرك أعلى'}
               icon={Percent}
             />
@@ -1708,13 +1709,13 @@ export function NinjaInvoiceUploadScreen({
                         <div className="flex items-center justify-between text-xs pt-1">
                           <span className="text-[var(--muted)]">الفاتورة:</span>
                           <span className="font-bold num text-[var(--ink)]">
-                            {t.invoice.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(t.invoice)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-[var(--muted)]">المحرك:</span>
                           <span className="font-bold num text-[var(--muted)]">
-                            {t.engine.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(t.engine)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs pt-1 border-t border-[var(--line)]">
@@ -1724,7 +1725,7 @@ export function NinjaInvoiceUploadScreen({
                               diff === 0 ? 'text-emerald-600' : 'text-amber-600'
                             }`}
                           >
-                            {diff === 0 ? '0.00' : diff > 0 ? `+${diff.toFixed(2)}` : diff.toFixed(2)} ر.س
+                            {diff === 0 ? formatSar(0) : diff > 0 ? `+${formatSar(diff)}` : formatSar(diff)}
                           </span>
                         </div>
                       </div>
@@ -1768,10 +1769,10 @@ export function NinjaInvoiceUploadScreen({
                             <td className="p-2.5 font-bold text-[var(--ink)]">{adj.captainId}</td>
                             <td className="p-2.5 text-[var(--muted)]">{adj.levelType || '—'}</td>
                             <td className="p-2.5 num font-bold text-[var(--ink)]">
-                              {adj.finalAmount?.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                              {formatSar(adj.finalAmount)}
                             </td>
                             <td className="p-2.5 num font-bold text-[var(--ink)]">
-                              {adj.totalCost?.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                              {formatSar(adj.totalCost)}
                             </td>
                           </tr>
                         ))}

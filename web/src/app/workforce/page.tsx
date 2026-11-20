@@ -34,6 +34,7 @@ import { SourceBadge } from '../../components/ui/SourceBadge';
 import { IbanDisplay } from '../../components/ui/IbanDisplay';
 import { platformLabelAr } from '../../features/companies/company-stats';
 import { inApp } from '../../lib/paths';
+import { formatSar } from '../../lib/money';
 import type {
   WorkforceListResponse,
   Workforce360Response,
@@ -1410,10 +1411,7 @@ function WorkforcePageInner() {
                   <div className="p-3 rounded-xl bg-[var(--raised)]/50">
                     <div className="text-[11px] text-[var(--muted)]">إجمالي المتبقي</div>
                     <div className="text-base font-bold num text-[var(--danger)] mt-0.5">
-                      {Number(profileData.financialPosition?.totalRemainingDebt ?? 0).toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                      })}{' '}
-                      ر.س
+                      {formatSar(profileData.financialPosition?.totalRemainingDebt ?? 0)}
                     </div>
                   </div>
                 </div>

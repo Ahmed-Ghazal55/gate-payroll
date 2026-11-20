@@ -1020,7 +1020,7 @@ function DebtsPageContent() {
         header: 'المبلغ',
         numeric: true,
         getValue: (app) => app.amount,
-        render: (app) => <span className="num font-bold text-[var(--accent)]">{app.amount} ر.س</span>,
+        render: (app) => <span className="num font-bold text-[var(--accent)]">{formatSar(app.amount)}</span>,
       },
       {
         key: 'status',
@@ -1505,12 +1505,12 @@ function DebtsPageContent() {
                 <div className="flex items-center gap-4 text-xs">
                   <div>
                     <span className="text-[var(--muted)]">الرصيد الافتتاحي: </span>
-                    <span className="num font-bold">{statementData.openingBalance?.toLocaleString('en-US') || 0} ر.س</span>
+                    <span className="num font-bold">{formatSar(statementData.openingBalance)}</span>
                   </div>
                   <div>
                     <span className="text-[var(--muted)]">الرصيد الختامي: </span>
                     <span className="num font-bold text-[var(--accent)]">
-                      {statementData.closingBalance?.toLocaleString('en-US') || 0} ر.س
+                      {formatSar(statementData.closingBalance)}
                     </span>
                   </div>
                 </div>
@@ -1534,7 +1534,7 @@ function DebtsPageContent() {
                         <td className="p-2.5 font-medium">{e.description || e.statement}</td>
                         <td className="p-2.5 num font-bold text-[var(--danger)]">{e.debit > 0 ? formatSar(e.debit) : '—'}</td>
                         <td className="p-2.5 num font-bold text-[var(--money-pos)]">{e.credit > 0 ? formatSar(e.credit) : '—'}</td>
-                        <td className="p-2.5 num font-bold text-[var(--ink)]">{e.balance} ر.س</td>
+                        <td className="p-2.5 num font-bold text-[var(--ink)]">{formatSar(e.balance)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1610,7 +1610,7 @@ function DebtsPageContent() {
                     <tr key={pn.id} className="hover:bg-[var(--row-hover)]">
                       <td className="p-3 font-mono text-xs">{pn.noteNumber || pn.id}</td>
                       <td className="p-3 font-mono">{pn.iqama}</td>
-                      <td className="p-3 num font-bold">{pn.amount} ر.س</td>
+                      <td className="p-3 num font-bold">{formatSar(pn.amount)}</td>
                       <td className="p-3 num text-xs">{pn.dueDate}</td>
                       <td className="p-3">
                         <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
@@ -1819,7 +1819,7 @@ function DebtsPageContent() {
                         .filter((p) => !newReqNetwork || p.values?.network === newReqNetwork)
                         .map((p) => ({
                           value: p.code,
-                          label: `${p.nameAr || p.code} (${p.values?.price ?? 0} ر.س)`,
+                          label: `${p.nameAr || p.code} (${formatSar(p.values?.price ?? 0)})`,
                         }))}
                     />
                   </div>
@@ -1909,7 +1909,7 @@ function DebtsPageContent() {
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المبلغ المقترح:</span>
-                <span className="font-bold num">{proposalReq.proposal?.amount} ر.س</span>
+                <span className="font-bold num">{formatSar(proposalReq.proposal?.amount)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">الخزينة المقترحة:</span>
@@ -2000,7 +2000,7 @@ function DebtsPageContent() {
         }
         subtitle={
           selectedAdvance
-            ? `إقامة: ${selectedAdvance.riderIqama} · ${selectedAdvance.type === 'cash' ? 'سلفة نقدية' : 'سلفة بنكية'} ${selectedAdvance.amount} ر.س`
+            ? `إقامة: ${selectedAdvance.riderIqama} · ${selectedAdvance.type === 'cash' ? 'سلفة نقدية' : 'سلفة بنكية'} ${formatSar(selectedAdvance.amount)}`
             : ''
         }
       >
@@ -2059,18 +2059,18 @@ function DebtsPageContent() {
                     <div className="p-2.5 rounded-lg bg-[var(--raised)]/60">
                       <div className="text-[11px] text-[var(--muted)]">الصافي التقديري للمسير</div>
                       <div className="font-bold text-sm text-[var(--accent)] num">
-                        {advanceSummary.statement?.net != null ? `${advanceSummary.statement.net.toFixed(2)} ر.س` : 'غير متوفر بعد'}
+                        {advanceSummary.statement?.net != null ? formatSar(advanceSummary.statement.net) : 'غير متوفر بعد'}
                       </div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-[var(--raised)]/60">
                       <div className="text-[11px] text-[var(--muted)]">المديونيات المفتوحة</div>
                       <div className="font-bold text-sm text-[var(--danger)] num">
-                        {advanceSummary.openDebtBalance.toFixed(2)} ر.س ({advanceSummary.openDebts})
+                        {formatSar(advanceSummary.openDebtBalance)} ({advanceSummary.openDebts})
                       </div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-[var(--raised)]/60">
                       <div className="text-[11px] text-[var(--muted)]">الأقساط الشهرية المخططة</div>
-                      <div className="font-bold text-sm text-[var(--ink)] num">{advanceSummary.plannedInstallments.toFixed(2)} ر.س</div>
+                      <div className="font-bold text-sm text-[var(--ink)] num">{formatSar(advanceSummary.plannedInstallments)}</div>
                     </div>
                   </div>
 
@@ -2084,7 +2084,7 @@ function DebtsPageContent() {
                         {advanceSummary.advancesSinceLastSettlement.map((as, idx) => (
                           <div key={idx} className="p-2 rounded-lg bg-[var(--raised)] text-xs flex justify-between">
                             <span>{as.category === 'CashAdvance' ? 'سلفة نقدية' : 'سلفة بنكية'} ({as.status})</span>
-                            <span className="font-bold num">{as.amount} ر.س</span>
+                            <span className="font-bold num">{formatSar(as.amount)}</span>
                           </div>
                         ))}
                       </div>
@@ -2115,7 +2115,7 @@ function DebtsPageContent() {
                             )}
                           </div>
                           <div className="font-mono text-[11px] text-[var(--muted)] truncate">{v.code || '—'}</div>
-                          <div className="font-bold text-xs num mt-1">الرصيد: {v.balance.toFixed(2)} ر.س</div>
+                          <div className="font-bold text-xs num mt-1">الرصيد: {formatSar(v.balance)}</div>
                         </div>
                       ))}
                     </div>
@@ -2343,7 +2343,7 @@ function DebtsPageContent() {
                         </span>
                         {dec.monthlyInstallment && (
                           <span className="text-[11px] text-[var(--muted)]">
-                            (قسط: {dec.monthlyInstallment} ر.س)
+                            (قسط: {formatSar(dec.monthlyInstallment)})
                           </span>
                         )}
                         {dec.reference && (
@@ -2384,7 +2384,7 @@ function DebtsPageContent() {
               {selectedApproval.amount && (
                 <div className="flex justify-between">
                   <span className="text-[var(--muted)]">المبلغ:</span>
-                  <span className="font-bold num text-[var(--accent)]">{selectedApproval.amount} ر.س</span>
+                  <span className="font-bold num text-[var(--accent)]">{formatSar(selectedApproval.amount)}</span>
                 </div>
               )}
             </div>

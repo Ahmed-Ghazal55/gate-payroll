@@ -11,8 +11,9 @@ import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { shouldWarnUnapproved } from './statement-preview';
+import { formatSar } from '../../lib/money';
 
-const money = (n?: number | null) => (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (n?: number | null) => formatSar((n ?? 0));
 
 function platformLabelAr(raw?: string | null): string {
   const key = (raw || '').trim().toLowerCase();
@@ -140,7 +141,7 @@ export function StatementsPanel({ canSend }: { canSend: boolean }) {
               <>
           <div className="p-3 rounded-2xl bg-[var(--accent)] text-[var(--accent-ink)] text-center space-y-1">
             <div className="text-[11px]">{s.header?.period || period}</div>
-            <div className="text-xl font-black num">{money(s.closing)} ر.س</div>
+            <div className="text-xl font-black num">{money(s.closing)}</div>
             {/* Same marker as PayStatements.MarkerAr on the server. */}
             <div className="text-[10px]">{s.closingMarkerAr || (s.closing > 0 ? 'لك' : s.closing < 0 ? 'عليك' : 'متوازن')}</div>
           </div>

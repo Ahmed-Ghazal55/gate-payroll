@@ -18,6 +18,10 @@ test('formatSar uses two decimals and ر.س', () => {
   assert.equal(formatSar(0), '0.00 ر.س');
   assert.equal(formatSar('99'), '99.00 ر.س');
   assert.equal(formatSar(null), '—');
+  assert.equal(formatSar(undefined), '—');
+  assert.equal(formatSar(''), '—');
+  assert.equal(formatSar(Number.NaN), '—');
+  assert.equal(formatSar(-12.3), '-12.30 ر.س');
 });
 
 test('money.ts exports formatSar and formatMoney', () => {
