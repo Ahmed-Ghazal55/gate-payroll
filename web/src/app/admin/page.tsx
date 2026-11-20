@@ -90,12 +90,16 @@ function AdminPageInner() {
   const [newDept, setNewDept] = useState<string>('FIN');
   const [creatingUser, setCreatingUser] = useState<boolean>(false);
 
-  // Audit State
+  // Audit State (server-paged; never load the whole table)
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingAudit, setLoadingAudit] = useState<boolean>(false);
   const [auditError, setAuditError] = useState<string | null>(null);
   const [auditSearch, setAuditSearch] = useState<string>('');
+  const [auditSearchDebounced, setAuditSearchDebounced] = useState<string>('');
   const [auditActionFilter, setAuditActionFilter] = useState<string>('all');
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditPageSize] = useState(50);
+  const [auditTotal, setAuditTotal] = useState(0);
 
   // Firebase Config State
   // ========================================================
@@ -162,19 +166,26 @@ function AdminPageInner() {
     }
   };
 
-  // Load Audit
-  const loadAudit = async () => {
+  // Load Audit (server page + filters; SQL-backed on the API)
+  const loadAudit = useCallback(async (page = auditPage) => {
     setLoadingAudit(true);
     setAuditError(null);
     try {
-      const res = await api.getAuditLogs({ page: 1, pageSize: 100 });
+      const res = await api.getAuditLogs({
+        page,
+        pageSize: auditPageSize,
+        q: auditSearchDebounced.trim() || undefined,
+        action: auditActionFilter,
+      });
       setAuditLogs(Array.isArray(res?.items) ? res.items : []);
+      setAuditTotal(typeof res?.total === 'number' ? res.total : 0);
+      setAuditPage(typeof res?.page === 'number' ? res.page : page);
     } catch (err: any) {
       setAuditError(err.message || 'تعذر تحميل سجل التدقيق');
     } finally {
       setLoadingAudit(false);
     }
-  };
+  }, [auditPage, auditPageSize, auditSearchDebounced, auditActionFilter]);
 
   // Load Org Directory Data
   const loadOrgData = async () => {
@@ -219,13 +230,23 @@ function AdminPageInner() {
   }, []);
 
   useEffect(() => {
+    const t = setTimeout(() => setAuditSearchDebounced(auditSearch), 300);
+    return () => clearTimeout(t);
+  }, [auditSearch]);
+
+  useEffect(() => {
     if (activeTab === 'audit') {
-      loadAudit();
+      void loadAudit(1);
     } else if (activeTab === 'org') {
       loadOrgData();
       loadResponsible(queryOperation);
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'audit') return;
+    void loadAudit(1);
+  }, [auditSearchDebounced, auditActionFilter]);
 
   // Create User
   const handleCreateUser = async () => {
@@ -420,26 +441,14 @@ function AdminPageInner() {
     });
   }, [users, userSearch]);
 
-  // Filtered Audit Logs
-  const filteredAudit = useMemo(() => {
-    return auditLogs.filter((l) => {
-      if (auditActionFilter !== 'all' && !l.action?.includes(auditActionFilter)) return false;
-      if (!auditSearch.trim()) return true;
-      const q = auditSearch.toLowerCase().trim();
-      return (
-        (l.action && l.action.toLowerCase().includes(q)) ||
-        (l.actor && l.actor.toLowerCase().includes(q)) ||
-        (l.id && l.id.toLowerCase().includes(q))
-      );
-    });
-  }, [auditLogs, auditActionFilter, auditSearch]);
+  const auditTotalPages = Math.max(1, Math.ceil(auditTotal / auditPageSize));
 
   const sectionTabs: SectionTabItem[] = [
     { id: 'users', label: 'المستخدمون والصلاحيات', icon: <Users size={16} /> },
     { id: 'org', label: 'الأقسام والرتب والتفويضات', icon: <Building2 size={16} /> },
     { id: 'lists', label: 'القوائم والإعدادات', icon: <SlidersHorizontal size={16} /> },
     { id: 'bypass', label: 'تجاوز الاعتماد', icon: <ShieldAlert size={16} /> },
-    { id: 'audit', label: 'سجل التدقيق الشامل', icon: <History size={16} />, badge: auditLogs.length },
+    { id: 'audit', label: 'سجل التدقيق الشامل', icon: <History size={16} />, badge: auditTotal || undefined },
     { id: 'settings', label: 'إعدادات المنظومة', icon: <Settings size={16} /> },
   ];
 
@@ -479,7 +488,7 @@ function AdminPageInner() {
         />
         <StatCard
           label="عمليات سجل التدقيق"
-          value={auditLogs.length}
+          value={auditTotal}
           hint="سجل الحركات والأمان المالي"
           icon={History}
         />
@@ -1141,20 +1150,20 @@ function AdminPageInner() {
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-[var(--muted)]">
-                {filteredAudit.length} عملية مسجلة
+                {auditTotal} عملية مسجلة
               </span>
             </div>
           </div>
 
           {auditError ? (
-            <ErrorState title="تعذر تحميل سجل التدقيق" message={auditError} onRetry={loadAudit} />
+            <ErrorState title="تعذر تحميل سجل التدقيق" message={auditError} onRetry={() => void loadAudit(auditPage)} />
           ) : loadingAudit ? (
             <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
-          ) : filteredAudit.length === 0 ? (
+          ) : auditLogs.length === 0 ? (
             <EmptyState
               title="لا توجد عمليات تدقيق مطابقة"
               description="سجل العمليات يسجل تلقائياً كافة إجراءات الإنشاء والاعتماد والتعديل."
@@ -1172,7 +1181,7 @@ function AdminPageInner() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {filteredAudit.map((log, idx) => (
+                    {auditLogs.map((log, idx) => (
                       <tr key={log.id || idx} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono text-xs text-[var(--muted)]">{log.id || idx + 1}</td>
                         <td className="p-3">
@@ -1190,6 +1199,31 @@ function AdminPageInner() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] px-3 py-2 text-xs text-[var(--muted)]">
+                <span>
+                  صفحة {auditPage} من {auditTotalPages}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="audit-page-prev"
+                    disabled={auditPage <= 1 || loadingAudit}
+                    onClick={() => void loadAudit(auditPage - 1)}
+                    className="px-2.5 py-1 rounded-lg border border-[var(--line)] disabled:opacity-40"
+                  >
+                    السابق
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="audit-page-next"
+                    disabled={auditPage >= auditTotalPages || loadingAudit}
+                    onClick={() => void loadAudit(auditPage + 1)}
+                    className="px-2.5 py-1 rounded-lg border border-[var(--line)] disabled:opacity-40"
+                  >
+                    التالي
+                  </button>
+                </div>
               </div>
             </div>
           )}

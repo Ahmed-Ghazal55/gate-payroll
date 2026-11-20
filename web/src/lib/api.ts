@@ -861,13 +861,14 @@ export const api = {
     handleRequest<CompanyImportPlanContract>('/companies/import/preview', { method: 'POST', body: JSON.stringify({ companies }) }),
   commitCompanyImport: (payload: { rows: Record<string, unknown>[]; fingerprint: string; confirm: boolean }) =>
     handleRequest<{ counts: Record<string, unknown> }>('/companies/import/commit', { method: 'POST', body: JSON.stringify(payload) }),
-  getAuditLogs: (params?: { page?: number; pageSize?: number; from?: string; to?: string; q?: string }) => {
+  getAuditLogs: (params?: { page?: number; pageSize?: number; from?: string; to?: string; q?: string; action?: string }) => {
     const q = new URLSearchParams();
     q.set('page', String(params?.page ?? 1));
     q.set('pageSize', String(params?.pageSize ?? 50));
     if (params?.from) q.set('from', params.from);
     if (params?.to) q.set('to', params.to);
     if (params?.q) q.set('q', params.q);
+    if (params?.action && params.action !== 'all') q.set('action', params.action);
     return handleRequest<{ items: Array<{ id: string; action: string; actor: string; at: string }>; total: number; page: number; pageSize: number }>(`/audit?${q}`);
   },
 
@@ -1621,6 +1622,7 @@ export const api = {
       sponsors: any[];
       vaults: any[];
       categories?: Array<{ code?: string; nameAr?: string; sector?: string }>;
+      allowedActions?: string[];
     }>('/finance/catalog'),
 
   // Admin & Security APIs

@@ -619,16 +619,22 @@ public static class FinancialCore
         })).WithTags("Banks and treasury").WithSummary("Read finance accounts");
 
         // 3. كتالوج فئات المديونيات وخدمات الـ HR والأقسام والرتب والصناديق المصنفة
-        api.MapGet("/finance/catalog", (HttpContext ctx) => store.Read(c => new
+        api.MapGet("/finance/catalog", (HttpContext ctx) => store.Read(c =>
         {
-            sponsors = Sponsors.Where(sp=>FinancialScopes.Sponsor(ctx.User,sp.Id)),
-            unassignedDebtCount = Store.List(c, "debt").Count(d => AssignedDebtSponsor(d) == null),
-            categories = CategoriesCatalog.Where(cat=>FinancialScopes.Category(ctx.User,cat.Code)).Select(cat=>new {cat.Code,cat.NameAr,cat.Sector,cat.ExpenseAccountCode,cat.ReceivableAccountCode,cat.DefaultReferenceCost,cat.AllowedVaultKinds,requiredPermission=AccessPolicy.CategoryPermission(cat.Code)}),
-            vaults = ChartOfAccounts.Where(a => a.IsVault&&FinancialScopes.Account(ctx.User,a.Code)),
-            departments = DepartmentsCatalog,
-            roles = UserAccess.RolesCatalog,
-            permissions = UserAccess.EditorPermissionsCatalog,
-            promissoryNotesArchiveEnabled = PromissoryArchiveEnabled(c)
+            var actions = new JsonArray();
+            ImportTemplateAccess.AddIfAllowed(actions, ctx.User, "/api/finance/opening/template");
+            return new
+            {
+                sponsors = Sponsors.Where(sp => FinancialScopes.Sponsor(ctx.User, sp.Id)),
+                unassignedDebtCount = Store.List(c, "debt").Count(d => AssignedDebtSponsor(d) == null),
+                categories = CategoriesCatalog.Where(cat => FinancialScopes.Category(ctx.User, cat.Code)).Select(cat => new { cat.Code, cat.NameAr, cat.Sector, cat.ExpenseAccountCode, cat.ReceivableAccountCode, cat.DefaultReferenceCost, cat.AllowedVaultKinds, requiredPermission = AccessPolicy.CategoryPermission(cat.Code) }),
+                vaults = ChartOfAccounts.Where(a => a.IsVault && FinancialScopes.Account(ctx.User, a.Code)),
+                departments = DepartmentsCatalog,
+                roles = UserAccess.RolesCatalog,
+                permissions = UserAccess.EditorPermissionsCatalog,
+                promissoryNotesArchiveEnabled = PromissoryArchiveEnabled(c),
+                allowedActions = actions
+            };
         })).WithTags("Banks and treasury").WithSummary("Read finance catalog");
 
         // 4. سجل القيود المحاسبية المزدوجة (Journal Entries)

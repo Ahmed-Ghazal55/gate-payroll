@@ -360,7 +360,7 @@ public static class WorkforceApi
     }
 
     /// <summary>Non-admins are limited to finance.platforms claims (same as live PlatformRestricted).</summary>
-    static bool StorePlatformInScope(ClaimsPrincipal actor, JsonObject rider)
+    internal static bool StorePlatformInScope(ClaimsPrincipal actor, JsonObject rider)
     {
         if (AccessPolicy.Administrator(actor)) return true;
         var allowed = actor.FindAll("finance.platforms").Select(cl => cl.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -378,7 +378,8 @@ public static class WorkforceApi
         return false;
     }
 
-    static void DemandRiderOrNotFound(ClaimsPrincipal user, JsonObject rider)
+    /// <summary>Company + platform scope; out of scope looks like missing (404), never a 403 existence leak.</summary>
+    internal static void DemandRiderOrNotFound(ClaimsPrincipal user, JsonObject rider)
     {
         if (!FinancialScopes.Rider(user, rider) && !FinancialScopes.AllCompanies(user))
             throw new ApiError("الموظف غير موجود.", 404);
@@ -691,6 +692,7 @@ public static class WorkforceApi
         if (AccessPolicy.Has(user, PermIban)) actions.Add("view_iban");
         if (AccessPolicy.Has(user, PermSaudiSalary)) actions.Add("view_saudi_salary");
         if (AccessPolicy.Has(user, PermLegalCases)) actions.Add("view_legal_cases");
+        ImportTemplateAccess.AddIfAllowed(actions, user, "/api/excel/riders/template");
         return actions;
     }
 

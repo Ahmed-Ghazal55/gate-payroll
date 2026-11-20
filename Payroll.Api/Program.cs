@@ -199,7 +199,7 @@ api.MapGet("/me", (HttpContext ctx) =>
     return Results.Ok(new { username = ctx.User.Identity!.Name, role = ctx.User.FindFirstValue(ClaimTypes.Role), permissions=ctx.User.FindAll("permission").Select(p=>p.Value),department=ctx.User.FindFirstValue("department"),rankLevel=ctx.User.FindFirstValue("rankLevel"), id = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) });
 }).WithTags("Administration").WithSummary("Read me");
 api.MapGet("/dashboard", (HttpContext ctx) => store.Read(c => new { riders = Store.List(c, "rider").Count(ErpRiderClassification.ListedAsRider), imports = Store.List(c, "batch").Count, pendingResponses = Store.List(c, "submission").Count(x => x.S("status") == "pending" && SubmissionChoices.InRiderScope(c, ctx.User, x.S("iqama"))), approvedRuns = Store.List(c, "run").Count, balance = Store.List(c, "ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)).Sum(x => x.N("amount")), latestAudit = Store.List(c, "audit").Where(_=>AccessPolicy.Administrator(ctx.User)).Take(8) })).WithTags("Home").WithSummary("Read dashboard");
-api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider).Where(r => ctx.Request.Query["status"].ToString() is var st && (st == "" || st == "all" || string.Equals(r.S("status"), st, StringComparison.OrdinalIgnoreCase))).Where(r => AccessPolicy.Administrator(ctx.User) || FinancialScopes.Rider(ctx.User, r) || FinancialScopes.AllCompanies(ctx.User)).Select(r => WorkforceApi.ProjectDirectoryRider(r, ctx.User)).ToList())).WithTags("Riders").WithSummary("Read riders");
+api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider).Where(r => ctx.Request.Query["status"].ToString() is var st && (st == "" || st == "all" || string.Equals(r.S("status"), st, StringComparison.OrdinalIgnoreCase))).Where(r => AccessPolicy.Administrator(ctx.User) || ((FinancialScopes.Rider(ctx.User, r) || FinancialScopes.AllCompanies(ctx.User)) && WorkforceApi.StorePlatformInScope(ctx.User, r))).Select(r => WorkforceApi.ProjectDirectoryRider(r, ctx.User)).ToList())).WithTags("Riders").WithSummary("Read riders");
 api.MapPost("/riders", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var iqama = J.Iqama(input.Required("iqama")); var existing = Store.Get(c, iqama, "rider", tx);
@@ -300,28 +300,8 @@ api.MapPost("/submissions/{id}/review", (string id, JsonObject input, HttpContex
 api.MapGet("/audit", (HttpContext ctx) => store.Read(c =>
 {
     AccessPolicy.Demand(ctx.User, "audit.view");
-    string from = ctx.Request.Query["from"].ToString().Trim();
-    string to = ctx.Request.Query["to"].ToString().Trim();
-    DateTimeOffset? fromAt = null, toAt = null;
-    if (from.Length > 0)
-    {
-        if (!DateTimeOffset.TryParse(from, out var parsedFrom)) throw new ApiError("تاريخ البداية غير صالح.");
-        fromAt = parsedFrom;
-    }
-    if (to.Length > 0)
-    {
-        if (!DateTimeOffset.TryParse(to, out var parsedTo)) throw new ApiError("تاريخ النهاية غير صالح.");
-        toAt = parsedTo;
-    }
-    var rows = Store.List(c, "audit").Where(a =>
-    {
-        if (!DateTimeOffset.TryParse(a.S("at"), out var at)) return fromAt == null && toAt == null;
-        if (fromAt != null && at < fromAt) return false;
-        if (toAt != null && at > toAt) return false;
-        return true;
-    });
-    // Always page (M-0607); default page=1 when omitted.
-    return ApiPagination.Apply(rows, ctx.Request.Query, always: true);
+    // Always page in SQL (M-0607 / FU1-d); legacy-free {items,total,page,pageSize}.
+    return AuditQuery.ListPaged(c, ctx.Request.Query);
 })).WithTags("Administration").WithSummary("Read audit");
 app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = IbanChoices.Is(d) ? IbanChoices.Schema : "work-choice-v1", fields=CampaignOperations.Fields(d), cities=IbanChoices.Is(d) ? IbanChoices.Cities(d) : null }); }).WithTags("Forms and responses").WithSummary("Read public forms {token}").RequireRateLimiting("sensitive");
 SubmissionChoices.Map(app, store, Campaign);

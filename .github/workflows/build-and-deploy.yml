@@ -83,6 +83,7 @@ jobs:
           node web/tests/pay-settings-empty-block.mjs
           node web/tests/ops-live-ui.mjs
           node tests/r8-contract.mjs
+          node tests/riders-masking.mjs
       - name: Publish Linux smoke-test bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r linux-x64 --self-contained true -o artifacts/linux --nologo
       - name: Test published application
@@ -94,6 +95,7 @@ jobs:
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/forms-all-companies.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/iban-form.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/campaigns.mjs
+          PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/riders-masking.mjs
       - name: Publish MonsterASP bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r win-x64 --self-contained true -o artifacts/monsterasp --nologo
       - name: Validate deployment payload
