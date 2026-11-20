@@ -217,10 +217,13 @@ public static class SchemaFinJournal
         string[] frozen=["voucher_no","period_id","period_month","journal_date","source_type","source_id","company_id","purpose","run_mode","payout_blocked","currency_code","reverses_journal_id","posted_at","posted_by","narration_ar"];
         SchemaMoneyGuard.Retain(c,tx,"fin","journal","o.voucher_no=NEW.voucher_no OR (o.source_type=NEW.source_type AND o.source_id=NEW.source_id AND o.company_id=NEW.company_id AND o.purpose=NEW.purpose)");
         SchemaMoneyGuard.Retain(c,tx,"fin","journal_line","o.journal_id=NEW.journal_id AND o.line_no=NEW.line_no");
-        SchemaMoneyFlags.Ensure(c,tx,"fin","journal",o=>$"{o}.status IN (2,3,4)");
-        SchemaMoneyGuard.Rule(c,tx,"fin","journal","TR_fin_journal_state",
+        // SQL Server AFTER triggers fire in create order; SQLite BEFORE fires last-created first — opposite.
+        // Create state before money_flags on SQL Server (and the reverse on SQLite) so TR_fin_journal_state wins.
+        void State()=>SchemaMoneyGuard.Rule(c,tx,"fin","journal","TR_fin_journal_state",
             n=>$"{n}.status IN (2,3) AND {n}.run_mode=1",
             (o,n)=>$"{n}.id IS NULL OR ({o}.status<>{n}.status AND NOT (({o}.status=1 AND {n}.status IN (2,4)) OR ({o}.status=2 AND {n}.status=3))) OR ({o}.status IN (2,3,4) AND ({SchemaMoneyGuard.Changed(c,n,o,frozen)}))");
+        void Flags()=>SchemaMoneyFlags.Ensure(c,tx,"fin","journal",o=>$"{o}.status IN (2,3,4)");
+        if(SchemaSql.IsSql(c)){State();Flags();}else{Flags();State();}
         SchemaMoneyGuard.Rule(c,tx,"fin","journal_line","TR_fin_journal_line_frozen",
             n=>$"EXISTS(SELECT 1 FROM {journal} j WHERE j.id={n}.journal_id AND j.status IN (2,3,4))",
             (o,n)=>$"{n}.id IS NULL OR EXISTS(SELECT 1 FROM {journal} j WHERE j.id={o}.journal_id AND j.status IN (2,3,4)) OR EXISTS(SELECT 1 FROM {journal} j WHERE j.id={n}.journal_id AND j.status IN (2,3,4))");
