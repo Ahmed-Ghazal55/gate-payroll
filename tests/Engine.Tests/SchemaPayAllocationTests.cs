@@ -16,18 +16,18 @@ public sealed class SchemaPayAllocationTests
         string claim=MoneySchemaFixture.Claim(c,company,payment,payable);
         void Change(string set)=>MoneySchemaFixture.Exec(c,null,$"UPDATE pay_payment_allocation SET {set} WHERE id=@id",("@id",claim));
         Change("claim_status=2");
-        foreach(int status in new[]{1,3,4})MoneySchemaFixture.Reject(()=>Change($"claim_status={status}"));
+        foreach(int status in new[]{1,3,4})MoneySchemaFixture.Reject(()=>Change($"claim_status={status}"),"Invalid allocation status transition; posted claims require reversed payment");
         foreach(string set in new[]{"amount=20",$"payment_id='{MoneySchemaFixture.Payment(c,company)}'",$"payable_id='{MoneySchemaFixture.Payable(c,company)}'",$"payment_line_id='{MoneySchemaFixture.Id()}'"})
-            MoneySchemaFixture.Reject(()=>Change(set));
+            MoneySchemaFixture.Reject(()=>Change(set),"Allocation keys and amount are immutable");
         Assert.AreEqual(40m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT amount_paid FROM pay_payable WHERE id=@id",("@id",payable))));
         MoneySchemaFixture.PreparePaymentReversal(c,payment);
         // status 3 on the payment is reversed; status 4 is cancelled.
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET status=3 WHERE id=@id",("@id",payment));
         Change("claim_status=4");
-        MoneySchemaFixture.Reject(()=>Change("claim_status=1"));
+        MoneySchemaFixture.Reject(()=>Change("claim_status=1"),"Invalid allocation status transition; posted claims require reversed payment");
         string released=MoneySchemaFixture.Claim(c,company,MoneySchemaFixture.Payment(c,company),payable);
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",released));
-        foreach(int status in new[]{1,2,4})MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE pay_payment_allocation SET claim_status={status} WHERE id=@id",("@id",released)));
+        foreach(int status in new[]{1,2,4})MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE pay_payment_allocation SET claim_status={status} WHERE id=@id",("@id",released)),"Invalid allocation status transition; posted claims require reversed payment");
     }
 
     [TestMethod]
@@ -46,13 +46,13 @@ public sealed class SchemaPayAllocationTests
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=4 WHERE id=@id",("@id",b));
         Assert.AreEqual(60m,Available());
         string replacement=MoneySchemaFixture.Claim(c,company,payment,payable,60);
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",a)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",a)),"Invalid allocation status transition; posted claims require reversed payment");
         Assert.AreEqual(0m,Available());
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET amount=101 WHERE id=@id",("@id",replacement)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET amount=101 WHERE id=@id",("@id",replacement)),"Allocation keys and amount are immutable");
         Assert.AreEqual(0m,Available()); // failed trigger rolls the whole statement back
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payable SET amount_due=59 WHERE id=@id",("@id",payable)),"CK_payable_amounts");
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payable SET amount_reserved=0 WHERE id=@id",("@id",payable)));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM pay_payment_allocation WHERE id=@id",("@id",replacement)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payable SET amount_reserved=0 WHERE id=@id",("@id",payable)),"Payable counters must match allocation claims");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM pay_payment_allocation WHERE id=@id",("@id",replacement)),"Cancel or release allocations instead of deleting");
         SchemaPayAllocation.Ensure(c);Assert.AreEqual(0m,Available());
     }
 
@@ -73,7 +73,7 @@ public sealed class SchemaPayAllocationTests
         byte[] old=(byte[])MoneySchemaFixture.Scalar(c,null,"SELECT row_version FROM pay_payment_allocation WHERE id=@id",("@id",claim))!;
         int Change(){using var cmd=MoneySchemaFixture.Command(c,null,"UPDATE pay_payment_allocation SET claim_status=4 WHERE id=@id AND row_version=@v",("@id",claim),("@v",old));return cmd.ExecuteNonQuery();}
         Assert.AreEqual(1,Change());Assert.AreEqual(0,Change());
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM pay_payment WHERE id=@id",("@id",payment)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM pay_payment WHERE id=@id",("@id",payment)),"Money rows cannot be deleted");
     }
 
     [TestMethod]
@@ -85,7 +85,7 @@ public sealed class SchemaPayAllocationTests
         using(var tx=c.BeginTransaction())
         {
             void Claim(decimal amount)=>MoneySchemaFixture.Exec(c,tx,"INSERT INTO pay_payment_allocation(id,payment_id,payment_line_id,payable_id,company_id,payable_period_month,period_month,amount,claim_status) VALUES(@id,@p,@id,@due,@c,'2026-11-01','2026-11-01',@amount,1)",("@id",MoneySchemaFixture.Id()),("@p",payment),("@due",payable),("@c",company),("@amount",amount));
-            Claim(70);MoneySchemaFixture.Reject(()=>Claim(40));tx.Rollback();
+            Claim(70);MoneySchemaFixture.Reject(()=>Claim(40),"CK",sqliteToken:"CK_payable_amounts");tx.Rollback();
         }
         Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM pay_payment_allocation"));
         Assert.AreEqual(100m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT available_balance FROM pay_payable WHERE id=@id",("@id",payable))));
@@ -99,9 +99,9 @@ public sealed class SchemaPayAllocationTests
         string first=MoneySchemaFixture.Payable(c,company),second=MoneySchemaFixture.Payable(c,company),payment=MoneySchemaFixture.Payment(c,company);
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET amount=0 WHERE id=@id",("@id",payment)),"CK_payment_amount");
         MoneySchemaFixture.Claim(c,company,payment,first,60);
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,second,50)); // each payable has room; the payment (100) does not
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,second,50),"Claims exceed payment amount"); // each payable has room; the payment (100) does not
         string b=MoneySchemaFixture.Claim(c,company,payment,second,40);
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET amount=90 WHERE id=@id",("@id",payment)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET amount=90 WHERE id=@id",("@id",payment)),"Claims exceed payment amount");
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",b));
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET amount=90 WHERE id=@id",("@id",payment));
         foreach(int status in new[]{3,4})
@@ -109,8 +109,8 @@ public sealed class SchemaPayAllocationTests
             string closed=MoneySchemaFixture.Payment(c,company),held=MoneySchemaFixture.Claim(c,company,closed,second,10);
             if(status==3)MoneySchemaFixture.PreparePaymentReversal(c,closed);
             MoneySchemaFixture.Exec(c,null,$"UPDATE pay_payment SET status={status} WHERE id=@id",("@id",closed));
-            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,closed,second,10));
-            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",held)));
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,closed,second,10),"Reversed or cancelled payment cannot receive claims");
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",held)),"Reversed or cancelled payment cannot receive claims");
             MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",held));
         }
         Assert.AreEqual(60m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT amount_reserved FROM pay_payable WHERE id=@id",("@id",first))));
@@ -157,7 +157,7 @@ public sealed class SchemaPayAllocationTests
         string claim=MoneySchemaFixture.Claim(c,company,payment,payable,40,line:line);
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",claim));
         foreach(string id in new[]{claim,MoneySchemaFixture.Id()})
-            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT OR REPLACE INTO pay_payment_allocation(id,payment_id,payment_line_id,payable_id,company_id,payable_period_month,period_month,amount,claim_status) VALUES(@id,@p,@line,@due,@c,'2026-11-01','2026-11-01',10,1)",("@id",id),("@p",payment),("@line",line),("@due",payable),("@c",company)));
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT OR REPLACE INTO pay_payment_allocation(id,payment_id,payment_line_id,payable_id,company_id,payable_period_month,period_month,amount,claim_status) VALUES(@id,@p,@line,@due,@c,'2026-11-01','2026-11-01',10,1)",("@id",id),("@p",payment),("@line",line),("@due",payable),("@c",company)),"UQ_pay_alloc_payable_line: claim id or key already used; replacing a claim is forbidden");
         Assert.AreEqual(2L,MoneySchemaFixture.Scalar(c,null,"SELECT claim_status FROM pay_payment_allocation WHERE id=@id",("@id",claim)));
         Assert.AreEqual(40m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT amount_paid FROM pay_payable WHERE id=@id",("@id",payable))));
     }

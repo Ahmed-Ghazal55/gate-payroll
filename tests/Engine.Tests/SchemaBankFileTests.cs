@@ -36,12 +36,12 @@ public sealed class SchemaBankFileTests
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET payout_blocked=1 WHERE id=@id",("@id",run));
         string file=File(c,company,registration,bank,blocked:1);var l=Line(c,file,company,registration,company,run,1);
         Assert.AreEqual("لا يُرسل",MoneySchemaFixture.Scalar(c,null,"SELECT payout_label FROM sal_bank_file_export WHERE id=@id",("@id",file)));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_bank_file SET status=2,approved_by=@id,approved_at=datetime('now') WHERE id=@id",("@id",file)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_bank_file SET status=2,approved_by=@id,approved_at=datetime('now') WHERE id=@id",("@id",file)),"TR_bank_file_state");
         Approve(c,file);
         foreach(string set in new[]{"payout_blocked=0","issuance_choice='per_company',scope_company_id=paying_company_id","status=1"})
-            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE sal_bank_file SET {set} WHERE id=@id",("@id",file)));
-        MoneySchemaFixture.Reject(()=>Sent(c,file));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",l.Claim)));
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE sal_bank_file SET {set} WHERE id=@id",("@id",file)),"TR_bank_file_state");
+        MoneySchemaFixture.Reject(()=>Sent(c,file),"TR_bank_file_state");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",l.Claim)),"TR_bank_claim_state");
     }
     [TestMethod,DataRow(false),DataRow(true)]
     public void LiveFileLinksExactClaimAndNeedsConsumedPaymentBeforeSend(bool sqlServer)
@@ -49,16 +49,16 @@ public sealed class SchemaBankFileTests
         using var c=Open(sqlServer);
         string company=MoneySchemaFixture.Company(c),registration=SchemaTreasuryTests.Registration(c,company),bank=SchemaTreasuryTests.Account(c,company,registration),file=File(c,company,registration,bank,false);
         var l=Line(c,file,company,registration,company);
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_bank_file_line SET amount=99 WHERE id=@id",("@id",l.Line)));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",l.Claim)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_bank_file_line SET amount=99 WHERE id=@id",("@id",l.Line)),"TR_sal_bank_file_line_immutable");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",l.Claim)),"TR_bank_claim_state");
         Approve(c,file);
-        MoneySchemaFixture.Reject(()=>Sent(c,file));
+        MoneySchemaFixture.Reject(()=>Sent(c,file),"TR_bank_file_state");
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET status=2 WHERE id=@id",("@id",l.Payment));
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",l.Claim));
         Sent(c,file);
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_bank_file SET status=2 WHERE id=@id",("@id",file)));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",l.Claim)));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_bank_file_line WHERE id=@id",("@id",l.Line)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_bank_file SET status=2 WHERE id=@id",("@id",file)),"TR_bank_file_state");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",l.Claim)),"Invalid allocation status transition; posted claims require reversed payment");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_bank_file_line WHERE id=@id",("@id",l.Line)),"Money rows cannot be deleted");
     }
     [TestMethod,DataRow(false),DataRow(true)]
     public void CombinedIssuanceStoresCrossCompanySettlementAndPerCompanyRejectsOtherCompany(bool sqlServer)
@@ -68,9 +68,9 @@ public sealed class SchemaBankFileTests
         string file=File(c,payer,registration,bank);var l=Line(c,file,other,otherRegistration,payer);
         string settlement=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_inter_company_settlement(id,bank_file_line_id,period_month,paying_company_id,entitlement_company_id,amount) VALUES(@id,@l,'2026-11-01',@p,@c,100)",("@id",settlement),("@l",l.Line),("@p",payer),("@c",other));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_inter_company_settlement SET status=2 WHERE id=@id",("@id",settlement)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_inter_company_settlement SET status=2 WHERE id=@id",("@id",settlement)),"TR_inter_company_source");
         string separate=File(c,payer,registration,bank,false);
-        MoneySchemaFixture.Reject(()=>Line(c,separate,other,otherRegistration,payer,MoneySchemaFixture.Run(c,other,"other")));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_bank_file_line SET allocation_id=@a WHERE id=@id",("@id",l.Line),("@a",MoneySchemaFixture.Id())));
+        MoneySchemaFixture.Reject(()=>Line(c,separate,other,otherRegistration,payer,MoneySchemaFixture.Run(c,other,"other")),"Bank line is not eligible or allocation does not match");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_bank_file_line SET allocation_id=@a WHERE id=@id",("@id",l.Line),("@a",MoneySchemaFixture.Id())),"TR_sal_bank_file_line_immutable");
     }
 }

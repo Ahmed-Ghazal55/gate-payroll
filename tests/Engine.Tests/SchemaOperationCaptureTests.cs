@@ -45,13 +45,14 @@ public sealed class SchemaOperationCaptureTests
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET payout_blocked=1 WHERE id=@id",("@id",payment));
         foreach(var (table,id) in new[]{("sal_pay_run",run),("sal_platform_invoice",invoice),("pay_payment",payment)})
         foreach(string set in new[]{"run_mode=1","payout_blocked=0"})
-            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE {table} SET {set} WHERE id=@id",("@id",id)));
+            MoneySchemaFixture.RejectAny(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE {table} SET {set} WHERE id=@id",("@id",id)),
+                "Frozen money operation cannot change run mode or remove payout block","Invalid payment transition or frozen identity/flags");
         string payable=MoneySchemaFixture.Payable(c,company),simulation=MoneySchemaFixture.Payment(c,company);
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET run_mode=1 WHERE id=@id",("@id",simulation));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,simulation,payable));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,payable,status:2));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,simulation,payable),"Simulation or payout-blocked payment cannot claim");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,payable,status:2),"Simulation or payout-blocked payment cannot claim");
         string reserved=MoneySchemaFixture.Claim(c,company,payment,payable);
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",reserved)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",reserved)),"Simulation or payout-blocked payment cannot claim");
     }
 
     [TestMethod]
@@ -65,7 +66,7 @@ public sealed class SchemaOperationCaptureTests
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET stage=3 WHERE id=@id",("@id",frozen));
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET capture_state=2 WHERE id=@id",("@id",frozen));
         string next=MoneySchemaFixture.Run(c,MoneySchemaFixture.Company(c));
-        FillEmpty(c,next,except:"late_kind");MoneySchemaFixture.Reject(()=>Freeze(c,next));
+        FillEmpty(c,next,except:"late_kind");MoneySchemaFixture.Reject(()=>Freeze(c,next),"Capture incomplete or snapshot scope mismatch");
         Empty(c,next,"late_kind");Freeze(c,next);
     }
 
@@ -89,14 +90,14 @@ public sealed class SchemaOperationCaptureTests
     public void MissingKindBlockerBlankReasonAndUnknownAppCannotFreeze(bool sqlServer)
     {
         using var c=Open(sqlServer);string company=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company);
-        MoneySchemaFixture.Reject(()=>Freeze(c,run));
-        FillEmpty(c,run,except:"housing");MoneySchemaFixture.Reject(()=>Freeze(c,run));
+        MoneySchemaFixture.Reject(()=>Freeze(c,run),"Capture incomplete or snapshot scope mismatch");
+        FillEmpty(c,run,except:"housing");MoneySchemaFixture.Reject(()=>Freeze(c,run),"Capture incomplete or snapshot scope mismatch");
         SchemaConstraintAssert.ThrowsNamed(()=>Empty(c,run,"housing"," "),"CK_manifest_empty");
-        Empty(c,run,"housing",null,status:3);MoneySchemaFixture.Reject(()=>Freeze(c,run));
+        Empty(c,run,"housing",null,status:3);MoneySchemaFixture.Reject(()=>Freeze(c,run),"Capture incomplete or snapshot scope mismatch");
         MoneySchemaFixture.Exec(c,null,"UPDATE fin_operation_capture_manifest SET status=2,empty_reason='No housing in synthetic scope' WHERE operation_id=@run AND required_kind='housing'",("@run",run));
         Freeze(c,run);
         Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,null,"SELECT capture_state FROM sal_pay_run WHERE id=@id",("@id",run)));
-        string unknown=MoneySchemaFixture.Run(c,company,"other");MoneySchemaFixture.Reject(()=>Freeze(c,unknown));
+        string unknown=MoneySchemaFixture.Run(c,company,"other");MoneySchemaFixture.Reject(()=>Freeze(c,unknown),"Capture incomplete or snapshot scope mismatch");
     }
 
     [TestMethod]
@@ -115,7 +116,7 @@ public sealed class SchemaOperationCaptureTests
         SchemaConstraintAssert.ThrowsNamed(()=>Captured(c,run,link,kind:"fuel"),"FK_manifest_link",sqliteToken:"FOREIGN KEY");
         string duplicate=Snapshot(c,company,erpRow:erp);
         SchemaConstraintAssert.ThrowsNamed(()=>Link(c,run,duplicate),"UQ_op_snap_content",sqliteToken:"fin_operation_snapshot_link.operation_type, fin_operation_snapshot_link.operation_id, fin_operation_snapshot_link.snapshot_kind");
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_ops_snapshot SET payload='{\"changed\":true}' WHERE id=@id",("@id",snap)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_ops_snapshot SET payload='{\"changed\":true}' WHERE id=@id",("@id",snap)),"Snapshots are append-only evidence");
     }
 
     [TestMethod]
@@ -125,19 +126,19 @@ public sealed class SchemaOperationCaptureTests
     {
         using var c=Open(sqlServer);string company=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company),snap=Snapshot(c,company),link=Link(c,run,snap);
         Captured(c,run,link);FillEmpty(c,run,except:"ninja_daily");Freeze(c,run);
-        foreach(string sql in new[]{
-            "UPDATE fin_operation_capture_manifest SET empty_reason='changed' WHERE operation_id=@id",
-            "DELETE FROM fin_operation_capture_manifest WHERE operation_id=@id",
-            "UPDATE fin_operation_snapshot_link SET operation_type='payment' WHERE operation_id=@id",
-            "DELETE FROM fin_operation_snapshot_link WHERE operation_id=@id",
-            "UPDATE sal_pay_run SET capture_state=0,stage=1,calc_started_at=NULL WHERE id=@id"})
-            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,sql,("@id",run)));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_ops_snapshot WHERE id=@id",("@id",snap)));
+        foreach(var (sql,name) in new[]{
+            ("UPDATE fin_operation_capture_manifest SET empty_reason='changed' WHERE operation_id=@id","Frozen operation evidence cannot change"),
+            ("DELETE FROM fin_operation_capture_manifest WHERE operation_id=@id","Frozen operation evidence cannot change"),
+            ("UPDATE fin_operation_snapshot_link SET operation_type='payment' WHERE operation_id=@id","Frozen operation evidence cannot change"),
+            ("DELETE FROM fin_operation_snapshot_link WHERE operation_id=@id","Frozen operation evidence cannot change"),
+            ("UPDATE sal_pay_run SET capture_state=0,stage=1,calc_started_at=NULL WHERE id=@id","Frozen run cannot reopen or change capture scope")})
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,sql,("@id",run)),name);
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_ops_snapshot WHERE id=@id",("@id",snap)),"Snapshots are append-only evidence");
         if(!SchemaSql.IsSql(c))MoneySchemaFixture.Exec(c,null,"PRAGMA recursive_triggers=OFF");
-        if(!SchemaSql.IsSql(c))MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT OR REPLACE INTO sal_ops_snapshot SELECT id,period_month,kind,erp_row_id,scope_company_id,scope_app,captured_at,captured_by,source_fingerprint,'{\"changed\":true}',generation FROM sal_ops_snapshot WHERE id=@id",("@id",snap)));
-        MoneySchemaFixture.Reject(()=>Link(c,run,Snapshot(c,company,"fuel")));
+        if(!SchemaSql.IsSql(c))MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT OR REPLACE INTO sal_ops_snapshot SELECT id,period_month,kind,erp_row_id,scope_company_id,scope_app,captured_at,captured_by,source_fingerprint,'{\"changed\":true}',generation FROM sal_ops_snapshot WHERE id=@id",("@id",snap)),"Snapshot replacement is forbidden");
+        MoneySchemaFixture.Reject(()=>Link(c,run,Snapshot(c,company,"fuel")),"Frozen operation evidence cannot change");
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET capture_state=2 WHERE id=@id",("@id",run));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET capture_state=1 WHERE id=@id",("@id",run)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET capture_state=1 WHERE id=@id",("@id",run)),"Frozen run cannot reopen or change capture scope");
         SchemaOperationCapture.Ensure(c);Assert.AreEqual(8L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM fin_operation_capture_manifest WHERE operation_id=@id",("@id",run)));
     }
 
@@ -148,10 +149,10 @@ public sealed class SchemaOperationCaptureTests
     {
         using var c=Open(sqlServer);string company=MoneySchemaFixture.Company(c),other=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company);
         string link=Link(c,run,Snapshot(c,other));Captured(c,run,link);FillEmpty(c,run,except:"ninja_daily");
-        MoneySchemaFixture.Reject(()=>Freeze(c,run));
+        MoneySchemaFixture.Reject(()=>Freeze(c,run),"Capture incomplete or snapshot scope mismatch");
         MoneySchemaFixture.Exec(c,null,"DELETE FROM fin_operation_capture_manifest WHERE operation_id=@id AND required_kind='ninja_daily'",("@id",run));
         Captured(c,run,Link(c,run,Snapshot(c,company,app:"keeta")));
-        MoneySchemaFixture.Reject(()=>Freeze(c,run));
+        MoneySchemaFixture.Reject(()=>Freeze(c,run),"Capture incomplete or snapshot scope mismatch");
     }
     [TestMethod]
     public void StartupCreatesTypedSnapshotManifestAndRequiredKindCatalogue()

@@ -59,7 +59,7 @@ public sealed class SchemaSalPayRunTests
         Assert.AreEqual(1,Approve());Assert.AreEqual(0,Approve());
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET bank_eligible=1 WHERE id=@id",("@id",rider)),"CK_sal_rider_bank");
         Assert.AreEqual(4L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM sal_pay_run_item"));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_pay_run WHERE id=@id",("@id",run)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_pay_run WHERE id=@id",("@id",run)),"Money rows cannot be deleted");
     }
 
     [TestMethod]
@@ -75,9 +75,9 @@ public sealed class SchemaSalPayRunTests
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET payout_blocked=1 WHERE id=@id",("@id",blocked));
         string live=MoneySchemaFixture.Rider(c,blocked,company,due,50);Approve(live);
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET bank_eligible=1 WHERE id=@id",("@id",live));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,due,status:2));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,due,status:2),"Payable of a simulation or payout-blocked run cannot be claimed or paid");
         string reserved=MoneySchemaFixture.Claim(c,company,payment,due);
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",reserved)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",reserved)),"Payable of a simulation or payout-blocked run cannot be claimed or paid");
         MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=3 WHERE id=@id",("@id",reserved));
         // Simulation run: its riders carry run_mode=1 (composite FK) and can neither bank nor be claimed.
         string simulation=MoneySchemaFixture.Run(c,company,"keeta"),simDue=MoneySchemaFixture.Payable(c,company);
@@ -85,8 +85,8 @@ public sealed class SchemaSalPayRunTests
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Rider(c,simulation,company,simDue,50),"FK_sal_rider_run",sqliteToken:"FOREIGN KEY");
         string sim=MoneySchemaFixture.Rider(c,simulation,company,simDue,50,mode:1);Approve(sim);
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET bank_eligible=1 WHERE id=@id",("@id",sim)),"CK_sal_rider_bank");
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,simDue));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET run_mode=0 WHERE id=@id",("@id",simulation)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Claim(c,company,payment,simDue),"Payable of a simulation or payout-blocked run cannot be claimed or paid");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET run_mode=0 WHERE id=@id",("@id",simulation)),"FK",sqliteToken:"FOREIGN KEY");
     }
 
     [TestMethod]
@@ -104,7 +104,7 @@ public sealed class SchemaSalPayRunTests
         string hold=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,null,"INSERT INTO sal_shared_rider_hold(id,erp_rider_id,period_month) VALUES(@id,@r,'2026-11-01')",("@id",hold),("@r",erp));
         Assert.AreEqual(0L,Flag());
-        MoneySchemaFixture.Reject(Eligible);
+        MoneySchemaFixture.Reject(Eligible,"Rider with an open shared-rider hold cannot be bank eligible");
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_shared_rider_hold SET status='cleared' WHERE id=@id",("@id",hold));
         Eligible();Assert.AreEqual(1L,Flag());
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_shared_rider_hold SET status='open' WHERE id=@id",("@id",hold));

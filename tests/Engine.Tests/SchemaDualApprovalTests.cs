@@ -16,7 +16,7 @@ public sealed class SchemaDualApprovalTests
             string permission=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM auth_permission WHERE code=@code AND deprecated=0",("@code",code))!;
             Assert.IsNotNull(permission);ids.Add(permission);
             MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_role_permission(id,role_id,permission_id,created_at) VALUES(@id,@r,@p,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@r",role),("@p",permission));
-            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_role_permission(id,role_id,permission_id,created_at) VALUES(@id,@r,@p,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@r",role),("@p",permission)));
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_role_permission(id,role_id,permission_id,created_at) VALUES(@id,@r,@p,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@r",role),("@p",permission)),"UQ",sqliteToken:"UNIQUE constraint failed: auth_role_permission.role_id, auth_role_permission.permission_id");
         }
         SchemaAuthCatalog.Ensure(c);
         Assert.AreEqual(3L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_role_permission WHERE role_id=@r",("@r",role)));

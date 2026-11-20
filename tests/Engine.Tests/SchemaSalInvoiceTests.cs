@@ -27,7 +27,7 @@ public sealed class SchemaSalInvoiceTests
         SchemaConstraintAssert.ThrowsNamed(()=>Item("2026-11-01"),"UQ_sal_invoice_item",sqliteToken:"Money row replacement is forbidden");
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_platform_invoice SET gross=-1 WHERE id=@id",("@id",invoice)),"CK_sal_invoice_totals");
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_platform_invoice SET run_mode=2 WHERE id=@id",("@id",invoice)),"CK_sal_invoice_flags");
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_platform_invoice WHERE id=@id",("@id",invoice)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_platform_invoice WHERE id=@id",("@id",invoice)),"Money rows cannot be deleted");
         SchemaSalInvoice.Ensure(c);Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM sal_platform_invoice_item"));
     }
     [TestMethod]
@@ -47,15 +47,15 @@ public sealed class SchemaSalInvoiceTests
         void Set(string id,string set)=>MoneySchemaFixture.Exec(c,null,$"UPDATE sal_platform_invoice SET {set} WHERE id=@id",("@id",id));
         string first=Insert("2026-11-01","2026-11-15",hash);Line(first,1);
         SchemaConstraintAssert.ThrowsNamed(()=>Set(first,"net=80"),"CK_sal_invoice_net");
-        MoneySchemaFixture.Reject(()=>Insert("2026-11-10","2026-11-20")); // overlaps the active first half
+        MoneySchemaFixture.Reject(()=>Insert("2026-11-10","2026-11-20"),"Active invoice periods of one registration cannot overlap"); // overlaps the active first half
         string second=Insert("2026-11-16","2026-11-30");
         Set(first,"approved_at=datetime('now'),status=2");
         foreach(string set in new[]{"gross=200,net=190","period_to='2026-11-14'","city_code='other'"})
-            MoneySchemaFixture.Reject(()=>Set(first,set));
-        MoneySchemaFixture.Reject(()=>Line(first,2));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_platform_invoice_line SET gross=200,net=190 WHERE invoice_id=@id",("@id",first)));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_platform_invoice_line WHERE invoice_id=@id",("@id",first)));
-        MoneySchemaFixture.Reject(()=>Insert("2026-12-01","2026-12-01",hash)); // same file while the first is active
+            MoneySchemaFixture.Reject(()=>Set(first,set),"Approved invoice totals and scope are frozen");
+        MoneySchemaFixture.Reject(()=>Line(first,2),"Lines of an approved invoice are frozen");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_platform_invoice_line SET gross=200,net=190 WHERE invoice_id=@id",("@id",first)),"Lines of an approved invoice are frozen");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_platform_invoice_line WHERE invoice_id=@id",("@id",first)),"Lines of an approved invoice are frozen");
+        MoneySchemaFixture.Reject(()=>Insert("2026-12-01","2026-12-01",hash),"Money row replacement is forbidden"); // same file while the first is active
         Set(first,"status=4"); // cancel stays possible after approval
         string again=Insert("2026-11-01","2026-11-15",hash); // cancelled file and period can be uploaded again
         Assert.AreEqual(3L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM sal_platform_invoice WHERE id IN (@a,@b,@c)",("@a",first),("@b",second),("@c",again)));

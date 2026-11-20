@@ -14,8 +14,8 @@ public sealed class SchemaPayPayableTests
         using var c=MoneySchemaFixture.Payments(sqlServer);string company=MoneySchemaFixture.Company(c),id=MoneySchemaFixture.Payable(c,company);
         foreach(string column in new[]{"amount_paid","amount_reserved"})
         {
-            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE pay_payable SET {column}=1 WHERE id=@id",("@id",id)));
-            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"INSERT INTO pay_payable(id,kind,source_table,source_id,company_id,period_month,amount_due,{column}) VALUES(@id,'advance','test',@id,@c,'2026-11-01',100,1)",("@id",MoneySchemaFixture.Id()),("@c",company)));
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"UPDATE pay_payable SET {column}=1 WHERE id=@id",("@id",id)),"Payable counters must match allocation claims");
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,$"INSERT INTO pay_payable(id,kind,source_table,source_id,company_id,period_month,amount_due,{column}) VALUES(@id,'advance','test',@id,@c,'2026-11-01',100,1)",("@id",MoneySchemaFixture.Id()),("@c",company)),"Payable counters must match allocation claims");
         }
     }
 
@@ -35,7 +35,7 @@ public sealed class SchemaPayPayableTests
             SchemaConstraintAssert.ThrowsNamed(()=>Change($"period_month='{month}'"),"CK_payable_month");
         SchemaConstraintAssert.ThrowsNamed(()=>Change($"company_id='{MoneySchemaFixture.Id()}'"),"FK_payable_company",sqliteToken:"FOREIGN KEY");
         SchemaConstraintAssert.ThrowsNamed(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO pay_payable(id,kind,source_table,source_id,company_id,amount_due,period_month) SELECT @new,kind,source_table,source_id,company_id,amount_due,period_month FROM pay_payable WHERE id=@id",("@new",MoneySchemaFixture.Id()),("@id",id)),"UQ_payable_source",sqliteToken:"Money row replacement is forbidden");
-        MoneySchemaFixture.Reject(()=>Change("amount_reserved=25,amount_paid=30"));
+        MoneySchemaFixture.Reject(()=>Change("amount_reserved=25,amount_paid=30"),"Payable counters must match allocation claims");
         Assert.AreEqual(100m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT available_balance FROM pay_payable WHERE id=@id",("@id",id))));
         SchemaPayPayable.Ensure(c);
         Assert.AreEqual("new",MoneySchemaFixture.Scalar(c,null,"SELECT generation FROM pay_payable WHERE id=@id",("@id",id)));

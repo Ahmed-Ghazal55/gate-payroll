@@ -45,26 +45,26 @@ public sealed class SchemaTreasuryTests
     {
         using var c=Open(sqlServer);SchemaTreasury.Ensure(c);
         string company=MoneySchemaFixture.Company(c),registration=Registration(c,company),bank=Account(c,company,registration),statement=Statement(c,company,registration,bank),line=Line(c,company,statement);
-        MoneySchemaFixture.Reject(()=>Account(c,MoneySchemaFixture.Company(c),registration));
-        MoneySchemaFixture.Reject(()=>Line(c,company,statement));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_bank_statement_line SET amount=99 WHERE id=@id",("@id",line)));
+        MoneySchemaFixture.Reject(()=>Account(c,MoneySchemaFixture.Company(c),registration),"TR_treasury_bank_account_scope");
+        MoneySchemaFixture.Reject(()=>Line(c,company,statement),"Money row replacement is forbidden");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_bank_statement_line SET amount=99 WHERE id=@id",("@id",line)),"TR_treasury_bank_statement_line_immutable");
         MoneySchemaFixture.Exec(c,null,"UPDATE treasury_bank_statement SET status=2 WHERE id=@id",("@id",statement));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_bank_statement SET status=3,closing_balance=99,approved_by=@u,approved_at=datetime('now') WHERE id=@id",("@id",statement),("@u",MoneySchemaFixture.Id())));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_bank_statement SET status=3,closing_balance=99,approved_by=@u,approved_at=datetime('now') WHERE id=@id",("@id",statement),("@u",MoneySchemaFixture.Id())),"TR_statement_total");
         MoneySchemaFixture.Exec(c,null,"UPDATE treasury_bank_statement SET status=3,approved_by=@u,approved_at=datetime('now') WHERE id=@id",("@id",statement),("@u",MoneySchemaFixture.Id()));
-        MoneySchemaFixture.Reject(()=>Line(c,company,statement,2,1));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_bank_statement SET status=1 WHERE id=@id",("@id",statement)));
+        MoneySchemaFixture.Reject(()=>Line(c,company,statement,2,1),"TR_statement_line_open");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_bank_statement SET status=1 WHERE id=@id",("@id",statement)),"TR_treasury_bank_statement_state");
     }
     [TestMethod,DataRow(false),DataRow(true)]
     public void BankMatchingCannotDoubleUseEitherSourceAndCancelledMatchesAreFinal(bool sqlServer)
     {
         using var c=Open(sqlServer);
         string company=MoneySchemaFixture.Company(c),registration=Registration(c,company),bank=Account(c,company,registration),statement=Statement(c,company,registration,bank),line=Line(c,company,statement),journal=JournalLine(c,company,bank),match=Match(c,company,line,journal,60);
-        MoneySchemaFixture.Reject(()=>Match(c,company,line,journal,40));
-        MoneySchemaFixture.Reject(()=>Match(c,company,line,JournalLine(c,company,bank),41));
-        MoneySchemaFixture.Reject(()=>Match(c,company,Line(c,company,statement,2),journal,41));
+        MoneySchemaFixture.Reject(()=>Match(c,company,line,journal,40),"Money row replacement is forbidden");
+        MoneySchemaFixture.Reject(()=>Match(c,company,line,JournalLine(c,company,bank),41),"Bank match exceeds source amount");
+        MoneySchemaFixture.Reject(()=>Match(c,company,Line(c,company,statement,2),journal,41),"Bank match exceeds source amount");
         MoneySchemaFixture.Exec(c,null,"UPDATE treasury_bank_match SET status=5 WHERE id=@id",("@id",match));
         Match(c,company,line,journal,100);
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_bank_match SET status=1 WHERE id=@id",("@id",match)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_bank_match SET status=1 WHERE id=@id",("@id",match)),"TR_treasury_match_source");
     }
     [TestMethod,DataRow(false),DataRow(true)]
     public void VaultVarianceNeedsPostedJournalAndApprovedCountsAreImmutable(bool sqlServer)
@@ -73,9 +73,9 @@ public sealed class SchemaTreasuryTests
         string company=MoneySchemaFixture.Company(c),registration=Registration(c,company),box=Account(c,company,registration,"cash_box"),id=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,null,"INSERT INTO treasury_vault_count(id,cash_box_id,company_id,registration_id,period_month,counted_on,book_balance,counted_amount) VALUES(@id,@b,@c,@r,'2026-11-01','2026-11-20',100,99)",("@id",id),("@b",box),("@c",company),("@r",registration));
         MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET status=2 WHERE id=@id",("@id",id));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET status=3,approved_by=@u,approved_at=datetime('now') WHERE id=@id",("@id",id),("@u",MoneySchemaFixture.Id())));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET status=3,approved_by=@u,approved_at=datetime('now') WHERE id=@id",("@id",id),("@u",MoneySchemaFixture.Id())),"TR_vault_count_journal");
         MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET status=3,counted_amount=100,approved_by=@u,approved_at=datetime('now') WHERE id=@id",("@id",id),("@u",MoneySchemaFixture.Id()));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET counted_amount=101 WHERE id=@id",("@id",id)));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM treasury_vault_count WHERE id=@id",("@id",id)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET counted_amount=101 WHERE id=@id",("@id",id)),"TR_vault_count_journal");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM treasury_vault_count WHERE id=@id",("@id",id)),"Money rows cannot be deleted");
     }
 }

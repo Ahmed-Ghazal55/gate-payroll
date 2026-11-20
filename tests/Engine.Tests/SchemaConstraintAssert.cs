@@ -28,4 +28,18 @@ internal static class SchemaConstraintAssert
             StringAssert.Contains(ex.Message,constraintName,StringComparison.OrdinalIgnoreCase);
         }
     }
+
+    public static void ThrowsAny(Action action,params string[] constraintNames)
+    {
+        try
+        {
+            action();
+            Assert.Fail("Expected one of ["+string.Join(", ",constraintNames)+"] to reject the row.");
+        }
+        catch(DbException ex)
+        {
+            Assert.IsTrue(constraintNames.Any(n=>ex.Message.Contains(n,StringComparison.OrdinalIgnoreCase)),
+                "Expected one of ["+string.Join(", ",constraintNames)+"] in: "+ex.Message);
+        }
+    }
 }

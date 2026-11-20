@@ -32,10 +32,12 @@ internal static class MoneySchemaFixture
         return value switch { int n=>(long)n, byte n=>(long)n, bool b=>b?1L:0L, Guid id=>id.ToString("D"), _=>value };
     }
     public static DbCommand Command(DbConnection c,DbTransaction? tx,string sql,params (string Name,object Value)[] values)=>Store.Command(c,tx,Sql(c,sql,tx),values);
-    public static void Reject(Action action)
-    {
-        try{action();Assert.Fail("Expected a database rejection.");}catch(DbException){}
-    }
+    /// <summary>Reject must name the constraint or trigger message (finding L: Reject accepted any DbException).</summary>
+    public static void Reject(Action action,string constraintName,string? sqliteToken=null)=>
+        SchemaConstraintAssert.ThrowsNamed(action,constraintName,sqliteToken);
+    /// <summary>When several BEFORE triggers can abort the same statement, accept any of the named messages.</summary>
+    public static void RejectAny(Action action,params string[] constraintNames)=>
+        SchemaConstraintAssert.ThrowsAny(action,constraintNames);
     public static string Id()=>SchemaSql.GuidText(SchemaSql.NewId());
     public static DbConnection Open(bool sqlServer=false)
     {

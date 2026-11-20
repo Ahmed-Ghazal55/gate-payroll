@@ -26,15 +26,15 @@ public sealed class SchemaReviewJournalTests
         MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal SET narration_ar='draft edit' WHERE id=@id",("@id",journal));
         MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal SET status=2,posted_at=datetime('now'),posted_by='tester' WHERE id=@id",("@id",journal));
         foreach(string set in new[]{"voucher_no='hacked'","narration_ar='posted edit'","purpose='other'","status=1","run_mode=1","payout_blocked=1"})
-            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal SET "+set+" WHERE id=@id",("@id",journal)));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM fin_journal WHERE id=@id",("@id",journal)));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal_line SET debit=11,credit=0 WHERE id=@id",("@id",line)));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM fin_journal_line WHERE id=@id",("@id",line)));
+            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal SET "+set+" WHERE id=@id",("@id",journal)),"TR_fin_journal_state");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM fin_journal WHERE id=@id",("@id",journal)),"Money rows cannot be deleted");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal_line SET debit=11,credit=0 WHERE id=@id",("@id",line)),"TR_fin_journal_line_frozen");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM fin_journal_line WHERE id=@id",("@id",line)),"Money rows cannot be deleted");
         string extra=MoneySchemaFixture.Id();
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,
             "INSERT INTO fin_journal_line(id,period_id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,debit,credit,created_at) VALUES(@id,@p,'2026-11-01',@j,2,@a,1,@c,@cc,0,10,datetime('now'))",
-            ("@id",extra),("@p",period),("@j",journal),("@a",account),("@c",company),("@cc",cc)));
+            ("@id",extra),("@p",period),("@j",journal),("@a",account),("@c",company),("@cc",cc)),"TR_fin_journal_line_frozen");
         MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal SET status=3 WHERE id=@id",("@id",journal));
-        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal SET status=2 WHERE id=@id",("@id",journal)));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal SET status=2 WHERE id=@id",("@id",journal)),"TR_fin_journal_state");
     }
 }
