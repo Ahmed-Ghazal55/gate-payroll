@@ -36,9 +36,12 @@ public static partial class Debts
     /// </summary>
     public static object ListPaged(DbConnection c, ClaimsPrincipal actor, IQueryCollection query)
     {
-        // Validate generic filter/sort contract against whitelist first
-        _ = TableFilterContract.ParseFilters(query, AllowedDebtColumns, DebtColumnAliases);
-        _ = TableFilterContract.ParseSort(query, AllowedDebtColumns, DebtColumnAliases);
+        // Validate generic filter/sort contract against whitelist when contract params (filters / JSON sort) are present
+        if (TableFilterContract.HasContractParams(query))
+        {
+            _ = TableFilterContract.ParseFilters(query, AllowedDebtColumns, DebtColumnAliases);
+            _ = TableFilterContract.ParseSort(query, AllowedDebtColumns, DebtColumnAliases);
+        }
 
         var filter = ParseFilter(query);
         bool paged = query.ContainsKey("page");
