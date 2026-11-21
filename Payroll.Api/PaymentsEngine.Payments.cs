@@ -16,7 +16,8 @@ public static partial class PaymentsEngine
     {
         bool card=doc.S("type")=="advance"&&doc["metadata"].S("fulfilment")=="recharge_card";
         J.Need(MoneyWriteGuards.IsBankOrCashAccountCode(code)||card&&code=="112404","اختر حساب بنك أو صندوق صالح للصرف.",409);
-        J.Need(AccessPolicy.Administrator(actor)||actor.HasClaim("finance.accountCodes",code),"حساب الصرف خارج نطاقك.",403);
+        // Claims hold legacy vault codes (BANK.BW / MAIN.*); chart codes resolve through TargetAccount.
+        J.Need(AccessPolicy.Administrator(actor)||FinancialScopes.TargetAccount(actor,doc.S("companyId"),code)||card&&code=="112404"&&FinancialScopes.Sponsor(actor,doc.S("companyId")),"حساب الصرف خارج نطاقك.",403);
         _=Account(c,tx,code);
     }
     public static JsonObject Reserve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string documentId,JsonObject input)
@@ -28,7 +29,7 @@ public static partial class PaymentsEngine
         {
             var meta=doc["metadata"]!.AsObject();J.Need(code==meta.S("payoutAccountCode"),"حساب الصرف مختلف عن الحساب المعتمد للسلفة.",409);
             J.Need(!AccessPolicy.SamePerson(actor,doc.S("createdBy")),"صاحب طلب السلفة لا يطلب صرفها.",403);
-            OrgDirectory.DemandResponsible(c,tx,actor,"advance.payout:"+code,doc);
+            OrgDirectory.DemandResponsible(c,tx,actor,"advance.payout:"+PaymentAdvances.PayoutOp(code),doc);
         }
         string hash=ApprovalsArea.PayloadContentHash(documentId,amount,("documentHash",doc.S("contentHash")),("paidOn",day),("bankAccountCode",code),("reference",reference));
         var old=Rows(c,tx,$"SELECT id,content_hash AS contentHash FROM {Q(c,"payment_detail")} WHERE document_id=@d AND idempotency_key=@k",("@d",Id(documentId)),("@k",key)).SingleOrDefault();
@@ -78,7 +79,7 @@ public static partial class PaymentsEngine
         J.Need(p.S("companyId")==doc.S("companyId")&&p.S("payerCompanyId")==doc.S("companyId"),"شركة السند لا تطابق المستند؛ التسوية بين الشركات تحتاج مسارًا معتمدًا.",409);
         string currentHash=ApprovalsArea.PayloadContentHash(doc.S("id"),p.N("amount"),("documentHash",doc.S("contentHash")),("paidOn",p.S("paidOn")[..10]),("bankAccountCode",bank),("reference",p.S("reference")));
         J.Need(currentHash==p.S("contentHash"),"بيانات سند الصرف تغيرت بعد طلب الاعتماد؛ ألغ السند وأعد طلبه.",409);
-        if(doc.S("type") is "advance" or "hs_topup")OrgDirectory.DemandResponsible(c,tx,actor,"advance.payout:"+bank,doc);
+        if(doc.S("type") is "advance" or "hs_topup")OrgDirectory.DemandResponsible(c,tx,actor,"advance.payout:"+PaymentAdvances.PayoutOp(bank),doc);
         if(p.N("status")==2)return p;
         J.Need(!MoneyWriteGuards.ResolveLegacyPayoutBlocked(c,tx,p.S("paidOn")[..7],doc.S("companyId")),"التشغيل الموازي يمنع الصرف.",409);
         // Lock the paying account across all pending payouts before reading its real GL balance.
