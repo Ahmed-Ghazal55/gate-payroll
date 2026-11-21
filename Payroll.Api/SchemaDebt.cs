@@ -149,10 +149,42 @@ public static class SchemaDebt
                 """);
             return;
         }
-        // SQLite: fresh EnsureTable already has platform + absorbed; rebuild CHECK only when upgrading an older in-memory shape is not required for tests.
         object? cols=SchemaSql.Scalar(c,tx,"SELECT COUNT(1) FROM pragma_table_info('debt_debt') WHERE name='platform'");
         if(Convert.ToInt64(cols!)==0)
             SchemaSql.Exec(c,tx,"ALTER TABLE debt_debt ADD COLUMN platform TEXT NULL");
+        // SQLite cannot ALTER CHECK; rebuild when an older unnamed status constraint lacks absorbed.
+        object? ddl=SchemaSql.Scalar(c,tx,"SELECT sql FROM sqlite_master WHERE type='table' AND name='debt_debt'");
+        string sql=ddl?.ToString()??"";
+        if(sql!=""&&sql.Contains("CHECK",StringComparison.OrdinalIgnoreCase)&&!sql.Contains("'absorbed'",StringComparison.Ordinal))
+            RebuildSqliteDebtStatus(c,tx);
+    }
+
+    static void RebuildSqliteDebtStatus(DbConnection c,DbTransaction? tx)
+    {
+        SchemaSql.Exec(c,tx,"""
+            CREATE TABLE debt_debt__absorbed(
+              id TEXT NOT NULL, erp_rider_id TEXT NOT NULL, company_id TEXT NOT NULL,
+              category TEXT NOT NULL, principal REAL NOT NULL CHECK(principal>=0),
+              balance REAL NOT NULL DEFAULT 0 CHECK(balance>=0), instalment REAL NULL CHECK(instalment>=0),
+              status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','waived','absorbed','cancelled','transferred')),
+              platform TEXT NULL,
+              promissory_flag INTEGER NOT NULL DEFAULT 0 CHECK(promissory_flag IN (0,1)),
+              created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT '',
+              row_version BLOB, CONSTRAINT PK_debt_debt_abs PRIMARY KEY(id),
+              CONSTRAINT UQ_debt_company_abs UNIQUE(id,company_id)
+            );
+            """);
+        // Copy known columns; tolerate older shapes missing platform/row_version.
+        var names=new List<string>();
+        using(var cmd=Store.Command(c,tx,"SELECT name FROM pragma_table_info('debt_debt')"))
+        using(var reader=cmd.ExecuteReader())
+            while(reader.Read())names.Add(reader.GetString(0));
+        string[] want=["id","erp_rider_id","company_id","category","principal","balance","instalment","status","platform","promissory_flag","created_by","created_at","row_version"];
+        var present=want.Where(names.Contains).ToArray();
+        string cols=string.Join(",",present);
+        SchemaSql.Exec(c,tx,$"INSERT INTO debt_debt__absorbed({cols}) SELECT {cols} FROM debt_debt");
+        SchemaSql.Exec(c,tx,"DROP TABLE debt_debt");
+        SchemaSql.Exec(c,tx,"ALTER TABLE debt_debt__absorbed RENAME TO debt_debt");
     }
 
     static void EnsureBalance(DbConnection c,DbTransaction? tx)
