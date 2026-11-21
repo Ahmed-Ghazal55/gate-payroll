@@ -197,10 +197,10 @@ public static class OperationsLiveApi
             rows = store.Read(c => tab switch
             {
                 "cities" => BuildStoreCities(c, ctx.User).Items.ToList(),
-                "housing" => ExtractItems(BuildStoreHousing(c, ctx.User, 1, 200, "", "", "")),
-                "vehicles" when view == "invoices" => ExtractItems(BuildStorePurchases(c, ctx.User, from, to, 1, 200, "")),
-                "vehicles" => ExtractItems(BuildStorePeriod(c, ctx.User, from, to, mode, 1, 200)),
-                "fuel" => ExtractItems(BuildStoreFuel(c, ctx.User, month, 1, 200)),
+                "housing" => ExtractItems(BuildStoreHousing(c, ctx.User, 1, 50_000, "", "", "")),
+                "vehicles" when view == "invoices" => ExtractItems(BuildStorePurchases(c, ctx.User, from, to, 1, 50_000, "")),
+                "vehicles" => ExtractItems(BuildStorePeriod(c, ctx.User, from, to, mode, 1, 50_000)),
+                "fuel" => ExtractItems(BuildStoreFuel(c, ctx.User, month, 1, 50_000)),
                 _ => new List<JsonObject>()
             });
         }
@@ -215,16 +215,16 @@ public static class OperationsLiveApi
                     return (tab, view) switch
                     {
                         ("cities", _) => OperationsLiveQuery.CitiesSummary(erp, scope, token).Items.ToList(),
-                        ("housing", _) => OperationsLiveQuery.HousingPage(erp, 1, OperationsLiveQuery.MaxPageSize, "", "", "", scope, token).Items.ToList(),
-                        ("vehicles", "invoices") => OperationsLiveQuery.PurchaseInvoices(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, "", scope, null, token).Items.ToList(),
-                        ("vehicles", "oil") => OperationsLiveQuery.OilChangesPeriod(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, "", scope, export: false, token).Items.ToList(),
-                        ("vehicles", _) => OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, 1, OperationsLiveQuery.MaxPageSize, "", scope, detailed: false, token).Items.ToList(),
-                        ("fuel", "log") => OperationsLiveQuery.FuelAssignments(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, scope, token).Items.ToList(),
-                        ("fuel", _) => OperationsLiveQuery.FuelCards(erp, month, "", 1, OperationsLiveQuery.MaxPageSize, "", scope, token).Items.ToList(),
+                        ("housing", _) => OperationsLiveQuery.HousingExport(erp, "", "", "", scope, ExportTimeoutSeconds(config), token).Items.ToList(),
+                        ("vehicles", "invoices") => OperationsLiveQuery.PurchaseInvoices(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, "", scope, null, token, unpaged: true).Items.ToList(),
+                        ("vehicles", "oil") => OperationsLiveQuery.OilChangesPeriod(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, "", scope, export: true, token).Items.ToList(),
+                        ("vehicles", _) => OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, 1, OperationsLiveQuery.MaxPageSize, "", scope, detailed: true, token).Items.ToList(),
+                        ("fuel", "log") => OperationsLiveQuery.FuelAssignments(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, scope, token, unpaged: true).Items.ToList(),
+                        ("fuel", _) => OperationsLiveQuery.FuelCardsExport(erp, month, "", "", scope, ExportTimeoutSeconds(config), token).Items.ToList(),
                         _ => new List<JsonObject>()
                     };
                 });
-            }, "operations-distinct");
+            }, "operations-distinct", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
         }
         return TableFilterContract.BuildDistinct(rows, column, ctx.Request.Query, whitelist, aliases);
     }
@@ -332,13 +332,14 @@ public static class OperationsLiveApi
             using var erp = OpenErp(config);
             return store.Read(c =>
             {
-                int fetchPage = hasContract ? 1 : page;
-                int fetchSize = hasContract ? OperationsLiveQuery.MaxPageSize : pageSize;
-                var result = OperationsLiveQuery.HousingPage(erp, fetchPage, fetchSize, city, status, search, Operations.LiveScope(c, ctx.User), token);
+                var scope = Operations.LiveScope(c, ctx.User);
+                var result = hasContract
+                    ? OperationsLiveQuery.HousingExport(erp, city, status, search, scope, ExportTimeoutSeconds(config), token)
+                    : OperationsLiveQuery.HousingPage(erp, page, pageSize, city, status, search, scope, token);
                 var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "housing", "", alreadyPaged: !hasContract);
                 return Envelope(new { items, total, page, pageSize, summary = result.Summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
             });
-        }, "operations-housing");
+        }, "operations-housing", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static object HousingRooms(Store store, IConfiguration config, IHostEnvironment env, string id, HttpContext ctx)
@@ -404,9 +405,9 @@ public static class OperationsLiveApi
             {
                 try
                 {
-                    int fetchPage = hasContract ? 1 : page;
-                    int fetchSize = hasContract ? OperationsLiveQuery.MaxPageSize : pageSize;
-                    var result = OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, fetchPage, fetchSize, search, Operations.LiveScope(c, ctx.User), detailed: false, token);
+                    var result = hasContract
+                        ? OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), detailed: true, token)
+                        : OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, page, pageSize, search, Operations.LiveScope(c, ctx.User), detailed: false, token);
                     AssertNoVin(result.Items);
                     var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "vehicles", "", alreadyPaged: !hasContract);
                     return Envelope(new
@@ -423,7 +424,7 @@ public static class OperationsLiveApi
                 }
                 catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
             });
-        }, "operations-vehicles-period");
+        }, "operations-vehicles-period", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static object Vehicle(Store store, IConfiguration config, IHostEnvironment env, string id, HttpContext ctx)
@@ -491,15 +492,15 @@ public static class OperationsLiveApi
             {
                 try
                 {
-                    int fetchPage = hasContract ? 1 : page;
-                    int fetchSize = hasContract ? OperationsLiveQuery.MaxPageSize : pageSize;
-                    var result = OperationsLiveQuery.OilChangesPeriod(erp, from, to, fetchPage, fetchSize, search, Operations.LiveScope(c, ctx.User), export: false, token);
+                    var result = hasContract
+                        ? OperationsLiveQuery.OilChangesPeriod(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), export: true, token)
+                        : OperationsLiveQuery.OilChangesPeriod(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), export: false, token);
                     var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "vehicles", "oil", alreadyPaged: !hasContract);
                     return Envelope(new { items, total, page, pageSize, summary = result.Summary, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
                 }
                 catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
             });
-        }, "operations-oil-period");
+        }, "operations-oil-period", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static object Purchases(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
@@ -528,15 +529,15 @@ public static class OperationsLiveApi
             {
                 try
                 {
-                    int fetchPage = hasContract ? 1 : page;
-                    int fetchSize = hasContract ? OperationsLiveQuery.MaxPageSize : pageSize;
-                    var result = OperationsLiveQuery.PurchaseInvoices(erp, from, to, fetchPage, fetchSize, search, Operations.LiveScope(c, ctx.User), null, token);
+                    var result = hasContract
+                        ? OperationsLiveQuery.PurchaseInvoices(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), null, token, unpaged: true)
+                        : OperationsLiveQuery.PurchaseInvoices(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), null, token);
                     var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "vehicles", "invoices", alreadyPaged: !hasContract);
                     return Envelope(new { items, total, page, pageSize, summary = result.Summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
                 }
                 catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
             });
-        }, "operations-purchases");
+        }, "operations-purchases", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static object PurchaseDetail(Store store, IConfiguration config, IHostEnvironment env, string id, HttpContext ctx)
@@ -592,13 +593,14 @@ public static class OperationsLiveApi
             using var erp = OpenErp(config);
             return store.Read(c =>
             {
-                int fetchPage = hasContract ? 1 : page;
-                int fetchSize = hasContract ? OperationsLiveQuery.MaxPageSize : pageSize;
-                var result = OperationsLiveQuery.FuelCards(erp, month, provider, fetchPage, fetchSize, search, Operations.LiveScope(c, ctx.User), token);
+                var scope = Operations.LiveScope(c, ctx.User);
+                var result = hasContract
+                    ? OperationsLiveQuery.FuelCardsExport(erp, month, provider, search, scope, ExportTimeoutSeconds(config), token)
+                    : OperationsLiveQuery.FuelCards(erp, month, provider, page, pageSize, search, scope, token);
                 var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "fuel", "", alreadyPaged: !hasContract);
                 return Envelope(new { items, total, page, pageSize, summary = result.Summary, month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture) }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
             });
-        }, "operations-fuel");
+        }, "operations-fuel", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static object FuelLog(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
@@ -618,15 +620,15 @@ public static class OperationsLiveApi
             {
                 try
                 {
-                    int fetchPage = hasContract ? 1 : page;
-                    int fetchSize = hasContract ? OperationsLiveQuery.MaxPageSize : pageSize;
-                    var result = OperationsLiveQuery.FuelAssignments(erp, from, to, fetchPage, fetchSize, Operations.LiveScope(c, ctx.User), token);
+                    var result = hasContract
+                        ? OperationsLiveQuery.FuelAssignments(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, Operations.LiveScope(c, ctx.User), token, unpaged: true)
+                        : OperationsLiveQuery.FuelAssignments(erp, from, to, page, pageSize, Operations.LiveScope(c, ctx.User), token);
                     var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "fuel", "log", alreadyPaged: !hasContract);
                     return Envelope(new { items, total, page, pageSize, summary = result.Summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
                 }
                 catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
             });
-        }, "operations-fuel-log");
+        }, "operations-fuel-log", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static IResult ExportCities(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)

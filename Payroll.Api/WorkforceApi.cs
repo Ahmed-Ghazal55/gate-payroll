@@ -87,10 +87,10 @@ public static class WorkforceApi
             return store.Read(c =>
             {
                 var scope = Operations.LiveScope(c, ctx.User);
-                var liveReq = hasContract
-                    ? request with { Page = 1, PageSize = WorkforceLiveQuery.MaxPageSize, Skip = 0, Take = WorkforceLiveQuery.MaxPageSize, QueryAlt = request.Query.Length == 0 ? "" : TextSearch.Normalize(request.Query) }
-                    : request with { QueryAlt = request.Query.Length == 0 ? "" : TextSearch.Normalize(request.Query) };
-                var page = WorkforceLiveQuery.Page(erp, liveReq, scope, token);
+                var liveReq = request with { QueryAlt = request.Query.Length == 0 ? "" : TextSearch.Normalize(request.Query) };
+                var page = hasContract
+                    ? WorkforceLiveQuery.ExportAll(erp, liveReq with { Page = 1, Skip = 0, Take = int.MaxValue }, scope, ExportTimeoutSeconds(config), token)
+                    : WorkforceLiveQuery.Page(erp, liveReq, scope, token);
                 var items = page.Items.Select(r => StripSensitive(ApplyIbanAlert(r), ctx.User)).ToList();
                 long total = page.Total;
                 if (hasContract)
@@ -101,7 +101,7 @@ public static class WorkforceApi
                 }
                 return Envelope(new { items, total, page = request.Page, pageSize = request.PageSize, summary = page.Summary }, Operations.SourceLive, page.AsOf, Actions(ctx.User));
             });
-        }, "workforce");
+        }, "workforce", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static object Summary(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
@@ -137,7 +137,7 @@ public static class WorkforceApi
         List<JsonObject> rows;
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
         {
-            rows = store.Read(c => StoreList(c, ctx.User, request with { Page = 1, PageSize = 5_000, Skip = 0, Take = 5_000 }).Items.Select(r => StripSensitive(r, ctx.User)).ToList());
+            rows = store.Read(c => StoreList(c, ctx.User, request with { Page = 1, PageSize = 50_000, Skip = 0, Take = 50_000 }).Items.Select(r => StripSensitive(r, ctx.User)).ToList());
         }
         else
         {
@@ -147,9 +147,10 @@ public static class WorkforceApi
                 return store.Read(c =>
                 {
                     var scope = Operations.LiveScope(c, ctx.User);
-                    return WorkforceLiveQuery.Page(erp, request with { QueryAlt = "" }, scope, token).Items.Select(r => StripSensitive(ApplyIbanAlert(r), ctx.User)).ToList();
+                    var fullReq = request with { Page = 1, Skip = 0, Take = int.MaxValue, QueryAlt = request.Query.Length == 0 ? "" : TextSearch.Normalize(request.Query) };
+                    return WorkforceLiveQuery.ExportAll(erp, fullReq, scope, ExportTimeoutSeconds(config), token).Items.Select(r => StripSensitive(ApplyIbanAlert(r), ctx.User)).ToList();
                 });
-            }, "workforce-distinct");
+            }, "workforce-distinct", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
         }
         return TableFilterContract.BuildDistinct(rows, column, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
     }

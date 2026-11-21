@@ -310,7 +310,7 @@ public static partial class OperationsLiveQuery
         }
     }
 
-    static string BuildPurchaseInvoicesSql(DbCommand cmd, DateOnly from, DateOnly to, int skip, int take, string search, string? receiptId)
+    static string BuildPurchaseInvoicesSql(DbCommand cmd, DateOnly from, DateOnly to, int skip, int take, string search, string? receiptId, bool unpaged = false)
     {
         var parts = new List<string> { "ISNULL(pr.[IsDeleted],0)=0" };
         if (receiptId is { Length: > 0 })
@@ -339,8 +339,13 @@ public static partial class OperationsLiveQuery
             parts.Add("(pr.[ReceiptNumber] LIKE @q OR pr.[SupplierInvoiceNumber] LIKE @q OR sp.[LegalNameAr] LIKE @q)");
         }
         string where = " WHERE " + string.Join(" AND ", parts);
-        Add(cmd, "@skip", skip);
-        Add(cmd, "@take", take);
+        string pageSql = "";
+        if (!unpaged)
+        {
+            Add(cmd, "@skip", skip);
+            Add(cmd, "@take", take);
+            pageSql = "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        }
         return $"""
             WITH filtered AS (
                 SELECT pr.[Id], pr.[ReceiptNumber], pr.[SupplierInvoiceNumber], pr.[InvoiceDate], pr.[ReceivedAtUtc],
@@ -354,13 +359,12 @@ public static partial class OperationsLiveQuery
             SELECT f.*, a.TotalCount, a.TotalAmountSum
             FROM filtered f CROSS JOIN agg a
             ORDER BY COALESCE(CONVERT(date, SWITCHOFFSET(f.ReceivedAtUtc, '+03:00')), CONVERT(date, f.InvoiceDate)) DESC,
-                     f.InvoiceDate DESC, f.ReceiptNumber DESC
-            OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY
+                     f.InvoiceDate DESC, f.ReceiptNumber DESC{pageSql}
             """;
     }
 
     public static PageResult PurchaseInvoices(DbConnection source, DateOnly from, DateOnly to, int page, int pageSize,
-        string search, LiveOperationsQuery.Scope scope, string? receiptId, CancellationToken ct = default)
+        string search, LiveOperationsQuery.Scope scope, string? receiptId, CancellationToken ct = default, bool unpaged = false)
     {
         EnsureSql(source);
         if (receiptId is not { Length: > 0 } && to < from) throw new ImportFailure("invalid_period");
@@ -370,7 +374,7 @@ public static partial class OperationsLiveQuery
         try
         {
             using var cmd = source.CreateCommand();
-            cmd.CommandTimeout = CommandTimeoutSeconds;
+            cmd.CommandTimeout = unpaged ? ExportCommandTimeoutSeconds : CommandTimeoutSeconds;
             using var cancel = SyncCancellation.Register(cmd, ct);
             // Purchases have no company column — company-scoped users get empty list / 404 on detail.
             if (!scope.AllCompanies)
@@ -378,7 +382,7 @@ public static partial class OperationsLiveQuery
                 if (receiptId is { Length: > 0 }) throw new ImportFailure("purchase_not_found");
                 return new([], 0, new JsonObject { ["invoicesTotal"] = 0, ["totalAmount"] = 0, ["message"] = "فواتير المشتريات بلا عمود شركة — مخفية لنطاق شركة" }, DateTimeOffset.UtcNow);
             }
-            cmd.CommandText = BuildPurchaseInvoicesSql(cmd, from, to, skip, pageSize, search, receiptId);
+            cmd.CommandText = BuildPurchaseInvoicesSql(cmd, from, to, skip, pageSize, search, receiptId, unpaged);
             long total = 0;
             decimal totalAmount = 0;
             var items = new List<JsonObject>();

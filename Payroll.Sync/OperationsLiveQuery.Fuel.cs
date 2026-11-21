@@ -83,7 +83,7 @@ public static partial class OperationsLiveQuery
     }
 
     public static PageResult FuelAssignments(DbConnection source, DateOnly from, DateOnly to, int page, int pageSize,
-        LiveOperationsQuery.Scope scope, CancellationToken ct = default)
+        LiveOperationsQuery.Scope scope, CancellationToken ct = default, bool unpaged = false, string search = "")
     {
         EnsureSql(source);
         if (to < from) throw new ImportFailure("invalid_period");
@@ -91,13 +91,24 @@ public static partial class OperationsLiveQuery
         page = Math.Max(1, page);
         int skip = checked((page - 1) * pageSize);
         using var cmd = source.CreateCommand();
-        cmd.CommandTimeout = CommandTimeoutSeconds;
+        cmd.CommandTimeout = unpaged ? ExportCommandTimeoutSeconds : CommandTimeoutSeconds;
         using var cancel = SyncCancellation.Register(cmd, ct);
         Add(cmd, "@from", from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         Add(cmd, "@to", to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         string scopeSql = ScopeSponsor(scope, cmd, "s");
-        Add(cmd, "@skip", skip);
-        Add(cmd, "@take", pageSize);
+        string searchPred = "";
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            Add(cmd, "@q", "%" + EscapeLike(search.Trim()) + "%");
+            searchPred = " AND (fc.[CardNumber] LIKE @q OR fc.[PlateNumberText] LIKE @q OR fc.[Notes] LIKE @q OR e.[FullNameAr] LIKE @q OR e.[IqamaNo] LIKE @q)";
+        }
+        string pageSql = "";
+        if (!unpaged)
+        {
+            Add(cmd, "@skip", skip);
+            Add(cmd, "@take", pageSize);
+            pageSql = "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        }
         cmd.CommandText = $"""
             WITH filtered AS (
                 SELECT a.[Id], a.[EffectiveFrom], a.[EffectiveTo], a.[AssignmentReason], a.[EndReason],
@@ -109,13 +120,12 @@ public static partial class OperationsLiveQuery
                 LEFT JOIN [app].[Employees] e ON e.[Id]=a.[EmployeeId] AND e.[IsDeleted]=0
                 WHERE CONVERT(date, a.[EffectiveFrom]) <= CONVERT(date, @to)
                   AND (a.[EffectiveTo] IS NULL OR CONVERT(date, a.[EffectiveTo]) >= CONVERT(date, @from))
-                  {scopeSql}
+                  {scopeSql}{searchPred}
             ),
             agg AS (SELECT COUNT_BIG(*) AS TotalCount FROM filtered)
             SELECT f.*, a.TotalCount
             FROM filtered f CROSS JOIN agg a
-            ORDER BY f.EffectiveFrom DESC
-            OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY
+            ORDER BY f.EffectiveFrom DESC{pageSql}
             """;
         long total = 0;
         var items = new List<JsonObject>();
