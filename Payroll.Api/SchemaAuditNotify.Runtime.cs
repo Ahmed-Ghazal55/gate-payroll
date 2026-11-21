@@ -98,6 +98,7 @@ public static partial class SchemaAuditNotify
             }
         }
         // Union legacy document audits so history never disappears when reading new tables.
+        // When dual-written (change_log stub + full records body), prefer the full body so evidence stays whole.
         using(var legacy=Store.Command(c,tx,c is Microsoft.Data.Sqlite.SqliteConnection
             ?"SELECT body FROM records WHERE kind=@kind ORDER BY rowid DESC"
             :"SELECT body FROM records WHERE kind=@kind ORDER BY COALESCE(JSON_VALUE(body,'$.occurredAt'),JSON_VALUE(body,'$.at'),'') DESC,id DESC",
@@ -108,7 +109,13 @@ public static partial class SchemaAuditNotify
             {
                 var row=JsonNode.Parse(lr.GetString(0))!.AsObject();
                 string id=row.S("id");
-                if(id!=""&&!seen.Add(id))continue;
+                if(id!=""&&seen.Contains(id))
+                {
+                    int idx=rows.FindIndex(a=>string.Equals(a.S("id"),id,StringComparison.OrdinalIgnoreCase));
+                    if(idx>=0)rows[idx]=row;
+                    continue;
+                }
+                if(id!="")seen.Add(id);
                 rows.Add(row);
             }
         }
@@ -135,7 +142,7 @@ public static partial class SchemaAuditNotify
         if(shortLabel.Length==0)shortLabel=AuditApi.LabelAr(action);
         if(shortLabel.Length>400)shortLabel=shortLabel[..400];
         var evidence=new JsonObject();
-        foreach(string key in new[]{"reason","selfApprovedException","grantId","recordId","entityRef","entityId","entity","companyId","badge","operation","maker","approvalBypassUntil","approvalExceptionUntil","note","added","removed"})
+        foreach(string key in new[]{"reason","selfApprovedException","grantId","recordId","entityRef","entityId","entity","companyId","badge","operation","maker","approvalBypassUntil","approvalExceptionUntil","note","added","removed","counts","from","to","change","rowCount","editedRowCount","total","doNotSend","doNotSendMark"})
             if(row[key]!=null)evidence[key]=row[key]!.DeepClone();
         var stored=new JsonObject
         {
@@ -164,20 +171,19 @@ public static partial class SchemaAuditNotify
         }
         string sqlId=Guid.TryParse(row.S("id"),out var gid)?SchemaSql.GuidText(gid):SchemaSql.GuidText(SchemaSql.NewId());
         row["id"]=sqlId;
-        if(diff.Length>400)
+        // Always keep the caller document whole in records (evidence + export metadata).
+        // change_log.diff_short stays a short label/bag; ListChanges prefers the full body when both exist.
+        using(var full=Store.Command(c,tx,"UPDATE records SET body=@body WHERE id=@id AND kind=@kind",
+            ("@id",sqlId),("@kind","audit"),("@body",row.ToJsonString())))
         {
-            // Keep mandatory evidence by dual-writing the full document into legacy records,
-            // and store only the short label in change_log.diff_short.
-            using var full=Store.Command(c,tx,"UPDATE records SET body=@body WHERE id=@id AND kind=@kind",
-                ("@id",sqlId),("@kind","audit"),("@body",row.ToJsonString()));
             if(full.ExecuteNonQuery()==0)
             {
                 using var insert=Store.Command(c,tx,"INSERT INTO records(id,kind,body) VALUES(@id,@kind,@body)",
                     ("@id",sqlId),("@kind","audit"),("@body",row.ToJsonString()));
                 insert.ExecuteNonQuery();
             }
-            diff=shortLabel;
         }
+        if(diff.Length>400)diff=shortLabel;
         string source=MapSource(row.S("source"));
         string actor=row.S("actor");
         object userId=DBNull.Value;
@@ -411,15 +417,6 @@ public static partial class SchemaAuditNotify
                 ["at"]=r["created_at"]?.ToString()??""
             });
         return arr;
-    }
-
-    static string FirstCommentBody(DbConnection c,DbTransaction? tx,string taskId)
-    {
-        if(!SchemaSql.TableExists(c,tx,"task","comment"))return "";
-        object? body=SchemaSql.Scalar(c,tx,$"""
-            SELECT body_ar FROM {SchemaSql.Q(c,"task","comment")} WHERE task_id=@t ORDER BY created_at
-            """,("@t",taskId));
-        return body is null or DBNull?"":Convert.ToString(body,CultureInfo.InvariantCulture)!;
     }
 
     static JsonArray ListComments(DbConnection c,DbTransaction? tx,string taskId)
