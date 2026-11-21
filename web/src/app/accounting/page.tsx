@@ -39,6 +39,7 @@ import { api } from '../../lib/api';
 import { formatSar } from '../../lib/money';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
 import { AccountingAdjustmentsPanel } from '../../features/accounting/AccountingAdjustmentsPanel';
+import { paginateFilteredRows } from '../../features/accounting/trial-balance-paging';
 import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
 import { canShowImportStep, TREASURY_OPENING_IMPORT } from '../../features/imports/import-steps';
 import type {
@@ -1516,14 +1517,6 @@ function TrialBalanceTable({
     });
   }, [rows, hideZeroRows]);
 
-  const totalPages = Math.max(1, Math.ceil(baseRows.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-
-  const pageRows = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return baseRows.slice(start, start + pageSize);
-  }, [baseRows, safePage, pageSize]);
-
   const trialCols = useMemo(
     () => [
       { key: 'code', header: 'رمز الحساب', type: 'list' as const, getValue: (r: TrialBalanceCompanyRow) => r.code || '' },
@@ -1537,7 +1530,17 @@ function TrialBalanceTable({
     ],
     []
   );
-  const tf = useTableAutoFilter<TrialBalanceCompanyRow>(pageRows, trialCols);
+  const tf = useTableAutoFilter<TrialBalanceCompanyRow>(baseRows, trialCols);
+
+  useEffect(() => {
+    setPage(1);
+  }, [tf.filters, tf.sortKey, tf.sortDir, hideZeroRows]);
+
+  const paging = useMemo(
+    () => paginateFilteredRows(tf.rows, page, pageSize),
+    [tf.rows, page, pageSize]
+  );
+  const { totalPages, safePage, pageRows } = paging;
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
@@ -1581,11 +1584,11 @@ function TrialBalanceTable({
         {onExport ? (
           <button
             type="button"
-            onClick={() => onExport(tf.rows)}
+            onClick={() => onExport(paging.exportRows)}
             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition shrink-0"
           >
             <Download size={14} />
-            <span>تصدير إكسل ({tf.rows.length})</span>
+            <span>تصدير إكسل ({paging.exportRows.length})</span>
           </button>
         ) : null}
       </div>
@@ -1603,7 +1606,7 @@ function TrialBalanceTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--line)]">
-          {tf.rows.map((row) => {
+          {pageRows.map((row) => {
             const isGroup = !row.posting;
             return (
               <tr
