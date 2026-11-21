@@ -128,6 +128,7 @@ public static partial class Debts
     }
     public static void Map(RouteGroupBuilder api, Store store)
     {
+        MapW2(api,store);
         api.MapGet("/debts", (string? sponsorId, string? category, string? status, string? iqama,HttpContext ctx) => store.Read(c =>
         {
             var list = Store.List(c, "debt").Where(d=>FinancialScopes.Debt(ctx.User,d)).ToList();

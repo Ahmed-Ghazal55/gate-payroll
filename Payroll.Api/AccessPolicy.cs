@@ -81,15 +81,23 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/debts",StringComparison.Ordinal))
         {
             if(path.Contains("/reconcile-opening/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
+            if(path=="/api/debts/print"||path=="/api/debts/ageing")return method=="GET"&&Has(path.EndsWith("/print",StringComparison.Ordinal)?"debts.statement.print":"debts.view");
+            if(path=="/api/debts/import/template")return method=="GET"&&(Has("debts.import_opening")||Has("debts.create.administrative")||Has("debts.create.advance"));
             if(method=="GET")return Has("debts.view");
             if(path=="/api/debts")return method=="POST"&&Has(input==null?"invalid.permission":CategoryPermission(input.S("category")));
+            if(path=="/api/debts/disburse")return method=="POST"&&Has("debts.create.advance");
             // Opening balances post against equity: commit needs the treasury opening permission too.
             if(path.StartsWith("/api/debts/import-opening/",StringComparison.Ordinal))return method=="POST"&&Has("debts.import_opening")&&(!path.EndsWith("/commit",StringComparison.Ordinal)||Has("treasury.opening"));
+            if(path.StartsWith("/api/debts/import/reduce/",StringComparison.Ordinal))return method=="POST"&&Has("debts.create.administrative");
             if(path.StartsWith("/api/debts/bulk-collect/",StringComparison.Ordinal))return method=="POST"&&Has("debts.collect");
-            if(path.EndsWith("/collect",StringComparison.Ordinal))return method=="POST"&&Has("debts.collect")&&((input?.N("waivedAmount")??0)==0||Has("debts.waive"));
+            if(path.EndsWith("/collect",StringComparison.Ordinal)||path.EndsWith("/collect-ledger",StringComparison.Ordinal))return method=="POST"&&Has("debts.collect")&&((input?.N("waivedAmount")??0)==0||Has("debts.waive"));
+            if(path.EndsWith("/waive",StringComparison.Ordinal)||path.EndsWith("/absorb",StringComparison.Ordinal))return method=="POST"&&Has("debts.waive");
+            if(path.EndsWith("/reschedule",StringComparison.Ordinal))return method=="POST"&&Has("debts.reschedule");
             if(path.EndsWith("/transfer-sponsor",StringComparison.Ordinal))return method=="POST"&&Has("debts.transfer_sponsor");
             return method=="PUT"&&Has("debts.reschedule");
         }
+        if(path.StartsWith("/api/promissory-notes/",StringComparison.Ordinal)&&path.EndsWith("/link-debt",StringComparison.Ordinal))
+            return method=="POST"&&(Has("debts.create.administrative")||Has("debts.create.advance")||Has("debts.create.hr"));
         if(path=="/api/finance/mada/balance")return method=="GET"&&(Has("advances.payout")||Has("treasury.view"));
         if(path=="/api/finance/accounting-adjustments"||path.StartsWith("/api/finance/accounting-adjustments/",StringComparison.Ordinal))return method=="GET"?Has("finance.journal.create"):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
         if(path=="/api/finance/journals/manual"||path.StartsWith("/api/finance/journals/manual/",StringComparison.Ordinal))
@@ -144,7 +152,8 @@ public static partial class AccessPolicy
             return Has("mobile.sessions")&&(method=="GET"&&path=="/api/rider-mobile/sessions"||method=="POST"&&(path=="/api/rider-mobile/sessions/revoke-all"||path.EndsWith("/revoke",StringComparison.Ordinal)));
         if(path.StartsWith("/api/rider-mobile/firebase-config",StringComparison.Ordinal))return false;
         if(path.StartsWith("/api/rider-mobile/",StringComparison.Ordinal))return method=="GET"?Has("mobile.broadcast"):method=="POST"&&path=="/api/rider-mobile/broadcast"&&Has("mobile.broadcast");
-        if(path.StartsWith("/api/promissory-notes",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
+        if(path.StartsWith("/api/promissory-notes",StringComparison.Ordinal))
+            return (method=="GET"&&Has("debts.view"))||(method=="POST"&&(Has("debts.create.administrative")||Has("debts.create.advance")||Has("debts.create.hr")));
         if(path.StartsWith("/api/payroll",StringComparison.Ordinal))return method=="GET"?Has("payroll.view"):method=="POST"&&path=="/api/payroll/approve"&&Has("payroll.approve");
         if(path.StartsWith("/api/ledger",StringComparison.Ordinal))return method=="GET"&&Has("payroll.view");
         if(path=="/api/payments")return method=="POST"&&Has("payments.record");

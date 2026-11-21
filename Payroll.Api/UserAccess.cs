@@ -54,7 +54,8 @@ public static class UserAccess
         new("debts.create.platform", "Debts", "نظام المديونيات والاستقطاعات", "إثبات مديونيات كاش المنصات المرحلة (جاهز)", "تسجيل مديونيات كاش تطبيق جاهز والمنصات المرحلة على المناديب."),
         new("debts.reschedule", "Debts", "نظام المديونيات والاستقطاعات", "إعادة جدولة الأقساط وتعديل حالة المديونية", "تعديل قيمة القسط الشهري أو إيقاف/تفعيل الاستقطاع بعد مراجعة الاتفاق."),
         new("debts.collect", "Debts", "نظام المديونيات والاستقطاعات", "تحصيل وسداد المديونيات (مفرد ومجمع)", "قبض المديونيات نقداً أو بنكياً وإصدار سندات التحصيل ورفع شيت التحصيل المجمع."),
-        new("debts.waive", "Debts", "نظام المديونيات والاستقطاعات", "منح إعفاء وتسوية إدارية للمديونية", "اعتماد خصم أو إعفاء إداري كلي/جزئي وترحيله لحساب مصروف الإعفاءات (5202)."),
+        new("debts.waive", "Debts", "نظام المديونيات والاستقطاعات", "منح إعفاء وتسوية إدارية للمديونية", "اعتماد خصم أو إعفاء إداري كلي/جزئي وترحيله لحساب مصروف الإعفاءات (526601–526806 / 526602–526603)."),
+        new("debts.statement.print", "Debts", "نظام المديونيات والاستقطاعات", "طباعة سجل وكشف المديونيات", "طباعة قائمة المديونيات وسجل المندوب للطباعة."),
         new("debts.transfer_sponsor", "Debts", "نظام المديونيات والاستقطاعات", "شراء ونقل المديونية بين السجلات التجارية", "ترحيل ملكية المديونية مالياً بين البوابا وإكسبرس والتجارية عبر حساب جاري السجلات الشقيقة (1310)."),
         new("debts.import_opening", "Debts", "نظام المديونيات والاستقطاعات", "رفع واعتماد أرصدة أول المدة للمديونيات", "معاينة وترحيل شيت أرصدة أول المدة للمديونيات مقابل حساب (3101)."),
 
@@ -120,7 +121,7 @@ public static class UserAccess
                 "pay.view", "pay.manage", "platforms.hs.view", "platforms.hs.manage",
                 "operations.view", "riders.view", "riders.view_360",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
-                "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
+                "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening", "debts.statement.print",
                 "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
                 "approvals.view", "mobile.broadcast", "payroll.view"
             ]),
@@ -131,7 +132,7 @@ public static class UserAccess
                 "pay.view", "pay.manage", "platforms.hs.view", "platforms.hs.manage", "platforms.hs.approve", "pay.approve",
                 "operations.view", "riders.view", "riders.view_360",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
-                "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
+                "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening", "debts.statement.print",
                 "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
                 "approvals.view", "approvals.decide", "mobile.broadcast", "payroll.view"
             ]),
