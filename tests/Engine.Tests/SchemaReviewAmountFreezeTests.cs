@@ -20,5 +20,8 @@ public sealed class SchemaReviewAmountFreezeTests
         string extra=MoneySchemaFixture.Id();
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO sal_pay_run_item(id,period_month,pay_run_rider_id,line_no,stage_code,item_code,amount,affects_net,account_code) VALUES(@id,'2026-11-01',@r,2,'adjustment','adj',1,1,@a)",("@id",extra),("@r",rider),("@a",account)),"TR_item_amounts_frozen");
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE pay_payable SET amount_due=90 WHERE id=@id",("@id",due)),"TR_payable_due_frozen");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET salary_approved_at=NULL WHERE id=@id",("@id",rider)),"TR_rider_approval_frozen");
+        string open=MoneySchemaFixture.Rider(c,run,company,MoneySchemaFixture.Payable(c,company),100);
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_item SET pay_run_rider_id=@open WHERE id=@id",("@id",item),("@open",open)),"TR_item_amounts_frozen");
     }
 }

@@ -125,16 +125,20 @@ public static class SchemaSalPayRun
         EnsureHoldBlocksBank(c,tx);
     }
 
-    /// <summary>After salary approval, rider money figures and their items are fixed; linked payable.amount_due follows.</summary>
+    /// <summary>After salary approval, rider money figures and their items are fixed; linked payable.amount_due follows.
+    /// Approval evidence itself cannot be cleared; item moves check both the original and the destination rider.</summary>
     static void EnsureApprovedAmounts(DbConnection c,DbTransaction? tx)
     {
         string rider=SchemaSql.Q(c,"sal","pay_run_rider"),item=SchemaSql.Q(c,"sal","pay_run_item"),payable=SchemaSql.Q(c,"pay","payable");
-        string approved(string alias)=>SchemaSql.IsSql(c)?$"{alias}.salary_approved_at IS NOT NULL":$"{alias}.salary_approved_at IS NOT NULL";
+        string approved(string alias)=>$"{alias}.salary_approved_at IS NOT NULL";
         SchemaMoneyGuard.Rule(c,tx,"sal","pay_run_rider","TR_rider_amounts_frozen",_=>"1=0",
             (o,n)=>$"{approved(o)} AND ({n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"salary_net","gross","commission","old_debt_instalment")}))");
+        // Once set, salary_approved_at is evidence: clearing or rewriting it must not reopen money edits.
+        SchemaMoneyGuard.Rule(c,tx,"sal","pay_run_rider","TR_rider_approval_frozen",_=>"1=0",
+            (o,n)=>$"{approved(o)} AND ({n}.id IS NULL OR NOT ({approved(n)}) OR ({SchemaMoneyGuard.Changed(c,n,o,"salary_approved_at")}))");
         SchemaMoneyGuard.Rule(c,tx,"sal","pay_run_item","TR_item_amounts_frozen",
             n=>$"EXISTS(SELECT 1 FROM {rider} r WHERE r.id={n}.pay_run_rider_id AND {approved("r")})",
-            (o,n)=>$"{n}.id IS NULL OR EXISTS(SELECT 1 FROM {rider} r WHERE r.id=COALESCE({n}.pay_run_rider_id,{o}.pay_run_rider_id) AND {approved("r")})");
+            (o,n)=>$"{n}.id IS NULL OR EXISTS(SELECT 1 FROM {rider} r WHERE r.id={o}.pay_run_rider_id AND {approved("r")}) OR ({n}.pay_run_rider_id IS NOT NULL AND EXISTS(SELECT 1 FROM {rider} r WHERE r.id={n}.pay_run_rider_id AND {approved("r")}))");
         SchemaMoneyGuard.Rule(c,tx,"pay","payable","TR_payable_due_frozen",_=>"1=0",
             (o,n)=>$"({SchemaMoneyGuard.Changed(c,n,o,"amount_due")}) AND EXISTS(SELECT 1 FROM {rider} r WHERE r.payable_id={o}.id AND {approved("r")})");
     }
