@@ -163,7 +163,9 @@ public static class TableFilterContract
         (query.ContainsKey("filters") && !string.IsNullOrWhiteSpace(query["filters"].ToString())) ||
         (query.ContainsKey("sort") && query["sort"].ToString().TrimStart().StartsWith('['));
 
-    public static bool HasContractParams(IQueryCollection query) => HasJsonContractParams(query);
+    public static bool HasContractParams(IQueryCollection query) =>
+        (query.ContainsKey("filters") && !string.IsNullOrWhiteSpace(query["filters"].ToString())) ||
+        (query.ContainsKey("sort") && !string.IsNullOrWhiteSpace(query["sort"].ToString()));
 
     public static IReadOnlyList<FilterClause> ParseFilters(
         IQueryCollection query,

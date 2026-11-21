@@ -65,7 +65,7 @@ public static partial class Debts
     public static object ListPaged(DbConnection c, ClaimsPrincipal actor, IQueryCollection query)
     {
         // Validate generic filter/sort contract against whitelist when contract params (filters / JSON sort) are present
-        if (TableFilterContract.HasContractParams(query))
+        if (TableFilterContract.HasJsonContractParams(query))
         {
             _ = TableFilterContract.ParseFilters(query, AllowedDebtColumns, DebtColumnAliases);
             _ = TableFilterContract.ParseSort(query, AllowedDebtColumns, DebtColumnAliases);
@@ -81,7 +81,7 @@ public static partial class Debts
         }
         var (where, parms) = BuildWhere(c, actor, filter);
 
-        if (TableFilterContract.HasContractParams(query))
+        if (TableFilterContract.HasJsonContractParams(query))
         {
             var allViews = ReadBodies(c, where, parms, OrderBy(c, ""), null, null)
                 .Select(d => View(c, null, actor, d))
@@ -142,7 +142,7 @@ public static partial class Debts
         };
         var (where, parms) = BuildWhere(c, actor, filter);
 
-        if (TableFilterContract.HasContractParams(query) || !DistinctColumnMap.TryGetValue(rawCol, out string? field))
+        if (TableFilterContract.HasJsonContractParams(query) || !DistinctColumnMap.TryGetValue(rawCol, out string? field))
         {
             var allViews = ReadBodies(c, where, parms, OrderBy(c, ""), null, null)
                 .Select(d => View(c, null, actor, d));
