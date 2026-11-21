@@ -16,6 +16,7 @@ import {
   Eye,
   EyeOff,
   Sparkles,
+  Upload,
   Users,
   BarChart3,
   Layers,
@@ -1078,16 +1079,29 @@ function CompaniesPageContent() {
         eyebrow="الكيانات القانونية والشهادات الرسمية"
         description="إدارة الكيانات القانونية والسجلات والشهادات الصادرة من وزارة التجارة وتنبيهات التأكيد السنوي وإحصائيات الكفالات وحسابات المنصات."
         primaryAction={
-          isAdmin && canShowImportStep(COMPANIES_IMPORT, { isAdmin, can })
+          canShowImportStep(COMPANIES_IMPORT, { isAdmin, can })
             ? {
-                label: 'استيراد بيانات الشركات',
+                label: 'استيراد الشركات',
                 testId: 'import-companies',
                 onClick: () => {
-                  setImportModalOpen(true);
-                  handleRunImportPreview();
+                  setFileImportOpen(true);
                 },
-                icon: <Sparkles size={16} />,
+                icon: <Upload size={16} />,
               }
+            : undefined
+        }
+        moreActions={
+          isAdmin
+            ? [
+                {
+                  label: 'خطة شهادات الوزارة الرسمية',
+                  onClick: () => {
+                    setImportModalOpen(true);
+                    void handleRunImportPreview();
+                  },
+                  icon: <Sparkles size={16} />,
+                },
+              ]
             : undefined
         }
       >

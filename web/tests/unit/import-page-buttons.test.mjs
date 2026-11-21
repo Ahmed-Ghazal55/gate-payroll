@@ -70,6 +70,19 @@ test('data pages expose import buttons gated by permission helpers', () => {
   }
 });
 
+test('companies import-companies primary opens file ImportUploadDialog', () => {
+  const page = read('src/app/companies/page.tsx');
+  assert.match(page, /label:\s*'استيراد الشركات'/);
+  assert.match(page, /testId:\s*'import-companies'/);
+  // Primary action must open the Excel file dialog, not the built-in official plan.
+  assert.match(
+    page,
+    /testId:\s*'import-companies'[\s\S]*?onClick:\s*\(\)\s*=>\s*\{\s*setFileImportOpen\(true\)/
+  );
+  assert.match(page, /moreActions[\s\S]*خطة شهادات الوزارة الرسمية/);
+  assert.match(page, /setImportModalOpen\(true\)/);
+});
+
 test('workforce page has no riders-file upload (people data is live from ERP, Ghazal 2026-11-21)', () => {
   const page = read('src/app/workforce/page.tsx');
   assert.doesNotMatch(page, /import-riders/);
