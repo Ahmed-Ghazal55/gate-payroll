@@ -36,8 +36,30 @@ public sealed class SalDebtConfirmApproveTests
         SchemaSalInvoice.Ensure(c);SchemaSalDistribution.Ensure(c);SchemaSalPayRun.Ensure(c);
         SchemaHrMudad.Ensure(c);SchemaSalMudad.Ensure(c);SchemaDebt.Ensure(c);
         SchemaOperationCapture.Ensure(c);SchemaSalStatement.Ensure(c);
-        SchemaFinPeriodBalance.Ensure(c);SchemaAuthCatalog.Ensure(c);SchemaApprovals.Ensure(c);
+        SchemaFinPeriodBalance.Ensure(c);
         return c;
+    }
+
+    static string FrozenRun(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,ClaimsPrincipal actor,string company,string app="ninja")
+    {
+        // Same capture seed as SalPayCalcTests (SQL Server guid columns require Guid-shaped erp_row_id).
+        string run=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,tx,"INSERT INTO sal_pay_run(id,company_id,app_code,period_month) VALUES(@id,@c,@app,'2026-10-01')",("@id",run),("@c",company),("@app",app));
+        var facts=new FakeOpsLiveFactsReader();
+        foreach(string kind in new[]{"ninja_daily","ninja_daily_deduction","platform_account","assignment","housing","fuel","vehicle","scheme","eligibility",
+            "keeta_invoice_row","hs_ops","hs_wallet","platform_ops"})
+            facts.Rows[kind]=[];
+        string primary=app switch{"ninja"=>"ninja_daily","keeta"=>"keeta_invoice_row","hs"=>"hs_ops","amazon"=>"platform_ops",_=>"assignment"};
+        string account=MoneySchemaFixture.Id(),rider=MoneySchemaFixture.Id();
+        facts.Rows[primary]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["riderProfileId"]=rider,["orders"]=1,["reportDate"]="2026-10-01"}];
+        if(app=="ninja")facts.Rows["ninja_daily_deduction"]=[];
+        facts.Rows["platform_account"]=[new(){["id"]=account,["externalAccountId"]="A1",["code"]="A1"}];
+        facts.Rows["assignment"]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["actualRiderProfileId"]=rider,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-31"}];
+        var reasons=new Dictionary<string,string>(StringComparer.Ordinal);
+        foreach(var kv in facts.Rows)if(kv.Value.Count==0)reasons[kv.Key]="none";
+        OpsSnapshotCapture.Capture(c,tx,actor,run,facts,reasons);
+        OpsSnapshotCapture.Freeze(c,tx,actor,run);
+        return run;
     }
 
     static (string run,string riderId,string erp,string company) SeedCalc(
@@ -46,20 +68,7 @@ public sealed class SalDebtConfirmApproveTests
     {
         string period=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,tx,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) SELECT @id,@c,'2026-10-01',1,datetime('now') WHERE NOT EXISTS(SELECT 1 FROM fin_accounting_period WHERE company_id=@c AND period_month='2026-10-01')",("@id",period),("@c",company));
-        string run=MoneySchemaFixture.Id();
-        MoneySchemaFixture.Exec(c,tx,"INSERT INTO sal_pay_run(id,company_id,app_code,period_month) VALUES(@id,@c,@app,'2026-10-01')",("@id",run),("@c",company),("@app",app));
-        var facts=new FakeOpsLiveFactsReader();
-        foreach(string kind in new[]{"ninja_daily","ninja_daily_deduction","platform_account","assignment","housing","fuel","vehicle","scheme","eligibility",
-            "keeta_invoice_row","hs_ops","hs_wallet","platform_ops"})
-            facts.Rows[kind]=[];
-        string primary=app switch{"ninja"=>"ninja_daily","keeta"=>"keeta_invoice_row","hs"=>"hs_ops",_=>"assignment"};
-        facts.Rows[primary]=[new(){["id"]=MoneySchemaFixture.Id(),["reportDate"]="2026-10-01",["platformRiderAccountId"]=MoneySchemaFixture.Id(),["riderProfileId"]=MoneySchemaFixture.Id(),["orders"]=1}];
-        facts.Rows["platform_account"]=[new(){["id"]=MoneySchemaFixture.Id(),["externalAccountId"]="A"}];
-        facts.Rows["assignment"]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=MoneySchemaFixture.Id(),["actualRiderProfileId"]=MoneySchemaFixture.Id(),["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-31"}];
-        var reasons=new Dictionary<string,string>(StringComparer.Ordinal);
-        foreach(var kv in facts.Rows)if(kv.Value.Count==0)reasons[kv.Key]="none";
-        OpsSnapshotCapture.Capture(c,tx,actor,run,facts,reasons);
-        OpsSnapshotCapture.Freeze(c,tx,actor,run);
+        string run=FrozenRun(c,tx,actor,company,app);
         string erp=MoneySchemaFixture.Id();
         var calc=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
         {
@@ -91,7 +100,7 @@ public sealed class SalDebtConfirmApproveTests
     {
         using var c=Open(sqlServer);
         string company=MoneySchemaFixture.Company(c);
-        var maker=Actor("maker-"+MoneySchemaFixture.Id(),"pay.manage","pay.approve");
+        var maker=Actor(MoneySchemaFixture.Id(),"pay.manage","pay.approve");
         using var tx=c.BeginTransaction();
         var (run,riderId,erp,_)=SeedCalc(c,tx,maker,company,gross:400,instalment:100);
 
@@ -133,8 +142,8 @@ public sealed class SalDebtConfirmApproveTests
     {
         using var c=Open(sqlServer);
         string company=MoneySchemaFixture.Company(c);
-        var maker=Actor("maker-"+MoneySchemaFixture.Id(),"pay.manage","pay.approve");
-        var checker=Actor("checker-"+MoneySchemaFixture.Id(),"pay.manage","pay.approve");
+        var maker=Actor(MoneySchemaFixture.Id(),"pay.manage","pay.approve");
+        var checker=Actor(MoneySchemaFixture.Id(),"pay.manage","pay.approve");
         using var tx=c.BeginTransaction();
         var (run,riderId,_,_)=SeedCalc(c,tx,maker,company,gross:200,instalment:0);
 
@@ -185,8 +194,9 @@ public sealed class SalDebtConfirmApproveTests
     public void Bypass_M0677_AllowsSameUserApprove()
     {
         using var c=Open(false);
+        SchemaAuthCatalog.Ensure(c);SchemaApprovals.Ensure(c);
         string company=MoneySchemaFixture.Company(c);
-        string user="bypass-"+MoneySchemaFixture.Id();
+        string user=MoneySchemaFixture.Id();
         var actor=Actor(user,"pay.manage","pay.approve");
         using var tx=c.BeginTransaction();
         Store.Save(c,"user",new(){["id"]=MoneySchemaFixture.Id(),["username"]=user,["role"]="FinancialAccountant"},tx);
@@ -200,7 +210,7 @@ public sealed class SalDebtConfirmApproveTests
             ["payRunRiderIds"]=new JsonArray(riderId)
         })).Status);
 
-        AccessPolicy.GrantBypass(c,tx,Admin("admin-"+MoneySchemaFixture.Id()),new JsonObject
+        AccessPolicy.GrantBypass(c,tx,Admin(MoneySchemaFixture.Id()),new JsonObject
         {
             ["username"]=user,["from"]="2026-01-01",["to"]="2026-12-31",
             ["scope"]=AccessPolicy.ScopePayApprovals,["reason"]="Ninja October parallel run"
