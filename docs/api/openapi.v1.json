@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:41281/"
+      "url": "http://127.0.0.1:41599/"
     }
   ],
   "paths": {
@@ -32458,7 +32458,7 @@
         "tags": [
           "Accounting and reports"
         ],
-        "summary": "Draft a structured Mada top-up, salary correction or initial administrative charge",
+        "summary": "Gone: structured adjustments moved to Payments / pay items / HR requests",
         "requestBody": {
           "content": {
             "application/json": {
@@ -32471,14 +32471,7 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       },
@@ -32486,15 +32479,10 @@
         "tags": [
           "Accounting and reports"
         ],
-        "summary": "List scoped structured financial adjustments",
+        "summary": "Gone: structured adjustments list retired",
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
+            "description": "OK"
           }
         }
       }
@@ -32504,7 +32492,7 @@
         "tags": [
           "Accounting and reports"
         ],
-        "summary": "Independently approve a structured financial operation after balance and period checks",
+        "summary": "Gone: structured adjustment approval retired",
         "parameters": [
           {
             "name": "id",
@@ -32517,14 +32505,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
@@ -32534,7 +32515,7 @@
         "tags": [
           "Banks and treasury"
         ],
-        "summary": "Read company-specific Mada recharge balance without exposing other vaults",
+        "summary": "Gone: Mada balance now under Payments Mada wallets",
         "parameters": [
           {
             "name": "companyId",
@@ -32547,14 +32528,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfdecimal"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
@@ -32835,7 +32809,7 @@
         "tags": [
           "Banks and treasury"
         ],
-        "summary": "Submit finance legacy cash allocation preview",
+        "summary": "Gone: legacy cash allocation retired",
         "requestBody": {
           "content": {
             "application/json": {
@@ -32848,14 +32822,7 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfJsonArrayAndstring"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
@@ -32865,7 +32832,7 @@
         "tags": [
           "Banks and treasury"
         ],
-        "summary": "Submit finance legacy cash allocation commit",
+        "summary": "Gone: legacy cash allocation retired",
         "requestBody": {
           "content": {
             "application/json": {
@@ -32878,14 +32845,7 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
@@ -34250,7 +34210,7 @@
         "tags": [
           "Payroll"
         ],
-        "summary": "Submit payments",
+        "summary": "Legacy payments route disabled",
         "requestBody": {
           "content": {
             "application/json": {
@@ -35580,22 +35540,6 @@
               "null",
               "string"
             ]
-          }
-        }
-      },
-      "AnonymousTypeOfdecimal": {
-        "required": [
-          "balance"
-        ],
-        "type": "object",
-        "properties": {
-          "balance": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
           }
         }
       },

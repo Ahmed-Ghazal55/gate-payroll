@@ -20110,7 +20110,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List scoped structured financial adjustments */
+        /** Gone: structured adjustments list retired */
         get: {
             parameters: {
                 query?: never;
@@ -20125,14 +20125,12 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
             };
         };
         put?: never;
-        /** Draft a structured Mada top-up, salary correction or initial administrative charge */
+        /** Gone: structured adjustments moved to Payments / pay items / HR requests */
         post: {
             parameters: {
                 query?: never;
@@ -20151,9 +20149,7 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["JsonObject"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -20172,7 +20168,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Independently approve a structured financial operation after balance and period checks */
+        /** Gone: structured adjustment approval retired */
         post: {
             parameters: {
                 query?: never;
@@ -20189,9 +20185,7 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["JsonObject"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -20208,7 +20202,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read company-specific Mada recharge balance without exposing other vaults */
+        /** Gone: Mada balance now under Payments Mada wallets */
         get: {
             parameters: {
                 query: {
@@ -20225,9 +20219,7 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfdecimal"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -20584,7 +20576,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit finance legacy cash allocation preview */
+        /** Gone: legacy cash allocation retired */
         post: {
             parameters: {
                 query?: never;
@@ -20603,9 +20595,7 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfJsonArrayAndstring"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -20624,7 +20614,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit finance legacy cash allocation commit */
+        /** Gone: legacy cash allocation retired */
         post: {
             parameters: {
                 query?: never;
@@ -20643,9 +20633,7 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["JsonObject"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -21909,7 +21897,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit payments */
+        /** Legacy payments route disabled */
         post: {
             parameters: {
                 query?: never;
@@ -22717,10 +22705,6 @@ export interface components {
             ok: boolean;
             projectId: null | string;
             androidPackageName: null | string;
-        };
-        AnonymousTypeOfdecimal: {
-            /** Format: double */
-            balance: number | string;
         };
         "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray": {
             apps: null | components["schemas"]["Accounts"][];

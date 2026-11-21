@@ -8,6 +8,7 @@ namespace Payroll;
 
 public static class FinancialCore
 {
+    public const string LegacyCashAllocationGone="توزيع الرصيد التاريخي موقوف.";
     public sealed record SponsorDef(string Id, string Code, string UnifiedNumber, string NameAr, string ShortNameAr, string CommercialReg) : ErpImport.ISyncSponsor;
 
     public sealed record AccountDef(
@@ -433,7 +434,7 @@ public static class FinancialCore
         {
             var l = node!.AsObject();
             JsonObject canonical;
-            if(l.B("closingLegacyGroup")){LegacyCashAllocation.ValidateClosing(c,tx,l,transactionType);canonical=l;}
+            if(l.B("closingLegacyGroup"))throw new ApiError(LegacyCashAllocationGone,410);
             else
             {
                 ChartOfAccountsApi.DemandPostable(c,tx,l.Required("accountCode"));
