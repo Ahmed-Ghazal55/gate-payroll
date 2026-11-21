@@ -135,11 +135,13 @@ public static class SchemaTreasury
               WHERE j.id={n}.journal_id AND j.company_id={n}.company_id AND j.period_month={n}.period_month AND j.status=2 AND j.run_mode=0
                 AND j.purpose='vault_over_short' AND j.source_type='vault_count' AND j.source_id={n}.id
                 AND (({n}.counted_amount>{n}.book_balance
-                  AND EXISTS(SELECT 1 FROM {jl} l JOIN {account} a ON a.id=l.account_id WHERE l.journal_id=j.id AND a.code='422202' AND l.credit={n}.counted_amount-{n}.book_balance)
-                  AND EXISTS(SELECT 1 FROM {jl} l WHERE l.journal_id=j.id AND l.account_id=b.account_id AND l.debit={n}.counted_amount-{n}.book_balance))
+                  AND NOT EXISTS(SELECT 1 FROM {jl} l JOIN {account} a ON a.id=l.account_id WHERE l.journal_id=j.id AND l.account_id<>b.account_id AND a.code<>'422202')
+                  AND (SELECT COALESCE(SUM(l.debit-l.credit),0) FROM {jl} l WHERE l.journal_id=j.id AND l.account_id=b.account_id)={n}.counted_amount-{n}.book_balance
+                  AND (SELECT COALESCE(SUM(l.credit-l.debit),0) FROM {jl} l JOIN {account} a ON a.id=l.account_id WHERE l.journal_id=j.id AND a.code='422202')={n}.counted_amount-{n}.book_balance)
                 OR ({n}.counted_amount<{n}.book_balance
-                  AND EXISTS(SELECT 1 FROM {jl} l JOIN {account} a ON a.id=l.account_id WHERE l.journal_id=j.id AND a.code='542102' AND l.debit={n}.book_balance-{n}.counted_amount)
-                  AND EXISTS(SELECT 1 FROM {jl} l WHERE l.journal_id=j.id AND l.account_id=b.account_id AND l.credit={n}.book_balance-{n}.counted_amount))))
+                  AND NOT EXISTS(SELECT 1 FROM {jl} l JOIN {account} a ON a.id=l.account_id WHERE l.journal_id=j.id AND l.account_id<>b.account_id AND a.code<>'542102')
+                  AND (SELECT COALESCE(SUM(l.credit-l.debit),0) FROM {jl} l WHERE l.journal_id=j.id AND l.account_id=b.account_id)={n}.book_balance-{n}.counted_amount
+                  AND (SELECT COALESCE(SUM(l.debit-l.credit),0) FROM {jl} l JOIN {account} a ON a.id=l.account_id WHERE l.journal_id=j.id AND a.code='542102')={n}.book_balance-{n}.counted_amount)))
             """);
         // SQL Server AFTER: first-created fires first; SQLite BEFORE: last-created fires first — opposite order.
         if(SchemaSql.IsSql(c))JournalRule();

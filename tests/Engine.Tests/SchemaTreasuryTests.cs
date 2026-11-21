@@ -78,7 +78,13 @@ public sealed class SchemaTreasuryTests
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET counted_amount=101 WHERE id=@id",("@id",id)),"TR_vault_count_journal");
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM treasury_vault_count WHERE id=@id",("@id",id)),"Money rows cannot be deleted");
     }
-    static string VaultJournal(DbConnection c,string company,string countId,string box,decimal shortAmount)
+    static string VaultJournal(DbConnection c,string company,string countId,string box,decimal shortAmount)=>
+        VaultJournalLines(c,company,countId,box,(shortAcc,boxAcc,cc,period,journal)=>
+        {
+            MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal_line(id,period_id,company_id,period_month,journal_id,line_no,account_id,cost_centre_id,debit,credit,created_at) VALUES(@id,@p,@c,'2026-11-01',@j,1,@a,@cc,@amt,0,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@p",period),("@c",company),("@j",journal),("@a",shortAcc),("@cc",cc),("@amt",shortAmount));
+            MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal_line(id,period_id,company_id,period_month,journal_id,line_no,account_id,cost_centre_id,debit,credit,created_at) VALUES(@id,@p,@c,'2026-11-01',@j,2,@a,@cc,0,@amt,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@p",period),("@c",company),("@j",journal),("@a",boxAcc),("@cc",cc),("@amt",shortAmount));
+        });
+    static string VaultJournalLines(DbConnection c,string company,string countId,string box,Action<string,string,string,string,string> lines)
     {
         string period=MoneySchemaFixture.Id(),journal=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) SELECT @id,@c,'2026-11-01',1,datetime('now') WHERE NOT EXISTS(SELECT 1 FROM fin_accounting_period WHERE company_id=@c AND period_month='2026-11-01')",("@id",period),("@c",company));
@@ -87,11 +93,12 @@ public sealed class SchemaTreasuryTests
         string shortAcc=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_account WHERE code='542102'")!;
         string boxAcc=(string)MoneySchemaFixture.Scalar(c,null,"SELECT account_id FROM treasury_cash_box WHERE id=@id",("@id",box))!;
         string cc=SchemaSql.GuidText(SchemaOrgCostCentre.NoneId);
-        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal_line(id,period_id,company_id,period_month,journal_id,line_no,account_id,cost_centre_id,debit,credit,created_at) VALUES(@id,@p,@c,'2026-11-01',@j,1,@a,@cc,@amt,0,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@p",period),("@c",company),("@j",journal),("@a",shortAcc),("@cc",cc),("@amt",shortAmount));
-        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal_line(id,period_id,company_id,period_month,journal_id,line_no,account_id,cost_centre_id,debit,credit,created_at) VALUES(@id,@p,@c,'2026-11-01',@j,2,@a,@cc,0,@amt,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@p",period),("@c",company),("@j",journal),("@a",boxAcc),("@cc",cc),("@amt",shortAmount));
+        lines(shortAcc,boxAcc,cc,period,journal);
         MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal SET status=2,posted_at=datetime('now'),posted_by='tester' WHERE id=@id",("@id",journal));
         return journal;
     }
+    static void InsertVaultLine(DbConnection c,string company,string period,string journal,int lineNo,string account,string cc,decimal debit,decimal credit)=>
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal_line(id,period_id,company_id,period_month,journal_id,line_no,account_id,cost_centre_id,debit,credit,created_at) VALUES(@id,@p,@c,'2026-11-01',@j,@n,@a,@cc,@d,@cr,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@p",period),("@c",company),("@j",journal),("@n",lineNo),("@a",account),("@cc",cc),("@d",debit),("@cr",credit));
     [TestMethod,DataRow(false),DataRow(true)]
     public void VaultVarianceJournalMustMatchCountBoxAndAmountAndCannotBeReused(bool sqlServer)
     {
@@ -106,5 +113,55 @@ public sealed class SchemaTreasuryTests
         string other=MoneySchemaFixture.Id(),otherBox=Account(c,company,registration,"cash_box");
         MoneySchemaFixture.Exec(c,null,"INSERT INTO treasury_vault_count(id,cash_box_id,company_id,registration_id,period_month,counted_on,book_balance,counted_amount) VALUES(@id,@b,@c,@r,'2026-11-01','2026-11-21',50,49)",("@id",other),("@b",otherBox),("@c",company),("@r",registration));
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET journal_id=@j WHERE id=@id",("@id",other),("@j",right)),"UQ_treasury_vault_journal",sqliteToken:"journal_id");
+    }
+    [TestMethod,DataRow(false),DataRow(true)]
+    public void VaultVarianceJournalMustUseNetAccountTotalsAndOnlyBoxAndVarianceAccounts(bool sqlServer)
+    {
+        using var c=Open(sqlServer);
+        string company=MoneySchemaFixture.Company(c),registration=Registration(c,company),box=Account(c,company,registration,"cash_box");
+        string otherAcc=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_account WHERE is_postable=1 AND code NOT IN ('542102','422202') AND id<>(SELECT account_id FROM treasury_cash_box WHERE id=@b) ORDER BY code LIMIT 1",("@b",box))!;
+        string zeroNetCount=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO treasury_vault_count(id,cash_box_id,company_id,registration_id,period_month,counted_on,book_balance,counted_amount) VALUES(@id,@b,@c,@r,'2026-11-01','2026-11-20',100,99)",("@id",zeroNetCount),("@b",box),("@c",company),("@r",registration));
+        MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET status=2 WHERE id=@id",("@id",zeroNetCount));
+        string zeroNet=VaultJournalLines(c,company,zeroNetCount,box,(shortAcc,boxAcc,cc,period,journal)=>
+        {
+            InsertVaultLine(c,company,period,journal,1,boxAcc,cc,1,0);
+            InsertVaultLine(c,company,period,journal,2,boxAcc,cc,0,1);
+            InsertVaultLine(c,company,period,journal,3,shortAcc,cc,1,0);
+            InsertVaultLine(c,company,period,journal,4,otherAcc,cc,0,1);
+        });
+        MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET journal_id=@j WHERE id=@id",("@id",zeroNetCount),("@j",zeroNet));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET status=3,approved_by=@u,approved_at=datetime('now') WHERE id=@id",("@id",zeroNetCount),("@u",MoneySchemaFixture.Id())),"TR_vault_count_journal");
+
+        string thirdCount=MoneySchemaFixture.Id(),thirdBox=Account(c,company,registration,"cash_box");
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO treasury_vault_count(id,cash_box_id,company_id,registration_id,period_month,counted_on,book_balance,counted_amount) VALUES(@id,@b,@c,@r,'2026-11-01','2026-11-21',100,99)",("@id",thirdCount),("@b",thirdBox),("@c",company),("@r",registration));
+        MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET status=2 WHERE id=@id",("@id",thirdCount));
+        string third=VaultJournalLines(c,company,thirdCount,thirdBox,(shortAcc,boxAcc,cc,period,journal)=>
+        {
+            InsertVaultLine(c,company,period,journal,1,shortAcc,cc,1,0);
+            InsertVaultLine(c,company,period,journal,2,boxAcc,cc,0,1);
+            InsertVaultLine(c,company,period,journal,3,otherAcc,cc,1,0);
+            InsertVaultLine(c,company,period,journal,4,otherAcc,cc,0,1);
+        });
+        MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET journal_id=@j WHERE id=@id",("@id",thirdCount),("@j",third));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET status=3,approved_by=@u,approved_at=datetime('now') WHERE id=@id",("@id",thirdCount),("@u",MoneySchemaFixture.Id())),"TR_vault_count_journal");
+
+        string splitCount=MoneySchemaFixture.Id(),splitBox=Account(c,company,registration,"cash_box");
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO treasury_vault_count(id,cash_box_id,company_id,registration_id,period_month,counted_on,book_balance,counted_amount) VALUES(@id,@b,@c,@r,'2026-11-01','2026-11-22',100,99)",("@id",splitCount),("@b",splitBox),("@c",company),("@r",registration));
+        MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET status=2 WHERE id=@id",("@id",splitCount));
+        string split=VaultJournalLines(c,company,splitCount,splitBox,(shortAcc,boxAcc,cc,period,journal)=>
+        {
+            InsertVaultLine(c,company,period,journal,1,shortAcc,cc,0.40m,0);
+            InsertVaultLine(c,company,period,journal,2,shortAcc,cc,0.60m,0);
+            InsertVaultLine(c,company,period,journal,3,boxAcc,cc,0,0.25m);
+            InsertVaultLine(c,company,period,journal,4,boxAcc,cc,0,0.75m);
+        });
+        MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET journal_id=@j,status=3,approved_by=@u,approved_at=datetime('now') WHERE id=@id",("@id",splitCount),("@j",split),("@u",MoneySchemaFixture.Id()));
+
+        string plainCount=MoneySchemaFixture.Id(),plainBox=Account(c,company,registration,"cash_box");
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO treasury_vault_count(id,cash_box_id,company_id,registration_id,period_month,counted_on,book_balance,counted_amount) VALUES(@id,@b,@c,@r,'2026-11-01','2026-11-23',100,99)",("@id",plainCount),("@b",plainBox),("@c",company),("@r",registration));
+        MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET status=2 WHERE id=@id",("@id",plainCount));
+        string plain=VaultJournal(c,company,plainCount,plainBox,1);
+        MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET journal_id=@j,status=3,approved_by=@u,approved_at=datetime('now') WHERE id=@id",("@id",plainCount),("@j",plain),("@u",MoneySchemaFixture.Id()));
     }
 }
