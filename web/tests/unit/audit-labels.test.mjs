@@ -20,14 +20,29 @@ test('audit-labels maps known actions and formats dates', () => {
   assert.match(labels, /export function auditActionLabelAr/);
   assert.match(labels, /export function formatAuditAt/);
   assert.match(labels, /calendar: 'gregory'/);
+  assert.match(labels, /pay\.cycle_created/);
+  assert.match(labels, /platform\.ninja\.invoice_imported/);
+  assert.match(labels, /jahez\.reconciliation_approved/);
+  assert.match(labels, /excel\.import\./);
+  assert.doesNotMatch(labels, /AUDIT_ACTION_LABELS_AR\[key\] \|\| AUDIT_ACTION_LABELS_AR\[last\]/);
 });
 
-test('admin and dashboard use audit labels and bdi for actors', () => {
+test('auditActionLabelAr covers API keys and keeps generic fallback', async () => {
+  const mod = await import('../../src/lib/audit-labels.ts');
+  assert.equal(mod.auditActionLabelAr('pay.cycle_created'), 'إنشاء دورة رواتب');
+  assert.equal(mod.auditActionLabelAr('admin.login'), 'تسجيل دخول إداري');
+  assert.equal(mod.auditActionLabelAr('excel.import.riders'), 'استيراد ملف إكسل');
+  assert.equal(mod.auditActionLabelAr('totally.unknown.action.xyz'), 'عملية إدارية مسجلة');
+});
+
+test('admin and dashboard use audit labels, raw action title, and bdi for actors', () => {
   assert.match(admin, /auditActionLabelAr/);
   assert.match(admin, /formatAuditAt/);
+  assert.match(admin, /title=\{(?:String\()?log\.action/);
   assert.match(admin, /<bdi dir="ltr">/);
   assert.match(dash, /auditActionLabelAr/);
   assert.match(dash, /formatAuditAt/);
+  assert.match(dash, /title=\{(?:String\()?row\.action/);
 });
 
 test('promissory status ActiveNafez maps to Arabic', () => {

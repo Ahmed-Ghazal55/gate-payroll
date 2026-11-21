@@ -80,7 +80,9 @@ export default function DashboardPage() {
       getValue: (row) => row.action || '',
       labelOf: (v) => auditActionLabelAr(String(v ?? '')),
       render: (row) => (
-        <span className="font-semibold text-[var(--ink)]">{auditActionLabelAr(row.action)}</span>
+        <span className="font-semibold text-[var(--ink)]" title={String(row.action || '')}>
+          {auditActionLabelAr(row.action)}
+        </span>
       ),
     },
     {

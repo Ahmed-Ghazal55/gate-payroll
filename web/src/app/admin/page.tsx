@@ -1433,7 +1433,10 @@ function AdminPageInner() {
                           <span className="hidden sm:inline">{log.id || idx + 1}</span>
                         </td>
                         <td className="p-3">
-                          <span className="text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-md">
+                          <span
+                            className="text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-md"
+                            title={String(log.action || '')}
+                          >
                             {auditActionLabelAr(log.action)}
                           </span>
                         </td>
