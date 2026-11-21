@@ -242,10 +242,24 @@ public static partial class PayCycles
         foreach(var row in batch)
         {
             J.Need(IndependentReview(actor,row,c,tx,cycle),"يلزم مراجع مستقل.",403);
+            // M-0670 / §32 / §40.6: instalment confirm or defer BEFORE final salary approval (same order as feat/w2-money-core).
+            bool hasDebt=Rows(cycle["deductions"]).OfType<JsonObject>().Any(d=>d.S("rider")==row.S("rider")&&d.S("type")=="debt");
+            J.Need(!hasDebt||row.S("debtDeductionStatus") is "confirmed" or "deferred","أكد استقطاع الدين أو أجّله قبل الاعتماد النهائي للراتب.",409);
             if(row.N("net")<0)CreateCarry(c,tx,cycle,row,actor);
             SettleOperatingFuel(c,tx,cycle,row,actor);
             SettleStage4(c,tx,cycle,row,actor);
-            row["salaryNet"]=row.N("net");row["salaryApprovedAt"]=now;row["salaryApprovedBy"]=actor.Identity!.Name;row["debtDeductionStatus"]="pending";
+            // Apply confirmed instalment to net at approval (movement was deferred until here only for legacy store debts via Debts.Post).
+            decimal take=row.N("oldDebtInstalment");
+            if(take>0)
+            {
+                var payLines=Rows(cycle["deductions"]).OfType<JsonObject>()
+                    .Where(d=>d.S("rider")==row.S("rider")&&d.S("type")=="debt"&&-d.N("amount")>0)
+                    .Select(d=>new PayLine("debt_installment","قسط معتمد قبل الاعتماد",d.N("amount"),d.S("source"))).ToList();
+                Debts.Post(c,tx,new(row.S("rider"),cycle.S("period"),"pay_cycle",0,row.N("net"),row.N("net"),row.N("net"),0,0,payLines,[]),cycle.S("id"),payCycle:true);
+                row["net"]=J.Money(Math.Max(0,row.N("net"))-take);row["closing"]=row.N("carried")+row.N("net");
+            }
+            row["salaryNet"]=row.N("net");row["salaryApprovedAt"]=now;row["salaryApprovedBy"]=actor.Identity!.Name;
+            if(row.S("debtDeductionStatus")=="")row["debtDeductionStatus"]=hasDebt?"confirmed":"deferred";
         }
         Store.Save(c,Kind,cycle,tx);
         var journal=PostEarnings(c,tx,cycle,actor,batch.Select(r=>r.S("rider")).ToHashSet(),first);if(first)cycle["journalEntryId"]=journal.S("id");
