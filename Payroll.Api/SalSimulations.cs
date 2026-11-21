@@ -145,6 +145,8 @@ public static class SalSimulations
 
     static JsonObject LoadSim(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id)
     {
+        // Keep PostJournal unreachable from simulation handlers even if a caller is added later.
+        using var sim=MoneyWriteGuards.BeginSimulationContext();
         using var cmd=Store.Command(c,tx,$"""
             SELECT id,company_id,app_code,period_month,status,run_mode,payout_blocked
             FROM {SchemaSql.Q(c,"sal","pay_run")} WHERE id=@id

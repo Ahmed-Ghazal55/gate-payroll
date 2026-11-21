@@ -356,6 +356,9 @@ public static class FinancialCore
 
     public static JsonObject PostJournal(DbConnection c, DbTransaction tx, string transactionType, string description, string period, string reference, JsonArray lines, string actor, string iqama = "", string debtId = "", string? originSponsorId = null, string? creditorSponsorId = null, bool targetChart = false,string? reversesJournalId=null,bool payChart=false,string? journalDate=null,string? manualJournalId=null)
     {
+        // WC1G: legacy journals are always REAL (run_mode=0); simulation context / sal simulation source rejected; payout_blocked from store when present.
+        string? companyHint=string.IsNullOrWhiteSpace(originSponsorId)?(lines.Count>0?lines[0]!.S("sponsorId"):null):originSponsorId;
+        MoneyWriteGuards.DemandLegacyPostJournal(c,tx,transactionType,reference,period,companyHint);
         PayCycles.GuardInvoicePosting(c,tx,reference);
         J.Need(lines.Count >= 2, "القيد المحاسبي المزدوج يتطلب طرفين على الأقل.");
         J.Need(lines.OfType<JsonObject>().Count(l=>l.B("closingLegacyGroup"))<=1,"إقفال الرصيد التاريخي سطر واحد فقط.");

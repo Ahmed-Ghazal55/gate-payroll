@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Text.Json.Nodes;
 using Payroll;
 
 [TestClass]
@@ -49,5 +50,45 @@ public sealed class MoneyWriteGuardsTests
             ]);
         Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>JournalPosting.Post(c,null,draft)).Status);
         Assert.AreEqual(0L,Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(1) FROM fin_journal")!));
+    }
+
+    [TestMethod]
+    public void LegacyPostJournalUsesRunModeZeroAndRejectsSimulationContext()
+    {
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
+        JsonArray Lines()=>new(
+            FinancialCore.CreateJournalLine("1210",company,10,0),
+            FinancialCore.CreateJournalLine("3101",company,0,10));
+        // Legacy tables are always real runs (run_mode=0) — normal post is allowed.
+        f.Store.Write((c,tx)=>FinancialCore.PostJournal(c,tx,"opening","Synthetic legacy guard","2026-10","legacy-guard-ok",Lines(),"synthetic"));
+        Assert.IsTrue(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")=="legacy-guard-ok")));
+        // Ambient simulation context must never reach PostJournal.
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>
+        {
+            using(MoneyWriteGuards.BeginSimulationContext())
+                f.Store.Write((c,tx)=>FinancialCore.PostJournal(c,tx,"opening","Synthetic sim context","2026-10","legacy-guard-sim",Lines(),"synthetic"));
+        }).Status);
+        Assert.IsFalse(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")=="legacy-guard-sim")));
+    }
+
+    [TestMethod]
+    public void LegacyPostJournalReadsPayoutBlockedWhenPresentElseFalse()
+    {
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,PayCycles.Kind,new(){["id"]="cycle-legacy-blocked",["companyId"]=company,["period"]="2026-10",["status"]="approved",["payoutBlocked"]=true,["runMode"]=0},tx);
+            return true;
+        });
+        JsonArray Lines()=>new(
+            FinancialCore.CreateJournalLine("212103",company,10,0,targetChart:true,payChart:true),
+            FinancialCore.CreateJournalLine("111101",company,0,10,targetChart:true,payChart:true));
+        // payout_blocked from the stored cycle rejects payout-type journals.
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>
+            FinancialCore.PostJournal(c,tx,"bank_payroll_payout","Synthetic blocked payout","2026-10","legacy-payout-blocked",Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company,targetChart:true,payChart:true))).Status);
+        // Accounting still allowed while payout is blocked; when no stored flag, blocked is false.
+        f.Store.Write((c,tx)=>FinancialCore.PostJournal(c,tx,"opening","Synthetic accounting while blocked","2026-10","legacy-acct-ok",new JsonArray(
+            FinancialCore.CreateJournalLine("1210",company,5,0),
+            FinancialCore.CreateJournalLine("3101",company,0,5)),"synthetic",originSponsorId:company,creditorSponsorId:company));
+        Assert.IsTrue(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")=="legacy-acct-ok")));
     }
 }
