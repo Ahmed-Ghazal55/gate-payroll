@@ -1078,9 +1078,10 @@ function CompaniesPageContent() {
         eyebrow="الكيانات القانونية والشهادات الرسمية"
         description="إدارة الكيانات القانونية والسجلات والشهادات الصادرة من وزارة التجارة وتنبيهات التأكيد السنوي وإحصائيات الكفالات وحسابات المنصات."
         primaryAction={
-          isAdmin
+          isAdmin && canShowImportStep(COMPANIES_IMPORT, { isAdmin, can })
             ? {
                 label: 'استيراد بيانات الشركات',
+                testId: 'import-companies',
                 onClick: () => {
                   setImportModalOpen(true);
                   handleRunImportPreview();
@@ -1090,17 +1091,6 @@ function CompaniesPageContent() {
             : undefined
         }
       >
-        {canShowImportStep(COMPANIES_IMPORT, { isAdmin, can }) && (
-          <button
-            type="button"
-            data-testid="import-companies"
-            onClick={() => setFileImportOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] active:scale-[0.98] transition shadow-xs"
-          >
-            <Download size={15} aria-hidden="true" />
-            <span>استيراد الشركات</span>
-          </button>
-        )}
         {canManage && (
           <button
             type="button"
