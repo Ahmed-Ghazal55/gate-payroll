@@ -425,6 +425,7 @@ export function ManualJournalsPanel({
         key: 'totalDebit',
         header: 'المبلغ (ر.س)',
         numeric: true,
+        money: true,
         getValue: (j) => j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0),
         render: (j) => {
           const total = j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0);

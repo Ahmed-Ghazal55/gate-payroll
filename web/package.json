@@ -8,10 +8,12 @@
     "test:e2e": "node tests/e2e.mjs && node tests/ui-qa.mjs",
     "test:e2e:live": "node tests/e2e-live.mjs",
     "api:generate": "node scripts/gen-api-types.mjs",
-    "api:check": "node scripts/gen-api-types.mjs --check"
+    "api:check": "node scripts/gen-api-types.mjs --check",
+    "test": "node --experimental-strip-types --test tests/unit/*.test.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.67.1",
+    "@tanstack/react-table": "8.21.3",
     "lucide-react": "^1.33.0",
     "next": "16.3.5",
     "react": "19.2.8",

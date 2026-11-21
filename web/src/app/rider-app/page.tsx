@@ -70,7 +70,10 @@ function RiderAppAdminPageInner() {
 
   // Statement Preview state (F3 - R4.8)
   const [statementIqama, setStatementIqama] = useState<string>('2000000789');
-  const [statementPeriod, setStatementPeriod] = useState<string>('2026-10');
+  const [statementPeriod, setStatementPeriod] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [monthlyStatement, setMonthlyStatement] = useState<any | null>(null);
   const [loadingStatement, setLoadingStatement] = useState<boolean>(false);
   const [statementError, setStatementError] = useState<string | null>(null);

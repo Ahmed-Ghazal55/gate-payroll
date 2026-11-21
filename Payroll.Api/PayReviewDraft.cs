@@ -20,7 +20,7 @@ public static class PayReviewDraft
         void Warn(string code,string message,string source,decimal? erp=null,decimal? invoiced=null)=>warnings.Add(new JsonObject{["code"]=code,["message"]=message,["sourceLineId"]=source,["erpOrders"]=erp,["invoiceOrders"]=invoiced});
         var invoices=Store.List(c,"platform_invoice",tx).Where(i=>InvoiceDiscard.Active(i)&&i.S("platform")=="Ninja"&&i.S("companyId")==company&&i.S("period")==period&&i.S("status")!="reversed"&&i.S("accountingStatus")!="reversed").OrderBy(i=>i.S("id"),StringComparer.Ordinal).ToList();
         if(invoices.Count==0)Block("invoice_missing","ارفع واعتمد فاتورة نينجا للشركة والشهر.","upload_invoice");
-        foreach(string kind in new[]{"pay_terms","pay_eligibility"})try{PaySettings.Resolve(c,tx,kind,"ninja",period);}catch(ApiError){Block(kind+"_missing","إعداد نينجا للشهر غير معتمد: "+kind,"approve_settings");}
+        foreach(string kind in new[]{"pay_terms","pay_eligibility"})try{PaySettings.Resolve(c,tx,kind,"ninja",period);}catch(ApiError){Block(kind+"_missing","إعداد نينجا للشهر غير معتمد: "+(kind=="pay_terms"?"شروط الأجر":"قواعد الاستحقاق"),"approve_settings");}
         try{PaySettings.Global(c,tx,period+"-01");}catch(ApiError){Block("global_settings_missing","اعتمد إعدادات الأيام والإيجار بتاريخ الشهر.","approve_settings");}
         // Captured cycle → freeze. Pre-cycle: liveOps when live mode, else store (B3).
         var openCycle=Store.List(c,PayCycles.Kind,tx).FirstOrDefault(p=>p.S("companyId")==company&&p.S("period")==period&&p.S("status") is not ("cancelled" or "reversed")&&(p.S("app")=="ninja"||(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("app")=="ninja"))&&PayRunInputs.Captured(p));

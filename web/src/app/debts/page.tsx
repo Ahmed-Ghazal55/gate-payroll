@@ -648,6 +648,7 @@ function DebtsPageContent() {
         key: 'originalAmount',
         header: 'المبلغ الأصلي',
         numeric: true,
+        money: true,
         getValue: (d) => d.originalAmount ?? 0,
         render: (d) => (
           <span className="num text-[var(--muted)]">
@@ -659,6 +660,7 @@ function DebtsPageContent() {
         key: 'remainingAmount',
         header: 'المبلغ المتبقي',
         numeric: true,
+        money: true,
         getValue: (d) => d.remainingAmount ?? 0,
         render: (d) => (
           <span className="num font-bold text-sm text-[var(--danger)]">
@@ -670,6 +672,7 @@ function DebtsPageContent() {
         key: 'monthlyInstallment',
         header: 'القسط الشهري',
         numeric: true,
+        money: true,
         getValue: (d) => d.monthlyInstallment || d.monthlyDeduction || 0,
         render: (d) => {
           const val = d.monthlyInstallment || d.monthlyDeduction || 0;
@@ -771,6 +774,7 @@ function DebtsPageContent() {
         key: 'amount',
         header: 'المبلغ المطلوب',
         numeric: true,
+        money: true,
         getValue: (req) => req.amount,
         render: (req) => (
           <span className="font-bold text-[var(--ink)]">
