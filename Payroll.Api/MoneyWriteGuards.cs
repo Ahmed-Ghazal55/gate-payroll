@@ -50,13 +50,21 @@ public static class MoneyWriteGuards
     };
 
     static readonly HashSet<string> BankCashTypes=new(StringComparer.Ordinal){"bank","cash"};
+    static readonly HashSet<string> LegacyBankCashVaultKinds=new(StringComparer.Ordinal){"Bank","MainInternal"};
 
-    public static bool IsBankOrCashAccountCode(string? code)
+    /// <summary>WC1I: one shared classifier for target-chart bank/cash codes and legacy (0.31.0) vault codes.</summary>
+    static readonly Lazy<HashSet<string>> BankOrCashCodes=new(()=>
     {
-        if(string.IsNullOrWhiteSpace(code))return false;
-        var acc=FinanceViews.Accounts.FirstOrDefault(a=>a.S("code")==code);
-        return acc!=null&&BankCashTypes.Contains(acc.S("type"));
-    }
+        var set=new HashSet<string>(StringComparer.Ordinal);
+        foreach(var a in FinanceViews.Accounts)
+            if(BankCashTypes.Contains(a.S("type")))set.Add(a.S("code"));
+        foreach(var a in FinancialCore.ChartOfAccounts)
+            if(a.IsVault&&LegacyBankCashVaultKinds.Contains(a.VaultKind))set.Add(a.Code);
+        return set;
+    });
+
+    public static bool IsBankOrCashAccountCode(string? code)=>
+        !string.IsNullOrWhiteSpace(code)&&BankOrCashCodes.Value.Contains(code);
 
     public static bool IsAccountingOnlyPurpose(string? purpose)=>
         !string.IsNullOrWhiteSpace(purpose)&&AccountingOnlyPurposes.Contains(purpose);

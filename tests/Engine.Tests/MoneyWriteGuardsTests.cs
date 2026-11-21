@@ -109,6 +109,25 @@ public sealed class MoneyWriteGuardsTests
     }
 
     [TestMethod]
+    public void DetectsTargetChartBankAndCashCodes()
+    {
+        Assert.IsTrue(MoneyWriteGuards.IsBankOrCashAccountCode("111101"));
+        Assert.IsTrue(MoneyWriteGuards.IsBankOrCashAccountCode("111201"));
+        Assert.IsFalse(MoneyWriteGuards.IsBankOrCashAccountCode("212103"));
+        Assert.IsFalse(MoneyWriteGuards.IsBankOrCashAccountCode("411104"));
+    }
+
+    [TestMethod]
+    public void DetectsLegacyChartBankAndCashVaultCodes()
+    {
+        Assert.IsTrue(MoneyWriteGuards.IsBankOrCashAccountCode("BANK.BW"));
+        Assert.IsTrue(MoneyWriteGuards.IsBankOrCashAccountCode("MAIN.BW.DEBT"));
+        Assert.IsTrue(MoneyWriteGuards.IsBankOrCashAccountCode("BANK.BW.JAHEZ"));
+        Assert.IsFalse(MoneyWriteGuards.IsBankOrCashAccountCode("2110"));
+        Assert.IsFalse(MoneyWriteGuards.IsBankOrCashAccountCode("SUP.BW.FEE"));
+    }
+
+    [TestMethod]
     public void PayoutBlockedRejectsBankCashCreditUnlessAccountingWhitelist()
     {
         Assert.IsTrue(MoneyWriteGuards.AccountingOnlyPurposes.Contains("payroll_accrual"));
@@ -128,6 +147,11 @@ public sealed class MoneyWriteGuardsTests
             FinancialCore.PostJournal(c,tx,"internet_advance","Synthetic bank credit","2026-10","legacy-bank-credit",new JsonArray(
                 FinancialCore.CreateJournalLine("112503",company,10,0,targetChart:true,payChart:true),
                 FinancialCore.CreateJournalLine("111201",company,0,10,targetChart:true,payChart:true)),"synthetic",originSponsorId:company,creditorSponsorId:company,targetChart:true,payChart:true))).Status);
+        // Same gate for a legacy vault credit (live 0.31.0 chart).
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>
+            FinancialCore.PostJournal(c,tx,"internet_advance","Synthetic legacy vault credit","2026-10","legacy-vault-credit",new JsonArray(
+                FinancialCore.CreateJournalLine("1210",company,10,0),
+                FinancialCore.CreateJournalLine("BANK.BW",company,0,10)),"synthetic",originSponsorId:company,creditorSponsorId:company))).Status);
         // Accrual whitelist may post even when a line credits cash/bank (accounting-only).
         f.Store.Write((c,tx)=>FinancialCore.PostJournal(c,tx,"payroll_accrual","Synthetic accrual while blocked","2026-10","legacy-accrual-ok",new JsonArray(
             FinancialCore.CreateJournalLine("5301",company,10,0),
