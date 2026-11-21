@@ -21,6 +21,7 @@ import {
   FileUp,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
+import { appendPeriodToHref, readUrlPeriod } from '../../lib/period';
 import { ApprovalExceptionChip } from '../../features/admin/ApprovalExceptionChip';
 
 export interface NavSubItem {
@@ -64,6 +65,8 @@ function SidebarInner({
 }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const urlPeriod = readUrlPeriod(searchParams);
+  const withPeriod = (href: string) => appendPeriodToHref(href, urlPeriod);
   const { can, isAdmin, user } = useAuth();
 
   // Definition of IA Groups matching Spec 09 lines 37-50
@@ -117,11 +120,12 @@ function SidebarInner({
       id: 'payroll',
       label: 'الرواتب',
       icon: <Calculator size={18} />,
-      defaultHref: '/payroll/',
+      defaultHref: '/payroll/?tab=platforms',
       permission: ['payroll.view', 'pay.view'],
       items: [
         { id: 'payroll-apps', href: '/payroll/?tab=platforms', label: 'فواتير وتسويات المنصات' },
         { id: 'payroll-cycle', href: '/payroll/?tab=cycle', label: 'دورة الرواتب والمسير' },
+        { id: 'payroll-current-cycle', href: '/payroll/?tab=current-cycle', label: 'الدورة الحالية (النظام القائم)' },
         { id: 'payroll-ninja-upload', href: '/payroll/?tab=ninja_upload', label: 'رفع فاتورة نينجا' },
         { id: 'payroll-rules', href: '/payroll/?tab=rules', label: 'الأنظمة ومحرر القواعد' },
         { id: 'payroll-deductions', href: '/payroll/?tab=deductions', label: 'الاستقطاعات الشهرية' },
@@ -133,7 +137,7 @@ function SidebarInner({
       id: 'debts',
       label: 'المديونيات والسلف',
       icon: <Receipt size={18} />,
-      defaultHref: '/debts/',
+      defaultHref: '/debts/?tab=debts',
       badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
       permission: 'debts.view',
       items: [
@@ -149,7 +153,7 @@ function SidebarInner({
       id: 'treasury',
       label: 'البنوك والصناديق والخزن',
       icon: <Landmark size={18} />,
-      defaultHref: '/treasury/',
+      defaultHref: '/treasury/?tab=vaults',
       permission: 'treasury.view',
       items: [
         { id: 'treasury-vaults', href: '/treasury/?tab=vaults', label: 'أرصدة الخزينة (1110-1140)', permission: 'treasury.view' },
@@ -164,7 +168,7 @@ function SidebarInner({
       id: 'accounting',
       label: 'المحاسبة والتقارير',
       icon: <FileSpreadsheet size={18} />,
-      defaultHref: '/accounting/',
+      defaultHref: '/accounting/?tab=coa',
       permission: ['treasury.view', 'finance.journal.create', 'finance.journal.approve', 'treasury.journals'],
       items: [
         { id: 'acc-coa', href: '/accounting/?tab=coa', label: 'دليل الحسابات', permission: 'treasury.view' },
@@ -219,7 +223,7 @@ function SidebarInner({
       id: 'admin',
       label: 'الإدارة',
       icon: <ShieldCheck size={18} />,
-      defaultHref: '/admin/',
+      defaultHref: '/admin/?tab=users',
       permission: 'users.manage',
       items: [
         { id: 'admin-users', href: '/admin/?tab=users', label: 'المستخدمون والصلاحيات', permission: 'users.manage' },
@@ -292,7 +296,7 @@ function SidebarInner({
     <div className="flex flex-col h-full bg-[var(--surface)] text-[var(--ink)] border-e border-[var(--line)]">
       {/* Brand Header */}
       <div className="flex items-center justify-between p-4 border-b border-[var(--line)] min-h-[64px]">
-        <Link href="/" className="flex items-center gap-3 overflow-hidden">
+        <Link href={withPeriod('/')} className="flex items-center gap-3 overflow-hidden">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xl shadow-xs shrink-0">
             ب
           </div>
@@ -343,7 +347,7 @@ function SidebarInner({
                 } ${collapsed ? 'p-2 justify-center' : 'px-2.5 py-2'}`}
               >
                 <Link
-                  href={group.items[0]?.href ?? group.defaultHref}
+                  href={withPeriod(group.items[0]?.href ?? group.defaultHref)}
                   onClick={onCloseMobile}
                   title={collapsed ? group.label : undefined}
                   className={`flex items-center gap-2.5 flex-1 min-w-0 ${
@@ -423,7 +427,7 @@ function SidebarInner({
                     return (
                       <Link
                         key={subItem.id}
-                        href={subItem.href}
+                        href={withPeriod(subItem.href)}
                         onClick={onCloseMobile}
                         className={`flex items-center justify-between py-1.5 px-2 rounded-lg text-xs transition-colors ${
                           isSubActive

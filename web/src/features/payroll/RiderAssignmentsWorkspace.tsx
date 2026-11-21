@@ -129,7 +129,7 @@ export function RiderAssignmentsWorkspace({
           name: r.name || `مندوب (${r.iqama})`,
           sponsor: r.financeSponsorId || r.sponsorId || '—',
           schemeId: '',
-          schemeName: 'بلا تكليف (scheme_assignment_missing)',
+          schemeName: 'بلا تكليف',
           isAssigned: false,
           choiceApprovedAt: '—',
           sourceKind: '—',

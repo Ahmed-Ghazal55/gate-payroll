@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { appendPeriodToHref, readUrlPeriod } from '../lib/period';
 import {
   Users,
   Upload,
@@ -40,8 +41,11 @@ const FALLBACK_HOMES: Array<{ permission: string | string[]; href: string }> = [
   { permission: 'users.manage', href: '/admin/' },
 ];
 
-export default function DashboardPage() {
+function DashboardPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlPeriod = readUrlPeriod(searchParams);
+  const withPeriod = (href: string) => appendPeriodToHref(href, urlPeriod);
   const { can, isAdmin, loading: authLoading, user } = useAuth();
   const [data, setData] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,8 +73,8 @@ export default function DashboardPage() {
     const match = FALLBACK_HOMES.find((h) =>
       Array.isArray(h.permission) ? h.permission.some((p) => can(p)) : can(h.permission)
     );
-    router.replace(match?.href ?? '/workforce/');
-  }, [authLoading, user, isAdmin, can, router]);
+    router.replace(withPeriod(match?.href ?? '/workforce/'));
+  }, [authLoading, user, isAdmin, can, router, urlPeriod]);
 
   const auditColumns: ColumnDef<any>[] = [
     {
@@ -124,7 +128,7 @@ export default function DashboardPage() {
         primaryAction={{
           label: 'بيانات التشغيل',
           onClick: () => {
-            router.push('/operations/');
+            router.push(withPeriod('/operations/'));
           },
           icon: <Upload size={16} />,
         }}
@@ -154,7 +158,7 @@ export default function DashboardPage() {
               icon={Users}
               trend={{ value: 'نشط', isPositive: true }}
               onClick={() => {
-                window.location.href = '/app/riders/';
+                router.push(withPeriod('/workforce/'));
               }}
             />
 
@@ -176,7 +180,7 @@ export default function DashboardPage() {
                 isPositive: data.pendingResponses === 0,
               }}
               onClick={() => {
-                window.location.href = '/app/rider-app/?tab=responses';
+                router.push(withPeriod('/rider-app/?tab=responses'));
               }}
             />
 
@@ -187,7 +191,7 @@ export default function DashboardPage() {
               icon={CheckCircle2}
               trend={{ value: 'معتمد', isPositive: true }}
               onClick={() => {
-                window.location.href = '/app/payroll/';
+                router.push(withPeriod('/payroll/'));
               }}
             />
           </div>
@@ -262,7 +266,7 @@ export default function DashboardPage() {
                   آخر العمليات وسجل التدقيق
                 </h3>
                 <Link
-                  href={inApp('/admin/')}
+                  href={withPeriod(inApp('/admin/'))}
                   className="text-xs font-semibold text-[var(--accent)] hover:underline"
                 >
                   عرض كل السجل
@@ -292,7 +296,7 @@ export default function DashboardPage() {
 
                 <div className="flex flex-col gap-2">
                   <Link
-                    href={inApp('/rider-app/?tab=campaigns')}
+                    href={withPeriod(inApp('/rider-app/?tab=campaigns'))}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:opacity-90 transition shadow-xs"
                   >
                     <span>إنشاء حملة نماذج جديدة</span>
@@ -300,7 +304,7 @@ export default function DashboardPage() {
                   </Link>
 
                   <Link
-                    href={inApp('/rider-app/?tab=responses')}
+                    href={withPeriod(inApp('/rider-app/?tab=responses'))}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] rounded-lg border border-[var(--line)] transition"
                   >
                     <span>صندوق مراجعة الردود</span>
@@ -317,5 +321,13 @@ export default function DashboardPage() {
         </>
       ) : null}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<Skeleton className="h-32 rounded-xl" rows={3} />}>
+      <DashboardPageInner />
+    </Suspense>
   );
 }

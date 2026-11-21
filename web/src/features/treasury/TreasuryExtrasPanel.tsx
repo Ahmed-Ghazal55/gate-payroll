@@ -8,6 +8,7 @@ import { useToast } from '../../components/ui/Toast';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { formatSar } from '../../lib/money';
+import { usePeriod } from '../../lib/use-period';
 import { formatRecordEntries } from '../../lib/formatRecord';
 import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
 import type { CompanySponsor } from '../../lib/types';
@@ -28,12 +29,12 @@ export function TreasuryExtrasPanel() {
   const [madaCompany, setMadaCompany] = useState('');
   const [madaBalance, setMadaBalance] = useState<number | null>(null);
 
+  const { period, setPeriod } = usePeriod();
   const [liability, setLiability] = useState({
     debtId: '',
     paymentVaultCode: '',
     amount: '',
     sourceRef: '',
-    period: '2026-10',
   });
   const [legacyJson, setLegacyJson] = useState('');
   const [legacyPreview, setLegacyPreview] = useState<Record<string, unknown> | null>(null);
@@ -83,7 +84,7 @@ export function TreasuryExtrasPanel() {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.postLiabilityPayment({ ...liability, amount: Number(liability.amount) });
+      await api.postLiabilityPayment({ ...liability, period, amount: Number(liability.amount) });
       toast('تم سداد الالتزام', 'success');
     } catch (err: unknown) {
       toast(err instanceof ApiError ? err.message : 'تعذر السداد', 'danger');
@@ -215,8 +216,8 @@ export function TreasuryExtrasPanel() {
             <input
               required
               type="month"
-              value={liability.period}
-              onChange={(e) => setLiability({ ...liability, period: e.target.value })}
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
               className={inputClass}
             />
           </label>

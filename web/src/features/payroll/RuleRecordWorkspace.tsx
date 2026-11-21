@@ -134,7 +134,7 @@ export function RuleRecordWorkspace({
       <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] pb-4">
           <div className="space-y-1">
-            <span className="text-[11px] text-[var(--muted)] font-mono">سجل القواعد والضوابط الموحد (Rule Record)</span>
+            <span className="text-[11px] text-[var(--muted)]">سجل القواعد والضوابط الموحد</span>
             <input
               type="text"
               value={ruleName}
@@ -176,11 +176,11 @@ export function RuleRecordWorkspace({
               onChange={(e) => setSelectedApp(e.target.value)}
               className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] font-semibold"
             >
-              <option value="ninja">نينجا (Ninja)</option>
-              <option value="keeta">كيتا (Keeta)</option>
-              <option value="hungerstation">هنقرستيشن (Hungerstation)</option>
-              <option value="jahez">جاهز (Jahez)</option>
-              <option value="amazon">أمازون (Amazon)</option>
+              <option value="ninja">نينجا</option>
+              <option value="keeta">كيتا</option>
+              <option value="hungerstation">هنقرستيشن</option>
+              <option value="jahez">جاهز</option>
+              <option value="amazon">أمازون</option>
             </select>
           </div>
 
@@ -191,7 +191,7 @@ export function RuleRecordWorkspace({
               onChange={(e) => setSelectedCity(e.target.value)}
               className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] font-semibold"
             >
-              <option value="all">كل المدن والمناطق (All Cities)</option>
+              <option value="all">كل المدن والمناطق</option>
               <option value="RUH">منطقة الرياض (RUH)</option>
               <option value="JED">منطقة مكة وجدة (JED)</option>
               <option value="DMM">المنطقة الشرقية (DMM)</option>
@@ -320,7 +320,7 @@ export function RuleRecordWorkspace({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
-              <label className="font-bold text-[var(--ink)] block">الهدف الشهري للطلبات (Target Orders):</label>
+              <label className="font-bold text-[var(--ink)] block">الهدف الشهري للطلبات:</label>
               <input
                 type="number"
                 value={targetOrders}
@@ -460,7 +460,7 @@ export function RuleRecordWorkspace({
         <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-4 text-xs">
           <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
             <div>
-              <h4 className="font-bold text-sm text-[var(--ink)]">استثناءات الحسابات والمناديب (Account Exceptions)</h4>
+              <h4 className="font-bold text-sm text-[var(--ink)]">استثناءات الحسابات والمناديب</h4>
               <p className="text-[11px] text-[var(--muted)] mt-0.5">
                 تخصيص قواعد فردية لمندوب أو حساب معين مع الشركة والمنصة.
               </p>
@@ -532,7 +532,7 @@ export function RuleRecordWorkspace({
       {activeTab === 'performance' && (
         <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-4 text-xs">
           <div className="border-b border-[var(--line)] pb-2">
-            <h4 className="font-bold text-sm text-[var(--ink)]">سجل الأداء الشهري لكل حساب (Monthly Performance Record)</h4>
+            <h4 className="font-bold text-sm text-[var(--ink)]">سجل الأداء الشهري لكل حساب</h4>
             <p className="text-[11px] text-[var(--muted)] mt-0.5">
               مراجعة وتدقيق سجل أداء الحسابات الشهرية مقارنة بالتارجت والامتثال.
             </p>
