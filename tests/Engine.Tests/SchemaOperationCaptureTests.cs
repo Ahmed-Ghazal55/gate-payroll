@@ -145,6 +145,18 @@ public sealed class SchemaOperationCaptureTests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
+    public void OpenEvidenceIdChangeIsRejectedOnBothProviders(bool sqlServer)
+    {
+        using var c=Open(sqlServer);string company=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company),snap=Snapshot(c,company),link=Link(c,run,snap);
+        string next=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_operation_snapshot_link SET id=@next WHERE id=@id",("@id",link),("@next",next)),"Evidence id cannot change");
+        Empty(c,run,"housing");
+        string manifest=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_operation_capture_manifest WHERE operation_id=@run AND required_kind='housing'",("@run",run))!;
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_operation_capture_manifest SET id=@next WHERE id=@id",("@id",manifest),("@next",MoneySchemaFixture.Id())),"Evidence id cannot change");
+    }
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
     public void SnapshotFromAnotherCompanyOrAppCannotSatisfyCapture(bool sqlServer)
     {
         using var c=Open(sqlServer);string company=MoneySchemaFixture.Company(c),other=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company);

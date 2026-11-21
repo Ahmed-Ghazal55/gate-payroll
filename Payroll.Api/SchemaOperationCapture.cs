@@ -118,6 +118,10 @@ public static class SchemaOperationCapture
                       SET NOCOUNT ON;
                       IF EXISTS(SELECT 1 FROM (SELECT operation_type,operation_id FROM inserted UNION ALL SELECT operation_type,operation_id FROM deleted) x WHERE {Frozen(c,"x.operation_type","x.operation_id")})
                         THROW 51011,'Frozen operation evidence cannot change',1;
+                      -- Id rewrite must fail the same way on both providers (JOIN on id would otherwise silently update 0 rows).
+                      IF EXISTS(SELECT 1 FROM deleted o WHERE NOT EXISTS(SELECT 1 FROM inserted n WHERE n.id=o.id))
+                        AND EXISTS(SELECT 1 FROM inserted)
+                        THROW 51016,'Evidence id cannot change',1;
                       -- Apply first so composite FKs (e.g. FK_op_snap_snapshot) win over WrongOwner on open runs.
                       IF EXISTS(SELECT 1 FROM deleted) AND NOT EXISTS(SELECT 1 FROM inserted)
                         DELETE FROM {t} WHERE id IN (SELECT id FROM deleted);
@@ -138,7 +142,8 @@ public static class SchemaOperationCapture
                 {
                     string predicate=op=="INSERT"?Frozen(c,"NEW.operation_type","NEW.operation_id"):op=="DELETE"?Frozen(c,"OLD.operation_type","OLD.operation_id"):$"({Frozen(c,"NEW.operation_type","NEW.operation_id")} OR {Frozen(c,"OLD.operation_type","OLD.operation_id")})";
                     string owner=op=="DELETE"?"":$"SELECT RAISE(ABORT,'Capture owner or period mismatch') WHERE {WrongOwner(c,"NEW")};";
-                    SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_{table}_{op} BEFORE {op} ON {t} BEGIN SELECT RAISE(ABORT,'Frozen operation evidence cannot change') WHERE {predicate}; {owner} END;");
+                    string idFreeze=op=="UPDATE"?$"SELECT RAISE(ABORT,'Evidence id cannot change') WHERE NEW.id IS NOT OLD.id;":"";
+                    SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_{table}_{op} BEFORE {op} ON {t} BEGIN SELECT RAISE(ABORT,'Frozen operation evidence cannot change') WHERE {predicate}; {idFreeze} {owner} END;");
                 }
             }
         }
