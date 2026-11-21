@@ -786,27 +786,6 @@ function AccountingPageContent() {
                 />
                 <span>حسابات الترحيل فقط</span>
               </label>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const headers = ['رمز الحساب', 'اسم الحساب', 'المستوى', 'الحساب الأب', 'ترحيل مباشر', 'الطبيعة', 'المصدر'];
-                  const rows = filteredAccounts.map((a) => [
-                    a.code,
-                    a.nameAr,
-                    a.level,
-                    a.parent || a.parentCode || '—',
-                    (a.posting ?? a.isPosting) ? 'نعم' : 'لا',
-                    a.nature || '—',
-                    a.source || a.sourceType || '—',
-                  ]);
-                  handleExportExcel('دليل_الحسابات_المستهدف', headers, rows, [0, 2]);
-                }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition"
-              >
-                <Download size={14} />
-                <span>تصدير Excel</span>
-              </button>
             </div>
           </div>
 
@@ -821,6 +800,7 @@ function AccountingPageContent() {
             <DataTable
               columns={coaColumns}
               data={filteredAccounts}
+              exportFilename="دليل_الحسابات_المستهدف"
               emptyTitle="لا توجد حسابات مطابقة للبحث"
               emptyDescription="جرّب تعديل الفلاتر أو إدخال رقم كود مختلف."
             />
@@ -869,28 +849,6 @@ function AccountingPageContent() {
               >
                 <RefreshCw size={15} />
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const headers = ['رقم القيد', 'التاريخ', 'الفترة', 'البيان', 'المنشأة', 'إجمالي المدين', 'إجمالي الدائن', 'المرجع'];
-                  const rows = filteredJournals.map((j) => [
-                    j.journalNumber || j.id,
-                    j.date || j.entryDate || j.createdAt?.slice(0, 10),
-                    j.period || '—',
-                    j.description,
-                    j.originSponsorNameAr || j.creditorSponsorNameAr || '—',
-                    j.totalDebit ?? j.lines?.reduce((s, l) => s + (l.debit || 0), 0) ?? 0,
-                    j.totalCredit ?? j.lines?.reduce((s, l) => s + (l.credit || 0), 0) ?? 0,
-                    j.sourceRef || '—',
-                  ]);
-                  handleExportExcel('سجل_القيود_المحاسبية', headers, rows, [0, 5, 6]);
-                }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition"
-              >
-                <Download size={14} />
-                <span>تصدير Excel</span>
-              </button>
             </div>
           </div>
 
@@ -904,6 +862,7 @@ function AccountingPageContent() {
             <DataTable
               columns={journalColumns}
               data={filteredJournals}
+              exportFilename="سجل_القيود_المحاسبية"
               emptyTitle="لا توجد قيود مسجلة"
               emptyDescription="ستظهر هنا القيود المعتمدة والآلية الناتجة عن الرواتب والخزينة."
             />
@@ -977,30 +936,6 @@ function AccountingPageContent() {
                 title="تحديث ميزان المراجعة"
               >
                 <RefreshCw size={15} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const company = trialData?.companies?.[0];
-                  if (!company) return;
-                  const headers = ['رمز الحساب', 'اسم الحساب', 'افتتاح مدين', 'افتتاح دائن', 'فترة مدين', 'فترة دائن', 'إغلاق مدين', 'إغلاق دائن'];
-                  const rows = company.rows.map((r) => [
-                    r.code,
-                    r.nameAr || r.name || '—',
-                    r.openingDebit || 0,
-                    r.openingCredit || 0,
-                    r.periodDebit || 0,
-                    r.periodCredit || 0,
-                    r.closingDebit || 0,
-                    r.closingCredit || 0,
-                  ]);
-                  handleExportExcel(`ميزان_المراجعة_${trialView}`, headers, rows, [0, 2, 3, 4, 5, 6, 7]);
-                }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition"
-              >
-                <Download size={14} />
-                <span>تصدير Excel</span>
               </button>
             </div>
           </div>
@@ -1102,7 +1037,24 @@ function AccountingPageContent() {
                     )}
 
                     {/* Trial balance table */}
-                    <TrialBalanceTable rows={rows} totals={totals} />
+                    <TrialBalanceTable
+                      rows={rows}
+                      totals={totals}
+                      onExport={(visibleRows) => {
+                        const headers = ['رمز الحساب', 'اسم الحساب', 'افتتاح مدين', 'افتتاح دائن', 'فترة مدين', 'فترة دائن', 'إغلاق مدين', 'إغلاق دائن'];
+                        const exportRows = visibleRows.map((r) => [
+                          r.code,
+                          r.nameAr || r.name || '—',
+                          r.openingDebit || 0,
+                          r.openingCredit || 0,
+                          r.periodDebit || 0,
+                          r.periodCredit || 0,
+                          r.closingDebit || 0,
+                          r.closingCredit || 0,
+                        ]);
+                        handleExportExcel(`ميزان_المراجعة_${trialView}`, headers, exportRows, [0, 2, 3, 4, 5, 6, 7]);
+                      }}
+                    />
                   </div>
                 );
               })}
@@ -1492,9 +1444,11 @@ function AccountingPageContent() {
 function TrialBalanceTable({
   rows,
   totals,
+  onExport,
 }: {
   rows: TrialBalanceCompanyRow[];
   totals: Record<string, number | undefined>;
+  onExport?: (visibleRows: TrialBalanceCompanyRow[]) => void;
 }) {
   const tf = useTableAutoFilter<TrialBalanceCompanyRow>(rows, [
     { key: 'code', header: 'رمز الحساب', type: 'list', getValue: (r) => r.code || '' },
@@ -1509,7 +1463,21 @@ function TrialBalanceTable({
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
-      <AutoFilterBar controller={tf} totalCount={rows.length} />
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-[var(--line)] bg-[var(--raised)]/30">
+        <div className="flex-1 min-w-0">
+          <AutoFilterBar controller={tf} totalCount={rows.length} />
+        </div>
+        {onExport ? (
+          <button
+            type="button"
+            onClick={() => onExport(tf.rows)}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition shrink-0"
+          >
+            <Download size={14} />
+            <span>تصدير Excel ({tf.rows.length})</span>
+          </button>
+        ) : null}
+      </div>
       <table className="w-full text-xs text-start border-collapse">
         <thead>
           <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
