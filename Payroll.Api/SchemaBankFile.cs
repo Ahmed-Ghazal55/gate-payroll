@@ -110,6 +110,7 @@ public static class SchemaBankFile
             ({n}.scope_registration_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM {reg} cr WHERE cr.id={n}.scope_registration_id AND cr.company_id={n}.scope_company_id))
             OR ({n}.status IN (2,3) AND ({maker(n)} OR NOT EXISTS(SELECT 1 FROM {line} l WHERE l.bank_file_id={n}.id AND l.status=1)))
             OR ({n}.status=4 AND EXISTS(SELECT 1 FROM {line} l WHERE l.bank_file_id={n}.id AND l.status=1))
+            OR ({n}.status=3 AND {n}.payout_blocked=1)
             OR ({n}.status=3 AND EXISTS(SELECT 1 FROM {line} l WHERE l.bank_file_id={n}.id AND l.status=1 AND l.company_id<>{n}.paying_company_id AND NOT EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"fin","inter_company_settlement")} s WHERE s.bank_file_line_id=l.id AND s.status=2)))
             OR ({n}.status IN (2,3) AND EXISTS(SELECT 1 FROM {line} l JOIN {r} r ON r.id=l.pay_run_rider_id JOIN {run} pr ON pr.id=r.pay_run_id JOIN {p} p ON p.id=l.payment_id JOIN {a} a ON a.id=l.allocation_id
               WHERE l.bank_file_id={n}.id AND l.status=1 AND (r.salary_approved_at IS NULL OR r.debt_confirm_status='pending' OR pr.run_mode=1 OR p.run_mode=1

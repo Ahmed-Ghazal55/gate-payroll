@@ -61,6 +61,18 @@ public sealed class SchemaBankFileTests
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM sal_bank_file_line WHERE id=@id",("@id",l.Line)),"Money rows cannot be deleted");
     }
     [TestMethod,DataRow(false),DataRow(true)]
+    public void BlockedFileCannotBecomeSentEvenAfterClaimsArePosted(bool sqlServer)
+    {
+        using var c=Open(sqlServer);
+        string company=MoneySchemaFixture.Company(c),registration=SchemaTreasuryTests.Registration(c,company),bank=SchemaTreasuryTests.Account(c,company,registration),file=File(c,company,registration,bank,false);
+        var l=Line(c,file,company,registration,company);
+        Approve(c,file);
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET status=2 WHERE id=@id",("@id",l.Payment));
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",l.Claim));
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_bank_file SET payout_blocked=1 WHERE id=@id",("@id",file));
+        MoneySchemaFixture.Reject(()=>Sent(c,file),"TR_bank_file_state");
+    }
+    [TestMethod,DataRow(false),DataRow(true)]
     public void CombinedIssuanceStoresCrossCompanySettlementAndPerCompanyRejectsOtherCompany(bool sqlServer)
     {
         using var c=Open(sqlServer);
