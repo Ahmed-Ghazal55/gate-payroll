@@ -28,10 +28,11 @@ public sealed class NotifyTasksApiTests
             Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>NotifyTasksApi.Send(c,tx,admin,new(){["titleAr"]="x",["source"]="chat"}))).Status);
 
             store.Write((c,tx)=>NotifyTasksApi.PutSettings(c,tx,admin,new(){["replyWorkingDays"]=3,["matrix"]=new JsonArray()}));
-            store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="u1",["username"]="assignee",["role"]="Accountant",["status"]="active"},tx);return true;});
-            var task=store.Write((c,tx)=>NotifyTasksApi.CreateTask(c,tx,admin,new(){["titleAr"]="مهمة",["assignee"]="assignee",["dueAt"]=DateTimeOffset.UtcNow.AddDays(-1).ToString("O")}));
+            store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]="assignee",["role"]="Accountant",["status"]="active"},tx);return true;});
+            string company=FinancialCore.Sponsors[0].Id;
+            var task=store.Write((c,tx)=>NotifyTasksApi.CreateTask(c,tx,admin,new(){["titleAr"]="مهمة",["assignee"]="assignee",["companyId"]=company,["dueAt"]=DateTimeOffset.UtcNow.AddDays(-1).ToString("O")}));
             Assert.AreEqual("open",task.S("status"));
-            store.Write((c,tx)=>{NotifyTasksApi.EscalateOverdue(c,tx);return true;});
+            store.Write((c,tx)=>{NotifyTasksApi.ProcessReminders(c,tx);return true;});
             Assert.AreEqual("escalated",store.Read(c=>Store.Get(c,task.S("id"),NotifyTasksApi.TaskKind)!.S("status")));
             Assert.AreNotEqual("completed",store.Read(c=>Store.Get(c,task.S("id"),NotifyTasksApi.TaskKind)!.S("status")));
             // WMRG: real notify.subscription + task.item rows.
@@ -40,6 +41,28 @@ public sealed class NotifyTasksApiTests
             Assert.AreEqual("escalated",store.Read(c=>Convert.ToString(SchemaSql.Scalar(c,null,$"SELECT status FROM {SchemaSql.Q(c,"task","item")} WHERE id=@id",("@id",task.S("id")))!)));
             Assert.IsTrue(AccessPolicy.Allowed(admin,"GET","/api/admin/notify-settings"));
             Assert.IsTrue(AccessPolicy.Allowed(admin,"POST","/api/tasks"));
+        });
+    }
+
+    [TestMethod]
+    public void TasksStayInCompanyAndOwnership_SendChecksRecipients()
+    {
+        WithStore(store=>
+        {
+            string company=FinancialCore.Sponsors[0].Id,other=FinancialCore.Sponsors[1].Id;
+            store.Write((c,tx)=>
+            {
+                Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]="owner",["role"]="Accountant",["status"]="active",["customPermissions"]=new JsonArray("tasks.assign","tasks.manage","notify.send.custom","notify.send.general"),["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(company),["accountCodes"]=new JsonArray(),["platforms"]=new JsonArray(),["categoryCodes"]=new JsonArray()}},tx);
+                Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]="stranger",["role"]="Reviewer",["status"]="active",["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(other),["accountCodes"]=new JsonArray(),["platforms"]=new JsonArray(),["categoryCodes"]=new JsonArray()}},tx);
+                return true;
+            });
+            var owner=store.Read(c=>UserAccess.Principal(Store.List(c,"user").First(u=>u.S("username")=="owner")));
+            var task=store.Write((c,tx)=>NotifyTasksApi.CreateTask(c,tx,owner,new(){["titleAr"]="ملكي",["companyId"]=company}));
+            var listed=store.Read(c=>NotifyTasksApi.ListTasks(c,owner,null));
+            Assert.AreEqual(1,listed["items"]!.AsArray().Count);
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>NotifyTasksApi.CreateTask(c,tx,owner,new(){["titleAr"]="خارج",["companyId"]=other}))).Status);
+            Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>NotifyTasksApi.CreateTask(c,tx,owner,new(){["titleAr"]="وهمي",["companyId"]=company,["assignee"]="ghost"}))).Status);
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>NotifyTasksApi.Send(c,tx,owner,new(){["titleAr"]="x",["custom"]=true,["companyId"]=company,["userIds"]=new JsonArray("stranger")}))).Status);
         });
     }
 }
