@@ -190,9 +190,9 @@ const OPERATORS_MAP: Record<string, string> = {
 };
 
 const EFFECT_TYPES_MAP: Record<string, string> = {
-  zero: 'تصفير المستحق (Zero Entitlement)',
-  next_band: 'الانتقال للشريحة التالية (Next Band)',
-  per_order: 'محاسبة بسعر الطلب الفردي (Per Order)',
+  zero: 'تصفير المستحق',
+  next_band: 'الانتقال للشريحة التالية',
+  per_order: 'محاسبة بسعر الطلب الفردي',
 };
 
 function PayrollPageInner() {
@@ -916,7 +916,7 @@ function PayrollPageInner() {
   // Create Cycle from Draft (A5)
   const handleCreateCycleFromDraft = async () => {
     if (!reviewDraft || !reviewDraft.canCreate || (reviewDraft.blockers && reviewDraft.blockers.length > 0)) {
-      showToast('لا يمكن إنشاء الدورة مع وجود موانع استحقاق (Blockers)', 'error');
+      showToast('لا يمكن إنشاء الدورة مع وجود موانع استحقاق', 'error');
       return;
     }
     setCreatingCycle(true);
@@ -952,7 +952,7 @@ function PayrollPageInner() {
   const handleSaveNewRule = async () => {
     const trimmedThreshold = newRuleThreshold.trim();
     if (trimmedThreshold === '' || Number.isNaN(Number(trimmedThreshold))) {
-      showToast('يرجى إدخال قيمة الحد الأدنى (Threshold) للشرط قبل الحفظ', 'error');
+      showToast('يرجى إدخال قيمة الحد الأدنى للشرط قبل الحفظ', 'error');
       return;
     }
     setSubmittingRuleLifecycle(true);
@@ -1012,7 +1012,7 @@ function PayrollPageInner() {
     setSubmittingRuleLifecycle(true);
     try {
       await api.approveAppEligibility('ninja', activeNinjaEligibility.id);
-      showToast('تم اعتماد شروط الأهلية بنجاح (Maker-Checker)', 'success');
+      showToast('تم اعتماد شروط الأهلية بنجاح', 'success');
       await loadNinjaEligibility();
     } catch (err: any) {
       showToast(err.message || 'تعذر اعتماد شروط الأهلية', 'error');
@@ -1363,7 +1363,7 @@ function PayrollPageInner() {
   // Approve TGA Allocation (maker-checker)
   const handleApproveAllocation = async (alloc: HsAllocation) => {
     if (alloc.requestedBy && user && alloc.requestedBy.toLowerCase() === user.username.toLowerCase()) {
-      showToast('لا يمكن لمنشئ التوزيع اعتماده بنفسه (قاعدة التدقيق المستقل Maker-Checker)', 'error');
+      showToast('لا يجوز أن يعتمد نفس الشخص الذي أنشأ التوزيع؛ يلزم مراجع آخر', 'error');
       return;
     }
 
@@ -1381,7 +1381,7 @@ function PayrollPageInner() {
     if (!selectedDispute) return;
 
     if (selectedDispute.createdBy && user && selectedDispute.createdBy.toLowerCase() === user.username.toLowerCase()) {
-      showToast('لا يمكنك البت في اعتراض أنشأته بنفسك (قاعدة التدقيق المستقل Maker-Checker)', 'error');
+      showToast('لا يجوز أن يبت نفس الشخص الذي أنشأ الاعتراض؛ يلزم مراجع آخر', 'error');
       return;
     }
 
@@ -1459,7 +1459,7 @@ function PayrollPageInner() {
 
   const handleApproveTerms = async (termsDoc: PayConfigDoc) => {
     if (isSelfMaker(termsDoc)) {
-      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
+      showToast('لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة؛ يلزم مستخدم آخر مستقل.', 'warning');
       return;
     }
     try {
@@ -1485,7 +1485,7 @@ function PayrollPageInner() {
 
   const handleApproveScheme = async (schemeDoc: PayConfigDoc) => {
     if (isSelfMaker(schemeDoc)) {
-      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
+      showToast('لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة؛ يلزم مستخدم آخر مستقل.', 'warning');
       return;
     }
     try {
@@ -1513,7 +1513,7 @@ function PayrollPageInner() {
 
   const handleApproveEligibility = async (elDoc: PayConfigDoc) => {
     if (isSelfMaker(elDoc)) {
-      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
+      showToast('لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة؛ يلزم مستخدم آخر مستقل.', 'warning');
       return;
     }
     try {
@@ -2935,7 +2935,7 @@ function PayrollPageInner() {
                                 <button
                                   type="button"
                                   disabled={isMaker}
-                                  title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد العقد'}
+                                  title={isMaker ? 'لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة' : 'اعتماد العقد'}
                                   onClick={() => handleApproveTerms(t)}
                                   className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
                                 >
@@ -3094,7 +3094,7 @@ function PayrollPageInner() {
                               </span>
                             )}
                             <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--raised)] font-mono">
-                              صفة: {sc.data?.accountingRole === 'principal' ? 'أصيل (Principal)' : 'وكيل (Agent)'}
+                              صفة: {sc.data?.accountingRole === 'principal' ? 'أصيل' : 'وكيل'}
                             </span>
                             <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-mono">
                               نوع: {sc.data?.type || 'daily_commission'}
@@ -3121,7 +3121,7 @@ function PayrollPageInner() {
                                 <button
                                   type="button"
                                   disabled={isMaker}
-                                  title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد النظام'}
+                                  title={isMaker ? 'لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة' : 'اعتماد النظام'}
                                   onClick={() => handleApproveScheme(sc)}
                                   className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
                                 >
@@ -3319,7 +3319,7 @@ function PayrollPageInner() {
                                     <button
                                       type="button"
                                       disabled={isMaker}
-                                      title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد الأهلية'}
+                                      title={isMaker ? 'لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة' : 'اعتماد الأهلية'}
                                       onClick={() => handleApproveEligibility(el)}
                                       className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
                                     >
@@ -3838,7 +3838,7 @@ function PayrollPageInner() {
                               تم اعتماد جميع المناديب في جدول المراجعة — بانتظار مستخدم مستقل لاعتماد المرحلة 7 والترحيل
                             </p>
                             <p className="text-xs text-[var(--muted)]">
-                              لماذا لا يكتمل الاعتماد النهائي بحسابك؟ قاعدة الرقابة المستقلة (Maker ≠ Checker) تشترط أن يكون معتمد المرحلة 7 مستقلاً عن من أنشأ الدورة أو قدّم مراحلها.
+                              لماذا لا يكتمل الاعتماد النهائي بحسابك؟ لا يجوز أن يعتمد المرحلة 7 نفس الشخص الذي أنشأ الدورة أو قدّم مراحلها؛ يلزم مستخدم آخر مستقل.
                             </p>
                           </>
                         ) : (
@@ -4547,7 +4547,7 @@ function PayrollPageInner() {
                           </span>
                         </div>
                         <p className="text-xs text-[var(--muted)] mt-1">
-                          تخضع شروط الأهلية لمعايير الحوكمة والاعتماد المستقل (Maker ≠ Checker). التعديل يتم في المسودة حصراً.
+                          تخضع شروط الأهلية للاعتماد المستقل من شخص آخر غير المنشئ. التعديل يتم في المسودة حصراً.
                         </p>
                       </div>
 

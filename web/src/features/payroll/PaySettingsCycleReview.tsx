@@ -146,7 +146,7 @@ export function PaySettingsCycleReview({
             </span>
           </div>
           <p className="text-xs text-[var(--muted)] mt-1">
-            مراجعة حالة إعدادات الدورة (العقد، الأنظمة، الأهلية). فحص الفروقات عن شهر {previousPeriod} مع قاعدة Maker ≠ Checker.
+            مراجعة حالة إعدادات الدورة (العقد، الأنظمة، الأهلية). فحص الفروقات عن شهر {previousPeriod} مع اشتراط اعتماد شخص آخر غير المنشئ.
           </p>
         </div>
 
@@ -253,7 +253,7 @@ export function PaySettingsCycleReview({
                         <button
                           type="button"
                           disabled={Boolean(isMaker)}
-                          title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد الإعداد'}
+                          title={isMaker ? 'لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة' : 'اعتماد الإعداد'}
                           onClick={() => onApproveSetting(item.doc, item.kind)}
                           className="px-3.5 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer inline-flex items-center gap-1 shadow-xs"
                         >

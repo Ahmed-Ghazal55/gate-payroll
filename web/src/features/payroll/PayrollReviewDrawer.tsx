@@ -227,14 +227,14 @@ export function PayrollReviewDrawer({
         {/* Financial Flow Cards (BR §29: Phases Flow) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-2xl border border-[var(--line)] bg-[var(--raised)]/40 text-xs">
           <div className="p-2 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
-            <span className="text-[10px] text-[var(--muted)] block">الإجمالي (Gross)</span>
+            <span className="text-[10px] text-[var(--muted)] block">الإجمالي</span>
             <span className="num font-mono font-bold text-[var(--ink)]">
               {formatSar(row.gross)}
             </span>
           </div>
 
           <div className="p-2 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
-            <span className="text-[10px] text-[var(--muted)] block">العمولة (Commission)</span>
+            <span className="text-[10px] text-[var(--muted)] block">العمولة</span>
             <span className="num font-mono font-bold text-[var(--warning)]">
               {formatSar(row.commission)}
             </span>

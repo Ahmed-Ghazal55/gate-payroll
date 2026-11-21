@@ -1811,7 +1811,7 @@ function DebtsPageContent() {
           {newReqType === 'internet' && (
             <div className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/50 space-y-3">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-[var(--ink)]">طريقة الصرف (Fulfilment):</label>
+                <label className="text-xs font-bold text-[var(--ink)]">طريقة الصرف:</label>
                 <div className="grid grid-cols-3 gap-2">
                   <label
                     className={`p-2 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer transition ${

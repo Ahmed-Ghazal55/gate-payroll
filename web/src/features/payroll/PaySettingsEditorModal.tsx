@@ -266,7 +266,7 @@ export function PaySettingsEditorModal({
 
   const modalDesc =
     kind === 'terms'
-      ? 'نموذج التعاقد الأصلي بين المنصة والشركة (تارجت، شرائح، أو بالطلب). الحفظ ينشئ نسخة بانتظار الاعتماد (Maker-Checker).'
+      ? 'نموذج التعاقد الأصلي بين المنصة والشركة (تارجت، شرائح، أو بالطلب). الحفظ ينشئ نسخة بانتظار اعتماد مستخدم آخر مستقل.'
       : kind === 'scheme'
       ? 'النظام الداخلي للشركة مع المناديب لمصفوفة الفئات الست الصريحة (كفالة/خارجي × مركبة شركة/خاصة).'
       : kind === 'eligibility'
@@ -313,7 +313,7 @@ export function PaySettingsEditorModal({
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-[var(--ink)] block">نموذج الفوترة (Billing Model):</label>
+                <label className="font-bold text-[var(--ink)] block">نموذج الفوترة:</label>
                 <select
                   value={termsForm.billingModel}
                   onChange={(e) =>
@@ -363,7 +363,7 @@ export function PaySettingsEditorModal({
             {termsForm.billingModel === 'ninja_target' && (
               <div className="space-y-4 p-4 rounded-2xl bg-[var(--raised)]/40 border border-[var(--line)]">
                 <div className="flex items-center justify-between border-b border-[var(--line)] pb-2">
-                  <span className="font-bold text-[var(--ink)]">محددات عقد نينجا (Ninja Capabilities)</span>
+                  <span className="font-bold text-[var(--ink)]">محددات عقد نينجا</span>
                   <div className="flex items-center gap-2">
                     <span className="text-[var(--muted)]">أسلوب حساب الشهر:</span>
                     <select
@@ -373,8 +373,8 @@ export function PaySettingsEditorModal({
                       }
                       className="p-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
                     >
-                      <option value="calendar">أيام تقويمية (Calendar)</option>
-                      <option value="standard">30 يوماً قياسي (Standard)</option>
+                      <option value="calendar">أيام تقويمية</option>
+                      <option value="standard">30 يوماً قياسياً</option>
                     </select>
                   </div>
                 </div>
@@ -383,7 +383,7 @@ export function PaySettingsEditorModal({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {(['car', 'bike'] as const).map((capKey) => {
                     const cap = termsForm[capKey];
-                    const labelAr = capKey === 'car' ? 'مركبة سيارة (Car)' : 'مركبة دباب (Bike)';
+                    const labelAr = capKey === 'car' ? 'مركبة سيارة' : 'مركبة دباب';
                     return (
                       <div key={capKey} className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)] space-y-2">
                         <span className="font-bold text-[var(--ink)] block border-b border-[var(--line)] pb-1">
@@ -800,7 +800,7 @@ export function PaySettingsEditorModal({
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-[var(--ink)] block">رمز النظام (English Code):</label>
+                <label className="font-bold text-[var(--ink)] block">رمز النظام:</label>
                 <input
                   type="text"
                   aria-label="رمز النظام بالإنجليزي"
@@ -821,15 +821,15 @@ export function PaySettingsEditorModal({
                   }
                   className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-semibold focus:outline-hidden"
                 >
-                  <option value="principal">أصيل (Principal - دخل وعمولة)</option>
-                  <option value="agent">وكيل (Agent - وساطة وصافي)</option>
+                  <option value="principal">أصيل (دخل وعمولة)</option>
+                  <option value="agent">وكيل (وساطة وصافي)</option>
                 </select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="font-bold text-[var(--ink)] block">نوع النظام الداخلي (Scheme Type):</label>
+                <label className="font-bold text-[var(--ink)] block">نوع النظام الداخلي:</label>
                 <select
                   aria-label="نوع النظام"
                   value={schemeForm.type}
@@ -850,7 +850,7 @@ export function PaySettingsEditorModal({
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-[var(--ink)] block">شروط الأهلية المرتبطة (Approved Eligibility):</label>
+                <label className="font-bold text-[var(--ink)] block">شروط الأهلية المرتبطة:</label>
                 <SearchableSelect
                   value={schemeForm.eligibilitySetId}
                   onChange={(val) => setSchemeForm((f) => ({ ...f, eligibilitySetId: val }))}
@@ -1144,7 +1144,7 @@ export function PaySettingsEditorModal({
                                 }}
                                 className="h-4 w-4 rounded-md accent-[var(--accent)] cursor-pointer"
                               />
-                              <span>حساب بالتناسب مع أيام الحضور الفعلية (Prorate)</span>
+                              <span>حساب بالتناسب مع أيام الحضور الفعلية</span>
                             </label>
                           )}
 
@@ -1204,7 +1204,7 @@ export function PaySettingsEditorModal({
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-[var(--ink)] block">رمز الأهلية (Code):</label>
+                <label className="font-bold text-[var(--ink)] block">رمز الأهلية:</label>
                 <input
                   type="text"
                   placeholder="ninja-eligibility-v1"
@@ -1446,15 +1446,15 @@ export function PaySettingsEditorModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <label className="font-bold text-[var(--ink)] block">نمط الوقود (Fuel Mode):</label>
+                <label className="font-bold text-[var(--ink)] block">نمط الوقود:</label>
                 <select
                   value={exceptionFuelMode}
                   onChange={(e) => setExceptionFuelMode(e.target.value as any)}
                   className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
                 >
-                  <option value="fuel_card">بطاقة وقود مخصصة (Fuel Card)</option>
-                  <option value="cash_reimbursement">استرداد نقدي (Cash Reimbursement)</option>
-                  <option value="not_included">غير مشمول (Not Included)</option>
+                  <option value="fuel_card">بطاقة وقود مخصصة</option>
+                  <option value="cash_reimbursement">استرداد نقدي</option>
+                  <option value="not_included">غير مشمول</option>
                 </select>
               </div>
 
@@ -1485,7 +1485,7 @@ export function PaySettingsEditorModal({
         <div className="pt-3 border-t border-[var(--line)] flex items-center justify-between">
           <div className="text-[11px] text-[var(--muted)] flex items-center gap-1.5">
             <Lock size={12} />
-            <span>حفظ الإعداد ينشئ نسخة بانتظار الاعتماد المستقل (Maker ≠ Checker).</span>
+            <span>حفظ الإعداد ينشئ نسخة بانتظار اعتماد مستخدم آخر مستقل.</span>
           </div>
 
           <div className="flex items-center gap-2">

@@ -422,7 +422,7 @@ function RiderStatementPageInner() {
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-xs">
                     <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
-                      <span className="text-[10px] text-[var(--muted)] block">الإجمالي (Gross)</span>
+                      <span className="text-[10px] text-[var(--muted)] block">الإجمالي</span>
                       <span className="num font-mono font-bold text-[var(--ink)]">
                         {formatSar(monthlyStatement.phases.gross)}
                       </span>
@@ -509,7 +509,7 @@ function RiderStatementPageInner() {
 
                     {card.explain && card.explain.length > 0 && (
                       <div className="space-y-1.5 pt-1">
-                        <span className="text-[11px] font-bold text-[var(--muted)] block">شرح الاحتساب (Explain):</span>
+                        <span className="text-[11px] font-bold text-[var(--muted)] block">شرح الاحتساب:</span>
                         <div className="space-y-1">
                           {card.explain.map((exp, eIdx) => (
                             <div key={eIdx} className="p-2 rounded-lg bg-[var(--surface)] border border-[var(--line)] text-xs flex justify-between items-center">
@@ -533,7 +533,7 @@ function RiderStatementPageInner() {
 
               {monthlyStatement.deductions && monthlyStatement.deductions.length > 0 && (
                 <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-2">
-                  <h4 className="font-bold text-xs text-[var(--ink)]">الاستقطاعات والتحملات المباشرة (Stage 2 Deductions):</h4>
+                  <h4 className="font-bold text-xs text-[var(--ink)]">الاستقطاعات والتحملات المباشرة:</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                     {monthlyStatement.deductions.map((d, dIdx) => (
                       <div key={dIdx} className="p-2.5 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs flex justify-between items-center">

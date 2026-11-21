@@ -54,7 +54,7 @@ type DeductionGroup = { category: string; lineIds: string[]; amount: number; unc
 
 const DEDUCTION_LABELS: Record<string, string> = {
   penalty: 'غرامة (Penalty / الخصم)',
-  naqilBlocked: 'حظر نقل (NAQIL BLOCKED)',
+  naqilBlocked: 'حظر نقل',
   stopsWithoutNotice: 'توقف بدون إشعار',
   supplier_adjustment: 'تعديل المورد',
   deductionRefund: 'رد خصم',
@@ -1473,7 +1473,7 @@ export function NinjaInvoiceUploadScreen({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs sm:text-sm font-bold text-[var(--ink)]">
-                  إجراءات الفاتورة المتاحة من المحرك (Allowed Actions):
+                  إجراءات الفاتورة المتاحة:
                 </span>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-mono">
                   {currentInvoice.approvalStatus || 'pending'}
@@ -1587,7 +1587,7 @@ export function NinjaInvoiceUploadScreen({
               icon={CheckCircle}
             />
             <StatCard
-              label="إجمالي المستحق (Gross)"
+              label="إجمالي المستحق"
               value={formatSar(gross)}
               hint="قبل الخصومات"
               icon={DollarSign}
@@ -1599,7 +1599,7 @@ export function NinjaInvoiceUploadScreen({
               icon={AlertTriangle}
             />
             <StatCard
-              label="الضريبة (VAT)"
+              label="الضريبة"
               value={formatSar(vat)}
               hint="ضريبة القيمة المضافة"
               icon={Percent}
@@ -1703,7 +1703,7 @@ export function NinjaInvoiceUploadScreen({
                     )}
                   </div>
                   <div className="text-[11px] text-[var(--muted)]">
-                    مصدر الشروط: {reconcileResult.termsSource === 'approved' ? 'شروط معتمدة' : 'شروط البداية (Seed)'}
+                    مصدر الشروط: {reconcileResult.termsSource === 'approved' ? 'شروط معتمدة' : 'الشروط الافتراضية'}
                   </div>
                 </div>
 
@@ -1750,7 +1750,7 @@ export function NinjaInvoiceUploadScreen({
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-xs sm:text-sm font-bold text-[var(--ink)]">
-                        تسويات على مستوى الفاتورة (Invoice-level Adjustments)
+                        تسويات على مستوى الفاتورة
                       </h4>
                       <p className="text-[11px] text-[var(--muted)] mt-0.5">
                         بنود بدون كابتن محدد (مثل الخصومات العامة DEDUCTIONS)؛ تم تضمينها كما وردت من نينجا.

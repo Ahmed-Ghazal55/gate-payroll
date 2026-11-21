@@ -726,7 +726,7 @@ export function validateTermsForm(
       parameters.maxBillableKm = maxKm.value;
     }
   } else if (form.billingModel === 'flat_target') {
-    const targetRes = parseRequiredNum(form.targetOrders, 'عدد الطلبات المستهدف (Target Orders)', 1);
+    const targetRes = parseRequiredNum(form.targetOrders, 'عدد الطلبات المستهدف', 1);
     if (!targetRes.ok) return targetRes;
     const amountRes = parseRequiredNum(form.monthlyAmount, 'المبلغ الشهري للعقد');
     if (!amountRes.ok) return amountRes;
@@ -742,7 +742,7 @@ export function validateTermsForm(
     parameters.prorate = form.prorate;
   } else if (form.billingModel === 'slabs') {
     if (!form.metric.trim()) {
-      return { ok: false, error: 'يرجى تحديد مقياس الشرائح (Metric).' };
+      return { ok: false, error: 'يرجى تحديد مقياس الشرائح.' };
     }
     const bandsRes = parseBands(form.bands, 'شرائح عقد المنصة');
     if (!bandsRes.ok) return bandsRes;
@@ -751,8 +751,8 @@ export function validateTermsForm(
   } else if (form.billingModel === 'ninja_target') {
     const capabilities: Record<string, unknown> = {};
     for (const [capKey, capLabel, capState] of [
-      ['car', 'سيارة (Car)', form.car],
-      ['bike', 'دباب (Bike)', form.bike],
+      ['car', 'سيارة', form.car],
+      ['bike', 'دباب', form.bike],
     ] as const) {
       const amtRes = parseRequiredNum(capState.contractAmount, `مبلغ العقد (${capLabel})`, 1);
       if (!amtRes.ok) return amtRes;
@@ -967,7 +967,7 @@ export function validateEligibilityForm(
     if (!r.metric.trim()) {
       return { ok: false, error: `يرجى اختيار المقياس للشرط رقم #${i + 1}.` };
     }
-    const thRes = parseRequiredNum(r.threshold, `الحد الأدنى (Threshold) للشرط #${i + 1}`, -1000000000, 1000000000);
+    const thRes = parseRequiredNum(r.threshold, `الحد الأدنى للشرط #${i + 1}`, -1000000000, 1000000000);
     if (!thRes.ok) return thRes;
     rulesOut.push({
       metric: r.metric.trim(),
