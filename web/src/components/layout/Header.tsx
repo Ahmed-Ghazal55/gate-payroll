@@ -23,19 +23,30 @@ import {
   FileSpreadsheet,
   ClipboardCheck,
   Banknote,
-  FileUp,
   Volume2,
   VolumeX,
   Calculator,
   Percent,
   Receipt,
+  PauseCircle,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
-import type { UserProfile } from '../../lib/types';
+import type { CompanySponsor, UserProfile } from '../../lib/types';
 import { NotificationsPanel } from './NotificationsPanel';
 import { GlobalSearchModal } from './GlobalSearchModal';
+import { SearchableSelect } from '../ui/SearchableSelect';
 import { personalSoundEnabled, setPersonalSoundEnabled, unlockNotificationSound, playPersonalChime } from '../../lib/notification-sound';
+
+function rollingPeriods(count = 24): string[] {
+  const out: string[] = [];
+  const now = new Date();
+  for (let i = 0; i < count; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    out.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
+  }
+  return out;
+}
 
 function BreadcrumbsNav() {
   const pathname = usePathname();
@@ -47,14 +58,19 @@ function BreadcrumbsNav() {
   if (parts.length > 0) {
     const section = parts[0];
     const sectionLabels: Record<string, string> = {
-      riders: 'المناديب',
+      workforce: 'القوى العاملة',
+      riders: 'القوى العاملة',
       companies: 'الشركات والسجلات',
-      operations: 'التشغيل والأصول',
+      hr: 'كتالوجات الموظفين',
+      payments: 'المدفوعات والمشتريات',
+      operations: 'التشغيل والأسطول',
       payroll: 'الرواتب',
-      debts: 'المديونيات والسلف',
+      debts: 'المديونيات والتحصيل',
+      approvals: 'الاعتمادات',
       treasury: 'البنوك والصناديق والخزن',
       accounting: 'المحاسبة والتقارير',
-      forms: 'النماذج والردود',
+      forms: 'تطبيق المناديب والنماذج',
+      'rider-app': 'تطبيق المناديب والنماذج',
       notifications: 'الإشعارات والتنبيهات',
       admin: 'الإدارة',
     };
@@ -126,10 +142,26 @@ export function Header({
   // null until the first poll, so existing items never ring on page load.
   const lastPersonalRef = useRef<number | null>(null);
 
-  // ERP Sync Drawer State
+  const [companies, setCompanies] = useState<CompanySponsor[]>([]);
+  const [periods, setPeriods] = useState<string[]>(rollingPeriods());
 
   // Search modal state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
+
+  useEffect(() => {
+    api
+      .getCompanies()
+      .then((list) => setCompanies(Array.isArray(list) ? list : []))
+      .catch(() => setCompanies([]));
+    api
+      .getAdminSettings()
+      .then((settings) => {
+        const fromApi = (settings as { openPeriods?: string[]; periods?: string[] }).openPeriods
+          || (settings as { periods?: string[] }).periods;
+        if (Array.isArray(fromApi) && fromApi.length) setPeriods(fromApi.map(String));
+      })
+      .catch(() => setPeriods(rollingPeriods()));
+  }, []);
 
   const notifMenuRef = useRef<HTMLDivElement>(null);
   const personalNotifMenuRef = useRef<HTMLDivElement>(null);
@@ -246,70 +278,70 @@ export function Header({
     can('advances.payout:card') ||
     Boolean(user?.permissions && user.permissions.some((p) => p.startsWith('advances.payout')));
 
-  // Shortcuts list gated by can()
+  // Shortcuts list gated by can() — U-W3-01 (no import/sync)
   const shortcutItems = [
     {
       id: 'monthly-cycle',
       label: 'تصفية شهرية',
-      href: '/payroll/?tab=cycle',
+      href: '/payroll/keeta',
       icon: <Calculator size={15} className="text-[var(--accent)]" />,
       visible: can('payroll.view') || can('pay.view'),
     },
     {
-      id: 'advances-shortcut',
-      label: 'السلف',
-      href: '/debts/?tab=advance_requests',
-      icon: <Banknote size={15} className="text-[var(--money-pos)]" />,
-      visible: can('debts.view') || can('advances.view') || can('advances.request') || can('advances.review'),
-    },
-    {
-      id: 'deductions-shortcut',
-      label: 'الخصومات',
-      href: '/payroll/?tab=deductions',
-      icon: <Percent size={15} className="text-[var(--warning)]" />,
-      visible: can('payroll.view') || can('pay.view'),
+      id: 'manual-journal',
+      label: 'إنشاء قيد محاسبي',
+      href: '/accounting/?tab=manual_journals&action=new',
+      icon: <FileSpreadsheet size={15} className="text-[var(--warning)]" />,
+      visible: can('finance.journal.create'),
     },
     {
       id: 'advance-request',
       label: 'طلب سلفة',
-      href: '/debts/?tab=advance_requests&action=new',
+      href: '/payments/advances?action=new',
       icon: <PlusCircle size={15} className="text-[var(--accent)]" />,
       visible: can('advances.request'),
     },
     {
       id: 'advance-request-net',
       label: 'طلب سلفة نت',
-      href: '/debts/?tab=advance_requests&action=new_internet',
+      href: '/payments/advances?action=new_internet',
       icon: <Smartphone size={15} className="text-[var(--info)]" />,
       visible: can('advances.request'),
     },
     {
-      id: 'manual-journal',
-      label: 'إنشاء قيد محاسبي',
-      href: '/accounting/?action=manual_journal',
-      icon: <FileSpreadsheet size={15} className="text-[var(--warning)]" />,
-      visible: can('finance.journal.create'),
-    },
-    {
-      id: 'advance-review',
-      label: 'مراجعة السلف',
-      href: '/debts/?tab=advance_requests',
-      icon: <ClipboardCheck size={15} className="text-[var(--money-pos)]" />,
-      visible: can('advances.review'),
-    },
-    {
       id: 'advance-payout',
       label: 'صرف السلف',
-      href: '/treasury/?tab=advance_payouts',
+      href: '/payments/advances?tab=payouts',
       icon: <Banknote size={15} className="text-[var(--accent)]" />,
       visible: canPayout,
     },
     {
-      id: 'ninja-upload',
-      label: 'رفع فاتورة نينجا',
-      href: '/payroll/?tab=ninja_upload',
-      icon: <FileUp size={15} className="text-[var(--info)]" />,
-      visible: can('pay.view'),
+      id: 'salary-hold',
+      label: 'طلب إيقاف راتب',
+      href: '/payroll/holds?action=new_hold',
+      icon: <PauseCircle size={15} className="text-[var(--warning)]" />,
+      visible: can('salaries.hold.request'),
+    },
+    {
+      id: 'salary-deduction',
+      label: 'طلب خصم',
+      href: '/payroll/holds?action=new_deduction',
+      icon: <Percent size={15} className="text-[var(--warning)]" />,
+      visible: can('salaries.deduction.request'),
+    },
+    {
+      id: 'quick-payment',
+      label: 'تسجيل دفعة سريعة',
+      href: '/payments/quick',
+      icon: <Receipt size={15} className="text-[var(--info)]" />,
+      visible: can('payments.disburse'),
+    },
+    {
+      id: 'staff-chat',
+      label: 'محادثة الموظفين',
+      href: '/admin/?tab=staff_chat',
+      icon: <ClipboardCheck size={15} className="text-[var(--money-pos)]" />,
+      visible: can('chat.view'),
     },
   ];
 
@@ -354,41 +386,38 @@ export function Header({
 
         {/* Right Section: Company Scope, Period, Approvals, Bell, Theme, User */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
-          {/* Company Scope Selector */}
-          <div className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs">
+          {/* Company Scope Selector — live GET /api/companies */}
+          <div className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs min-w-[10rem]">
             <Building2 size={14} className="text-[var(--muted)] shrink-0" />
-            <select
+            <SearchableSelect
+              ariaLabel="نطاق الشركة"
               value={selectedCompany}
-              onChange={(e) => onCompanyChange && onCompanyChange(e.target.value)}
-              aria-label="نطاق الشركة"
-              className="bg-transparent font-semibold text-[var(--ink)] focus:outline-hidden cursor-pointer"
-            >
-              <option value="all">كل الشركات</option>
-              <option value="BW">البوابة (BW)</option>
-              <option value="EX">إكسبريس (EX)</option>
-              <option value="TR">ترانس (TR)</option>
-            </select>
+              onChange={(v) => onCompanyChange?.(v)}
+              options={[
+                { value: 'all', label: 'كل الشركات' },
+                ...companies.map((c) => ({
+                  value: c.id || c.code || '',
+                  label: c.nameAr || c.shortNameAr || c.code || c.id || '—',
+                })),
+              ]}
+            />
           </div>
 
-          {/* Period Picker */}
-          <div className="hidden lg:flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs">
+          {/* Period Picker — one URL period via AppShell */}
+          <div className="hidden lg:flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs min-w-[8rem]">
             <Calendar size={14} className="text-[var(--muted)] shrink-0" />
-            <select
+            <SearchableSelect
+              ariaLabel="فترة العمل"
               value={selectedPeriod}
-              onChange={(e) => onPeriodChange && onPeriodChange(e.target.value)}
-              aria-label="فترة العمل"
-              className="num bg-transparent font-semibold text-[var(--ink)] focus:outline-hidden cursor-pointer"
-            >
-              <option value="2026-10">2026-10</option>
-              <option value="2026-09">2026-09</option>
-              <option value="2026-08">2026-08</option>
-            </select>
+              onChange={(v) => onPeriodChange?.(v)}
+              options={periods.map((p) => ({ value: p, label: p }))}
+            />
           </div>
 
-          {/* Approvals Count Link */}
+          {/* Approvals Count Link → /approvals/ (U-W3-01 / U-W3-12) */}
           {approvalCount > 0 && (
             <Link
-              href="/debts/"
+              href="/approvals/"
               title={`${approvalCount} معاملات بانتظار الاعتماد`}
               className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-[var(--warning)]/15 text-[var(--warning)] hover:bg-[var(--warning)]/25 transition"
             >

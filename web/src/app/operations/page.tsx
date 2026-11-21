@@ -7,10 +7,7 @@ import {
   MapPin,
   Home,
   Car,
-  PackageCheck,
-  ShieldAlert,
-  Scale,
-  Smartphone,
+  Fuel,
   RefreshCw,
   Search,
   X,
@@ -23,7 +20,6 @@ import { api, ApiError, OperationsResponse, OperationRow } from '../../lib/api';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
-import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { SourceBadge, formatRiyadhDateTime } from '../../components/ui/SourceBadge';
@@ -32,10 +28,15 @@ const KIND_MAP: Record<string, string> = {
   cities: 'city',
   housing: 'housing',
   vehicles: 'vehicle',
-  custody: 'custody_handover',
-  guarantees: 'sponsorship_period',
-  cases: 'legal_case',
-  accounts: 'platform_account',
+  fuel: 'fuel',
+};
+
+const OPS_TABS = new Set(['cities', 'housing', 'vehicles', 'fuel']);
+const O7_REDIRECT: Record<string, string> = {
+  cases: '/workforce/?tab=cases',
+  custody: '/operations/?tab=cities',
+  guarantees: '/operations/?tab=cities',
+  accounts: '/operations/?tab=cities',
 };
 
 const PAGE_SIZES = [25, 50, 100, 200];
@@ -45,7 +46,13 @@ function OperationsPageInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const tabFromUrl = searchParams?.get('tab') || 'cities';
+  const rawTab = searchParams?.get('tab') || 'cities';
+  useEffect(() => {
+    if (O7_REDIRECT[rawTab]) {
+      router.replace(O7_REDIRECT[rawTab]);
+    }
+  }, [rawTab, router]);
+  const tabFromUrl = OPS_TABS.has(rawTab) ? rawTab : 'cities';
   const pageFromUrl = parseInt(searchParams?.get('page') || '1', 10);
   const sizeFromUrl = parseInt(searchParams?.get('size') || '25', 10);
   const qFromUrl = searchParams?.get('q') || '';
@@ -179,24 +186,6 @@ function OperationsPageInner() {
     loadTabData(activeTab, 1, newSize, debouncedQuery);
   };
 
-  const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
-    setSearchQuery('');
-    setDebouncedQuery('');
-    setPage(1);
-    updateUrl(tabId, 1, pageSize, '');
-  };
-
-  const sectionTabs: SectionTabItem[] = [
-    { id: 'cities', label: 'المدن والمناطق', icon: <MapPin size={16} /> },
-    { id: 'housing', label: 'السكن والإيواء', icon: <Home size={16} /> },
-    { id: 'vehicles', label: 'المركبات والتسليمات', icon: <Car size={16} /> },
-    { id: 'custody', label: 'العهد الشهرية والأجهزة', icon: <PackageCheck size={16} /> },
-    { id: 'guarantees', label: 'الكفالات والضمانات', icon: <ShieldAlert size={16} /> },
-    { id: 'cases', label: 'القضايا والمنازعات', icon: <Scale size={16} /> },
-    { id: 'accounts', label: 'حسابات المنصات والمعرفات', icon: <Smartphone size={16} /> },
-  ];
-
   const currentTabInfo = useMemo(() => {
     switch (activeTab) {
       case 'cities':
@@ -220,34 +209,13 @@ function OperationsPageInner() {
           desc: 'السيارات والدراجات النارية، تسليمات العهد، رخص السير والتأمين، ومتابعة الصيانة.',
           icon: Car,
         };
-      case 'custody':
-        return {
-          title: 'العهد الشهرية والأجهزة',
-          shortLabel: 'العهد والأجهزة',
-          desc: 'الأجهزة الذكية، الحقائب الحرارية، والزي الرسمي الموزع على الكوادر.',
-          icon: PackageCheck,
-        };
-      case 'guarantees':
-        return {
-          title: 'الكفالات والضمانات المالية',
-          shortLabel: 'الكفالات والضمانات',
-          desc: 'الكفالات الغارمة وسندات الضمان ضد المخاطر المالية والعهد.',
-          icon: ShieldAlert,
-        };
-      case 'cases':
-        return {
-          title: 'القضايا والمنازعات التشغيلية',
-          shortLabel: 'القضايا والمنازعات',
-          desc: 'متابعة البلاغات المرورية، المطالبات القانونية، والنزاعات مع المنصات أو الأطراف الخارجية.',
-          icon: Scale,
-        };
-      case 'accounts':
+      case 'fuel':
       default:
         return {
-          title: 'حسابات المنصات ومعرفات العمل',
-          shortLabel: 'حسابات المنصات',
-          desc: 'معرفات المناديب على تطبيقات التوصيل، التبديل والتسليم بين المناديب، ومطابقة الهويات.',
-          icon: Smartphone,
+          title: 'الوقود',
+          shortLabel: 'الوقود',
+          desc: 'بطاقات الوقود والاستهلاك والمحطات المرتبطة بالتشغيل.',
+          icon: Fuel,
         };
     }
   }, [activeTab]);
@@ -361,107 +329,27 @@ function OperationsPageInner() {
             ),
           },
         ];
-      case 'custody':
-        return [
-          {
-            key: 'assignmentId',
-            header: 'معرف التكليف',
-            render: (it: OperationRow) => <span className="font-mono font-bold">{it.assignmentId || it.id}</span>,
-          },
-          {
-            key: 'eventTypeCode',
-            header: 'نوع الحدث',
-            render: (it: OperationRow) => <span>{it.eventTypeCode || '-'}</span>,
-          },
-          {
-            key: 'direction',
-            header: 'الاتجاه',
-            render: (it: OperationRow) => <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">{it.direction || '-'}</span>,
-          },
-          {
-            key: 'occurredAt',
-            header: 'تاريخ التوثيق',
-            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.occurredAt || '-'}</span>,
-          },
-        ];
-      case 'guarantees':
-        return [
-          {
-            key: 'riderId',
-            header: 'إقامة المندوب',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--ink)]">{it.riderId}</span>,
-          },
-          {
-            key: 'sponsorId',
-            header: 'السجل / الكفيل',
-            render: (it: OperationRow) => <span className="text-xs font-mono">{it.sponsorId || it.companyId || '-'}</span>,
-          },
-          {
-            key: 'effectiveFrom',
-            header: 'سريان من',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.effectiveFrom || '-'}</span>,
-          },
-          {
-            key: 'effectiveTo',
-            header: 'سريان إلى',
-            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.effectiveTo || 'مستمر'}</span>,
-          },
-        ];
-      case 'cases':
-        return [
-          {
-            key: 'number',
-            header: 'رقم القضية',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--danger)]">{it.number || it.id}</span>,
-          },
-          {
-            key: 'personName',
-            header: 'اسم الطرف',
-            render: (it: OperationRow) => <span className="font-semibold">{it.personName || it.riderId || '-'}</span>,
-          },
-          {
-            key: 'personTypeCode',
-            header: 'الصفة',
-            render: (it: OperationRow) => <span>{it.personTypeCode || '-'}</span>,
-          },
-          {
-            key: 'caseDate',
-            header: 'التاريخ',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.caseDate || '-'}</span>,
-          },
-          {
-            key: 'details',
-            header: 'التفاصيل',
-            render: (it: OperationRow) => <span className="text-xs text-[var(--muted)] truncate max-w-xs block">{it.details || '-'}</span>,
-          },
-        ];
-      case 'accounts':
+      case 'fuel':
       default:
         return [
           {
             key: 'code',
-            header: 'كود الحساب',
+            header: 'المرجع',
             render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
           },
           {
-            key: 'externalAccountId',
-            header: 'معرف المنصة الخارجي',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.externalAccountId || '-'}</span>,
+            key: 'nameAr',
+            header: 'الوصف',
+            render: (it: OperationRow) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
           },
           {
-            key: 'platformCode',
-            header: 'المنصة',
-            render: (it: OperationRow) => <span className="text-xs font-bold">{it.platformCode || '-'}</span>,
-          },
-          {
-            key: 'registeredRiderId',
-            header: 'المندوب المسجل',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.registeredRiderId || '-'}</span>,
-          },
-          {
-            key: 'assignments',
-            header: 'المشغلون الفعليون',
-            render: (it: OperationRow) => <span className="num font-bold">{it.assignments ? `${it.assignments.length} مشغل` : '-'}</span>,
+            key: 'status',
+            header: 'الحالة',
+            render: (it: OperationRow) => (
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">
+                {(it as { status?: string }).status || it.currentOperationalStatus || '-'}
+              </span>
+            ),
           },
         ];
     }
@@ -519,12 +407,7 @@ function OperationsPageInner() {
         />
       </div>
 
-      {/* Section Tabs */}
-      <SectionTabs
-        tabs={sectionTabs}
-        activeTab={activeTab}
-        onChange={handleTabChange}
-      />
+      {/* Sidebar owns operations ?tab= entries (page-tabs-rule 3.0). */}
 
       {/* Content Area */}
       <div className="space-y-4">
