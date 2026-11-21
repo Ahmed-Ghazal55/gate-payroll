@@ -652,68 +652,7 @@ public static class FinancialCore
         api.MapGet("/finance/statement/rider/{iqama}/simple", (string iqama, string from, string to, string? sponsorId, HttpContext ctx) =>
             store.Read(c => RiderStatements.BuildSimple(c, iqama, from, to, sponsorId, ctx.User))).WithTags("Banks and treasury").WithSummary("Read finance statement rider {iqama} simple");
 
-        // 7. منظومة الاعتمادات المتبادلة (المالية ⇄ HR ⇄ التشغيل ⇄ الحركة) ومركز الإشعارات والمهام
-        api.MapGet("/approvals", (string? department, string? status,HttpContext ctx) => store.Read(c =>
-        {
-            var list = Store.List(c, "approval_request").Where(a=>FinancialScopes.Approval(ctx.User,a,c)).ToList();
-            if (!string.IsNullOrWhiteSpace(department)) list = list.Where(a => a.S("targetDepartment") == department || a.S("fromDepartment") == department).ToList();
-            if (!string.IsNullOrWhiteSpace(status)) list = list.Where(a => a.S("status") == status).ToList();
-            return list;
-        })).WithTags("Home").WithSummary("Read approvals");
-
-        api.MapPost("/approvals/{id}/decide", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-        {
-            var req = Store.Get(c, id, "approval_request", tx) ?? throw new ApiError("طلب الاعتماد غير موجود.", 404);
-            if(!FinancialScopes.Approval(ctx.User,req,c,tx))throw new ApiError("الطلب خارج نطاق القسم/السجل المسند لك.",403);
-            AccessPolicy.ValidateApproval(ctx.User,req,input,c:c,tx:tx,operation:"approval.decide",record:req);
-            J.Need(req.S("status") == "pending" || req.S("status") == "suspended", "تم البت في هذا الطلب مسبقاً.");
-            string decision = input.Required("decision"); // approved | rejected | suspended
-            J.Need(decision is "approved" or "rejected" or "suspended", "قرار غير صالح: استخدم approved أو rejected أو suspended.");
-            string note = input.S("note");
-            if (decision is "rejected" or "suspended") J.Need(!string.IsNullOrWhiteSpace(note), "يلزم تدوين سبب الرفض أو التعليق.");
-
-            req["status"] = decision;
-            req["decisionNote"] = note;
-            req["administrativeSelfOverride"] = req.B("selfApprovedException");
-            req["decidedBy"] = ctx.User.Identity!.Name!;
-            req["decidedAt"] = DateTimeOffset.UtcNow.ToString("O");
-            Store.Save(c, "approval_request", req, tx);
-
-            // إذا كان الطلب مرتبطاً بمديونية بانتظار التصديق المتبادل، نفعّلها ونرحّل قيدها المالي
-            if (req.S("kind") == "debt_creation" && decision == "approved")
-            {
-                var debt = Store.Get(c, req.S("referenceId"), "debt", tx);
-                if (debt != null && debt.S("status") == "pending_approval")
-                {
-                    debt["status"] = debt.N("remainingBalance") > 0 ? "active" : "settled";
-                    debt["approvedBy"] = ctx.User.Identity!.Name!;
-                    debt["approvedAt"] = DateTimeOffset.UtcNow.ToString("O");
-                    Store.Save(c, "debt", debt, tx);
-                    Debts.PostCreationJournalIfNeeded(c, tx, debt, ctx.User.Identity!.Name!);
-                }
-            }
-            else if (req.S("kind") == "debt_creation" && decision == "rejected")
-            {
-                var debt = Store.Get(c, req.S("referenceId"), "debt", tx);
-                if (debt != null && debt.S("status") == "pending_approval")
-                {
-                    debt["status"] = "cancelled";
-                    Store.Save(c, "debt", debt, tx);
-                }
-            }
-
-            foreach (var n in Store.List(c, "sys_notification", tx).Where(n => n.S("approvalId") == id))
-            {
-                n["status"] = "acknowledged";
-                n["acknowledgedBy"] = ctx.User.Identity!.Name!;
-                n["acknowledgedAt"] = DateTimeOffset.UtcNow.ToString("O");
-                Store.Save(c, "sys_notification", n, tx);
-            }
-
-            Store.Audit(c, tx, "approval." + decision, id, ctx.User.Identity!.Name!);
-            return req;
-        })).WithTags("Home").WithSummary("Submit approvals {id} decide");
-
+        // 7. Approvals list/decide moved to ApprovalsArea (U-W2-27). Notifications stay here.
         api.MapGet("/notifications/center", (string? tab, string? department,HttpContext ctx) => store.Read(c =>
         {
             var items = Notifications.Center(c, ctx.User);

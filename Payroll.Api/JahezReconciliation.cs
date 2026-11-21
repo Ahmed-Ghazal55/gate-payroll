@@ -94,8 +94,9 @@ public static class JahezReconciliation
         DemandWrite(actor);var doc=Store.Get(c,id,Kind,tx)??throw new ApiError("تقرير المطابقة غير موجود.",404);
         FinancialScopes.DemandSponsor(actor,doc.S("companyId"));J.Need(doc.S("status")=="pending_approval","التقرير بانتظار الاعتماد.");
         RefuseDuplicateActive(c,tx,doc.S("companyId"),doc.S("period"),doc.S("id"));
-        // BR §37: approver must be Independent of both submitter and creator (§35 bypass still applies via Independent).
+        // BR §37: maker-checker for Jahez reconciliation (submitter and creator); §35 bypass via Independent.
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("submittedBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"treasury.jahez.receive",c,tx,"jahez.reconciliation_approved",doc);
+        J.Need(AccessPolicy.Independent(actor,doc.S("submittedBy"),"jahez.reconciliation_approved.submittedBy",c,tx,doc),"لا يجوز اعتماد تقرير قدّمته؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
         J.Need(AccessPolicy.Independent(actor,doc.S("createdBy"),"jahez.reconciliation_approved.createdBy",c,tx,doc),"لا يجوز اعتماد تقرير أنشأته؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
         decimal variance=doc["totals"]!.AsObject().N("variance");
         J.Need(variance==0||doc.S("varianceDecision").Length>=3,"فرق المطابقة يحتاج قرارًا مكتوبًا قبل الاعتماد.");

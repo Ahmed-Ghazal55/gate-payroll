@@ -125,6 +125,12 @@ public static partial class AccessPolicy
             return path.EndsWith("/payout",StringComparison.Ordinal)&&Has("advances.payout");
         }
         if(path.StartsWith("/api/approvals",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&path.EndsWith("/decide",StringComparison.Ordinal)&&Has("approvals.decide");
+        if(path.StartsWith("/api/admin/org/approval-limits",StringComparison.Ordinal)||path.StartsWith("/api/admin/org/sla-policies",StringComparison.Ordinal))
+            return (method=="GET"||method=="PUT")&&(Has("admin.org.manage")||Has("org.manage"));
+        if(path.StartsWith("/api/sal/simulations/",StringComparison.Ordinal))
+            return path.EndsWith("/journal-preview",StringComparison.Ordinal)||path.EndsWith("/discard",StringComparison.Ordinal)
+                ?(method=="GET"||method=="POST")&&Has("salaries.simulation.run")
+                :(method=="GET"||method=="POST")&&Has("pay.manage");
         if(method=="DELETE"||path.EndsWith("/delete-preview",StringComparison.Ordinal)||path=="/api/submissions/bulk-delete"||method=="PUT"&&path.StartsWith("/api/campaigns/",StringComparison.Ordinal))return false;
         if(method=="POST"&&path.StartsWith("/api/notifications/center/",StringComparison.Ordinal)&&path.EndsWith("/toggle-todo",StringComparison.Ordinal))return true; // Handler checks view permission or ownership and visibility.
         if(path=="/api/notifications"||path=="/api/notifications/summary")return method=="GET";
@@ -151,11 +157,18 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))return Has("forms.manage");
         return false;
     }
-    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide",System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null,string operation="approval.decide",JsonObject? record=null)
+    /// <summary>BR §35 / M-0672: permission-only in general; two-person only when <paramref name="dualPermission"/>
+    /// is a dedicated dual code (bank file, payment out, shared-rider release) or the request carries one.</summary>
+    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide",System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null,string operation="approval.decide",JsonObject? record=null,string? dualPermission=null)
     {
         Demand(actor,permission);
+        string dual=dualPermission??request.S("dualPermission");
+        if(ApprovalsArea.RequiresDual(dual))Demand(actor,dual);
         string name=actor.Identity?.Name??"";
-        J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
+        // BR §35 / M-0672: maker≠checker only for dedicated dual money-out / shared-rider codes.
+        if(ApprovalsArea.RequiresDual(dual))
+            J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
+        // Department/rank still apply; §35 bypass grant can open them via Independent (same as before).
         if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))
             J.Need(Independent(actor,name,operation+".department_rank",c,tx,record??request),"القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
     }
