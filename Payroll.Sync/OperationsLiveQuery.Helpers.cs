@@ -175,6 +175,22 @@ public static partial class OperationsLiveQuery
         _ => code
     };
 
+    public static string FuelProviderNameAr(string code) => (code ?? "").Trim() switch
+    {
+        "1" or "PetroApp" or "petroapp" => "شركة بترو اب",
+        "2" or "SayaraApp" or "sayaraapp" => "شركة سيارة اب",
+        "" => "",
+        var other => other
+    };
+
+    public static string FuelStatusLabel(string? code) => (code ?? "").Trim().ToLowerInvariant() switch
+    {
+        "1" or "active" or "true" or "نشطة" => "نشطة",
+        "0" or "inactive" or "false" or "غير نشطة" => "غير نشطة",
+        "" => "",
+        _ => (code ?? "").Trim()
+    };
+
     static string HousingStatusLabel(string code) => code switch
     {
         "1" => "مسودة",
@@ -192,6 +208,26 @@ public static partial class OperationsLiveQuery
         "3" => "مغلق",
         _ => code
     };
+
+    public static string PurchaseStatusLabel(string code) => (code ?? "").Trim() switch
+    {
+        "1" or "Posted" or "posted" => "مرحّل",
+        "2" or "Reversed" or "reversed" => "معكوس",
+        "" => "",
+        var other => other
+    };
+
+    /// <summary>True when either supplier InvoiceDate or Riyadh-local ReceivedAtUtc falls inside [from, to].</summary>
+    public static bool PurchaseInvoiceInPeriod(DateOnly? invoiceDate, DateTimeOffset? receivedAtUtc, DateOnly from, DateOnly to)
+    {
+        if (invoiceDate is { } inv && inv >= from && inv <= to) return true;
+        if (receivedAtUtc is { } rec)
+        {
+            var riyadhDate = DateOnly.FromDateTime(rec.ToOffset(RiyadhOffset).DateTime);
+            if (riyadhDate >= from && riyadhDate <= to) return true;
+        }
+        return false;
+    }
 
     /// <summary>C# port of Omar BillingDayBoundary + Days for unit tests (no SQL).</summary>
     public static decimal DaysInPeriod(DateTimeOffset start, DateTimeOffset end, DateOnly from, DateOnly to)

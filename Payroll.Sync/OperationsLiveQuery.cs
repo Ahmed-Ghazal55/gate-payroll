@@ -86,6 +86,13 @@ public static partial class OperationsLiveQuery
         return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
     }
 
+    public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewPurchaseInvoicesSql(string search = "", string? receiptId = null)
+    {
+        using var cmd = new SqlCommand();
+        string sql = BuildPurchaseInvoicesSql(cmd, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30), 0, 50, search, receiptId);
+        return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
+    }
+
     public static PageResult CitiesSummary(DbConnection source, LiveOperationsQuery.Scope scope, CancellationToken ct = default)
     {
         EnsureSql(source);

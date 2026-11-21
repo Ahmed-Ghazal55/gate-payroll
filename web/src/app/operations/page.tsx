@@ -20,14 +20,46 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
-import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { DataTable, ColumnDef, defaultStatusTone } from '../../components/ui/DataTable';
 import { SourceBadge } from '../../components/ui/SourceBadge';
 import { Drawer } from '../../components/ui/Drawer';
 import { useToast } from '../../components/ui/Toast';
+import { formatSar } from '../../lib/money';
 
 const MAIN_TABS = new Set(['cities', 'housing', 'vehicles', 'fuel']);
 const NO_SOURCE = 'لا يوجد مصدر بعد';
 const cell = (v: unknown) => (v === null || v === undefined || v === '' ? NO_SOURCE : String(v));
+
+function formatDateShort(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—';
+  const s = String(v).trim();
+  if (!s) return '—';
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : s;
+}
+
+function formatPurchaseStatus(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (s === '1' || s.toLowerCase() === 'posted') return 'مرحّل';
+  if (s === '2' || s.toLowerCase() === 'reversed') return 'معكوس';
+  return s || '—';
+}
+
+function formatFuelProviderAr(v: unknown): string {
+  const s = String(v ?? '').trim();
+  const low = s.toLowerCase();
+  if (s === '1' || low === 'petroapp') return 'شركة بترو اب';
+  if (s === '2' || low === 'sayaraapp') return 'شركة سيارة اب';
+  return s || '—';
+}
+
+function formatFuelStatusAr(v: unknown): string {
+  const s = String(v ?? '').trim();
+  const low = s.toLowerCase();
+  if (low === 'active' || s === '1' || s === 'نشطة') return 'نشطة';
+  if (low === 'inactive' || s === '0' || s === 'غير نشطة') return 'غير نشطة';
+  return s || '—';
+}
 
 function monthBounds(d = new Date()) {
   const y = d.getFullYear();
@@ -97,6 +129,11 @@ function OperationsPageInner() {
   const [total, setTotal] = useState(0);
   const [summary, setSummary] = useState<Record<string, unknown>>({});
   const [drawer, setDrawer] = useState<{ title: string; body: React.ReactNode } | null>(null);
+  const [serverQuery, setServerQuery] = useState<{ filtersParam?: string; sortParam?: string }>({});
+
+  useEffect(() => {
+    setServerQuery({});
+  }, [tab, view]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(query), 300);
@@ -125,9 +162,11 @@ function OperationsPageInner() {
     setLoading(true);
     setErrorMsg(null);
     setIs503(false);
+    const filters = serverQuery.filtersParam;
+    const sort = serverQuery.sortParam;
     try {
       if (tab === 'cities') {
-        const res = (await api.getOperationsCities({ q: debouncedQ || undefined })) as OperationsFleetListResponse;
+        const res = (await api.getOperationsCities({ q: debouncedQ || undefined, filters, sort })) as OperationsFleetListResponse;
         setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
         setSummary((res.summary || {}) as Record<string, unknown>);
@@ -139,6 +178,8 @@ function OperationsPageInner() {
           page,
           pageSize,
           q: debouncedQ || undefined,
+          filters,
+          sort,
         })) as OperationsHousingResponse;
         setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
@@ -147,7 +188,15 @@ function OperationsPageInner() {
         setAsOf(String(res.asOf || ''));
         setAllowedActions((res.allowedActions || []) as string[]);
       } else if (tab === 'vehicles' && view === 'invoices') {
-        const res = await api.getOperationsPurchaseInvoices({ from, to, page, pageSize, q: debouncedQ || undefined }) as OperationsPurchasesResponse;
+        const res = (await api.getOperationsPurchaseInvoices({
+          from,
+          to,
+          page,
+          pageSize,
+          q: debouncedQ || undefined,
+          filters,
+          sort,
+        })) as OperationsPurchasesResponse;
         setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
         setSummary((res.summary || {}) as Record<string, unknown>);
@@ -155,7 +204,15 @@ function OperationsPageInner() {
         setAsOf(String(res.asOf || ''));
         setAllowedActions((res.allowedActions || []) as string[]);
       } else if (tab === 'vehicles' && view === 'oil') {
-        const res = await api.getOperationsOilChangesPeriod({ from, to, page, pageSize, q: debouncedQ || undefined }) as OperationsOilChangesResponse;
+        const res = (await api.getOperationsOilChangesPeriod({
+          from,
+          to,
+          page,
+          pageSize,
+          q: debouncedQ || undefined,
+          filters,
+          sort,
+        })) as OperationsOilChangesResponse;
         setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
         setSummary((res.summary || {}) as Record<string, unknown>);
@@ -170,6 +227,8 @@ function OperationsPageInner() {
           page,
           pageSize,
           q: debouncedQ || undefined,
+          filters,
+          sort,
         })) as OperationsPeriodResponse;
         setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
@@ -178,7 +237,14 @@ function OperationsPageInner() {
         setAsOf(String(res.asOf || ''));
         setAllowedActions((res.allowedActions || []) as string[]);
       } else if (tab === 'fuel' && view === 'log') {
-        const res = await api.getOperationsFuelAssignments({ from, to, page, pageSize });
+        const res = await api.getOperationsFuelAssignments({
+          from,
+          to,
+          page,
+          pageSize,
+          filters,
+          sort,
+        });
         setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
         setSummary((res.summary || {}) as Record<string, unknown>);
@@ -191,6 +257,8 @@ function OperationsPageInner() {
           page,
           pageSize,
           q: debouncedQ || undefined,
+          filters,
+          sort,
         })) as OperationsFuelResponse;
         setItems((res.items || []) as OpsRow[]);
         setTotal(Number(res.total || 0));
@@ -206,7 +274,7 @@ function OperationsPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [tab, view, page, pageSize, debouncedQ, from, to, mode, month]);
+  }, [tab, view, page, pageSize, debouncedQ, from, to, mode, month, serverQuery]);
 
   useEffect(() => {
     void load();
@@ -218,13 +286,94 @@ function OperationsPageInner() {
   const openCity = async (id: string) => {
     try {
       const detail = await api.getOperationsCity(id);
+      const raw = detail as Record<string, unknown>;
+      const byReg = Array.isArray(detail.byRegistration)
+        ? (detail.byRegistration as Array<Record<string, unknown>>)
+        : [];
+      const byApp = Array.isArray(detail.byApp)
+        ? (detail.byApp as Array<Record<string, unknown>>)
+        : [];
+      const vehiclesTotal =
+        raw.vehiclesTotal ?? byReg.reduce((sum, r) => sum + Number(r.vehicles ?? 0), 0);
+      const ridersTotal =
+        raw.ridersTotal ?? byReg.reduce((sum, r) => sum + Number(r.riders ?? 0), 0);
+      const accountsActive =
+        raw.accountsActive ?? byApp.reduce((sum, r) => sum + Number(r.accountsActive ?? 0), 0);
+      const accountsAssigned =
+        raw.accountsAssigned ?? byApp.reduce((sum, r) => sum + Number(r.accountsAssigned ?? 0), 0);
       setDrawer({
         title: String(detail.nameAr || 'تفاصيل المدينة'),
         body: (
           <div className="space-y-4 text-sm">
-            <pre className="whitespace-pre-wrap break-words bg-[var(--surface-2)] p-3 rounded-lg overflow-auto max-h-[60vh]">
-              {JSON.stringify(detail, null, 2)}
-            </pre>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">الحالة</div>
+                <div className="font-semibold mt-1">{formatFuelStatusAr(detail.status)}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">المركبات</div>
+                <div className="font-semibold mt-1">{String(vehiclesTotal)}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">المناديب</div>
+                <div className="font-semibold mt-1">{String(ridersTotal)}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">الحسابات (نشط/مسند)</div>
+                <div className="font-semibold mt-1">
+                  {String(accountsActive)} / {String(accountsAssigned)}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-2">التوزيع حسب السجل التجاري</h4>
+              {byReg.length === 0 ? (
+                <EmptyState title="لا سجلات" description="لا توجد سجلات مرتبطة بهذه المدينة." />
+              ) : (
+                <DataTable
+                  tableId="city-registrations"
+                  data={byReg}
+                  getRowId={(r) => String(r.id || r.unifiedNumber || Math.random())}
+                  searchable={false}
+                  exportable={false}
+                  syncUrl={false}
+                  showTotals={false}
+                  showFilterRow={false}
+                  columns={[
+                    { key: 'nameAr', header: 'السجل', type: 'list', getValue: (r) => String(r.nameAr || ''), render: (r) => String(r.nameAr || '—') },
+                    { key: 'unifiedNumber', header: 'الرقم الموحد', type: 'text', getValue: (r) => String(r.unifiedNumber || ''), render: (r) => <bdi className="font-mono">{String(r.unifiedNumber || '—')}</bdi> },
+                    { key: 'vehicles', header: 'المركبات', type: 'number', numeric: true, getValue: (r) => Number(r.vehicles ?? 0), render: (r) => String(r.vehicles ?? 0) },
+                    { key: 'riders', header: 'المناديب', type: 'number', numeric: true, getValue: (r) => Number(r.riders ?? 0), render: (r) => String(r.riders ?? 0) },
+                    { key: 'accounts', header: 'الحسابات', type: 'number', numeric: true, getValue: (r) => Number(r.accounts ?? 0), render: (r) => String(r.accounts ?? 0) },
+                  ]}
+                />
+              )}
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-2">التوزيع حسب التطبيق</h4>
+              {byApp.length === 0 ? (
+                <EmptyState title="لا تطبيقات" description="لا توجد حسابات تطبيقات مسجلة بهذه المدينة." />
+              ) : (
+                <DataTable
+                  tableId="city-apps"
+                  data={byApp}
+                  getRowId={(r) => String(r.platformCode || r.nameAr || Math.random())}
+                  searchable={false}
+                  exportable={false}
+                  syncUrl={false}
+                  showTotals={false}
+                  showFilterRow={false}
+                  columns={[
+                    { key: 'nameAr', header: 'التطبيق', type: 'list', getValue: (r) => String(r.nameAr || r.platformCode || ''), render: (r) => String(r.nameAr || r.platformCode || '—') },
+                    { key: 'accountsTotal', header: 'الإجمالي', type: 'number', numeric: true, getValue: (r) => Number(r.accountsTotal ?? 0), render: (r) => String(r.accountsTotal ?? 0) },
+                    { key: 'accountsActive', header: 'النشط', type: 'number', numeric: true, getValue: (r) => Number(r.accountsActive ?? 0), render: (r) => String(r.accountsActive ?? 0) },
+                    { key: 'accountsAssigned', header: 'المسند', type: 'number', numeric: true, getValue: (r) => Number(r.accountsAssigned ?? 0), render: (r) => String(r.accountsAssigned ?? 0) },
+                  ]}
+                />
+              )}
+            </div>
           </div>
         ),
       });
@@ -279,18 +428,67 @@ function OperationsPageInner() {
   const openVehicle = async (id: string) => {
     try {
       const detail = await api.getOperationsVehicle(id);
+      const rawHistory = Array.isArray(detail.assignmentHistory)
+        ? (detail.assignmentHistory as Array<Record<string, unknown>>)
+        : [];
+      const history = [...rawHistory].sort((a, b) =>
+        String(b.startedAt || '').localeCompare(String(a.startedAt || ''))
+      );
       setDrawer({
         title: String(detail.plateNumberAr || detail.assetNumber || 'تفاصيل المركبة'),
         body: (
-          <div className="space-y-2 text-sm">
-            <div>VIN: <bdi className="font-mono">{String(detail.vin || '')}</bdi></div>
-            <div>الهيكل: {String(detail.chassisNumber || '')}</div>
-            <div>العداد: {String(detail.currentOdometer ?? '')}</div>
-            <div>الكفيل: {String(detail.sponsorNameAr || '')}</div>
-            <div>المدينة: {String(detail.city || '')}</div>
-            <pre className="whitespace-pre-wrap break-words bg-[var(--surface-2)] p-3 rounded-lg overflow-auto max-h-[40vh] text-xs">
-              {JSON.stringify(detail.assignmentHistory || [], null, 2)}
-            </pre>
+          <div className="space-y-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">رقم الهيكل</div>
+                <div className="font-mono font-medium mt-0.5"><bdi>{String(detail.vin || '—')}</bdi></div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">الهيكل</div>
+                <div className="font-mono mt-0.5"><bdi>{String(detail.chassisNumber || '—')}</bdi></div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">العداد</div>
+                <div className="font-medium mt-0.5">{String(detail.currentOdometer ?? '—')}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">الكفيل</div>
+                <div className="font-medium mt-0.5">{String(detail.sponsorNameAr || '—')}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">المدينة</div>
+                <div className="font-medium mt-0.5">{String(detail.city || '—')}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">النوع</div>
+                <div className="font-medium mt-0.5">{String(detail.vehicleType || '—')}</div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-2">سجل تعيينات المناديب (الأحدث أولًا)</h4>
+              {history.length === 0 ? (
+                <EmptyState title="لا سجل تعيينات" description="لا توجد تعيينات مسجلة لهذه المركبة." />
+              ) : (
+                <DataTable
+                  tableId="vehicle-assignment-history"
+                  data={history}
+                  getRowId={(r) => String(r.id || `${r.iqama || ''}-${r.startedAt || ''}`)}
+                  searchable={false}
+                  exportable={false}
+                  syncUrl={false}
+                  showTotals={false}
+                  showFilterRow={false}
+                  columns={[
+                    { key: 'riderNameAr', header: 'اسم المندوب', type: 'text', getValue: (r) => String(r.riderNameAr || ''), render: (r) => <span className="font-medium">{String(r.riderNameAr || '—')}</span> },
+                    { key: 'iqama', header: 'رقم الإقامة', type: 'text', getValue: (r) => String(r.iqama || ''), render: (r) => <bdi className="font-mono">{String(r.iqama || '—')}</bdi> },
+                    { key: 'startedAt', header: 'من', type: 'date', getValue: (r) => String(r.startedAt || ''), labelOf: (v) => formatDateShort(v), render: (r) => <bdi className="font-mono">{formatDateShort(r.startedAt)}</bdi> },
+                    { key: 'endedAt', header: 'إلى', type: 'date', getValue: (r) => String(r.endedAt || ''), labelOf: (v) => (v ? formatDateShort(v) : 'حتى الآن'), render: (r) => <bdi className="font-mono">{r.endedAt ? formatDateShort(r.endedAt) : 'حتى الآن'}</bdi> },
+                    { key: 'isRealRider', header: 'مندوب فعلي', type: 'list', getValue: (r) => (r.isRealRider ? 'نعم' : 'لا'), toneOf: (v) => (v === 'نعم' ? 'success' : 'neutral'), render: (r) => (r.isRealRider ? 'نعم' : 'لا') },
+                  ]}
+                />
+              )}
+            </div>
           </div>
         ),
       });
@@ -331,35 +529,55 @@ function OperationsPageInner() {
       ];
     }
     if (tab === 'vehicles') {
+      if (view === 'invoices') {
+        return [
+          { label: 'عدد الفواتير', value: summary.invoicesTotal },
+          { label: 'إجمالي المبالغ', value: formatSar(summary.totalAmount as number | string | null | undefined) },
+        ];
+      }
+      if (view === 'oil') {
+        return [
+          { label: 'عدد التغييرات', value: summary.oilChangesCount },
+          { label: 'إجمالي اللترات', value: summary.totalLiters },
+          { label: 'تكلفة تغييرات الزيت', value: formatSar(summary.oilChangesCost as number | string | null | undefined) },
+        ];
+      }
       return [
         { label: 'المركبات العاملة', value: summary.vehiclesOperating ?? summary.invoicesTotal },
         { label: 'إجمالي أيام التشغيل', value: summary.totalOperatingDays },
-        { label: 'تكلفة قطع الغيار', value: summary.sparePartsCost ?? summary.totalAmount },
-        { label: 'الاستقطاع المطلوب', value: summary.amountToCollect },
-        { label: 'تكلفة تغييرات الزيت', value: summary.oilChangesCost },
+        { label: 'تكلفة قطع الغيار', value: formatSar((summary.sparePartsCost ?? summary.totalAmount) as number | string | null | undefined) },
+        { label: 'الاستقطاع المطلوب', value: formatSar(summary.amountToCollect as number | string | null | undefined) },
+        { label: 'تكلفة تغييرات الزيت', value: formatSar(summary.oilChangesCost as number | string | null | undefined) },
+      ];
+    }
+    if (view === 'log') {
+      return [
+        { label: 'سجلات التسليم', value: summary.assignmentsTotal },
       ];
     }
     return [
       { label: 'البطاقات النشطة', value: summary.activeCards },
       { label: 'المناديب المستهلكون', value: summary.consumingRiders },
       { label: 'إجمالي اللترات', value: summary.totalLiters },
-      { label: 'الإجمالي شامل الضريبة', value: summary.totalInclVat },
+      { label: 'الإجمالي شامل الضريبة', value: formatSar(summary.totalInclVat as number | string | null | undefined) },
       { label: 'تجاوز السقف', value: summary.capExceeded ?? NO_SOURCE },
     ];
-  }, [tab, summary]);
+  }, [tab, view, summary]);
 
   const columns: ColumnDef<OpsRow>[] = useMemo(() => {
     if (tab === 'cities') {
       return [
-        { key: 'nameAr', header: 'المدينة', render: (r) => String(r.nameAr || '') },
-        { key: 'regs', header: 'السجلات النشطة', render: (r) => String(r.registrationNames || r.activeRegistrations || '') },
-        { key: 'veh', header: 'المركبات (سيارة/دراجة)', render: (r) => `${r.vehiclesCars ?? 0} / ${r.vehiclesMotorbikes ?? 0}` },
-        { key: 'riders', header: 'المناديب', render: (r) => String(r.ridersTotal ?? '') },
-        { key: 'apps', header: 'التطبيقات العاملة', render: (r) => String(r.appsWorking || '') },
-        { key: 'acc', header: 'الحسابات', render: (r) => `${r.accountsTotal ?? 0} / ${r.accountsActive ?? 0} / ${r.accountsAssigned ?? 0}` },
+        { key: 'nameAr', header: 'المدينة', type: 'list', filterType: 'list', getValue: (r) => String(r.nameAr || ''), render: (r) => String(r.nameAr || '') },
+        { key: 'regs', header: 'السجلات النشطة', type: 'text', filterType: 'text', filterColumn: 'registrationNames', getValue: (r) => String(r.registrationNames || r.activeRegistrations || ''), render: (r) => String(r.registrationNames || r.activeRegistrations || '') },
+        { key: 'veh', header: 'المركبات (سيارة/دراجة)', type: 'number', filterType: 'number', filterColumn: 'vehiclesTotal', getValue: (r) => Number(r.vehiclesTotal ?? (Number(r.vehiclesCars ?? 0) + Number(r.vehiclesMotorbikes ?? 0))), render: (r) => `${r.vehiclesCars ?? 0} / ${r.vehiclesMotorbikes ?? 0}` },
+        { key: 'riders', header: 'المناديب', type: 'number', filterType: 'number', numeric: true, filterColumn: 'ridersTotal', getValue: (r) => (r.ridersTotal != null ? Number(r.ridersTotal) : ''), render: (r) => String(r.ridersTotal ?? '') },
+        { key: 'apps', header: 'التطبيقات العاملة', type: 'list', filterType: 'list', filterColumn: 'appsWorking', getValue: (r) => String(r.appsWorking || ''), render: (r) => String(r.appsWorking || '') },
+        { key: 'acc', header: 'الحسابات', type: 'number', filterType: 'number', filterColumn: 'accountsTotal', getValue: (r) => Number(r.accountsTotal ?? 0), render: (r) => `${r.accountsTotal ?? 0} / ${r.accountsActive ?? 0} / ${r.accountsAssigned ?? 0}` },
         {
           key: 'actions',
           header: 'إجراءات',
+          filterable: false,
+          sortable: false,
           render: (r) => (
             <button type="button" className="text-[var(--accent)]" onClick={() => void openCity(String(r.id))}>
               تفاصيل المدينة
@@ -370,16 +588,18 @@ function OperationsPageInner() {
     }
     if (tab === 'housing') {
       return [
-        { key: 'nameAr', header: 'اسم السكن', render: (r) => String(r.nameAr || '') },
-        { key: 'city', header: 'المدينة', render: (r) => String(r.city || '') },
-        { key: 'rooms', header: 'عدد الغرف', render: (r) => String(r.roomsCount ?? '') },
-        { key: 'res', header: 'إجمالي المناديب', render: (r) => String(r.residentsTotal ?? '') },
-        { key: 'per', header: 'مندوب/غرفة', render: (r) => String(r.ridersPerRoom ?? '') },
-        { key: 'sup', header: 'المشرف', render: () => NO_SOURCE },
-        { key: 'status', header: 'الحالة', render: (r) => String(r.status || '') },
+        { key: 'nameAr', header: 'اسم السكن', type: 'text', filterType: 'text', getValue: (r) => String(r.nameAr || ''), render: (r) => String(r.nameAr || '') },
+        { key: 'city', header: 'المدينة', type: 'list', filterType: 'list', getValue: (r) => String(r.city || ''), render: (r) => String(r.city || '') },
+        { key: 'rooms', header: 'عدد الغرف', type: 'number', filterType: 'number', numeric: true, filterColumn: 'roomsCount', getValue: (r) => (r.roomsCount != null ? Number(r.roomsCount) : ''), render: (r) => String(r.roomsCount ?? '') },
+        { key: 'res', header: 'إجمالي المناديب', type: 'number', filterType: 'number', numeric: true, filterColumn: 'residentsTotal', getValue: (r) => (r.residentsTotal != null ? Number(r.residentsTotal) : ''), render: (r) => String(r.residentsTotal ?? '') },
+        { key: 'per', header: 'مندوب/غرفة', type: 'number', filterType: 'number', numeric: true, summary: 'none', filterColumn: 'ridersPerRoom', getValue: (r) => (r.ridersPerRoom != null ? Number(r.ridersPerRoom) : ''), render: (r) => String(r.ridersPerRoom ?? '') },
+        { key: 'sup', header: 'المشرف', filterable: false, sortable: false, render: () => NO_SOURCE },
+        { key: 'status', header: 'الحالة', type: 'list', filterType: 'list', getValue: (r) => String(r.status || ''), toneOf: defaultStatusTone, render: (r) => String(r.status || '') },
         {
           key: 'actions',
           header: 'إجراءات',
+          filterable: false,
+          sortable: false,
           render: (r) => (
             <button type="button" className="text-[var(--accent)]" onClick={() => void openHousing(String(r.id))}>
               عرض الغرف والمقيمين
@@ -391,58 +611,148 @@ function OperationsPageInner() {
     if (tab === 'fuel') {
       if (view === 'log') {
         return [
-          { key: 'card', header: 'البطاقة', render: (r) => String(r.cardNumber || '') },
-          { key: 'provider', header: 'المزود', render: (r) => String(r.provider || '') },
-          { key: 'rider', header: 'المندوب', render: (r) => String(r.riderNameAr || '') },
-          { key: 'from', header: 'من', render: (r) => String(r.effectiveFrom || '') },
-          { key: 'to', header: 'إلى', render: (r) => String(r.effectiveTo || '') },
+          {
+            key: 'cardName',
+            header: 'اسم البطاقة',
+            type: 'list',
+            filterType: 'list',
+            filterColumn: 'cardName',
+            getValue: (r) => String(r.cardName || r.providerNameAr || formatFuelProviderAr(r.provider) || ''),
+            labelOf: (v) => formatFuelProviderAr(v),
+            render: (r) => {
+              const providerAr = String(r.providerNameAr || formatFuelProviderAr(r.provider));
+              const notes = String(r.cardNotes || '').trim();
+              return (
+                <div className="flex flex-col">
+                  <span className="font-medium">{providerAr}</span>
+                  {notes ? <span className="text-xs text-[var(--muted)]">{notes}</span> : null}
+                </div>
+              );
+            },
+          },
+          { key: 'card', header: 'رقم البطاقة', type: 'list', filterType: 'list', filterColumn: 'cardNumber', getValue: (r) => String(r.cardNumber || ''), render: (r) => <bdi className="font-mono font-medium">{String(r.cardNumber || '—')}</bdi> },
+          {
+            key: 'rider',
+            header: 'المندوب',
+            type: 'text',
+            filterType: 'text',
+            filterColumn: 'riderNameAr',
+            getValue: (r) => `${r.riderNameAr || ''} ${r.iqama || ''}`.trim(),
+            render: (r) => (
+              <div className="flex flex-col">
+                <span className="font-medium">{String(r.riderNameAr || '—')}</span>
+                {r.iqama ? <bdi className="text-xs text-[var(--muted)] font-mono">{String(r.iqama)}</bdi> : null}
+              </div>
+            ),
+          },
+          { key: 'from', header: 'من', type: 'date', filterType: 'date', filterColumn: 'effectiveFrom', getValue: (r) => String(r.effectiveFrom || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.effectiveFrom) },
+          { key: 'to', header: 'إلى', type: 'date', filterType: 'date', filterColumn: 'effectiveTo', getValue: (r) => String(r.effectiveTo || ''), labelOf: (v) => (v ? formatDateShort(v) : 'حتى الآن'), render: (r) => (r.effectiveTo ? formatDateShort(r.effectiveTo) : 'حتى الآن') },
         ];
       }
       return [
-        { key: 'card', header: 'رقم البطاقة والمزود', render: (r) => `${r.cardNumber || ''} · ${r.provider || ''}` },
-        { key: 'rider', header: 'المندوب الفعلي', render: (r) => String(r.riderNameAr || '') },
-        { key: 'plate', header: 'المركبة', render: (r) => String(r.plateNumber || '') },
-        { key: 'liters', header: 'اللترات', render: (r) => String(r.liters ?? '') },
-        { key: 'before', header: 'قبل الضريبة', render: (r) => String(r.amountBeforeTax ?? '') },
-        { key: 'vat', header: 'الضريبة', render: (r) => String(r.vat ?? '') },
-        { key: 'total', header: 'الإجمالي', render: (r) => String(r.totalInclVat ?? '') },
-        { key: 'cap', header: 'السقف', render: () => NO_SOURCE },
-        { key: 'status', header: 'الحالة', render: (r) => String(r.status || '') },
+        {
+          key: 'cardName',
+          header: 'اسم البطاقة',
+          type: 'list',
+          filterType: 'list',
+          filterColumn: 'cardName',
+          getValue: (r) => String(r.cardName || r.providerNameAr || formatFuelProviderAr(r.provider) || ''),
+          labelOf: (v) => formatFuelProviderAr(v),
+          render: (r) => {
+            const providerAr = String(r.providerNameAr || formatFuelProviderAr(r.provider));
+            const notes = String(r.cardNotes || '').trim();
+            return (
+              <div className="flex flex-col">
+                <span className="font-medium">{providerAr}</span>
+                {notes ? <span className="text-xs text-[var(--muted)]">{notes}</span> : null}
+              </div>
+            );
+          },
+        },
+        { key: 'cardNumber', header: 'رقم البطاقة', type: 'list', filterType: 'list', getValue: (r) => String(r.cardNumber || ''), render: (r) => <bdi className="font-mono font-medium">{String(r.cardNumber || '—')}</bdi> },
+        {
+          key: 'rider',
+          header: 'المندوب الفعلي',
+          type: 'text',
+          filterType: 'text',
+          filterColumn: 'riderNameAr',
+          getValue: (r) => `${r.riderNameAr || ''} ${r.iqama || ''}`.trim(),
+          render: (r) => (
+            <div className="flex flex-col">
+              <span className="font-medium">{String(r.riderNameAr || '—')}</span>
+              {r.iqama ? <bdi className="text-xs text-[var(--muted)] font-mono">{String(r.iqama)}</bdi> : null}
+            </div>
+          ),
+        },
+        { key: 'plate', header: 'المركبة', type: 'list', filterType: 'list', filterColumn: 'plateNumber', getValue: (r) => String(r.plateNumber || ''), render: (r) => String(r.plateNumber || '—') },
+        { key: 'liters', header: 'اللترات', type: 'number', filterType: 'number', numeric: true, getValue: (r) => (r.liters != null ? Number(r.liters) : ''), render: (r) => String(r.liters ?? '') },
+        { key: 'before', header: 'قبل الضريبة', type: 'number', filterType: 'number', numeric: true, filterColumn: 'amountBeforeTax', getValue: (r) => (r.amountBeforeTax != null ? Number(r.amountBeforeTax) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.amountBeforeTax as number | string | null | undefined)}</span> },
+        { key: 'vat', header: 'الضريبة', type: 'number', filterType: 'number', numeric: true, getValue: (r) => (r.vat != null ? Number(r.vat) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.vat as number | string | null | undefined)}</span> },
+        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalInclVat', getValue: (r) => (r.totalInclVat != null ? Number(r.totalInclVat) : ''), render: (r) => <span className="num font-medium whitespace-nowrap">{formatSar(r.totalInclVat as number | string | null | undefined)}</span> },
+        { key: 'cap', header: 'السقف', filterable: false, sortable: false, render: () => NO_SOURCE },
+        {
+          key: 'status',
+          header: 'الحالة',
+          type: 'list',
+          filterType: 'list',
+          getValue: (r) => formatFuelStatusAr(r.status),
+          labelOf: (v) => formatFuelStatusAr(v),
+          toneOf: (v) => (formatFuelStatusAr(v) === 'نشطة' ? 'success' : 'danger'),
+          render: (r) => {
+            const label = formatFuelStatusAr(r.status);
+            const active = label === 'نشطة';
+            return (
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                  active
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {label}
+              </span>
+            );
+          },
+        },
       ];
     }
     if (view === 'invoices') {
       return [
-        { key: 'num', header: 'رقم الاستلام', render: (r) => String(r.receiptNumber || '') },
-        { key: 'sup', header: 'المورد', render: (r) => String(r.supplierNameAr || '') },
-        { key: 'date', header: 'تاريخ الفاتورة', render: (r) => String(r.invoiceDate || '') },
-        { key: 'total', header: 'الإجمالي', render: (r) => String(r.totalAmount ?? '') },
-        { key: 'status', header: 'الحالة', render: (r) => String(r.status || '') },
+        { key: 'num', header: 'رقم الاستلام', type: 'text', filterType: 'text', filterColumn: 'receiptNumber', getValue: (r) => String(r.receiptNumber || ''), render: (r) => String(r.receiptNumber || '') },
+        { key: 'supInv', header: 'فاتورة المورد', type: 'text', filterType: 'text', filterColumn: 'supplierInvoiceNumber', getValue: (r) => String(r.supplierInvoiceNumber || ''), render: (r) => String(r.supplierInvoiceNumber || '—') },
+        { key: 'sup', header: 'المورد', type: 'list', filterType: 'list', filterColumn: 'supplierNameAr', getValue: (r) => String(r.supplierNameAr || ''), render: (r) => String(r.supplierNameAr || '—') },
+        { key: 'date', header: 'تاريخ الفاتورة', type: 'date', filterType: 'date', filterColumn: 'invoiceDate', getValue: (r) => String(r.invoiceDate || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.invoiceDate) },
+        { key: 'receivedAt', header: 'تاريخ الاستلام', type: 'date', filterType: 'date', getValue: (r) => String(r.receivedAt || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.receivedAt) },
+        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalAmount', getValue: (r) => (r.totalAmount != null ? Number(r.totalAmount) : ''), render: (r) => <span className="num font-medium whitespace-nowrap">{formatSar(r.totalAmount as number | string | null | undefined)}</span> },
+        { key: 'status', header: 'الحالة', type: 'list', filterType: 'list', getValue: (r) => formatPurchaseStatus(r.status), labelOf: (v) => formatPurchaseStatus(v), toneOf: (v) => (formatPurchaseStatus(v) === 'مرحّل' ? 'success' : 'danger'), render: (r) => formatPurchaseStatus(r.status) },
       ];
     }
     if (view === 'oil') {
       return [
-        { key: 'plate', header: 'اللوحة', render: (r) => cell(r.plateNumberAr) },
-        { key: 'date', header: 'التاريخ', render: (r) => cell(r.performedAt) },
-        { key: 'odo', header: 'العداد', render: (r) => cell(r.odometer) },
-        { key: 'liters', header: 'لترات', render: (r) => cell(r.oilLiters) },
-        { key: 'oil', header: 'تكلفة الزيت', render: (r) => cell(r.oilCost) },
-        { key: 'filter', header: 'الفلتر', render: (r) => cell(r.filterCost) },
-        { key: 'labor', header: 'أجور', render: (r) => cell(r.laborCost) },
-        { key: 'other', header: 'أخرى', render: (r) => cell(r.otherCost) },
-        { key: 'total', header: 'الإجمالي', render: (r) => cell(r.totalCost) },
+        { key: 'plate', header: 'اللوحة', type: 'list', filterType: 'list', filterColumn: 'plateNumberAr', getValue: (r) => String(r.plateNumberAr || ''), render: (r) => cell(r.plateNumberAr) },
+        { key: 'date', header: 'التاريخ', type: 'date', filterType: 'date', filterColumn: 'performedAt', getValue: (r) => String(r.performedAt || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.performedAt) },
+        { key: 'odo', header: 'العداد', type: 'number', filterType: 'number', numeric: true, summary: 'none', filterColumn: 'odometer', getValue: (r) => (r.odometer != null ? Number(r.odometer) : ''), render: (r) => cell(r.odometer) },
+        { key: 'liters', header: 'لترات', type: 'number', filterType: 'number', numeric: true, filterColumn: 'oilLiters', getValue: (r) => (r.oilLiters != null ? Number(r.oilLiters) : ''), render: (r) => cell(r.oilLiters) },
+        { key: 'oil', header: 'تكلفة الزيت', type: 'number', filterType: 'number', numeric: true, filterColumn: 'oilCost', getValue: (r) => (r.oilCost != null ? Number(r.oilCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.oilCost as number | string | null | undefined)}</span> },
+        { key: 'filter', header: 'الفلتر', type: 'number', filterType: 'number', numeric: true, filterColumn: 'filterCost', getValue: (r) => (r.filterCost != null ? Number(r.filterCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.filterCost as number | string | null | undefined)}</span> },
+        { key: 'labor', header: 'أجور', type: 'number', filterType: 'number', numeric: true, filterColumn: 'laborCost', getValue: (r) => (r.laborCost != null ? Number(r.laborCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.laborCost as number | string | null | undefined)}</span> },
+        { key: 'other', header: 'أخرى', type: 'number', filterType: 'number', numeric: true, filterColumn: 'otherCost', getValue: (r) => (r.otherCost != null ? Number(r.otherCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.otherCost as number | string | null | undefined)}</span> },
+        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalCost', getValue: (r) => (r.totalCost != null ? Number(r.totalCost) : ''), render: (r) => <span className="num font-medium whitespace-nowrap">{formatSar(r.totalCost as number | string | null | undefined)}</span> },
       ];
     }
     return [
-      { key: 'plate', header: 'اللوحة والنوع', render: (r) => `${r.plateNumberAr || ''} · ${r.vehicleType || ''}` },
-      { key: 'rider', header: mode === 'rider' ? 'المندوب الفعلي' : 'المندوب / الفترة', render: (r) => String(r.riderNameAr || '') },
-      { key: 'city', header: 'المدينة', render: (r) => String(r.city || '') },
-      { key: 'days', header: 'أيام التشغيل', render: (r) => String(r.operatingDays ?? '') },
-      { key: 'parts', header: 'تكلفة قطع الغيار', render: (r) => String(r.sparePartsCost ?? '') },
-      { key: 'collect', header: 'الاستقطاع المطلوب', render: (r) => String(r.amountToCollect ?? '') },
-      { key: 'oil', header: 'زيت (عدد/تكلفة/كم)', render: (r) => `${r.oilChangesCount ?? 0} / ${r.oilChangesCost ?? 0} / ${r.oilMileage ?? '—'}` },
+      { key: 'plate', header: 'اللوحة والنوع', type: 'list', filterType: 'list', filterColumn: 'plateNumberAr', getValue: (r) => String(r.plateNumberAr || ''), render: (r) => `${r.plateNumberAr || ''} · ${r.vehicleType || ''}` },
+      { key: 'rider', header: mode === 'rider' ? 'المندوب الفعلي' : 'المندوب / الفترة', type: 'text', filterType: 'text', filterColumn: 'riderNameAr', getValue: (r) => `${r.riderNameAr || ''} ${r.iqama || ''}`.trim(), render: (r) => String(r.riderNameAr || '') },
+      { key: 'city', header: 'المدينة', type: 'list', filterType: 'list', getValue: (r) => String(r.city || ''), render: (r) => String(r.city || '') },
+      { key: 'days', header: 'أيام التشغيل', type: 'number', filterType: 'number', numeric: true, filterColumn: 'operatingDays', getValue: (r) => (r.operatingDays != null ? Number(r.operatingDays) : ''), render: (r) => String(r.operatingDays ?? '') },
+      { key: 'parts', header: 'تكلفة قطع الغيار', type: 'number', filterType: 'number', numeric: true, filterColumn: 'sparePartsCost', getValue: (r) => (r.sparePartsCost != null ? Number(r.sparePartsCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.sparePartsCost as number | string | null | undefined)}</span> },
+      { key: 'collect', header: 'الاستقطاع المطلوب', type: 'number', filterType: 'number', numeric: true, filterColumn: 'amountToCollect', getValue: (r) => (r.amountToCollect != null ? Number(r.amountToCollect) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.amountToCollect as number | string | null | undefined)}</span> },
+      { key: 'oil', header: 'زيت (عدد/تكلفة/كم)', type: 'number', filterType: 'number', filterColumn: 'oilChangesCost', getValue: (r) => Number(r.oilChangesCost ?? 0), render: (r) => <span className="num whitespace-nowrap">{`${r.oilChangesCount ?? 0} / ${formatSar(r.oilChangesCost as number | string | null | undefined)} / ${r.oilMileage ?? '—'}`}</span> },
       {
         key: 'actions',
         header: 'إجراءات',
+        filterable: false,
+        sortable: false,
         render: (r) => (
           <button type="button" className="text-[var(--accent)]" onClick={() => void openVehicle(String(r.vehicleId || r.id))}>
             تفاصيل المركبة
@@ -538,27 +848,42 @@ function OperationsPageInner() {
             </button>
           ) : null}
           {canExport && tab === 'cities' ? (
-            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsCities().then((r) => downloadBlob(r, 'operations-cities.xlsx'))}>
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsCities({ filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-cities.xlsx'))}>
               تصدير
             </button>
           ) : null}
           {canExport && tab === 'housing' ? (
-            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsHousing({ q: debouncedQ || undefined }).then((r) => downloadBlob(r, 'operations-housing.xlsx'))}>
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsHousing({ q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-housing.xlsx'))}>
               تصدير
             </button>
           ) : null}
           {canExport && tab === 'vehicles' && view === 'period' ? (
             <>
-              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'summary' }).then((r) => downloadBlob(r, 'operations-vehicles-summary.xlsx'))}>
+              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'summary', q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-vehicles-summary.xlsx'))}>
                 تصدير ملخص
               </button>
-              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'detailed' }).then((r) => downloadBlob(r, 'operations-vehicles-detailed.xlsx'))}>
+              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'detailed', q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-vehicles-detailed.xlsx'))}>
                 تصدير تفصيلي
               </button>
             </>
           ) : null}
-          {canExport && tab === 'fuel' ? (
-            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsFuel({ month }).then((r) => downloadBlob(r, 'operations-fuel.xlsx'))}>
+          {canExport && tab === 'vehicles' && view === 'oil' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsOilChanges({ from, to, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-oil-changes.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'vehicles' && view === 'invoices' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPurchases({ from, to, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-purchases.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'fuel' && view !== 'log' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsFuel({ month, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-fuel.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'fuel' && view === 'log' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsFuelLog({ from, to, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-fuel-log.xlsx'))}>
               تصدير
             </button>
           ) : null}
@@ -571,18 +896,25 @@ function OperationsPageInner() {
         </div>
       ) : null}
 
-      {loading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : errorMsg && !is503 ? (
+      {errorMsg && !is503 ? (
         <ErrorState title="تعذر التحميل" message={errorMsg} onRetry={() => void load()} />
-      ) : items.length === 0 ? (
-        <EmptyState title="لا بيانات" description={view === 'oil' ? 'لا تغييرات زيت في هذه الفترة.' :'لا صفوف مطابقة للمرشحات.'} />
       ) : (
         <DataTable
+          key={`ops-${tab}-${view}`}
+          tableId={`ops-${tab}-${view}`}
           columns={columns}
           data={items}
+          loading={loading}
           getRowId={(r) => String(r.id || Math.random())}
           serverSide
+          distinctEndpoint="/operations/distinct"
+          distinctParams={{ tab, view, from, to, month, mode, q: debouncedQ || undefined, filters: serverQuery.filtersParam }}
+          onServerQueryChange={(sq) => {
+            setServerQuery({ filtersParam: sq.filtersParam, sortParam: sq.sortParam });
+            replaceParams({ page: '1' });
+          }}
+          emptyTitle="لا بيانات"
+          emptyDescription={view === 'oil' ? 'لا تغييرات زيت في هذه الفترة.' : 'لا صفوف مطابقة للمرشحات.'}
           searchable={false}
           exportable={false}
           syncUrl={false}

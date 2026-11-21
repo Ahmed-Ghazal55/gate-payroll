@@ -1,13 +1,13 @@
 'use client';
 
-import { formatSar } from '../../lib/money';
-
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Banknote, Plus, RefreshCw } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState, Skeleton } from '../../components/ui/EmptyState';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
+import { formatSar } from '../../lib/money';
 
 export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: string }) {
   const { can, isAdmin } = useAuth();
@@ -34,6 +34,18 @@ export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: str
   }, [canView, debtId]);
 
   useEffect(() => { loadSettlements(); }, [loadSettlements]);
+
+  const settlementCols = useMemo(
+    () => [
+      { key: 'receiptRef', header: 'السند', type: 'text' as const, getValue: (s: Record<string, unknown>) => String(s.receiptRef || '') },
+      { key: 'debtId', header: 'الدين', type: 'text' as const, getValue: (s: Record<string, unknown>) => String(s.debtId || '') },
+      { key: 'collectedAmount', header: 'محصّل', type: 'number' as const, getValue: (s: Record<string, unknown>) => Number(s.collectedAmount || 0) },
+      { key: 'waivedAmount', header: 'إعفاء', type: 'number' as const, getValue: (s: Record<string, unknown>) => Number(s.waivedAmount || 0) },
+      { key: 'date', header: 'التاريخ', type: 'date' as const, getValue: (s: Record<string, unknown>) => String(s.collectionDate || s.createdAt || '') },
+    ],
+    []
+  );
+  const settlementFilter = useTableAutoFilter<Record<string, unknown>>(settlements, settlementCols);
 
   if (!canView) {
     return <EmptyState title="صلاحية غير كافية" description="عرض التحصيلات يحتاج صلاحية ديون." />;
@@ -108,28 +120,31 @@ export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: str
         {loading ? <Skeleton className="h-24 w-full" /> : settlements.length === 0 ? (
           <div className="p-4 text-xs text-[var(--muted)]">لا تحصيلات معروضة.</div>
         ) : (
-          <table className="w-full text-xs">
-            <thead className="bg-[var(--raised)]/50 text-[var(--muted)]">
-              <tr>
-                <th className="p-2 text-start">السند</th>
-                <th className="p-2 text-start">الدين</th>
-                <th className="p-2 text-start">محصّل</th>
-                <th className="p-2 text-start">إعفاء</th>
-                <th className="p-2 text-start">التاريخ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--line)]">
-              {settlements.slice(0, 100).map((s) => (
-                <tr key={String(s.id)}>
-                  <td className="p-2 font-mono">{String(s.receiptRef || '')}</td>
-                  <td className="p-2 font-mono">{String(s.debtId || '')}</td>
-                  <td className="p-2 font-mono">{formatSar(Number(s.collectedAmount || 0))}</td>
-                  <td className="p-2 font-mono">{formatSar(Number(s.waivedAmount || 0))}</td>
-                  <td className="p-2">{String(s.collectionDate || s.createdAt || '')}</td>
+          <div>
+            <AutoFilterBar controller={settlementFilter} totalCount={settlements.length} />
+            <table className="w-full text-xs">
+              <thead className="bg-[var(--raised)]/50 text-[var(--muted)]">
+                <tr>
+                  <AutoFilterTh controller={settlementFilter} colKey="receiptRef" className="p-2 text-start" />
+                  <AutoFilterTh controller={settlementFilter} colKey="debtId" className="p-2 text-start" />
+                  <AutoFilterTh controller={settlementFilter} colKey="collectedAmount" className="p-2 text-start" />
+                  <AutoFilterTh controller={settlementFilter} colKey="waivedAmount" className="p-2 text-start" />
+                  <AutoFilterTh controller={settlementFilter} colKey="date" className="p-2 text-start" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[var(--line)]">
+                {settlementFilter.rows.slice(0, 100).map((s) => (
+                  <tr key={String(s.id)}>
+                    <td className="p-2 font-mono">{String(s.receiptRef || '')}</td>
+                    <td className="p-2 font-mono">{String(s.debtId || '')}</td>
+                    <td className="p-2 num whitespace-nowrap">{formatSar(s.collectedAmount as number | string | null | undefined)}</td>
+                    <td className="p-2 num whitespace-nowrap">{formatSar(s.waivedAmount as number | string | null | undefined)}</td>
+                    <td className="p-2">{String(s.collectionDate || s.createdAt || '')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

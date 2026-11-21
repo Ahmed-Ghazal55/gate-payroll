@@ -133,6 +133,8 @@ public static partial class Debts
             .WithTags("Debts and advances").WithSummary("Read debts (array without page; paged envelope when page is set)");
         api.MapGet("/debts/summary", (HttpContext ctx) => store.Read(c => Summary(c, ctx.User, ctx.Request.Query)))
             .WithTags("Debts and advances").WithSummary("Scoped debt totals for stat cards (SQL aggregates)");
+        api.MapGet("/debts/distinct", (HttpContext ctx) => store.Read(c => Distinct(c, ctx.User, ctx.Request.Query)))
+            .WithTags("Debts and advances").WithSummary("Distinct column values for debts table filters");
         api.MapGet("/debts/settlements", (string? debtId, string? iqama,HttpContext ctx) => store.Read(c =>
         {
             var list = Store.List(c, "debt_settlement").Where(d=>FinancialScopes.Sponsor(ctx.User,d.S("creditorSponsorId"))&&FinancialScopes.Category(ctx.User,d.S("category"))).ToList();
