@@ -65,7 +65,8 @@ public static class MoneyWriteGuards
 
     public static bool IsSalSimulationSource(DbConnection c,DbTransaction tx,string reference)
     {
-        if(string.IsNullOrWhiteSpace(reference)||!SchemaSql.TableExists(c,tx,"sal","pay_run"))return false;
+        // sal.pay_run.id is uniqueidentifier — skip legacy string refs (opening keys, bank-payout:…, etc.).
+        if(string.IsNullOrWhiteSpace(reference)||!Guid.TryParse(reference,out _)||!SchemaSql.TableExists(c,tx,"sal","pay_run"))return false;
         object? mode=SchemaSql.Scalar(c,tx,$"""
             SELECT run_mode FROM {SchemaSql.Q(c,"sal","pay_run")} WHERE id=@id
             """,("@id",reference));
@@ -81,6 +82,8 @@ public static class MoneyWriteGuards
             if(cycle.B("payoutBlocked")||cycle.S("payoutBlocked")=="1")return true;
         foreach(var run in Store.List(c,"run",tx).Where(r=>r.S("sponsorId")==companyId&&r.S("period")==month))
             if(run.B("payoutBlocked")||run.S("payoutBlocked")=="1")return true;
+        // sal.* company_id is uniqueidentifier; document-store sponsor codes (BW/…) must not be bound there.
+        if(!Guid.TryParse(companyId,out _))return false;
         if(SchemaSql.TableExists(c,tx,"sal","pay_run"))
         {
             object? pb=SchemaSql.Scalar(c,tx,$"""
