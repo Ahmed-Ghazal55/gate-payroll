@@ -673,8 +673,12 @@ function AccountingPageContent() {
         />
       </div>
 
-      {/* Sub Tabs Navigation */}
-      <div className="flex border-b border-[var(--line)] gap-2 overflow-x-auto no-scrollbar">
+      {/* Sub Tabs Navigation — sidebar also lists these; keep scroll affordance until full rule-3.0 cutover */}
+      <div
+        role="tablist"
+        aria-label="أقسام المحاسبة"
+        className="flex border-b border-[var(--line)] gap-2 overflow-x-auto scroll-smooth [scrollbar-width:thin]"
+      >
         <button
           type="button"
           role="tab"
