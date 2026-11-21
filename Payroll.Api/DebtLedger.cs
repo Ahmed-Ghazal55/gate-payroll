@@ -6,14 +6,19 @@ using System.Text;
 using System.Text.Json.Nodes;
 namespace Payroll;
 
-/// <summary>U-W2-20a/b/c: debt.debt + debt_movement + fin.journal in one TX through JournalPosting.
-/// Simulation (run_mode=1) is rejected; payout_blocked allows accounting/debt but not disbursement payouts.</summary>
+/// <summary>U-W2-20a/b/c + WD1F: debt.debt + debt_movement + fin.journal in one TX through JournalPosting.
+/// Checker is always a real authenticated principal (approvals area); never a typed Admin name.
+/// Simulation (run_mode=1) is rejected from stored flags; payout_blocked allows accounting/debt but not disbursement payouts.</summary>
 public static class DebtLedger
 {
     public const byte DocDraft=1,DocSubmitted=2,DocApproved=3;
     static readonly HashSet<string> WaiverAccounts=new(StringComparer.Ordinal){"526601","526801","526802","526803","526804","526805","526806"};
     static readonly HashSet<string> AbsorbAccounts=new(StringComparer.Ordinal){"526602","526603"};
     static readonly HashSet<string> ReduceReasons=new(StringComparer.Ordinal){"تصحيح رصيد افتتاحي","خطأ إدخال","تسوية مراجعة","أخرى معتمدة"};
+    static readonly Dictionary<string,string> PlatformWaiver=new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Keeta"]="526801",["HungerStation"]="526802",["Ninja"]="526803",["Amazon"]="526804",["Chefz"]="526805",["Jahez"]="526806"
+    };
 
     public static void DemandDisburseAvailable()=>
         throw new ApiError("صرف مديونية جديدة عبر محرك المدفوعات غير متاح بعد؛ انتظر وحدة محرك المدفوعات.",409);
@@ -24,6 +29,130 @@ public static class DebtLedger
         object? id=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","account")} WHERE code=@c AND is_postable=1 AND is_active=1",("@c",mapped));
         J.Need(id!=null,"حساب دليل الحسابات غير موجود أو غير قابل للترحيل: "+mapped,404);
         return id is Guid g?g:Guid.Parse(id!.ToString()!);
+    }
+
+    public static Guid RequireOpenPeriod(DbConnection c,DbTransaction? tx,Guid companyId,DateOnly periodMonth)
+    {
+        object? id=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","accounting_period")} WHERE company_id=@c AND period_month=@m AND state=1",
+            ("@c",SchemaSql.GuidText(companyId)),("@m",Month(periodMonth)));
+        J.Need(id!=null,"الفترة المحاسبية غير مفتوحة؛ المالية تفتح الفترات.",409);
+        return id is Guid g?g:Guid.Parse(id!.ToString()!);
+    }
+
+    public static (byte RunMode,bool PayoutBlocked) ResolveMoneyFlags(DbConnection c,DbTransaction tx,Guid companyId,DateOnly periodMonth)
+    {
+        string company=SchemaSql.GuidText(companyId),pm=Month(periodMonth),period=periodMonth.ToString("yyyy-MM",CultureInfo.InvariantCulture);
+        return BankPayrollFiles.ResolveStoredMoneyFlags(c,tx,(company,period,period));
+    }
+
+    public static void EnsureD11WaiverAccounts(DbConnection c,DbTransaction? tx)
+    {
+        SchemaFinAccount.Ensure(c,tx);
+        string t=SchemaSql.Q(c,"fin","account");string now=SchemaSql.NowLiteral(c);
+        void Seed(string code,string name,string parent,bool postable)
+        {
+            if(Convert.ToInt64(SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {t} WHERE code=@c",("@c",code))!)>0)return;
+            object? parentId=string.IsNullOrEmpty(parent)?DBNull.Value:SchemaSql.Scalar(c,tx,$"SELECT id FROM {t} WHERE code=@p",("@p",parent));
+            if(parent!=""&&parentId is null or DBNull){Seed(parent,parent=="5268"?"إعفاءات المنصات":parent,"5266",false);parentId=SchemaSql.Scalar(c,tx,$"SELECT id FROM {t} WHERE code=@p",("@p",parent));}
+            SchemaSql.Exec(c,tx,$"""
+                INSERT INTO {t}(id,code,parent_id,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at)
+                VALUES(@id,@code,@parent,@name,5,1,@post,1,1,0,@lvl,{now})
+                """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code",code),("@parent",parentId??DBNull.Value),("@name",name),
+                ("@post",postable?1:0),("@lvl",code.Length<=4?4:6));
+        }
+        Seed("5268","إعفاءات المنصات","5266",false);
+        Seed("526801","إعفاءات كيتا","5268",true);
+        Seed("526802","إعفاءات هنقرستيشن","5268",true);
+        Seed("526803","إعفاءات نينجا","5268",true);
+        Seed("526804","إعفاءات أمازون","5268",true);
+        Seed("526805","إعفاءات شيفز","5268",true);
+        Seed("526806","إعفاءات جاهز (غير عمولة)","5268",true);
+    }
+
+    public static (string Code,Guid AccountId) ResolveWaiverExpense(DbConnection c,DbTransaction tx,Guid debtId)
+    {
+        EnsureD11WaiverAccounts(c,tx);
+        string platform;
+        using(var cmd=Store.Command(c,tx,$"SELECT category,platform FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId))))
+        using(var reader=cmd.ExecuteReader())
+        {
+            J.Need(reader.Read(),"المديونية غير موجودة.",404);
+            platform=reader["platform"] is DBNull?"":reader["platform"].ToString()!;
+        }
+        string code=platform!=""&&PlatformWaiver.TryGetValue(platform,out var mapped)?mapped:"526601";
+        return (code,AccountId(c,tx,code));
+    }
+
+    public static (string ExpenseCode,string ReceivableCode,Guid ExpenseId,Guid ReceivableId) ResolveAbsorbAccounts(DbConnection c,DbTransaction tx,Guid debtId)
+    {
+        string category,platform;
+        using(var cmd=Store.Command(c,tx,$"SELECT category,platform FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId))))
+        using(var reader=cmd.ExecuteReader())
+        {
+            J.Need(reader.Read(),"المديونية غير موجودة.",404);
+            category=reader["category"].ToString()!;
+            platform=reader["platform"] is DBNull?"":reader["platform"].ToString()!;
+        }
+        bool platformDebt=category.Equals("PlatformTransferredDebt",StringComparison.OrdinalIgnoreCase)||!string.IsNullOrWhiteSpace(platform);
+        string expense=platformDebt?"526603":"526602";
+        string receivable=ReceivableForCategory(category);
+        return (expense,receivable,AccountId(c,tx,expense),AccountId(c,tx,receivable));
+    }
+
+    public static string ReceivableForCategory(string category)
+    {
+        var hit=ConfigLists.DefaultDeductions.FirstOrDefault(d=>string.Equals(d.Category,category,StringComparison.OrdinalIgnoreCase));
+        if(!string.IsNullOrEmpty(hit.Account))return hit.Account;
+        return category switch
+        {
+            "PlatformTransferredDebt"=>"112508",
+            "NegativeSalaryCarryover"=>"112507",
+            "LegacyOpeningDebt"=>"112505",
+            _=>"112501"
+        };
+    }
+
+    public static Guid ResolveReduceContra(DbConnection c,DbTransaction tx,string reason,string? clientContra,Guid debtId)
+    {
+        if(reason=="تصحيح رصيد افتتاحي")return AccountId(c,tx,"331301");
+        if(reason=="خطأ إدخال")
+        {
+            // Reverse the original contra: last positive movement's paired journal credit, else cash/bank collection path → cash.
+            object? last=SchemaSql.Scalar(c,tx,$"""
+                SELECT j.purpose FROM {SchemaSql.Q(c,"debt","debt_movement")} m
+                LEFT JOIN {SchemaSql.Q(c,"fin","journal")} j ON j.id=m.journal_id
+                WHERE m.debt_id=@d AND m.amount>0 ORDER BY m.occurred_on DESC,m.id DESC
+                """,("@d",SchemaSql.GuidText(debtId)));
+            string purpose=last?.ToString()??"";
+            if(purpose.Contains("collection",StringComparison.OrdinalIgnoreCase))return AccountId(c,tx,"111101");
+            return AccountId(c,tx,ReceivableForCategory(LoadCategory(c,tx,debtId)));
+        }
+        J.Need(string.IsNullOrWhiteSpace(clientContra)||clientContra is "3101" or "331301","حساب التخفيض غير مسموح إلا لتصحيح الرصيد الافتتاحي.",400);
+        return AccountId(c,tx,"331301");
+    }
+
+    static string LoadCategory(DbConnection c,DbTransaction tx,Guid debtId)=>
+        SchemaSql.Scalar(c,tx,$"SELECT category FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)))?.ToString()??"CashAdvance";
+
+    public static void DemandDebtScope(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,Guid debtId,Guid companyId)
+    {
+        string companyKey=SchemaSql.GuidText(companyId);
+        // W1 debt.company_id is hr.company. Catalog sponsors still DemandSponsor; cutover GUIDs accept finance-all scope when the company row exists.
+        if(FinancialCore.FindSponsor(companyKey)!=null)FinancialScopes.DemandSponsor(actor,companyKey);
+        else
+        {
+            object? hr=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"hr","company")} WHERE id=@id",("@id",companyKey));
+            J.Need(hr!=null&&(AccessPolicy.Administrator(actor)||FinancialScopes.AllCompanies(actor)),"السجل التجاري خارج النطاق المالي للمستخدم.",403);
+        }
+        using var cmd=Store.Command(c,tx,$"SELECT category,platform FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id AND company_id=@c",
+            ("@id",SchemaSql.GuidText(debtId)),("@c",SchemaSql.GuidText(companyId)));
+        using var reader=cmd.ExecuteReader();
+        J.Need(reader.Read(),"المديونية غير موجودة.",404);
+        string category=reader["category"].ToString()!;
+        string platform=reader["platform"] is DBNull?"":reader["platform"].ToString()!;
+        // Empty creditorSponsorId uses AllCompanies+finance-role path when company is hr GUID (not in legacy catalog).
+        var fake=new JsonObject{["creditorSponsorId"]=FinancialCore.FindSponsor(companyKey)!=null?companyKey:"",["category"]=category,["platform"]=platform};
+        FinancialScopes.DemandDebt(actor,fake);
     }
 
     public static JsonObject PreviewReduce(DbConnection c,DbTransaction? tx,Guid companyId,ClaimsPrincipal actor,byte[] file,string filename,DateOnly periodMonth)
@@ -65,11 +194,11 @@ public static class DebtLedger
     public static JsonObject CommitReduce(DbConnection c,DbTransaction tx,Guid companyId,Guid periodId,DateOnly periodMonth,ClaimsPrincipal maker,ClaimsPrincipal checker,byte[] file,string filename,string fingerprint,Guid receivableAccountId,Guid contraAccountId)
     {
         AccessPolicy.Demand(maker,"debts.create.administrative");
-        J.Need(!AccessPolicy.SamePerson(maker,checker.Identity?.Name??""),"اعتماد تخفيض الشيت لشخص مستقل عن مقدّم الطلب.",403);
-        AccessPolicy.Demand(checker,"approvals.decide");
+        DemandChecker(c,tx,maker,checker,fingerprint,0m);
         var preview=PreviewReduce(c,tx,companyId,maker,file,filename,periodMonth);
         J.Need(preview.S("fingerprint")==fingerprint,"بصمة المعاينة لا تطابق الملف؛ أعد المعاينة.",409);
-        MoneyWriteGuards.Demand(0,false,MoneyEffectKind.Debt);
+        var flags=ResolveMoneyFlags(c,tx,companyId,periodMonth);
+        MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.Debt);
         string hash=preview.S("fileHash");
         byte[] hashBytes=Convert.FromHexString(hash);
         object? dup=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"debt","import_batch")} WHERE company_id=@c AND import_kind='reduce' AND file_hash=@h",
@@ -82,11 +211,11 @@ public static class DebtLedger
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
         SchemaSql.Exec(c,tx,$"""
             INSERT INTO {SchemaSql.Q(c,"debt","import_batch")}(id,company_id,period_month,amount,reason,file_hash,import_kind,status,run_mode,payout_blocked,created_by,created_at)
-            VALUES(@id,@c,@pm,@amt,@reason,@h,'reduce',@st,0,0,@by,@at)
+            VALUES(@id,@c,@pm,@amt,@reason,@h,'reduce',@st,@rm,@pb,@by,@at)
             """,("@id",SchemaSql.GuidText(batchId)),("@c",SchemaSql.GuidText(companyId)),("@pm",Month(periodMonth)),
-            ("@amt",total),("@reason","تخفيض شيت مديونيات معتمد"),("@h",hashBytes),("@st",DocDraft),("@by",actor),("@at",now));
+            ("@amt",total),("@reason","تخفيض شيت مديونيات معتمد"),("@h",hashBytes),("@st",DocDraft),
+            ("@rm",flags.RunMode),("@pb",flags.PayoutBlocked?1:0),("@by",actor),("@at",now));
 
-        // Lines must land while the batch is still draft; frozen trigger blocks inserts after status>=3.
         int lineNo=0;
         var posted=new List<(Guid debtId,Guid lineId,decimal amount,string reason)>();
         foreach(var row in preview["rows"]!.AsArray().OfType<JsonObject>())
@@ -94,6 +223,7 @@ public static class DebtLedger
             lineNo++;
             Guid debtId=Guid.Parse(row.S("debtId"));
             decimal amount=row.N("amount");
+            DemandDebtScope(c,tx,maker,debtId,companyId);
             decimal locked=SchemaDebt.LockDebt(c,tx,SchemaSql.GuidText(debtId));
             J.Need(locked>=amount,"الرصيد تغيّر أثناء الاعتماد.",409);
             Guid lineId=SchemaSql.NewId();
@@ -104,28 +234,37 @@ public static class DebtLedger
                 ("@ln",lineNo),("@src",row.N("row")),("@d",SchemaSql.GuidText(debtId)),("@c",SchemaSql.GuidText(companyId)),("@amt",-amount));
             posted.Add((debtId,lineId,amount,row.S("reason")));
         }
-        AdvanceWorkflow(c,tx,"import_batch",batchId,SchemaSql.NewId());
+        AdvanceWorkflow(c,tx,"import_batch",batchId,checker);
 
         foreach(var (debtId,lineId,amount,reason) in posted)
         {
+            Guid contra=ResolveReduceContra(c,tx,reason,null,debtId);
+            Guid receivable=AccountId(c,tx,ReceivableForCategory(LoadCategory(c,tx,debtId)));
             var journal=JournalPosting.Post(c,tx,new JournalPosting.Draft(
-                companyId,periodId,periodMonth,periodMonth.AddDays(14),"debt_import",lineId,"debt_reduce",0,false,actor,
+                companyId,periodId,periodMonth,periodMonth.AddDays(14),"debt_import",lineId,"debt_reduce",flags.RunMode,flags.PayoutBlocked,actor,
                 [
-                    new(contraAccountId,SchemaOrgCostCentre.NoneId,"none",amount,0m,reason),
-                    new(receivableAccountId,SchemaOrgCostCentre.NoneId,"none",0m,amount,"تخفيض ذمة المندوب")
+                    new(contra,SchemaOrgCostCentre.NoneId,"none",amount,0m,reason),
+                    new(receivable,SchemaOrgCostCentre.NoneId,"none",0m,amount,"تخفيض ذمة المندوب")
                 ],NarrationAr:"تخفيض شيت مديونيات"));
-            InsertMovement(c,tx,companyId,periodMonth,debtId,lineId,-amount,"import",journal.JournalId,actor);
+            InsertMovement(c,tx,companyId,periodMonth,debtId,lineId,-amount,"import",journal.JournalId,actor,flags.RunMode,flags.PayoutBlocked);
         }
 
-        LedgerAudit(c,tx,"debt.import.reduce",SchemaSql.GuidText(batchId),actor,new(){["rowCount"]=lineNo,["fileHash"]=hash});
+        WriteBulkChangeLog(c,tx,checker,SchemaSql.GuidText(batchId),lineNo,hashBytes,"استيراد تخفيض مديونيات");
         return new(){["batchId"]=SchemaSql.GuidText(batchId),["rowCount"]=lineNo,["totalReduce"]=total,["fileHash"]=hash,["allowedActions"]=new JsonArray()};
     }
 
     public static JsonObject Collect(DbConnection c,DbTransaction tx,Guid debtId,Guid companyId,Guid periodId,DateOnly periodMonth,ClaimsPrincipal actor,decimal amount,string reason,Guid receivableAccountId,Guid cashAccountId,byte runMode,bool payoutBlocked)
     {
         AccessPolicy.Demand(actor,"debts.collect");
+        DemandDebtScope(c,tx,actor,debtId,companyId);
+        var flags=ResolveMoneyFlags(c,tx,companyId,periodMonth);
+        // Body flags are ignored; stored company/cycle flags win.
+        runMode=flags.RunMode;payoutBlocked=flags.PayoutBlocked;
         MoneyWriteGuards.Demand(runMode,payoutBlocked,MoneyEffectKind.Debt);
         amount=J.Money(amount);J.Need(amount>0,"مبلغ التحصيل مطلوب.",400);
+        string cashCode=AccountCode(c,tx,cashAccountId);
+        J.Need(MoneyWriteGuards.IsBankOrCashAccountCode(cashCode),"التحصيل فقط إلى صندوق أو بنك لنفس الشركة.",400);
+        Guid receivable=AccountId(c,tx,ReceivableForCategory(LoadCategory(c,tx,debtId)));
         decimal locked=SchemaDebt.LockDebt(c,tx,SchemaSql.GuidText(debtId));
         J.Need(locked>=amount,"المبلغ يتجاوز الرصيد.",400);
         DemandOpenDebt(c,tx,debtId,companyId);
@@ -137,34 +276,45 @@ public static class DebtLedger
             VALUES(@id,@c,@pm,@d,@amt,@reason,@st,@rm,@pb,@by,@at)
             """,("@id",SchemaSql.GuidText(collectionId)),("@c",SchemaSql.GuidText(companyId)),("@pm",Month(periodMonth)),
             ("@d",SchemaSql.GuidText(debtId)),("@amt",amount),("@reason",reason),("@st",DocDraft),("@rm",runMode),("@pb",payoutBlocked?1:0),("@by",by),("@at",now));
-        AdvanceWorkflow(c,tx,"collection",collectionId,SchemaSql.NewId());
+        AdvanceWorkflow(c,tx,"collection",collectionId,actor);
 
         var journal=JournalPosting.Post(c,tx,new JournalPosting.Draft(
             companyId,periodId,periodMonth,periodMonth.AddDays(Math.Min(27,DateTime.UtcNow.Day)),"debt_collection",collectionId,"debt_collection",runMode,payoutBlocked,by,
             [
                 new(cashAccountId,SchemaOrgCostCentre.NoneId,"none",amount,0m,"تحصيل مديونية"),
-                new(receivableAccountId,SchemaOrgCostCentre.NoneId,"none",0m,amount,"تخفيض ذمة المندوب")
+                new(receivable,SchemaOrgCostCentre.NoneId,"none",0m,amount,"تخفيض ذمة المندوب")
             ],NarrationAr:reason));
         InsertMovement(c,tx,companyId,periodMonth,debtId,collectionId,-amount,"collection",journal.JournalId,by,runMode,payoutBlocked);
-        LedgerAudit(c,tx,"debt.collected",SchemaSql.GuidText(debtId),by);
         decimal balance=Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"SELECT balance FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)))!);
         return new(){["debtId"]=SchemaSql.GuidText(debtId),["collectionId"]=SchemaSql.GuidText(collectionId),["balance"]=balance,
             ["journalId"]=SchemaSql.GuidText(journal.JournalId),["allowedActions"]=balance>0?new JsonArray("collect","waive","absorb","reschedule"):new JsonArray()};
     }
 
-    public static JsonObject Waive(DbConnection c,DbTransaction tx,Guid debtId,Guid companyId,Guid periodId,DateOnly periodMonth,ClaimsPrincipal maker,ClaimsPrincipal checker,decimal amount,string reason,string expenseCode,Guid receivableAccountId,Guid expenseAccountId)=>
-        WaiveOrAbsorb(c,tx,debtId,companyId,periodId,periodMonth,maker,checker,amount,reason,expenseCode,receivableAccountId,expenseAccountId,WaiverAccounts,"debt_waiver","إعفاء مديونية");
+    public static JsonObject Waive(DbConnection c,DbTransaction tx,Guid debtId,Guid companyId,Guid periodId,DateOnly periodMonth,ClaimsPrincipal maker,ClaimsPrincipal checker,decimal amount,string reason,string expenseCode,Guid receivableAccountId,Guid expenseAccountId)
+    {
+        var resolved=ResolveWaiverExpense(c,tx,debtId);
+        J.Need(expenseCode==resolved.Code,"حساب الإعفاء يُختار من المديونية (D11)؛ المطلوب "+resolved.Code+".",409);
+        string receivableCode=ReceivableForCategory(LoadCategory(c,tx,debtId));
+        return WaiveOrAbsorb(c,tx,debtId,companyId,periodId,periodMonth,maker,checker,amount,reason,resolved.Code,
+            AccountId(c,tx,receivableCode),resolved.AccountId,WaiverAccounts,"debt_waiver","waiver","waived","إعفاء مديونية");
+    }
 
-    public static JsonObject Absorb(DbConnection c,DbTransaction tx,Guid debtId,Guid companyId,Guid periodId,DateOnly periodMonth,ClaimsPrincipal maker,ClaimsPrincipal checker,decimal amount,string reason,string expenseCode,Guid receivableAccountId,Guid expenseAccountId)=>
-        WaiveOrAbsorb(c,tx,debtId,companyId,periodId,periodMonth,maker,checker,amount,reason,expenseCode,receivableAccountId,expenseAccountId,AbsorbAccounts,"debt_absorb","تحمل الشركة للمديونية");
+    public static JsonObject Absorb(DbConnection c,DbTransaction tx,Guid debtId,Guid companyId,Guid periodId,DateOnly periodMonth,ClaimsPrincipal maker,ClaimsPrincipal checker,decimal amount,string reason,string expenseCode,Guid receivableAccountId,Guid expenseAccountId)
+    {
+        var resolved=ResolveAbsorbAccounts(c,tx,debtId);
+        J.Need(expenseCode==resolved.ExpenseCode,"حساب التحمّل يُختار من المديونية؛ المطلوب "+resolved.ExpenseCode+".",409);
+        return WaiveOrAbsorb(c,tx,debtId,companyId,periodId,periodMonth,maker,checker,amount,reason,resolved.ExpenseCode,
+            resolved.ReceivableId,resolved.ExpenseId,AbsorbAccounts,"debt_absorb","absorption","absorbed","تحمل الشركة للمديونية");
+    }
 
-    static JsonObject WaiveOrAbsorb(DbConnection c,DbTransaction tx,Guid debtId,Guid companyId,Guid periodId,DateOnly periodMonth,ClaimsPrincipal maker,ClaimsPrincipal checker,decimal amount,string reason,string expenseCode,Guid receivableAccountId,Guid expenseAccountId,HashSet<string> allowed,string purpose,string labelAr)
+    static JsonObject WaiveOrAbsorb(DbConnection c,DbTransaction tx,Guid debtId,Guid companyId,Guid periodId,DateOnly periodMonth,ClaimsPrincipal maker,ClaimsPrincipal checker,decimal amount,string reason,string expenseCode,Guid receivableAccountId,Guid expenseAccountId,HashSet<string> allowed,string purpose,string sourceType,string zeroStatus,string labelAr)
     {
         AccessPolicy.Demand(maker,"debts.waive");
+        DemandDebtScope(c,tx,maker,debtId,companyId);
         J.Need(allowed.Contains(expenseCode),"حساب المصروف غير مسموح لهذا الإجراء: "+expenseCode,400);
-        J.Need(!AccessPolicy.SamePerson(maker,checker.Identity?.Name??""),"الاعتماد لشخص مستقل عن مقدّم الطلب (صانع≠مراجع).",403);
-        AccessPolicy.Demand(checker,"approvals.decide");
-        MoneyWriteGuards.Demand(0,false,MoneyEffectKind.Debt);
+        DemandChecker(c,tx,maker,checker,SchemaSql.GuidText(debtId),amount);
+        var flags=ResolveMoneyFlags(c,tx,companyId,periodMonth);
+        MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.Debt);
         amount=J.Money(amount);J.Need(amount>0&&!string.IsNullOrWhiteSpace(reason),"المبلغ والسبب مطلوبان.",400);
         decimal locked=SchemaDebt.LockDebt(c,tx,SchemaSql.GuidText(debtId));
         J.Need(locked>=amount,"المبلغ يتجاوز الرصيد.",400);
@@ -174,22 +324,22 @@ public static class DebtLedger
         string by=maker.Identity!.Name!,now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
         SchemaSql.Exec(c,tx,$"""
             INSERT INTO {SchemaSql.Q(c,"debt","waiver")}(id,company_id,period_month,debt_id,amount,reason,expense_account_code,status,run_mode,payout_blocked,created_by,created_at)
-            VALUES(@id,@c,@pm,@d,@amt,@reason,@exp,@st,0,0,@by,@at)
+            VALUES(@id,@c,@pm,@d,@amt,@reason,@exp,@st,@rm,@pb,@by,@at)
             """,("@id",SchemaSql.GuidText(waiverId)),("@c",SchemaSql.GuidText(companyId)),("@pm",Month(periodMonth)),
-            ("@d",SchemaSql.GuidText(debtId)),("@amt",amount),("@reason",reason),("@exp",expenseCode),("@st",DocDraft),("@by",by),("@at",now));
-        AdvanceWorkflow(c,tx,"waiver",waiverId,SchemaSql.NewId());
+            ("@d",SchemaSql.GuidText(debtId)),("@amt",amount),("@reason",reason),("@exp",expenseCode),("@st",DocDraft),
+            ("@rm",flags.RunMode),("@pb",flags.PayoutBlocked?1:0),("@by",by),("@at",now));
+        AdvanceWorkflow(c,tx,"waiver",waiverId,checker);
 
         var journal=JournalPosting.Post(c,tx,new JournalPosting.Draft(
-            companyId,periodId,periodMonth,periodMonth.AddDays(14),"debt_waiver",waiverId,purpose,0,false,by,
+            companyId,periodId,periodMonth,periodMonth.AddDays(14),"debt_waiver",waiverId,purpose,flags.RunMode,flags.PayoutBlocked,by,
             [
                 new(expenseAccountId,SchemaOrgCostCentre.NoneId,"none",amount,0m,labelAr),
                 new(receivableAccountId,SchemaOrgCostCentre.NoneId,"none",0m,amount,"تخفيض ذمة المندوب")
             ],NarrationAr:reason,GuardPurpose:purpose));
-        InsertMovement(c,tx,companyId,periodMonth,debtId,waiverId,-amount,"waiver",journal.JournalId,by);
-        LedgerAudit(c,tx,purpose=="debt_absorb"?"debt.absorbed":"debt.waived",SchemaSql.GuidText(debtId),by);
+        InsertMovement(c,tx,companyId,periodMonth,debtId,waiverId,-amount,sourceType,journal.JournalId,by,flags.RunMode,flags.PayoutBlocked);
         decimal balance=Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"SELECT balance FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)))!);
         if(balance==0)
-            SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"debt","debt")} SET status=@s WHERE id=@id AND balance=0",("@s",purpose=="debt_absorb"?"waived":"waived"),("@id",SchemaSql.GuidText(debtId)));
+            SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"debt","debt")} SET status=@s WHERE id=@id AND balance=0",("@s",zeroStatus),("@id",SchemaSql.GuidText(debtId)));
         return new(){["debtId"]=SchemaSql.GuidText(debtId),["waiverId"]=SchemaSql.GuidText(waiverId),["balance"]=balance,
             ["expenseAccountCode"]=expenseCode,["journalId"]=SchemaSql.GuidText(journal.JournalId),
             ["allowedActions"]=balance>0?new JsonArray("collect","waive","absorb","reschedule"):new JsonArray()};
@@ -198,12 +348,15 @@ public static class DebtLedger
     public static JsonObject Reschedule(DbConnection c,DbTransaction tx,Guid debtId,ClaimsPrincipal actor,decimal instalment)
     {
         AccessPolicy.Demand(actor,"debts.reschedule");
+        object? company=SchemaSql.Scalar(c,tx,$"SELECT company_id FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)));
+        J.Need(company!=null,"المديونية غير موجودة.",404);
+        Guid companyId=company is Guid g?g:Guid.Parse(company!.ToString()!);
+        DemandDebtScope(c,tx,actor,debtId,companyId);
         instalment=J.Money(instalment);J.Need(instalment>0,"القسط الجديد مطلوب.",400);
         decimal locked=SchemaDebt.LockDebt(c,tx,SchemaSql.GuidText(debtId));
         J.Need(instalment<=locked,"القسط يتجاوز الرصيد.",400);
         SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"debt","debt")} SET instalment=@i WHERE id=@id AND status='open'",
             ("@i",instalment),("@id",SchemaSql.GuidText(debtId)));
-        LedgerAudit(c,tx,"debt.rescheduled",SchemaSql.GuidText(debtId),actor.Identity!.Name!);
         return new(){["debtId"]=SchemaSql.GuidText(debtId),["instalment"]=instalment,["balance"]=locked,["allowedActions"]=new JsonArray("reschedule","collect","waive","absorb")};
     }
 
@@ -260,36 +413,50 @@ public static class DebtLedger
     {
         AccessPolicy.Demand(actor,"debts.create.administrative");
         var note=Store.Get(c,noteId,"promissory_note",tx)??throw new ApiError("سند الأمر غير موجود.",404);
-        DemandOpenDebt(c,tx,debtId,Guid.Empty,checkCompany:false);
+        object? company=SchemaSql.Scalar(c,tx,$"SELECT company_id FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)));
+        J.Need(company!=null,"المديونية غير موجودة.",404);
+        Guid companyId=company is Guid g?g:Guid.Parse(company!.ToString()!);
+        DemandDebtScope(c,tx,actor,debtId,companyId);
+        string noteCompany=note.S("companyId",note.S("creditorSponsorId",note.S("sponsorId")));
+        if(noteCompany!="")FinancialScopes.DemandSponsor(actor,noteCompany);
+        DemandOpenDebt(c,tx,debtId,companyId);
         note["debtId"]=SchemaSql.GuidText(debtId);note["linkedAt"]=DateTimeOffset.UtcNow.ToString("O");note["linkedBy"]=actor.Identity!.Name!;
         Store.Save(c,"promissory_note",note,tx);
         SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"debt","debt")} SET promissory_flag=1 WHERE id=@id",("@id",SchemaSql.GuidText(debtId)));
-        LedgerAudit(c,tx,"promissory.link_debt",noteId,actor.Identity!.Name!);
         return new(){["noteId"]=noteId,["debtId"]=SchemaSql.GuidText(debtId),["allowedActions"]=new JsonArray("link_debt")};
     }
 
-    static void LedgerAudit(DbConnection c,DbTransaction tx,string action,string entity,string actor,JsonObject? extra=null)
+    static void DemandChecker(DbConnection c,DbTransaction tx,ClaimsPrincipal maker,ClaimsPrincipal checker,string referenceId,decimal amountSar)
     {
-        EnsureDocumentStore(c,tx);
-        var doc=new JsonObject{["id"]=Guid.NewGuid().ToString("N"),["action"]=action,["entityId"]=entity,["actor"]=actor,
-            ["at"]=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture)};
-        if(extra!=null)foreach(var kv in extra)doc[kv.Key]=kv.Value?.DeepClone();
-        Store.Save(c,"audit",doc,tx);
+        J.Need(checker.Identity?.Name is {Length:>0},"هوية المعتمد مطلوبة من جلسة الاعتماد.",401);
+        J.Need(!AccessPolicy.SamePerson(maker,checker.Identity!.Name!),"الاعتماد لشخص مستقل عن مقدّم الطلب (صانع≠مراجع).",403);
+        var request=new JsonObject
+        {
+            ["requestedBy"]=maker.Identity?.Name??"",
+            ["targetDepartment"]=checker.FindFirst("department")?.Value??"FIN",
+            ["requiredRankLevel"]=1,
+            ["referenceId"]=referenceId,
+            ["amountSar"]=amountSar
+        };
+        AccessPolicy.ValidateApproval(checker,request,new JsonObject(),"approvals.decide",c,tx,"debt.approval",request);
     }
 
-    static void EnsureDocumentStore(DbConnection c,DbTransaction tx)
+    static void WriteBulkChangeLog(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string entityRef,int bulkCount,byte[] fileHash,string diffShort)
     {
-        if(SchemaSql.IsSql(c))
-            SchemaSql.Exec(c,tx,"""
-                IF OBJECT_ID(N'dbo.records', N'U') IS NULL
-                  CREATE TABLE dbo.records(id nvarchar(128) NOT NULL PRIMARY KEY, kind nvarchar(40) NOT NULL, body nvarchar(max) NOT NULL CHECK(ISJSON(body)=1));
-                """);
-        else
-            SchemaSql.Exec(c,tx,"""
-                CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL);
-                CREATE INDEX IF NOT EXISTS ix_records_kind ON records(kind);
-                """);
+        SchemaAuditNotify.Ensure(c,tx);
+        string userId=SchemaApprovals.EnsureAuthUserId(c,tx,actor.Identity!.Name!);
+        string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
+        SchemaSql.Exec(c,tx,$"""
+            INSERT INTO {SchemaSql.Q(c,"audit","change_log")}
+            (id,occurred_on,occurred_at,action_code,entity_type,entity_ref,diff_short,source,bulk_count,file_hash,user_id,created_at)
+            VALUES(@id,@on,@at,'import','debt',@ref,@diff,'import',@bc,@h,@u,@at)
+            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@on",DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)),
+            ("@at",now),("@ref",entityRef),("@diff",diffShort),("@bc",bulkCount),("@h",fileHash),("@u",userId));
     }
+
+    static string AccountCode(DbConnection c,DbTransaction tx,Guid accountId)=>
+        SchemaSql.Scalar(c,tx,$"SELECT code FROM {SchemaSql.Q(c,"fin","account")} WHERE id=@id",("@id",SchemaSql.GuidText(accountId)))?.ToString()
+        ??throw new ApiError("الحساب غير موجود.",404);
 
     static void DemandOpenDebt(DbConnection c,DbTransaction tx,Guid debtId,Guid companyId,bool checkCompany=true)
     {
@@ -298,13 +465,14 @@ public static class DebtLedger
         J.Need(status?.ToString()=="open","المديونية غير مفتوحة.",409);
     }
 
-    static void AdvanceWorkflow(DbConnection c,DbTransaction tx,string table,Guid id,Guid approvedBy)
+    static void AdvanceWorkflow(DbConnection c,DbTransaction tx,string table,Guid id,ClaimsPrincipal checker)
     {
         string t=SchemaSql.Q(c,"debt",table);
+        string approvedBy=SchemaApprovals.EnsureAuthUserId(c,tx,checker.Identity!.Name!);
         SchemaSql.Exec(c,tx,$"UPDATE {t} SET status=@s WHERE id=@id AND status=@d",("@s",DocSubmitted),("@id",SchemaSql.GuidText(id)),("@d",DocDraft));
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
         SchemaSql.Exec(c,tx,$"UPDATE {t} SET status=@s,approved_by=@u,approved_at=@at WHERE id=@id AND status=@sub",
-            ("@s",DocApproved),("@u",SchemaSql.GuidText(approvedBy)),("@at",now),("@id",SchemaSql.GuidText(id)),("@sub",DocSubmitted));
+            ("@s",DocApproved),("@u",approvedBy),("@at",now),("@id",SchemaSql.GuidText(id)),("@sub",DocSubmitted));
     }
 
     static void InsertMovement(DbConnection c,DbTransaction tx,Guid companyId,DateOnly periodMonth,Guid debtId,Guid sourceId,decimal amount,string sourceType,Guid journalId,string actor,byte runMode=0,bool payoutBlocked=false)

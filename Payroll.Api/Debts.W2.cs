@@ -3,7 +3,7 @@ using System.Security.Claims;
 using System.Text.Json.Nodes;
 namespace Payroll;
 
-/// <summary>U-W2-20a/b/c NEW endpoints on top of DebtLedger (W1 tables + JournalPosting).</summary>
+/// <summary>U-W2-20a/b/c + WD1F: NEW endpoints on top of DebtLedger (W1 tables + JournalPosting).</summary>
 public static partial class Debts
 {
     public static void MapW2(RouteGroupBuilder api,Store store)
@@ -40,13 +40,14 @@ public static partial class Debts
             FinancialScopes.DemandSponsor(ctx.User,company);
             string period=J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM")));
             var periodMonth=DateOnly.ParseExact(period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture);
-            Guid periodId=OpenPeriod(c,tx,companyId,periodMonth);
+            Guid periodId=DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth);
             byte[] bytes=FinancialImports.FileBytes(input);
-            string checkerName=input.S("checkerUsername");
-            J.Need(checkerName!="","معتمد مستقل مطلوب لتخفيض الشيت.",400);
-            var checker=new ClaimsPrincipal(new ClaimsIdentity([new System.Security.Claims.Claim(ClaimTypes.Name,checkerName),new System.Security.Claims.Claim(ClaimTypes.Role,"Admin")],"debt-reduce"));
-            return DebtLedger.CommitReduce(c,tx,companyId,periodId,periodMonth,ctx.User,checker,bytes,Path.GetFileName(input.Required("filename")),input.Required("fingerprint"),
-                DebtLedger.AccountId(c,tx,input.S("receivableAccountCode","112501")),DebtLedger.AccountId(c,tx,input.S("contraAccountCode","3101")));
+            // Checker = authenticated user of the approvals decision (never a typed Admin name).
+            var checker=ctx.User;
+            var maker=ResolveMaker(c,tx,input,ctx.User);
+            Guid receivable=DebtLedger.AccountId(c,tx,"112501");
+            Guid contra=DebtLedger.AccountId(c,tx,"331301");
+            return DebtLedger.CommitReduce(c,tx,companyId,periodId,periodMonth,maker,checker,bytes,Path.GetFileName(input.Required("filename")),input.Required("fingerprint"),receivable,contra);
         })).WithTags("Debts and advances").WithSummary("Commit debt sheet reduce import with approval");
 
         api.MapPost("/debts/{id}/reschedule",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
@@ -76,11 +77,13 @@ public static partial class Debts
             FinancialScopes.DemandSponsor(ctx.User,SchemaSql.GuidText(companyId));
             string period=J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM")));
             var periodMonth=DateOnly.ParseExact(period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture);
-            Guid periodId=OpenPeriod(c,tx,companyId,periodMonth);
-            byte runMode=(byte)input.N("runMode",0);bool blocked=input.B("payoutBlocked");
+            Guid periodId=DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth);
+            var flags=DebtLedger.ResolveMoneyFlags(c,tx,companyId,periodMonth);
+            string cashCode=input.S("cashAccountCode","111101");
+            string receivable=DebtLedger.ReceivableForCategory(DebtCategory(c,tx,debtId));
             return DebtLedger.Collect(c,tx,debtId,companyId,periodId,periodMonth,ctx.User,OptionalAmount(input,"collectedAmount",0m),
-                input.S("notes",input.S("reason","تحصيل مديونية")),DebtLedger.AccountId(c,tx,input.S("receivableAccountCode","112501")),
-                DebtLedger.AccountId(c,tx,input.S("cashAccountCode","111101")),runMode,blocked);
+                input.S("notes",input.S("reason","تحصيل مديونية")),DebtLedger.AccountId(c,tx,receivable),
+                DebtLedger.AccountId(c,tx,cashCode),flags.RunMode,flags.PayoutBlocked);
         })).WithTags("Debts and advances").WithSummary("Collect debt on W1 ledger with movement and journal");
 
         api.MapPost("/debts/{id}/waive",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
@@ -89,12 +92,13 @@ public static partial class Debts
             Guid companyId=DebtCompany(c,tx,debtId);
             string period=J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM")));
             var periodMonth=DateOnly.ParseExact(period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture);
-            Guid periodId=OpenPeriod(c,tx,companyId,periodMonth);
-            string checkerName=input.Required("checkerUsername");
-            var checker=new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name,checkerName),new Claim(ClaimTypes.Role,"Admin")],"debt-waive"));
-            string expense=input.S("expenseAccountCode","526601");
-            return DebtLedger.Waive(c,tx,debtId,companyId,periodId,periodMonth,ctx.User,checker,Amount(input,"amount"),input.Required("reason"),expense,
-                DebtLedger.AccountId(c,tx,input.S("receivableAccountCode","112501")),DebtLedger.AccountId(c,tx,expense));
+            Guid periodId=DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth);
+            var checker=ctx.User;
+            var maker=ResolveMaker(c,tx,input,ctx.User);
+            var expense=DebtLedger.ResolveWaiverExpense(c,tx,debtId);
+            string receivable=DebtLedger.ReceivableForCategory(DebtCategory(c,tx,debtId));
+            return DebtLedger.Waive(c,tx,debtId,companyId,periodId,periodMonth,maker,checker,Amount(input,"amount"),input.Required("reason"),expense.Code,
+                DebtLedger.AccountId(c,tx,receivable),expense.AccountId);
         })).WithTags("Debts and advances").WithSummary("Waive debt per D11 accounts with maker-checker");
 
         api.MapPost("/debts/{id}/absorb",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
@@ -103,13 +107,12 @@ public static partial class Debts
             Guid companyId=DebtCompany(c,tx,debtId);
             string period=J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM")));
             var periodMonth=DateOnly.ParseExact(period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture);
-            Guid periodId=OpenPeriod(c,tx,companyId,periodMonth);
-            string checkerName=input.Required("checkerUsername");
-            var checker=new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name,checkerName),new Claim(ClaimTypes.Role,"Admin")],"debt-absorb"));
-            string expense=input.S("expenseAccountCode","526602");
-            J.Need(expense is "526602" or "526603","تحمل الشركة على 526602 أو 526603 فقط.");
-            return DebtLedger.Absorb(c,tx,debtId,companyId,periodId,periodMonth,ctx.User,checker,Amount(input,"amount"),input.Required("reason"),expense,
-                DebtLedger.AccountId(c,tx,input.S("receivableAccountCode","112501")),DebtLedger.AccountId(c,tx,expense));
+            Guid periodId=DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth);
+            var checker=ctx.User;
+            var maker=ResolveMaker(c,tx,input,ctx.User);
+            var accounts=DebtLedger.ResolveAbsorbAccounts(c,tx,debtId);
+            return DebtLedger.Absorb(c,tx,debtId,companyId,periodId,periodMonth,maker,checker,Amount(input,"amount"),input.Required("reason"),accounts.ExpenseCode,
+                accounts.ReceivableId,accounts.ExpenseId);
         })).WithTags("Debts and advances").WithSummary("Absorb debt to company expense 526602/526603");
 
         api.MapPost("/promissory-notes/{id}/link-debt",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
@@ -122,6 +125,23 @@ public static partial class Debts
             .WithTags("Debts and advances").WithSummary("Debt disbursement via payment engine (not available until U-W2-07)");
     }
 
+    /// <summary>Maker comes from a prior authenticated approval request (requestedBy), never a typed elevated role.</summary>
+    static ClaimsPrincipal ResolveMaker(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,JsonObject input,ClaimsPrincipal checker)
+    {
+        string requestId=input.S("approvalRequestId");
+        if(requestId!="")
+        {
+            var req=Store.Get(c,requestId,"approval_request",tx)??throw new ApiError("طلب الاعتماد غير موجود.",404);
+            string makerName=req.S("requestedBy",req.S("createdBy"));
+            J.Need(makerName!="","مقدّم الطلب غير معروف على طلب الاعتماد.",400);
+            var doc=Store.List(c,"user",tx).FirstOrDefault(u=>UserAccess.Normalize(u.S("username"))==UserAccess.Normalize(makerName))
+                ??new JsonObject{["username"]=makerName,["role"]="FinancialAccountant",["department"]=req.S("fromDepartment","FIN"),["rankLevel"]=req.N("requiredRankLevel",1)};
+            return UserAccess.Principal(doc);
+        }
+        // Same authenticated actor may only post when maker≠checker is not required yet; still reject self-check via DemandChecker.
+        return checker;
+    }
+
     static Guid DebtCompany(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,Guid debtId)
     {
         object? company=SchemaSql.Scalar(c,tx,$"SELECT company_id FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)));
@@ -129,15 +149,6 @@ public static partial class Debts
         return company is Guid g?g:Guid.Parse(company!.ToString()!);
     }
 
-    static Guid OpenPeriod(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,Guid companyId,DateOnly periodMonth)
-    {
-        object? id=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","accounting_period")} WHERE company_id=@c AND period_month=@m AND state=1",
-            ("@c",SchemaSql.GuidText(companyId)),("@m",periodMonth.ToString("yyyy-MM-01",CultureInfo.InvariantCulture)));
-        if(id!=null)return id is Guid g?g:Guid.Parse(id.ToString()!);
-        Guid periodId=SchemaSql.NewId();
-        SchemaSql.Exec(c,tx,$"INSERT INTO {SchemaSql.Q(c,"fin","accounting_period")}(id,company_id,period_month,state,created_at) VALUES(@id,@c,@m,1,@at)",
-            ("@id",SchemaSql.GuidText(periodId)),("@c",SchemaSql.GuidText(companyId)),("@m",periodMonth.ToString("yyyy-MM-01",CultureInfo.InvariantCulture)),
-            ("@at",DateTimeOffset.UtcNow.ToString("O")));
-        return periodId;
-    }
+    static string DebtCategory(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,Guid debtId)=>
+        SchemaSql.Scalar(c,tx,$"SELECT category FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)))?.ToString()??"CashAdvance";
 }

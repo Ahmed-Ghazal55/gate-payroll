@@ -14,12 +14,14 @@ public static class SchemaDebt
             id {g} NOT NULL, erp_rider_id {g} NOT NULL, company_id {g} NOT NULL,
             category {SchemaSql.Varchar(c,40)} NOT NULL, principal {m} NOT NULL CHECK(principal>=0),
             balance {m} NOT NULL DEFAULT 0 CHECK(balance>=0), instalment {m} NULL CHECK(instalment>=0),
-            status {SchemaSql.Varchar(c,12)} NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','waived','cancelled','transferred')),
+            status {SchemaSql.Varchar(c,12)} NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','waived','absorbed','cancelled','transferred')),
+            platform {SchemaSql.Varchar(c,20)} NULL,
             promissory_flag {SchemaSql.Bit(c)} NOT NULL DEFAULT 0 CHECK(promissory_flag IN (0,1)),
             {SchemaSql.MoneyAuditCols(c)}, CONSTRAINT PK_debt_debt {SchemaSql.PrimaryKey(c)}(id),
             CONSTRAINT UQ_debt_company UNIQUE(id,company_id),
             CONSTRAINT FK_debt_company FOREIGN KEY(company_id) REFERENCES {company}(id) ON DELETE NO ACTION
             """);
+        EnsureDebtPlatformColumn(c,tx);
         SchemaSql.EnsureTable(c,tx,"debt","debt_movement",$"""
             id {g} NOT NULL, period_month {SchemaSql.Date(c)} NOT NULL, debt_id {g} NOT NULL, company_id {g} NOT NULL,
             occurred_on {SchemaSql.Date(c)} NOT NULL, amount {m} NOT NULL CHECK(amount<>0),
@@ -129,9 +131,28 @@ public static class SchemaDebt
                 OR ({n}.source_type='carryover_112507' AND {n}.amount>0 AND r.salary_approved_at IS NOT NULL AND r.keeta_ineligible=0 AND r.salary_net<0 AND {n}.amount=-r.salary_net))))
             OR ({n}.source_type='new_disbursement' AND ({n}.amount<=0 OR NOT EXISTS(SELECT 1 FROM {p} p WHERE p.id={n}.payment_id AND p.company_id={n}.company_id AND p.status=2 AND p.run_mode=0 AND p.payout_blocked=0 AND p.amount={n}.amount)))
             """);
-        foreach(var (kind,table,sign) in new[]{("collection","collection",-1),("waiver","waiver",-1),("new_disbursement","disbursement",1)})
-            SchemaMoneyGuard.Rule(c,tx,"debt","debt_movement","TR_debt_source_"+table,n=>$"{n}.source_type='{kind}' AND NOT EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt",table)} s WHERE s.id={n}.source_id AND s.debt_id={n}.debt_id AND s.company_id={n}.company_id AND s.period_month={n}.period_month AND s.status=3 AND s.run_mode=0 AND {n}.amount=s.amount*({sign}){(table=="disbursement"?$" AND s.payment_id={n}.payment_id":"")})");
+        foreach(var (kind,table,sign) in new[]{("collection","collection",-1),("waiver","waiver",-1),("absorption","waiver",-1),("new_disbursement","disbursement",1)})
+            SchemaMoneyGuard.Rule(c,tx,"debt","debt_movement","TR_debt_source_"+(kind=="absorption"?"absorption":table),n=>$"{n}.source_type='{kind}' AND NOT EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt",table)} s WHERE s.id={n}.source_id AND s.debt_id={n}.debt_id AND s.company_id={n}.company_id AND s.period_month={n}.period_month AND s.status=3 AND s.run_mode=0 AND {n}.amount=s.amount*({sign}){(table=="disbursement"?$" AND s.payment_id={n}.payment_id":"")})");
         SchemaMoneyGuard.Rule(c,tx,"debt","debt_movement","TR_debt_source_import",n=>$"{n}.source_type='import' AND NOT EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_line")} l JOIN {SchemaSql.Q(c,"debt","import_batch")} b ON b.id=l.import_batch_id WHERE l.id={n}.source_id AND l.debt_id={n}.debt_id AND l.company_id={n}.company_id AND l.period_month={n}.period_month AND l.amount={n}.amount AND b.status=3 AND b.run_mode=0 AND (b.import_kind='reduce' AND l.amount<0 OR b.import_kind IN ('opening','add') AND l.amount>0))");
+    }
+
+    static void EnsureDebtPlatformColumn(DbConnection c,DbTransaction? tx)
+    {
+        if(SchemaSql.IsSql(c))
+        {
+            SchemaSql.Exec(c,tx,$"""
+                IF COL_LENGTH(N'debt.debt',N'platform') IS NULL ALTER TABLE {SchemaSql.Q(c,"debt","debt")} ADD platform {SchemaSql.Varchar(c,20)} NULL;
+                IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'debt.debt') AND name=N'CK_debt_debt_status')
+                  ALTER TABLE {SchemaSql.Q(c,"debt","debt")} DROP CONSTRAINT CK_debt_debt_status;
+                IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'debt.debt') AND name=N'CK_debt_debt_status')
+                  ALTER TABLE {SchemaSql.Q(c,"debt","debt")} ADD CONSTRAINT CK_debt_debt_status CHECK (status IN ('open','settled','waived','absorbed','cancelled','transferred'));
+                """);
+            return;
+        }
+        // SQLite: fresh EnsureTable already has platform + absorbed; rebuild CHECK only when upgrading an older in-memory shape is not required for tests.
+        object? cols=SchemaSql.Scalar(c,tx,"SELECT COUNT(1) FROM pragma_table_info('debt_debt') WHERE name='platform'");
+        if(Convert.ToInt64(cols!)==0)
+            SchemaSql.Exec(c,tx,"ALTER TABLE debt_debt ADD COLUMN platform TEXT NULL");
     }
 
     static void EnsureBalance(DbConnection c,DbTransaction? tx)
