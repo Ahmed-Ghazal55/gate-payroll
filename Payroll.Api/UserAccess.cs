@@ -296,10 +296,12 @@ public static class UserAccess
         var target=Store.Get(c,targetId,"user",tx)??throw new ApiError("المستخدم المستهدف غير موجود.",404);
         string sourceUserId=input.S("sourceUserId"),sourceRole=input.S("sourceRole");
         string[] source;
+        string sourceLabel;
         if(!string.IsNullOrWhiteSpace(sourceUserId))
         {
             var src=Store.Get(c,sourceUserId,"user",tx)??throw new ApiError("المستخدم المصدر غير موجود.",404);
             source=EffectivePermissions(WithRole(c,tx,src));
+            sourceLabel="user:"+src.S("username");
         }
         else if(!string.IsNullOrWhiteSpace(sourceRole))
         {
@@ -308,19 +310,33 @@ public static class UserAccess
             source=edited?["permissions"] is JsonArray list
                 ?list.Select(p=>CanonicalPermission(p?.ToString()??"")).Where(p=>p!="").ToArray()
                 :def.DefaultPermissions;
+            sourceLabel="role:"+def.Code;
         }
         else throw new ApiError("حدد مستخدماً أو دوراً مصدراً.",400);
         var before=EffectivePermissions(WithRole(c,tx,target));
-        target["customPermissions"]=new JsonArray(source.Select(p=>(JsonNode?)p).ToArray());
-        target["deniedPermissions"]=new JsonArray();
+        // Match source exactly: grants/denies vs the target role baseline (no leftover baseline privileges).
+        var baseline=WithRole(c,tx,target)[RoleBaseline] is JsonArray editedBaseline
+            ?editedBaseline.Select(p=>CanonicalPermission(p?.ToString()??"")).Where(p=>p!="").ToHashSet(StringComparer.OrdinalIgnoreCase)
+            :ResolveRoleDef(Role(target)).DefaultPermissions.Select(CanonicalPermission).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var wanted=source.Select(CanonicalPermission).Where(p=>p!="").ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var grants=wanted.Where(p=>!baseline.Contains(p)).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        var denies=baseline.Where(p=>!wanted.Contains(p)).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        var afterDoc=target.Clone();
+        afterDoc["customPermissions"]=new JsonArray(grants.Select(p=>(JsonNode?)p).ToArray());
+        afterDoc["deniedPermissions"]=new JsonArray(denies.Select(p=>(JsonNode?)p).ToArray());
+        GuardManager(c,tx,actor,target,afterDoc);
+        target["customPermissions"]=afterDoc["customPermissions"]!.DeepClone();
+        target["deniedPermissions"]=afterDoc["deniedPermissions"]!.DeepClone();
         target["securityVersion"]=Guid.NewGuid().ToString("N");
         Store.Save(c,"user",target,tx);
-        Store.Audit(c,tx,"admin.copy_permissions",targetId,actor.Identity!.Name!);
+        var after=EffectivePermissions(WithRole(c,tx,target));
+        AuditAccessChange(c,tx,actor,"admin.copy_permissions",targetId,before,after,sourceLabel);
         return new()
         {
             ["targetUserId"]=targetId,
+            ["source"]=sourceLabel,
             ["before"]=new JsonArray(before.Select(p=>(JsonNode?)p).ToArray()),
-            ["after"]=new JsonArray(EffectivePermissions(WithRole(c,tx,target)).Select(p=>(JsonNode?)p).ToArray()),
+            ["after"]=new JsonArray(after.Select(p=>(JsonNode?)p).ToArray()),
             ["allowedActions"]=new JsonArray()
         };
     }

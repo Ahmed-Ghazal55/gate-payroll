@@ -42,4 +42,34 @@ public sealed class AdminPermissionsSettingsTests
             Assert.IsTrue(store.Read(c=>Store.List(c,"audit").Any(a=>a.S("action")=="admin.settings_save")));
         });
     }
+
+    [TestMethod]
+    public void CopyPermissions_AppliesManagerGuard_AndMatchesSourceExactly()
+    {
+        WithStore(store=>
+        {
+            store.Write((c,tx)=>
+            {
+                Store.Save(c,"user",new(){["id"]="mgr",["username"]="mgr",["role"]="Accountant",["customPermissions"]=new JsonArray("users.manage","accounting.chart.view"),["status"]="active"},tx);
+                Store.Save(c,"user",new(){["id"]="src",["username"]="src",["role"]="Reviewer",["customPermissions"]=new JsonArray("accounting.chart.view"),["deniedPermissions"]=new JsonArray("operations.view"),["status"]="active"},tx);
+                Store.Save(c,"user",new(){["id"]="dst",["username"]="dst",["role"]="Accountant",["customPermissions"]=new JsonArray("treasury.journals"),["status"]="active"},tx);
+                Store.Save(c,"user",new(){["id"]="admin-tgt",["username"]="admin-tgt",["role"]="Admin",["status"]="active"},tx);
+                return true;
+            });
+            var manager=UserAccess.Principal(store.Read(c=>Store.Get(c,"mgr","user")!));
+            var admin=UserAccess.Principal(new(){["username"]="admin",["role"]="Admin"});
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>UserAccess.CopyPermissions(c,tx,manager,"admin-tgt",new(){["sourceUserId"]="src"}))).Status);
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>UserAccess.CopyPermissions(c,tx,manager,"mgr",new(){["sourceUserId"]="src"}))).Status);
+
+            var copied=store.Write((c,tx)=>UserAccess.CopyPermissions(c,tx,admin,"dst",new(){["sourceUserId"]="src"}));
+            var after=copied["after"]!.AsArray().Select(p=>p?.ToString()??"").OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+            var sourceEffective=store.Read(c=>UserAccess.EffectivePermissions(UserAccess.WithRole(c,null,Store.Get(c,"src","user")!))).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+            CollectionAssert.AreEqual(sourceEffective,after);
+            var dst=store.Read(c=>Store.Get(c,"dst","user")!);
+            Assert.IsTrue((dst["deniedPermissions"] as JsonArray??[]).Select(p=>p?.ToString()??"").Contains("operations.view")
+                ||!(dst["customPermissions"] as JsonArray??[]).Select(p=>p?.ToString()??"").Contains("treasury.journals"));
+            Assert.IsFalse(after.Contains("treasury.journals"));
+            Assert.IsTrue(store.Read(c=>Store.List(c,"audit").Any(a=>a.S("action")=="admin.copy_permissions")));
+        });
+    }
 }
