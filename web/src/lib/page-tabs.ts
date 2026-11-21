@@ -49,7 +49,6 @@ export const TREASURY_TABS = [
   'advance_payouts',
   'bank_file',
   'jahez',
-  'extras',
   'movements',
 ] as const;
 export type TreasuryTab = (typeof TREASURY_TABS)[number];
@@ -59,7 +58,6 @@ export const TREASURY_TAB_LABELS: Record<TreasuryTab, string> = {
   advance_payouts: 'صرف السلف المعتمدة',
   bank_file: 'ملف صرف الرواتب البنكي',
   jahez: 'جاهز — مطابقة وخزينة',
-  extras: 'مدا والتزامات وتوزيع قديم',
   movements: 'سجل القيود والحركات',
 };
 
@@ -67,7 +65,6 @@ export const ACCOUNTING_TABS = [
   'coa',
   'journals',
   'manual_journals',
-  'adjustments',
   'trial_balance',
   'income_statement',
 ] as const;
@@ -77,10 +74,17 @@ export const ACCOUNTING_TAB_LABELS: Record<AccountingTab, string> = {
   coa: 'دليل الحسابات',
   journals: 'سجل القيود اليومية',
   manual_journals: 'القيود اليدوية',
-  adjustments: 'تسويات مدا والراتب',
   trial_balance: 'ميزان المراجعة',
   income_statement: 'قائمة الدخل',
 };
+
+/** One-time toast when a removed tab redirects (U-W3-27 / U-W3-28). */
+export const REMOVED_TAB_TOASTS = {
+  adjustments:
+    'تم إيقاف شاشة التسويات: مدا انتقل إلى المدفوعات، تعديلات الرواتب إلى بنود التعديل في الرواتب، والرسوم الإدارية إلى طلبات الخصم',
+  extras:
+    'تم نقل إدارة مدا إلى المدفوعات ← جهاز مدا والشحن، وسداد الالتزامات إلى الموردون والدفعات',
+} as const;
 
 export const ADMIN_TABS = [
   'users',
@@ -135,16 +139,18 @@ const DEBTS_LEGACY: Record<string, { tab: DebtsTab }> = {
   advances: { tab: 'advance_requests' },
 };
 
-const TREASURY_LEGACY: Record<string, { tab: TreasuryTab }> = {
+const TREASURY_LEGACY: Record<string, { tab: TreasuryTab; targetPathname?: string; dropTab?: boolean }> = {
   payouts: { tab: 'advance_payouts' },
   bank: { tab: 'bank_file' },
   journals: { tab: 'movements' },
+  extras: { tab: 'vaults', targetPathname: '/payments/mada', dropTab: true },
 };
 
 const ACCOUNTING_LEGACY: Record<string, { tab: AccountingTab }> = {
   trial: { tab: 'trial_balance' },
   income: { tab: 'income_statement' },
   manual: { tab: 'manual_journals' },
+  adjustments: { tab: 'manual_journals' },
 };
 
 const ADMIN_LEGACY: Record<string, { tab: AdminTab }> = {
@@ -175,7 +181,14 @@ export function resolveTreasuryTab(raw: string | null | undefined): TabResolutio
     return { tab: raw as TreasuryTab, legacy: false };
   }
   const mapped = raw ? TREASURY_LEGACY[raw] : undefined;
-  if (mapped) return { tab: mapped.tab, legacy: true };
+  if (mapped) {
+    return {
+      tab: mapped.tab,
+      legacy: true,
+      targetPathname: mapped.targetPathname,
+      dropTab: mapped.dropTab,
+    };
+  }
   return { tab: 'vaults', legacy: Boolean(raw) };
 }
 
@@ -287,5 +300,9 @@ export const TAB_REDIRECT_MAP = {
     accounts: '/workforce/',
     custody: '/operations/?tab=vehicles',
     guarantees: '/operations/?tab=vehicles',
+  },
+  removed: {
+    'treasury?tab=extras': '/payments/mada',
+    'accounting?tab=adjustments': '/accounting/?tab=manual_journals',
   },
 } as const;

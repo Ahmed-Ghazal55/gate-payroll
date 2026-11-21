@@ -21,12 +21,7 @@ test('jahez status and totals labels are Arabic', async () => {
 
 test('Jahez and treasury company options use code || id', () => {
   const jahez = readFileSync(path.join(root, 'src/features/treasury/JahezWorkspace.tsx'), 'utf8');
-  const extras = readFileSync(
-    path.join(root, 'src/features/treasury/TreasuryExtrasPanel.tsx'),
-    'utf8'
-  );
   assert.match(jahez, /value:\s*c\.code\s*\|\|\s*c\.id/);
-  assert.match(extras, /value:\s*c\.code\s*\|\|\s*c\.id/);
   assert.match(jahez, /jahezReconciliationStatusLabelAr/);
   assert.match(jahez, /jahezTotalsKeyLabelAr/);
 });

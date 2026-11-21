@@ -87,6 +87,14 @@ test('debts, treasury, accounting, admin legacy ?tab= redirects preserve period 
     '/treasury/?tab=advance_payouts'
   );
   assert.equal(
+    buildTabRedirectUrl('/treasury/', 'tab=extras&period=2026-10', resolveTreasuryTab('extras')),
+    '/payments/mada?period=2026-10'
+  );
+  assert.equal(
+    buildTabRedirectUrl('/accounting/', 'tab=adjustments&period=2026-10', resolveAccountingTab('adjustments')),
+    '/accounting/?tab=manual_journals&period=2026-10'
+  );
+  assert.equal(
     buildTabRedirectUrl('/accounting/', 'tab=trial&period=2026-10', resolveAccountingTab('trial')),
     '/accounting/?tab=trial_balance&period=2026-10'
   );

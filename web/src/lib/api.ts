@@ -2325,26 +2325,42 @@ export const api = {
   rejectJahezHandover: (id: string, input: Record<string, unknown> = {}) =>
     handleRequest<Record<string, unknown>>(`/finance/jahez-handovers/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify(input) }),
 
-  getMadaBalance: (companyId: string) =>
-    handleRequest<{ balance: number }>(`/finance/mada/balance?companyId=${encodeURIComponent(companyId)}`),
   postLiabilityPayment: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/finance/liability-payment', { method: 'POST', body: JSON.stringify(input) }),
-  previewLegacyCashAllocation: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/finance/legacy-cash-allocation/preview', { method: 'POST', body: JSON.stringify(input) }),
-  commitLegacyCashAllocation: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/finance/legacy-cash-allocation/commit', { method: 'POST', body: JSON.stringify(input) }),
 
-  listAccountingAdjustments: (params?: { page?: number; pageSize?: number }) => {
-    const q = new URLSearchParams();
-    if (params?.page) q.set('page', String(params.page));
-    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
-    const qs = q.toString() ? `?${q.toString()}` : '';
-    return handleRequest<any>(`/finance/accounting-adjustments${qs}`);
-  },
-  draftAccountingAdjustment: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/finance/accounting-adjustments', { method: 'POST', body: JSON.stringify(input) }),
-  approveAccountingAdjustment: (id: string) =>
-    handleRequest<Record<string, unknown>>(`/finance/accounting-adjustments/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
+  listFuelWallets: () =>
+    handleRequest<{ items?: Record<string, unknown>[]; allowedActions?: string[] }>('/payments/fuel-wallets'),
+  createFuelWallet: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/payments/fuel-wallets', { method: 'POST', body: JSON.stringify(input) }),
+  fundFuelWallet: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/payments/fuel-wallets/${encodeURIComponent(id)}/fund`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  reconcileFuelWallet: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/payments/fuel-wallets/${encodeURIComponent(id)}/reconcile`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listPrepaidWallets: () =>
+    handleRequest<{ items?: Record<string, unknown>[]; allowedActions?: string[] }>('/payments/prepaid-wallets'),
+  createPrepaidWallet: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/payments/prepaid-wallets', { method: 'POST', body: JSON.stringify(input) }),
+  createPrepaidWalletMovement: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/payments/prepaid-wallets/${encodeURIComponent(id)}/movements`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listMadaWallets: () =>
+    handleRequest<{ items?: Record<string, unknown>[]; allowedActions?: string[] }>('/payments/mada/wallets'),
+  createMadaTopup: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/payments/mada/topups', { method: 'POST', body: JSON.stringify(input) }),
+  reconcileMada: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/payments/mada/reconcile', { method: 'POST', body: JSON.stringify(input) }),
+  issueMadaCard: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/payments/mada/cards/issue', { method: 'POST', body: JSON.stringify(input) }),
 
   getDebtSettlements: (params?: { debtId?: string; iqama?: string }) => {
     const q = new URLSearchParams();
