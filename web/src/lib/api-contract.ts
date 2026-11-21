@@ -9336,13 +9336,93 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
+                        "application/json": components["schemas"]["AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndDictionaryOfstringAndstringAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
                     };
                 };
             };
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{id}/effective-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read effective permissions breakdown for a user */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{id}/copy-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy permissions from a user or role onto a target user */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -9814,6 +9894,391 @@ export interface paths {
                             approvalExceptionReason: string;
                             allowedActions: string[];
                         };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Data-change audit log (no read events; ?page= wraps items) */
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    userId?: string;
+                    entityType?: string;
+                    action?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/audit/self-approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** System Administrator self-approval report */
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/read-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Daily sensitive-read summary (not per-read audit rows) */
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    area?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read system settings from ref.setting */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        /** Save system settings to ref.setting */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/notify-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read notification matrix and reply-time defaults */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        /** Save notification settings; chat never creates notify rows */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notify/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send general or custom notification with reply SLA */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List operational tasks */
+        get: {
+            parameters: {
+                query?: {
+                    status?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create an operational task with default reply working days */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update or complete an operational task */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
                     };
                 };
             };
@@ -11134,7 +11599,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndPermissionDef[]Andboolean"];
+                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean"];
                     };
                 };
             };
@@ -11890,6 +12355,186 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/coa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List chart of accounts tree rows with allowedActions */
+        get: {
+            parameters: {
+                query?: {
+                    inactive?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a CoA account under a parent; nature locked to parent */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/coa/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit CoA name/flags; code change blocked when posted */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/coa/{code}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate CoA account; used accounts need a second person */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/coa/{code}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactivate a stopped CoA account */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -14854,42 +15499,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/audit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read audit */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["JsonObject"][];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/campaigns/{id}": {
         parameters: {
             query?: never;
@@ -15290,7 +15899,7 @@ export interface components {
             /** Format: int32 */
             rowCount: number | string;
         };
-        "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndPermissionDef[]Andboolean": {
+        "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean": {
             sponsors: null | components["schemas"]["SponsorDef"][];
             /** Format: int32 */
             unassignedDebtCount: number | string;
@@ -15436,9 +16045,12 @@ export interface components {
             /** Format: double */
             balance: number | string;
         };
-        "AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
+        "AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndDictionaryOfstringAndstringAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
             roles: null | components["schemas"]["RoleDef"][];
             permissions: null | components["schemas"]["PermissionDef"][];
+            permissionAliases: null | {
+                [key: string]: string;
+            };
             departments: components["schemas"]["JsonArray"];
             rolePermissions: null | Record<string, never>;
             financialScopeCatalog: components["schemas"]["AnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
@@ -15758,18 +16370,6 @@ export interface components {
             row: number | string;
             data: components["schemas"]["JsonObject"];
         };
-        JobView: {
-            id: string;
-            enabled: boolean;
-            status: string;
-            cron?: null | string;
-            timeZone?: null | string;
-            /** Format: date-time */
-            lastRun?: null | string;
-            /** Format: date-time */
-            nextRun?: null | string;
-            lastStatus?: null | string;
-        };
         JsonArray: unknown[];
         JsonElement: unknown;
         JsonNode: unknown;
@@ -15780,6 +16380,8 @@ export interface components {
             moduleAr: string;
             nameAr: string;
             descriptionAr: string;
+            /** @default false */
+            deprecated: boolean;
         };
         Preview: {
             rows: components["schemas"]["WorkLine"][];

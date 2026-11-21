@@ -16,11 +16,15 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/notifications/center` | Payroll.Api/FinancialCore.cs:716 | approvals.view | old UI | keep |
 | GET | `/api/notifications/summary` | Payroll.Api/Notifications.cs:117 | authenticated; category/owner visibility in handler | none | new |
 | GET | `/api/search` | Payroll.Api/GlobalSearch.cs:28 | authenticated; category/owner visibility in handler | none | new |
+| GET | `/api/tasks` | Payroll.Api/NotifyTasksApi.cs | tasks.manage OR assignee | new UI | new |
 | POST | `/api/approvals/{id}/decide` | Payroll.Api/FinancialCore.cs:663 | approvals.decide + department/rank + maker-checker | old UI | keep |
 | POST | `/api/notifications/center` | Payroll.Api/FinancialCore.cs:731 | mobile.broadcast | old UI | keep |
 | POST | `/api/notifications/center/{id}/toggle-todo` | Payroll.Api/FinancialCore.cs:755 | approvals.view OR owner; department visibility | old UI | keep |
 | POST | `/api/notifications/read-all` | Payroll.Api/Notifications.cs:126 | authenticated; category/owner visibility in handler | none | new |
 | POST | `/api/notifications/{id}/read` | Payroll.Api/Notifications.cs:122 | authenticated; category/owner visibility in handler | none | new |
+| POST | `/api/notify/send` | Payroll.Api/NotifyTasksApi.cs | notify.send.general OR notify.send.custom | new UI | new |
+| POST | `/api/tasks` | Payroll.Api/NotifyTasksApi.cs | tasks.assign | new UI | new |
+| PUT | `/api/tasks/{id}` | Payroll.Api/NotifyTasksApi.cs | tasks.manage OR assignee | new UI | new |
 
 ## المناديب
 
@@ -245,6 +249,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 |---|---|---|---|---|---|
 | GET | `/api/finance/accounts` | Payroll.Api/FinancialCore.cs:510 | treasury.view | old UI | keep |
 | GET | `/api/finance/catalog` | Payroll.Api/FinancialCore.cs:556 | debts.view OR treasury.view | old UI | keep |
+| GET | `/api/finance/coa` | Payroll.Api/ChartOfAccountsApi.cs | accounting.chart.view | new UI | new |
 | GET | `/api/finance/jahez-handovers` | Payroll.Api/JahezHandovers.cs:67 | treasury.view | old UI | keep |
 | GET | `/api/finance/jahez-reconciliations` | Payroll.Api/JahezReconciliation.cs:118 | treasury.view | none | keep |
 | GET | `/api/finance/jahez-reconciliations/{id}` | Payroll.Api/JahezReconciliation.cs:123 | treasury.view | none | keep |
@@ -282,6 +287,10 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | DELETE | `/api/finance/journals/manual/{id}` | Payroll.Api/ManualJournals.cs:110 | finance.journal.create; company/account scope; independent approval | none | keep |
 | GET | `/api/finance/accounting-adjustments` | Payroll.Api/MadaAccounting.cs:82 | finance.journal.create; company/account scope; independent approval | none | keep |
 | GET | `/api/finance/coa/target` | Payroll.Api/FinanceViews.cs:136 | treasury.view | old UI | keep |
+| POST | `/api/finance/coa` | Payroll.Api/ChartOfAccountsApi.cs | accounting.chart.create | new UI | new |
+| POST | `/api/finance/coa/{code}/deactivate` | Payroll.Api/ChartOfAccountsApi.cs | accounting.chart.deactivate | new UI | new |
+| POST | `/api/finance/coa/{code}/reactivate` | Payroll.Api/ChartOfAccountsApi.cs | accounting.chart.edit | new UI | new |
+| PUT | `/api/finance/coa/{code}` | Payroll.Api/ChartOfAccountsApi.cs | accounting.chart.edit | new UI | new |
 | GET | `/api/finance/income-statement` | Payroll.Api/FinanceViews.cs:138 | treasury.journals | old UI | keep |
 | GET | `/api/finance/journals/manual` | Payroll.Api/ManualJournals.cs:112 | finance.journal.create OR finance.journal.approve; company/account scope; independent approval | none | keep |
 | GET | `/api/finance/journals/manual/{id}/attachment` | Payroll.Api/ManualJournals.cs:117 | finance.journal.create OR finance.journal.approve; company/account scope; independent approval | none | keep |
@@ -340,7 +349,11 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/` | Payroll.Api/LegacyUi.cs:31 | public (rider portal: own authenticated rider) | none | keep |
 | GET | `/api/admin/approval-bypass` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:69 | see AccessPolicy + handler | none | keep |
 | GET | `/api/admin/approval-exceptions` | Payroll.Api/UserAccess.cs:442 | see AccessPolicy + handler | none | keep |
-| GET | `/api/audit` | Payroll.Api/Program.cs:320 | Admin / SuperAdmin | old UI | keep |
+| GET | `/api/admin/audit/self-approvals` | Payroll.Api/AuditApi.cs | admin.audit.view | new UI | new |
+| GET | `/api/admin/notify-settings` | Payroll.Api/NotifyTasksApi.cs | admin.notify.manage | new UI | new |
+| GET | `/api/admin/read-summary` | Payroll.Api/AuditApi.cs | admin.read_summary.view | new UI | new |
+| GET | `/api/admin/settings` | Payroll.Api/AdminSettings.cs | admin.settings.manage | new UI | new |
+| GET | `/api/audit` | Payroll.Api/AuditApi.cs | admin.audit.view | old UI | keep |
 | GET | `/api/auth/status` | Payroll.Api/Program.cs:98 | public (rider portal: own authenticated rider) | old UI | keep |
 | GET | `/api/config/lists` | Payroll.Api/ConfigLists.cs:183 | see AccessPolicy + handler | none | keep |
 | GET | `/api/config/lists/{group}` | Payroll.Api/ConfigLists.cs:184 | see AccessPolicy + handler | none | keep |
@@ -358,12 +371,16 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/system/erp-sponsor-map` | Payroll.Api/ErpSponsorMap.cs:10 | Admin / SuperAdmin | none | keep |
 | GET | `/api/system/release-check` | Payroll.Api/ReleaseSafety.cs:75 | Admin / SuperAdmin | none | deprecated |
 | GET | `/api/users` | Payroll.Api/UserAccess.cs:443 | Admin / SuperAdmin | old UI | keep |
+| GET | `/api/users/{id}/effective-permissions` | Payroll.Api/UserAccess.cs | users.manage | new UI | new |
 | GET | `/health` | Payroll.Api/Program.cs:96 | public (rider portal: own authenticated rider) | none | keep |
 | GET | `/legacy` | Payroll.Api/LegacyUi.cs:33 | public (rider portal: own authenticated rider) | none | keep |
 | GET | `/openapi/v1.json` | Payroll.Api/Program.cs:55 | Admin / SuperAdmin | none | new |
 | GET | `/rider-form.js` | Payroll.Api/Program.cs:326 | public (rider portal: own authenticated rider) | none | keep |
 | POST | `/api/admin/approval-bypass` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:74 | see AccessPolicy + handler | none | keep |
 | POST | `/api/admin/approval-bypass/{id}/revoke` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:75 | see AccessPolicy + handler | none | keep |
+| POST | `/api/users/{id}/copy-permissions` | Payroll.Api/UserAccess.cs | users.manage | new UI | new |
+| PUT | `/api/admin/notify-settings` | Payroll.Api/NotifyTasksApi.cs | admin.notify.manage | new UI | new |
+| PUT | `/api/admin/settings` | Payroll.Api/AdminSettings.cs | admin.settings.manage | new UI | new |
 | POST | `/api/auth/login` | Payroll.Api/Program.cs:109 | public (rider portal: own authenticated rider) | old UI | keep |
 | POST | `/api/auth/logout` | Payroll.Api/Program.cs:129 | public (rider portal: own authenticated rider) | old UI | keep |
 | POST | `/api/auth/setup` | Payroll.Api/Program.cs:99 | public (rider portal: own authenticated rider) | old UI | keep |

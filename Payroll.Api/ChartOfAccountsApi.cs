@@ -29,13 +29,29 @@ public static class ChartOfAccountsApi
 
     static JsonObject Load(DbConnection c,DbTransaction? tx,string code)
     {
-        using var cmd=Store.Command(c,tx,$"""
+        // Materialize the row before any follow-up query — SQL Server rejects a second command on an open reader.
+        string id,nameAr,createdBy,updatedBy,parentId="";
+        int accountType,nature,isPostable,status,isActive,companyScope,levelNo;
+        using(var cmd=Store.Command(c,tx,$"""
             SELECT id,code,parent_id,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_by,updated_by
             FROM {T(c)} WHERE code=@code
-            """,("@code",code));
-        using var r=cmd.ExecuteReader();
-        if(!r.Read())throw new ApiError("الحساب غير موجود.",404);
-        string? parentId=r.IsDBNull(2)?null:r.GetValue(2).ToString();
+            """,("@code",code)))
+        using(var r=cmd.ExecuteReader())
+        {
+            if(!r.Read())throw new ApiError("الحساب غير موجود.",404);
+            id=r.GetValue(0).ToString()!;
+            if(!r.IsDBNull(2))parentId=r.GetValue(2).ToString()??"";
+            nameAr=r.GetString(3);
+            accountType=Convert.ToInt32(r.GetValue(4));
+            nature=Convert.ToInt32(r.GetValue(5));
+            isPostable=Convert.ToInt32(r.GetValue(6));
+            status=Convert.ToInt32(r.GetValue(7));
+            isActive=Convert.ToInt32(r.GetValue(8));
+            companyScope=Convert.ToInt32(r.GetValue(9));
+            levelNo=Convert.ToInt32(r.GetValue(10));
+            createdBy=r.IsDBNull(11)?"":r.GetString(11);
+            updatedBy=r.IsDBNull(12)?"":r.GetString(12);
+        }
         string parentCode="";
         if(!string.IsNullOrWhiteSpace(parentId))
         {
@@ -44,19 +60,19 @@ public static class ChartOfAccountsApi
         }
         return new()
         {
-            ["id"]=r.GetValue(0).ToString(),
-            ["code"]=r.GetString(1),
+            ["id"]=id,
+            ["code"]=code,
             ["parentCode"]=parentCode,
-            ["nameAr"]=r.GetString(3),
-            ["accountType"]=Convert.ToInt32(r.GetValue(4)),
-            ["nature"]=Convert.ToInt32(r.GetValue(5)),
-            ["isPostable"]=Convert.ToInt32(r.GetValue(6))==1,
-            ["status"]=Convert.ToInt32(r.GetValue(7)),
-            ["isActive"]=Convert.ToInt32(r.GetValue(8))==1,
-            ["companyScope"]=Convert.ToInt32(r.GetValue(9)),
-            ["levelNo"]=Convert.ToInt32(r.GetValue(10)),
-            ["createdBy"]=r.IsDBNull(11)?"":r.GetString(11),
-            ["updatedBy"]=r.IsDBNull(12)?"":r.GetString(12)
+            ["nameAr"]=nameAr,
+            ["accountType"]=accountType,
+            ["nature"]=nature,
+            ["isPostable"]=isPostable==1,
+            ["status"]=status,
+            ["isActive"]=isActive==1,
+            ["companyScope"]=companyScope,
+            ["levelNo"]=levelNo,
+            ["createdBy"]=createdBy,
+            ["updatedBy"]=updatedBy
         };
     }
 

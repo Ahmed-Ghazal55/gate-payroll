@@ -320,7 +320,6 @@ api.MapPost("/submissions/{id}/review", (string id, JsonObject input, HttpContex
     var d=Store.Get(c,id,"submission",tx)??throw new ApiError("الرد غير موجود.",404);
     CampaignOperations.Review(c,tx,d,input,Actor(ctx));return SubmissionChoices.PublicAdmin(d);
 })).WithTags("Forms and responses").WithSummary("Submit submissions {id} review");
-api.MapGet("/audit", () => store.Read(c => Store.List(c, "audit"))).WithTags("Administration").WithSummary("Read audit");
 app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = IbanChoices.Is(d) ? IbanChoices.Schema : "work-choice-v1", fields=CampaignOperations.Fields(d), cities=IbanChoices.Is(d) ? IbanChoices.Cities(d) : null }); }).WithTags("Forms and responses").WithSummary("Read public forms {token}").RequireRateLimiting("sensitive");
 SubmissionChoices.Map(app, store, Campaign);
 CampaignOperations.Map(api,store);

@@ -78,23 +78,31 @@ public static class AuditApi
         Store.Save(c,ReadSummaryKind,row,tx);
     }
 
-    static JsonObject View(JsonObject a)=>new()
+    static JsonObject View(JsonObject a)
     {
-        ["id"]=a.S("id"),
-        ["occurredAt"]=a.S("occurredAt",a.S("at")),
-        ["actor"]=a.S("actor"),
-        ["actionAr"]=a.S("actionAr",LabelAr(a.S("action"))),
-        ["entityTypeAr"]=a.S("entityTypeAr",a.S("entityType")),
-        ["entityRef"]=a.S("entityRef",a.S("entityId")),
-        ["change"]=a["change"]?.DeepClone()??new JsonObject{["action"]=a.S("action")},
-        ["source"]=a.S("source","واجهة"),
-        ["allowedActions"]=new JsonArray()
-    };
+        string action=a.S("action"),at=a.S("occurredAt",a.S("at")),entity=a.S("entityId",a.S("entityRef"));
+        return new()
+        {
+            ["id"]=a.S("id"),
+            // Legacy contract fields (enterprise/campaigns/submissions HTTP scripts).
+            ["action"]=action,
+            ["entityId"]=entity,
+            ["at"]=at,
+            ["occurredAt"]=at,
+            ["actor"]=a.S("actor"),
+            ["actionAr"]=a.S("actionAr",LabelAr(action)),
+            ["entityTypeAr"]=a.S("entityTypeAr",a.S("entityType")),
+            ["entityRef"]=a.S("entityRef",entity),
+            ["change"]=a["change"]?.DeepClone()??new JsonObject{["action"]=action},
+            ["source"]=a.S("source","واجهة"),
+            ["allowedActions"]=new JsonArray()
+        };
+    }
 
-    public static JsonObject List(DbConnection c,ClaimsPrincipal actor,string? from,string? to,string? userId,string? entityType,string? action,int page,int pageSize)
+    /// <summary>Filtered change-log rows as a plain list (ApiPagination wraps when ?page= is present).</summary>
+    public static List<JsonObject> Query(DbConnection c,ClaimsPrincipal actor,string? from,string? to,string? userId,string? entityType,string? action)
     {
         AccessPolicy.Demand(actor,ViewPerm);
-        page=Math.Max(1,page);pageSize=Math.Clamp(pageSize,1,200);
         IEnumerable<JsonObject> rows=Store.List(c,ChangeKind)
             .Where(a=>!a.S("action").StartsWith("read.",StringComparison.OrdinalIgnoreCase))
             .Select(View);
@@ -104,8 +112,14 @@ public static class AuditApi
             rows=rows.Where(a=>DateTimeOffset.TryParse(a.S("occurredAt"),out var at)&&at<=t);
         if(!string.IsNullOrWhiteSpace(userId))rows=rows.Where(a=>string.Equals(a.S("actor"),userId,StringComparison.OrdinalIgnoreCase));
         if(!string.IsNullOrWhiteSpace(entityType))rows=rows.Where(a=>a.S("entityTypeAr").Contains(entityType,StringComparison.OrdinalIgnoreCase));
-        if(!string.IsNullOrWhiteSpace(action))rows=rows.Where(a=>a.S("actionAr").Contains(action,StringComparison.OrdinalIgnoreCase)||a.ToJsonString().Contains(action,StringComparison.OrdinalIgnoreCase));
-        var list=rows.OrderByDescending(a=>a.S("occurredAt")).ToList();
+        if(!string.IsNullOrWhiteSpace(action))rows=rows.Where(a=>a.S("actionAr").Contains(action,StringComparison.OrdinalIgnoreCase)||a.S("action").Contains(action,StringComparison.OrdinalIgnoreCase)||a.ToJsonString().Contains(action,StringComparison.OrdinalIgnoreCase));
+        return rows.OrderByDescending(a=>a.S("occurredAt")).ToList();
+    }
+
+    public static JsonObject List(DbConnection c,ClaimsPrincipal actor,string? from,string? to,string? userId,string? entityType,string? action,int page,int pageSize)
+    {
+        page=Math.Max(1,page);pageSize=Math.Clamp(pageSize,1,200);
+        var list=Query(c,actor,from,to,userId,entityType,action);
         int total=list.Count;
         var items=new JsonArray(list.Skip((page-1)*pageSize).Take(pageSize).Select(a=>(JsonNode?)a).ToArray());
         return new(){["items"]=items,["page"]=page,["pageSize"]=pageSize,["total"]=total,["allowedActions"]=new JsonArray()};
@@ -144,9 +158,10 @@ public static class AuditApi
 
     public static void Map(RouteGroupBuilder api,Store store)
     {
-        api.MapGet("/audit",(string? from,string? to,string? userId,string? entityType,string? action,int? page,int? pageSize,HttpContext ctx)=>
-            store.Read(c=>List(c,ctx.User,from,to,userId,entityType,action,page??1,pageSize??50)))
-            .WithTags("Administration").WithSummary("Paged data-change audit log (no read events)");
+        // Return a plain array so ApiPagination can opt-in with ?page=; keep legacy action/entityId fields.
+        api.MapGet("/audit",(string? from,string? to,string? userId,string? entityType,string? action,HttpContext ctx)=>
+            store.Read(c=>Query(c,ctx.User,from,to,userId,entityType,action)))
+            .WithTags("Administration").WithSummary("Data-change audit log (no read events; ?page= wraps items)");
         api.MapGet("/admin/audit/self-approvals",(string? from,string? to,HttpContext ctx)=>
             store.Read(c=>SelfApprovals(c,ctx.User,from,to)))
             .WithTags("Administration").WithSummary("System Administrator self-approval report");

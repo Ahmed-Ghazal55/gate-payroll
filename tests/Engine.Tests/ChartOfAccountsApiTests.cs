@@ -11,7 +11,7 @@ public sealed class ChartOfAccountsApiTests
     static ClaimsPrincipal Actor(string name,params string[] perms)=>
         UserAccess.Principal(new JsonObject
         {
-            ["username"]=name,["role"]="Accountant",
+            ["username"]=name,["role"]="Reviewer",
             ["customPermissions"]=new JsonArray(perms.Select(p=>(JsonNode?)p).ToArray())
         });
 

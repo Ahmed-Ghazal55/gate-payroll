@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:40137/"
+      "url": "http://127.0.0.1:36699/"
     }
   ],
   "paths": {
@@ -15929,7 +15929,77 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"
+                  "$ref": "#/components/schemas/AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndDictionaryOfstringAndstringAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}/effective-permissions": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Read effective permissions breakdown for a user",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}/copy-permissions": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Copy permissions from a user or role onto a target user",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
                 }
               }
             }
@@ -16760,6 +16830,368 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/audit": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Data-change audit log (no read events; ?page= wraps items)",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entityType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JsonObject"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/audit/self-approvals": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "System Administrator self-approval report",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/read-summary": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Daily sensitive-read summary (not per-read audit rows)",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "area",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/settings": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Read system settings from ref.setting",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Save system settings to ref.setting",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/notify-settings": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Read notification matrix and reply-time defaults",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Save notification settings; chat never creates notify rows",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notify/send": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Send general or custom notification with reply SLA",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "List operational tasks",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Create an operational task with default reply working days",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}": {
+      "put": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Update or complete an operational task",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
                 }
               }
             }
@@ -18231,7 +18663,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndPermissionDef[]Andboolean"
+                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean"
                 }
               }
             }
@@ -18935,6 +19367,163 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/finance/coa": {
+      "get": {
+        "tags": [
+          "Accounting and reports"
+        ],
+        "summary": "List chart of accounts tree rows with allowedActions",
+        "parameters": [
+          {
+            "name": "inactive",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Accounting and reports"
+        ],
+        "summary": "Create a CoA account under a parent; nature locked to parent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/coa/{code}": {
+      "put": {
+        "tags": [
+          "Accounting and reports"
+        ],
+        "summary": "Edit CoA name/flags; code change blocked when posted",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/coa/{code}/deactivate": {
+      "post": {
+        "tags": [
+          "Accounting and reports"
+        ],
+        "summary": "Deactivate CoA account; used accounts need a second person",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/coa/{code}/reactivate": {
+      "post": {
+        "tags": [
+          "Accounting and reports"
+        ],
+        "summary": "Reactivate a stopped CoA account",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
           }
         }
       }
@@ -21963,29 +22552,6 @@
         }
       }
     },
-    "/api/audit": {
-      "get": {
-        "tags": [
-          "Administration"
-        ],
-        "summary": "Read audit",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JsonObject"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/campaigns/{id}": {
       "put": {
         "tags": [
@@ -22673,7 +23239,7 @@
           }
         }
       },
-      "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndPermissionDef[]Andboolean": {
+      "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean": {
         "required": [
           "sponsors",
           "unassignedDebtCount",
@@ -23376,10 +23942,11 @@
           }
         }
       },
-      "AnonymousTypeOfRoleDef[]AndPermissionDef[]AndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
+      "AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndDictionaryOfstringAndstringAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
         "required": [
           "roles",
           "permissions",
+          "permissionAliases",
           "departments",
           "rolePermissions",
           "financialScopeCatalog"
@@ -23402,6 +23969,15 @@
             ],
             "items": {
               "$ref": "#/components/schemas/PermissionDef"
+            }
+          },
+          "permissionAliases": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "string"
             }
           },
           "departments": {
@@ -25083,57 +25659,6 @@
           }
         }
       },
-      "JobView": {
-        "required": [
-          "id",
-          "enabled",
-          "status"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "status": {
-            "type": "string"
-          },
-          "cron": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "timeZone": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "lastRun": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "nextRun": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "lastStatus": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "JsonArray": {
         "type": "array"
       },
@@ -25166,6 +25691,10 @@
           },
           "descriptionAr": {
             "type": "string"
+          },
+          "deprecated": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
