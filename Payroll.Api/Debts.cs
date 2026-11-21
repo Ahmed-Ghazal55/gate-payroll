@@ -20,6 +20,9 @@ public static partial class Debts
     ];
 
     public static decimal PaidAmount(JsonObject debt)=>debt.N("paidAmount",Math.Max(0m,debt.N("totalAmount")-debt.N("remainingBalance")-debt.N("waivedAmount")));
+    public static void DemandDisburseAvailable()=>DebtLedger.DemandDisburseAvailable();
+    public static void DemandOpeningVaultCreditClosed()=>
+        throw new ApiError("صرف مديونية جديدة عبر محرك المدفوعات غير متاح بعد؛ انتظر وحدة محرك المدفوعات.",409);
     public static decimal Amount(JsonObject input, string key)
     {
         J.Need(decimal.TryParse(input.S(key), NumberStyles.Number, CultureInfo.InvariantCulture, out var n) && n > 0 && n < 100000000 && n == J.Money(n), "قيمة مالية غير صالحة: " + key);
@@ -80,7 +83,6 @@ public static partial class Debts
             originSpId,
             creditorSpId
         );
-        if(mode=="Disbursement")debt["payoutVoucherNo"]=Vouchers.RecordPayout(c,tx,debt,journal,fundingSponsor,debt.S("payoutOdooVoucherNo")).S("voucherNo");
         debt["receivableAccountCode"]=receivCode;
         debt["postingPeriod"]=journal.S("period");
         debt["journalEntryId"] = journal.S("id");
@@ -204,16 +206,16 @@ public static partial class Debts
             J.Need(!Store.List(c, "debt", tx).Any(d => d.S("sourceRef") == reference), "مرجع الدين مسجل من قبل.");
 
             string mode=AccountingEvents.EntryMode(input,category);
+            if(mode=="Disbursement")DemandDisburseAvailable();
             if(mode=="OpeningBalance"){AccessPolicy.Demand(ctx.User,"treasury.opening");J.Need(input.B("openingReviewed"),"راجع مستند الرصيد الافتتاحي صراحة.");}
             var sponsorshipSp=FinancialCore.FindSponsor(input.S("sponsorshipSponsorId"))??FinancialCore.FindSponsor(rider!.S("sponsorId"))??FinancialCore.FindSponsor(rider.S("sponsor"));
             var creditorSp=FinancialCore.FindSponsor(input.S("creditorSponsorId"))??FinancialCore.FindSponsor(input.S("originSponsorId"))??sponsorshipSp??throw new ApiError("حدد السجل التجاري الدائن صراحة.");
             var originSp=FinancialCore.FindSponsor(input.S("originSponsorId"))??creditorSp;
             string recognition=AccountingEvents.RecognitionAccount(input,category,mode);
             J.Need(mode=="Disbursement"||input.S("paymentVaultCode")=="","الإثبات غير النقدي لا يختار صندوق صرف؛ حدد الحدث الصحيح.");
-            string vaultCode=mode=="Disbursement"?input.S("paymentVaultCode",FinancialCore.DefaultVaultForSponsor(originSp.Id,category=="BankAdvance"?"BANK":"MAIN",category)):"";
-            if(mode=="Disbursement")FinancialCore.ValidateVaultForOperation(vaultCode,category,"disbursement",input.S("platform"));
+            string vaultCode="";
             if(category=="PlatformTransferredDebt")J.Need(new[]{"Jahez","Keeta","HungerStation","Ninja","Other"}.Contains(input.S("platform")),"حدد المنصة التي أحالت الدين.");
-            bool requireMutualApproval=input.B("requireMutualApproval")||!AccessPolicy.Has(ctx.User,"treasury.disburse")||mode=="Disbursement"&&!AccessPolicy.Administrator(ctx.User);
+            bool requireMutualApproval=input.B("requireMutualApproval")||!AccessPolicy.Has(ctx.User,"treasury.disburse");
             string initiatingDept = AccessPolicy.Administrator(ctx.User)?input.S("initiatingDepartment",catMeta.Sector=="HR"?"HR":"FIN"):ctx.User.FindFirst("department")!.Value;
             string targetApprovalDept = initiatingDept == "FIN" ? "HR" : "FIN";
             string effectivePeriod = J.Period(input.S("effectiveFrom", DateTime.UtcNow.ToString("yyyy-MM")));
@@ -601,8 +603,8 @@ public static partial class Debts
                     subIdx++;
 
                     var lines = new JsonArray();
+                    if (takeWaive > 0) throw new ApiError("إعفاء شيت التحصيل المجمع عبر مسار الدين المعتمد غير متاح بعد؛ استخدم إعفاء المديونية (D11) أو ارفض المبلغ المعفى.",409);
                     if (takeCollect > 0) lines.Add(FinancialCore.CreateJournalLine(vaultAcc.Code, collectionSp.Id, takeCollect, 0m, "تحصيل مجمع إلى الخزينة", iqama, d.S("id")));
-                    if (takeWaive > 0) lines.Add(FinancialCore.CreateJournalLine("5202", creditorSp.Id, takeWaive, 0m, "إعفاء إداري ضمن شيت التحصيل المجمع", iqama, d.S("id")));
                     lines.Add(FinancialCore.CreateJournalLine(receivCode, creditorSp.Id, 0m, takeTotal, "تخفيض ذمة مدينة ضمن شيت التحصيل المجمع", iqama, d.S("id")));
 
                     if (takeCollect > 0 && collectionSp.Id != creditorSp.Id)
@@ -654,7 +656,16 @@ public static partial class Debts
                 rowIdx++;
             }
 
-            Store.Audit(c, tx, "debt.bulk_collect", $"rows:{items.Count}", ctx.User.Identity!.Name!);
+            byte[] fileHash=System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input.S("fingerprint",input.S("previewToken",$"{items.Count}|{totalCollectedBatch}"))));
+            SchemaAuditNotify.Ensure(c,tx);
+            string userId=SchemaApprovals.EnsureAuthUserId(c,tx,ctx.User.Identity!.Name!);
+            SchemaSql.Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"audit","change_log")}
+                (id,occurred_on,occurred_at,action_code,entity_type,entity_ref,diff_short,source,bulk_count,file_hash,user_id,created_at)
+                VALUES(@id,@on,@at,'import','debt',@ref,@diff,'import',@bc,@h,@u,@at)
+                """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@on",DateTime.UtcNow.ToString("yyyy-MM-dd")),
+                ("@at",DateTimeOffset.UtcNow.ToString("O")),("@ref","bulk-collect"),("@diff","تحصيل مجمع"),
+                ("@bc",items.Count),("@h",fileHash),("@u",userId));
             return new
             {
                 processedRows = items.Count,
@@ -910,22 +921,24 @@ public static partial class Debts
                 string debtorType = r.S("debtorType", "Rider");
                 string entryMode = r.S("entryMode", "OpeningBalance");
                 string allocationMode = r.S("allocationMode", "RiderFull");
+                J.Need(entryMode=="OpeningBalance","استيراد الافتتاح يقبل أرصدة افتتاحية فقط؛ التخفيض عبر مسار الدين، والصرف عبر محرك المدفوعات.",409);
 
                 decimal totalAmount = J.Money(r.N("totalAmount"));
                 decimal priorPaid = J.Money(r.N("priorPaidAmount"));
                 decimal remaining = J.Money(totalAmount - priorPaid);
                 decimal companyShare = J.Money(r.N("companyShareAmount"));
                 decimal installment = J.Money(r.N("monthlyInstallment", Math.Min(remaining > 0 ? remaining : 1m, 500m)));
-                J.Need(entryMode!="OpeningBalance"||companyShare==0&&allocationMode!="CompanyFull","الرصيد الافتتاحي ذمة على المندوب فقط؛ تحمل الشركة عن سنوات سابقة مقفل في حقوق الملكية ولا يُقيد مصروفًا في الفترة الحالية.");
+                J.Need(companyShare==0&&allocationMode!="CompanyFull","الرصيد الافتتاحي ذمة على المندوب فقط؛ تحمل الشركة عن سنوات سابقة مقفل في حقوق الملكية ولا يُقيد مصروفًا في الفترة الحالية.");
                 string effectiveFrom = J.Period(r.S("effectiveFrom", DateTime.UtcNow.ToString("yyyy-MM")));
                 string sourceRef = r.Required("sourceRef");
                 J.Need(!Store.List(c,"debt",tx).Any(d=>d.S("sourceRef")==sourceRef),"مرجع الدين مكرر؛ أعد المعاينة.");
 
                 string receivCode = debtorType == "Employee" ? "1220" : catMeta.ReceivableAccountCode;
                 string expCode = catMeta.ExpenseAccountCode;
-                string contraCode = r.S("contraAccountCode", entryMode == "OpeningBalance" ? "3101" : FinancialCore.DefaultVaultForSponsor(creditorSp.Id, "MAIN", catMeta.Code));
-                var contraAcc = contraCode == "3101" ? FinancialCore.ResolveAccount("3101") : FinancialCore.ValidateVaultForOperation(contraCode, catMeta.Code, "disbursement");
-                if(contraCode!="3101"){J.Need(catCode is not ("PlatformTransferredDebt" or "NegativeSalaryCarryover"),"المديونية المرحلة ليست صرفًا نقديًا.");FinancialScopes.DemandAccount(ctx.User,contraCode);AccountingEvents.DemandAvailable(c,tx,contraCode,remaining+companyShare);}
+                string contraCode = r.S("contraAccountCode", "3101");
+                J.Need(contraCode is "3101" or "331301","رصيد الافتتاح يقابل حقوق الملكية فقط؛ أي دائن صندوق/بنك مغلق حتى محرك المدفوعات.",409);
+                if(contraCode!="3101"&&contraCode!="331301")DemandOpeningVaultCreditClosed();
+                var contraAcc = FinancialCore.ResolveAccount(contraCode=="3101"?"3101":contraCode);
 
                 string debtId = Guid.NewGuid().ToString("N");
                 var lines = new JsonArray();
@@ -997,7 +1010,16 @@ public static partial class Debts
                 totalCompanyExpenseImported = J.Money(totalCompanyExpenseImported + companyShare);
             }
 
-            Store.Audit(c, tx, "debt.opening_imported", $"rows:{items.Count},rem:{totalRemainingImported}", ctx.User.Identity!.Name!);
+            byte[] fileHash=System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input.S("fingerprint",input.S("previewToken",$"{items.Count}|{totalRemainingImported}"))));
+            SchemaAuditNotify.Ensure(c,tx);
+            string userId=SchemaApprovals.EnsureAuthUserId(c,tx,ctx.User.Identity!.Name!);
+            SchemaSql.Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"audit","change_log")}
+                (id,occurred_on,occurred_at,action_code,entity_type,entity_ref,diff_short,source,bulk_count,file_hash,user_id,created_at)
+                VALUES(@id,@on,@at,'import','debt',@ref,@diff,'import',@bc,@h,@u,@at)
+                """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@on",DateTime.UtcNow.ToString("yyyy-MM-dd")),
+                ("@at",DateTimeOffset.UtcNow.ToString("O")),("@ref","opening-import"),
+                ("@diff",$"rows:{items.Count},rem:{totalRemainingImported}"),("@bc",items.Count),("@h",fileHash),("@u",userId));
             return new
             {
                 importedCount = createdDebts.Count,
