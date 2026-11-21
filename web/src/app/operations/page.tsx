@@ -482,8 +482,8 @@ function OperationsPageInner() {
                   columns={[
                     { key: 'riderNameAr', header: 'اسم المندوب', type: 'text', getValue: (r) => String(r.riderNameAr || ''), render: (r) => <span className="font-medium">{String(r.riderNameAr || '—')}</span> },
                     { key: 'iqama', header: 'رقم الإقامة', type: 'text', getValue: (r) => String(r.iqama || ''), render: (r) => <bdi className="font-mono">{String(r.iqama || '—')}</bdi> },
-                    { key: 'startedAt', header: 'من', type: 'date', getValue: (r) => formatDateShort(r.startedAt), render: (r) => <bdi className="font-mono">{formatDateShort(r.startedAt)}</bdi> },
-                    { key: 'endedAt', header: 'إلى', type: 'date', getValue: (r) => (r.endedAt ? formatDateShort(r.endedAt) : ''), labelOf: (v) => (v ? String(v) : 'حتى الآن'), render: (r) => <bdi className="font-mono">{r.endedAt ? formatDateShort(r.endedAt) : 'حتى الآن'}</bdi> },
+                    { key: 'startedAt', header: 'من', type: 'date', getValue: (r) => String(r.startedAt || ''), labelOf: (v) => formatDateShort(v), render: (r) => <bdi className="font-mono">{formatDateShort(r.startedAt)}</bdi> },
+                    { key: 'endedAt', header: 'إلى', type: 'date', getValue: (r) => String(r.endedAt || ''), labelOf: (v) => (v ? formatDateShort(v) : 'حتى الآن'), render: (r) => <bdi className="font-mono">{r.endedAt ? formatDateShort(r.endedAt) : 'حتى الآن'}</bdi> },
                     { key: 'isRealRider', header: 'مندوب فعلي', type: 'list', getValue: (r) => (r.isRealRider ? 'نعم' : 'لا'), toneOf: (v) => (v === 'نعم' ? 'success' : 'neutral'), render: (r) => (r.isRealRider ? 'نعم' : 'لا') },
                   ]}
                 />
@@ -645,8 +645,8 @@ function OperationsPageInner() {
               </div>
             ),
           },
-          { key: 'from', header: 'من', type: 'date', filterType: 'date', filterColumn: 'effectiveFrom', getValue: (r) => formatDateShort(r.effectiveFrom), render: (r) => formatDateShort(r.effectiveFrom) },
-          { key: 'to', header: 'إلى', type: 'date', filterType: 'date', filterColumn: 'effectiveTo', getValue: (r) => (r.effectiveTo ? formatDateShort(r.effectiveTo) : ''), labelOf: (v) => (v ? String(v) : 'حتى الآن'), render: (r) => (r.effectiveTo ? formatDateShort(r.effectiveTo) : 'حتى الآن') },
+          { key: 'from', header: 'من', type: 'date', filterType: 'date', filterColumn: 'effectiveFrom', getValue: (r) => String(r.effectiveFrom || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.effectiveFrom) },
+          { key: 'to', header: 'إلى', type: 'date', filterType: 'date', filterColumn: 'effectiveTo', getValue: (r) => String(r.effectiveTo || ''), labelOf: (v) => (v ? formatDateShort(v) : 'حتى الآن'), render: (r) => (r.effectiveTo ? formatDateShort(r.effectiveTo) : 'حتى الآن') },
         ];
       }
       return [
@@ -721,8 +721,8 @@ function OperationsPageInner() {
         { key: 'num', header: 'رقم الاستلام', type: 'text', filterType: 'text', filterColumn: 'receiptNumber', getValue: (r) => String(r.receiptNumber || ''), render: (r) => String(r.receiptNumber || '') },
         { key: 'supInv', header: 'فاتورة المورد', type: 'text', filterType: 'text', filterColumn: 'supplierInvoiceNumber', getValue: (r) => String(r.supplierInvoiceNumber || ''), render: (r) => String(r.supplierInvoiceNumber || '—') },
         { key: 'sup', header: 'المورد', type: 'list', filterType: 'list', filterColumn: 'supplierNameAr', getValue: (r) => String(r.supplierNameAr || ''), render: (r) => String(r.supplierNameAr || '—') },
-        { key: 'date', header: 'تاريخ الفاتورة', type: 'date', filterType: 'date', filterColumn: 'invoiceDate', getValue: (r) => formatDateShort(r.invoiceDate), render: (r) => formatDateShort(r.invoiceDate) },
-        { key: 'receivedAt', header: 'تاريخ الاستلام', type: 'date', filterType: 'date', getValue: (r) => formatDateShort(r.receivedAt), render: (r) => formatDateShort(r.receivedAt) },
+        { key: 'date', header: 'تاريخ الفاتورة', type: 'date', filterType: 'date', filterColumn: 'invoiceDate', getValue: (r) => String(r.invoiceDate || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.invoiceDate) },
+        { key: 'receivedAt', header: 'تاريخ الاستلام', type: 'date', filterType: 'date', getValue: (r) => String(r.receivedAt || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.receivedAt) },
         { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalAmount', getValue: (r) => (r.totalAmount != null ? Number(r.totalAmount) : ''), render: (r) => <span className="num font-medium whitespace-nowrap">{formatSar(r.totalAmount as number | string | null | undefined)}</span> },
         { key: 'status', header: 'الحالة', type: 'list', filterType: 'list', getValue: (r) => formatPurchaseStatus(r.status), labelOf: (v) => formatPurchaseStatus(v), toneOf: (v) => (formatPurchaseStatus(v) === 'مرحّل' ? 'success' : 'danger'), render: (r) => formatPurchaseStatus(r.status) },
       ];
@@ -730,7 +730,7 @@ function OperationsPageInner() {
     if (view === 'oil') {
       return [
         { key: 'plate', header: 'اللوحة', type: 'list', filterType: 'list', filterColumn: 'plateNumberAr', getValue: (r) => String(r.plateNumberAr || ''), render: (r) => cell(r.plateNumberAr) },
-        { key: 'date', header: 'التاريخ', type: 'date', filterType: 'date', filterColumn: 'performedAt', getValue: (r) => formatDateShort(r.performedAt), render: (r) => cell(r.performedAt) },
+        { key: 'date', header: 'التاريخ', type: 'date', filterType: 'date', filterColumn: 'performedAt', getValue: (r) => String(r.performedAt || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.performedAt) },
         { key: 'odo', header: 'العداد', type: 'number', filterType: 'number', numeric: true, summary: 'none', filterColumn: 'odometer', getValue: (r) => (r.odometer != null ? Number(r.odometer) : ''), render: (r) => cell(r.odometer) },
         { key: 'liters', header: 'لترات', type: 'number', filterType: 'number', numeric: true, filterColumn: 'oilLiters', getValue: (r) => (r.oilLiters != null ? Number(r.oilLiters) : ''), render: (r) => cell(r.oilLiters) },
         { key: 'oil', header: 'تكلفة الزيت', type: 'number', filterType: 'number', numeric: true, filterColumn: 'oilCost', getValue: (r) => (r.oilCost != null ? Number(r.oilCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.oilCost as number | string | null | undefined)}</span> },

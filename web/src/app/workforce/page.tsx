@@ -816,14 +816,14 @@ function WorkforcePageInner() {
         key: 'name',
         header: 'الاسم',
         type: 'text',
-        getValue: (r) => cellText(r.name),
+        getValue: (r) => String(r.name ?? ''),
         render: (r) => <span className="font-semibold">{cellText(r.name)}</span>,
       },
       {
         key: 'iqama',
         header: 'الإقامة',
         type: 'text',
-        getValue: (r) => cellText(r.iqama),
+        getValue: (r) => String(r.iqama ?? ''),
         render: (r) => (
           <span className="font-mono font-bold" dir="ltr">
             {cellText(r.iqama)}
@@ -847,7 +847,7 @@ function WorkforcePageInner() {
         key: 'suggestedAction',
         header: 'الإجراء المقترح',
         type: 'list',
-        getValue: (r) => cellText(r.suggestedAction),
+        getValue: (r) => String(r.suggestedAction ?? ''),
         render: (r) => (
           <span className="text-[var(--muted)] whitespace-nowrap">{cellText(r.suggestedAction)}</span>
         ),
@@ -874,21 +874,21 @@ function WorkforcePageInner() {
         key: 'number',
         header: 'الرقم',
         type: 'text',
-        getValue: (r) => cellText(r.number),
+        getValue: (r) => String(r.number ?? ''),
         render: (r) => <span className="font-mono">{cellText(r.number)}</span>,
       },
       {
         key: 'name',
         header: 'الاسم',
         type: 'text',
-        getValue: (r) => cellText(r.name),
+        getValue: (r) => String(r.name ?? ''),
         render: (r) => <span className="font-semibold">{cellText(r.name)}</span>,
       },
       {
         key: 'nationalId',
         header: 'الهوية',
         type: 'text',
-        getValue: (r) => cellText(r.nationalId),
+        getValue: (r) => String(r.nationalId ?? ''),
         render: (r) => (
           <span className="font-mono font-bold" dir="ltr">
             {cellText(r.nationalId)}
@@ -899,21 +899,21 @@ function WorkforcePageInner() {
         key: 'sponsorNameAr',
         header: 'الكفيل',
         type: 'list',
-        getValue: (r) => cellText(r.sponsorNameAr),
+        getValue: (r) => String(r.sponsorNameAr ?? ''),
         render: (r) => <span className="whitespace-nowrap">{cellText(r.sponsorNameAr)}</span>,
       },
       {
         key: 'country',
         header: 'الدولة',
         type: 'list',
-        getValue: (r) => cellText(r.country),
+        getValue: (r) => String(r.country ?? ''),
         render: (r) => <span className="whitespace-nowrap">{cellText(r.country)}</span>,
       },
       {
         key: 'joiningDate',
         header: 'تاريخ الالتحاق',
         type: 'date',
-        getValue: (r) => cellText(r.joiningDate),
+        getValue: (r) => String(r.joiningDate ?? ''),
         render: (r) => (
           <span className="font-mono text-xs whitespace-nowrap">{cellText(r.joiningDate)}</span>
         ),
@@ -922,7 +922,7 @@ function WorkforcePageInner() {
         key: 'unifiedNationalNumber',
         header: 'الرقم الموحّد',
         type: 'text',
-        getValue: (r) => cellText(r.unifiedNationalNumber),
+        getValue: (r) => String(r.unifiedNationalNumber ?? ''),
         render: (r) => (
           <span className="font-mono text-xs whitespace-nowrap" dir="ltr">
             {cellText(r.unifiedNationalNumber)}
@@ -968,14 +968,14 @@ function WorkforcePageInner() {
         key: 'name',
         header: 'الاسم',
         type: 'text',
-        getValue: (r) => cellText(r.name),
+        getValue: (r) => String(r.name ?? ''),
         render: (r) => <span className="font-semibold">{cellText(r.name)}</span>,
       },
       {
         key: 'iqama',
         header: 'الإقامة',
         type: 'text',
-        getValue: (r) => cellText(r.iqama),
+        getValue: (r) => String(r.iqama ?? ''),
         render: (r) => (
           <span className="font-mono font-bold" dir="ltr">
             {cellText(r.iqama)}
@@ -995,7 +995,7 @@ function WorkforcePageInner() {
         key: 'terminationDate',
         header: 'تاريخ الإنهاء',
         type: 'date',
-        getValue: (r) => cellText(r.terminationDate),
+        getValue: (r) => String(r.terminationDate ?? ''),
         render: (r) => (
           <span className="font-mono text-xs whitespace-nowrap">{cellText(r.terminationDate)}</span>
         ),
@@ -1004,14 +1004,14 @@ function WorkforcePageInner() {
         key: 'statusReason',
         header: 'السبب',
         type: 'text',
-        getValue: (r) => cellText(r.statusReason),
+        getValue: (r) => String(r.statusReason ?? ''),
         render: (r) => <span className="text-[var(--muted)]">{cellText(r.statusReason)}</span>,
       },
       {
         key: 'city',
         header: 'المدينة',
         type: 'list',
-        getValue: (r) => cellText(r.city),
+        getValue: (r) => String(r.city ?? ''),
         render: (r) => <span>{cellText(r.city)}</span>,
       },
     ],
@@ -1024,7 +1024,7 @@ function WorkforcePageInner() {
         key: 'CaseNumber',
         header: 'رقم الحالة',
         type: 'text',
-        getValue: (r) => cellText(pickField(r, 'CaseNumber', 'caseNumber')),
+        getValue: (r) => String(pickField(r, 'CaseNumber', 'caseNumber') ?? ''),
         render: (r) => (
           <span className="font-mono font-bold">
             {cellText(pickField(r, 'CaseNumber', 'caseNumber'))}
@@ -1035,7 +1035,7 @@ function WorkforcePageInner() {
         key: 'EmployeeNameAr',
         header: 'الاسم',
         type: 'text',
-        getValue: (r) => cellText(pickField(r, 'EmployeeNameAr', 'employeeNameAr', 'name')),
+        getValue: (r) => String(pickField(r, 'EmployeeNameAr', 'employeeNameAr', 'name') ?? ''),
         render: (r) => (
           <span className="font-semibold">
             {cellText(pickField(r, 'EmployeeNameAr', 'employeeNameAr', 'name'))}
@@ -1046,7 +1046,7 @@ function WorkforcePageInner() {
         key: 'IqamaNo',
         header: 'الإقامة',
         type: 'text',
-        getValue: (r) => cellText(pickField(r, 'IqamaNo', 'iqamaNo', 'iqama')),
+        getValue: (r) => String(pickField(r, 'IqamaNo', 'iqamaNo', 'iqama') ?? ''),
         render: (r) => (
           <span className="font-mono font-bold" dir="ltr">
             {cellText(pickField(r, 'IqamaNo', 'iqamaNo', 'iqama'))}
@@ -1057,7 +1057,7 @@ function WorkforcePageInner() {
         key: 'AbsenceDate',
         header: 'تاريخ الغياب',
         type: 'date',
-        getValue: (r) => cellText(pickField(r, 'AbsenceDate', 'absenceDate')),
+        getValue: (r) => String(pickField(r, 'AbsenceDate', 'absenceDate') ?? ''),
         render: (r) => (
           <span className="font-mono text-xs">
             {cellText(pickField(r, 'AbsenceDate', 'absenceDate'))}
@@ -1068,16 +1068,17 @@ function WorkforcePageInner() {
         key: 'CurrentPath',
         header: 'المسار',
         type: 'list',
-        getValue: (r) => cellText(pickField(r, 'CurrentPath', 'currentPath')),
+        getValue: (r) => String(pickField(r, 'CurrentPath', 'currentPath') ?? ''),
         render: (r) => <span>{cellText(pickField(r, 'CurrentPath', 'currentPath'))}</span>,
       },
       {
         key: 'Status',
         header: 'الحالة',
         type: 'list',
-        getValue: (r) => cellText(pickField(r, 'Status', 'status')),
+        getValue: (r) => String(pickField(r, 'Status', 'status') ?? ''),
+        labelOf: (v) => statusLabel(String(v || '')),
         toneOf: defaultStatusTone,
-        render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
+        render: (r) => <span>{statusLabel(String(pickField(r, 'Status', 'status') ?? ''))}</span>,
       },
     ],
     []
@@ -1473,12 +1474,12 @@ function WorkforcePageInner() {
                     showTotals={false}
                     showFilterRow={false}
                     columns={[
-                      { key: 'month', header: 'الشهر', type: 'date', getValue: (r) => cellText(r.month), render: (r) => <span className="font-mono">{cellText(r.month)}</span> },
-                      { key: 'platform', header: 'المنصة', type: 'list', getValue: (r) => cellText(r.platform), render: (r) => cellText(r.platform) },
-                      { key: 'workDays', header: 'أيام العمل', type: 'number', numeric: true, getValue: (r) => cellText(r.workDays), render: (r) => <span className="whitespace-pre-wrap">{cellText(r.workDays)}</span> },
-                      { key: 'orders', header: 'الطلبات', type: 'number', numeric: true, getValue: (r) => cellText(r.orders), render: (r) => <span className="whitespace-pre-wrap">{cellText(r.orders)}</span> },
+                      { key: 'month', header: 'الشهر', type: 'date', getValue: (r) => String(r.month ?? ''), render: (r) => <span className="font-mono">{cellText(r.month)}</span> },
+                      { key: 'platform', header: 'المنصة', type: 'list', getValue: (r) => String(r.platform ?? ''), labelOf: (v) => (v ? platformLabelAr(String(v)) : ''), render: (r) => cellText(r.platform) },
+                      { key: 'workDays', header: 'أيام العمل', type: 'number', numeric: true, getValue: (r) => (r.workDays != null && r.workDays !== '' && !Number.isNaN(Number(r.workDays)) ? Number(r.workDays) : ''), render: (r) => <span className="whitespace-pre-wrap">{cellText(r.workDays)}</span> },
+                      { key: 'orders', header: 'الطلبات', type: 'number', numeric: true, getValue: (r) => (r.orders != null && r.orders !== '' && !Number.isNaN(Number(r.orders)) ? Number(r.orders) : ''), render: (r) => <span className="whitespace-pre-wrap">{cellText(r.orders)}</span> },
                       { key: 'netDue', header: 'صافي المستحق', type: 'number', numeric: true, getValue: (r) => (r.netDue != null && r.netDue !== '' ? Number(r.netDue) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.netDue as number | string | null | undefined)}</span> },
-                      { key: 'status', header: 'الحالة', type: 'list', getValue: (r) => cellText(r.status), toneOf: defaultStatusTone, render: (r) => cellText(r.status) },
+                      { key: 'status', header: 'الحالة', type: 'list', getValue: (r) => String(r.status ?? ''), labelOf: (v) => statusLabel(String(v || '')), toneOf: defaultStatusTone, render: (r) => cellText(r.status) },
                     ]}
                   />
                 )}
@@ -1515,10 +1516,10 @@ function WorkforcePageInner() {
                     showTotals={false}
                     showFilterRow={false}
                     columns={[
-                      { key: 'noteNumber', header: 'الرقم', type: 'text', getValue: (n) => cellText(n.noteNumber || n.id), render: (n) => <span className="font-mono">{cellText(n.noteNumber || n.id)}</span> },
-                      { key: 'date', header: 'التاريخ', type: 'date', getValue: (n) => cellText(n.date), render: (n) => <span className="font-mono text-xs">{cellText(n.date)}</span> },
+                      { key: 'noteNumber', header: 'الرقم', type: 'text', getValue: (n) => String(n.noteNumber ?? n.id ?? ''), render: (n) => <span className="font-mono">{cellText(n.noteNumber || n.id)}</span> },
+                      { key: 'date', header: 'التاريخ', type: 'date', getValue: (n) => String(n.date ?? ''), render: (n) => <span className="font-mono text-xs">{cellText(n.date)}</span> },
                       { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, getValue: (n) => (n.amount != null && n.amount !== '' ? Number(n.amount) : ''), render: (n) => <span className="num whitespace-nowrap">{formatSar(n.amount as number | string | null | undefined)}</span> },
-                      { key: 'status', header: 'الحالة', type: 'list', getValue: (n) => cellText(n.status), toneOf: defaultStatusTone, render: (n) => cellText(n.status) },
+                      { key: 'status', header: 'الحالة', type: 'list', getValue: (n) => String(n.status ?? ''), labelOf: (v) => statusLabel(String(v || '')), toneOf: defaultStatusTone, render: (n) => cellText(n.status) },
                     ]}
                   />
                 )}
@@ -1576,10 +1577,10 @@ function WorkforcePageInner() {
                     showTotals={false}
                     showFilterRow={false}
                     columns={[
-                      { key: 'platform', header: 'المنصة', type: 'list', getValue: (acc) => cellText(acc.platform), render: (acc) => <span className="font-semibold">{cellText(acc.platform)}</span> },
-                      { key: 'externalAccountId', header: 'المعرّف الخارجي', type: 'text', getValue: (acc) => cellText(acc.externalAccountId), render: (acc) => <span className="font-mono" dir="ltr">{cellText(acc.externalAccountId)}</span> },
-                      { key: 'city', header: 'المدينة', type: 'list', getValue: (acc) => cellText(acc.city), render: (acc) => cellText(acc.city) },
-                      { key: 'createdAt', header: 'تاريخ الإنشاء', type: 'date', getValue: (acc) => cellText(acc.createdAt), render: (acc) => <span className="font-mono text-xs">{cellText(acc.createdAt)}</span> },
+                      { key: 'platform', header: 'المنصة', type: 'list', getValue: (acc) => String(acc.platform ?? ''), labelOf: (v) => (v ? platformLabelAr(String(v)) : ''), render: (acc) => <span className="font-semibold">{cellText(acc.platform)}</span> },
+                      { key: 'externalAccountId', header: 'المعرّف الخارجي', type: 'text', getValue: (acc) => String(acc.externalAccountId ?? ''), render: (acc) => <span className="font-mono" dir="ltr">{cellText(acc.externalAccountId)}</span> },
+                      { key: 'city', header: 'المدينة', type: 'list', getValue: (acc) => String(acc.city ?? ''), render: (acc) => cellText(acc.city) },
+                      { key: 'createdAt', header: 'تاريخ الإنشاء', type: 'date', getValue: (acc) => String(acc.createdAt ?? ''), render: (acc) => <span className="font-mono text-xs">{cellText(acc.createdAt)}</span> },
                     ]}
                   />
                 )}
@@ -1686,7 +1687,7 @@ function WorkforcePageInner() {
                   key: 'caseNumber',
                   header: 'رقم القضية',
                   type: 'text',
-                  getValue: (r) => cellText(r.caseNumber),
+                  getValue: (r) => String(r.caseNumber ?? ''),
                   render: (r) => (
                     <span className="font-mono font-bold whitespace-nowrap">
                       {cellText(r.caseNumber)}
@@ -1697,7 +1698,7 @@ function WorkforcePageInner() {
                   key: 'personName',
                   header: 'الشخص',
                   type: 'text',
-                  getValue: (r) => cellText(r.personName),
+                  getValue: (r) => String(r.personName ?? ''),
                   render: (r) => (
                     <span className="font-semibold whitespace-nowrap">{cellText(r.personName)}</span>
                   ),
@@ -1706,7 +1707,7 @@ function WorkforcePageInner() {
                   key: 'iqama',
                   header: 'الإقامة',
                   type: 'text',
-                  getValue: (r) => cellText(r.iqama),
+                  getValue: (r) => String(r.iqama ?? ''),
                   render: (r) => (
                     <span className="font-mono whitespace-nowrap" dir="ltr">
                       {cellText(r.iqama)}
@@ -1717,7 +1718,7 @@ function WorkforcePageInner() {
                   key: 'sponsorNameAr',
                   header: 'الكفيل',
                   type: 'list',
-                  getValue: (r) => cellText(r.sponsorNameAr),
+                  getValue: (r) => String(r.sponsorNameAr ?? ''),
                   render: (r) => (
                     <span className="whitespace-nowrap">{cellText(r.sponsorNameAr)}</span>
                   ),
@@ -1726,9 +1727,10 @@ function WorkforcePageInner() {
                   key: 'status',
                   header: 'الحالة',
                   type: 'list',
-                  getValue: (r) => cellText(r.status),
+                  getValue: (r) => String(r.status ?? ''),
+                  labelOf: (v) => statusLabel(String(v || '')),
                   toneOf: defaultStatusTone,
-                  render: (r) => <span className="whitespace-nowrap">{cellText(r.status)}</span>,
+                  render: (r) => <span className="whitespace-nowrap">{statusLabel(String(r.status || ''))}</span>,
                 },
               ]}
               data={legalItems}
