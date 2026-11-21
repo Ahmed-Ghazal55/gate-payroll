@@ -34,6 +34,13 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import {
+  auditActionLabelAr,
+  auditActorLabelAr,
+  formatAuditAt,
+  shortAuditId,
+} from '../../lib/audit-labels';
+import { orgOperationLabelAr } from '../../lib/payroll-labels';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -228,6 +235,10 @@ function AdminPageInner() {
 
   useEffect(() => {
     loadUsers();
+    // Header StatCards need org + audit totals on every tab
+    void loadOrgData();
+    void loadAudit(1);
+    void loadResponsible(queryOperation);
   }, []);
 
   useEffect(() => {
@@ -553,8 +564,20 @@ function AdminPageInner() {
   const auditFilterCols = useMemo(
     () => [
       { key: 'id', header: 'المعرف', type: 'text' as const, getValue: (l: any) => String(l.id ?? '') },
-      { key: 'action', header: 'نوع العملية', type: 'list' as const, getValue: (l: any) => l.action || '' },
-      { key: 'actor', header: 'المنفذ', type: 'list' as const, getValue: (l: any) => l.actor || 'system' },
+      {
+        key: 'action',
+        header: 'نوع العملية',
+        type: 'list' as const,
+        getValue: (l: any) => l.action || '',
+        labelOf: (v: unknown) => auditActionLabelAr(String(v ?? '')),
+      },
+      {
+        key: 'actor',
+        header: 'المنفذ',
+        type: 'list' as const,
+        getValue: (l: any) => l.actor || 'system',
+        labelOf: (v: unknown) => auditActorLabelAr(String(v ?? '')),
+      },
       { key: 'at', header: 'التاريخ والوقت', type: 'date' as const, getValue: (l: any) => l.at || l.createdAt || '' },
     ],
     []
@@ -576,12 +599,30 @@ function AdminPageInner() {
       <PageHeader
         title="الإدارة والتنظيم المؤسسي"
         eyebrow="التحكم والأمن ونظام الرتب"
-        description="إدارة حسابات المستخدمين، سجل الأقسام والرتب والتفويضات (BR §25.1)، تعيين المشرفين وتوجيه مسؤولي مراجعة وصرف السلف، وفحص سجل التدقيق."
-        primaryAction={{
-          label: activeTab === 'org' ? 'تحديث سجل التنظيم' : 'إضافة مستخدم جديد',
-          icon: activeTab === 'org' ? <RefreshCw size={15} /> : <UserPlus size={15} />,
-          onClick: activeTab === 'org' ? loadOrgData : () => setAddUserOpen(true),
-        }}
+        description="إدارة حسابات المستخدمين، سجل الأقسام والرتب والتفويضات، تعيين المشرفين وتوجيه مسؤولي مراجعة وصرف السلف، وفحص سجل التدقيق."
+        primaryAction={
+          activeTab === 'users'
+            ? {
+                label: 'إضافة مستخدم',
+                icon: <UserPlus size={15} />,
+                onClick: () => setAddUserOpen(true),
+              }
+            : activeTab === 'org'
+              ? {
+                  label: 'تحديث سجل التنظيم',
+                  icon: <RefreshCw size={15} />,
+                  onClick: loadOrgData,
+                }
+              : activeTab === 'audit'
+                ? {
+                    label: 'تحديث السجل',
+                    icon: <RefreshCw size={15} />,
+                    onClick: () => void loadAudit(auditPage),
+                  }
+              : activeTab === 'lists'
+                ? undefined
+                : undefined
+        }
       />
 
       {/* Stat Cards */}
@@ -595,13 +636,13 @@ function AdminPageInner() {
         <StatCard
           label="العضويات النشطة بالأقسام"
           value={memberships.filter((m) => !m.validTo).length}
-          hint="أعضاء مثبتون بالرتب A+/A/B/C"
+          hint="أعضاء مثبتون بالرتب التنظيمية"
           icon={Building2}
         />
         <StatCard
           label="المسؤولين المكلفين بالسلف"
           value={responsibleUsers.length}
-          hint={`مكلفون بالعملية: ${queryOperation}`}
+          hint="مكلفون بمراجعة وصرف السلف"
           icon={UserCheck}
         />
         <StatCard
@@ -635,11 +676,35 @@ function AdminPageInner() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setAddUserOpen(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs inline-flex items-center gap-1.5 hover:opacity-90 transition cursor-pointer"
+                onClick={() => {
+                  const headers = ['username', 'role', 'department', 'status'];
+                  const lines = [
+                    headers.join(','),
+                    ...filteredUsers.map((u) =>
+                      [
+                        u.username,
+                        u.roleNameAr || u.role,
+                        u.department || '',
+                        u.disabled ? 'معطل' : 'نشط',
+                      ]
+                        .map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`)
+                        .join(',')
+                    ),
+                  ];
+                  const blob = new Blob(['\ufeff' + lines.join('\n')], {
+                    type: 'text/csv;charset=utf-8',
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'admin-users.csv';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3.5 py-1.5 rounded-xl border border-[var(--line)] font-bold text-xs inline-flex items-center gap-1.5 hover:bg-[var(--raised)] transition cursor-pointer"
               >
-                <UserPlus size={14} />
-                <span>إضافة مستخدم</span>
+                <Download size={14} />
+                <span>تصدير إكسل</span>
               </button>
             </div>
           </div>
@@ -676,7 +741,7 @@ function AdminPageInner() {
                     {usersFilter.rows.map((u) => (
                       <tr key={u.id || u.username} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono font-bold text-[var(--ink)]">
-                          @{u.username}
+                          <bdi dir="ltr">@{u.username}</bdi>
                         </td>
                         <td className="p-3 font-medium">{u.roleNameAr || u.role}</td>
                         <td className="p-3">
@@ -837,7 +902,9 @@ function AdminPageInner() {
                                 isEnded ? 'opacity-60 bg-[var(--raised)]/30 text-[var(--muted)]' : 'hover:bg-[var(--row-hover)]'
                               }`}
                             >
-                              <td className="p-3 font-mono font-bold">@{m.userId}</td>
+                              <td className="p-3 font-mono font-bold">
+                                <bdi dir="ltr">@{m.userId}</bdi>
+                              </td>
                               <td className="p-3">
                                 <span className="px-2 py-0.5 rounded-md text-xs font-mono bg-[var(--raised)]">
                                   {m.department}
@@ -938,8 +1005,12 @@ function AdminPageInner() {
                                 isExpired ? 'opacity-60 bg-[var(--raised)]/30 text-[var(--muted)]' : 'hover:bg-[var(--row-hover)]'
                               }`}
                             >
-                              <td className="p-3 font-mono font-bold">@{d.fromUser}</td>
-                              <td className="p-3 font-mono font-bold text-[var(--accent)]">@{d.toUser}</td>
+                              <td className="p-3 font-mono font-bold">
+                                <bdi dir="ltr">@{d.fromUser}</bdi>
+                              </td>
+                              <td className="p-3 font-mono font-bold text-[var(--accent)]">
+                                <bdi dir="ltr">@{d.toUser}</bdi>
+                              </td>
                               <td className="p-3 font-mono text-xs">{d.operation}</td>
                               <td className="p-3 num text-xs">{d.validFrom?.split('T')[0] || '—'}</td>
                               <td className="p-3 num text-xs font-semibold">{d.until?.split('T')[0]}</td>
@@ -1035,7 +1106,9 @@ function AdminPageInner() {
                                 isEnded ? 'opacity-60 bg-[var(--raised)]/30 text-[var(--muted)]' : 'hover:bg-[var(--row-hover)]'
                               }`}
                             >
-                              <td className="p-3 font-mono font-bold">@{s.supervisorUserId}</td>
+                              <td className="p-3 font-mono font-bold">
+                                <bdi dir="ltr">@{s.supervisorUserId}</bdi>
+                              </td>
                               <td className="p-3 font-semibold">{s.riderName || 'مندوب مسجل'}</td>
                               <td className="p-3 font-mono text-[var(--accent)]">{s.riderIqama}</td>
                               <td className="p-3 num text-xs">{s.validFrom?.split('T')[0] || '—'}</td>
@@ -1077,10 +1150,10 @@ function AdminPageInner() {
               <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
                 <div>
                   <h4 className="font-bold text-xs sm:text-sm text-[var(--ink)]">
-                    جداول التوجيه وتكليف المسؤولين بالعمليات (Routing)
+                    جداول التوجيه وتكليف المسؤولين بالعمليات
                   </h4>
                   <p className="text-[11px] text-[var(--muted)] mt-0.5">
-                    توجيه مهام مراجعة السلف (advance.review) وصرف الخزن والبنوك (advance.payout:&lt;vault&gt;) للمستخدمين المؤهلين رتبوياً.
+                    توجيه مهام مراجعة السلف وصرف الخزن والبنوك حسب الخزينة المحددة، للمستخدمين المؤهلين رتبوياً.
                   </p>
                 </div>
                 {canManageOrg && (
@@ -1113,7 +1186,7 @@ function AdminPageInner() {
                       size="sm"
                       className="w-72"
                       options={[
-                        { value: 'advance.review', label: 'مراجعة السلف (advance.review)' },
+                        { value: 'advance.review', label: 'مراجعة السلف' },
                         { value: 'advance.payout:MAIN.BW.DEBT', label: 'صرف كفيل البوابة نقدية (MAIN.BW.DEBT)' },
                         { value: 'advance.payout:BANK.BW', label: 'صرف كفيل البوابة بنك (BANK.BW)' },
                       ]}
@@ -1136,7 +1209,7 @@ function AdminPageInner() {
                         className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[var(--raised)] border border-[var(--line)] text-xs font-bold"
                       >
                         <UserCheck size={13} className="text-[var(--accent)]" />
-                        <span>@{ru.userId}</span>
+                        <bdi dir="ltr">@{ru.userId}</bdi>
                         <span className="text-[10px] text-[var(--muted)] font-mono">
                           ({ru.department}/{ru.rank} — {ru.via === 'delegation' ? 'بتفويض' : 'تعيين مباشر'})
                         </span>
@@ -1186,14 +1259,16 @@ function AdminPageInner() {
                                 isEnded ? 'opacity-60 bg-[var(--raised)]/30 text-[var(--muted)]' : 'hover:bg-[var(--row-hover)]'
                               }`}
                             >
-                              <td className="p-3 font-mono font-bold text-[var(--accent)]">{r.operation}</td>
+                              <td className="p-3 font-bold text-[var(--accent)]" title={r.operation}>
+                                {orgOperationLabelAr(r.operation)}
+                              </td>
                               <td className="p-3 font-mono text-xs">{r.department}</td>
                               <td className="p-3 font-bold">{r.minRank}</td>
                               <td className="p-3">
                                 <div className="flex items-center gap-1 flex-wrap">
                                   {r.users?.map((u, i) => (
                                     <span key={i} className="px-2 py-0.5 rounded-md bg-[var(--raised)] text-xs font-mono">
-                                      @{u}
+                                      <bdi dir="ltr">@{u}</bdi>
                                     </span>
                                   ))}
                                 </div>
@@ -1282,6 +1357,38 @@ function AdminPageInner() {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const headers = ['id', 'action', 'actor', 'at'];
+                  const lines = [
+                    headers.join(','),
+                    ...auditFilter.rows.map((log, idx) =>
+                      [
+                        log.id || idx + 1,
+                        auditActionLabelAr(log.action),
+                        log.actor || 'system',
+                        formatAuditAt(log.at || log.createdAt),
+                      ]
+                        .map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`)
+                        .join(',')
+                    ),
+                  ];
+                  const blob = new Blob(['\ufeff' + lines.join('\n')], {
+                    type: 'text/csv;charset=utf-8',
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'admin-audit.csv';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3.5 py-1.5 rounded-xl border border-[var(--line)] font-bold text-xs inline-flex items-center gap-1.5 hover:bg-[var(--raised)] transition cursor-pointer"
+              >
+                <Download size={14} />
+                <span>تصدير إكسل</span>
+              </button>
               <span className="text-xs text-[var(--muted)]">
                 {auditTotal} عملية مسجلة
               </span>
@@ -1317,17 +1424,20 @@ function AdminPageInner() {
                   <tbody className="divide-y divide-[var(--line)]">
                     {auditFilter.rows.map((log, idx) => (
                       <tr key={log.id || idx} className="hover:bg-[var(--row-hover)] transition">
-                        <td className="p-3 font-mono text-xs text-[var(--muted)]">{log.id || idx + 1}</td>
+                        <td className="p-3 font-mono text-xs text-[var(--muted)]" title={String(log.id || '')}>
+                          <span className="sm:hidden">{shortAuditId(log.id)}</span>
+                          <span className="hidden sm:inline">{log.id || idx + 1}</span>
+                        </td>
                         <td className="p-3">
-                          <span className="font-mono text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-md">
-                            {log.action}
+                          <span className="text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-md">
+                            {auditActionLabelAr(log.action)}
                           </span>
                         </td>
-                        <td className="p-3 font-mono font-semibold text-[var(--ink)]">
-                          @{log.actor || 'system'}
+                        <td className="p-3 font-semibold text-[var(--ink)]">
+                          <bdi dir="ltr">@{auditActorLabelAr(log.actor || 'system')}</bdi>
                         </td>
                         <td className="p-3 num text-xs text-[var(--muted)] whitespace-nowrap">
-                          {log.at || log.createdAt || '-'}
+                          {formatAuditAt(log.at || log.createdAt)}
                         </td>
                       </tr>
                     ))}
@@ -1595,7 +1705,7 @@ function AdminPageInner() {
             <label className="text-xs font-bold text-[var(--ink)]">العملية المفوضة:</label>
             <input
               type="text"
-              placeholder="e.g. advance.review"
+              placeholder="مثال: مراجعة السلف"
               value={delOperation}
               onChange={(e) => setDelOperation(e.target.value)}
               required
@@ -1733,7 +1843,7 @@ function AdminPageInner() {
               <input
                 type="text"
                 id="input-route-operation"
-                placeholder="e.g. advance.review or advance.payout:BANK.BW"
+                placeholder="رمز العملية الداخلي (يُملأ من النماذج السريعة)"
                 value={routeOperation}
                 onChange={(e) => setRouteOperation(e.target.value)}
                 required
@@ -1747,21 +1857,21 @@ function AdminPageInner() {
                 onClick={() => setRouteOperation('advance.review')}
                 className="px-2 py-0.5 rounded-md border text-[10px] hover:bg-[var(--raised)]"
               >
-                advance.review
+                مراجعة السلف
               </button>
               <button
                 type="button"
                 onClick={() => setRouteOperation('advance.payout:MAIN.BW.DEBT')}
                 className="px-2 py-0.5 rounded-md border text-[10px] hover:bg-[var(--raised)]"
               >
-                advance.payout:MAIN.BW.DEBT
+                صرف نقدي كفيل البوابة
               </button>
               <button
                 type="button"
                 onClick={() => setRouteOperation('advance.payout:BANK.BW')}
                 className="px-2 py-0.5 rounded-md border text-[10px] hover:bg-[var(--raised)]"
               >
-                advance.payout:BANK.BW
+                صرف بنكي كفيل البوابة
               </button>
             </div>
           </div>
@@ -1805,7 +1915,7 @@ function AdminPageInner() {
             <input
               type="text"
               id="input-route-users"
-              placeholder="e.g. syn-accountant, ahmed.ali"
+              placeholder="أسماء المستخدمين مفصولة بفواصل"
               value={routeUsers}
               onChange={(e) => setRouteUsers(e.target.value)}
               required
