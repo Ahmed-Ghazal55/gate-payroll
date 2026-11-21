@@ -1082,7 +1082,7 @@ export function DataTable<T extends Record<string, any>>({
       )}
 
       {/* Scrollable table container */}
-      <div className="relative overflow-x-auto overflow-y-auto max-h-[68vh] no-scrollbar">
+      <div className="relative overflow-x-auto overflow-y-auto max-h-[68vh] pb-3 no-scrollbar">
         <table className="w-full text-xs sm:text-sm text-start border-collapse" id={tableId}>
           {/* Table Header */}
           <thead className="sticky top-0 z-20 bg-[var(--raised)] border-b border-[var(--line)] text-[var(--ink)] shadow-xs">

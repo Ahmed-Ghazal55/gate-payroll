@@ -19,6 +19,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
+import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
@@ -161,9 +162,11 @@ function pickField(row: Record<string, unknown>, ...keys: string[]): string {
 
 function WorkforcePageInner() {
   const { toast } = useToast();
+  const { can, isAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const canViewLegal = can('riders.legal_cases.view') || isAdmin;
 
   const tabFromUrl = searchParams?.get('tab') || 'directory';
   const pageFromUrl = parseInt(searchParams?.get('page') || '1', 10);
@@ -652,7 +655,7 @@ function WorkforcePageInner() {
     { id: 'quality', label: 'جودة البيانات', icon: <Sparkles size={16} /> },
     { id: 'saudi', label: 'رواتب سعودية', icon: <Flag size={16} /> },
     { id: 'cases', label: 'الإنهاء والغياب', icon: <AlertTriangle size={16} /> },
-    ...(allowedActions.includes('view_legal_cases')
+    ...(canViewLegal || allowedActions.includes('view_legal_cases')
       ? [{ id: 'legal', label: 'القضايا', icon: <ShieldAlert size={16} /> } as SectionTabItem]
       : []),
   ];
