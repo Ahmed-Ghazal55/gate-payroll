@@ -117,5 +117,13 @@ public sealed class SchemaBankFileTests
         string reuse=MoneySchemaFixture.Id();
         MoneySchemaFixture.RejectAny(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_inter_company_settlement(id,bank_file_line_id,period_month,paying_company_id,entitlement_company_id,amount,payer_journal_id,entitlement_journal_id) VALUES(@id,@l,'2026-11-01',@p,@c,100,@pj,@ej)",("@id",reuse),("@l",otherLine.Line),("@p",payer),("@c",other),("@pj",rightPayer),("@ej",rightEnt)),
             "UQ_inter_company_payer_journal","UQ_inter_company_entitlement_journal","payer_journal_id","entitlement_journal_id");
+        Approve(c,otherFile);
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET status=2 WHERE id=@id",("@id",otherLine.Payment));
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",otherLine.Claim));
+        string wrongAmountSettlement=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_inter_company_settlement(id,bank_file_line_id,period_month,paying_company_id,entitlement_company_id,amount) VALUES(@id,@l,'2026-11-01',@p,@c,100)",("@id",wrongAmountSettlement),("@l",otherLine.Line),("@p",payer),("@c",other));
+        string wrongAmountPayer=SettlementJournal(c,payer,wrongAmountSettlement,100.01m),wrongAmountEnt=SettlementJournal(c,other,wrongAmountSettlement,100);
+        MoneySchemaFixture.Exec(c,null,"UPDATE fin_inter_company_settlement SET payer_journal_id=@p,entitlement_journal_id=@e WHERE id=@id",("@id",wrongAmountSettlement),("@p",wrongAmountPayer),("@e",wrongAmountEnt));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_inter_company_settlement SET status=2 WHERE id=@id",("@id",wrongAmountSettlement)),"TR_inter_company_source");
     }
 }
