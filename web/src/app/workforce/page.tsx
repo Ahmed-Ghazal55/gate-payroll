@@ -19,6 +19,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
+import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
@@ -161,9 +162,11 @@ function pickField(row: Record<string, unknown>, ...keys: string[]): string {
 
 function WorkforcePageInner() {
   const { toast } = useToast();
+  const { can, isAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const canViewLegal = can('riders.legal_cases.view') || isAdmin;
 
   const tabFromUrl = searchParams?.get('tab') || 'directory';
   const pageFromUrl = parseInt(searchParams?.get('page') || '1', 10);
@@ -474,7 +477,13 @@ function WorkforcePageInner() {
       const res = await api.getWorkforceLegalCases();
       setLegalItems((res?.items as Record<string, unknown>[]) || []);
       setCasesSource(res?.source || '');
-      if (res?.message) setCasesError(res.message);
+      if (res?.message) {
+        setCasesError(
+          res.source && res.source !== 'live'
+            ? `${res.message} — يحتاج اتصال حي.`
+            : res.message
+        );
+      }
     } catch (err: unknown) {
       const msg =
         err instanceof ApiError
@@ -482,9 +491,13 @@ function WorkforcePageInner() {
           : err instanceof Error
           ? err.message
           : 'تعذر تحميل القضايا القانونية';
-      setCasesError(msg);
+      const liveHint =
+        err instanceof ApiError && (err.status === 502 || err.status === 503)
+          ? 'يحتاج اتصال حي للوصول لسجل القضايا من نظام عمر.'
+          : msg;
+      setCasesError(liveHint);
       setLegalItems([]);
-      toast(msg, 'danger');
+      toast(liveHint, 'danger');
     } finally {
       setLoadingCases(false);
     }
@@ -642,7 +655,7 @@ function WorkforcePageInner() {
     { id: 'quality', label: 'جودة البيانات', icon: <Sparkles size={16} /> },
     { id: 'saudi', label: 'رواتب سعودية', icon: <Flag size={16} /> },
     { id: 'cases', label: 'الإنهاء والغياب', icon: <AlertTriangle size={16} /> },
-    ...(allowedActions.includes('view_legal_cases')
+    ...(canViewLegal || allowedActions.includes('view_legal_cases')
       ? [{ id: 'legal', label: 'القضايا', icon: <ShieldAlert size={16} /> } as SectionTabItem]
       : []),
   ];
@@ -678,7 +691,7 @@ function WorkforcePageInner() {
         getValue: (r) => r.city || '',
         render: (r) => (
           <StackedCell
-            primary={r.phone || '—'}
+            primary={r.phone ? <bdi dir="ltr">{r.phone}</bdi> : '—'}
             secondary={r.city || '—'}
             tertiary={r.nationality || undefined}
           />
@@ -1426,7 +1439,13 @@ function WorkforcePageInner() {
                           {profileData.person?.iqama || '—'}
                         </span>
                         <span>•</span>
-                        <span>{profileData.person?.phone || 'بدون جوال'}</span>
+                        <span>
+                          {profileData.person?.phone ? (
+                            <bdi dir="ltr">{profileData.person.phone}</bdi>
+                          ) : (
+                            'بدون جوال'
+                          )}
+                        </span>
                         <span>•</span>
                         <span>{profileData.person?.city || 'بدون مدينة'}</span>
                         <span>•</span>

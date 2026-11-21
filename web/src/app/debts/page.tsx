@@ -102,6 +102,17 @@ const DEBT_STATUS_AR: Record<string, string> = {
 function debtStatusLabel(status: string): string {
   return DEBT_STATUS_AR[status] || 'غير معروف';
 }
+
+const PROMISSORY_STATUS_AR: Record<string, string> = {
+  Draft: 'مسودة',
+  ActiveNafez: 'نشط في نافذ',
+  Cleared: 'مُسدَّد',
+  NajizCourt: 'محال لناجز',
+};
+function promissoryStatusLabel(status: string | null | undefined): string {
+  const key = (status || '').trim();
+  return PROMISSORY_STATUS_AR[key] || (key ? key : 'غير معروف');
+}
 const isPendingOpening = (d: DebtRecord) =>
   d.entryMode === 'OpeningBalance' && d.status === 'pending_approval' && !d.approvalRequestId;
 
@@ -843,6 +854,7 @@ function DebtsPageContent() {
         header: 'المبلغ الأصلي',
         type: 'number',
         numeric: true,
+        money: true,
         filterType: 'number',
         getValue: (d) => d.originalAmount ?? 0,
         render: (d) => (
@@ -856,6 +868,7 @@ function DebtsPageContent() {
         header: 'المبلغ المتبقي',
         type: 'number',
         numeric: true,
+        money: true,
         filterType: 'number',
         filterColumn: 'remainingBalance',
         getValue: (d) => d.remainingAmount ?? 0,
@@ -870,6 +883,7 @@ function DebtsPageContent() {
         header: 'القسط الشهري',
         type: 'number',
         numeric: true,
+        money: true,
         filterType: 'number',
         getValue: (d) => d.monthlyInstallment || d.monthlyDeduction || 0,
         render: (d) => {
@@ -1728,9 +1742,21 @@ function DebtsPageContent() {
               columns={[
                 { key: 'noteNumber', header: 'رقم السند', type: 'text', getValue: (pn) => pn.noteNumber || pn.id, render: (pn) => <span className="font-mono text-xs">{pn.noteNumber || pn.id}</span> },
                 { key: 'iqama', header: 'رقم الإقامة', type: 'text', getValue: (pn) => pn.iqama, render: (pn) => <span className="font-mono">{pn.iqama}</span> },
-                { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, getValue: (pn) => pn.amount, render: (pn) => <span className="num font-bold whitespace-nowrap">{formatSar(pn.amount)}</span> },
+                { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, money: true, getValue: (pn) => pn.amount, render: (pn) => <span className="num font-bold whitespace-nowrap">{formatSar(pn.amount)}</span> },
                 { key: 'dueDate', header: 'تاريخ الاستحقاق', type: 'date', getValue: (pn) => pn.dueDate, render: (pn) => <span className="num text-xs">{pn.dueDate}</span> },
-                { key: 'status', header: 'الحالة', type: 'list', getValue: (pn) => pn.status, toneOf: defaultStatusTone, render: (pn) => <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">{pn.status}</span> },
+                {
+                  key: 'status',
+                  header: 'الحالة',
+                  type: 'list',
+                  getValue: (pn) => pn.status,
+                  labelOf: (v) => promissoryStatusLabel(String(v ?? '')),
+                  toneOf: defaultStatusTone,
+                  render: (pn) => (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
+                      {promissoryStatusLabel(pn.status)}
+                    </span>
+                  ),
+                },
               ]}
             />
           )}

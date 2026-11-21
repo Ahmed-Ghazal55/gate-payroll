@@ -38,6 +38,14 @@ function SectionTabsInner({
 
   const paramValue = searchParams?.get(paramName);
   const currentTab = activeTab || paramValue || tabs[0]?.id;
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const idx = tabs.findIndex((t) => t.id === currentTab);
+    if (idx < 0) return;
+    const el = tabRefs.current[idx];
+    el?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+  }, [currentTab, tabs]);
 
   // Sync tab change
   const handleSelect = (id: string) => {
@@ -82,9 +90,10 @@ function SectionTabsInner({
 
   return (
     <div
+      ref={scrollerRef}
       role="tablist"
       aria-label={ariaLabel}
-      className={`flex items-center gap-1.5 overflow-x-auto no-scrollbar ${
+      className={`flex items-center gap-1.5 overflow-x-auto scroll-smooth [scrollbar-width:thin] ${
         variant === 'underline'
           ? 'border-b border-[var(--line)] py-1'
           : variant === 'pills'

@@ -47,7 +47,7 @@ public static class Vouchers
             doc["voucherNo"]=manual.S("voucherNo");doc["voucherVerifyUrl"]=Url(manual.S("voucherNo"));doc["odooVoucherNo"]=manual.S("odooVoucherNo");return;
         }
         J.Need(doc.S("voucherNo")=="","رقم السند يتولد من الخادم فقط.");
-        if(signingKey==null)throw new ApiError("أكمل إعدادVouchers:Secretقبل إنشاء مستند مالي.",503);
+        if(signingKey==null)throw new ApiError("أكمل إعداد مفتاح توقيع السندات المالية قبل إنشاء مستند مالي.",503);
         string year=Year(doc),sequenceId="voucher-seq:"+Hash(company+":"+type+":"+year);var sequence=Store.Get(c,sequenceId,"voucher_sequence",tx)??new JsonObject{["id"]=sequenceId,["last"]=0};
         long next=checked((long)sequence.N("last")+1);J.Need(next<=999999999999,"نفد نطاق تسلسل السند.");
         string stem=type+"-"+year+"-"+next.ToString("D6",CultureInfo.InvariantCulture);string check=Convert.ToHexString(HMACSHA256.HashData(signingKey,Encoding.UTF8.GetBytes(company+":"+stem)))[..8],number=stem+"-"+check;

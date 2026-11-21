@@ -49,19 +49,34 @@ function BreadcrumbsNav() {
   if (parts.length > 0) {
     const section = parts[0];
     const sectionLabels: Record<string, string> = {
-      riders: 'المناديب',
+      workforce: 'القوى العاملة',
+      riders: 'القوى العاملة',
       companies: 'الشركات والسجلات',
-      operations: 'التشغيل والأصول',
+      hr: 'كتالوجات الموارد البشرية',
+      operations: 'التشغيل والأسطول',
       payroll: 'الرواتب',
       debts: 'المديونيات والسلف',
       treasury: 'البنوك والصناديق والخزن',
       accounting: 'المحاسبة والتقارير',
       forms: 'النماذج والردود',
+      'rider-app': 'تطبيق المناديب والنماذج',
       notifications: 'الإشعارات والتنبيهات',
       admin: 'الإدارة',
     };
     if (sectionLabels[section]) {
-      crumbs.push({ label: sectionLabels[section], href: `/${section}/` });
+      const href =
+        section === 'riders' && parts[1] === 'statement'
+          ? '/riders/statement/'
+          : section === 'hr'
+            ? '/hr/catalogs/'
+            : `/${section}/`;
+      crumbs.push({ label: sectionLabels[section], href });
+    }
+    if (section === 'riders' && parts[1] === 'statement') {
+      crumbs.push({ label: 'كشف حساب المندوب', href: '/riders/statement/' });
+    }
+    if (section === 'workforce') {
+      crumbs.push({ label: 'القوى العاملة', href: '/workforce/' });
     }
   }
 
@@ -71,6 +86,11 @@ function BreadcrumbsNav() {
       campaigns: 'الحملات والروابط',
       builder: 'مصمم النماذج',
       responses: 'مراجعة الردود',
+      accounts: 'الحسابات والأجهزة',
+      broadcasts: 'الإشعارات والإرسال',
+      statements: 'إرسال كشوف الحساب',
+      requests: 'الطلبات والمواعيد',
+      settings: 'إعدادات التطبيق',
       analytics: 'التحليلات',
     };
     if (tabLabels[tab]) {
@@ -577,7 +597,7 @@ export function Header({
                   {user?.displayNameAr || 'مدير النظام'}
                 </span>
                 <span className="text-[10px] text-[var(--muted)] leading-tight truncate">
-                  {user?.role || 'مسؤول'}
+                  {user?.roleNameAr || user?.role || 'مسؤول'}
                 </span>
               </div>
               <ChevronDown size={14} className="hidden sm:block text-[var(--muted)]" />
@@ -590,7 +610,7 @@ export function Header({
                     {user?.displayNameAr || 'مدير النظام'}
                   </div>
                   <div className="text-[11px] text-[var(--muted)]">
-                    @{user?.username || 'admin'} · {user?.role || 'مسؤول'}
+                    @{user?.username || 'admin'} · {user?.roleNameAr || user?.role || 'مسؤول'}
                   </div>
                 </div>
 
