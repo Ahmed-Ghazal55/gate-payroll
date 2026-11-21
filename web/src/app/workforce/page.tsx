@@ -24,11 +24,13 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
-import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { DataTable, ColumnDef, defaultStatusTone } from '../../components/ui/DataTable';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { SourceBadge } from '../../components/ui/SourceBadge';
 import { IbanDisplay } from '../../components/ui/IbanDisplay';
+import { platformLabelAr } from '../../features/companies/company-stats';
 import { inApp } from '../../lib/paths';
+import { formatSar } from '../../lib/money';
 import type {
   WorkforceListResponse,
   Workforce360Response,
@@ -168,13 +170,23 @@ function WorkforcePageInner() {
   const sizeFromUrl = parseInt(searchParams?.get('size') || '50', 10);
   const qFromUrl = searchParams?.get('q') || '';
   const iqamaFromUrl = searchParams?.get('iqama') || searchParams?.get('id') || '';
+  const companyFromUrl =
+    searchParams?.get('company') ||
+    searchParams?.get('sponsorUnified') ||
+    searchParams?.get('companyId') ||
+    '';
+  const platformFromUrl = searchParams?.get('platform') || '';
 
   const [activeTab, setActiveTab] = useState(tabFromUrl);
   const [page, setPage] = useState(pageFromUrl > 0 ? pageFromUrl : 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZES.includes(sizeFromUrl) ? sizeFromUrl : 50);
   const [searchQuery, setSearchQuery] = useState(qFromUrl);
   const [debouncedQuery, setDebouncedQuery] = useState(qFromUrl);
-  const [filters, setFilters] = useState<ListFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<ListFilters>(() => ({
+    ...EMPTY_FILTERS,
+    sponsorUnified: companyFromUrl,
+    platform: platformFromUrl,
+  }));
 
   const [items, setItems] = useState<WorkforcePerson[]>([]);
   const [total, setTotal] = useState(0);
@@ -215,6 +227,13 @@ function WorkforcePageInner() {
   }, [tabFromUrl]);
 
   useEffect(() => {
+    setFilters((prev) => {
+      if (prev.sponsorUnified === companyFromUrl && prev.platform === platformFromUrl) return prev;
+      return { ...prev, sponsorUnified: companyFromUrl, platform: platformFromUrl };
+    });
+  }, [companyFromUrl, platformFromUrl]);
+
+  useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -226,6 +245,8 @@ function WorkforcePageInner() {
       size?: number;
       q?: string;
       iqama?: string;
+      company?: string;
+      platform?: string;
     }) => {
       if (typeof window === 'undefined') return;
       const sp = new URLSearchParams(searchParams?.toString() || '');
@@ -245,6 +266,16 @@ function WorkforcePageInner() {
       if (nextQ.trim()) sp.set('q', nextQ.trim());
       else sp.delete('q');
 
+      const nextCompany = opts.company ?? filters.sponsorUnified;
+      if (nextCompany.trim()) sp.set('company', nextCompany.trim());
+      else sp.delete('company');
+      sp.delete('sponsorUnified');
+      sp.delete('companyId');
+
+      const nextPlatform = opts.platform ?? filters.platform;
+      if (nextPlatform.trim()) sp.set('platform', nextPlatform.trim());
+      else sp.delete('platform');
+
       if (opts.iqama !== undefined) {
         if (opts.iqama.trim()) sp.set('iqama', opts.iqama.trim());
         else sp.delete('iqama');
@@ -254,15 +285,33 @@ function WorkforcePageInner() {
       const qs = sp.toString() ? `?${sp.toString()}` : '';
       router.replace(`${pathname}${qs}`, { scroll: false });
     },
-    [router, pathname, searchParams, activeTab, page, pageSize, debouncedQuery]
+    [
+      router,
+      pathname,
+      searchParams,
+      activeTab,
+      page,
+      pageSize,
+      debouncedQuery,
+      filters.sponsorUnified,
+      filters.platform,
+    ]
   );
+
+  const [directoryServerQuery, setDirectoryServerQuery] = useState<{
+    filtersParam?: string;
+    sortParam?: string;
+  }>({});
+  const directoryServerQueryRef = useRef(directoryServerQuery);
+  directoryServerQueryRef.current = directoryServerQuery;
 
   const loadDirectory = useCallback(
     async (
       targetPage: number,
       targetPageSize: number,
       targetQuery: string,
-      targetFilters: ListFilters
+      targetFilters: ListFilters,
+      targetServerQuery = directoryServerQueryRef.current
     ) => {
       directoryAbort.current?.abort();
       const ac = new AbortController();
@@ -281,6 +330,8 @@ function WorkforcePageInner() {
           platform: targetFilters.platform || undefined,
           city: targetFilters.city || undefined,
           missingIban: targetFilters.missingIban || undefined,
+          filters: targetServerQuery.filtersParam,
+          sort: targetServerQuery.sortParam,
           signal: ac.signal,
         });
         if (ac.signal.aborted) return;
@@ -449,7 +500,13 @@ function WorkforcePageInner() {
       return;
     }
     setPage(1);
-    updateUrl({ tab: 'directory', page: 1, q: debouncedQuery });
+    updateUrl({
+      tab: 'directory',
+      page: 1,
+      q: debouncedQuery,
+      company: filters.sponsorUnified,
+      platform: filters.platform,
+    });
     loadDirectory(1, pageSize, debouncedQuery, filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload on query/filter change only
   }, [debouncedQuery, filters, activeTab]);
@@ -505,6 +562,80 @@ function WorkforcePageInner() {
     loadProfile360(key);
   };
 
+  const [distinctCities, setDistinctCities] = useState<string[]>([]);
+  const [distinctPlatforms, setDistinctPlatforms] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getDistinctValues('/workforce/distinct', 'city')
+      .then((res) => {
+        if (active && Array.isArray(res?.values)) setDistinctCities(res.values);
+      })
+      .catch(() => {});
+    api
+      .getDistinctValues('/workforce/distinct', 'platform')
+      .then((res) => {
+        if (active && Array.isArray(res?.values)) setDistinctPlatforms(res.values);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const companyFilterOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of summary?.byCompany || []) {
+      if (c.sponsorUnified) {
+        map.set(String(c.sponsorUnified), String(c.sponsorNameAr || c.sponsorUnified));
+      }
+    }
+    if (filters.sponsorUnified && !map.has(filters.sponsorUnified)) {
+      map.set(filters.sponsorUnified, filters.sponsorUnified);
+    }
+    return [
+      { value: 'all', label: 'كل الشركات' },
+      ...Array.from(map.entries()).map(([value, label]) => ({ value, label })),
+    ];
+  }, [summary, filters.sponsorUnified]);
+
+  const platformFilterOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of distinctPlatforms) {
+      const clean = String(p || '').trim();
+      if (clean && !map.has(clean)) map.set(clean, platformLabelAr(clean));
+    }
+    for (const r of items) {
+      const p = String(r.platform || r.platforms || '').trim();
+      if (p && !map.has(p)) map.set(p, platformLabelAr(p));
+    }
+    if (filters.platform && !map.has(filters.platform)) {
+      map.set(filters.platform, platformLabelAr(filters.platform));
+    }
+    return [
+      { value: 'all', label: 'كل المنصات' },
+      ...Array.from(map.entries()).map(([value, label]) => ({ value, label })),
+    ];
+  }, [distinctPlatforms, items, filters.platform]);
+
+  const cityFilterOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of distinctCities) {
+      const clean = String(c || '').trim();
+      if (clean) set.add(clean);
+    }
+    for (const r of items) {
+      const clean = String(r.city || '').trim();
+      if (clean) set.add(clean);
+    }
+    if (filters.city) set.add(filters.city);
+    return [
+      { value: 'all', label: 'كل المدن' },
+      ...Array.from(set).map((c) => ({ value: c, label: c })),
+    ];
+  }, [distinctCities, items, filters.city]);
+
   const sectionTabs: SectionTabItem[] = [
     { id: 'directory', label: 'الدليل', icon: <Users size={16} /> },
     { id: '360', label: 'الملف 360', icon: <UserCheck size={16} /> },
@@ -521,7 +652,10 @@ function WorkforcePageInner() {
       {
         key: 'person',
         header: 'الشخص / الإقامة',
+        type: 'text',
         filterable: true,
+        filterType: 'text',
+        filterColumn: 'name',
         getValue: (r) => `${r.name || ''} ${r.iqama || ''}`,
         render: (r) => (
           <StackedCell
@@ -538,7 +672,10 @@ function WorkforcePageInner() {
       {
         key: 'contact',
         header: 'التواصل / المدينة',
-        getValue: (r) => `${r.phone || ''} ${r.city || ''}`,
+        type: 'list',
+        filterType: 'list',
+        filterColumn: 'city',
+        getValue: (r) => r.city || '',
         render: (r) => (
           <StackedCell
             primary={r.phone || '—'}
@@ -550,7 +687,10 @@ function WorkforcePageInner() {
       {
         key: 'sponsor',
         header: 'الكفيل / الدور',
-        getValue: (r) => `${r.sponsorNameAr || r.sponsor || ''} ${r.workType || ''}`,
+        type: 'list',
+        filterType: 'list',
+        filterColumn: 'sponsorNameAr',
+        getValue: (r) => r.sponsorNameAr || r.sponsor || '',
         render: (r) => (
           <StackedCell
             primary={r.sponsorNameAr || r.sponsor || '—'}
@@ -562,7 +702,11 @@ function WorkforcePageInner() {
       {
         key: 'platform',
         header: 'المنصة / الآيبان',
-        getValue: (r) => `${r.platform || r.platforms || ''} ${r.iban || ''}`,
+        type: 'list',
+        filterType: 'list',
+        filterColumn: 'platform',
+        getValue: (r) => r.platform || r.platforms || '',
+        labelOf: (v) => (v ? platformLabelAr(String(v)) : ''),
         render: (r) => (
           <div className="flex flex-col gap-1.5 min-w-0">
             <StackedCell
@@ -585,7 +729,18 @@ function WorkforcePageInner() {
       {
         key: 'mudadSalary',
         header: 'راتب مدد / المركبة',
-        getValue: (r) => `${r.mudadSalary || ''} ${vehicleLabel(r)}`,
+        type: 'list',
+        filterType: 'list',
+        filterColumn: 'companyVehicleType',
+        getValue: (r) => r.companyVehicleType || '',
+        labelOf: (v) => {
+          const s = String(v ?? '').trim();
+          if (!s) return 'بدون مركبة شركة';
+          const low = s.toLowerCase();
+          if (low === 'car') return 'مركبة شركة · سيارة';
+          if (low === 'motorcycle') return 'مركبة شركة · دراجة نارية';
+          return `مركبة شركة · ${s}`;
+        },
         render: (r) => (
           <StackedCell
             primary={<span className="whitespace-nowrap">{r.mudadSalary || '—'}</span>}
@@ -605,7 +760,17 @@ function WorkforcePageInner() {
       {
         key: 'status',
         header: 'الحالة',
+        type: 'list',
         filterable: true,
+        filterType: 'list',
+        getValue: (r) => r.status || '',
+        labelOf: (v) => statusLabel(String(v || '')),
+        toneOf: (v) =>
+          v === 'Active' || v === 'نشط'
+            ? 'success'
+            : v === 'NeedsReview'
+              ? 'warning'
+              : defaultStatusTone(v),
         render: (r) => (
           <StackedCell
             primary={
@@ -650,11 +815,15 @@ function WorkforcePageInner() {
       {
         key: 'name',
         header: 'الاسم',
+        type: 'text',
+        getValue: (r) => String(r.name ?? ''),
         render: (r) => <span className="font-semibold">{cellText(r.name)}</span>,
       },
       {
         key: 'iqama',
         header: 'الإقامة',
+        type: 'text',
+        getValue: (r) => String(r.iqama ?? ''),
         render: (r) => (
           <span className="font-mono font-bold" dir="ltr">
             {cellText(r.iqama)}
@@ -664,6 +833,10 @@ function WorkforcePageInner() {
       {
         key: 'issueKind',
         header: 'نوع المشكلة',
+        type: 'list',
+        getValue: (r) => String(r.issueKind || ''),
+        labelOf: (v) => ISSUE_LABELS[String(v || '')] || String(v || ''),
+        toneOf: () => 'warning',
         render: (r) => (
           <span className="whitespace-nowrap">
             {ISSUE_LABELS[String(r.issueKind || '')] || cellText(r.issueKind)}
@@ -673,6 +846,8 @@ function WorkforcePageInner() {
       {
         key: 'suggestedAction',
         header: 'الإجراء المقترح',
+        type: 'list',
+        getValue: (r) => String(r.suggestedAction ?? ''),
         render: (r) => (
           <span className="text-[var(--muted)] whitespace-nowrap">{cellText(r.suggestedAction)}</span>
         ),
@@ -680,6 +855,9 @@ function WorkforcePageInner() {
       {
         key: 'source',
         header: 'المصدر',
+        type: 'list',
+        getValue: (r) => String(r.source || ''),
+        labelOf: (v) => SOURCE_LABELS[String(v || '')] || String(v || ''),
         render: (r) => (
           <span className="text-xs whitespace-nowrap">
             {SOURCE_LABELS[String(r.source || '')] || cellText(r.source)}
@@ -695,16 +873,22 @@ function WorkforcePageInner() {
       {
         key: 'number',
         header: 'الرقم',
+        type: 'text',
+        getValue: (r) => String(r.number ?? ''),
         render: (r) => <span className="font-mono">{cellText(r.number)}</span>,
       },
       {
         key: 'name',
         header: 'الاسم',
+        type: 'text',
+        getValue: (r) => String(r.name ?? ''),
         render: (r) => <span className="font-semibold">{cellText(r.name)}</span>,
       },
       {
         key: 'nationalId',
         header: 'الهوية',
+        type: 'text',
+        getValue: (r) => String(r.nationalId ?? ''),
         render: (r) => (
           <span className="font-mono font-bold" dir="ltr">
             {cellText(r.nationalId)}
@@ -714,16 +898,22 @@ function WorkforcePageInner() {
       {
         key: 'sponsorNameAr',
         header: 'الكفيل',
+        type: 'list',
+        getValue: (r) => String(r.sponsorNameAr ?? ''),
         render: (r) => <span className="whitespace-nowrap">{cellText(r.sponsorNameAr)}</span>,
       },
       {
         key: 'country',
         header: 'الدولة',
+        type: 'list',
+        getValue: (r) => String(r.country ?? ''),
         render: (r) => <span className="whitespace-nowrap">{cellText(r.country)}</span>,
       },
       {
         key: 'joiningDate',
         header: 'تاريخ الالتحاق',
+        type: 'date',
+        getValue: (r) => String(r.joiningDate ?? ''),
         render: (r) => (
           <span className="font-mono text-xs whitespace-nowrap">{cellText(r.joiningDate)}</span>
         ),
@@ -731,6 +921,8 @@ function WorkforcePageInner() {
       {
         key: 'unifiedNationalNumber',
         header: 'الرقم الموحّد',
+        type: 'text',
+        getValue: (r) => String(r.unifiedNationalNumber ?? ''),
         render: (r) => (
           <span className="font-mono text-xs whitespace-nowrap" dir="ltr">
             {cellText(r.unifiedNationalNumber)}
@@ -740,11 +932,16 @@ function WorkforcePageInner() {
       {
         key: 'salary',
         header: 'الراتب',
-        render: (r) => <span className="num whitespace-nowrap">{cellText(r.salary) || '—'}</span>,
+        type: 'number',
+        numeric: true,
+        getValue: (r) => (r.salary != null && r.salary !== '' ? Number(r.salary) : ''),
+        render: (r) => <span className="num whitespace-nowrap">{formatSar(r.salary as number | string | null | undefined)}</span>,
       },
       {
         key: 'personalIban',
         header: 'الآيبان',
+        type: 'text',
+        getValue: (r) => (allowedActions.includes('view_iban') ? String(r.personalIban || '') : ''),
         render: (r) =>
           allowedActions.includes('view_iban') ? (
             <IbanDisplay iban={String(r.personalIban || '')} masked={false} />
@@ -755,6 +952,10 @@ function WorkforcePageInner() {
       {
         key: 'status',
         header: 'الحالة',
+        type: 'list',
+        getValue: (r) => String(r.status || ''),
+        labelOf: (v) => statusLabel(String(v || '')),
+        toneOf: defaultStatusTone,
         render: (r) => <span className="whitespace-nowrap">{statusLabel(String(r.status || ''))}</span>,
       },
     ],
@@ -766,11 +967,15 @@ function WorkforcePageInner() {
       {
         key: 'name',
         header: 'الاسم',
+        type: 'text',
+        getValue: (r) => String(r.name ?? ''),
         render: (r) => <span className="font-semibold">{cellText(r.name)}</span>,
       },
       {
         key: 'iqama',
         header: 'الإقامة',
+        type: 'text',
+        getValue: (r) => String(r.iqama ?? ''),
         render: (r) => (
           <span className="font-mono font-bold" dir="ltr">
             {cellText(r.iqama)}
@@ -780,11 +985,17 @@ function WorkforcePageInner() {
       {
         key: 'status',
         header: 'الحالة',
+        type: 'list',
+        getValue: (r) => String(r.status || ''),
+        labelOf: (v) => statusLabel(String(v || '')),
+        toneOf: defaultStatusTone,
         render: (r) => <span className="whitespace-nowrap">{statusLabel(String(r.status || ''))}</span>,
       },
       {
         key: 'terminationDate',
         header: 'تاريخ الإنهاء',
+        type: 'date',
+        getValue: (r) => String(r.terminationDate ?? ''),
         render: (r) => (
           <span className="font-mono text-xs whitespace-nowrap">{cellText(r.terminationDate)}</span>
         ),
@@ -792,11 +1003,15 @@ function WorkforcePageInner() {
       {
         key: 'statusReason',
         header: 'السبب',
+        type: 'text',
+        getValue: (r) => String(r.statusReason ?? ''),
         render: (r) => <span className="text-[var(--muted)]">{cellText(r.statusReason)}</span>,
       },
       {
         key: 'city',
         header: 'المدينة',
+        type: 'list',
+        getValue: (r) => String(r.city ?? ''),
         render: (r) => <span>{cellText(r.city)}</span>,
       },
     ],
@@ -808,6 +1023,8 @@ function WorkforcePageInner() {
       {
         key: 'CaseNumber',
         header: 'رقم الحالة',
+        type: 'text',
+        getValue: (r) => String(pickField(r, 'CaseNumber', 'caseNumber') ?? ''),
         render: (r) => (
           <span className="font-mono font-bold">
             {cellText(pickField(r, 'CaseNumber', 'caseNumber'))}
@@ -817,6 +1034,8 @@ function WorkforcePageInner() {
       {
         key: 'EmployeeNameAr',
         header: 'الاسم',
+        type: 'text',
+        getValue: (r) => String(pickField(r, 'EmployeeNameAr', 'employeeNameAr', 'name') ?? ''),
         render: (r) => (
           <span className="font-semibold">
             {cellText(pickField(r, 'EmployeeNameAr', 'employeeNameAr', 'name'))}
@@ -826,6 +1045,8 @@ function WorkforcePageInner() {
       {
         key: 'IqamaNo',
         header: 'الإقامة',
+        type: 'text',
+        getValue: (r) => String(pickField(r, 'IqamaNo', 'iqamaNo', 'iqama') ?? ''),
         render: (r) => (
           <span className="font-mono font-bold" dir="ltr">
             {cellText(pickField(r, 'IqamaNo', 'iqamaNo', 'iqama'))}
@@ -835,6 +1056,8 @@ function WorkforcePageInner() {
       {
         key: 'AbsenceDate',
         header: 'تاريخ الغياب',
+        type: 'date',
+        getValue: (r) => String(pickField(r, 'AbsenceDate', 'absenceDate') ?? ''),
         render: (r) => (
           <span className="font-mono text-xs">
             {cellText(pickField(r, 'AbsenceDate', 'absenceDate'))}
@@ -844,12 +1067,18 @@ function WorkforcePageInner() {
       {
         key: 'CurrentPath',
         header: 'المسار',
+        type: 'list',
+        getValue: (r) => String(pickField(r, 'CurrentPath', 'currentPath') ?? ''),
         render: (r) => <span>{cellText(pickField(r, 'CurrentPath', 'currentPath'))}</span>,
       },
       {
         key: 'Status',
         header: 'الحالة',
-        render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
+        type: 'list',
+        getValue: (r) => String(pickField(r, 'Status', 'status') ?? ''),
+        labelOf: (v) => statusLabel(String(v || '')),
+        toneOf: defaultStatusTone,
+        render: (r) => <span>{statusLabel(String(pickField(r, 'Status', 'status') ?? ''))}</span>,
       },
     ],
     []
@@ -1014,15 +1243,7 @@ function WorkforcePageInner() {
                 ariaLabel="تصفية الشركة"
                 placeholder="كل الشركات"
                 className="w-48"
-                options={[
-                  { value: 'all', label: 'كل الشركات' },
-                  ...((summary?.byCompany || [])
-                    .filter((c) => c.sponsorUnified)
-                    .map((c) => ({
-                      value: String(c.sponsorUnified),
-                      label: String(c.sponsorNameAr || c.sponsorUnified),
-                    })) || []),
-                ]}
+                options={companyFilterOptions}
               />
               <SearchableSelect
                 id="wf-platform"
@@ -1036,12 +1257,7 @@ function WorkforcePageInner() {
                 ariaLabel="تصفية المنصة"
                 placeholder="كل المنصات"
                 className="w-40"
-                options={[
-                  { value: 'all', label: 'كل المنصات' },
-                  ...Array.from(
-                    new Set(items.map((r) => r.platform || r.platforms).filter(Boolean) as string[])
-                  ).map((p) => ({ value: p, label: p })),
-                ]}
+                options={platformFilterOptions}
               />
               <SearchableSelect
                 id="wf-city"
@@ -1055,12 +1271,7 @@ function WorkforcePageInner() {
                 ariaLabel="تصفية المدينة"
                 placeholder="كل المدن"
                 className="w-40"
-                options={[
-                  { value: 'all', label: 'كل المدن' },
-                  ...Array.from(new Set(items.map((r) => r.city).filter(Boolean) as string[])).map(
-                    (c) => ({ value: c, label: c })
-                  ),
-                ]}
+                options={cityFilterOptions}
               />
             </div>
             <span className="text-xs text-[var(--muted)]">
@@ -1107,6 +1318,24 @@ function WorkforcePageInner() {
               emptyDescription="لا توجد سجلات تطابق الفلاتر الحالية."
               exportFilename="workforce_directory"
               serverSide
+              distinctEndpoint="/workforce/distinct"
+              distinctParams={{
+                q: debouncedQuery.trim() || undefined,
+                sponsorship: filters.sponsorship || undefined,
+                workType: filters.workType || undefined,
+                status: filters.status || undefined,
+                sponsorUnified: filters.sponsorUnified || undefined,
+                platform: filters.platform || undefined,
+                city: filters.city || undefined,
+                missingIban: filters.missingIban ? 'true' : undefined,
+                filters: directoryServerQuery.filtersParam,
+              }}
+              onServerQueryChange={(sq) => {
+                const next = { filtersParam: sq.filtersParam, sortParam: sq.sortParam };
+                setDirectoryServerQuery(next);
+                setPage(1);
+                loadDirectory(1, pageSize, debouncedQuery, filters, next);
+              }}
               page={page}
               pageSize={pageSize}
               pageSizes={PAGE_SIZES}
@@ -1126,6 +1355,8 @@ function WorkforcePageInner() {
                   platform: filters.platform || undefined,
                   city: filters.city || undefined,
                   missingIban: filters.missingIban || undefined,
+                  filters: directoryServerQuery.filtersParam,
+                  sort: directoryServerQuery.sortParam,
                 });
                 if (!res.ok) throw new Error('تعذر تصدير الملف');
                 const blob = await res.blob();
@@ -1233,32 +1464,24 @@ function WorkforcePageInner() {
                 {(profileData.workRecord3Months || []).length === 0 ? (
                   <EmptyState title="لا يوجد سجل عمل" description="لا توجد تعيينات خلال الأشهر الثلاثة الأخيرة." />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-start text-xs sm:text-sm">
-                      <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)]">
-                        <tr>
-                          <th className="p-3 text-start">الشهر</th>
-                          <th className="p-3 text-start">المنصة</th>
-                          <th className="p-3 text-start">أيام العمل</th>
-                          <th className="p-3 text-start">الطلبات</th>
-                          <th className="p-3 text-start">صافي المستحق</th>
-                          <th className="p-3 text-start">الحالة</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--line)]">
-                        {profileData.workRecord3Months.map((row, idx) => (
-                          <tr key={`${row.month}-${row.platform}-${idx}`}>
-                            <td className="p-3 font-mono">{cellText(row.month)}</td>
-                            <td className="p-3">{cellText(row.platform)}</td>
-                            <td className="p-3 whitespace-pre-wrap">{cellText(row.workDays)}</td>
-                            <td className="p-3 whitespace-pre-wrap">{cellText(row.orders)}</td>
-                            <td className="p-3 whitespace-pre-wrap">{cellText(row.netDue)}</td>
-                            <td className="p-3">{cellText(row.status)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <DataTable
+                    tableId="workforce-360-work-records"
+                    data={profileData.workRecord3Months}
+                    getRowId={(r: any) => `${r.month ?? ''}-${r.platform ?? ''}-${r.workDays ?? ''}-${r.orders ?? ''}`}
+                    searchable={false}
+                    exportable={false}
+                    syncUrl={false}
+                    showTotals={false}
+                    showFilterRow={false}
+                    columns={[
+                      { key: 'month', header: 'الشهر', type: 'date', getValue: (r) => String(r.month ?? ''), render: (r) => <span className="font-mono">{cellText(r.month)}</span> },
+                      { key: 'platform', header: 'المنصة', type: 'list', getValue: (r) => String(r.platform ?? ''), labelOf: (v) => (v ? platformLabelAr(String(v)) : ''), render: (r) => cellText(r.platform) },
+                      { key: 'workDays', header: 'أيام العمل', type: 'number', numeric: true, getValue: (r) => (r.workDays != null && r.workDays !== '' && !Number.isNaN(Number(r.workDays)) ? Number(r.workDays) : ''), render: (r) => <span className="whitespace-pre-wrap">{cellText(r.workDays)}</span> },
+                      { key: 'orders', header: 'الطلبات', type: 'number', numeric: true, getValue: (r) => (r.orders != null && r.orders !== '' && !Number.isNaN(Number(r.orders)) ? Number(r.orders) : ''), render: (r) => <span className="whitespace-pre-wrap">{cellText(r.orders)}</span> },
+                      { key: 'netDue', header: 'صافي المستحق', type: 'number', numeric: true, getValue: (r) => (r.netDue != null && r.netDue !== '' ? Number(r.netDue) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.netDue as number | string | null | undefined)}</span> },
+                      { key: 'status', header: 'الحالة', type: 'list', getValue: (r) => String(r.status ?? ''), labelOf: (v) => statusLabel(String(v || '')), toneOf: defaultStatusTone, render: (r) => cellText(r.status) },
+                    ]}
+                  />
                 )}
               </section>
 
@@ -1283,28 +1506,22 @@ function WorkforcePageInner() {
                 {(profileData.promissoryNotes || []).length === 0 ? (
                   <EmptyState title="لا توجد سندات أمر" description="لا توجد ملفات سندات مرتبطة بهذا الشخص." />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-start text-xs sm:text-sm">
-                      <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)]">
-                        <tr>
-                          <th className="p-3 text-start">الرقم</th>
-                          <th className="p-3 text-start">التاريخ</th>
-                          <th className="p-3 text-start">المبلغ</th>
-                          <th className="p-3 text-start">الحالة</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--line)]">
-                        {profileData.promissoryNotes.map((note, idx) => (
-                          <tr key={note.id || note.noteNumber || idx}>
-                            <td className="p-3 font-mono">{cellText(note.noteNumber || note.id)}</td>
-                            <td className="p-3 font-mono text-xs">{cellText(note.date)}</td>
-                            <td className="p-3 whitespace-pre-wrap">{cellText(note.amount)}</td>
-                            <td className="p-3">{cellText(note.status)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <DataTable
+                    tableId="workforce-360-promissory"
+                    data={profileData.promissoryNotes}
+                    getRowId={(note: any) => String(note.id || note.noteNumber || `${note.date ?? ''}-${note.amount ?? ''}`)}
+                    searchable={false}
+                    exportable={false}
+                    syncUrl={false}
+                    showTotals={false}
+                    showFilterRow={false}
+                    columns={[
+                      { key: 'noteNumber', header: 'الرقم', type: 'text', getValue: (n) => String(n.noteNumber ?? n.id ?? ''), render: (n) => <span className="font-mono">{cellText(n.noteNumber || n.id)}</span> },
+                      { key: 'date', header: 'التاريخ', type: 'date', getValue: (n) => String(n.date ?? ''), render: (n) => <span className="font-mono text-xs">{cellText(n.date)}</span> },
+                      { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, getValue: (n) => (n.amount != null && n.amount !== '' ? Number(n.amount) : ''), render: (n) => <span className="num whitespace-nowrap">{formatSar(n.amount as number | string | null | undefined)}</span> },
+                      { key: 'status', header: 'الحالة', type: 'list', getValue: (n) => String(n.status ?? ''), labelOf: (v) => statusLabel(String(v || '')), toneOf: defaultStatusTone, render: (n) => cellText(n.status) },
+                    ]}
+                  />
                 )}
               </section>
 
@@ -1323,10 +1540,7 @@ function WorkforcePageInner() {
                   <div className="p-3 rounded-xl bg-[var(--raised)]/50">
                     <div className="text-[11px] text-[var(--muted)]">إجمالي المتبقي</div>
                     <div className="text-base font-bold num text-[var(--danger)] mt-0.5">
-                      {Number(profileData.financialPosition?.totalRemainingDebt ?? 0).toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                      })}{' '}
-                      ر.س
+                      {formatSar(profileData.financialPosition?.totalRemainingDebt ?? 0)}
                     </div>
                   </div>
                 </div>
@@ -1350,30 +1564,22 @@ function WorkforcePageInner() {
                 {(profileData.platformAccounts || []).length === 0 ? (
                   <EmptyState title="لا توجد حسابات منصات" description="لا توجد حسابات مسجّلة باسم هذا الشخص." />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-start text-xs sm:text-sm">
-                      <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)]">
-                        <tr>
-                          <th className="p-3 text-start">المنصة</th>
-                          <th className="p-3 text-start">المعرّف الخارجي</th>
-                          <th className="p-3 text-start">المدينة</th>
-                          <th className="p-3 text-start">تاريخ الإنشاء</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--line)]">
-                        {profileData.platformAccounts.map((acc, idx) => (
-                          <tr key={acc.id || idx}>
-                            <td className="p-3 font-semibold">{cellText(acc.platform)}</td>
-                            <td className="p-3 font-mono" dir="ltr">
-                              {cellText(acc.externalAccountId)}
-                            </td>
-                            <td className="p-3">{cellText(acc.city)}</td>
-                            <td className="p-3 font-mono text-xs">{cellText(acc.createdAt)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <DataTable
+                    tableId="workforce-360-platform-accounts"
+                    data={profileData.platformAccounts}
+                    getRowId={(acc: any) => String(acc.id || `${acc.platform ?? ''}-${acc.externalAccountId ?? ''}`)}
+                    searchable={false}
+                    exportable={false}
+                    syncUrl={false}
+                    showTotals={false}
+                    showFilterRow={false}
+                    columns={[
+                      { key: 'platform', header: 'المنصة', type: 'list', getValue: (acc) => String(acc.platform ?? ''), labelOf: (v) => (v ? platformLabelAr(String(v)) : ''), render: (acc) => <span className="font-semibold">{cellText(acc.platform)}</span> },
+                      { key: 'externalAccountId', header: 'المعرّف الخارجي', type: 'text', getValue: (acc) => String(acc.externalAccountId ?? ''), render: (acc) => <span className="font-mono" dir="ltr">{cellText(acc.externalAccountId)}</span> },
+                      { key: 'city', header: 'المدينة', type: 'list', getValue: (acc) => String(acc.city ?? ''), render: (acc) => cellText(acc.city) },
+                      { key: 'createdAt', header: 'تاريخ الإنشاء', type: 'date', getValue: (acc) => String(acc.createdAt ?? ''), render: (acc) => <span className="font-mono text-xs">{cellText(acc.createdAt)}</span> },
+                    ]}
+                  />
                 )}
               </section>
             </div>
@@ -1477,6 +1683,8 @@ function WorkforcePageInner() {
                 {
                   key: 'caseNumber',
                   header: 'رقم القضية',
+                  type: 'text',
+                  getValue: (r) => String(r.caseNumber ?? ''),
                   render: (r) => (
                     <span className="font-mono font-bold whitespace-nowrap">
                       {cellText(r.caseNumber)}
@@ -1486,6 +1694,8 @@ function WorkforcePageInner() {
                 {
                   key: 'personName',
                   header: 'الشخص',
+                  type: 'text',
+                  getValue: (r) => String(r.personName ?? ''),
                   render: (r) => (
                     <span className="font-semibold whitespace-nowrap">{cellText(r.personName)}</span>
                   ),
@@ -1493,6 +1703,8 @@ function WorkforcePageInner() {
                 {
                   key: 'iqama',
                   header: 'الإقامة',
+                  type: 'text',
+                  getValue: (r) => String(r.iqama ?? ''),
                   render: (r) => (
                     <span className="font-mono whitespace-nowrap" dir="ltr">
                       {cellText(r.iqama)}
@@ -1502,6 +1714,8 @@ function WorkforcePageInner() {
                 {
                   key: 'sponsorNameAr',
                   header: 'الكفيل',
+                  type: 'list',
+                  getValue: (r) => String(r.sponsorNameAr ?? ''),
                   render: (r) => (
                     <span className="whitespace-nowrap">{cellText(r.sponsorNameAr)}</span>
                   ),
@@ -1509,7 +1723,11 @@ function WorkforcePageInner() {
                 {
                   key: 'status',
                   header: 'الحالة',
-                  render: (r) => <span className="whitespace-nowrap">{cellText(r.status)}</span>,
+                  type: 'list',
+                  getValue: (r) => String(r.status ?? ''),
+                  labelOf: (v) => statusLabel(String(v || '')),
+                  toneOf: defaultStatusTone,
+                  render: (r) => <span className="whitespace-nowrap">{statusLabel(String(r.status || ''))}</span>,
                 },
               ]}
               data={legalItems}

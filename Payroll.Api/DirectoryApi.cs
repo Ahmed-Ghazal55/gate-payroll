@@ -120,8 +120,10 @@ public static class RiderDirectory
         {
             J.Iqama(iqama);
             var rider = Store.Get(c, iqama, "rider") ?? throw new ApiError("المندوب غير موجود.", 404);
-            FinancialScopes.DemandRider(ctx.User, rider);
-            var view = !AccessPolicy.Has(ctx.User, "riders.view_360") ? UserAccess.RiderView(rider) : rider;
+            // Same 404 contract as workforce 360 (company + platform); no existence leak via 403.
+            WorkforceApi.DemandRiderOrNotFound(ctx.User, rider);
+            // view_360 is required by AccessPolicy; still project + mask IBAN / muda salary by field permission.
+            var view = WorkforceApi.ProjectDirectoryRider(rider, ctx.User);
             var debts = Store.List(c, "debt").Where(d => d.S("iqama") == iqama && FinancialScopes.Debt(ctx.User, d)).ToList();
             var works = Store.List(c, "work").Where(w => w.S("iqama") == iqama).ToList();
             return new

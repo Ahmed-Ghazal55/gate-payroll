@@ -15,12 +15,62 @@ public static partial class Debts
         "Advance", "CashAdvance", "BankAdvance"
     };
 
+    static readonly HashSet<string> AllowedDebtColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id", "riderName", "iqama", "creditorSponsorId", "originSponsorId",
+        "companyId", "company", "category", "categoryAr", "platform",
+        "originalAmount", "totalAmount", "paidAmount", "remainingBalance", "monthlyInstallment",
+        "status", "source", "entryMode", "createdAt", "approvedAt", "at", "notes", "reference", "description"
+    };
+
+    static readonly Dictionary<string, string> DebtColumnAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["companyId"] = "creditorSponsorId",
+        ["company"] = "creditorSponsorId"
+    };
+
+    static readonly TableFilterContract.FilterOptions DebtFilterOptions = new(
+        LabelOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["active"] = "قائم",
+            ["settled"] = "مسدد",
+            ["waived"] = "معفي",
+            ["disputed"] = "متنازع عليه",
+            ["pending_approval"] = "بانتظار الاعتماد",
+            ["cancelled"] = "ملغي",
+            ["canceled"] = "ملغي"
+        },
+        ToneOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["active"] = "danger",
+            [TableFilterContract.NormalizeText("قائم")] = "danger",
+            ["settled"] = "success",
+            [TableFilterContract.NormalizeText("مسدد")] = "success",
+            ["waived"] = "warning",
+            [TableFilterContract.NormalizeText("معفي")] = "warning",
+            ["disputed"] = "warning",
+            [TableFilterContract.NormalizeText("متنازع عليه")] = "warning",
+            ["pending_approval"] = "warning",
+            [TableFilterContract.NormalizeText("بانتظار الاعتماد")] = "warning",
+            ["cancelled"] = "warning",
+            ["canceled"] = "warning",
+            [TableFilterContract.NormalizeText("ملغي")] = "warning"
+        });
+
     /// <summary>
-    /// List debts with optional SQL filters. Without <c>page</c>, returns the legacy JSON array
-    /// (backward compatible). With <c>page</c>, returns <c>{items,total,page,pageSize}</c>.
+    /// List debts with optional SQL filters and generic Excel-style filter/sort contract (FL2).
+    /// Without <c>page</c>, returns the legacy JSON array (backward compatible).
+    /// With <c>page</c>, returns <c>{items,total,page,pageSize}</c>.
     /// </summary>
     public static object ListPaged(DbConnection c, ClaimsPrincipal actor, IQueryCollection query)
     {
+        // Validate generic filter/sort contract against whitelist when contract params (filters / JSON sort) are present
+        if (TableFilterContract.HasJsonContractParams(query))
+        {
+            _ = TableFilterContract.ParseFilters(query, AllowedDebtColumns, DebtColumnAliases);
+            _ = TableFilterContract.ParseSort(query, AllowedDebtColumns, DebtColumnAliases);
+        }
+
         var filter = ParseFilter(query);
         bool paged = query.ContainsKey("page");
         int page = 1, pageSize = 50;
@@ -29,19 +79,123 @@ public static partial class Debts
             page = Positive(query, "page", 1);
             pageSize = Math.Min(Positive(query, "pageSize", 50), 200);
         }
-        string sort = query["sort"].ToString();
         var (where, parms) = BuildWhere(c, actor, filter);
-        long total = Count(c, where, parms);
+
+        if (TableFilterContract.HasJsonContractParams(query))
+        {
+            var allViews = ReadBodies(c, where, parms, OrderBy(c, ""), null, null)
+                .Select(d => View(c, null, actor, d))
+                .ToList();
+            var filtered = TableFilterContract.Apply(allViews, query, AllowedDebtColumns, DebtColumnAliases, options: DebtFilterOptions);
+            if (!paged) return filtered;
+            long filteredTotal = filtered.Count;
+            long filteredOffset = ((long)page - 1) * pageSize;
+            var pageItems = filteredOffset >= filteredTotal
+                ? new List<JsonObject>()
+                : filtered.Skip((int)filteredOffset).Take(pageSize).ToList();
+            return new { items = pageItems, total = filteredTotal, page, pageSize };
+        }
+
+        string sort = query["sort"].ToString();
         if (!paged)
         {
-            var all = ReadBodies(c, where, parms, OrderBy(c, sort), null, null);
+            var all = ReadBodies(c, where, parms, OrderBy(c, ""), null, null);
             return all.Select(d => View(c, null, actor, d)).ToList();
         }
+        string orderBy = OrderBy(c, sort);
+        long total = Count(c, where, parms);
         long offset = ((long)page - 1) * pageSize;
         var items = offset >= total
             ? new List<JsonObject>()
-            : ReadBodies(c, where, parms, OrderBy(c, sort), pageSize, offset).Select(d => View(c, null, actor, d)).ToList();
+            : ReadBodies(c, where, parms, orderBy, pageSize, offset).Select(d => View(c, null, actor, d)).ToList();
         return new { items, total, page, pageSize };
+    }
+
+    static readonly Dictionary<string, string> DistinctColumnMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["status"] = "status",
+        ["category"] = "category",
+        ["categoryAr"] = "categoryAr",
+        ["creditorSponsorId"] = "creditorSponsorId",
+        ["originSponsorId"] = "originSponsorId",
+        ["companyId"] = "creditorSponsorId",
+        ["company"] = "creditorSponsorId",
+        ["platform"] = "platform",
+        ["source"] = "source",
+        ["entryMode"] = "entryMode",
+        ["iqama"] = "iqama",
+        ["riderName"] = "riderName"
+    };
+
+    /// <summary>Light scoped distinct values (with counts) for DataTable column filters.</summary>
+    public static JsonObject Distinct(DbConnection c, ClaimsPrincipal actor, IQueryCollection query)
+    {
+        _ = TableFilterContract.ParseFilters(query, AllowedDebtColumns, DebtColumnAliases);
+        string rawCol = (query["column"].ToString() ?? "").Trim();
+        if (!AllowedDebtColumns.Contains(rawCol))
+            return new JsonObject { ["column"] = rawCol, ["values"] = new JsonArray(), ["counts"] = new JsonObject(), ["hasEmpty"] = false, ["emptyCount"] = 0 };
+
+        var parsed = ParseFilter(query);
+        var filter = parsed with
+        {
+            Status = rawCol.Equals("status", StringComparison.OrdinalIgnoreCase) ? null : parsed.Status,
+            Category = rawCol.Equals("category", StringComparison.OrdinalIgnoreCase) || rawCol.Equals("categoryAr", StringComparison.OrdinalIgnoreCase) ? null : parsed.Category
+        };
+        var (where, parms) = BuildWhere(c, actor, filter);
+
+        if (TableFilterContract.HasJsonContractParams(query) || !DistinctColumnMap.TryGetValue(rawCol, out string? field))
+        {
+            var allViews = ReadBodies(c, where, parms, OrderBy(c, ""), null, null)
+                .Select(d => View(c, null, actor, d));
+            return TableFilterContract.BuildDistinct(allViews, rawCol, query, AllowedDebtColumns, DebtColumnAliases, options: DebtFilterOptions);
+        }
+
+        string expr = RiderDataIndexes.FieldExpr(c, field);
+        bool sqlite = c is SqliteConnection;
+        string sql = sqlite
+            ? $"SELECT {expr} AS v, COUNT(*) AS cnt FROM records WHERE {where} AND {expr} IS NOT NULL AND {expr} <> '' GROUP BY {expr} ORDER BY v LIMIT 500"
+            : $"SELECT TOP 500 {expr} AS v, COUNT(*) AS cnt FROM records WHERE {where} AND {expr} IS NOT NULL AND {expr} <> '' GROUP BY {expr} ORDER BY v";
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = sql;
+        foreach (var (k, v) in parms)
+        {
+            var p = cmd.CreateParameter();
+            p.ParameterName = k;
+            p.Value = v ?? DBNull.Value;
+            cmd.Parameters.Add(p);
+        }
+        var counts = new SortedDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        using (var reader = cmd.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                if (reader.IsDBNull(0)) continue;
+                string v = Convert.ToString(reader.GetValue(0), CultureInfo.InvariantCulture)?.Trim() ?? "";
+                if (v.Length == 0) continue;
+                int cnt = reader.IsDBNull(1) ? 1 : Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture);
+                counts[v] = counts.TryGetValue(v, out int prev) ? prev + cnt : cnt;
+            }
+        }
+        using var emptyCmd = c.CreateCommand();
+        emptyCmd.CommandText = $"SELECT COUNT(*) FROM records WHERE {where} AND ({expr} IS NULL OR {expr} = '')";
+        foreach (var (k, v) in parms)
+        {
+            var p = emptyCmd.CreateParameter();
+            p.ParameterName = k;
+            p.Value = v ?? DBNull.Value;
+            emptyCmd.Parameters.Add(p);
+        }
+        int emptyCount = Convert.ToInt32(emptyCmd.ExecuteScalar() ?? 0, CultureInfo.InvariantCulture);
+        var countsObj = new JsonObject();
+        foreach (var (k, cnt) in counts) countsObj[k] = cnt;
+        return new JsonObject
+        {
+            ["column"] = rawCol,
+            ["values"] = new JsonArray(counts.Keys.Select(v => (JsonNode?)v).ToArray()),
+            ["counts"] = countsObj,
+            ["hasEmpty"] = emptyCount > 0,
+            ["emptyCount"] = emptyCount
+        };
     }
 
     /// <summary>Light SQL aggregates for debts stat cards (scoped like the list).</summary>
@@ -70,13 +224,17 @@ public static partial class Debts
         using var cmd = Store.Command(c, null, sql, parms.ToArray());
         using var r = cmd.ExecuteReader();
         r.Read();
+        var actions = new JsonArray();
+        ImportTemplateAccess.AddIfAllowed(actions, actor, "/api/debts/import-opening/template");
+        ImportTemplateAccess.AddIfAllowed(actions, actor, "/api/debts/bulk-collect/template");
         return new JsonObject
         {
             ["totalCount"] = Convert.ToInt64(r["totalCount"], CultureInfo.InvariantCulture),
             ["activeRemainingTotal"] = J.Money(Convert.ToDecimal(r["activeRemaining"], CultureInfo.InvariantCulture)),
             ["advanceRemainingTotal"] = J.Money(Convert.ToDecimal(r["advanceRemaining"], CultureInfo.InvariantCulture)),
             ["pendingOpeningCount"] = Convert.ToInt64(r["pendingOpeningCount"], CultureInfo.InvariantCulture),
-            ["pendingOpeningTotal"] = J.Money(Convert.ToDecimal(r["pendingOpeningTotal"], CultureInfo.InvariantCulture))
+            ["pendingOpeningTotal"] = J.Money(Convert.ToDecimal(r["pendingOpeningTotal"], CultureInfo.InvariantCulture)),
+            ["allowedActions"] = actions
         };
     }
 
@@ -271,8 +429,11 @@ public static partial class Debts
                 : " ORDER BY COALESCE(JSON_VALUE(body,'$.createdAt'),JSON_VALUE(body,'$.at'),JSON_VALUE(body,'$.approvedAt'),'') DESC, id DESC";
         }
         bool desc = sort.StartsWith('-');
-        string field = sort.TrimStart('-');
-        if (!Regex.IsMatch(field, "^[A-Za-z][A-Za-z0-9_]*$")) throw new ApiError("حقل الترتيب غير صالح.");
+        string field = sort.TrimStart('-').Trim();
+        if (!Regex.IsMatch(field, "^[A-Za-z][A-Za-z0-9_]*$") || !AllowedDebtColumns.Contains(field))
+            throw new ApiError("حقل الترتيب غير صالح.", 400);
+        if (DebtColumnAliases.TryGetValue(field, out var mappedField))
+            field = mappedField;
         string expr = RiderDataIndexes.FieldExpr(c, field);
         if (NumericSortFields.Contains(field))
             expr = c is SqliteConnection

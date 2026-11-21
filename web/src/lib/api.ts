@@ -62,10 +62,10 @@ import type {
   PayCopyMonthResponse,
   PayAssignment,
   PayAssignmentPreviewResult,
-  ImportCatalogStep,
   ImportPreviewResult,
 } from './types';
 import type { paths, components } from './api-contract';
+import type { ExportCell } from './export-split';
 
 export type ApiResp<
   P extends keyof paths,
@@ -87,6 +87,17 @@ export type PayReviewAccount = PayReviewInvoice['accounts'][number];
 export type PayReviewRider = PayReviewAccount['riders'][number];
 
 export type RiderLookupItem = ApiResp<'/api/riders/lookup'>[number];
+
+// Section 9 — rider app admin (U-W3-16 / U-W3-17); all from the generated contract.
+type PagedOf<T> = Extract<T, { items: unknown[] }>;
+export type RiderBroadcastsPage = PagedOf<ApiResp<'/api/rider-mobile/broadcasts'>>;
+export type RiderBroadcast = ApiResp<'/api/rider-mobile/broadcast', 'post'>;
+export type ServiceRequestsPage = PagedOf<ApiResp<'/api/rider-mobile/service-requests'>>;
+export type ServiceRequest = ServiceRequestsPage['items'][number];
+export type ServiceRequestsSummary = ApiResp<'/api/rider-mobile/service-requests/summary'>;
+export type FirebaseConfig = ApiResp<'/api/rider-mobile/firebase-config'>;
+export type InquiryAccessResult = ApiResp<'/api/inquiry-access', 'post'>;
+export type RiderMonthlyStatement = ApiResp<'/api/finance/statement/rider/{iqama}/monthly'>;
 
 export type DebtDeductionsView = ApiResp<'/api/pay/cycles/{id}/debt-deductions'>;
 export type PayCycleItem = ApiResp<'/api/pay/cycles'>['items'][number];
@@ -117,9 +128,36 @@ export type WorkforcePerson = WorkforceListResponse['items'][number];
 export type WorkforceSummary = NonNullable<WorkforceListResponse['summary']>;
 export type Workforce360Response = ApiResp<'/api/workforce/{id}/360'>;
 
+export type CompaniesStatsResponse = ApiResp<'/api/companies/stats'>;
+export type CompanySingleStatsResponse = ApiResp<'/api/companies/{id}/stats'>;
+export type CompanyStatsItem = CompaniesStatsResponse['items'][number];
+export type CompanyStatsPlatformCount = CompanyStatsItem['platformAccounts']['byPlatform'][number];
+export type CompaniesStatsTotals = CompaniesStatsResponse['totals'];
+export type CompanyContract = ApiResp<'/api/companies/{id}'>;
+export type CompanyRegistrationContract = ApiResp<'/api/companies/{id}/registrations'>[number];
+export type CompanyDocumentContract = ApiResp<'/api/companies/{id}/documents'>[number];
+export type CompanyExpiringContract = ApiResp<'/api/companies/expiring'>[number];
+export type CompanyImportPlanContract = ApiResp<'/api/companies/import/preview', 'post'>;
+
 export type OperationsResponse = Omit<ApiResp<'/api/operations/{kind}'>, 'items'> & {
   items: OperationRow[];
 };
+export type OperationsFleetListResponse = ApiResp<'/api/operations/cities-summary'>;
+export type OperationsCityRow = OperationsFleetListResponse['items'][number];
+export type OperationsHousingResponse = ApiResp<'/api/operations/housing'>;
+export type OperationsHousingRow = OperationsHousingResponse['items'][number];
+export type OperationsHousingRoomsResponse = ApiResp<'/api/operations/housing/{id}/rooms'>;
+export type OperationsPeriodResponse = ApiResp<'/api/operations/vehicles/period-report'>;
+export type OperationsPeriodRow = OperationsPeriodResponse['items'][number];
+export type OperationsFuelResponse = ApiResp<'/api/operations/fuel-cards'>;
+export type OperationsFuelRow = OperationsFuelResponse['items'][number];
+export type OperationsFuelAssignmentsResponse = ApiResp<'/api/operations/fuel-cards/assignments'>;
+export type OperationsOilChangesResponse = ApiResp<'/api/operations/vehicles/oil-changes'>;
+export type OperationsOilRow = OperationsOilChangesResponse['items'][number];
+export type OperationsPurchasesResponse = ApiResp<'/api/operations/vehicles/purchase-invoices'>;
+export type OperationsPurchaseRow = OperationsPurchasesResponse['items'][number];
+export type OperationsVehicleDetailResponse = ApiResp<'/api/operations/vehicles/{id}'>;
+export type OperationsCityDetailResponse = ApiResp<'/api/operations/cities/{id}'>;
 type RawRiderAccountItem = Exclude<ApiResp<'/api/riders/{iqama}/accounts'>['items'][number], Record<string, never>>;
 export type RiderAccountRow = Omit<Partial<UnionToIntersection<RawRiderAccountItem>>, 'assignments'> & {
   id?: string;
@@ -152,7 +190,7 @@ let mockNotifications: NotificationItem[] = [
     category: 'approvals',
     unread: true,
     createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    link: '/app/forms/?tab=responses',
+    link: '/app/rider-app/?tab=responses',
     actionText: 'مراجعة الردود',
   },
   {
@@ -492,7 +530,7 @@ async function handleMockRequest<T>(endpoint: string, options: RequestInit = {})
         kind: 'campaign',
         title: 'تحديث بيانات الآيبان 2026',
         subtitle: 'حملة استقبال مفتوحة',
-        url: '/app/forms/?tab=campaigns',
+        url: '/app/rider-app/?tab=campaigns',
       });
     }
     return results as unknown as T;
@@ -792,22 +830,47 @@ export const api = {
   markAllNotificationsRead: () => handleRequest<{ success: boolean }>('/notifications/read-all', { method: 'POST' }),
   search: (query: string) => handleRequest<SearchResult[]>(`/search?q=${encodeURIComponent(query)}`),
   getCompanies: () => handleRequest<CompanySponsor[]>('/companies'),
+  /** Scoped sponsor list for treasury/accounting filters (treasury.view). */
+  getFinanceSponsors: () => handleRequest<CompanySponsor[]>('/finance/sponsors'),
 
-  // Companies & Registrations (Track L2 / M1.2)
-  getCompaniesList: () => handleRequest<Company[]>('/companies'),
-  getExpiringCompanies: (days = 60) => handleRequest<ExpiringRecord[]>(`/companies/expiring?days=${days}`),
-  getCompany: (id: string) => handleRequest<Company>(`/companies/${id}`),
-  getCompanyRegistrations: (id: string) => handleRequest<CommercialRegistration[]>(`/companies/${id}/registrations`),
-  getCompanyDocuments: (id: string) => handleRequest<CompanyDocument[]>(`/companies/${id}/documents`),
+  // Companies & Registrations (Track L2 / M1.2 / U-W2-06)
+  getCompaniesList: () => handleRequest<CompanyContract[]>('/companies'),
+  getCompaniesStats: (signal?: AbortSignal) => handleRequest<CompaniesStatsResponse>('/companies/stats', { signal }),
+  getCompanyStats: (id: string, signal?: AbortSignal) => handleRequest<CompanySingleStatsResponse>(`/companies/${encodeURIComponent(id)}/stats`, { signal }),
+  getExpiringCompanies: (days = 60) => handleRequest<CompanyExpiringContract[]>(`/companies/expiring?days=${days}`),
+  getCompany: (id: string) => handleRequest<CompanyContract>(`/companies/${encodeURIComponent(id)}`),
+  createCompany: (payload: Record<string, unknown>) =>
+    handleRequest<CompanyContract>('/companies', { method: 'POST', body: JSON.stringify(payload) }),
+  updateCompany: (id: string, payload: Record<string, unknown>) =>
+    handleRequest<CompanyContract>(`/companies/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  archiveCompany: (id: string) =>
+    handleRequest<{ ok: boolean }>(`/companies/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getCompanyRegistrations: (id: string) => handleRequest<CompanyRegistrationContract[]>(`/companies/${encodeURIComponent(id)}/registrations`),
+  createCompanyRegistration: (companyId: string, payload: Record<string, unknown>) =>
+    handleRequest<CompanyRegistrationContract>(`/companies/${encodeURIComponent(companyId)}/registrations`, { method: 'POST', body: JSON.stringify(payload) }),
+  updateCompanyRegistration: (companyId: string, registrationId: string, payload: Record<string, unknown>) =>
+    handleRequest<CompanyRegistrationContract>(`/companies/${encodeURIComponent(companyId)}/registrations/${encodeURIComponent(registrationId)}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  archiveCompanyRegistration: (companyId: string, registrationId: string) =>
+    handleRequest<{ ok: boolean }>(`/companies/${encodeURIComponent(companyId)}/registrations/${encodeURIComponent(registrationId)}`, { method: 'DELETE' }),
+  getCompanyDocuments: (id: string) => handleRequest<CompanyDocumentContract[]>(`/companies/${encodeURIComponent(id)}/documents`),
   uploadCompanyDocument: (companyId: string, doc: { type: string; number?: string; expiryDate?: string; fileName: string; dataBase64: string }) =>
-    handleRequest<CompanyDocument>(`/companies/${companyId}/documents`, { method: 'POST', body: JSON.stringify(doc) }),
+    handleRequest<CompanyDocumentContract>(`/companies/${companyId}/documents`, { method: 'POST', body: JSON.stringify(doc) }),
   deleteCompanyDocument: (companyId: string, documentId: string) =>
     handleRequest<{ ok: boolean }>(`/companies/${companyId}/documents/${documentId}`, { method: 'DELETE' }),
-  previewCompanyImport: (companies: any[]) =>
-    handleRequest<CompanyImportPlan>('/companies/import/preview', { method: 'POST', body: JSON.stringify({ companies }) }),
-  commitCompanyImport: (payload: { rows: any[]; fingerprint: string; confirm: boolean }) =>
-    handleRequest<{ counts: any }>('/companies/import/commit', { method: 'POST', body: JSON.stringify(payload) }),
-  getAuditLogs: () => handleRequest<Array<{ id: string; action: string; actor: string; at: string }>>('/audit'),
+  previewCompanyImport: (companies: Record<string, unknown>[]) =>
+    handleRequest<CompanyImportPlanContract>('/companies/import/preview', { method: 'POST', body: JSON.stringify({ companies }) }),
+  commitCompanyImport: (payload: { rows: Record<string, unknown>[]; fingerprint: string; confirm: boolean }) =>
+    handleRequest<{ counts: Record<string, unknown> }>('/companies/import/commit', { method: 'POST', body: JSON.stringify(payload) }),
+  getAuditLogs: (params?: { page?: number; pageSize?: number; from?: string; to?: string; q?: string; action?: string }) => {
+    const q = new URLSearchParams();
+    q.set('page', String(params?.page ?? 1));
+    q.set('pageSize', String(params?.pageSize ?? 50));
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    if (params?.q) q.set('q', params.q);
+    if (params?.action && params.action !== 'all') q.set('action', params.action);
+    return handleRequest<{ items: Array<{ id: string; action: string; actor: string; at: string }>; total: number; page: number; pageSize: number }>(`/audit?${q}`);
+  },
 
   // Campaigns
   getCampaigns: () => handleRequest<Campaign[]>('/campaigns'),
@@ -898,7 +961,8 @@ export const api = {
     ),
 
   // Table Export (Strictly adhering to Frontend/src/table-tools.ts:33-38)
-  exportExcel: async (payload: { headers: string[]; rows: (string | number)[][]; numericColumns: number[]; filename?: string }) => {
+  // R1 / F-R2: IBAN → IBAN / bank code / bank name is applied once on the server (TableExcelApi).
+  exportExcel: async (payload: { headers: string[]; rows: ExportCell[][]; numericColumns: number[]; filename?: string }) => {
     if (isMock) {
       return new Blob(['Mock Excel Binary'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     }
@@ -906,11 +970,7 @@ export const api = {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        headers: payload.headers,
-        rows: payload.rows,
-        numericColumns: payload.numericColumns,
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'تعذر تصدير Excel' }));
@@ -1104,6 +1164,8 @@ export const api = {
       q?: string;
       page?: number;
       pageSize?: number;
+      filters?: string;
+      sort?: string;
     },
     init?: { signal?: AbortSignal }
   ) => {
@@ -1115,6 +1177,8 @@ export const api = {
     if (params?.q) q.set('q', params.q);
     if (params?.page != null) q.set('page', String(params.page));
     if (params?.pageSize != null) q.set('pageSize', String(params.pageSize));
+    if (params?.filters) q.set('filters', params.filters);
+    if (params?.sort) q.set('sort', params.sort);
     const qs = q.toString() ? `?${q.toString()}` : '';
     return handleRequest<Array<Record<string, unknown>> | PaginatedResult<Record<string, unknown>>>(`/debts${qs}`, {
       signal: init?.signal,
@@ -1238,6 +1302,7 @@ export const api = {
     platform?: string;
     city?: string;
     missingIban?: boolean;
+    filters?: string;
     sort?: string;
     signal?: AbortSignal;
   }) => {
@@ -1252,6 +1317,7 @@ export const api = {
     if (params?.platform) q.set('platform', params.platform);
     if (params?.city) q.set('city', params.city);
     if (params?.missingIban) q.set('missingIban', 'true');
+    if (params?.filters) q.set('filters', params.filters);
     if (params?.sort) q.set('sort', params.sort);
     return handleRequest<WorkforceListResponse>(`/workforce?${q.toString()}`, {
       signal: params?.signal,
@@ -1286,6 +1352,8 @@ export const api = {
     platform?: string;
     city?: string;
     missingIban?: boolean;
+    filters?: string;
+    sort?: string;
   }) => {
     const q = new URLSearchParams();
     if (params?.q) q.set('q', params.q);
@@ -1296,14 +1364,18 @@ export const api = {
     if (params?.platform) q.set('platform', params.platform);
     if (params?.city) q.set('city', params.city);
     if (params?.missingIban) q.set('missingIban', 'true');
+    if (params?.filters) q.set('filters', params.filters);
+    if (params?.sort) q.set('sort', params.sort);
     const qs = q.toString();
     return fetch(`/api/workforce/export${qs ? `?${qs}` : ''}`, { credentials: 'include' });
   },
 
-  getWorkforceDataQuality: (params?: { page?: number; pageSize?: number }) => {
+  getWorkforceDataQuality: (params?: { page?: number; pageSize?: number; filters?: string; sort?: string }) => {
     const q = new URLSearchParams();
     q.set('page', String(params?.page ?? 1));
     q.set('pageSize', String(params?.pageSize ?? 50));
+    if (params?.filters) q.set('filters', params.filters);
+    if (params?.sort) q.set('sort', params.sort);
     return handleRequest<{ items: any[]; total: number; source?: string }>(
       `/workforce/data-quality?${q.toString()}`
     );
@@ -1317,8 +1389,7 @@ export const api = {
   getRiderProfile360: (iqama: string) =>
     handleRequest<RiderProfile360>(`/riders/${encodeURIComponent(iqama)}/profile-360`),
 
-  getRidersDataQuality: () =>
-    handleRequest<RidersDataQuality>('/riders/data-quality'),
+
 
   // Operations & Assets APIs (Codex R4.6)
   getOperations: (kind: string, params?: { page?: number; pageSize?: number; q?: string }) => {
@@ -1330,6 +1401,156 @@ export const api = {
     return handleRequest<OperationsResponse>(`/operations/${encodeURIComponent(kind)}${qs}`);
   },
 
+  getOperationsCities: (params?: { q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.q) p.set('q', params.q);
+    if (params?.filters) p.set('filters', params.filters);
+    if (params?.sort) p.set('sort', params.sort);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return handleRequest<OperationsFleetListResponse>(`/operations/cities-summary${qs}`);
+  },
+  getOperationsCity: (id: string) =>
+    handleRequest<OperationsCityDetailResponse>(`/operations/cities/${encodeURIComponent(id)}`),
+  getOperationsHousing: (params?: { page?: number; pageSize?: number; q?: string; city?: string; status?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.page) p.set('page', String(params.page));
+    if (params?.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params?.q) p.set('q', params.q);
+    if (params?.city) p.set('city', params.city);
+    if (params?.status) p.set('status', params.status);
+    if (params?.filters) p.set('filters', params.filters);
+    if (params?.sort) p.set('sort', params.sort);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return handleRequest<OperationsHousingResponse>(`/operations/housing${qs}`);
+  },
+  getOperationsHousingRooms: (id: string) =>
+    handleRequest<OperationsHousingRoomsResponse>(`/operations/housing/${encodeURIComponent(id)}/rooms`),
+  getOperationsPeriodReport: (params: { from: string; to: string; mode?: 'vehicle' | 'rider'; page?: number; pageSize?: number; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.mode) p.set('mode', params.mode);
+    if (params.page) p.set('page', String(params.page));
+    if (params.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params.q) p.set('q', params.q);
+    if (params.filters) p.set('filters', params.filters);
+    if (params.sort) p.set('sort', params.sort);
+    return handleRequest<OperationsPeriodResponse>(`/operations/vehicles/period-report?${p.toString()}`);
+  },
+  getOperationsVehicle: (id: string) =>
+    handleRequest<OperationsVehicleDetailResponse>(`/operations/vehicles/${encodeURIComponent(id)}`),
+  getOperationsOilChanges: (id: string) =>
+    handleRequest<OperationsOilChangesResponse>(`/operations/vehicles/${encodeURIComponent(id)}/oil-changes`),
+  getOperationsOilChangesPeriod: (params: { from: string; to: string; page?: number; pageSize?: number; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.page) p.set('page', String(params.page));
+    if (params.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params.q) p.set('q', params.q);
+    if (params.filters) p.set('filters', params.filters);
+    if (params.sort) p.set('sort', params.sort);
+    return handleRequest<OperationsOilChangesResponse>(`/operations/vehicles/oil-changes?${p.toString()}`);
+  },
+  getOperationsPurchaseInvoices: (params: { from: string; to: string; page?: number; pageSize?: number; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.page) p.set('page', String(params.page));
+    if (params.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params.q) p.set('q', params.q);
+    if (params.filters) p.set('filters', params.filters);
+    if (params.sort) p.set('sort', params.sort);
+    return handleRequest<OperationsPurchasesResponse>(`/operations/vehicles/purchase-invoices?${p.toString()}`);
+  },
+  getOperationsFuelCards: (params?: { month?: string; provider?: string; page?: number; pageSize?: number; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.month) p.set('month', params.month);
+    if (params?.provider) p.set('provider', params.provider);
+    if (params?.page) p.set('page', String(params.page));
+    if (params?.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params?.q) p.set('q', params.q);
+    if (params?.filters) p.set('filters', params.filters);
+    if (params?.sort) p.set('sort', params.sort);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return handleRequest<OperationsFuelResponse>(`/operations/fuel-cards${qs}`);
+  },
+  getOperationsFuelAssignments: (params: { from: string; to: string; page?: number; pageSize?: number; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.page) p.set('page', String(params.page));
+    if (params.pageSize) p.set('pageSize', String(params.pageSize));
+    if (params.filters) p.set('filters', params.filters);
+    if (params.sort) p.set('sort', params.sort);
+    return handleRequest<OperationsFuelAssignmentsResponse>(`/operations/fuel-cards/assignments?${p.toString()}`);
+  },
+  exportOperationsCities: (params?: { filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.filters) p.set('filters', params.filters);
+    if (params?.sort) p.set('sort', params.sort);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return fetch(`/api/operations/cities-summary/export${qs}`, { credentials: 'include' });
+  },
+  exportOperationsHousing: (params?: { q?: string; city?: string; status?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.q) p.set('q', params.q);
+    if (params?.city) p.set('city', params.city);
+    if (params?.status) p.set('status', params.status);
+    if (params?.filters) p.set('filters', params.filters);
+    if (params?.sort) p.set('sort', params.sort);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return fetch(`/api/operations/housing/export${qs}`, { credentials: 'include' });
+  },
+  exportOperationsPeriod: (params: { from: string; to: string; mode?: string; detail?: 'summary' | 'detailed'; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.mode) p.set('mode', params.mode);
+    if (params.detail) p.set('detail', params.detail);
+    if (params.q) p.set('q', params.q);
+    if (params.filters) p.set('filters', params.filters);
+    if (params.sort) p.set('sort', params.sort);
+    return fetch(`/api/operations/vehicles/period-report/export?${p.toString()}`, { credentials: 'include' });
+  },
+  exportOperationsOilChanges: (params: { from: string; to: string; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.q) p.set('q', params.q);
+    if (params.filters) p.set('filters', params.filters);
+    if (params.sort) p.set('sort', params.sort);
+    return fetch(`/api/operations/vehicles/oil-changes/export?${p.toString()}`, { credentials: 'include' });
+  },
+  exportOperationsPurchases: (params: { from: string; to: string; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.q) p.set('q', params.q);
+    if (params.filters) p.set('filters', params.filters);
+    if (params.sort) p.set('sort', params.sort);
+    return fetch(`/api/operations/vehicles/purchase-invoices/export?${p.toString()}`, { credentials: 'include' });
+  },
+  exportOperationsFuel: (params?: { month?: string; provider?: string; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.month) p.set('month', params.month);
+    if (params?.provider) p.set('provider', params.provider);
+    if (params?.q) p.set('q', params.q);
+    if (params?.filters) p.set('filters', params.filters);
+    if (params?.sort) p.set('sort', params.sort);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return fetch(`/api/operations/fuel-cards/export${qs}`, { credentials: 'include' });
+  },
+  exportOperationsFuelLog: (params: { from: string; to: string; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.q) p.set('q', params.q);
+    if (params.filters) p.set('filters', params.filters);
+    if (params.sort) p.set('sort', params.sort);
+    return fetch(`/api/operations/fuel-log/export?${p.toString()}`, { credentials: 'include' });
+  },
+
   getRiderAccounts: (iqama: string, params?: { page?: number; pageSize?: number }) => {
     const p = new URLSearchParams();
     if (params?.page) p.set('page', String(params.page));
@@ -1338,6 +1559,9 @@ export const api = {
     return handleRequest<RiderAccountsResponse>(`/riders/${encodeURIComponent(iqama)}/accounts${qs}`);
   },
 
+  // Contract-typed read used by the rider-app statements panel (same endpoint as getRiderMonthlyStatement).
+  getRiderStatementPreview: (iqama: string, period: string) =>
+    handleRequest<RiderMonthlyStatement>(`/finance/statement/rider/${encodeURIComponent(iqama)}/monthly?period=${encodeURIComponent(period)}&approvedOnly=1`),
   getRiderMonthlyStatement: (iqama: string, period: string) =>
     handleRequest<any>(`/finance/statement/rider/${encodeURIComponent(iqama)}/monthly?period=${encodeURIComponent(period)}`),
 
@@ -1465,6 +1689,7 @@ export const api = {
       sponsors: any[];
       vaults: any[];
       categories?: Array<{ code?: string; nameAr?: string; sector?: string }>;
+      allowedActions?: string[];
     }>('/finance/catalog'),
 
   // Admin & Security APIs
@@ -1474,40 +1699,50 @@ export const api = {
   updateUser: (id: string, input: any) =>
     handleRequest<any>(`/users/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }),
   getRolesCatalog: () => handleRequest<any>('/roles-catalog'),
-  getFirebaseConfig: () => handleRequest<any>('/rider-mobile/firebase-config'),
+  getFirebaseConfig: () => handleRequest<FirebaseConfig>('/rider-mobile/firebase-config'),
   saveFirebaseConfig: (input: any) =>
     handleRequest<any>('/rider-mobile/firebase-config', { method: 'POST', body: JSON.stringify(input) }),
 
-  // Operational Data Imports APIs (/api/imports/*)
-  inspectImport: (data: { filename: string; dataBase64: string }) =>
-    handleRequest<{ id: string; filename: string; sheets: string[] }>('/imports/inspect', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  getImportSheet: (id: string, sheet: string, headerRow?: number) => {
-    const q = new URLSearchParams({ sheet });
-    if (headerRow) q.set('headerRow', String(headerRow));
-    return handleRequest<{ sheet: string; headers: string[]; rowsCount: number; sampleRows: any[] }>(
-      `/imports/${encodeURIComponent(id)}/sheet?${q.toString()}`
-    );
-  },
-  previewImport: (id: string, spec: any) =>
-    handleRequest<any>(`/imports/${encodeURIComponent(id)}/preview`, {
-      method: 'POST',
-      body: JSON.stringify(spec),
-    }),
-  commitImport: (id: string, spec: any) =>
-    handleRequest<any>(`/imports/${encodeURIComponent(id)}/commit`, {
-      method: 'POST',
-      body: JSON.stringify(spec),
-    }),
+  // Import batches list (legacy free-upload inspect/preview/commit removed; catalog templates remain)
   getImportBatches: () => handleRequest<any[]>('/imports'),
 
   // Legacy Policies
   getPolicies: () => handleRequest<any[]>('/policies'),
 
-  // Rider Mobile App APIs (Track M)
-  getRiderBroadcasts: () => handleRequest<any[]>('/rider-mobile/broadcasts'),
+  // Rider Mobile App APIs (section 9: «تطبيق المناديب والنماذج»; types from api-contract.ts)
+  getRiderBroadcastsPage: (f: { page?: number; pageSize?: number; kind?: string; category?: string; q?: string; filters?: string; sort?: string } = {}) => {
+    const q = new URLSearchParams();
+    q.set('page', String(f.page ?? 1));
+    q.set('pageSize', String(f.pageSize ?? 50));
+    if (f.kind) q.set('kind', f.kind);
+    if (f.category) q.set('category', f.category);
+    if (f.q) q.set('q', f.q);
+    if (f.filters) q.set('filters', f.filters);
+    if (f.sort) q.set('sort', f.sort);
+    return handleRequest<RiderBroadcastsPage>(`/rider-mobile/broadcasts?${q.toString()}`);
+  },
+  getServiceRequestsPage: (f: { page?: number; pageSize?: number; requestType?: string; group?: 'other'; status?: string; iqama?: string; q?: string; filters?: string; sort?: string } = {}) => {
+    const q = new URLSearchParams();
+    q.set('page', String(f.page ?? 1));
+    q.set('pageSize', String(f.pageSize ?? 50));
+    if (f.requestType) q.set('requestType', f.requestType);
+    if (f.group) q.set('group', f.group);
+    if (f.status) q.set('status', f.status);
+    if (f.iqama) q.set('iqama', f.iqama);
+    if (f.q) q.set('q', f.q);
+    if (f.filters) q.set('filters', f.filters);
+    if (f.sort) q.set('sort', f.sort);
+    return handleRequest<ServiceRequestsPage>(`/rider-mobile/service-requests?${q.toString()}`);
+  },
+  getServiceRequestsSummary: () => handleRequest<ServiceRequestsSummary>('/rider-mobile/service-requests/summary'),
+  decideServiceRequest: (id: string, input: { action: string; note?: string }) =>
+    handleRequest<ServiceRequest>(`/rider-mobile/service-requests/${encodeURIComponent(id)}/decide`, { method: 'POST', body: JSON.stringify(input) }),
+  replyServiceRequest: (id: string, message: string) =>
+    handleRequest<ServiceRequest>(`/rider-mobile/service-requests/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ message }) }),
+  notifyStatementsForPeriod: (period: string) =>
+    handleRequest<ApiResp<'/api/rider-mobile/statements/notify-period', 'post'>>('/rider-mobile/statements/notify-period', { method: 'POST', body: JSON.stringify({ period }) }),
+  issueMobileAccessCode: (iqama: string) =>
+    handleRequest<InquiryAccessResult>('/inquiry-access', { method: 'POST', body: JSON.stringify({ iqama, scope: 'mobile', identityReviewed: true }) }),
   getRiderSessions: (f: { status?: string; iqama?: string } = {}) => {
     const q = new URLSearchParams();
     if (f.status) q.set('status', f.status);
@@ -1521,8 +1756,19 @@ export const api = {
     handleRequest<unknown>(`/rider-mobile/sessions/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: JSON.stringify({ reason }) }),
   revokeAllRiderSessions: (iqama: string, reason: string) =>
     handleRequest<{ revoked: number }>(`/rider-mobile/sessions/revoke-all?iqama=${encodeURIComponent(iqama)}`, { method: 'POST', body: JSON.stringify({ reason }) }),
-  sendRiderBroadcast: (input: { category?: string; titleAr: string; bodyAr: string; iqama?: string; actionUrl?: string; requiresAck?: boolean }) =>
-    handleRequest<any>('/rider-mobile/broadcast', {
+  sendRiderBroadcast: (input: {
+    category?: string;
+    titleAr: string;
+    bodyAr: string;
+    titleEn?: string;
+    titleUr?: string;
+    bodyEn?: string;
+    bodyUr?: string;
+    iqama?: string;
+    actionUrl?: string;
+    requiresAck?: boolean;
+  }) =>
+    handleRequest<RiderBroadcast>('/rider-mobile/broadcast', {
       method: 'POST',
       body: JSON.stringify(input),
     }),
@@ -1642,7 +1888,7 @@ export const api = {
     const q = new URLSearchParams({ operation });
     return handleRequest<OrgResponsibleUser[]>(`/org/responsible?${q.toString()}`);
   },
-  getHealth: () => handleRequest<{ ok: boolean }>('/health'),
+
   getPayCycleReview: (cycleId: string, params?: { review?: string; status?: string }) => {
     const q = new URLSearchParams();
     if (params?.review) q.set('review', params.review);
@@ -1947,7 +2193,7 @@ export const api = {
     handleRequest<RiderLookupItem[]>(`/riders/lookup?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(String(limit))}`),
 
   // Pay Settings Lifecycle (C4 / A6)
-  getPayAppDefaults: (app: string) => handleRequest<PayCatalog['defaults']>(`/pay/apps/${encodeURIComponent(app)}/defaults`),
+
   getAppEligibility: (app: string) => handleRequest<PayEligibilityResponse>(`/pay/apps/${encodeURIComponent(app)}/eligibility`),
   createAppEligibility: (app: string, input: Record<string, unknown>, period?: string) =>
     handleRequest<PayEligibilityItem>(`/pay/apps/${encodeURIComponent(app)}/eligibility${period ? `?period=${encodeURIComponent(period)}` : ''}`, {
@@ -1974,8 +2220,7 @@ export const api = {
     return handleRequest<{ id: string; deleted?: boolean }>(url, { method: 'DELETE' });
   },
 
-  // Import Center (K6 / R6c)
-  getImportsCatalog: () => handleRequest<ImportCatalogStep[]>('/imports/catalog'),
+  // Per-page import templates / preview / commit (imports centre removed)
   downloadImportTemplate: async (templateUrl: string, fallbackFileName = 'template.xlsx'): Promise<void> => {
     const url = templateUrl.startsWith('http') ? templateUrl : (templateUrl.startsWith('/api') ? templateUrl : `/api${templateUrl}`);
     const res = await fetch(url, {
@@ -2053,8 +2298,6 @@ export const api = {
     handleRequest<Record<string, unknown>>('/pay/apps/chefz/operations/review', { method: 'POST', body: JSON.stringify(input) }),
 
   listJahezReconciliations: () => handleRequest<JahezReconciliationDoc[]>('/finance/jahez-reconciliations'),
-  getJahezReconciliation: (id: string) =>
-    handleRequest<JahezReconciliationDoc>(`/finance/jahez-reconciliations/${encodeURIComponent(id)}`),
   buildJahezReconciliation: (input: {
     companyId: string; period: string; invoiceNet: number; invoiceVat: number;
     lastTransactionDate: string; invoiceReference?: string; notes?: string;
@@ -2077,8 +2320,6 @@ export const api = {
   jahezFee: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/finance/jahez-fee', { method: 'POST', body: JSON.stringify(input) }),
   listJahezHandovers: () => handleRequest<Array<Record<string, unknown>>>('/finance/jahez-handovers'),
-  submitJahezHandover: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/finance/jahez-handover', { method: 'POST', body: JSON.stringify(input) }),
   confirmJahezHandover: (id: string, input: Record<string, unknown> = {}) =>
     handleRequest<Record<string, unknown>>(`/finance/jahez-handovers/${encodeURIComponent(id)}/confirm`, { method: 'POST', body: JSON.stringify(input) }),
   rejectJahezHandover: (id: string, input: Record<string, unknown> = {}) =>
@@ -2116,4 +2357,15 @@ export const api = {
     handleRequest<Record<string, unknown>>('/debts', { method: 'POST', body: JSON.stringify(input) }),
   collectDebt: (id: string, input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>(`/debts/${encodeURIComponent(id)}/collect`, { method: 'POST', body: JSON.stringify(input) }),
+  getDistinctValues: (endpoint: string, column: string, params?: Record<string, string | undefined>) => {
+    const q = new URLSearchParams();
+    q.set('column', column);
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== '') q.set(k, v);
+      });
+    }
+    const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return handleRequest<{ column: string; values: string[]; counts?: Record<string, number>; hasEmpty?: boolean; emptyCount?: number }>(`${clean}?${q.toString()}`);
+  },
 };

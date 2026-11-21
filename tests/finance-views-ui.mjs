@@ -1,3 +1,4 @@
+import {seedWorkRows} from './work-seed.mjs';
 import {spawn} from 'node:child_process';
 import {mkdtempSync,rmSync,mkdirSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -54,8 +55,8 @@ try {
   // 1. Initial setup
   const password = randomBytes(24).toString('hex');
   assert.equal((await page.request.post(base + '/api/auth/setup', {data: {username: 'finance-views-tester', password}})).status(), 200);
-  await page.goto(base + '/legacy/');
-  await page.getByRole('heading', {name: 'كل مستحق في مكانه'}).waitFor();
+  await page.goto(base + '/app/accounting/?tab=coa');
+  await page.getByRole('heading', {name: /المحاسبة|دليل الحسابات|لوحة القيادة/}).waitFor({timeout: 15000});
 
   // Helper for API setup
   async function apiPost(route, body) {
@@ -108,32 +109,7 @@ try {
     iban
   });
 
-  const csv = `sourceRef,iqama,name,accountId,from,to,orders,platformRevenue,isValid\r\nsynthetic-work,${iqama},Ahmed Test Rider,0000000000000001,2026-10-01,2026-10-31,600,1500,true\r\n`;
-  const upload = await apiPost('/api/imports/inspect', {
-    filename: 'synthetic.csv',
-    dataBase64: Buffer.from(csv).toString('base64')
-  });
-
-  const importSpec = {
-    sheet: 'CSV',
-    period,
-    platform: 'Keeta',
-    headerRow: 1,
-    confirmActualRider: true,
-    mapping: {
-      sourceRef: 0,
-      iqama: 1,
-      name: 2,
-      accountId: 3,
-      from: 4,
-      to: 5,
-      orders: 6,
-      platformRevenue: 7,
-      isValid: 8
-    }
-  };
-  await apiPost(`/api/imports/${upload.id}/preview`, importSpec);
-  await apiPost(`/api/imports/${upload.id}/commit`, importSpec);
+  await seedWorkRows(async (route, body) => apiPost(route, body), [{sourceRef:'synthetic-work',iqama,name:'Ahmed Test Rider',accountId:'0000000000000001',from:'2026-10-01',to:'2026-10-31',orders:600,platformRevenue:1500,isValid:true,platform:'Keeta',period}]);
 
   const previewPay = await (await context.request.get(`${base}/api/payroll/preview?period=${period}`)).json();
   assert.equal(previewPay[0].payable, 1000);

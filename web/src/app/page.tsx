@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Users,
   Upload,
@@ -17,12 +18,25 @@ import {
 import { api } from '../lib/api';
 import type { DashboardMetrics } from '../lib/types';
 import { inApp } from '../lib/paths';
+import { useAuth } from '../lib/auth-context';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
 import { DataTable, ColumnDef } from '../components/ui/DataTable';
 import { ErrorState, Skeleton } from '../components/ui/EmptyState';
 
+/** First landing page a role can open when the dashboard (payroll.view) is closed. */
+const FALLBACK_HOMES: Array<{ permission: string | string[]; href: string }> = [
+  { permission: 'riders.view', href: '/workforce/' },
+  { permission: 'debts.view', href: '/debts/' },
+  { permission: 'operations.view', href: '/operations/' },
+  { permission: 'forms.view', href: '/rider-app/?tab=campaigns' },
+  { permission: 'treasury.view', href: '/treasury/' },
+  { permission: 'users.manage', href: '/admin/' },
+];
+
 export default function DashboardPage() {
+  const router = useRouter();
+  const { can, isAdmin, loading: authLoading, user } = useAuth();
   const [data, setData] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,13 +55,24 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchDashboard();
-  }, []);
+    if (authLoading || !user) return;
+    if (isAdmin || can('payroll.view')) {
+      fetchDashboard();
+      return;
+    }
+    const match = FALLBACK_HOMES.find((h) =>
+      Array.isArray(h.permission) ? h.permission.some((p) => can(p)) : can(h.permission)
+    );
+    router.replace(match?.href ?? '/workforce/');
+  }, [authLoading, user, isAdmin, can, router]);
 
   const auditColumns: ColumnDef<any>[] = [
     {
       key: 'action',
       header: 'العملية',
+      type: 'list',
+      filterType: 'list',
+      getValue: (row) => row.action || '',
       render: (row) => (
         <span className="font-semibold text-[var(--ink)]">{row.action}</span>
       ),
@@ -55,6 +80,10 @@ export default function DashboardPage() {
     {
       key: 'actor',
       header: 'المنفذ',
+      type: 'list',
+      filterType: 'list',
+      getValue: (row) => row.actor || '',
+      toneOf: () => 'neutral',
       render: (row) => (
         <span className="px-2 py-0.5 rounded-md bg-[var(--raised)] text-xs text-[var(--muted)]">
           {row.actor}
@@ -64,6 +93,10 @@ export default function DashboardPage() {
     {
       key: 'at',
       header: 'التوقيت',
+      type: 'date',
+      filterType: 'date',
+      getValue: (row) => row.at || '',
+      labelOf: (v) => (v ? new Date(String(v)).toLocaleString('ar-SA') : '—'),
       render: (row) => (
         <span className="num text-xs text-[var(--muted)]">
           {new Date(row.at).toLocaleString('ar-SA')}
@@ -81,7 +114,7 @@ export default function DashboardPage() {
         primaryAction={{
           label: 'بيانات التشغيل',
           onClick: () => {
-            window.location.href = inApp('/operations/');
+            router.push('/operations/');
           },
           icon: <Upload size={16} />,
         }}
@@ -133,7 +166,7 @@ export default function DashboardPage() {
                 isPositive: data.pendingResponses === 0,
               }}
               onClick={() => {
-                window.location.href = '/app/forms/?tab=responses';
+                window.location.href = '/app/rider-app/?tab=responses';
               }}
             />
 
@@ -249,7 +282,7 @@ export default function DashboardPage() {
 
                 <div className="flex flex-col gap-2">
                   <Link
-                    href={inApp('/forms/?tab=campaigns')}
+                    href={inApp('/rider-app/?tab=campaigns')}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:opacity-90 transition shadow-xs"
                   >
                     <span>إنشاء حملة نماذج جديدة</span>
@@ -257,7 +290,7 @@ export default function DashboardPage() {
                   </Link>
 
                   <Link
-                    href={inApp('/forms/?tab=responses')}
+                    href={inApp('/rider-app/?tab=responses')}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] rounded-lg border border-[var(--line)] transition"
                   >
                     <span>صندوق مراجعة الردود</span>

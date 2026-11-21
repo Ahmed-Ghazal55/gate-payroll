@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -32,10 +34,12 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { IbanDisplay } from '../../components/ui/IbanDisplay';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import type {
   FinanceAccount,
   FinanceJournal,
@@ -77,14 +81,14 @@ function TreasuryPageContent() {
     router.replace(`/treasury/?tab=${newTab}`, { scroll: false });
   };
 
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('2026-10');
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(() => new Date().toISOString().slice(0, 7));
   const [selectedSponsor, setSelectedSponsor] = useState<string>('all');
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [vaultTypeFilter, setVaultTypeFilter] = useState<string>('all');
 
   useEffect(() => {
-    api.getCompanies().then((res) => setCompanies(res || [])).catch(() => {});
+    api.getFinanceSponsors().then((res) => setCompanies(res || [])).catch(() => {});
   }, []);
 
   // Data states
@@ -247,7 +251,7 @@ function TreasuryPageContent() {
         reference: payoutReference.trim(),
         note: payoutNote.trim() || undefined,
       });
-      toast(`تم صرف السلفة بنجاح (${selectedPayoutReq.amount} ر.س) وإنشاء القيد المحاسبي والمديونية`, 'success');
+      toast(`تم صرف السلفة بنجاح (${formatSar(selectedPayoutReq.amount)}) وإنشاء القيد المحاسبي والمديونية`, 'success');
       setPayoutModalOpen(false);
       setSelectedPayoutReq(null);
       setPayoutReference('');
@@ -302,6 +306,84 @@ function TreasuryPageContent() {
     );
   }, [selectedAccount, journals]);
 
+  const vaultsCols = useMemo(
+    () => [
+      { key: 'code', header: 'رمز الحساب', type: 'list' as const, getValue: (a: FinanceAccount) => a.code || '' },
+      { key: 'nameAr', header: 'اسم البنك / الخزينة', type: 'text' as const, getValue: (a: FinanceAccount) => a.nameAr || '' },
+      {
+        key: 'type',
+        header: 'النوع والوظيفة',
+        type: 'list' as const,
+        getValue: (a: FinanceAccount) => (a.code?.startsWith('111') ? 'bank' : 'cash'),
+        labelOf: (v: unknown) => (v === 'bank' ? 'حساب بنكي رئيسي' : 'صندوق نقدية تشغيلي'),
+      },
+      { key: 'sponsorName', header: 'الجهة الكفيلة', type: 'list' as const, getValue: (a: FinanceAccount) => (a as any).sponsorName || 'عام' },
+      {
+        key: 'netBalance',
+        header: 'الرصيد الصافي الفعلي',
+        type: 'number' as const,
+        getValue: (a: FinanceAccount) => Number(a.netBalance ?? 0),
+        toneOf: (v: unknown) => (Number(v ?? 0) < 0 ? 'danger' : 'success'),
+      },
+      { key: 'naturalSideAr', header: 'طبيعة الحساب', type: 'list' as const, getValue: (a: FinanceAccount) => a.naturalSideAr || '' },
+    ],
+    []
+  );
+  const vaultsFilter = useTableAutoFilter<FinanceAccount>(vaultAccounts, vaultsCols);
+
+  const payoutsCols = useMemo(
+    () => [
+      { key: 'id', header: 'معرف السلفة', type: 'text' as const, getValue: (r: AdvanceRequest) => r.id || '' },
+      { key: 'rider', header: 'المندوب والإقامة', type: 'text' as const, getValue: (r: AdvanceRequest) => `${r.riderName || ''} ${r.riderIqama || ''}`.trim() },
+      {
+        key: 'type',
+        header: 'النوع والخزينة المكلفة',
+        type: 'list' as const,
+        getValue: (r: AdvanceRequest) => r.type || '',
+        labelOf: (v: unknown) => (v === 'internet' ? 'سلفة إنترنت' : v === 'cash' ? 'خزينة نقدية' : 'حساب بنكي'),
+      },
+      { key: 'amount', header: 'المبلغ المعتمد', type: 'number' as const, getValue: (r: AdvanceRequest) => Number(r.amount ?? 0) },
+      { key: 'monthlyInstallment', header: 'القسط الشهري', type: 'number' as const, getValue: (r: AdvanceRequest) => Number(r.monthlyInstallment ?? 0) },
+      { key: 'approvedBy', header: 'المعتمد وتاريخه', type: 'list' as const, getValue: (r: AdvanceRequest) => r.approvedBy || '' },
+      { key: 'reason', header: 'سبب الاعتماد', type: 'text' as const, getValue: (r: AdvanceRequest) => r.coverageReason || r.reason || '' },
+    ],
+    []
+  );
+  const payoutsFilter = useTableAutoFilter<AdvanceRequest>(advancePayouts, payoutsCols);
+
+  const bankRecords = useMemo(() => bankFilePreview?.records || [], [bankFilePreview?.records]);
+  const bankRecordsCols = useMemo(
+    () => [
+      { key: 'riderIqama', header: 'رقم الإقامة', type: 'text' as const, getValue: (r: any) => r.riderIqama || '' },
+      { key: 'riderName', header: 'اسم المندوب', type: 'text' as const, getValue: (r: any) => r.riderName || '' },
+      { key: 'iban', header: 'الآيبان البنكي', type: 'text' as const, getValue: (r: any) => `${r.iban || ''} ${r.bankName || ''}`.trim() },
+      { key: 'amount', header: 'مبلغ الصرف المستحق', type: 'number' as const, getValue: (r: any) => Number(r.amount ?? 0) },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (r: any) => r.status || 'excluded',
+        labelOf: (v: unknown) => (v === 'valid' ? 'جاهز للصرف' : 'مستبعد'),
+        toneOf: (v: unknown) => (v === 'valid' ? 'success' : 'warning'),
+      },
+    ],
+    []
+  );
+  const bankRecordsFilter = useTableAutoFilter(bankRecords, bankRecordsCols);
+
+  const movementsCols = useMemo(
+    () => [
+      { key: 'id', header: 'رقم القيد', type: 'text' as const, getValue: (j: FinanceJournal) => j.id || '' },
+      { key: 'description', header: 'البيان والوصف', type: 'text' as const, getValue: (j: FinanceJournal) => j.description || '' },
+      { key: 'entryDate', header: 'تاريخ الحركة', type: 'date' as const, getValue: (j: FinanceJournal) => j.entryDate?.split('T')[0] || '' },
+      { key: 'totalDebit', header: 'المبلغ الإجمالي', type: 'number' as const, getValue: (j: FinanceJournal) => Number(j.totalDebit ?? 0) },
+      { key: 'postedBy', header: 'المسؤول', type: 'list' as const, getValue: (j: FinanceJournal) => (j as any).postedBy || j.createdBy || 'النظام' },
+      { key: 'status', header: 'الحالة', type: 'list' as const, getValue: () => 'posted', labelOf: () => 'مرحل', toneOf: () => 'success' as const },
+    ],
+    []
+  );
+  const movementsFilter = useTableAutoFilter<FinanceJournal>(journals, movementsCols);
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -320,13 +402,13 @@ function TreasuryPageContent() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="إجمالي أرصدة البنوك"
-          value={`${totalBankBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+          value={`${formatSar(totalBankBalance)}`}
           hint="الأرصدة الصافية الفعلية في الحسابات البنكية"
           icon={Landmark}
         />
         <StatCard
           label="إجمالي الصناديق والخزن"
-          value={`${totalCashBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+          value={`${formatSar(totalCashBalance)}`}
           hint="الخزن الرئيسية والفرعية وصناديق العهد"
           icon={Coins}
         />
@@ -338,7 +420,7 @@ function TreasuryPageContent() {
         />
         <StatCard
           label="ملف صرف البنك للفترة"
-          value={bankFilePreview ? `${bankFilePreview.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س` : selectedPeriod}
+          value={bankFilePreview ? `${formatSar(bankFilePreview.totalAmount)}` : selectedPeriod}
           hint={bankFilePreview ? `${bankFilePreview.validRecordsCount} سجلات جاهزة للصرف` : 'اختر تبويب ملف البنك للمعاينة'}
           icon={FileSpreadsheet}
         />
@@ -404,15 +486,20 @@ function TreasuryPageContent() {
             </div>
 
             <div className="flex items-center gap-2">
-              <select
+              <SearchableSelect
+                id="treasury-vault-type"
                 value={vaultTypeFilter}
-                onChange={(e) => setVaultTypeFilter(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كافة أنواع الخزن</option>
-                <option value="bank">حسابات بنكية (1110)</option>
-                <option value="cash">صناديق نقدية وعهد (1120-1140)</option>
-              </select>
+                onChange={setVaultTypeFilter}
+                ariaLabel="نوع الخزينة"
+                placeholder="كافة أنواع الخزن"
+                size="sm"
+                className="w-52"
+                options={[
+                  { value: 'all', label: 'كافة أنواع الخزن' },
+                  { value: 'bank', label: 'حسابات بنكية (1110)' },
+                  { value: 'cash', label: 'صناديق نقدية وعهد (1120-1140)' },
+                ]}
+              />
             </div>
           </div>
 
@@ -431,21 +518,22 @@ function TreasuryPageContent() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar controller={vaultsFilter} totalCount={vaultAccounts.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">رمز الحساب</th>
-                      <th className="p-3 text-start">اسم البنك / الخزينة</th>
-                      <th className="p-3 text-start">النوع والوظيفة</th>
-                      <th className="p-3 text-start">الجهة الكفيلة</th>
-                      <th className="p-3 text-start">الرصيد الصافي الفعلي</th>
-                      <th className="p-3 text-start">طبيعة الحساب</th>
+                      <AutoFilterTh controller={vaultsFilter} colKey="code" className="p-3 text-start" />
+                      <AutoFilterTh controller={vaultsFilter} colKey="nameAr" className="p-3 text-start" />
+                      <AutoFilterTh controller={vaultsFilter} colKey="type" className="p-3 text-start" />
+                      <AutoFilterTh controller={vaultsFilter} colKey="sponsorName" className="p-3 text-start" />
+                      <AutoFilterTh controller={vaultsFilter} colKey="netBalance" className="p-3 text-start" />
+                      <AutoFilterTh controller={vaultsFilter} colKey="naturalSideAr" className="p-3 text-start" />
                       <th className="p-3 text-start">الإجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {vaultAccounts.map((a) => (
+                    {vaultsFilter.rows.map((a) => (
                       <tr key={a.code} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono font-bold text-[var(--accent)]">{a.code}</td>
                         <td className="p-3 font-semibold">{a.nameAr}</td>
@@ -457,7 +545,7 @@ function TreasuryPageContent() {
                         <td className="p-3 text-[var(--muted)]">{(a as any).sponsorName || 'عام'}</td>
                         <td className="p-3 num font-bold text-sm">
                           <span className={a.netBalance < 0 ? 'text-[var(--danger)]' : 'text-[var(--money-pos)]'}>
-                            {a.netBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(a.netBalance)}
                           </span>
                         </td>
                         <td className="p-3 text-xs text-[var(--muted)]">{a.naturalSideAr}</td>
@@ -510,22 +598,23 @@ function TreasuryPageContent() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar controller={payoutsFilter} totalCount={advancePayouts.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">معرف السلفة</th>
-                      <th className="p-3 text-start">المندوب والإقامة</th>
-                      <th className="p-3 text-start">النوع والخزينة المكلفة</th>
-                      <th className="p-3 text-start">المبلغ المعتمد</th>
-                      <th className="p-3 text-start">القسط الشهري</th>
-                      <th className="p-3 text-start">المعتمد وتاريخه</th>
-                      <th className="p-3 text-start">سبب الاعتماد</th>
+                      <AutoFilterTh controller={payoutsFilter} colKey="id" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="rider" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="type" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="amount" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="monthlyInstallment" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="approvedBy" className="p-3 text-start" />
+                      <AutoFilterTh controller={payoutsFilter} colKey="reason" className="p-3 text-start" />
                       <th className="p-3 text-start">الإجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {advancePayouts.map((req) => (
+                    {payoutsFilter.rows.map((req) => (
                       <tr key={req.id} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono text-[11px] text-[var(--muted)]">{req.id}</td>
                         <td className="p-3">
@@ -556,10 +645,10 @@ function TreasuryPageContent() {
                           <div className="font-mono text-[10px] text-[var(--muted)]">{req.vaultCode}</div>
                         </td>
                         <td className="p-3 num font-bold text-sm text-[var(--money-pos)]">
-                          {req.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          {formatSar(req.amount)}
                         </td>
                         <td className="p-3 num font-medium text-xs text-[var(--ink)]">
-                          {req.monthlyInstallment ? `${req.monthlyInstallment} ر.س` : '—'}
+                          {req.monthlyInstallment ? formatSar(req.monthlyInstallment) : '—'}
                         </td>
                         <td className="p-3 text-xs">
                           <div className="font-semibold text-[var(--ink)]">{req.approvedBy}</div>
@@ -618,19 +707,22 @@ function TreasuryPageContent() {
 
               <div>
                 <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">الشركة الكفيلة:</label>
-                <select
+                <SearchableSelect
+                  id="treasury-sponsor-filter"
                   value={selectedSponsor}
-                  onChange={(e) => setSelectedSponsor(e.target.value)}
-                  className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
-                >
-                  <option value="all">كافة الكفلاء والشركات</option>
-                  {companies.map((c) => (
-                    <option key={c.code || c.id} value={c.code || c.id}>
-                      {c.nameAr || c.shortNameAr || c.code || c.id}
-                      {c.code ? ` (${c.code})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedSponsor}
+                  ariaLabel="الشركة الكفيلة"
+                  placeholder="كافة الكفلاء والشركات"
+                  size="sm"
+                  className="w-52"
+                  options={[
+                    { value: 'all', label: 'كافة الكفلاء والشركات' },
+                    ...companies.map((c) => ({
+                      value: c.code || c.id,
+                      label: `${c.nameAr || c.shortNameAr || c.code || c.id}${c.code ? ` (${c.code})` : ''}`,
+                    })),
+                  ]}
+                />
               </div>
               <label className="inline-flex items-center gap-2 text-xs font-bold mt-5 cursor-pointer">
                 <input type="checkbox" checked={comparisonOnly} onChange={(e) => setComparisonOnly(e.target.checked)} />
@@ -678,7 +770,7 @@ function TreasuryPageContent() {
                 <div className="p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
                   <div className="text-xs text-[var(--muted)] font-medium">إجمالي مبلغ الصرف</div>
                   <div className="text-lg font-bold num text-[var(--accent)] mt-1">
-                    {bankFilePreview.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                    {formatSar(bankFilePreview.totalAmount)}
                   </div>
                 </div>
                 <div className="p-3.5 rounded-xl border border-[var(--line)] bg-[var(--surface)]">
@@ -696,19 +788,20 @@ function TreasuryPageContent() {
               </div>
 
               <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                <AutoFilterBar controller={bankRecordsFilter} totalCount={bankFilePreview.records.length} />
                 <div className="overflow-x-auto">
                   <table className="w-full text-start text-xs sm:text-sm">
                     <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                       <tr>
-                        <th className="p-3 text-start">رقم الإقامة</th>
-                        <th className="p-3 text-start">اسم المندوب</th>
-                        <th className="p-3 text-start">الآيبان البنكي</th>
-                        <th className="p-3 text-start">مبلغ الصرف المستحق</th>
-                        <th className="p-3 text-start">الحالة</th>
+                        <AutoFilterTh controller={bankRecordsFilter} colKey="riderIqama" className="p-3 text-start" />
+                        <AutoFilterTh controller={bankRecordsFilter} colKey="riderName" className="p-3 text-start" />
+                        <AutoFilterTh controller={bankRecordsFilter} colKey="iban" className="p-3 text-start" />
+                        <AutoFilterTh controller={bankRecordsFilter} colKey="amount" className="p-3 text-start" />
+                        <AutoFilterTh controller={bankRecordsFilter} colKey="status" className="p-3 text-start" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--line)]">
-                      {bankFilePreview.records.map((r, idx) => (
+                      {bankRecordsFilter.rows.map((r, idx) => (
                         <tr key={idx} className="hover:bg-[var(--row-hover)] transition">
                           <td className="p-3 font-mono">{r.riderIqama}</td>
                           <td className="p-3 font-semibold">{r.riderName}</td>
@@ -716,7 +809,7 @@ function TreasuryPageContent() {
                             <IbanDisplay iban={r.iban} bank={r.bankName} />
                           </td>
                           <td className="p-3 num font-bold text-[var(--accent)]">
-                            {r.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(r.amount)}
                           </td>
                           <td className="p-3">
                             <span
@@ -780,26 +873,27 @@ function TreasuryPageContent() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar controller={movementsFilter} totalCount={journals.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">رقم القيد</th>
-                      <th className="p-3 text-start">البيان والوصف</th>
-                      <th className="p-3 text-start">تاريخ الحركة</th>
-                      <th className="p-3 text-start">المبلغ الإجمالي</th>
-                      <th className="p-3 text-start">المسؤول</th>
-                      <th className="p-3 text-start">الحالة</th>
+                      <AutoFilterTh controller={movementsFilter} colKey="id" className="p-3 text-start" />
+                      <AutoFilterTh controller={movementsFilter} colKey="description" className="p-3 text-start" />
+                      <AutoFilterTh controller={movementsFilter} colKey="entryDate" className="p-3 text-start" />
+                      <AutoFilterTh controller={movementsFilter} colKey="totalDebit" className="p-3 text-start" />
+                      <AutoFilterTh controller={movementsFilter} colKey="postedBy" className="p-3 text-start" />
+                      <AutoFilterTh controller={movementsFilter} colKey="status" className="p-3 text-start" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {journals.map((j) => (
+                    {movementsFilter.rows.map((j) => (
                       <tr key={j.id} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono text-xs text-[var(--accent)]">#{j.id.substring(0, 8)}</td>
                         <td className="p-3 font-semibold">{j.description}</td>
                         <td className="p-3 num text-xs text-[var(--muted)]">{j.entryDate?.split('T')[0]}</td>
                         <td className="p-3 num font-bold text-[var(--ink)]">
-                          {(j.totalDebit ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                          {formatSar((j.totalDebit ?? 0))}
                         </td>
                         <td className="p-3 font-mono text-xs text-[var(--muted)]">{(j as any).postedBy || j.createdBy || 'النظام'}</td>
                         <td className="p-3">
@@ -842,7 +936,7 @@ function TreasuryPageContent() {
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المبلغ المطلوب صرفه:</span>
                 <span className="font-bold num text-sm text-[var(--money-pos)]">
-                  {selectedPayoutReq.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatSar(selectedPayoutReq.amount)}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -911,7 +1005,7 @@ function TreasuryPageContent() {
         open={Boolean(payoutDetailsReq)}
         onClose={() => setPayoutDetailsReq(null)}
         title={payoutDetailsReq ? `تفاصيل سلفة: ${payoutDetailsReq.riderName}` : 'تفاصيل السلفة'}
-        subtitle={payoutDetailsReq ? `المبلغ: ${payoutDetailsReq.amount} ر.س` : ''}
+        subtitle={payoutDetailsReq ? `المبلغ: ${formatSar(payoutDetailsReq.amount)}` : ''}
       >
         {payoutDetailsReq && (
           <div className="space-y-4">
@@ -986,7 +1080,7 @@ function TreasuryPageContent() {
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">الرصيد الصافي الحالي:</span>
                 <span className="num font-bold text-sm text-[var(--accent)]">
-                  {selectedAccount.netBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatSar(selectedAccount.netBalance)}
                 </span>
               </div>
             </div>

@@ -49,8 +49,8 @@ try {
   // 1. Initial setup
   const password = randomBytes(24).toString('hex');
   assert.equal((await page.request.post(base + '/api/auth/setup', {data: {username: 'simple-statement-tester', password}})).status(), 200);
-  await page.goto(base + '/legacy/');
-  await page.getByRole('heading', {name: 'كل مستحق في مكانه'}).waitFor();
+  await page.goto(base + '/app/debts/?tab=statement');
+  await page.getByRole('heading', {name: /المديون|كشف|لوحة القيادة/}).waitFor({timeout: 15000});
 
   // Helper for API setup
   let cookie = '';

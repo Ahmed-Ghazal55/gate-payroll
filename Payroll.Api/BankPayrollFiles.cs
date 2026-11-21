@@ -13,6 +13,25 @@ public static class BankPayrollFiles
     // 40 stays for BR §19 (former Samba, manual confirmation); 50 (Alawwal), 83 and 98 are no longer participants.
     private static readonly Dictionary<string,string> Banks=new(){["05"]="INMA",["10"]="NCBK",["15"]="ALBI",["20"]="RIBL",["30"]="ARNB",["36"]="DBAK",["40"]="NCBK",["45"]="SABB",["55"]="BSFR",["60"]="BJAZ",["65"]="SIBC",["71"]="NBOB",["72"]="QNBA",["73"]="FABM",["75"]="NBOK",["76"]="BMUS",["78"]="STCJ",["79"]="NBIQ",["80"]="RJHI",["81"]="DEUT",["82"]="NBPA",["84"]="TCZB",["85"]="BNPA",["86"]="CHAS",["87"]="ICBK",["88"]="BOTK",["89"]="CRES",["90"]="GULF",["91"]="SCBL",["92"]="BSHR",["93"]="VIIO",["95"]="EBIL"};
     public static string BankFor(string code)=>Banks.GetValueOrDefault(code,"");
+    // Same Arabic names as web/src/lib/saudi-banks.ts (R1 export split: IBAN / bank code / bank name).
+    private static readonly Dictionary<string,string> BankNamesAr=new()
+    {
+        ["05"]="مصرف الإنماء",["10"]="البنك الأهلي السعودي",["15"]="بنك البلاد",["20"]="بنك الرياض",["30"]="البنك العربي الوطني",
+        ["36"]="بنك D360",["40"]="البنك الأهلي السعودي (سامبا سابقًا)",["45"]="البنك السعودي الأول (ساب)",["55"]="البنك السعودي الفرنسي",
+        ["60"]="بنك الجزيرة",["65"]="البنك السعودي للاستثمار",["71"]="بنك عمان الوطني",["72"]="بنك قطر الوطني",["73"]="بنك أبوظبي الأول",
+        ["75"]="بنك الكويت الوطني",["76"]="بنك مسقط",["78"]="STC Bank",["79"]="المصرف العراقي للتجارة",["80"]="مصرف الراجحي",
+        ["81"]="دويتشه بنك",["82"]="البنك الوطني الباكستاني",["84"]="بنك زراعات التركي",["85"]="بي إن بي باريبا",["86"]="جي بي مورغان",
+        ["87"]="بنك الصين الصناعي والتجاري",["88"]="بنك طوكيو ميتسوبيشي",["89"]="كريدي سويس",["90"]="بنك الخليج الدولي (ميم)",
+        ["91"]="ستاندرد تشارترد",["92"]="بنك البحرين الوطني",["93"]="بنك فيجن",["95"]="الإمارات دبي الوطني"
+    };
+    /// <summary>R1: bank short code and Arabic bank name for an IBAN export split; empty strings when not a Saudi IBAN.</summary>
+    public static (string Code,string NameAr) ExportBank(string iban)
+    {
+        string clean=NormalizeIban(iban??"");
+        if(!Regex.IsMatch(clean,@"\ASA[0-9]{22}\z"))return("","");
+        string code=clean.Substring(4,2);
+        return(BankFor(code),BankNamesAr.GetValueOrDefault(code,""));
+    }
     public sealed record Download(byte[] Bytes,string Filename);
     private static string NormalizeIban(string value)=>Regex.Replace(value.ToUpperInvariant(),@"\s","");
     public static bool ValidIban(string value)

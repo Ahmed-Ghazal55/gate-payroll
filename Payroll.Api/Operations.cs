@@ -131,7 +131,7 @@ public static class Operations
         if(wanted==SourceLive)return SourceLive;
         return ErpConfigured(config)?SourceLive:SourceStore;
     }
-    static SqlConnection OpenErp(IConfiguration config)
+    internal static SqlConnection OpenErp(IConfiguration config)
     {
         string sourceConnection=ErpConnection(config);
         if(string.IsNullOrWhiteSpace(sourceConnection))throw new ApiError("اتصال مصدر التشغيل غير مضبوط.",503);
@@ -153,7 +153,7 @@ public static class Operations
         result["source"]=source;result["asOf"]=asOf.ToString("O");result["allowedActions"]=new JsonArray();
         return result;
     }
-    static T LiveRead<T>(HttpContext ctx,Func<CancellationToken,T> read,string kind="operations")
+    internal static T LiveRead<T>(HttpContext ctx,Func<CancellationToken,T> read,string kind="operations")
     {
         using var cancel=CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);cancel.CancelAfter(LiveReadTimeout);
         try{return read(cancel.Token);}

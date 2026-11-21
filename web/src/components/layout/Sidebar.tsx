@@ -12,7 +12,6 @@ import {
   Receipt,
   Landmark,
   FileSpreadsheet,
-  ClipboardList,
   ShieldCheck,
   Smartphone,
   ChevronDown,
@@ -31,6 +30,8 @@ export interface NavSubItem {
   badge?: number | string;
   isNew?: boolean;
   permission?: string | string[];
+  /** When true, every listed permission is required (default: any one). */
+  requireAll?: boolean;
 }
 
 export interface NavGroup {
@@ -85,7 +86,7 @@ function SidebarInner({
       permission: 'riders.view',
       items: [
         { id: 'wf-directory', href: '/workforce/', label: 'القوى العاملة' },
-        { id: 'wf-statement', href: '/riders/statement/', label: 'كشف حساب المندوب', isNew: true },
+        { id: 'wf-statement', href: '/riders/statement/', label: 'كشف حساب المندوب', permission: 'debts.view', isNew: true },
       ],
     },
     {
@@ -95,27 +96,21 @@ function SidebarInner({
       defaultHref: '/companies/',
       permission: 'companies.view',
       items: [
-        { id: 'companies-sponsors', href: '/companies/?tab=companies', label: 'الشركات والكفلاء' },
-        { id: 'companies-cr', href: '/companies/?tab=cr', label: 'السجلات التجارية' },
-        { id: 'companies-docs', href: '/companies/?tab=expiring', label: 'الوثائق والانتهاءات' },
-        { id: 'hr-catalogs', href: '/hr/catalogs/', label: 'كتالوجات الموارد البشرية', isNew: true },
+        { id: 'companies-main', href: '/companies/', label: 'الشركات والسجلات', permission: 'companies.view' },
+        { id: 'hr-catalogs', href: '/hr/catalogs/', label: 'كتالوجات الموارد البشرية', permission: 'riders.view', isNew: true },
       ],
     },
     {
       id: 'operations',
-      label: 'التشغيل والأصول',
+      label: 'التشغيل والأسطول',
       icon: <Truck size={18} />,
-      defaultHref: '/operations/',
+      defaultHref: '/operations/?tab=cities',
       permission: 'operations.view',
       items: [
         { id: 'ops-cities', href: '/operations/?tab=cities', label: 'المدن والمناطق' },
         { id: 'ops-housing', href: '/operations/?tab=housing', label: 'السكن والإسكان' },
         { id: 'ops-vehicles', href: '/operations/?tab=vehicles', label: 'المركبات والتسليمات' },
-        { id: 'ops-custody', href: '/operations/?tab=custody', label: 'العهد العينية' },
-        { id: 'ops-guarantees', href: '/operations/?tab=guarantees', label: 'الكفالات' },
-        { id: 'ops-cases', href: '/operations/?tab=cases', label: 'القضايا والمنازعات' },
-        { id: 'ops-accounts', href: '/operations/?tab=accounts', label: 'حسابات المنصات' },
-        { id: 'ops-imports', href: '/imports/', label: 'استيراد الملفات', permission: 'imports.view', isNew: true },
+        { id: 'ops-fuel', href: '/operations/?tab=fuel', label: 'الوقود' },
       ],
     },
     {
@@ -157,7 +152,7 @@ function SidebarInner({
       items: [
         { id: 'treasury-vaults', href: '/treasury/?tab=vaults', label: 'أرصدة الخزينة (1110-1140)', permission: 'treasury.view' },
         { id: 'treasury-advance-payouts', href: '/treasury/?tab=advance_payouts', label: 'صرف السلف المعتمدة', permission: 'advances.payout' },
-        { id: 'treasury-bankfile', href: '/treasury/?tab=bank_file', label: 'ملف صرف الرواتب البنكي', permission: 'treasury.view' },
+        { id: 'treasury-bankfile', href: '/treasury/?tab=bank_file', label: 'ملف صرف الرواتب البنكي', permission: ['finance.bankfile.export', 'payroll.view'], requireAll: true },
         { id: 'treasury-jahez', href: '/treasury/?tab=jahez', label: 'جاهز — مطابقة وخزينة', permission: 'treasury.view' },
         { id: 'treasury-extras', href: '/treasury/?tab=extras', label: 'مدا والتزامات وتوزيع قديم', permission: 'treasury.view' },
         { id: 'treasury-movements', href: '/treasury/?tab=movements', label: 'سجل القيود والحركات', permission: 'treasury.view' },
@@ -168,40 +163,52 @@ function SidebarInner({
       label: 'المحاسبة والتقارير',
       icon: <FileSpreadsheet size={18} />,
       defaultHref: '/accounting/',
-      permission: 'payroll.view',
+      permission: ['treasury.view', 'finance.journal.create', 'finance.journal.approve', 'treasury.journals'],
       items: [
-        { id: 'acc-coa', href: '/accounting/?tab=coa', label: 'دليل الحسابات' },
-        { id: 'acc-journals', href: '/accounting/?tab=journals', label: 'سجل القيود اليومية' },
-        { id: 'acc-trial', href: '/accounting/?tab=trial_balance', label: 'ميزان المراجعة' },
-        { id: 'acc-income', href: '/accounting/?tab=income_statement', label: 'قائمة الدخل' },
+        { id: 'acc-coa', href: '/accounting/?tab=coa', label: 'دليل الحسابات', permission: 'treasury.view' },
+        { id: 'acc-journals', href: '/accounting/?tab=journals', label: 'سجل القيود اليومية', permission: ['finance.journal.create', 'finance.journal.approve'] },
+        { id: 'acc-trial', href: '/accounting/?tab=trial_balance', label: 'ميزان المراجعة', permission: 'treasury.journals' },
+        { id: 'acc-income', href: '/accounting/?tab=income_statement', label: 'قائمة الدخل', permission: 'treasury.journals' },
       ],
     },
     {
-      id: 'forms',
-      label: 'النماذج والردود',
-      icon: <ClipboardList size={18} />,
-      defaultHref: '/forms/',
-      badge: pendingResponsesCount > 0 ? pendingResponsesCount : undefined,
-      permission: 'forms.view',
-      items: [
-        { id: 'forms-campaigns', href: '/forms/?tab=campaigns', label: 'الحملات والروابط' },
-        { id: 'forms-responses', href: '/forms/?tab=responses', label: 'مراجعة الردود' },
-        { id: 'forms-builder', href: '/forms/?tab=builder', label: 'مصمم النماذج' },
-      ],
-    },
-    {
-      id: 'rider-app',
-      label: 'تطبيق المناديب',
+      // R3 (section 9): forms + rider-app admin in one main section; permissions match AccessPolicy.cs.
+      id: 'rider_app',
+      label: 'تطبيق المناديب والنماذج',
       icon: <Smartphone size={18} />,
-      defaultHref: '/rider-app/',
-      isNew: true,
-      permission: 'operations.view',
+      defaultHref: '/rider-app/?tab=campaigns',
+      badge: pendingResponsesCount > 0 ? pendingResponsesCount : undefined,
+      permission: [
+        'forms.view',
+        'forms.review',
+        'mobile.sessions',
+        'mobile.broadcast',
+        'mobile.complaints.confidential',
+        'riders.iban_data.approve_first',
+        'riders.iban_data.approve_second',
+        'inquiry.issue',
+      ],
       items: [
-        { id: 'app-accounts', href: '/rider-app/?tab=accounts', label: 'الحسابات والأجهزة' },
-        { id: 'app-broadcasts', href: '/rider-app/?tab=broadcasts', label: 'الإشعارات والإرسال' },
-        { id: 'app-settings', href: '/rider-app/?tab=settings', label: 'إعدادات Firebase' },
-        { id: 'app-statement', href: '/rider-app/?tab=statement-preview', label: 'معاينة كشف الحساب' },
-        { id: 'app-requests', href: '/rider-app/?tab=requests', label: 'الطلبات والمواعيد' },
+        { id: 'app-campaigns', href: '/rider-app/?tab=campaigns', label: 'الحملات والروابط', permission: 'forms.view' },
+        { id: 'app-responses', href: '/rider-app/?tab=responses', label: 'مراجعة الردود', permission: 'forms.view' },
+        { id: 'app-builder', href: '/rider-app/?tab=builder', label: 'مصمم النماذج', permission: 'forms.view' },
+        { id: 'app-accounts', href: '/rider-app/?tab=accounts', label: 'الحسابات والأجهزة', permission: ['mobile.sessions', 'inquiry.issue'] },
+        { id: 'app-broadcasts', href: '/rider-app/?tab=broadcasts', label: 'الإشعارات والإرسال', permission: 'mobile.broadcast' },
+        { id: 'app-statements', href: '/rider-app/?tab=statements', label: 'إرسال كشوف الحساب', permission: 'mobile.broadcast' },
+        {
+          id: 'app-requests',
+          href: '/rider-app/?tab=requests',
+          label: 'الطلبات والمواعيد',
+          permission: [
+            'mobile.broadcast',
+            'forms.view',
+            'forms.review',
+            'mobile.complaints.confidential',
+            'riders.iban_data.approve_first',
+            'riders.iban_data.approve_second',
+          ],
+        },
+        { id: 'app-settings', href: '/rider-app/?tab=settings', label: 'إعدادات التطبيق', permission: 'admin.only' },
       ],
     },
     {
@@ -213,7 +220,7 @@ function SidebarInner({
       items: [
         { id: 'admin-users', href: '/admin/?tab=users', label: 'المستخدمون والصلاحيات', permission: 'users.manage' },
         { id: 'admin-org', href: '/admin/?tab=org', label: 'الأقسام والرتب والتفويضات', permission: 'org.manage' },
-        { id: 'admin-audit', href: '/admin/?tab=audit', label: 'سجل التدقيق والعمليات', permission: 'users.manage' },
+        { id: 'admin-audit', href: '/admin/?tab=audit', label: 'سجل التدقيق والعمليات', permission: 'audit.view' },
         { id: 'admin-settings', href: '/admin/?tab=settings', label: 'إعدادات النظام', permission: 'users.manage' },
       ],
     },
@@ -229,7 +236,7 @@ function SidebarInner({
       return 'workforce';
     }
     const found = navGroups.find((g) => {
-      const gPath = g.defaultHref.replace(/\/$/, '');
+      const gPath = g.defaultHref.split('?')[0].replace(/\/$/, '');
       if (gPath === '') return clean === '';
       return clean === gPath || clean.startsWith(gPath + '/');
     });
@@ -250,24 +257,29 @@ function SidebarInner({
     setOpenGroupId((prev) => (prev === groupId ? null : groupId));
   };
 
-  const isItemVisible = (item: NavSubItem) => {
-    if (!user || isAdmin || !item.permission) return true;
-    if (Array.isArray(item.permission)) {
-      return item.permission.some((p) => can(p));
+  const matchesPermission = (permission?: string | string[], requireAll = false) => {
+    if (!permission) return true;
+    if (Array.isArray(permission)) {
+      return requireAll ? permission.every((p) => can(p)) : permission.some((p) => can(p));
     }
-    return can(item.permission);
+    return can(permission);
+  };
+
+  // An item with no permission inherits the group's permission (INT1).
+  const isItemVisible = (item: NavSubItem, group: NavGroup) => {
+    if (!user || isAdmin) return true;
+    return matchesPermission(item.permission ?? group.permission, item.requireAll);
   };
 
   const visibleGroups = navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter(isItemVisible),
+      items: group.items.filter((item) => isItemVisible(item, group)),
     }))
     .filter((group) => {
       if (!user) return true;
       if (isAdmin) return true;
-      const hasGroupPerm = !group.permission || (Array.isArray(group.permission) ? group.permission.some((p) => can(p)) : can(group.permission));
-      return hasGroupPerm || group.items.length > 0;
+      return group.items.length > 0;
     });
 
   const sidebarContent = (
@@ -325,7 +337,7 @@ function SidebarInner({
                 } ${collapsed ? 'p-2 justify-center' : 'px-2.5 py-2'}`}
               >
                 <Link
-                  href={group.defaultHref}
+                  href={group.items[0]?.href ?? group.defaultHref}
                   onClick={onCloseMobile}
                   title={collapsed ? group.label : undefined}
                   className={`flex items-center gap-2.5 flex-1 min-w-0 ${
@@ -380,14 +392,25 @@ function SidebarInner({
                     const cleanCurrentPath = pathname.replace(/\/$/, '') || '/';
                     const pathMatch = cleanCurrentPath === cleanSubPath;
 
+                    const hasTabbedSibling = group.items.some((sibling) => {
+                      const [sibPath, sibQuery] = sibling.href.split('?');
+                      const cleanSibPath = sibPath.replace(/\/$/, '') || '/';
+                      return (
+                        cleanSibPath === cleanSubPath &&
+                        Boolean(sibQuery && new URLSearchParams(sibQuery).get('tab'))
+                      );
+                    });
+
                     let isSubActive = false;
                     if (pathMatch) {
                       if (subQuery) {
                         const targetParam = new URLSearchParams(subQuery).get('tab');
-                        const currentParam = searchParams?.get('tab');
+                        // No ?tab= in the URL → the group's default tab is the active entry.
+                        const defaultTab = new URLSearchParams(group.defaultHref.split('?')[1] || '').get('tab');
+                        const currentParam = searchParams?.get('tab') ?? defaultTab;
                         isSubActive = currentParam === targetParam;
                       } else {
-                        isSubActive = !searchParams?.get('tab');
+                        isSubActive = hasTabbedSibling ? !searchParams?.get('tab') : true;
                       }
                     }
 

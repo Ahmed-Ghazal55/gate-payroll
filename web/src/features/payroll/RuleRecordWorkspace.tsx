@@ -22,7 +22,9 @@ import {
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { useToast } from '../../components/ui/Toast';
+import { DataTable } from '../../components/ui/DataTable';
 import type { PayConfigDoc } from '../../lib/types';
+import { formatSar } from '../../lib/money';
 
 export interface RuleRecordWorkspaceProps {
   appSlug: string;
@@ -123,9 +125,8 @@ export function RuleRecordWorkspace({
       <div className="p-3.5 rounded-2xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-xs text-[var(--ink)] flex items-start gap-2.5">
         <AlertTriangle size={16} className="text-[var(--accent)] shrink-0 mt-0.5" />
         <div className="leading-relaxed">
-          <strong>ملاحظة هيكلة السجلات (Ghazal 2026-11-08):</strong> يتم تخزين محددات الفوترة، الأنظمة، والأهلية
-          مباشرة عبر API الرواتب المعتمد. الحقول الموسعة (تحديد المدينة، التواريخ الممتدة، وسجل الأداء الشهري للحسابات)
-          مربوطة شكلياً وموثقة تحت «طلبات Codex P6» لحين اكتمال الـ endpoints المقابلة.
+          <strong>ملاحظة:</strong> محددات الفوترة والأنظمة والأهلية تُحفظ عبر واجهة الرواتب المعتمدة.
+          بعض الحقول الموسعة (المدينة، التواريخ الممتدة، وسجل الأداء الشهري) ما زالت قيد التطوير.
         </div>
       </div>
 
@@ -478,30 +479,51 @@ export function RuleRecordWorkspace({
           {localExceptions.length === 0 ? (
             <div className="p-6 text-center text-[var(--muted)]">لا توجد استثناءات فردية مسجلة لهذه القاعدة.</div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
-              <table className="w-full text-start text-xs">
-                <thead className="border-b border-[var(--line)] bg-[var(--raised)] text-[var(--muted)] font-semibold">
-                  <tr>
-                    <th className="p-2.5 text-start">المندوب</th>
-                    <th className="p-2.5 text-start">نوع القاعدة</th>
-                    <th className="p-2.5 text-start">المبلغ اليومي</th>
-                    <th className="p-2.5 text-start">إيجار المركبة</th>
-                    <th className="p-2.5 text-start">سريان من</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--line)]">
-                  {localExceptions.map((ex) => (
-                    <tr key={ex.id}>
-                      <td className="p-2.5 font-mono font-bold text-[var(--ink)]">{ex.rider}</td>
-                      <td className="p-2.5">{ex.ruleType}</td>
-                      <td className="p-2.5 num font-bold text-[var(--accent)]">{ex.dailyAmount} ر.س</td>
-                      <td className="p-2.5 num">{ex.vehicleRent} ر.س</td>
-                      <td className="p-2.5 font-mono text-[var(--muted)]">{ex.validFrom}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              tableId="rule-exceptions"
+              data={localExceptions}
+              getRowId={(ex) => ex.id}
+              pageSize={10}
+              columns={[
+                {
+                  key: 'rider',
+                  header: 'المندوب',
+                  type: 'text',
+                  getValue: (ex) => ex.rider || '',
+                  render: (ex) => <span className="font-mono font-bold text-[var(--ink)]">{ex.rider}</span>,
+                },
+                {
+                  key: 'ruleType',
+                  header: 'نوع القاعدة',
+                  type: 'list',
+                  getValue: (ex) => ex.ruleType || '',
+                  render: (ex) => <span>{ex.ruleType}</span>,
+                },
+                {
+                  key: 'dailyAmount',
+                  header: 'المبلغ اليومي',
+                  type: 'number',
+                  numeric: true,
+                  getValue: (ex) => Number(ex.dailyAmount ?? 0),
+                  render: (ex) => <span className="num font-bold text-[var(--accent)]">{formatSar(ex.dailyAmount)}</span>,
+                },
+                {
+                  key: 'vehicleRent',
+                  header: 'إيجار المركبة',
+                  type: 'number',
+                  numeric: true,
+                  getValue: (ex) => Number(ex.vehicleRent ?? 0),
+                  render: (ex) => <span className="num">{formatSar(ex.vehicleRent)}</span>,
+                },
+                {
+                  key: 'validFrom',
+                  header: 'سريان من',
+                  type: 'date',
+                  getValue: (ex) => ex.validFrom || '',
+                  render: (ex) => <span className="font-mono text-[var(--muted)]">{ex.validFrom}</span>,
+                },
+              ]}
+            />
           )}
         </div>
       )}
@@ -518,9 +540,9 @@ export function RuleRecordWorkspace({
 
           <div className="p-6 text-center bg-[var(--raised)]/40 rounded-xl border border-[var(--line)] space-y-2">
             <Clock size={28} className="mx-auto text-[var(--accent)] opacity-80" />
-            <div className="font-bold text-sm text-[var(--ink)]">بانتظار تفعيل Endpoint سجل الأداء في Codex P6</div>
+            <div className="font-bold text-sm text-[var(--ink)]">قيد التطوير</div>
             <p className="text-[11px] text-[var(--muted)] max-w-md mx-auto">
-              سيتم عرض سجل الأداء الشهري التفصيلي لكل حساب (طلبات، شفتات، ساعات، ونسب الامتثال) فور اكتمال نقطة النهاية المقابلة في خادم الرواتب P6.
+              سجل الأداء الشهري التفصيلي لكل حساب (طلبات، ورديات، ساعات، ونسب الامتثال) سيظهر هنا عند اكتمال نقطة النهاية في خادم الرواتب.
             </p>
           </div>
         </div>

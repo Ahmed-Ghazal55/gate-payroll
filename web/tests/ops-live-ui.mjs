@@ -1,10 +1,10 @@
 // U1 Operations Live UI Comprehensive Browser & API Verification
 import { spawn } from 'node:child_process';
-import { once } from 'node:events';
+import { createServer } from 'node:net';
 import { mkdtempSync, rmSync, cpSync, mkdirSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,9 +12,19 @@ const __dirname = path.dirname(__filename);
 const webDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(webDir, '..');
 
-// Playwright loader from /tmp/gate-browser
-const pwModulePath = '/tmp/gate-browser/node_modules/playwright/index.mjs';
-const { chromium } = await import(pwModulePath);
+const pwModulePath = process.env.PLAYWRIGHT_MODULE || '/tmp/gate-browser/node_modules/playwright/index.mjs';
+const { chromium } = await import(pathToFileURL(pwModulePath));
+
+async function freePort() {
+  const probe = createServer();
+  await new Promise((resolve, reject) => {
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', resolve);
+  });
+  const { port } = probe.address();
+  await new Promise((resolve) => probe.close(resolve));
+  return port;
+}
 
 async function main() {
   console.log('--- Starting Gate Payroll U1 Operations UI Verification ---');
@@ -28,40 +38,40 @@ async function main() {
 
   // 2. Set up synthetic isolated directory for server
   const testDir = mkdtempSync(path.join(tmpdir(), 'gate-u1-ops-'));
-  const port = 19695;
+  const port = await freePort();
   const baseUrl = `http://127.0.0.1:${port}`;
 
   console.log(`2. Starting Dotnet API on ${baseUrl}...`);
   const server = spawn(
-    'dotnet',
-    ['run', '--project', path.join(repoRoot, 'Payroll.Api/Payroll.Api.csproj'), '--no-build', '--urls', baseUrl],
+    process.env.DOTNET_PATH || 'dotnet',
+    [path.join(repoRoot, 'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],
     {
+      cwd: path.join(repoRoot, 'Payroll.Api'),
       env: {
         ...process.env,
         ASPNETCORE_ENVIRONMENT: 'Development',
+        ASPNETCORE_URLS: baseUrl,
         DOTNET_CLI_TELEMETRY_OPTOUT: '1',
         PAYROLL_DATA_DIR: testDir,
         Operations__Source: 'store',
+        Vouchers__Secret: process.env.Vouchers__Secret || 'GateSynthetic_CI_Only_Voucher_Key_000001',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     }
   );
 
-  server.stdout.on('data', (d) => {
-    const text = d.toString();
-    if (text.includes('Application started') || text.includes('Hosting started')) {
-      server.emit('ready');
-    }
-  });
-
-  server.stderr.on('data', (d) => {
-    // console.error('[SERVER STDERR]', d.toString());
-  });
-
-  await Promise.race([
-    once(server, 'ready'),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Server start timed out after 30s')), 30000)),
-  ]);
+  let ready = false;
+  for (let n = 0; n < 150; n++) {
+    if (server.exitCode !== null) throw new Error('Ops live server exited before startup');
+    try {
+      if ((await fetch(baseUrl + '/health')).ok) {
+        ready = true;
+        break;
+      }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  assert.ok(ready, 'Ops live server did not become ready');
   console.log('✓ Dotnet live API started successfully');
 
   try {
@@ -124,63 +134,47 @@ async function main() {
     assert.ok(badgeText.includes('بيانات تجريبية محلية'), 'Source badge must show «بيانات تجريبية محلية» in store mode');
     console.log(`✓ Source badge verified: ${badgeText.trim()}`);
 
-    // Check Stat Cards: total of the active tab only (no fake counts for other tabs)
-    console.log('\n[Test B] Verifying Active Tab Stat Cards (no fake counts for other tabs)...');
+    // Test B (0.27.0, O1): cities is the default sub-page, KPI cards shown, no top tab bar repeating the sidebar
+    console.log('\n[Test B] Verifying default cities sub-page and no repeated top tab bar (O1)...');
     const pageText = await page.textContent('body');
-    assert.ok(!pageText.includes('مغطاة'), 'Must NOT show fake "مغطاة" string for other tabs');
-    assert.ok(!pageText.includes('أسطول مسجل'), 'Must NOT show fake "أسطول مسجل" string for other tabs');
-    assert.ok(!pageText.includes('عهد موثقة'), 'Must NOT show fake "عهد موثقة" string for other tabs');
-    assert.ok(pageText.includes('المدن التشغيلية والمناطق'), 'Active tab title displayed');
-    console.log('✓ Stat cards show factual active-tab metrics only');
-
-    // Test C: Tabs navigation (all 7 kinds)
-    console.log('\n[Test C] Testing tab navigation across operational kinds...');
-    const tabs = [
-      { id: 'housing', title: 'السكن والإيواء الميداني' },
-      { id: 'vehicles', title: 'أسطول المركبات والتسليمات' },
-      { id: 'custody', title: 'العهد الشهرية والأجهزة' },
-      { id: 'guarantees', title: 'الكفالات والضمانات المالية' },
-      { id: 'cases', title: 'القضايا والمنازعات التشغيلية' },
-      { id: 'accounts', title: 'حسابات المنصات ومعرفات العمل' },
-      { id: 'cities', title: 'المدن التشغيلية والمناطق' },
-    ];
-
-    for (const tab of tabs) {
-      const tabButton = page.locator(`button[id="tab-${tab.id}"]`);
-      await tabButton.click();
-      await page.waitForTimeout(300);
-      const titleElem = page.locator('h3:has-text("' + tab.title + '")').first();
-      await titleElem.waitFor({ timeout: 5000 });
-      console.log(`  ✓ Tab «${tab.id}» loaded: ${tab.title}`);
+    assert.ok(pageText.includes('المدن والمناطق'), 'Cities title displayed');
+    assert.ok(pageText.includes('عدد المدن النشطة'), 'Cities KPI card displayed');
+    for (const id of ['cities', 'housing', 'vehicles', 'fuel', 'custody', 'guarantees', 'cases', 'accounts']) {
+      assert.equal(await page.locator(`button[id="tab-${id}"]`).count(), 0, `No top tab button for «${id}»`);
     }
+    console.log('✓ Cities sub-page loaded; no top tab bar');
 
-    // Test D: Server Search & 300ms Debounce
-    console.log('\n[Test D] Testing server-side search input with 300ms debounce...');
-    const searchInput = page.locator('input[placeholder*="بحث في سجلات التشغيل"]');
+    // Test C: the 4 sub-pages open from the URL (sidebar entries), and removed O7 tabs redirect
+    console.log('\n[Test C] Testing sub-pages and O7 redirects...');
+    for (const sub of [
+      { id: 'housing', title: 'السكن والإسكان' },
+      { id: 'vehicles', title: 'المركبات والتسليمات' },
+      { id: 'fuel', title: 'الوقود' },
+      { id: 'cities', title: 'المدن والمناطق' },
+    ]) {
+      await page.goto(`${baseUrl}/app/operations/?tab=${sub.id}`);
+      await page.waitForLoadState('networkidle');
+      await page.locator(`h1:has-text("${sub.title}"), h2:has-text("${sub.title}")`).first().waitFor({ timeout: 5000 });
+      console.log(`  ✓ Sub-page «${sub.id}» loaded: ${sub.title}`);
+    }
+    await page.goto(`${baseUrl}/app/operations/?tab=cases`);
+    await page.waitForURL(/\/app\/workforce\/\?tab=cases/, { timeout: 10000 });
+    console.log('  ✓ ?tab=cases → /app/workforce/?tab=cases');
+    await page.goto(`${baseUrl}/app/operations/?tab=custody`);
+    await page.waitForURL(/\/app\/operations\/\?tab=vehicles/, { timeout: 10000 });
+    console.log('  ✓ ?tab=custody → ?tab=vehicles');
+    await page.goto(`${baseUrl}/app/operations/`);
+    await page.waitForLoadState('networkidle');
+
+    // Test D: search input
+    console.log('\n[Test D] Testing search input...');
+    const searchInput = page.locator('input[placeholder="بحث…"]');
     await searchInput.waitFor({ timeout: 5000 });
-
-    // Type query
     await searchInput.fill('الرياض');
-    // Wait for debounce (300ms) and network fetch
     await page.waitForTimeout(500);
-    const bodyAfterSearch = await page.textContent('body');
-    console.log('✓ Debounced search executed with query: الرياض');
-
-    // Clear search
-    const clearBtn = page.locator('button[aria-label="مسح البحث"]');
-    if (await clearBtn.isVisible()) {
-      await clearBtn.click();
-      await page.waitForTimeout(500);
-      console.log('✓ Search cleared');
-    }
-
-    // Test E: Pagination controls (page sizes [25, 50, 100, 200])
-    console.log('\n[Test E] Testing pagination page-size selector...');
-    const pageSizeSelect = page.locator('select[aria-label="عدد السجلات لكل صفحة"]');
-    await pageSizeSelect.waitFor({ timeout: 5000 });
-    const options = await pageSizeSelect.locator('option').allTextContents();
-    assert.deepEqual(options.map((o) => o.trim()), ['25', '50', '100', '200'], 'Page sizes must be 25, 50, 100, 200');
-    console.log('✓ Server pagination page size options verified: [25, 50, 100, 200]');
+    await searchInput.fill('');
+    await page.waitForTimeout(500);
+    console.log('✓ Search typed and cleared');
 
     // Test F: Mobile Width (360px viewport)
     console.log('\n[Test F] Testing 360px mobile viewport (no horizontal page scroll)...');
@@ -217,37 +211,32 @@ async function main() {
       });
     });
 
-    // Refresh active tab to trigger 503
-    const refreshBtn = page.locator('button:has-text("تحديث البيانات")').first();
+    // Refresh the sub-page to trigger 503
+    const refreshBtn = page.locator('button:has-text("تحديث")').first();
     await refreshBtn.click();
     await page.waitForTimeout(500);
 
-    // Verify 503 Card / Banner
-    const card503 = page.locator('[role="alert"]:has-text("مصدر التشغيل غير متاح الآن")').first();
-    await card503.waitFor({ timeout: 5000 });
-    const cardText = await card503.textContent();
-    assert.ok(cardText.includes('مصدر التشغيل غير متاح الآن'), 'Must show Arabic 503 card');
-    console.log('✓ 503 card displayed: «مصدر التشغيل غير متاح الآن»');
+    // Verify the 503 banner
+    const banner503 = page.locator('div:has-text("مصدر التشغيل غير متاح حاليًا")').last();
+    await banner503.waitFor({ timeout: 5000 });
+    console.log('✓ 503 banner displayed: «مصدر التشغيل غير متاح حاليًا»');
 
-    // Unroute to restore normal operation
+    // Unroute and refresh again: the banner goes away
     await page.unroute('**/api/operations/**');
+    await refreshBtn.click();
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator('text=مصدر التشغيل غير متاح حاليًا').count(), 0, '503 banner cleared after recovery');
+    console.log('✓ Recovered after refresh');
 
-    // Click retry button
-    const retryBtn = card503.locator('button:has-text("إعادة المحاولة")');
-    if (await retryBtn.isVisible()) {
-      await retryBtn.click();
-      await page.waitForTimeout(500);
-      console.log('✓ Retry button clicked and recovered successfully');
-    }
-
-    // Test H: Rider Accounts Panel
-    console.log('\n[Test H] Testing Rider Accounts Panel in /app/riders/ ...');
+    // Test H: the old riders page now redirects to the workforce directory (0.26.0 people section)
+    console.log('\n[Test H] Testing /app/riders/ redirects to /app/workforce/ ...');
     await page.goto(`${baseUrl}/app/riders/`);
+    await page.waitForURL(/\/app\/workforce\/?(\?|$)/, { timeout: 10000 });
     await page.waitForLoadState('networkidle');
 
     const pageRidersText = await page.textContent('body');
-    assert.ok(pageRidersText.includes('المناديب وسجلات التشغيل'), 'Riders page loaded');
-    console.log('✓ Riders page loaded');
+    assert.ok(pageRidersText.includes('دليل الأشخاص والتشغيل'), 'Workforce page loaded after riders redirect');
+    console.log('✓ Riders link redirects to the workforce page');
 
     // Test I: Rider Statement Accounts Panel
     console.log('\n[Test I] Testing Rider Accounts Panel in /app/riders/statement/ ...');

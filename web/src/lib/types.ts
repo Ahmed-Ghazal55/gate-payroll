@@ -1,8 +1,14 @@
+import type { paths } from './api-contract';
+
+type ApiMe = paths['/api/me']['get']['responses'][200]['content']['application/json'];
+
 export interface UserProfile {
   username: string;
   role: string;
   displayNameAr: string;
   permissions?: string[];
+  /** From the OpenAPI User schema — never hand-written. */
+  financialScope?: ApiMe['financialScope'];
 }
 
 export type NotificationCategory = 'general' | 'personal' | 'system' | 'approvals';
@@ -193,6 +199,7 @@ export interface Submission {
   version: number;
   createdAt: string;
   updatedAt?: string;
+  reviewedAt?: string;
   reviewNote?: string;
   history?: SubmissionHistory[];
 }
@@ -207,17 +214,18 @@ export interface CustomFormQuestion {
 
 export interface CustomForm {
   id: string;
-  title: string;
+  title?: string;
   titleAr?: string;
-  status: 'draft' | 'published' | 'closed';
-  questions: CustomFormQuestion[];
-  responsesCount: number;
-  createdAt: string;
+  status: 'draft' | 'open' | 'closed' | 'published';
+  questions?: CustomFormQuestion[];
+  responsesCount?: number;
+  createdAt?: string;
   expiresAt?: string;
-  fields?: unknown;
+  fields?: Array<{ id?: string } | string> | unknown;
   target?: string;
   companyId?: string;
   targetCompanyId?: string;
+  publicUrl?: string;
 }
 
 export interface PaginatedResult<T> {
@@ -928,6 +936,7 @@ export interface PayCatalog {
   ninjaMetrics?: string[];
   defaults?: { values: PayGlobalValues };
   defaultsAreDraftOnly?: boolean;
+  allowedActions?: string[];
 }
 
 export interface PayConfigDoc {

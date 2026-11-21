@@ -9,6 +9,7 @@ import {
   Trash2,
   RefreshCw,
   CalendarClock,
+  Smartphone,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { Campaign, CompanySponsor } from '../../lib/types';
@@ -143,6 +144,9 @@ export function CampaignsTab({
     {
       key: 'title',
       header: 'عنوان الحملة',
+      type: 'text',
+      filterType: 'text',
+      getValue: (c) => c.title || '',
       render: (c) => {
         const full = campaignLink(c);
         const short = shortCampaignLinkLabel(c);
@@ -175,6 +179,11 @@ export function CampaignsTab({
     {
       key: 'kind',
       header: 'النوع',
+      type: 'list',
+      filterType: 'list',
+      getValue: (c) => c.kind,
+      labelOf: (v) => (v === 'iban' ? 'تحديث الآيبان' : 'اختيار نظام العمل'),
+      toneOf: (v) => (v === 'iban' ? 'accent' : 'info'),
       render: (c) => (
         <span
           className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
@@ -190,6 +199,12 @@ export function CampaignsTab({
     {
       key: 'status',
       header: 'الحالة',
+      type: 'list',
+      filterType: 'list',
+      getValue: (c) => campaignState(c),
+      labelOf: (v) =>
+        v === 'open' ? 'مفتوحة للاستقبال' : v === 'expired' ? 'منتهية الصلاحية' : 'مغلقة',
+      toneOf: (v) => (v === 'open' ? 'success' : v === 'expired' ? 'warning' : 'neutral'),
       render: (c) => (
         <span
           className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -207,7 +222,9 @@ export function CampaignsTab({
     {
       key: 'responseCount',
       header: 'عدد الردود',
+      type: 'number',
       numeric: true,
+      getValue: (c) => Number(c.responseCount ?? 0),
       render: (c) => (
         <span className="num font-bold text-[var(--ink)]">{c.responseCount}</span>
       ),
@@ -215,6 +232,9 @@ export function CampaignsTab({
     {
       key: 'expiresAt',
       header: 'تاريخ الانتهاء',
+      type: 'date',
+      getValue: (c) => c.expiresAt || '',
+      labelOf: (v) => (v ? new Date(String(v)).toLocaleDateString('ar-SA') : '—'),
       render: (c) => (
         <span className="num text-xs text-[var(--muted)]">
           {new Date(c.expiresAt).toLocaleDateString('ar-SA')}
@@ -275,6 +295,16 @@ export function CampaignsTab({
               label: 'عرض رمز QR',
               onClick: (c) => setQrTarget(c),
               icon: <QrCode size={14} />,
+            },
+            {
+              // F-R4: the real public form in a phone-width window (the form page refuses iframes: X-Frame-Options DENY).
+              label: 'معاينة على عرض الجوال',
+              disabled: (c) => !campaignLink(c),
+              onClick: (c) => {
+                const link = campaignLink(c);
+                if (link) window.open(link, '_blank', 'popup,width=360,height=780,noopener,noreferrer');
+              },
+              icon: <Smartphone size={14} />,
             },
             ...(canManageForms
               ? [

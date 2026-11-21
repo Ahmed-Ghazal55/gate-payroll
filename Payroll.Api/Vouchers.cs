@@ -101,7 +101,7 @@ public static class Vouchers
                 "ledger"=>AccessPolicy.Has(actor,"payroll.view")&&FinancialScopes.Ledger(actor,doc),
                 "payment_voucher"=>AccessPolicy.Has(actor,"treasury.journals"),_=>false
             };
-            if(visible)yield return new("voucher",doc.S("id"),doc.S("voucherNo",doc.S("odooVoucherNo")),doc.S("odooVoucherNo"),"/app/accounting?voucherNo="+Uri.EscapeDataString(doc.S("voucherNo",doc.S("odooVoucherNo"))));
+            if(visible)yield return new("voucher",doc.S("id"),doc.S("voucherNo",doc.S("odooVoucherNo")),doc.S("odooVoucherNo"),"/app/accounting/?tab=journals&voucherNo="+Uri.EscapeDataString(doc.S("voucherNo",doc.S("odooVoucherNo"))));
         }
     }
     public static void Map(WebApplication app,Store store)=>app.MapGet("/api/vouchers/verify/{no}",(string no)=>store.Read(c=>Verify(c,no))).AllowAnonymous().RequireRateLimiting("vouchers").WithTags("Accounting and reports").WithSummary("Public rate-limited voucher validity/status/type only; no personal or financial values");
