@@ -201,6 +201,17 @@ public static partial class AccessPolicy
         if(path=="/api/admin/read-summary")return method=="GET"&&Has("admin.read_summary.view");
         if(path=="/api/admin/settings")return (method=="GET"||method=="PUT")&&Has("admin.settings.manage");
         if(path=="/api/admin/notify-settings")return (method=="GET"||method=="PUT")&&Has("admin.notify.manage");
+        if(path=="/api/admin/archive/policies")return method=="GET"&&Has("admin.archive.manage");
+        if(path=="/api/admin/archive/restore-request")return method=="POST"&&Has("admin.archive.manage");
+        if(path.StartsWith("/api/chat",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("chat.view")||Has("chat.post")||Has("chat.moderate")||Has("chat.admin");
+            if(method!="POST")return false;
+            if(path=="/api/chat/channels")return Has("chat.admin");
+            if(path.EndsWith("/attachments",StringComparison.Ordinal)||path.EndsWith("/messages",StringComparison.Ordinal))
+                return Has("chat.post")||Has("chat.moderate")||Has("chat.admin");
+            return Has("chat.moderate")||Has("chat.admin");
+        }
         if(path=="/api/notify/send")return method=="POST"&&(Has("notify.send.general")||Has("notify.send.custom"));
         if(path=="/api/tasks"||path.StartsWith("/api/tasks/",StringComparison.Ordinal))
             return method=="GET"?(Has("tasks.assign")||Has("tasks.manage")):(method is "POST" or "PUT")&&(Has("tasks.assign")||Has("tasks.manage"));
