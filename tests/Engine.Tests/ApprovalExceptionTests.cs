@@ -8,7 +8,7 @@ using Payroll;
 public sealed class ApprovalExceptionTests
 {
     static string Day(int delta=0)=>DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).AddDays(delta).ToString("yyyy-MM-dd");
-    static JsonObject User(string name="ghazal",int days=2)=>new(){["id"]="synthetic-exception-user",["username"]=name,["role"]="FinancialAccountant",["department"]="OPS",["approvalExceptionUntil"]=Day(days),["approvalExceptionReason"]="Temporary audited acceptance testing"};
+    static JsonObject User(string name="ghazal",int days=2)=>new(){["id"]="synthetic-exception-user",["username"]=name,["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=5,["approvalExceptionUntil"]=Day(days),["approvalExceptionReason"]="Temporary audited acceptance testing"};
     [TestMethod]
     public void DatedExceptionClaimsNoLongerOpenNewApprovalsWithoutBypassGrant()
     {

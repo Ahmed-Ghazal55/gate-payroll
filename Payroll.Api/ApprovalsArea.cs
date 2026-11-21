@@ -45,15 +45,18 @@ public static class ApprovalsArea
         J.Need(RequiresDual(dualPermission)&&dualPermission is DualBankFile or DualPaymentOut,
             "صرف الأموال يتطلب صلاحية الاعتماد الثنائي المخصصة.",403);
         bool ok=Store.List(c,"approval_request",tx).Any(r=>
-            r.S("status")=="approved"
-            &&r.S("referenceId")==referenceId
-            &&string.Equals(ResolveDual(r),dualPermission,StringComparison.Ordinal)
-            &&!r.B("selfApprovedException")
-            &&!string.Equals(r.S("decidedBy"),r.S("requestedBy",r.S("createdBy")),StringComparison.OrdinalIgnoreCase)
-            &&Store.List(c,DecisionKind,tx).Any(d=>
+        {
+            if(r.S("status")!="approved"||r.S("referenceId")!=referenceId||!string.Equals(ResolveDual(r),dualPermission,StringComparison.Ordinal)||r.B("selfApprovedException"))return false;
+            string maker=r.S("requestedBy",r.S("createdBy")),checker=r.S("decidedBy");
+            if(string.IsNullOrWhiteSpace(maker)||string.IsNullOrWhiteSpace(checker))return false;
+            // Two distinct people — use SamePerson so former usernames count; bypass/self-exception already excluded above.
+            var checkerPrincipal=new ClaimsPrincipal(new ClaimsIdentity([new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name,checker)],"money-out-dual"));
+            if(AccessPolicy.SamePerson(checkerPrincipal,maker))return false;
+            return Store.List(c,DecisionKind,tx).Any(d=>
                 d.S("requestId")==r.S("id")
                 &&d.S("outcome")=="approved"
-                &&string.IsNullOrWhiteSpace(d.S("bypassGrantId"))));
+                &&string.IsNullOrWhiteSpace(d.S("bypassGrantId")));
+        });
         J.Need(ok,"صرف الأموال يتطلب اعتماد شخصين مختلفين مسجل في منطقة الاعتمادات دون تجاوز.",403);
     }
     static void DemandOrg(ClaimsPrincipal actor)

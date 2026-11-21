@@ -10,7 +10,8 @@ public sealed class ApprovalBypassTests
     public void BypassGrantLetsSameActorApproveAndIsAudited()
     {
         using var f=new PayFixture();
-        var user=new JsonObject{["id"]="synthetic-bypass-user",["username"]="synthetic-approver",["role"]="FinancialAccountant",["department"]="OPS",["customPermissions"]=new JsonArray("approvals.dual.payment_out","approvals.decide")};
+        // Bypass lifts maker≠checker only — actor must still match department and rank.
+        var user=new JsonObject{["id"]="synthetic-bypass-user",["username"]="synthetic-approver",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=5,["customPermissions"]=new JsonArray("approvals.dual.payment_out","approvals.decide")};
         f.Store.Write((c,tx)=>{Store.Save(c,"user",user,tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-approver",["from"]=Day(0),["to"]=Day(7),["reason"]="Ninja October parallel run"});return true;});
         var actor=UserAccess.Principal(user);
         // Dual-control path (M-0672): bypass is required only for two-person actions.
@@ -29,7 +30,7 @@ public sealed class ApprovalBypassTests
         var grant=f.Store.Write((c,tx)=>AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]=name,["from"]=Day(0),["to"]=Day(3),["reason"]="temporary grant"}));
         f.Store.Write((c,tx)=>AccessPolicy.RevokeBypass(c,tx,PayFixture.Maker,grant.S("id")));
         Assert.IsNull(f.Store.Read(c=>AccessPolicy.ActiveBypassGrant(c,null,name)));
-        var ghazal=new JsonObject{["id"]="synthetic-exception-user",["username"]="ghazal",["role"]="FinancialAccountant",["department"]="OPS",["approvalExceptionUntil"]=Day(2),["approvalExceptionReason"]="legacy dated exception"};
+        var ghazal=new JsonObject{["id"]="synthetic-exception-user",["username"]="ghazal",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=2,["approvalExceptionUntil"]=Day(2),["approvalExceptionReason"]="legacy dated exception"};
         Assert.IsTrue(AccessPolicy.ApprovalException(UserAccess.Principal(ghazal)),"claim still parses for display");
         // BR §35: maker≠checker only for dual money-out paths; dated exception alone is not a bypass grant.
         ghazal["customPermissions"]=new JsonArray("approvals.dual.payment_out","approvals.decide");
