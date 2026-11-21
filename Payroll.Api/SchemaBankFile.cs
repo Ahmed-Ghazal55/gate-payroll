@@ -145,16 +145,22 @@ public static class SchemaBankFile
             CONSTRAINT FK_inter_company_payer_journal FOREIGN KEY(payer_journal_id) REFERENCES {j}(id) ON DELETE NO ACTION,
             CONSTRAINT FK_inter_company_entitlement_journal FOREIGN KEY(entitlement_journal_id) REFERENCES {j}(id) ON DELETE NO ACTION
             """);
+        string jl=SchemaSql.Q(c,"fin","journal_line");
         SchemaMoneyGuard.Rule(c,tx,"fin","inter_company_settlement","TR_inter_company_source",n=>$"""
             NOT EXISTS(SELECT 1 FROM {line} l JOIN {file} f ON f.id=l.bank_file_id WHERE l.id={n}.bank_file_line_id AND l.company_id={n}.entitlement_company_id AND f.paying_company_id={n}.paying_company_id AND l.amount={n}.amount)
             OR ({n}.status=2 AND NOT EXISTS(SELECT 1 FROM {j} p JOIN {j} e ON e.id={n}.entitlement_journal_id JOIN {line} l ON l.id={n}.bank_file_line_id JOIN {file} f ON f.id=l.bank_file_id
               WHERE p.id={n}.payer_journal_id AND p.company_id={n}.paying_company_id AND e.company_id={n}.entitlement_company_id
                 AND p.status=2 AND e.status=2 AND p.run_mode=0 AND e.run_mode=0 AND f.payout_blocked=0 AND l.status=1
                 AND f.status IN (2,3) AND EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"pay","payment_allocation")} a WHERE a.id=l.allocation_id AND a.claim_status=2)
-                AND p.period_month={n}.period_month AND e.period_month={n}.period_month AND p.purpose='bank_inter_company' AND e.purpose='bank_inter_company'))
+                AND p.period_month={n}.period_month AND e.period_month={n}.period_month AND p.purpose='bank_inter_company' AND e.purpose='bank_inter_company'
+                AND p.source_type='inter_company_settlement' AND p.source_id={n}.id AND e.source_type='inter_company_settlement' AND e.source_id={n}.id
+                AND (SELECT COALESCE(SUM(pl.debit),0) FROM {jl} pl WHERE pl.journal_id=p.id)={n}.amount
+                AND (SELECT COALESCE(SUM(el.debit),0) FROM {jl} el WHERE el.journal_id=e.id)={n}.amount))
             """,
             (o,n)=>$"{n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"id","bank_file_line_id","period_month","paying_company_id","entitlement_company_id","amount")}) OR ({o}.status=2 AND ({SchemaMoneyGuard.Changed(c,n,o,"status","payer_journal_id","entitlement_journal_id")}))");
         SchemaMoneyGuard.Retain(c,tx,"fin","inter_company_settlement","o.bank_file_line_id=NEW.bank_file_line_id");
+        SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"fin","inter_company_settlement","UQ_inter_company_payer_journal","payer_journal_id","payer_journal_id IS NOT NULL");
+        SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"fin","inter_company_settlement","UQ_inter_company_entitlement_journal","entitlement_journal_id","entitlement_journal_id IS NOT NULL");
         SchemaSql.EnsureMonthIndex(c,tx,"fin","inter_company_settlement");
         foreach(string column in new[]{"paying_company_id","entitlement_company_id","payer_journal_id","entitlement_journal_id"})SchemaSql.CreateIndexIfMissing(c,tx,"fin","inter_company_settlement","IX_inter_company_"+column,column);
     }

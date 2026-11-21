@@ -85,4 +85,37 @@ public sealed class SchemaBankFileTests
         MoneySchemaFixture.Reject(()=>Line(c,separate,other,otherRegistration,payer,MoneySchemaFixture.Run(c,other,"other")),"Bank line is not eligible or allocation does not match");
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_bank_file_line SET allocation_id=@a WHERE id=@id",("@id",l.Line),("@a",MoneySchemaFixture.Id())),"TR_sal_bank_file_line_immutable");
     }
+    static string SettlementJournal(DbConnection c,string company,string settlement,decimal amount)
+    {
+        string period=MoneySchemaFixture.Id(),journal=MoneySchemaFixture.Id(),debit=MoneySchemaFixture.Id(),credit=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) SELECT @id,@c,'2026-11-01',1,datetime('now') WHERE NOT EXISTS(SELECT 1 FROM fin_accounting_period WHERE company_id=@c AND period_month='2026-11-01')",("@id",period),("@c",company));
+        period=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_accounting_period WHERE company_id=@c AND period_month='2026-11-01'",("@c",company))!;
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal(id,voucher_no,period_id,company_id,period_month,journal_date,source_type,source_id,purpose,status,created_at) VALUES(@id,@id,@p,@c,'2026-11-01','2026-11-20','inter_company_settlement',@s,'bank_inter_company',1,datetime('now'))",("@id",journal),("@p",period),("@c",company),("@s",settlement));
+        string account=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_account WHERE is_postable=1 AND is_active=1 ORDER BY code LIMIT 1")!;
+        string cc=SchemaSql.GuidText(SchemaOrgCostCentre.NoneId);
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal_line(id,period_id,company_id,period_month,journal_id,line_no,account_id,cost_centre_id,debit,credit,created_at) VALUES(@id,@p,@c,'2026-11-01',@j,1,@a,@cc,@amt,0,datetime('now'))",("@id",debit),("@p",period),("@c",company),("@j",journal),("@a",account),("@cc",cc),("@amt",amount));
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_journal_line(id,period_id,company_id,period_month,journal_id,line_no,account_id,cost_centre_id,debit,credit,created_at) VALUES(@id,@p,@c,'2026-11-01',@j,2,@a,@cc,0,@amt,datetime('now'))",("@id",credit),("@p",period),("@c",company),("@j",journal),("@a",account),("@cc",cc),("@amt",amount));
+        MoneySchemaFixture.Exec(c,null,"UPDATE fin_journal SET status=2,posted_at=datetime('now'),posted_by='tester' WHERE id=@id",("@id",journal));
+        return journal;
+    }
+    [TestMethod,DataRow(false),DataRow(true)]
+    public void SettlementJournalsMustMatchSourceAndAmountAndCannotBeReused(bool sqlServer)
+    {
+        using var c=Open(sqlServer);
+        string payer=MoneySchemaFixture.Company(c),registration=SchemaTreasuryTests.Registration(c,payer),bank=SchemaTreasuryTests.Account(c,payer,registration),other=MoneySchemaFixture.Company(c),otherRegistration=SchemaTreasuryTests.Registration(c,other);
+        string file=File(c,payer,registration,bank);var l=Line(c,file,other,otherRegistration,payer);
+        Approve(c,file);
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment SET status=2 WHERE id=@id",("@id",l.Payment));
+        MoneySchemaFixture.Exec(c,null,"UPDATE pay_payment_allocation SET claim_status=2 WHERE id=@id",("@id",l.Claim));
+        string settlement=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_inter_company_settlement(id,bank_file_line_id,period_month,paying_company_id,entitlement_company_id,amount) VALUES(@id,@l,'2026-11-01',@p,@c,100)",("@id",settlement),("@l",l.Line),("@p",payer),("@c",other));
+        string wrong=SettlementJournal(c,payer,MoneySchemaFixture.Id(),100),rightPayer=SettlementJournal(c,payer,settlement,100),rightEnt=SettlementJournal(c,other,settlement,100);
+        MoneySchemaFixture.Exec(c,null,"UPDATE fin_inter_company_settlement SET payer_journal_id=@p,entitlement_journal_id=@e WHERE id=@id",("@id",settlement),("@p",wrong),("@e",rightEnt));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE fin_inter_company_settlement SET status=2 WHERE id=@id",("@id",settlement)),"TR_inter_company_source");
+        MoneySchemaFixture.Exec(c,null,"UPDATE fin_inter_company_settlement SET payer_journal_id=@p,entitlement_journal_id=@e,status=2 WHERE id=@id",("@id",settlement),("@p",rightPayer),("@e",rightEnt));
+        string otherFile=File(c,payer,registration,bank);var otherLine=Line(c,otherFile,other,otherRegistration,payer,MoneySchemaFixture.Run(c,other,"keeta"));
+        string reuse=MoneySchemaFixture.Id();
+        MoneySchemaFixture.RejectAny(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_inter_company_settlement(id,bank_file_line_id,period_month,paying_company_id,entitlement_company_id,amount,payer_journal_id,entitlement_journal_id) VALUES(@id,@l,'2026-11-01',@p,@c,100,@pj,@ej)",("@id",reuse),("@l",otherLine.Line),("@p",payer),("@c",other),("@pj",rightPayer),("@ej",rightEnt)),
+            "UQ_inter_company_payer_journal","UQ_inter_company_entitlement_journal","payer_journal_id","entitlement_journal_id");
+    }
 }
