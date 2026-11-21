@@ -425,7 +425,7 @@ try {
     assert.ok(cardText.includes(userA), `Creator must be @${userA}`);
 
     // Test Maker ≠ Checker: User A cannot approve their own scheme
-    const approveBtn = schemeCard.locator('button', { hasText: 'اعتماد النظام (Maker-Checker)' });
+    const approveBtn = schemeCard.locator('button', { hasText: 'اعتماد النظام' });
     assert.equal(await approveBtn.isDisabled(), true, 'Approve button must be disabled for User A (maker)');
     const buttonTitle = await approveBtn.getAttribute('title');
     assert.ok(
@@ -454,7 +454,7 @@ try {
       waitUntil: 'networkidle',
     });
 
-    const approveBtn = pageB.locator('button', { hasText: 'اعتماد النظام (Maker-Checker)' }).first();
+    const approveBtn = pageB.locator('button', { hasText: 'اعتماد النظام' }).first();
     await approveBtn.waitFor({ state: 'visible', timeout: 8000 });
     assert.equal(await approveBtn.isDisabled(), false, 'Approve button must be enabled for User B (checker)');
 

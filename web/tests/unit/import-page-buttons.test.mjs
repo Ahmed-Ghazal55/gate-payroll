@@ -50,7 +50,7 @@ test('template download requires imports.view or endpoint permission via allowed
 
 test('data pages expose import buttons gated by permission helpers', () => {
   const cases = [
-    ['src/app/companies/page.tsx', 'import-companies', 'COMPANIES_IMPORT'],
+    ['src/app/companies/page.tsx', "testId: 'import-companies'", 'COMPANIES_IMPORT'],
     ['src/app/debts/page.tsx', 'import-opening-debts', 'OPENING_DEBTS_IMPORT'],
     ['src/app/debts/page.tsx', 'import-bulk-collect', 'BULK_COLLECT_IMPORT'],
     ['src/app/accounting/page.tsx', 'import-treasury-opening', 'TREASURY_OPENING_IMPORT'],
@@ -58,12 +58,29 @@ test('data pages expose import buttons gated by permission helpers', () => {
     ['src/app/payroll/page.tsx', 'import-keeta-operations', 'KEETA_OPS_IMPORT'],
     ['src/app/payroll/page.tsx', 'import-hs-operations', 'HS_OPS_IMPORT'],
   ];
-  for (const [file, testId, step] of cases) {
+  for (const [file, marker, step] of cases) {
     const text = read(file);
-    assert.match(text, new RegExp(`data-testid="${testId}"`), `${file} missing ${testId}`);
+    if (marker.startsWith('testId:')) {
+      assert.match(text, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${file} missing ${marker}`);
+    } else {
+      assert.match(text, new RegExp(`data-testid="${marker}"`), `${file} missing ${marker}`);
+    }
     assert.match(text, new RegExp(`canShowImportStep\\(${step}`), `${file} missing gate for ${step}`);
     assert.match(text, /ImportUploadDialog/, `${file} missing dialog`);
   }
+});
+
+test('companies import-companies primary opens file ImportUploadDialog', () => {
+  const page = read('src/app/companies/page.tsx');
+  assert.match(page, /label:\s*'استيراد الشركات'/);
+  assert.match(page, /testId:\s*'import-companies'/);
+  // Primary action must open the Excel file dialog, not the built-in official plan.
+  assert.match(
+    page,
+    /testId:\s*'import-companies'[\s\S]*?onClick:\s*\(\)\s*=>\s*\{\s*setFileImportOpen\(true\)/
+  );
+  assert.match(page, /moreActions[\s\S]*خطة شهادات الوزارة الرسمية/);
+  assert.match(page, /setImportModalOpen\(true\)/);
 });
 
 test('workforce page has no riders-file upload (people data is live from ERP, Ghazal 2026-11-21)', () => {

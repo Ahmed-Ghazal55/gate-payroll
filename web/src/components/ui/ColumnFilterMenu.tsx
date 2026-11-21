@@ -477,7 +477,7 @@ export function ColumnFilterMenu({
         <input
           type="text"
           aria-label="بحث داخل القيم"
-          placeholder="بحث داخل القيم (Enter للتطبيق)..."
+          placeholder="اختر أو اكتب... (اضغط إدخال للتطبيق)"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           onKeyDown={(e) => {
@@ -571,7 +571,7 @@ export function ColumnFilterMenu({
                       />
                     )}
                     <span className="truncate" title={opt.label}>
-                      {opt.label || '(فارغ)'}
+                      {opt.label || '(بدون قيمة)'}
                     </span>
                   </label>
                   <div className="flex items-center gap-1 shrink-0">
@@ -581,7 +581,7 @@ export function ColumnFilterMenu({
                         e.stopPropagation();
                         handleSelectOnly(opt.value);
                       }}
-                      aria-label={`تحديد ${opt.label || '(فارغ)'} فقط`}
+                      aria-label={`تحديد ${opt.label || '(بدون قيمة)'} فقط`}
                       className="opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.2 rounded text-[10px] font-semibold text-[var(--accent)] hover:bg-[var(--accent)]/15 transition"
                     >
                       فقط

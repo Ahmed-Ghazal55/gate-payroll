@@ -26,3 +26,18 @@ export function formatMudadSalary(value: number | string | null | undefined): st
 
 /** Alias used by some screens; same output as formatSar. */
 export const formatMoney = formatSar;
+
+/**
+ * DataTable footer total cell: «ر.س» only when the column is money.
+ * Count / plain numeric columns stay without currency.
+ */
+export function formatDataTableFooterTotal(
+  value: number,
+  col: { money?: boolean; numeric?: boolean }
+): string {
+  if (col.money) return formatSar(value);
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}

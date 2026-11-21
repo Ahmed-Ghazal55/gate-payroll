@@ -16,6 +16,7 @@ import {
   Eye,
   EyeOff,
   Sparkles,
+  Upload,
   Users,
   BarChart3,
   Layers,
@@ -1078,29 +1079,32 @@ function CompaniesPageContent() {
         eyebrow="الكيانات القانونية والشهادات الرسمية"
         description="إدارة الكيانات القانونية والسجلات والشهادات الصادرة من وزارة التجارة وتنبيهات التأكيد السنوي وإحصائيات الكفالات وحسابات المنصات."
         primaryAction={
-          isAdmin
+          canShowImportStep(COMPANIES_IMPORT, { isAdmin, can })
             ? {
-                label: 'استيراد بيانات الشركات',
+                label: 'استيراد الشركات',
+                testId: 'import-companies',
                 onClick: () => {
-                  setImportModalOpen(true);
-                  handleRunImportPreview();
+                  setFileImportOpen(true);
                 },
-                icon: <Sparkles size={16} />,
+                icon: <Upload size={16} />,
               }
             : undefined
         }
+        moreActions={
+          isAdmin
+            ? [
+                {
+                  label: 'خطة شهادات الوزارة الرسمية',
+                  onClick: () => {
+                    setImportModalOpen(true);
+                    void handleRunImportPreview();
+                  },
+                  icon: <Sparkles size={16} />,
+                },
+              ]
+            : undefined
+        }
       >
-        {canShowImportStep(COMPANIES_IMPORT, { isAdmin, can }) && (
-          <button
-            type="button"
-            data-testid="import-companies"
-            onClick={() => setFileImportOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] active:scale-[0.98] transition shadow-xs"
-          >
-            <Download size={15} aria-hidden="true" />
-            <span>استيراد الشركات</span>
-          </button>
-        )}
         {canManage && (
           <button
             type="button"

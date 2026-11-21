@@ -30,3 +30,31 @@ test('money.ts exports formatSar and formatMoney', () => {
   assert.match(src, /export const formatMoney = formatSar/);
   assert.match(src, /ر\.س/);
 });
+
+test('formatDataTableFooterTotal: money gets ر.س, count does not', async () => {
+  const { formatDataTableFooterTotal } = await import('../../src/lib/money.ts');
+  const money = formatDataTableFooterTotal(1250, { money: true });
+  const count = formatDataTableFooterTotal(42, { money: false, numeric: true });
+  assert.match(money, /ر\.س/);
+  assert.doesNotMatch(count, /ر\.س/);
+  assert.equal(count, '42');
+});
+
+test('DataTable footer uses money flag only (not every numeric)', () => {
+  const table = readFileSync(path.join(root, 'src/components/ui/DataTable.tsx'), 'utf8');
+  assert.match(table, /formatDataTableFooterTotal\(/);
+  assert.doesNotMatch(table, /col\.money \|\| col\.numeric/);
+});
+
+test('debts and manual journals mark money columns for footer', () => {
+  const debts = readFileSync(path.join(root, 'src/app/debts/page.tsx'), 'utf8');
+  const journals = readFileSync(
+    path.join(root, 'src/features/accounting/ManualJournalsPanel.tsx'),
+    'utf8'
+  );
+  assert.match(debts, /key:\s*'originalAmount'[\s\S]*?money:\s*true/);
+  assert.match(debts, /key:\s*'remainingAmount'[\s\S]*?money:\s*true/);
+  assert.match(debts, /key:\s*'monthlyInstallment'[\s\S]*?money:\s*true/);
+  assert.match(debts, /key:\s*'amount'[\s\S]*?money:\s*true/);
+  assert.match(journals, /key:\s*'totalDebit'[\s\S]*?money:\s*true/);
+});

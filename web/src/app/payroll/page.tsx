@@ -116,6 +116,7 @@ import type {
   LegacyPayrollRun,
 } from '../../lib/types';
 import { formatSar } from '../../lib/money';
+import { payrollBlockerLabelAr } from '../../lib/payroll-labels';
 
 function getPreviousMonth(period: string): string {
   if (!period || !period.includes('-')) return '2026-09';
@@ -2036,7 +2037,7 @@ function PayrollPageInner() {
     { num: 3, title: 'تطبيق الأنظمة الداخلية', desc: 'حساب إجمالي الأجر وفق النظام المعتمد (راتب/عمولة/نسبة) لكل مندوب' },
     { num: 4, title: 'الاستقطاعات والتحملات', desc: 'حسم السلف، المخالفات، المحروقات، باقات النت، والخصومات التشغيلية' },
     { num: 5, title: 'الدمج وتحديد الصافي', desc: 'دمج مستحقات المناديب العاملين على أكثر من تطبيق وفحص الصافي السالب (§22.9.2)' },
-    { num: 6, title: 'مراجعة واعتماد المسير', desc: 'مراجعة أسطر المسير واعتماد المناديب (BR §32) تمهيداً للاعتماد النهائي' },
+    { num: 6, title: 'مراجعة واعتماد المسير', desc: 'مراجعة أسطر المسير واعتماد المناديب تمهيداً للاعتماد النهائي' },
     { num: 7, title: 'ملف الصرف البنكي والترحيل', desc: 'إصدار ملف CSV لصرف الرواتب وترحيل القيود اليومية للدليل المستهدف' },
   ];
 
@@ -2048,6 +2049,8 @@ function PayrollPageInner() {
         eyebrow="الرواتب والتعويضات"
         description="إدارة ومراجعة فواتير المنصات، الدورة القائمة الفعالة للرواتب، محرر الأنظمة الداخلية، الاستقطاعات، واعتماد ملفات الصرف."
         primaryAction={
+          mainTab === 'platforms' &&
+          selectedPlatform === 'ninja' &&
           canShowImportStep(NINJA_OPS_IMPORT, { isAdmin, can })
             ? {
                 label: 'استيراد تشغيل نينجا',
@@ -2351,9 +2354,9 @@ function PayrollPageInner() {
           <div className="flex items-center gap-2 border-b border-[var(--line)] overflow-x-auto no-scrollbar">
             {[
               { id: 'settlements', label: 'الفواتير والتسويات' },
-              { id: 'parent_terms', label: 'الشروط الأصلية (Level 2)' },
-              { id: 'internal_schemes', label: 'الأنظمة الداخلية (Level 3)' },
-              { id: 'eligibility', label: 'الأهلية والضوابط (Level 5)' },
+              { id: 'parent_terms', label: 'الشروط الأصلية' },
+              { id: 'internal_schemes', label: 'الأنظمة الداخلية' },
+              { id: 'eligibility', label: 'الأهلية والضوابط' },
               { id: 'accounts', label: 'الحسابات والمعرفات' },
             ].map((sub) => (
               <button
@@ -2776,10 +2779,10 @@ function PayrollPageInner() {
               <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-                    عقد المنصة (Parent Company Terms) · منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr}
+                    عقد المنصة · منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr}
                   </h3>
                   <p className="text-xs text-[var(--muted)] mt-1">
-                    إدارة نموذج الفوترة والتعاقد الأصلي مع المنصة. تخضع لاعتماد مستخدم ثانٍ مستقل (Maker-Checker).
+                    إدارة نموذج الفوترة والتعاقد الأصلي مع المنصة. تخضع لاعتماد مستخدم ثانٍ مستقل.
                   </p>
                 </div>
 
@@ -2793,7 +2796,7 @@ function PayrollPageInner() {
                         : 'bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--line)]'
                     }`}
                   >
-                    <span>{showCycleReview ? 'إخفاء مقارنة الدورة' : 'مقارنة الدورة والفروقات (Diff)'}</span>
+                    <span>{showCycleReview ? 'إخفاء مقارنة الدورة' : 'مقارنة الدورة والفروقات'}</span>
                   </button>
 
                   <button
@@ -2921,7 +2924,7 @@ function PayrollPageInner() {
                                   onClick={() => handleApproveTerms(t)}
                                   className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
                                 >
-                                  اعتماد العقد (Maker-Checker)
+                                  اعتماد العقد
                                 </button>
                                 <button
                                   type="button"
@@ -2998,7 +3001,7 @@ function PayrollPageInner() {
               <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-                    الأنظمة الداخلية (Internal Schemes Level 3) · منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr}
+                    الأنظمة الداخلية · منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr}
                   </h3>
                   <p className="text-xs text-[var(--muted)] mt-1">
                     تحديد مصفوفة الفئات الست الصريحة (كفالة × مركبة) ونوع النظام ودور المحاسبة (أصيل / وكيل).
@@ -3107,7 +3110,7 @@ function PayrollPageInner() {
                                   onClick={() => handleApproveScheme(sc)}
                                   className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
                                 >
-                                  اعتماد النظام (Maker-Checker)
+                                  اعتماد النظام
                                 </button>
                                 <button
                                   type="button"
@@ -3153,7 +3156,7 @@ function PayrollPageInner() {
                     جاهز بلا شروط أهلية وله دورة تصفيات منفصلة
                   </h4>
                   <p className="text-xs text-[var(--muted)] max-w-md mx-auto">
-                    وفق ضوابط نموذج العمل BR §24، تصفيات جاهز مستقلة محاسبياً وتتبع الدورة الميدانية المنفصلة.
+                    وفق ضوابط نموذج العمل المالي، تصفيات جاهز مستقلة محاسبياً وتتبع الدورة الميدانية المنفصلة.
                   </p>
                 </div>
               ) : (
@@ -3161,7 +3164,7 @@ function PayrollPageInner() {
                   <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
                     <div>
                       <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-                        شروط وضوابط الأهلية (Eligibility Rules Level 5) · منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr}
+                        شروط وضوابط الأهلية · منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr}
                       </h3>
                       <p className="text-xs text-[var(--muted)] mt-1">
                         شروط الحد الأدنى وساعات العمل اليومية وتارجت الطلبات المرتبطة بالتطبيق حصرياً.
@@ -3178,7 +3181,7 @@ function PayrollPageInner() {
                             : 'bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--line)]'
                         }`}
                       >
-                        <span>{showCycleReview ? 'إخفاء مقارنة الدورة' : 'مقارنة الدورة والفروقات (Diff)'}</span>
+                        <span>{showCycleReview ? 'إخفاء مقارنة الدورة' : 'مقارنة الدورة والفروقات'}</span>
                       </button>
 
                       <button
@@ -3305,7 +3308,7 @@ function PayrollPageInner() {
                                       onClick={() => handleApproveEligibility(el)}
                                       className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
                                     >
-                                      اعتماد الأهلية (Maker-Checker)
+                                      اعتماد الأهلية
                                     </button>
                                     <button
                                       type="button"
@@ -3376,13 +3379,13 @@ function PayrollPageInner() {
                 }`}
               >
                 <FileSpreadsheet size={15} />
-                <span>مسودة المراجعة المقترحة (Review Draft)</span>
+                <span>مسودة المراجعة المقترحة</span>
                 {reviewDraft?.blockers && (
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                       reviewDraft.blockers.length === 0
                         ? 'bg-[var(--money-pos)]/20 text-[var(--money-pos)]'
-                        : 'bg-[var(--danger)]/20 text-[var(--danger)]'
+                        : 'bg-[var(--danger)] text-white'
                     }`}
                   >
                     {reviewDraft.blockers.length === 0 ? '0 موانع' : `${reviewDraft.blockers.length} مانع`}
@@ -3458,7 +3461,7 @@ function PayrollPageInner() {
                   {/* Draft KPI Cards */}
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     <StatCard
-                      label="إجمالي الفاتورة (Gross)"
+                      label="إجمالي الفاتورة"
                       value={`${formatSar((reviewDraft.totals?.gross || 0))}`}
                       icon={Coins}
                     />
@@ -3519,7 +3522,7 @@ function PayrollPageInner() {
                       </div>
                       <p className="text-xs text-[var(--muted)]">
                         {reviewDraft.blockers && reviewDraft.blockers.length > 0
-                          ? `السبب الأول: ${reviewDraft.blockers[0].message} (${reviewDraft.blockers[0].code}). استخدم الروابط المباشرة لإصلاح الموانع.`
+                          ? `السبب الأول: ${reviewDraft.blockers[0].message} (${payrollBlockerLabelAr(reviewDraft.blockers[0].code)}). استخدم الروابط المباشرة لإصلاح الموانع.`
                           : reviewDraft.canCreate
                           ? 'كافة شروط الفاتورة والتشغيل والأنظمة معتمدة ومطابقة، اضغط الزر لبدء دورة الرواتب الآن.'
                           : 'انتقل لشاشة رفع واعتماد الفاتورة لتجهيز مدخلات مسودة المراجعة.'}
@@ -3616,8 +3619,8 @@ function PayrollPageInner() {
                             >
                               <div className="space-y-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-mono text-[10px] bg-[var(--danger)]/15 text-[var(--danger)] px-2 py-0.5 rounded-md font-bold">
-                                    {b.code}
+                                  <span className="text-[10px] bg-[var(--danger)]/15 text-[var(--danger)] px-2 py-0.5 rounded-md font-bold">
+                                    {payrollBlockerLabelAr(b.code)}
                                   </span>
                                   <span className="font-bold text-[var(--ink)]">{b.message}</span>
                                 </div>
@@ -3988,7 +3991,7 @@ function PayrollPageInner() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                            مدخلات التشغيل المثبتة للدورة (BR §39.2)
+                            مدخلات التشغيل المثبتة للدورة
                           </h4>
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
@@ -4138,7 +4141,7 @@ function PayrollPageInner() {
                       )}
                     </div>
                     <p className="text-xs sm:text-sm text-[var(--muted)] mt-1">
-                      مراحل احتساب الرواتب والمسيرات وفق نموذج العمل المالي المعتمد في BR §24.7
+                      مراحل احتساب الرواتب والمسيرات وفق نموذج العمل المالي المعتمد
                     </p>
                   </div>
                 </div>
@@ -4242,7 +4245,7 @@ function PayrollPageInner() {
                 <div className="flex items-center justify-between border-b border-[var(--line)] pb-2">
                   <div>
                     <h4 className="font-bold text-xs sm:text-sm text-[var(--ink)]">
-                      مراحل احتساب الاستقطاعات الإجمالية للدورة (BR §29)
+                      مراحل احتساب الاستقطاعات الإجمالية للدورة
                     </h4>
                     <p className="text-[11px] text-[var(--muted)] mt-0.5">
                       التدرج المالي لاحتساب المسير: الإجمالي → بعد العمولة → المرحلة 1 → المستحق الأولي → المرحلة 2 → المرحلة 3 → الصافي.
@@ -4255,7 +4258,7 @@ function PayrollPageInner() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-xs">
                   <div className="p-2.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)]">
-                    <span className="text-[10px] text-[var(--muted)] block">الإجمالي (Gross)</span>
+                    <span className="text-[10px] text-[var(--muted)] block">الإجمالي</span>
                     <span className="num font-mono font-bold text-[var(--ink)]">
                       {formatSar(gross)}
                     </span>
@@ -4326,7 +4329,7 @@ function PayrollPageInner() {
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                    مراجعة واعتماد المسير (BR §32)
+                    مراجعة واعتماد المسير
                   </h4>
                   <p className="text-xs text-[var(--muted)] mt-0.5">
                     جدول مراجعة استحقاقات المناديب وتعديل الأقساط وتسويات الراتب قبل الترحيل والصرف.
@@ -4402,7 +4405,7 @@ function PayrollPageInner() {
                 }`}
               >
                 <FileText size={15} />
-                <span>شروط وأهلية نينجا (Ninja Eligibility Rules)</span>
+                <span>شروط وأهلية نينجا</span>
                 {activeNinjaEligibility && (
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -4441,7 +4444,7 @@ function PayrollPageInner() {
                 }`}
               >
                 <Scale size={15} />
-                <span>الإعدادات العامة الموحدة (Global Settings)</span>
+                <span>الإعدادات العامة الموحدة</span>
                 {globalSettings.length > 0 && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--raised)] text-[var(--accent)] border border-[var(--line)]">
                     v{globalSettings[0].version}
@@ -4594,7 +4597,7 @@ function PayrollPageInner() {
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                          جدول شروط ومقاييس الأهلية (Ninja Eligibility Matrix)
+                          جدول شروط ومقاييس الأهلية
                         </h4>
                         <p className="text-xs text-[var(--muted)] mt-0.5">
                           تحديد الحد الأدنى المطلوب لكل مقياس، المعامل الحسابي، وأثر عدم التحقق على احتساب أجر المندوب.
@@ -4737,7 +4740,7 @@ function PayrollPageInner() {
                           onClick={() => handleApproveGlobalSettings(setting)}
                           className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer"
                         >
-                          اعتماد الإعدادات العامة (Maker-Checker)
+                          اعتماد الإعدادات العامة
                         </button>
                       )}
                     </div>
@@ -4791,7 +4794,7 @@ function PayrollPageInner() {
         <div className="space-y-4">
           <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
             <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-              سجل استقطاعات التشغيل والتحملات (Stage 2 Deductions)
+              سجل استقطاعات التشغيل والتحملات
             </h3>
             <p className="text-xs text-[var(--muted)] mt-0.5">
               تطبيق الاستقطاعات مرة واحدة لكل مندوب شهرياً: سلف، مخالفات مرورية، إنترنت، محروقات، محفظة هنقرستيشن، ومداد.
@@ -4841,7 +4844,7 @@ function PayrollPageInner() {
                 سياسات الاحتساب السابقة
               </h3>
               <p className="text-xs text-[var(--muted)] mt-0.5">
-                سجل السياسات التاريخية السابقة قبل الانتقال لمنظومة المنصات الموحدة R4.
+                سجل السياسات التاريخية السابقة قبل الانتقال لمنظومة المنصات الموحدة.
               </p>
             </div>
           </div>
@@ -4854,7 +4857,7 @@ function PayrollPageInner() {
           ) : policies.length === 0 ? (
             <EmptyState
               title="لا توجد سياسات سابقة مسجلة"
-              description="كافة السياسات يتم إدارتها حالياً عبر محرر الأنظمة وقواعد المنصات R4."
+              description="كافة السياسات يتم إدارتها حالياً عبر محرر الأنظمة وقواعد المنصات."
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
@@ -4919,7 +4922,7 @@ function PayrollPageInner() {
       <Dialog
         open={assignmentsImportModalOpen}
         onClose={() => setAssignmentsImportModalOpen(false)}
-        title="استيراد وتوزيع خيارات المناديب (R4.3 Scheme Choices)"
+        title="استيراد وتوزيع خيارات المناديب"
         description="ربط خيارات المناديب المسجلة بالنماذج أو الاستبيانات بأنظمة التطبيق المعتمدة دون تعديل الردود الأصلية."
       >
         <div className="space-y-4 pt-2">
@@ -5221,9 +5224,9 @@ function PayrollPageInner() {
           <div className="p-3 rounded-xl bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-xs text-[var(--danger)] flex items-start gap-2">
             <AlertTriangle size={16} className="shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold block">ملاحظة التدقيق والرقابة المالية (Maker-Checker):</span>
+              <span className="font-bold block">ملاحظة التدقيق والرقابة المالية:</span>
               <p className="mt-0.5 text-[11px] opacity-90 leading-relaxed">
-                يتطلب رفض المسودة إبداء سبب مالي أو تشغيلي واضح لتوثيقه في سجل العمليات (Audit Trail) وإشعار منشئ المسودة.
+                يتطلب رفض المسودة إبداء سبب مالي أو تشغيلي واضح لتوثيقه في سجل العمليات وإشعار منشئ المسودة.
               </p>
             </div>
           </div>
@@ -5730,10 +5733,10 @@ function PayrollPageInner() {
               <span className="text-[var(--muted)]">النوع:</span>
               <span className="font-mono">
                 {rejectSettingKind === 'terms'
-                  ? 'عقد منصة (Parent Terms)'
+                  ? 'عقد منصة'
                   : rejectSettingKind === 'scheme'
-                  ? 'نظام داخلي (Pay Scheme)'
-                  : 'ضوابط أهلية (Eligibility)'}
+                  ? 'نظام داخلي'
+                  : 'ضوابط أهلية'}
               </span>
             </div>
           </div>

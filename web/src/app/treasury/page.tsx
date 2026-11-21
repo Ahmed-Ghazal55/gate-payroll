@@ -1,6 +1,12 @@
 'use client';
 
 import { formatSar } from '../../lib/money';
+import {
+  isBankVaultCode,
+  isCashVaultCode,
+  vaultGroupLabelAr,
+  vaultKindLabelAr,
+} from '../../lib/vault-labels';
 
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -163,7 +169,11 @@ function TreasuryPageContent() {
     setBankFileError(null);
     try {
       const sp = sponsorId === 'all' ? undefined : sponsorId;
-      if (!sp) { setBankFileError('اختر شركة كفيلة لمعاينة ملف البنك'); setBankFilePreview(null); return; }
+      if (!sp) {
+        setBankFilePreview(null);
+        setBankFileError(null);
+        return;
+      }
       const preview = await api.previewBankFile({ period, sponsorId: sp, comparisonOnly: parallel });
       setBankFilePreview(preview);
     } catch (err: any) {
@@ -269,11 +279,15 @@ function TreasuryPageContent() {
   // Filtered Vault Accounts (1110 - 1140)
   const vaultAccounts = useMemo(() => {
     return accounts.filter((a) => {
-      const isVault = a.code?.startsWith('111') || a.code?.startsWith('112') || a.code?.startsWith('113') || a.code?.startsWith('114');
+      const isVault =
+        a.code?.startsWith('111') ||
+        a.code?.startsWith('112') ||
+        a.code?.startsWith('113') ||
+        a.code?.startsWith('114');
       if (!isVault) return false;
       if (vaultTypeFilter !== 'all') {
-        if (vaultTypeFilter === 'bank' && !a.code?.startsWith('111')) return false;
-        if (vaultTypeFilter === 'cash' && a.code?.startsWith('111')) return false;
+        if (vaultTypeFilter === 'bank' && !isBankVaultCode(a.code)) return false;
+        if (vaultTypeFilter === 'cash' && !isCashVaultCode(a.code)) return false;
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -287,14 +301,11 @@ function TreasuryPageContent() {
 
   // Derived balances
   const totalBankBalance = useMemo(
-    () => accounts.filter((a) => a.code?.startsWith('111')).reduce((s, a) => s + (a.netBalance || 0), 0),
+    () => accounts.filter((a) => isBankVaultCode(a.code)).reduce((s, a) => s + (a.netBalance || 0), 0),
     [accounts]
   );
   const totalCashBalance = useMemo(
-    () =>
-      accounts
-        .filter((a) => a.code?.startsWith('112') || a.code?.startsWith('113') || a.code?.startsWith('114'))
-        .reduce((s, a) => s + (a.netBalance || 0), 0),
+    () => accounts.filter((a) => isCashVaultCode(a.code)).reduce((s, a) => s + (a.netBalance || 0), 0),
     [accounts]
   );
 
@@ -314,8 +325,8 @@ function TreasuryPageContent() {
         key: 'type',
         header: 'النوع والوظيفة',
         type: 'list' as const,
-        getValue: (a: FinanceAccount) => (a.code?.startsWith('111') ? 'bank' : 'cash'),
-        labelOf: (v: unknown) => (v === 'bank' ? 'حساب بنكي رئيسي' : 'صندوق نقدية تشغيلي'),
+        getValue: (a: FinanceAccount) => (isBankVaultCode(a.code) ? 'bank' : 'cash'),
+        labelOf: (v: unknown) => (v === 'bank' ? 'حساب بنكي رسمي' : 'صندوق نقدية تشغيلي'),
       },
       { key: 'sponsorName', header: 'الجهة الكفيلة', type: 'list' as const, getValue: (a: FinanceAccount) => (a as any).sponsorName || 'عام' },
       {
@@ -473,19 +484,19 @@ function TreasuryPageContent() {
       {/* ======================================================== */}
       {activeTab === 'vaults' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
-            <div className="flex items-center gap-2 flex-1 max-w-sm">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+            <div className="flex items-center gap-2 flex-1 min-w-0 w-full sm:max-w-sm">
               <Search size={16} className="text-[var(--muted)] shrink-0" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="بحث برقم الحساب أو اسم البنك/الخزينة..."
-                className="w-full bg-transparent text-xs sm:text-sm text-[var(--ink)] placeholder:text-[var(--muted)] focus:outline-hidden"
+                className="w-full min-w-0 bg-transparent text-xs sm:text-sm text-[var(--ink)] placeholder:text-[var(--muted)] focus:outline-hidden"
               />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
               <SearchableSelect
                 id="treasury-vault-type"
                 value={vaultTypeFilter}
@@ -493,11 +504,11 @@ function TreasuryPageContent() {
                 ariaLabel="نوع الخزينة"
                 placeholder="كافة أنواع الخزن"
                 size="sm"
-                className="w-52"
+                className="w-full sm:w-52"
                 options={[
                   { value: 'all', label: 'كافة أنواع الخزن' },
-                  { value: 'bank', label: 'حسابات بنكية (1110)' },
-                  { value: 'cash', label: 'صناديق نقدية وعهد (1120-1140)' },
+                  { value: 'cash', label: 'صناديق نقدية (1110–1120)' },
+                  { value: 'bank', label: 'حسابات بنكية (1130)' },
                 ]}
               />
             </div>
@@ -538,8 +549,8 @@ function TreasuryPageContent() {
                         <td className="p-3 font-mono font-bold text-[var(--accent)]">{a.code}</td>
                         <td className="p-3 font-semibold">{a.nameAr}</td>
                         <td className="p-3 text-[var(--muted)]">
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-[var(--raised)] text-[var(--ink)]">
-                            {a.code?.startsWith('111') ? 'حساب بنكي رئيسي' : 'صندوق نقدية تشغيلي'}
+                          <span className="inline-flex max-w-full px-2 py-0.5 rounded-full text-xs leading-snug whitespace-normal break-words bg-[var(--raised)] text-[var(--ink)]">
+                            {vaultGroupLabelAr(a.code)}
                           </span>
                         </td>
                         <td className="p-3 text-[var(--muted)]">{(a as any).sponsorName || 'عام'}</td>
@@ -748,7 +759,12 @@ function TreasuryPageContent() {
               {bankFilePreview.doNotSendMark} — الملف للمقارنة فقط ولن يُرسل للبنك.
             </div>
           )}
-          {bankFileError ? (
+          {selectedSponsor === 'all' ? (
+            <EmptyState
+              title="اختر شركة كفيلة"
+              description="حدد الشركة الكفيلة أعلاه لمعاينة ملف صرف الرواتب البنكي لهذه الفترة."
+            />
+          ) : bankFileError ? (
             <ErrorState
               title="تعذر تحميل ملف البنك"
               message={bankFileError}
@@ -1069,9 +1085,11 @@ function TreasuryPageContent() {
         {selectedAccount && (
           <div className="space-y-4">
             <div className="p-4 rounded-xl bg-[var(--raised)] space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">نوع الحساب:</span>
-                <span className="font-bold">{selectedAccount.vaultKind || selectedAccount.accountType}</span>
+              <div className="flex justify-between gap-3">
+                <span className="text-[var(--muted)] shrink-0">نوع الحساب:</span>
+                <span className="font-bold text-end">
+                  {vaultKindLabelAr(selectedAccount.vaultKind || selectedAccount.accountType)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">طبيعة الحساب:</span>

@@ -457,6 +457,7 @@ export function ResponsesTab({
           columns={columns}
           data={filteredSubmissions}
           loading={loading}
+          exportable={false}
           selectable={canReview}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}

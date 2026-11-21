@@ -371,7 +371,7 @@ describe('DataTable & ColumnFilterMenu Excel AutoFilter', () => {
     });
     assert.equal(merged.find((o) => o.value === 'active')?.count, 12);
     assert.equal(merged.find((o) => o.value === 'waived')?.count, 0);
-    assert.deepEqual(merged.find((o) => o.value === ''), { value: '', label: '(فارغ)', count: 3 });
+    assert.deepEqual(merged.find((o) => o.value === ''), { value: '', label: '(بدون قيمة)', count: 3 });
 
     // 8. Shared formatSar and localized formatReadableValue
     assert.equal(formatSar(1250), '1,250.00 ر.س');

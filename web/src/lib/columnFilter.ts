@@ -561,7 +561,7 @@ export function evaluateColumnFilter(
     if (filter.values.length === 0) return false;
     let matched = false;
     for (const allowed of filter.values) {
-      if (allowed === '' || allowed === '(فارغ)') {
+      if (allowed === '' || allowed === '(بدون قيمة)' || allowed === '(فارغ)') {
         if (isBlank) {
           matched = true;
           break;
@@ -895,7 +895,7 @@ export function extractDistinctOptions(
   if (config?.includeEmpty && emptyCount > 0) {
     result.push({
       value: '',
-      label: '(فارغ)',
+      label: '(بدون قيمة)',
       count: emptyCount,
     });
   }
