@@ -1504,10 +1504,10 @@ function AdminPageInner() {
       >
         <div className="space-y-4 pt-2">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">اسم المستخدم (Username):</label>
+            <label className="text-xs font-bold text-[var(--ink)]">اسم المستخدم:</label>
             <input
               type="text"
-              placeholder="e.g. ahmed.ali"
+              placeholder="مثال: ahmed.ali"
               value={newUsername}
               onChange={(e) => setNewUsername(e.target.value)}
               className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
