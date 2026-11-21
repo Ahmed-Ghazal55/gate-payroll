@@ -156,10 +156,34 @@ public static partial class AccessPolicy
             if(path=="/api/advance-requests"||path.EndsWith("/respond",StringComparison.Ordinal))return Has("advances.request");
             if(path.StartsWith("/api/advance-requests/rider-asks/",StringComparison.Ordinal))return Has("advances.request")&&(path.EndsWith("/convert",StringComparison.Ordinal)||path.EndsWith("/decline",StringComparison.Ordinal));
             if(path.EndsWith("/review",StringComparison.Ordinal))return Has("advances.review");
-            return path.EndsWith("/payout",StringComparison.Ordinal)&&Has("advances.payout");
+            return (path.EndsWith("/payout",StringComparison.Ordinal)||path.EndsWith("/request-payout",StringComparison.Ordinal))&&Has("advances.payout");
         }
         if(path.StartsWith("/api/approvals",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&path.EndsWith("/decide",StringComparison.Ordinal)&&Has("approvals.decide");
         if(path=="/api/audit")return method=="GET"&&(Has("audit.view")||Has("admin.audit.view"));
+        if(path.StartsWith("/api/admin/org/approval-limits",StringComparison.Ordinal)||path.StartsWith("/api/admin/org/sla-policies",StringComparison.Ordinal))
+            return (method=="GET"||method=="PUT")&&(Has("admin.org.manage")||Has("org.manage"));
+        if(path.StartsWith("/api/sal/simulations/",StringComparison.Ordinal))
+            return path.EndsWith("/journal-preview",StringComparison.Ordinal)||path.EndsWith("/discard",StringComparison.Ordinal)
+                ?(method=="GET"||method=="POST")&&Has("salaries.simulation.run")
+                :(method=="GET"||method=="POST")&&Has("pay.manage");
+        // U-W2-04 Mudad upload/match/list + line CRUD.
+        if(path.StartsWith("/api/mudad",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("people.mudad.manage")||Has("pay.view");
+            if(method=="DELETE"||(method=="PUT"&&path.Contains("/lines/",StringComparison.Ordinal)))
+                return Has("salaries.mudad.edit");
+            if(method=="POST"&&path.Contains("/lines",StringComparison.Ordinal))return Has("salaries.mudad.edit");
+            return method=="POST"&&Has("people.mudad.manage");
+        }
+        // U-W2-12/13/15 money capture + distribution + pay-run calc/approve.
+        if(path.StartsWith("/api/sal/",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("pay.view");
+            if(method=="POST"&&(path.EndsWith("/approve-salary",StringComparison.Ordinal)||path.EndsWith("/approve",StringComparison.Ordinal)
+                ||path.Contains("/debt-confirm",StringComparison.Ordinal)))
+                return Has("pay.approve")||Has("pay.manage");
+            return method=="POST"&&Has("pay.manage");
+        }
         // DELETE / campaign PUT stay admin-only (blanket deny). forms.delete is deprecated and unused.
         if(method=="DELETE"||path.EndsWith("/delete-preview",StringComparison.Ordinal)||path=="/api/submissions/bulk-delete"||method=="PUT"&&path.StartsWith("/api/campaigns/",StringComparison.Ordinal))return false;
         if(method=="POST"&&path.StartsWith("/api/notifications/center/",StringComparison.Ordinal)&&path.EndsWith("/toggle-todo",StringComparison.Ordinal))return true; // Handler checks view permission or ownership and visibility.
@@ -202,12 +226,41 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/users/",StringComparison.Ordinal)&&path.EndsWith("/copy-permissions",StringComparison.Ordinal))return method=="POST"&&Has("users.manage");
         return false;
     }
-    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide",System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null,string operation="approval.decide",JsonObject? record=null)
+    /// <summary>BR §35 / M-0672: permission-only in general; two-person only when the server-derived dual code
+    /// (bank file, payment out, shared-rider release) applies. Client dualPermission is ignored when kind maps.</summary>
+    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide",System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null,string operation="approval.decide",JsonObject? record=null,string? dualPermission=null)
     {
         Demand(actor,permission);
+        string? dual=dualPermission??ApprovalsArea.ResolveDual(request);
+        if(ApprovalsArea.RequiresDual(dual))Demand(actor,dual!);
         string name=actor.Identity?.Name??"";
-        J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
+        // BR §35 / M-0672: maker≠checker only for dedicated dual money-out / shared-rider codes.
+        if(ApprovalsArea.RequiresDual(dual))
+            J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request,scope:dual),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
+        // Bypass lifts maker≠checker only — never department, rank, approval limit, or company/platform scope.
         if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))
-            J.Need(Independent(actor,name,operation+".department_rank",c,tx,record??request),"القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
+            throw new ApiError("القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
+        DemandApprovalLimit(actor,request,c,tx);
     }
+
+    public static bool WithinApprovalLimit(ClaimsPrincipal actor,JsonObject request,System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null)
+    {
+        if(Administrator(actor)||c==null)return true;
+        decimal amount=request.N("amountSar",request.N("amount",request.N("total")));
+        if(amount<=0)return true;
+        string rank=actor.FindFirstValue("rank")??RankCode(actor.FindFirstValue("rankLevel"));
+        string department=actor.FindFirstValue("department")??request.S("targetDepartment");
+        ApprovalsArea.EnsureLimitsSeeded(c,tx);
+        var row=SchemaApprovals.FindLimit(c,tx,rank,department)
+            ??Store.List(c,ApprovalsArea.LimitsKind,tx).FirstOrDefault(l=>l.S("rank")==rank&&l.S("department")==department);
+        if(row==null||row.B("unlimited")||row["limitSar"] is null)return true;
+        return amount<=row.N("limitSar");
+    }
+
+    public static void DemandApprovalLimit(ClaimsPrincipal actor,JsonObject request,System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null)
+    {
+        J.Need(WithinApprovalLimit(actor,request,c,tx),"المبلغ يتجاوز حد الاعتماد للرتبة والقسم.",403);
+    }
+
+    static string RankCode(string? level)=>level switch{"5"=>"GM","4"=>"A+","3"=>"A","2"=>"B",_=>"C"};
 }

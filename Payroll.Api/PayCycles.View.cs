@@ -29,7 +29,7 @@ public static partial class PayCycles
             if(batch.Count==0)blockers.Add("لا توجد صفوف مراجعة جاهزة للاعتماد.");
             if(!approve)blockers.Add("صلاحية pay.approve مطلوبة.");
             // Pass c so §35 ActiveBypassGrant is visible in allowedActions (claims alone no longer carry dated exceptions).
-            bool independent=AccessPolicy.Independent(actor,cycle.S("createdBy"),"pay.salary_approved",c,tx,cycle)&&Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation",c,tx,cycle))&&batch.Any(r=>IndependentReview(actor,r,c,tx,cycle));
+            bool independent=AccessPolicy.Independent(actor,cycle.S("createdBy"),"pay.salary_approved",c,tx,cycle,scope:AccessPolicy.ScopePayApprovals)&&Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation",c,tx,cycle,scope:AccessPolicy.ScopePayApprovals))&&batch.Any(r=>IndependentReview(actor,r,c,tx,cycle));
             if(!independent)blockers.Add("اعتماد الراتب يحتاج مستخدمًا مستقلًا عن التجهيز والمراجعة.");
             foreach(string app in Accounts(cycle).Select(a=>a.App).Distinct())try{PlatformPosting.Demand(c,app,tx);}catch(ApiError){blockers.Add("بوابة الترحيل مغلقة: "+app);}
             if(approve&&independent&&batch.Count>0&&blockers.Count==0)actions.Add("approve_salaries");
@@ -37,7 +37,7 @@ public static partial class PayCycles
         if(state is "approved" or "partially_approved")
         {
             if(manage)actions.Add("review_debt_deductions");
-            bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+            bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopePayApprovals);
             var pendingDebt=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed").ToList();
             if(approve&&pendingDebt.Any(r=>AccessPolicy.IndependentForView(actor,r.S("debtSelectedBy",cycle.S("createdBy")),bypass)))
             {

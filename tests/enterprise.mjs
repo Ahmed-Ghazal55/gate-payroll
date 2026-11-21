@@ -122,10 +122,8 @@ try{
  // 4. Mutual Approval workflow (HR -> FIN)
  const pendingDebt=await req('/api/debts',{iqama:iq,category:'IqamaRenewal',creditorSponsorId:'BW',allocationMode:'RiderFull',totalAmount:650,monthlyInstallment:650,requireMutualApproval:true,initiatingDepartment:'HR',sourceRef:'HR-IQ-002',agreementReviewed:true});
  assert.equal(pendingDebt.status,'pending_approval');assert.ok(pendingDebt.approvalRequestId);
- await req(`/api/approvals/${pendingDebt.approvalRequestId}/decide`,{decision:'approved',overrideSelf:true,note:'The old administrator override no longer passes'},403);
- await req('/api/users',{username:'test-approver',password,role:'Admin'});const makerCookie=cookie;cookie='';await req('/api/auth/login',{username:'test-approver',password});
- const decided=await req(`/api/approvals/${pendingDebt.approvalRequestId}/decide`,{decision:'approved',note:'Independent synthetic administrator after verification'});
- cookie=makerCookie;
+ // BR §35: debt_creation is permission-only (dual is bank/payment/shared-rider only); same admin may decide.
+ const decided=await req(`/api/approvals/${pendingDebt.approvalRequestId}/decide`,{decision:'approved',note:'Permission-based debt approval under §35'});
  assert.equal(decided.status,'approved');
  assert.equal((await req('/api/debts')).find(d=>d.id===pendingDebt.id).status,'active');
 

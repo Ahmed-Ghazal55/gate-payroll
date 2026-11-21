@@ -88,11 +88,10 @@ try{
  for(const kind of ['hs_wallet_event','hs_remittance','hs_remittance_allocation','hs_handover_review','hs_month_close'])assert.equal((await json('/api/platforms/hs/facts?kind='+kind+'&page=1')).total,0);
  await json('/api/platforms/hs/facts?kind=user',undefined,400);await json('/api/platforms/hs/facts?kind=hs_wallet_event&page=0',undefined,400);
  const split=await json('/api/platforms/hs/allocations/'+encodeURIComponent(lineId),{riderAmount:0,companyAmount:20});
- await json('/api/platforms/hs/allocations/'+encodeURIComponent(split.id)+'/approve',{},403);
- await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{...(await json(proposalUrl)),confirm:true},403);
+ // BR §35 / M-0672: HS approve is permission-only (dual is bank/payment/shared-rider only).
+ await json('/api/platforms/hs/allocations/'+encodeURIComponent(split.id)+'/approve',{});
  await json('/api/auth/login',{username:'synthetic-r2-checker',password:checkerPassword});const checkerCookie=cookie;
  await json('/api/platforms/hs/posting',undefined,403);
- await json('/api/platforms/hs/allocations/'+encodeURIComponent(split.id)+'/approve',{});
  const proposed=await json(proposalUrl);assert.equal(proposed.rows[0].readyForApproval,true);
  const modified=structuredClone(proposed);modified.rows[0].lines[0].debit+=1;
  await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{...modified,confirm:true},409);
@@ -111,7 +110,7 @@ try{
  assert.equal((await json('/api/platforms/hs/disputes')).items[0].accountingReconciliation,'pending_reversal_or_credit_note');
  cookie=makerCookie;
  const reversal=await json('/api/platforms/hs/invoices/'+encodedHs+'/resolve',{mode:'request_reversal',period:'2026-11',reason:'Synthetic correction'});
- await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{reversalRequestId:reversal.id},403);cookie=checkerCookie;
+ // BR §35: HS reversal approve is permission-only (not dual money-out).
  await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{reversalRequestId:reversal.id});
  const checkedDb=new DatabaseSync(path.join(data,'payroll.db'));assert.equal(checkedDb.prepare("SELECT body FROM records WHERE id=? AND kind='journal'").get(posted.journalEntryId).body,originalJournal);assert.equal(checkedDb.prepare("SELECT COUNT(*) n FROM records WHERE kind='journal'").get().n,2);checkedDb.close();
  cookie=makerCookie;const scopePassword=randomBytes(24).toString('hex');

@@ -196,13 +196,16 @@ public sealed class AccountingReviewTests
 
     [TestMethod] public void ApprovalNeedsIndependentActorCorrectDepartmentAndRank()
     {
+        // BR §35: permission-only in general; dual money-out still requires Independent.
         var request=new JsonObject{["createdBy"]="requester",["targetDepartment"]="FIN",["requiredRankLevel"]=4};
         AccessPolicy.ValidateApproval(User("FinancialAccountant"),request,new());
-        Reject(()=>AccessPolicy.ValidateApproval(User("FinancialAccountant","requester"),request,new()),403);
+        AccessPolicy.ValidateApproval(User("FinancialAccountant","requester"),request,new()); // same actor OK without dual
         Reject(()=>AccessPolicy.ValidateApproval(User("HRSpecialist"),request,new()),403);
         Reject(()=>AccessPolicy.ValidateApproval(User("Accountant","reviewer","approvals.decide"),request,new()),403);
-        Reject(()=>AccessPolicy.ValidateApproval(User("Admin","requester"),request,new()),403);
-        Reject(()=>AccessPolicy.ValidateApproval(User("Admin","requester"),request,new JsonObject{["overrideSelf"]=true,["note"]="Legacy override cannot bypass dated exception"}),403);
+        var dual=new JsonObject{["createdBy"]="requester",["requestedBy"]="requester",["targetDepartment"]="FIN",["requiredRankLevel"]=4,["dualPermission"]="approvals.dual.payment_out"};
+        var dualActor=User("FinancialAccountant","requester","approvals.dual.payment_out");
+        Reject(()=>AccessPolicy.ValidateApproval(dualActor,dual,new(),"approvals.decide",dualPermission:"approvals.dual.payment_out"),403);
+        Reject(()=>AccessPolicy.ValidateApproval(User("Admin","requester","approvals.dual.payment_out"),dual,new(),"approvals.decide",dualPermission:"approvals.dual.payment_out"),403);
     }
     [TestMethod] public void CollectionAndOpeningTemplatesKeepTheirOwnExactCanonicalHeaderWidths()
     {

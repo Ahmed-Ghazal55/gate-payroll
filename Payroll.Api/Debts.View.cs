@@ -10,7 +10,7 @@ public static partial class Debts
     {
         FinancialScopes.DemandDebt(actor,debt);
         var result=debt.Clone();var actions=new JsonArray();var blockers=new JsonArray();
-        bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopePayApprovals);
         string status=debt.S("status");
         decimal remaining=debt.N("remainingBalance");
         bool open=(status is "active" or "paused")&&remaining>0;

@@ -119,6 +119,59 @@ public static class BankPayrollFiles
     }
     public const string DoNotSendMark="لا يُرسل — تشغيل موازٍ";
     static bool ComparisonOnly(JsonObject input)=>input.B("comparisonOnly")||input.B("doNotSend")||input.S("mode")=="parallel_comparison";
+    /// <summary>WC1H: dual approval for mark-sent binds to rider + account (IBAN) + amount lines and the total.</summary>
+    public static string FileContentHash(IEnumerable<JsonObject> rows,decimal total)
+    {
+        var lines=rows.Select(r=>$"{r.S("iqama")}|{r.S("iban")}|{r.N("amount").ToString("F2",CultureInfo.InvariantCulture)}")
+            .OrderBy(s=>s,StringComparer.Ordinal);
+        string canonical=string.Join("\n",lines)+"\n"+J.Money(total).ToString("F2",CultureInfo.InvariantCulture);
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+    }
+    /// <summary>BR §38.5: run_mode / payout_blocked come from stored cycles, pay runs and bank files — never from the request body.</summary>
+    public static (byte RunMode,bool PayoutBlocked) ResolveStoredMoneyFlags(DbConnection c,DbTransaction tx,(string Sponsor,string From,string To) request)
+    {
+        byte runMode=0;bool blocked=false;
+        foreach(var cycle in Store.List(c,PayCycles.Kind,tx).Where(d=>d.S("companyId")==request.Sponsor
+            &&string.CompareOrdinal(d.S("period"),request.From)>=0&&string.CompareOrdinal(d.S("period"),request.To)<=0
+            &&d.S("status") is not ("cancelled" or "reversed")))
+        {
+            if(cycle.N("runMode")==1||cycle.S("runMode")=="1")runMode=1;
+            if(cycle.B("payoutBlocked")||cycle.S("payoutBlocked")=="1")blocked=true;
+        }
+        foreach(var run in Store.List(c,"run",tx).Where(r=>r.S("sponsorId")==request.Sponsor
+            &&string.CompareOrdinal(r.S("period"),request.From)>=0&&string.CompareOrdinal(r.S("period"),request.To)<=0))
+        {
+            if(run.N("runMode")==1||run.S("runMode")=="1")runMode=1;
+            if(run.B("payoutBlocked")||run.S("payoutBlocked")=="1")blocked=true;
+        }
+        if(SchemaSql.TableExists(c,tx,"sal","pay_run"))
+        {
+            object? sim=SchemaSql.Scalar(c,tx,$"""
+                SELECT MAX(run_mode) FROM {SchemaSql.Q(c,"sal","pay_run")}
+                WHERE company_id=@c AND period_month>=@from AND period_month<=@to AND status<>4
+                """,("@c",request.Sponsor),("@from",request.From+"-01"),("@to",request.To+"-01"));
+            if(sim!=null&&sim is not DBNull&&Convert.ToInt32(sim)==1)runMode=1;
+            object? pb=SchemaSql.Scalar(c,tx,$"""
+                SELECT MAX(CAST(payout_blocked AS int)) FROM {SchemaSql.Q(c,"sal","pay_run")}
+                WHERE company_id=@c AND period_month>=@from AND period_month<=@to AND status<>4 AND run_mode=0
+                """,("@c",request.Sponsor),("@from",request.From+"-01"),("@to",request.To+"-01"));
+            if(pb!=null&&pb is not DBNull&&Convert.ToInt32(pb)==1)blocked=true;
+        }
+        if(SchemaSql.TableExists(c,tx,"sal","bank_file"))
+        {
+            object? fileBlocked=SchemaSql.Scalar(c,tx,$"""
+                SELECT MAX(CAST(payout_blocked AS int)) FROM {SchemaSql.Q(c,"sal","bank_file")}
+                WHERE paying_company_id=@c AND period_month>=@from AND period_month<=@to AND status<>4
+                """,("@c",request.Sponsor),("@from",request.From+"-01"),("@to",request.To+"-01"));
+            if(fileBlocked!=null&&fileBlocked is not DBNull&&Convert.ToInt32(fileBlocked)==1)blocked=true;
+            object? fileMode=SchemaSql.Scalar(c,tx,$"""
+                SELECT MAX(run_mode) FROM {SchemaSql.Q(c,"sal","bank_file")}
+                WHERE paying_company_id=@c AND period_month>=@from AND period_month<=@to AND status<>4
+                """,("@c",request.Sponsor),("@from",request.From+"-01"),("@to",request.To+"-01"));
+            if(fileMode!=null&&fileMode is not DBNull&&Convert.ToInt32(fileMode)==1)runMode=1;
+        }
+        return (runMode,blocked);
+    }
     // BR §38.5: mark parallel-run bank files «لا يُرسل» outside the CSV body (filename, preview fields, audit), never inside BOM/CRLF/header/rows.
     public static JsonObject Preview(DbConnection c,ClaimsPrincipal user,JsonObject input)
     {
@@ -164,12 +217,25 @@ public static class BankPayrollFiles
             if(row.N("amount")!=original.N("amount")||row.S("notes")!=original.S("notes")||row.S("bank")!=original.S("bank"))edited++;
             total+=row.N("amount");checkedRows.Add(row);
         }
-        // M1: payout journal only when explicitly marked sent — never on plain export or parallel «لا يُرسل».
+        // WC1I: a ready-to-send export opens the dual approval (kind, scope, file hash, amount) automatically.
+        string payoutRef="bank-payout:"+request.Sponsor+":"+request.From+":"+request.To;
+        string fileHash=FileContentHash(checkedRows,total);
+        if(!comparison)
+            ApprovalsArea.OpenMoneyOutDual(c,tx,user,"bank_sent",payoutRef,total,fileHash,
+                "اعتماد إرسال ملف بنك","ملف رواتب جاهز للإرسال — بانتظار اعتماد شخصين.",
+                new(){["sponsorId"]=request.Sponsor,["companyId"]=request.Sponsor,["from"]=request.From,["to"]=request.To});
+        // M1 / U-W2-31: payout journal only when explicitly marked sent — never on plain export or parallel «لا يُرسل».
         if(!comparison&&(input.B("markSent")||input.B("sent")||input.S("action")=="mark_sent"))
         {
+            var flags=ResolveStoredMoneyFlags(c,tx,request);
+            MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.BankSent);
+            // M-0672 / WC1H: recorded two-person dual bound to this file's content hash (edits after approval void it).
+            ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,user,ApprovalsArea.DualBankFile,payoutRef,fileHash);
             string bank=input.S("bankAccountCode",PipelineSettings.Current().S("payrollBankAccount","111101"));
+            MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.Payout);
             PostPayout(c,tx,user,request,checkedRows,actor,bank);
         }
+        // comparisonOnly + markSent: export CSV only; never post (parallel «لا يُرسل»).
         byte[] bytes=Csv(checkedRows);string filename=(comparison?"DO-NOT-SEND_":"")+DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)+"_bulkPayroll.csv";
         // Metadata only. Never persist the exported rows, identifiers, names, IBANs or notes.
         // Keep the normal export audit shape (7 fields). Parallel-run adds doNotSend outside the CSV.
