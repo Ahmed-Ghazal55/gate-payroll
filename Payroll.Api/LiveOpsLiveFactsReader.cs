@@ -26,6 +26,7 @@ public sealed class LiveOpsLiveFactsReader:IOpsLiveFactsReader
         SourceReader.VerifyReadOnly(erp);
         var scope=ScopeFor(companyId);
         var from=From(periodMonth);var to=To(periodMonth);
+        string liveKind=MapCaptureKind(kind);
         // Materialize while the ERP connection is open.
         return kind switch
         {
@@ -38,10 +39,43 @@ public sealed class LiveOpsLiveFactsReader:IOpsLiveFactsReader
             "platform_account"=>LiveKindPages(erp,scope,app,from,to,"platform_account").ToList(),
             "keeta_invoice_row"=>LiveKindPages(erp,scope,app,from,to,"platform_account").ToList(),
             "hs_ops" or "platform_ops"=>LiveKindPages(erp,scope,app,from,to,"platform_day_usage").ToList(),
-            "hs_wallet"=>[],
-            _ when LiveOperationsQuery.HasKind(kind)=>LiveKindPages(erp,scope,app,from,to,kind).ToList(),
+            "jahez_day"=>LiveKindPages(erp,scope,app,from,to,liveKind).Select(NormalizeJahezDay).ToList(),
+            "chefz_settlement"=>LiveKindPages(erp,scope,app,from,to,"chefz_settlement").ToList(),
+            "hs_wallet"=>LiveKindPages(erp,scope,app,from,to,"custody_handover").Select(NormalizeHsWallet).ToList(),
+            _ when LiveOperationsQuery.HasKind(liveKind)=>LiveKindPages(erp,scope,app,from,to,liveKind).ToList(),
             _=>[]
         };
+    }
+
+    /// <summary>Map pay-run capture catalogue kinds onto live ERP query kinds (RWC4b H4).</summary>
+    public static string MapCaptureKind(string kind)=>kind switch
+    {
+        "jahez_day"=>"jahez_daily_order",
+        "assignment"=>"rider_work_timeline",
+        "hs_ops" or "platform_ops"=>"platform_day_usage",
+        "hs_wallet"=>"custody_handover",
+        _=>kind
+    };
+
+    static JsonObject NormalizeJahezDay(JsonObject r)
+    {
+        var copy=r.DeepClone()!.AsObject();
+        if(copy.S("erpRiderId")=="")copy["erpRiderId"]=copy.S("riderId",copy.S("riderProfileId"));
+        if(copy.S("workDate")=="")copy["workDate"]=Day(copy.S("date",copy.S("workDate")));
+        if(!copy.ContainsKey("orders"))copy["orders"]=copy.N("count");
+        if(!copy.ContainsKey("net"))copy["net"]=0;
+        if(!copy.ContainsKey("commission"))copy["commission"]=0;
+        return copy;
+    }
+
+    static JsonObject NormalizeHsWallet(JsonObject r)
+    {
+        var copy=r.DeepClone()!.AsObject();
+        if(copy.S("erpRiderId")=="")copy["erpRiderId"]=copy.S("riderId",copy.S("riderProfileId"));
+        if(!copy.ContainsKey("fundingType"))copy["fundingType"]="custody";
+        if(!copy.ContainsKey("amount"))copy["amount"]=copy.N("balance",copy.N("amount"));
+        if(copy.S("asOf")=="")copy["asOf"]=Day(copy.S("occurredAt",copy.S("asOf")));
+        return copy;
     }
 
     IEnumerable<JsonObject> SchemeFromPaySettings(string companyId,string app,string periodMonth)
