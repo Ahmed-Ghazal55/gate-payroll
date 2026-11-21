@@ -66,6 +66,28 @@ public static class SchemaOrgStructure
         }
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"org","membership","UQ_org_membership_active","user_id, department","valid_to IS NULL");
         SchemaSql.CreateIndexIfMissing(c,tx,"org","membership","IX_org_membership_user_id","user_id");
+        EnsureNoMembershipOverlap(c,tx);
+    }
+
+    /// <summary>Dated memberships for one user and department may not cover the same day; null valid_to is open-ended.</summary>
+    static void EnsureNoMembershipOverlap(DbConnection c,DbTransaction? tx)
+    {
+        string membership=SchemaSql.Q(c,"org","membership");
+        const string message="Membership date ranges for one user and department cannot overlap";
+        string OpenEnd(string alias)=>SchemaSql.IsSql(c)?$"COALESCE({alias}.valid_to,'9999-12-31')":$"COALESCE({alias}.valid_to,'9999-12-31')";
+        string Overlap(string n)=>$"EXISTS(SELECT 1 FROM {membership} x WHERE x.id<>{n}.id AND x.user_id={n}.user_id AND x.department={n}.department AND x.valid_from<={OpenEnd(n)} AND {n}.valid_from<={OpenEnd("x")})";
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER org.TR_membership_overlap ON {membership} AFTER INSERT, UPDATE AS
+                BEGIN
+                  SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM inserted n WHERE {Overlap("n")})
+                    THROW 51040,'{message}',1;
+                END;
+                """);
+        else
+            foreach(bool insert in new[]{true,false})
+                SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_org_membership_overlap_{(insert?"insert":"update")} AFTER {(insert?"INSERT":"UPDATE OF user_id,department,valid_from,valid_to")} ON {membership} WHEN {Overlap("NEW")} BEGIN SELECT RAISE(ABORT,'{message}'); END;");
     }
 
     static void EnsureDelegation(DbConnection c,DbTransaction? tx)
