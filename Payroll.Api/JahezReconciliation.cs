@@ -10,6 +10,11 @@ public static class JahezReconciliation
     public const string Kind="jahez_reconciliation";
     public const string Receivable="112801",Clearing="212601",SettlementBank="111204",OutputVat="213201";
     static void DemandWrite(ClaimsPrincipal actor)=>J.Need(AccessPolicy.Administrator(actor)||AccessPolicy.Has(actor,"treasury.transfer")||AccessPolicy.Has(actor,"treasury.jahez.receive"),"صلاحية خزينة جاهز مطلوبة.",403);
+    static void DemandDayWrite(ClaimsPrincipal actor)
+    {
+        DemandWrite(actor);
+        J.Need(FinancialScopes.Platform(actor,"Jahez"),"المنصة خارج النطاق المالي.",403);
+    }
     static void RefuseDuplicateActive(DbConnection c,DbTransaction tx,string companyId,string period,string? exceptId=null)
     {
         bool clash=Store.List(c,Kind,tx).Any(d=>d.S("companyId")==companyId&&d.S("period")==period&&(d.S("status") is "draft" or "pending_approval" or "approved")&&(exceptId==null||d.S("id")!=exceptId));
@@ -19,6 +24,7 @@ public static class JahezReconciliation
     {
         DemandWrite(actor);PayValues.Fields(input,"companyId","period","invoiceNet","invoiceVat","lastTransactionDate","invoiceReference","notes");
         var sponsor=FinancialCore.ResolveSponsor(input.Required("companyId"));FinancialScopes.DemandSponsor(actor,sponsor.Id);
+        J.Need(FinancialScopes.Platform(actor,"Jahez"),"المنصة خارج النطاق المالي.",403);
         string period=J.Period(input.Required("period"));string lastRaw=input.Required("lastTransactionDate");
         J.Need(DateOnly.TryParseExact(lastRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var last),"تاريخ آخر معاملة غير صالح.");
         var monthStart=DateOnly.ParseExact(period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture);J.Need(last>=monthStart&&last<monthStart.AddMonths(1),"آخر معاملة داخل شهر الفاتورة.");
@@ -77,7 +83,7 @@ public static class JahezReconciliation
     public static JsonObject Submit(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
         DemandWrite(actor);var doc=Store.Get(c,id,Kind,tx)??throw new ApiError("تقرير المطابقة غير موجود.",404);
-        FinancialScopes.DemandSponsor(actor,doc.S("companyId"));J.Need(doc.S("status")=="draft","التقرير ليس مسودة.");
+        FinancialScopes.DemandSponsor(actor,doc.S("companyId"));J.Need(FinancialScopes.Platform(actor,"Jahez"),"المنصة خارج النطاق المالي.",403);J.Need(doc.S("status")=="draft","التقرير ليس مسودة.");
         doc["status"]="pending_approval";doc["submittedBy"]=actor.Identity!.Name;doc["submittedAt"]=DateTimeOffset.UtcNow.ToString("O");
         Store.Save(c,Kind,doc,tx);Store.Audit(c,tx,"jahez.reconciliation_submitted",id,actor.Identity!.Name!);return doc;
     }
@@ -92,7 +98,7 @@ public static class JahezReconciliation
     public static JsonObject Approve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
         DemandWrite(actor);var doc=Store.Get(c,id,Kind,tx)??throw new ApiError("تقرير المطابقة غير موجود.",404);
-        FinancialScopes.DemandSponsor(actor,doc.S("companyId"));J.Need(doc.S("status")=="pending_approval","التقرير بانتظار الاعتماد.");
+        FinancialScopes.DemandSponsor(actor,doc.S("companyId"));J.Need(FinancialScopes.Platform(actor,"Jahez"),"المنصة خارج النطاق المالي.",403);J.Need(doc.S("status")=="pending_approval","التقرير بانتظار الاعتماد.");
         RefuseDuplicateActive(c,tx,doc.S("companyId"),doc.S("period"),doc.S("id"));
         // BR §37: maker-checker for Jahez reconciliation (submitter and creator); §35 bypass via Independent.
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("submittedBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"treasury.jahez.receive",c,tx,"jahez.reconciliation_approved",doc);
@@ -117,13 +123,14 @@ public static class JahezReconciliation
     /// <summary>U-W2-19: open a day run into treasury.jahez_recon_run. Al-Togary vaults stay isolated (X18).</summary>
     public static JsonObject OpenDay(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)
     {
-        DemandWrite(actor);SchemaTreasury.Ensure(c,tx);
+        DemandDayWrite(actor);SchemaTreasury.Ensure(c,tx);
         var sponsor=FinancialCore.ResolveSponsor(input.Required("companyId"));FinancialScopes.DemandSponsor(actor,sponsor.Id);
         DateOnly businessDate=ParseDay(input.Required("businessDate"));
         DateOnly periodMonth=new(businessDate.Year,businessDate.Month,1);
         byte version=(byte)(input.ContainsKey("versionNo")?(int)PayValues.Number(input,"versionNo",3):3);
         J.Need(version is 2 or 3,"إصدار المطابقة 2 أو 3 فقط.");
         string vaultCode=input.S("vaultCode").Trim();
+        string vaultId=input.S("vaultId").Trim();
         bool togaryRun=IsTogaryVault(vaultCode)||TreasuryBalancesApi.IsTogary(sponsor.Code,sponsor.ShortNameAr,sponsor.Id);
         if(togaryRun&&vaultCode=="")vaultCode="togary";
         // One open/approved day per company+date+version (UQ_treasury_jahez_recon_day).
@@ -133,21 +140,17 @@ public static class JahezReconciliation
             """,("@c",sponsor.Id),("@d",businessDate.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)),("@v",version));
         J.Need(existing is null or DBNull,"تشغيل مطابقة جاهز لهذا اليوم موجود مسبقاً.",409);
 
-        string state="open";
-        bool waiting=Store.List(c,"jahez_handover",tx).Any(h=>h.S("sponsorId")==sponsor.Id
-            &&h.S("businessDate").StartsWith(businessDate.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),StringComparison.Ordinal)
-            &&h.S("status") is "pending" or "Pending");
-        if(waiting)state="waiting_handover";
+        bool hasConfirmed=ConfirmHandoverExists(c,tx,sponsor.Id,businessDate,vaultId,vaultCode,togaryRun);
+        string state=hasConfirmed?"open":"waiting_handover";
 
-        var lines=BuildDayLines(c,tx,sponsor.Id,businessDate,vaultCode,togaryRun);
-        decimal omar=J.Money(lines.Sum(l=>l.N("expectedAmount")));
-        decimal handed=J.Money(lines.Sum(l=>l.N("handedAmount")));
-        decimal transferOmar=J.Money(Store.List(c,"erp_money_movement",tx)
-            .Where(r=>InScope(c,tx,r,sponsor.Id)&&InRange(r.S("occurredAt"),businessDate,businessDate)
-                &&(r.S("fund").Contains("Bank",StringComparison.OrdinalIgnoreCase)||r.S("purposeCode").Contains("Settlement",StringComparison.OrdinalIgnoreCase)))
-            .Where(r=>VaultMatches(r,vaultCode,togaryRun))
-            .Sum(r=>r.N("amount")));
-        decimal transferDiff=J.Money(transferOmar-omar);
+        var lines=BuildDayLines(c,tx,sponsor.Id,businessDate,vaultId,vaultCode,togaryRun);
+        decimal handedCash=J.Money(lines.Sum(l=>l.N("handedCashAmount")));
+        decimal handedBank=J.Money(lines.Sum(l=>l.N("handedBankAmount")));
+        decimal handedExternal=J.Money(lines.Sum(l=>l.N("handedExternalAmount")));
+        decimal opsSum=handedCash;
+        decimal handedAmount=handedCash;
+        decimal transferOmar=OmarTransferAmount(c,tx,sponsor.Id,businessDate,vaultId,vaultCode,togaryRun);
+        decimal transferDiff=J.Money(transferOmar-handedCash);
 
         string id=SchemaSql.GuidText(SchemaSql.NewId());
         string actorName=actor.Identity!.Name!;
@@ -171,16 +174,19 @@ public static class JahezReconciliation
                 ("@v",line.S("erpVaultId")),("@h",(object?)NullIfEmpty(line.S("erpHandoverId"))??DBNull.Value),
                 ("@e",line.N("expectedAmount")),("@ha",line.N("handedAmount")));
         }
-        // Document mirror for allowedActions / variance text (first journals stay on the run after approve).
+        var allowedActions=state=="waiting_handover"?new JsonArray("variance"):new JsonArray("submit","variance");
         var doc=new JsonObject
         {
             ["id"]=id,["kind"]="jahez_recon_day",["companyId"]=sponsor.Id,["businessDate"]=businessDate.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
             ["periodMonth"]=periodMonth.ToString("yyyy-MM",CultureInfo.InvariantCulture),["versionNo"]=version,
-            ["vaultCode"]=vaultCode,["isAlTogary"]=togaryRun,["reconciliationState"]=state,["status"]="draft",
-            ["omarTransferAmount"]=transferOmar,["opsSumAmount"]=omar,["handedAmount"]=handed,["transferDiff"]=transferDiff,
+            ["vaultCode"]=vaultCode,["vaultId"]=vaultId,["isAlTogary"]=togaryRun,["reconciliationState"]=state,["status"]="draft",
+            ["omarTransferAmount"]=transferOmar,["opsSumAmount"]=opsSum,
+            ["handedAmount"]=handedAmount,["handedCashAmount"]=handedCash,["handedBankAmount"]=handedBank,["handedExternalAmount"]=handedExternal,
+            ["transferDiff"]=transferDiff,
             ["lineCount"]=lines.Count,["createdBy"]=actorName,["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),
-            ["varianceDecision"]="",["journalEntryIds"]=new JsonArray(),["firstJournalsImmutable"]=true,
-            ["allowedActions"]=new JsonArray("submit","variance")
+            ["varianceDecision"]="",["journalEntryIds"]=new JsonArray(),["correctionJournalEntryIds"]=new JsonArray(),["reversalJournalEntryIds"]=new JsonArray(),
+            ["firstJournalsImmutable"]=true,
+            ["allowedActions"]=allowedActions
         };
         Store.Save(c,"jahez_recon_day",doc,tx);
         Store.Audit(c,tx,"jahez.day_opened",id,actorName);
@@ -189,9 +195,9 @@ public static class JahezReconciliation
 
     public static JsonObject SubmitDay(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
-        DemandWrite(actor);var doc=LoadDay(c,tx,actor,id);
+        DemandDayWrite(actor);var doc=LoadDay(c,tx,actor,id);
         J.Need(doc.S("status")=="draft","تشغيل اليوم ليس مسودة.");
-        J.Need(doc.S("reconciliationState")!="waiting_handover","لا يُعتمد يوم بانتظار تسليم عهدة مؤكد.",409);
+        RefuseIfWaitingHandover(c,tx,doc);
         SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"treasury","jahez_recon_run")} SET status=2,updated_at={SchemaSql.NowLiteral(c)} WHERE id=@id",("@id",id));
         doc["status"]="pending_approval";doc["submittedBy"]=actor.Identity!.Name;doc["submittedAt"]=DateTimeOffset.UtcNow.ToString("O");
         doc["allowedActions"]=new JsonArray("approve","variance");
@@ -201,8 +207,9 @@ public static class JahezReconciliation
 
     public static JsonObject DecideDayVariance(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
-        DemandWrite(actor);var doc=LoadDay(c,tx,actor,id);
+        DemandDayWrite(actor);var doc=LoadDay(c,tx,actor,id);
         J.Need(doc.S("status") is "draft" or "pending_approval","تشغيل اليوم مغلق.");
+        RefuseIfWaitingHandover(c,tx,doc);
         string decision=input.S("varianceDecision").Trim();J.Need(decision.Length is >=3 and <=500,"قرار الفرق من 3 إلى 500 حرف.");
         SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"treasury","jahez_recon_run")} SET reconciliation_state='variance_decided',updated_at={SchemaSql.NowLiteral(c)} WHERE id=@id",("@id",id));
         doc["varianceDecision"]=decision;doc["reconciliationState"]="variance_decided";
@@ -211,13 +218,13 @@ public static class JahezReconciliation
         return doc;
     }
 
-    /// <summary>Approve-the-day: posts missing summary journals once; first journals immutable (T9). Maker ≠ checker.</summary>
+    /// <summary>Approve-the-day: posts summary journals through JournalPosting; first journals immutable (T9). Maker ≠ checker.</summary>
     public static JsonObject ApproveDay(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
-        DemandWrite(actor);SchemaFinJournal.Ensure(c,tx);SchemaFinPeriodBalance.Ensure(c,tx);SchemaTreasury.Ensure(c,tx);
+        DemandDayWrite(actor);SchemaFinJournal.Ensure(c,tx);SchemaFinPeriodBalance.Ensure(c,tx);SchemaTreasury.Ensure(c,tx);
         var doc=LoadDay(c,tx,actor,id);
         J.Need(doc.S("status")=="pending_approval","تشغيل اليوم بانتظار الاعتماد.");
-        J.Need(doc.S("reconciliationState")!="waiting_handover","لا اعتماد مع تسليم غير مؤكد.",409);
+        RefuseIfWaitingHandover(c,tx,doc);
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("submittedBy",doc.S("createdBy")),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"treasury.jahez.receive",c,tx,"jahez.day_approved",doc);
         J.Need(AccessPolicy.Independent(actor,doc.S("submittedBy",doc.S("createdBy")),"jahez.day_approved",c,tx,doc,scope:AccessPolicy.ScopeInvoiceApprovals),
             "لا يجوز اعتماد يوم قدّمته؛ يلزم مراجع مستقل.",403);
@@ -226,16 +233,24 @@ public static class JahezReconciliation
         decimal transferDiff=doc.N("transferDiff");
         J.Need(transferDiff==0||doc.S("varianceDecision").Length>=3,"فرق التحويل يحتاج قرارًا مكتوبًا قبل اعتماد اليوم.");
 
-        // First journals: clearing + transfer for matched day totals; never rewritten — corrections are reverse/correct later (T9).
+        string company=doc.S("companyId");
+        DateOnly businessDate=ParseDay(doc.S("businessDate"));
+        DateOnly periodMonth=ParsePeriodMonth(doc.S("periodMonth"));
+        Guid runId=Guid.Parse(id);
+        string actorName=actor.Identity!.Name!;
+        decimal clearingAmt=J.Money(Math.Max(0,doc.N("handedAmount")));
+        decimal transferAmt=J.Money(Math.Max(0,doc.N("omarTransferAmount")));
         var ids=new JsonArray();
-        string company=doc.S("companyId"),period=doc.S("periodMonth"),actorName=actor.Identity!.Name!;
-        decimal handed=doc.N("handedAmount"),ops=doc.N("opsSumAmount");
-        decimal clearingAmt=J.Money(Math.Min(Math.Max(0,handed),Math.Max(0,ops)));
-        decimal transferAmt=J.Money(Math.Max(0,ops));
         if(clearingAmt>0)
-            ids.Add(PostLegacyDayJournal(c,tx,company,period,id,"clearing","مقاصة جاهز يومية",Clearing,Receivable,clearingAmt,actorName));
+        {
+            var jid=PostDayJournal(c,tx,company,periodMonth,businessDate,runId,"jahez_recon_clearing","مقاصة جاهز يومية",Clearing,Receivable,clearingAmt,actorName);
+            if(jid!="")ids.Add(jid);
+        }
         if(transferAmt>0)
-            ids.Add(PostLegacyDayJournal(c,tx,company,period,id,"transfer","تحويل تسوية جاهز يومية",SettlementBank,Receivable,transferAmt,actorName));
+        {
+            var jid=PostDayJournal(c,tx,company,periodMonth,businessDate,runId,"jahez_recon_transfer","تحويل تسوية جاهز يومية",SettlementBank,Receivable,transferAmt,actorName);
+            if(jid!="")ids.Add(jid);
+        }
 
         string approverId=SchemaSql.GuidText(SchemaSql.NewId());
         try{approverId=SchemaApprovals.EnsureAuthUserId(c,tx,actorName);}catch(ApiError){/* synthetic */}
@@ -252,6 +267,50 @@ public static class JahezReconciliation
         return doc;
     }
 
+    /// <summary>After approval: reverse immutable first journals and post corrected entries (T9).</summary>
+    public static JsonObject CorrectDay(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
+    {
+        DemandDayWrite(actor);SchemaFinJournal.Ensure(c,tx);SchemaFinPeriodBalance.Ensure(c,tx);
+        var doc=LoadDay(c,tx,actor,id);
+        J.Need(doc.S("status")=="approved","تشغيل اليوم غير معتمد.");
+        J.Need(doc.B("firstJournalsImmutable"),"اليوم ليس بقيد أولي ثابت.",409);
+        var prior=doc["journalEntryIds"]!.AsArray().OfType<JsonValue>().Select(v=>v.ToString()).Where(s=>!string.IsNullOrWhiteSpace(s)).ToList();
+        J.Need(prior.Count>0,"لا قيود أولية لعكسها.",409);
+
+        string company=doc.S("companyId");
+        DateOnly businessDate=ParseDay(doc.S("businessDate"));
+        DateOnly periodMonth=ParsePeriodMonth(doc.S("periodMonth"));
+        Guid runId=Guid.Parse(id);
+        string actorName=actor.Identity!.Name!;
+        decimal clearingAmt=input.ContainsKey("clearingAmount")?J.Money(PayValues.Number(input,"clearingAmount")):J.Money(Math.Max(0,doc.N("handedAmount")));
+        decimal transferAmt=input.ContainsKey("transferAmount")?J.Money(PayValues.Number(input,"transferAmount")):J.Money(Math.Max(0,doc.N("omarTransferAmount")));
+
+        var reversed=new JsonArray();
+        foreach(var jid in prior)
+        {
+            var rev=JournalPosting.Reverse(c,tx,Guid.Parse(jid!),actorName,SchemaSql.NewId(),"عكس قيد مطابقة جاهز يومية");
+            reversed.Add(SchemaSql.GuidText(rev.JournalId));
+        }
+        var corrected=new JsonArray();
+        if(clearingAmt>0)
+        {
+            var jid=PostDayJournal(c,tx,company,periodMonth,businessDate,runId,"jahez_recon_clearing_correct","تصحيح مقاصة جاهز يومية",Clearing,Receivable,clearingAmt,actorName);
+            if(jid!="")corrected.Add(jid);
+        }
+        if(transferAmt>0)
+        {
+            var jid=PostDayJournal(c,tx,company,periodMonth,businessDate,runId,"jahez_recon_transfer_correct","تصحيح تحويل تسوية جاهز يومية",SettlementBank,Receivable,transferAmt,actorName);
+            if(jid!="")corrected.Add(jid);
+        }
+
+        doc["reversalJournalEntryIds"]=reversed;doc["correctionJournalEntryIds"]=corrected;
+        doc["correctedBy"]=actorName;doc["correctedAt"]=DateTimeOffset.UtcNow.ToString("O");
+        if(input.ContainsKey("notes"))doc["correctionNotes"]=input.S("notes");
+        Store.Save(c,"jahez_recon_day",doc,tx);
+        Store.Audit(c,tx,"jahez.day_corrected",id,actorName);
+        return doc;
+    }
+
     public static void Map(RouteGroupBuilder api,Store store)
     {
         // Day routes before {id} so "day" is not captured as an id.
@@ -260,6 +319,7 @@ public static class JahezReconciliation
         api.MapPost("/finance/jahez-reconciliations/day/{id}/submit",(string id,HttpContext ctx)=>store.Write((c,tx)=>SubmitDay(c,tx,ctx.User,id))).WithTags("Banks and treasury").WithSummary("Submit Jahez day recon for approval");
         api.MapPost("/finance/jahez-reconciliations/day/{id}/variance",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>DecideDayVariance(c,tx,ctx.User,id,input))).WithTags("Banks and treasury").WithSummary("Record day transfer variance decision");
         api.MapPost("/finance/jahez-reconciliations/day/{id}/approve",(string id,HttpContext ctx)=>store.Write((c,tx)=>ApproveDay(c,tx,ctx.User,id))).WithTags("Banks and treasury").WithSummary("Approve Jahez day (immutable first journals)");
+        api.MapPost("/finance/jahez-reconciliations/day/{id}/correct",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>CorrectDay(c,tx,ctx.User,id,input))).WithTags("Banks and treasury").WithSummary("Reverse and correct Jahez day journals after approval");
         api.MapGet("/finance/jahez-reconciliations",(HttpContext ctx)=>
         {
             AccessPolicy.Demand(ctx.User,"treasury.view");
@@ -277,7 +337,7 @@ public static class JahezReconciliation
     }
     static bool InScope(DbConnection c,DbTransaction tx,JsonObject row,string companyId)
     {
-        if(row.S("companyId")==companyId)return true;
+        if(row.S("companyId")==companyId||row.S("sponsorId")==companyId)return true;
         string account=row.S("accountId",row.S("platformAccountId"));if(account=="")return false;
         var acc=Store.Get(c,account,"platform_account",tx);return acc!=null&&acc.S("companyId")==companyId;
     }
@@ -303,41 +363,75 @@ public static class JahezReconciliation
         FinancialScopes.DemandSponsor(actor,doc.S("companyId"));
         return doc;
     }
-    static List<JsonObject> BuildDayLines(DbConnection c,DbTransaction tx,string companyId,DateOnly day,string vaultCode,bool togaryRun)
+    static bool HandoverDay(JsonObject row,DateOnly day)
+    {
+        string d=row.S("businessDate",row.S("date"));
+        return d.StartsWith(day.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),StringComparison.Ordinal);
+    }
+    static bool IsConfirmedHandover(JsonObject h)=>h.S("status") is "confirmed" or "Confirmed" or "approved" or "2"
+        ||h.S("statusCode") is "2" or "Confirmed";
+    static bool ConfirmHandoverExists(DbConnection c,DbTransaction tx,string companyId,DateOnly day,string vaultId,string vaultCode,bool togaryRun)=>
+        Store.List(c,"erp_cashbox_handover",tx)
+            .Where(h=>InScope(c,tx,h,companyId)&&HandoverDay(h,day)&&IsConfirmedHandover(h))
+            .Any(h=>VaultMatches(h,vaultId,vaultCode,togaryRun));
+    static void RefuseIfWaitingHandover(DbConnection c,DbTransaction tx,JsonObject doc)
+    {
+        DateOnly day=ParseDay(doc.S("businessDate"));
+        bool hasConfirmed=ConfirmHandoverExists(c,tx,doc.S("companyId"),day,doc.S("vaultId"),doc.S("vaultCode"),doc.B("isAlTogary"));
+        J.Need(hasConfirmed,"لا يُعتمد يوم بانتظار تسليم عهدة مؤكد.",409);
+    }
+    static List<JsonObject> BuildDayLines(DbConnection c,DbTransaction tx,string companyId,DateOnly day,string vaultId,string vaultCode,bool togaryRun)
     {
         var lines=new List<JsonObject>();
-        foreach(var h in Store.List(c,"jahez_handover",tx).Where(r=>InScope(c,tx,r,companyId)
-            &&r.S("businessDate").StartsWith(day.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),StringComparison.Ordinal)
-            &&r.S("status") is "confirmed" or "Confirmed" or "approved")
-            .Where(r=>VaultMatches(r,vaultCode,togaryRun)))
+        foreach(var h in Store.List(c,"erp_cashbox_handover",tx)
+                    .Where(r=>InScope(c,tx,r,companyId)&&HandoverDay(r,day)&&IsConfirmedHandover(r))
+                    .Where(r=>VaultMatches(r,vaultId,vaultCode,togaryRun)))
         {
+            decimal cash=J.Money(h.N("cashboxAmount"));
+            decimal bank=J.Money(h.N("bankAmount"));
+            decimal external=J.Money(h.N("petroAppAmount"));
             lines.Add(new()
             {
-                ["erpVaultId"]=VaultGuid(h.S("vaultCode",h.S("cashboxCode","MAIN"))),
+                ["erpVaultId"]=VaultGuid(h.S("vaultId",h.S("vaultCode",h.S("cashboxCode","MAIN")))),
                 ["erpHandoverId"]=AsGuidOrEmpty(h.S("erpSourceId",h.S("id"))),
-                ["expectedAmount"]=J.Money(h.N("cashboxAmount")+h.N("petroAppAmount")+h.N("bankAmount")),
-                ["handedAmount"]=J.Money(h.N("cashboxAmount")+h.N("petroAppAmount")+h.N("bankAmount"))
+                ["expectedAmount"]=cash,
+                ["handedAmount"]=cash,
+                ["handedCashAmount"]=cash,
+                ["handedBankAmount"]=bank,
+                ["handedExternalAmount"]=external
             });
-        }
-        if(lines.Count==0)
-        {
-            // Ops rollup when no confirmed handover rows exist yet (still open / matched from operations).
-            decimal ops=J.Money(Store.List(c,"erp_jahez_operation",tx)
-                .Where(r=>InScope(c,tx,r,companyId)&&InRange(r.S("executedAt"),day,day))
-                .Where(r=>VaultMatches(r,vaultCode,togaryRun))
-                .Sum(r=>r.N("net",r.N("commission"))));
-            if(ops!=0)
-                lines.Add(new(){["erpVaultId"]=VaultGuid(vaultCode==""?"MAIN":vaultCode),["erpHandoverId"]="",["expectedAmount"]=ops,["handedAmount"]=0m});
         }
         return lines;
     }
-    static bool VaultMatches(JsonObject row,string vaultCode,bool togaryRun)
+    static decimal OmarTransferAmount(DbConnection c,DbTransaction tx,string companyId,DateOnly day,string vaultId,string vaultCode,bool togaryRun)=>
+        J.Money(Store.List(c,"erp_money_movement",tx)
+            .Where(r=>InScope(c,tx,r,companyId)&&InRange(r.S("occurredAt"),day,day)&&IsBankTransferMovement(r))
+            .Where(r=>VaultMatches(r,vaultId,vaultCode,togaryRun))
+            .Sum(r=>r.N("amount")));
+    static bool IsBankTransferMovement(JsonObject row)
     {
-        string code=row.S("vaultCode",row.S("fund",row.S("cashboxCode")));
-        bool rowTogary=IsTogaryVault(code)||IsTogaryVault(row.S("nameAr"));
-        if(togaryRun)return rowTogary||IsTogaryVault(vaultCode);
-        if(vaultCode!="")return string.Equals(code,vaultCode,StringComparison.OrdinalIgnoreCase)||code=="";
-        return !rowTogary; // non-Togary day never pulls Al-Togary vault rows
+        string fund=row.S("fund"),fundCode=row.S("fundCode"),purpose=row.S("purposeCode");
+        return fund is "Bank" or "3"||fundCode is "3"
+            ||fund.Contains("Bank",StringComparison.OrdinalIgnoreCase)
+            ||purpose.Contains("Settlement",StringComparison.OrdinalIgnoreCase);
+    }
+    static bool VaultMatches(JsonObject row,string vaultId,string vaultCode,bool togaryRun)
+    {
+        string rowVaultId=row.S("vaultId");
+        string code=row.S("vaultCode",row.S("cashboxCode",row.S("fund")));
+        bool rowTogary=IsTogaryVault(code);
+        if(togaryRun)
+        {
+            if(vaultId!="")
+                return string.Equals(rowVaultId,vaultId,StringComparison.OrdinalIgnoreCase);
+            return rowTogary||IsTogaryVault(code);
+        }
+        if(rowTogary)return false;
+        if(vaultId!="")
+            return string.Equals(rowVaultId,vaultId,StringComparison.OrdinalIgnoreCase);
+        if(vaultCode!="")
+            return string.Equals(code,vaultCode,StringComparison.OrdinalIgnoreCase);
+        return true;
     }
     static bool IsTogaryVault(string? text)=>!string.IsNullOrWhiteSpace(text)&&(text.Contains("togary",StringComparison.OrdinalIgnoreCase)||text.Contains("تجار",StringComparison.Ordinal)||text.Contains("التجارية",StringComparison.Ordinal));
     static string VaultGuid(string vaultCode)
@@ -360,12 +454,45 @@ public static class JahezReconciliation
         J.Need(DateOnly.TryParseExact(raw.Length>=10?raw[..10]:raw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var d),"تاريخ يوم المطابقة غير صالح.");
         return d;
     }
-    static string PostLegacyDayJournal(DbConnection c,DbTransaction tx,string company,string period,string runId,string code,string label,string debit,string credit,decimal amount,string actor)
+    static DateOnly ParsePeriodMonth(string periodRaw)
     {
-        var lines=new JsonArray(
-            FinancialCore.CreateJournalLine(debit,company,amount,0,label,targetChart:true,payChart:true),
-            FinancialCore.CreateJournalLine(credit,company,0,amount,label,targetChart:true,payChart:true));
-        var journal=FinancialCore.PostJournal(c,tx,"jahez_recon_day",label,period,runId+":"+code,lines,actor,"","",company,company,targetChart:true,payChart:true);
-        return journal.S("id");
+        if(periodRaw.Length==7)periodRaw+="-01";
+        if(periodRaw.Length>10)periodRaw=periodRaw[..10];
+        J.Need(DateOnly.TryParseExact(periodRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var m),"شهر الفترة غير صالح.");
+        return new DateOnly(m.Year,m.Month,1);
+    }
+    static string PostDayJournal(DbConnection c,DbTransaction tx,string companyId,DateOnly periodMonth,DateOnly journalDate,Guid runId,string purpose,string narration,string debitCode,string creditCode,decimal amount,string actor)
+    {
+        if(amount<=0)return "";
+        string debitId=AccountIdByCode(c,tx,debitCode);
+        string creditId=AccountIdByCode(c,tx,creditCode);
+        Guid periodId=EnsureOpenPeriod(c,tx,companyId,periodMonth);
+        var lines=new List<JournalPosting.Line>
+        {
+            new(Guid.Parse(debitId),SchemaOrgCostCentre.NoneId,"Jahez",amount,0m,narration),
+            new(Guid.Parse(creditId),SchemaOrgCostCentre.NoneId,"Jahez",0m,amount,narration)
+        };
+        var posted=JournalPosting.Post(c,tx,new(
+            Guid.Parse(companyId),periodId,periodMonth,journalDate,
+            "jahez_recon_day",runId,purpose,0,false,actor,lines,NarrationAr:narration));
+        return SchemaSql.GuidText(posted.JournalId);
+    }
+    static string AccountIdByCode(DbConnection c,DbTransaction tx,string code)
+    {
+        object? id=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","account")} WHERE code=@c",("@c",code));
+        J.Need(id is not null and not DBNull,$"حساب {code} غير مهيأ في الدليل.",409);
+        return id switch{Guid g=>SchemaSql.GuidText(g),_=>Convert.ToString(id,CultureInfo.InvariantCulture)!};
+    }
+    static Guid EnsureOpenPeriod(DbConnection c,DbTransaction tx,string companyId,DateOnly month)
+    {
+        object? existing=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","accounting_period")} WHERE company_id=@c AND period_month=@m",
+            ("@c",companyId),("@m",month.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)));
+        if(existing is not null and not DBNull)return existing switch{Guid g=>g,_=>Guid.Parse(Convert.ToString(existing,CultureInfo.InvariantCulture)!)};
+        Guid id=SchemaSql.NewId();
+        SchemaSql.Exec(c,tx,$"""
+            INSERT INTO {SchemaSql.Q(c,"fin","accounting_period")}(id,company_id,period_month,state,created_at)
+            VALUES(@id,@c,@m,1,{SchemaSql.NowLiteral(c)})
+            """,("@id",SchemaSql.GuidText(id)),("@c",companyId),("@m",month.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)));
+        return id;
     }
 }

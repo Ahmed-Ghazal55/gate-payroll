@@ -8,7 +8,7 @@ public sealed class JahezReconciliationTests
 {
     static JsonObject Input(string company,string period="2026-10",decimal net=0,decimal vat=0)=>new(){["companyId"]=company,["period"]=period,["invoiceNet"]=net,["invoiceVat"]=vat,["lastTransactionDate"]=period+"-15",["invoiceReference"]="synthetic-jahez-invoice"};
     static ClaimsPrincipal Viewer()=>UserAccess.Principal(new JsonObject{["username"]="synthetic-jahez-viewer",["role"]="FinancialManager",["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(FinancialCore.Sponsors[0].Id)}});
-    static ClaimsPrincipal Writer(string name)=>UserAccess.Principal(new JsonObject{["username"]=name,["role"]="Accountant",["department"]="FIN",["rankLevel"]=3,["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(FinancialCore.Sponsors[0].Id)}});
+    static ClaimsPrincipal Writer(string name)=>UserAccess.Principal(new JsonObject{["username"]=name,["role"]="Accountant",["department"]="FIN",["rankLevel"]=3,["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(FinancialCore.Sponsors[0].Id),["platforms"]=new JsonArray("Jahez","Chefz","Ninja","HungerStation","Keeta","Amazon","Other"),["accountCodes"]=new JsonArray(),["categoryCodes"]=new JsonArray()}});
     [TestMethod]
     public void BuildComparesCollectionsAndPaymentsThroughLastTransactionDateWithVatLine()
     {
