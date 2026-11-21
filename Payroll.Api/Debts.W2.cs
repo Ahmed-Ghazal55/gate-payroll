@@ -45,7 +45,11 @@ public static partial class Debts
             // Checker = authenticated user of the approvals decision (never a typed Admin name).
             var checker=ctx.User;
             string fingerprint=input.Required("fingerprint");
-            var maker=ResolveMaker(c,tx,input,ctx.User,expectedReference:fingerprint,expectedAmount:input.ContainsKey("totalReduce")?input.N("totalReduce"):null);
+            string approvalId=input.S("approvalRequestId");
+            if(approvalId!="")J.Need(input.ContainsKey("totalReduce"),"إجمالي التخفيض (totalReduce) مطلوب مع طلب الاعتماد.",400);
+            var maker=ResolveMaker(c,tx,input,ctx.User,expectedReference:fingerprint,
+                expectedAmount:approvalId!=""?input.N("totalReduce"):null,expectedKind:approvalId!=""?"debt_reduce":null);
+            Debts.ConsumeApprovalRequest(c,tx,approvalId);
             Guid receivable=DebtLedger.AccountId(c,tx,"112501");
             Guid contra=DebtLedger.AccountId(c,tx,"331301");
             return DebtLedger.CommitReduce(c,tx,companyId,periodId,periodMonth,maker,checker,bytes,Path.GetFileName(input.Required("filename")),fingerprint,receivable,contra);
@@ -96,7 +100,8 @@ public static partial class Debts
             Guid periodId=DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth);
             var checker=ctx.User;
             decimal amount=Amount(input,"amount");
-            var maker=ResolveMaker(c,tx,input,ctx.User,expectedReference:SchemaSql.GuidText(debtId),expectedAmount:amount);
+            var maker=ResolveMaker(c,tx,input,ctx.User,expectedReference:SchemaSql.GuidText(debtId),expectedAmount:amount,expectedKind:"debt_waiver");
+            Debts.ConsumeApprovalRequest(c,tx,input.S("approvalRequestId"));
             var expense=DebtLedger.ResolveWaiverExpense(c,tx,debtId);
             string receivable=DebtLedger.ReceivableForCategory(DebtCategory(c,tx,debtId));
             return DebtLedger.Waive(c,tx,debtId,companyId,periodId,periodMonth,maker,checker,amount,input.Required("reason"),expense.Code,
@@ -112,7 +117,8 @@ public static partial class Debts
             Guid periodId=DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth);
             var checker=ctx.User;
             decimal amount=Amount(input,"amount");
-            var maker=ResolveMaker(c,tx,input,ctx.User,expectedReference:SchemaSql.GuidText(debtId),expectedAmount:amount);
+            var maker=ResolveMaker(c,tx,input,ctx.User,expectedReference:SchemaSql.GuidText(debtId),expectedAmount:amount,expectedKind:"debt_absorb");
+            Debts.ConsumeApprovalRequest(c,tx,input.S("approvalRequestId"));
             var accounts=DebtLedger.ResolveAbsorbAccounts(c,tx,debtId);
             return DebtLedger.Absorb(c,tx,debtId,companyId,periodId,periodMonth,maker,checker,amount,input.Required("reason"),accounts.ExpenseCode,
                 accounts.ReceivableId,accounts.ExpenseId);
@@ -129,19 +135,20 @@ public static partial class Debts
     }
 
     /// <summary>Maker comes from a prior authenticated approval request (requestedBy), never a typed elevated role.</summary>
-    static ClaimsPrincipal ResolveMaker(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction? tx,JsonObject input,ClaimsPrincipal checker,string? expectedReference=null,decimal? expectedAmount=null)
+    static ClaimsPrincipal ResolveMaker(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction? tx,JsonObject input,ClaimsPrincipal checker,string? expectedReference=null,decimal? expectedAmount=null,string? expectedKind=null)
     {
         string requestId=input.S("approvalRequestId");
         if(requestId!="")
         {
             var req=Store.Get(c,requestId,"approval_request",tx)??throw new ApiError("طلب الاعتماد غير موجود.",404);
-            J.Need(req.S("status") is "pending" or "approved","طلب الاعتماد غير قابل لإعادة الاستخدام.",409);
+            // Only pending requests are usable; ConsumeApprovalRequest marks them approved after one use.
+            J.Need(req.S("status")=="pending","طلب الاعتماد غير قابل لإعادة الاستخدام.",409);
+            J.Need(expectedKind is {Length:>0},"نوع العملية مطلوب لربط طلب الاعتماد.",409);
+            J.Need(string.Equals(req.S("kind"),expectedKind,StringComparison.OrdinalIgnoreCase),"طلب الاعتماد لا يطابق نوع العملية.",409);
             if(expectedReference!=null)J.Need(req.S("referenceId")==expectedReference,"طلب الاعتماد لا يطابق مرجع المديونية أو البصمة.",409);
-            if(expectedAmount is decimal amt)
-            {
-                decimal approved=req.N("amountSar",req.N("amount",req.N("total")));
-                J.Need(approved==amt,"مبلغ طلب الاعتماد لا يطابق إجمالي الحركة.",409);
-            }
+            J.Need(expectedAmount is decimal,"مبلغ طلب الاعتماد إلزامي مع العملية.",409);
+            decimal approved=req.N("amountSar",req.N("amount",req.N("total")));
+            J.Need(approved==expectedAmount,"مبلغ طلب الاعتماد لا يطابق إجمالي الحركة.",409);
             string makerName=req.S("requestedBy",req.S("createdBy"));
             J.Need(makerName!="","مقدّم الطلب غير معروف على طلب الاعتماد.",400);
             var doc=Store.List(c,"user",tx).FirstOrDefault(u=>UserAccess.Normalize(u.S("username"))==UserAccess.Normalize(makerName))
@@ -151,8 +158,20 @@ public static partial class Debts
         // Same authenticated actor may only post when maker≠checker is not required yet; still reject self-check via DemandChecker.
         return checker;
     }
-    public static ClaimsPrincipal ResolveMakerForTests(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction? tx,JsonObject input,ClaimsPrincipal checker,string? expectedReference=null,decimal? expectedAmount=null)
-        =>ResolveMaker(c,tx,input,checker,expectedReference,expectedAmount);
+    public static ClaimsPrincipal ResolveMakerForTests(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction? tx,JsonObject input,ClaimsPrincipal checker,string? expectedReference=null,decimal? expectedAmount=null,string? expectedKind=null)
+        =>ResolveMaker(c,tx,input,checker,expectedReference,expectedAmount,expectedKind);
+
+    public static void ConsumeApprovalRequest(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,string requestId)
+    {
+        if(string.IsNullOrWhiteSpace(requestId))return;
+        var req=Store.Get(c,requestId,"approval_request",tx)??throw new ApiError("طلب الاعتماد غير موجود.",404);
+        J.Need(req.S("status")=="pending","طلب الاعتماد غير قابل لإعادة الاستخدام.",409);
+        req["status"]="approved";
+        req["consumedAt"]=DateTimeOffset.UtcNow.ToString("O");
+        Store.Save(c,"approval_request",req,tx);
+    }
+    public static void ConsumeApprovalRequestForTests(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,string requestId)
+        =>ConsumeApprovalRequest(c,tx,requestId);
 
     static Guid DebtCompany(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,Guid debtId)
     {
