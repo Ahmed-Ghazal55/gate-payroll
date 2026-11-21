@@ -177,6 +177,73 @@ public sealed class JournalPostingTests
                 ]
             };
             Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>JournalPosting.Post(c,null,riderOnly)).Status);
+            // Salary/agent with both ids empty must also reject.
+            var bothEmpty=Draft(company,period,debit,credit,purpose:"salary");
+            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>JournalPosting.Post(c,null,bothEmpty)).Status);
+            var agentEmpty=Draft(company,period,debit,credit,purpose:"agent_commission");
+            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>JournalPosting.Post(c,null,agentEmpty)).Status);
+        }
+    }
+
+    [TestMethod]
+    public void FingerprintIncludesRunModeAndPayoutBlocked()
+    {
+        var (c,company,period,debit,credit)=Open();
+        using(c)
+        {
+            var source=Guid.NewGuid();
+            JournalPosting.Post(c,null,Draft(company,period,debit,credit,source,runMode:0,blocked:false));
+            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>JournalPosting.Post(c,null,
+                Draft(company,period,debit,credit,source,runMode:0,blocked:true))).Status);
+            Assert.AreEqual(1L,Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(1) FROM fin_journal")!));
+        }
+    }
+
+    [TestMethod]
+    public void SqlitePostingTakesImmediateWriteLockAgainstConcurrentPeriodClose()
+    {
+        string path=Path.Combine(Path.GetTempPath(),"jp-lock-"+Guid.NewGuid().ToString("N")+".db");
+        try
+        {
+            using var c=new Microsoft.Data.Sqlite.SqliteConnection("Data Source="+path);
+            c.Open();
+            MoneySchemaFixture.Exec(c,null,"PRAGMA foreign_keys=ON;");
+            SchemaRef.Ensure(c);SchemaHrCompany.Ensure(c);SchemaPayPayable.Ensure(c);
+            SchemaOrgCostCentre.Ensure(c);SchemaFinAccount.Ensure(c);SchemaFinPeriod.Ensure(c);SchemaFinJournal.Ensure(c);SchemaFinPeriodBalance.Ensure(c);
+            string company=MoneySchemaFixture.Company(c),period=MoneySchemaFixture.Id();
+            MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@c,'2026-11-01',1,datetime('now'))",("@id",period),("@c",company));
+            string debit=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_account WHERE is_postable=1 AND nature=1 ORDER BY code LIMIT 1")!;
+            string credit=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_account WHERE is_postable=1 AND nature=2 ORDER BY code LIMIT 1")!;
+            using var c2=new Microsoft.Data.Sqlite.SqliteConnection("Data Source="+path);
+            c2.Open();
+            using var postTx=c.BeginTransaction(deferred:false);
+            var closeAttempt=System.Threading.Tasks.Task.Run(()=>
+            {
+                try
+                {
+                    using var closeTx=c2.BeginTransaction(deferred:false);
+                    using var cmd=c2.CreateCommand();
+                    cmd.Transaction=closeTx;
+                    cmd.CommandText="UPDATE fin_accounting_period SET state=2 WHERE id=$id";
+                    cmd.Parameters.AddWithValue("$id",period);
+                    cmd.CommandTimeout=1;
+                    cmd.ExecuteNonQuery();
+                    closeTx.Commit();
+                    return "closed";
+                }
+                catch(Exception ex){return ex.GetType().Name;}
+            });
+            System.Threading.Thread.Sleep(200);
+            JournalPosting.Post(c,postTx,Draft(company,period,debit,credit));
+            Assert.IsFalse(closeAttempt.IsCompleted,"second connection must still be waiting on the IMMEDIATE write lock");
+            Assert.AreEqual(1,Convert.ToInt32(MoneySchemaFixture.Scalar(c,postTx,"SELECT state FROM fin_accounting_period WHERE id=@id",("@id",period))!));
+            postTx.Commit();
+            closeAttempt.GetAwaiter().GetResult();
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if(File.Exists(path))File.Delete(path);
         }
     }
 

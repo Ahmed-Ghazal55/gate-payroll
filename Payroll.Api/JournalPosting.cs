@@ -20,7 +20,8 @@ public static class JournalPosting
     public static Result Post(DbConnection c,DbTransaction? tx,Draft draft)
     {
         if(tx!=null)return PostCore(c,tx,draft);
-        using var own=c.BeginTransaction();
+        // WC1H: SQLite IMMEDIATE (deferred:false) so a period cannot close mid-post on another connection.
+        using var own=BeginPostingTx(c);
         try
         {
             var result=PostCore(c,own,draft);
@@ -37,7 +38,7 @@ public static class JournalPosting
     public static Result Reverse(DbConnection c,DbTransaction? tx,Guid originalJournalId,string actor,Guid newSourceId,string? narrationAr=null,Guid? destinationPeriodId=null,DateOnly? destinationDate=null)
     {
         if(tx!=null)return ReverseCore(c,tx,originalJournalId,actor,newSourceId,narrationAr,destinationPeriodId,destinationDate);
-        using var own=c.BeginTransaction();
+        using var own=BeginPostingTx(c);
         try
         {
             var result=ReverseCore(c,own,originalJournalId,actor,newSourceId,narrationAr,destinationPeriodId,destinationDate);
@@ -51,6 +52,9 @@ public static class JournalPosting
         }
     }
 
+    static DbTransaction BeginPostingTx(DbConnection c)=>
+        c is Microsoft.Data.Sqlite.SqliteConnection sqlite?sqlite.BeginTransaction(deferred:false):c.BeginTransaction();
+
     static Result PostCore(DbConnection c,DbTransaction tx,Draft draft)
     {
         J.Need(draft.Lines.Count>=2,"القيد من سطرين على الأقل.");
@@ -63,9 +67,10 @@ public static class JournalPosting
         decimal sumD=rounded.Sum(l=>l.Debit),sumC=rounded.Sum(l=>l.Credit);
         J.Need(sumD==sumC,"مجموع المدين لا يساوي مجموع الدائن.");
         J.Need(rounded.All(l=>(l.Debit==0)^(l.Credit==0)&&l.Debit+l.Credit>0),"كل سطر مدين أو دائن فقط.");
-        foreach(var line in rounded)DemandRiderAttribution(line);
+        string purpose=draft.GuardPurpose??draft.Purpose;
+        foreach(var line in rounded)DemandRiderAttribution(purpose,line);
         var creditedCodes=rounded.Where(l=>l.Credit>0).Select(l=>AccountCode(c,tx,l.AccountId));
-        MoneyWriteGuards.Demand(draft.RunMode,draft.PayoutBlocked,MoneyWriteGuards.EffectForJournal(draft.GuardPurpose??draft.Purpose,creditedCodes,draft.PayoutBlocked));
+        MoneyWriteGuards.Demand(draft.RunMode,draft.PayoutBlocked,MoneyWriteGuards.EffectForJournal(purpose,creditedCodes,draft.PayoutBlocked));
 
         if(FindExisting(c,tx,draft) is {} existing)
         {
@@ -228,10 +233,18 @@ public static class JournalPosting
         J.Need(ParseGuid(reader["company_id"])==companyId,"مركز التكلفة خارج نطاق شركة القيد.",409);
     }
 
-    static void DemandRiderAttribution(Line line)
+    static readonly HashSet<string> RiderAttributedPurposes=new(StringComparer.OrdinalIgnoreCase)
+    {
+        "salary","agent","agent_commission"
+    };
+
+    static void DemandRiderAttribution(string? purpose,Line line)
     {
         bool hasRider=line.ErpRiderId!=null,hasPlat=line.ErpPlatformAccountId!=null;
-        if(hasRider||hasPlat)J.Need(hasRider&&hasPlat,"سطر المندوب يتطلب معرف المندوب ومعرف حساب المنصة معاً.",409);
+        if(!string.IsNullOrWhiteSpace(purpose)&&RiderAttributedPurposes.Contains(purpose))
+            J.Need(hasRider&&hasPlat,"سطر الراتب أو الوكيل يتطلب معرف المندوب ومعرف حساب المنصة معاً.",409);
+        else if(hasRider||hasPlat)
+            J.Need(hasRider&&hasPlat,"سطر المندوب يتطلب معرف المندوب ومعرف حساب المنصة معاً.",409);
     }
 
     static string? AccountCode(DbConnection c,DbTransaction tx,Guid accountId)
@@ -269,7 +282,7 @@ public static class JournalPosting
     static bool ExistingMatches(DbConnection c,DbTransaction tx,Guid journalId,Draft draft,IReadOnlyList<Line> lines)
     {
         using var header=Store.Command(c,tx,$"""
-            SELECT period_id,period_month,journal_date,purpose,source_type,source_id,reverses_journal_id
+            SELECT period_id,period_month,journal_date,purpose,source_type,source_id,reverses_journal_id,run_mode,payout_blocked
             FROM {SchemaSql.Q(c,"fin","journal")} WHERE id=@id
             """,("@id",SchemaSql.GuidText(journalId)));
         using var hr=header.ExecuteReader();
@@ -282,6 +295,8 @@ public static class JournalPosting
         if(ParseGuid(hr["source_id"])!=draft.SourceId)return false;
         Guid? rev=hr["reverses_journal_id"] is DBNull?null:ParseGuid(hr["reverses_journal_id"]);
         if(rev!=draft.ReversesJournalId)return false;
+        if(Convert.ToInt32(hr["run_mode"])!=draft.RunMode)return false;
+        if((Convert.ToInt32(hr["payout_blocked"])==1)!=draft.PayoutBlocked)return false;
         hr.Close();
 
         using var cmd=Store.Command(c,tx,$"""
