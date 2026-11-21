@@ -28,8 +28,8 @@ public sealed partial class Store
             connection = config.ConnectionString;
         }
         else connection = new SqliteConnectionStringBuilder { DataSource = Path.Combine(DirectoryPath, "payroll.db"), Mode = SqliteOpenMode.ReadWriteCreate, DefaultTimeout = 30 }.ToString();
-        using var c = Open(); var beforeUpgrade=ReleaseSafety.Checkpoint(c,DirectoryPath); using var cmd = c.CreateCommand();
-        cmd.CommandText = Provider == "sqlite" ? """
+        using var c = Open(); var beforeUpgrade=ReleaseSafety.Checkpoint(c,DirectoryPath);
+        string recordsDdl = Provider == "sqlite" ? """
             PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS ix_records_kind ON records(kind);
@@ -57,10 +57,31 @@ public sealed partial class Store
             IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('dbo.records') AND name='ix_records_kind')
               CREATE INDEX ix_records_kind ON dbo.records(kind);
             """;
-        cmd.ExecuteNonQuery();
-        ErpDataIndexes.Ensure(c);
-        // Rider SQL Server indexes/columns are applied only by the admin maintenance job (not startup).
-        PayRunInputs.Ensure(c);
+        SchemaSql.WithMigrationLock(c,(conn,tx)=>
+        {
+            using(var cmd=conn.CreateCommand()){cmd.Transaction=tx;cmd.CommandText=recordsDdl;cmd.ExecuteNonQuery();}
+            ErpDataIndexes.Ensure(conn,tx);
+            // Rider SQL Server indexes/columns are applied only by the admin maintenance job (not startup).
+            PayRunInputs.Ensure(conn,tx);
+            SchemaRef.Ensure(conn,tx);
+            SchemaHrCompany.Ensure(conn,tx);
+            SchemaRef.EnsureLegacyAccountMapAfterCompany(conn,tx);
+            SchemaOrgCostCentre.Ensure(conn,tx);
+            SchemaAuthCatalog.Ensure(conn,tx);
+            SchemaFormApp.Ensure(conn,tx);
+            SchemaFinAccount.Ensure(conn,tx);
+            SchemaFinPeriod.Ensure(conn,tx);
+            SchemaFinJournal.Ensure(conn,tx);
+            SchemaFinPeriodBalance.Ensure(conn,tx);
+            SchemaPayPayable.Ensure(conn,tx);
+            SchemaPayAllocation.Ensure(conn,tx);
+            SchemaSalInvoice.Ensure(conn,tx);
+            SchemaSalPayRun.Ensure(conn,tx);
+            SchemaOperationCapture.Ensure(conn,tx);
+            SchemaDebt.Ensure(conn,tx);
+            SchemaTreasury.Ensure(conn,tx);
+            SchemaBankFile.Ensure(conn,tx);
+        });
         // M9: captured cycle must have freeze rows (in-flight cycles cannot deploy without U2 + rows).
         foreach(var cycle in List(c,PayCycles.Kind).Where(PayRunInputs.Captured))
             if(PayRunInputs.CountForCycle(c,null,cycle.S("id"))==0)
@@ -72,6 +93,7 @@ public sealed partial class Store
     {
         DbConnection c = Provider == "sqlite" ? new SqliteConnection(connection) : new SqlConnection(connection);
         c.Open();
+        if(c is SqliteConnection){using var fk=c.CreateCommand();fk.CommandText="PRAGMA foreign_keys=ON;";fk.ExecuteNonQuery();}
         if(c is SqlConnection){using var session=c.CreateCommand();session.CommandText="SET ARITHABORT ON; SET NUMERIC_ROUNDABORT OFF;";session.ExecuteNonQuery();}
         return c;
     }
