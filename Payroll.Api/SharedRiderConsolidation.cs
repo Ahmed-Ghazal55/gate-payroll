@@ -55,6 +55,26 @@ public static class SharedRiderConsolidation
 
     public static decimal CombinedNet(JsonObject doc)=> (doc["apps"] as JsonObject??new JsonObject()).Select(p=>p.Value as JsonObject).Where(a=>a!=null).Sum(a=>a!.N("net"));
 
+    /// <summary>WC1I: request opens the dual approval; Release then needs the recorded two-person decision.</summary>
+    public static JsonObject RequestRelease(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string rider,string period,string reason)
+    {
+        J.Need(reason.Trim().Length is >2 and <=500,"سبب طلب فك الحجز مطلوب.");
+        AccessPolicy.Demand(actor,"pay.approve");
+        var doc=Store.Get(c,Id(rider,period),Kind,tx)??throw new ApiError("سجل التجميع غير موجود.",404);
+        FinancialScopes.DemandSponsor(actor,doc.S("companyId"));
+        decimal amount=J.Money(CombinedNet(doc));
+        string payloadHash=ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",rider),("period",period),("reason",reason.Trim()));
+        var req=ApprovalsArea.OpenMoneyOutDual(c,tx,actor,"shared_rider_release",doc.S("id"),amount,payloadHash,
+            "اعتماد فك حجز مندوب مشترك","طلب فك حجز مندوب عمل مشترك — بانتظار اعتماد شخصين.",
+            new(){["rider"]=rider,["period"]=period,["reason"]=reason.Trim()});
+        doc["releaseRequestedAt"]=DateTimeOffset.UtcNow.ToString("O");
+        doc["releaseRequestedBy"]=actor.Identity!.Name;
+        doc["releaseRequestId"]=req.S("id");
+        Store.Save(c,Kind,doc,tx);
+        Store.Audit(c,tx,"pay.consolidation_release_requested",doc.S("id"),actor.Identity!.Name!);
+        return req;
+    }
+
     public static JsonObject Release(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string rider,string period,string reason)
     {
         J.Need(reason.Trim().Length is >2 and <=500,"سبب الإفراج مطلوب.");

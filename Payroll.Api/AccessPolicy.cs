@@ -122,7 +122,7 @@ public static partial class AccessPolicy
             if(path=="/api/advance-requests"||path.EndsWith("/respond",StringComparison.Ordinal))return Has("advances.request");
             if(path.StartsWith("/api/advance-requests/rider-asks/",StringComparison.Ordinal))return Has("advances.request")&&(path.EndsWith("/convert",StringComparison.Ordinal)||path.EndsWith("/decline",StringComparison.Ordinal));
             if(path.EndsWith("/review",StringComparison.Ordinal))return Has("advances.review");
-            return path.EndsWith("/payout",StringComparison.Ordinal)&&Has("advances.payout");
+            return (path.EndsWith("/payout",StringComparison.Ordinal)||path.EndsWith("/request-payout",StringComparison.Ordinal))&&Has("advances.payout");
         }
         if(path.StartsWith("/api/approvals",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&path.EndsWith("/decide",StringComparison.Ordinal)&&Has("approvals.decide");
         if(path.StartsWith("/api/admin/org/approval-limits",StringComparison.Ordinal)||path.StartsWith("/api/admin/org/sla-policies",StringComparison.Ordinal))

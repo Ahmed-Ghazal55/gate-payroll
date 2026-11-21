@@ -198,14 +198,19 @@ public static class BankPayrollFiles
             if(row.N("amount")!=original.N("amount")||row.S("notes")!=original.S("notes")||row.S("bank")!=original.S("bank"))edited++;
             total+=row.N("amount");checkedRows.Add(row);
         }
+        // WC1I: a ready-to-send export opens the dual approval (kind, scope, file hash, amount) automatically.
+        string payoutRef="bank-payout:"+request.Sponsor+":"+request.From+":"+request.To;
+        string fileHash=FileContentHash(checkedRows,total);
+        if(!comparison)
+            ApprovalsArea.OpenMoneyOutDual(c,tx,user,"bank_sent",payoutRef,total,fileHash,
+                "اعتماد إرسال ملف بنك","ملف رواتب جاهز للإرسال — بانتظار اعتماد شخصين.",
+                new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To});
         // M1 / U-W2-31: payout journal only when explicitly marked sent — never on plain export or parallel «لا يُرسل».
         if(!comparison&&(input.B("markSent")||input.B("sent")||input.S("action")=="mark_sent"))
         {
             var flags=ResolveStoredMoneyFlags(c,tx,request);
             MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.BankSent);
             // M-0672 / WC1H: recorded two-person dual bound to this file's content hash (edits after approval void it).
-            string payoutRef="bank-payout:"+request.Sponsor+":"+request.From+":"+request.To;
-            string fileHash=FileContentHash(checkedRows,total);
             ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,user,ApprovalsArea.DualBankFile,payoutRef,fileHash);
             string bank=input.S("bankAccountCode",PipelineSettings.Current().S("payrollBankAccount","111101"));
             MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.Payout);

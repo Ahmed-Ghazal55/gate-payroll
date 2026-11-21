@@ -37,6 +37,41 @@ public static class ApprovalsArea
         return RequiresDual(client)?client:null;
     }
 
+    /// <summary>WC1I: open (or reuse) a dual approval in the approvals area for money-out / shared release.
+    /// Idempotent on pending/approved rows with the same kind, reference, dual permission and hash.</summary>
+    public static JsonObject OpenMoneyOutDual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string kind,string referenceId,decimal amountSar,string? fileOrPayloadHash,string titleAr,string bodyAr,JsonObject? extraPayload=null)
+    {
+        string? dual=DualForKind(kind);
+        J.Need(RequiresDual(dual)&&dual is DualBankFile or DualPaymentOut or DualSharedRiderRelease,"نوع الاعتماد الثنائي غير معروف.",400);
+        J.Need(!string.IsNullOrWhiteSpace(referenceId),"مرجع الاعتماد مطلوب.",400);
+        J.Need(amountSar>=0&&amountSar==J.Money(amountSar),"مبلغ الاعتماد غير صالح.",400);
+        string actorName=actor.Identity?.Name??throw new ApiError("هوية المستخدم مطلوبة.",401);
+        string hash=fileOrPayloadHash??"";
+        var existing=Store.List(c,"approval_request",tx).FirstOrDefault(r=>
+        {
+            if(r.S("referenceId")!=referenceId||!string.Equals(r.S("kind"),kind,StringComparison.Ordinal)||!string.Equals(ResolveDual(r),dual,StringComparison.Ordinal))return false;
+            if(r.S("status") is not ("pending" or "escalated" or "suspended" or "approved"))return false;
+            if(hash=="")return true;
+            string stored=r.S("fileContentHash");
+            if(stored==""&&r["payload"] is JsonObject p)stored=p.S("fileContentHash");
+            return string.Equals(stored,hash,StringComparison.Ordinal);
+        });
+        if(existing!=null)return existing;
+        var payload=extraPayload?.DeepClone().AsObject()??new JsonObject();
+        payload["amountSar"]=amountSar;payload["total"]=amountSar;
+        if(hash!="")payload["fileContentHash"]=hash;
+        return FinancialCore.CreateMutualApproval(c,tx,kind,titleAr,bodyAr,"OPS","FIN",1,referenceId,payload,actorName);
+    }
+
+    /// <summary>Canonical SHA-256 hex of stable payload fields (amount + reference + optional extras).</summary>
+    public static string PayloadContentHash(string referenceId,decimal amountSar,params (string Key,string Value)[] parts)
+    {
+        var lines=parts.Select(p=>$"{p.Key}={p.Value}").OrderBy(s=>s,StringComparer.Ordinal).ToList();
+        lines.Insert(0,"ref="+referenceId);
+        lines.Insert(1,"amount="+J.Money(amountSar).ToString("F2",CultureInfo.InvariantCulture));
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join("\n",lines))));
+    }
+
     /// <summary>M-0672 / WC1H: money-out (bank mark-sent / payout) and shared-rider release need a
     /// persisted approvals-area decision by two different people. Bypass never satisfies this gate.
     /// Bank mark-sent also binds to <paramref name="expectedFileContentHash"/> when provided.</summary>
