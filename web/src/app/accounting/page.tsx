@@ -34,6 +34,8 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
 import { AccountingAdjustmentsPanel } from '../../features/accounting/AccountingAdjustmentsPanel';
+import { CoaManagePanel } from '../../features/accounting/CoaManagePanel';
+import { ScreenShell } from '../../components/ui/ScreenShell';
 import type {
   TargetCoaAccount,
   TargetCoaResponse,
@@ -48,17 +50,48 @@ import type {
   FinanceJournalLine,
 } from '../../lib/types';
 
-const COMPANY_NAME_MAP: Record<string, string> = {
-  BW: 'شركة البوابة المقبلة (BW)',
-  EX: 'شركة إكسبرس جايت (EX)',
-  TR: 'مؤسسة النقل والتوزيع (TR)',
-  all: 'كافة المنشآت والسجلات',
-};
+type AccountingTab =
+  | 'coa'
+  | 'manual_journals'
+  | 'journals'
+  | 'general_ledger'
+  | 'trial_balance'
+  | 'income_statement'
+  | 'balance_sheet'
+  | 'cost_centres'
+  | 'app_profitability'
+  | 'reports'
+  | 'adjustments';
+
+const VALID_TABS = new Set<string>([
+  'coa',
+  'manual_journals',
+  'journals',
+  'general_ledger',
+  'trial_balance',
+  'income_statement',
+  'balance_sheet',
+  'cost_centres',
+  'app_profitability',
+  'reports',
+  'adjustments',
+  'trial',
+  'income',
+]);
 
 function AccountingPageContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'coa' | 'manual_journals' | 'adjustments' | 'journals' | 'trial' | 'income'>('coa');
+  const rawTab = searchParams?.get('tab') || 'coa';
+  const normalizedTab: AccountingTab =
+    rawTab === 'trial'
+      ? 'trial_balance'
+      : rawTab === 'income'
+        ? 'income_statement'
+        : VALID_TABS.has(rawTab)
+          ? (rawTab as AccountingTab)
+          : 'coa';
+  const [activeTab, setActiveTab] = useState<AccountingTab>(normalizedTab);
   const [openNewManualJournal, setOpenNewManualJournal] = useState<boolean>(false);
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
 
@@ -67,12 +100,67 @@ function AccountingPageContent() {
   }, []);
 
   useEffect(() => {
+    setActiveTab(normalizedTab);
+  }, [normalizedTab]);
+
+  useEffect(() => {
     const action = searchParams?.get('action');
-    if (action === 'manual_journal') {
+    if (action === 'manual_journal' || action === 'new') {
       setActiveTab('manual_journals');
       setOpenNewManualJournal(true);
     }
   }, [searchParams]);
+
+  if (activeTab === 'coa') {
+    return (
+      <div className="space-y-4">
+        <PageHeader title="دليل الحسابات" description="إنشاء وتعديل وإيقاف الحسابات من الدليل الحي." />
+        <CoaManagePanel />
+      </div>
+    );
+  }
+
+  if (activeTab === 'general_ledger') {
+    return <ScreenShell title="دفتر الأستاذ / كشف حساب" description="كشف حساب بحساب تراكمي للفترة المحددة." />;
+  }
+  if (activeTab === 'balance_sheet') {
+    return <ScreenShell title="الميزانية العمومية" description="أصول وخصوم وحقوق ملكية بتاريخ قطع." />;
+  }
+  if (activeTab === 'cost_centres') {
+    return <ScreenShell title="مراكز التكلفة والمدن" description="إيرادات ومصروفات وصافي حسب المدينة والمركز." />;
+  }
+  if (activeTab === 'app_profitability') {
+    return <ScreenShell title="ربحية التطبيقات" description="تحليل ربحية المنصات ونسب الإعفاءات." />;
+  }
+  if (activeTab === 'reports') {
+    return <ScreenShell title="التقارير" description="كتالوج التقارير والعروض المحفوظة وتنبيهات التكاليف." />;
+  }
+
+  return (
+    <AccountingLiveTabs
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      openNewManualJournal={openNewManualJournal}
+      setOpenNewManualJournal={setOpenNewManualJournal}
+      companies={companies}
+    />
+  );
+}
+
+function AccountingLiveTabs({
+  activeTab,
+  setActiveTab,
+  openNewManualJournal,
+  setOpenNewManualJournal,
+  companies,
+}: {
+  activeTab: AccountingTab;
+  setActiveTab: (t: AccountingTab) => void;
+  openNewManualJournal: boolean;
+  setOpenNewManualJournal: (v: boolean) => void;
+  companies: CompanySponsor[];
+}) {
+  const { toast } = useToast();
 
   // ==========================================
   // Data States
@@ -179,9 +267,9 @@ function AccountingPageContent() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'trial') {
+    if (activeTab === 'trial_balance') {
       loadTrialBalance();
-    } else if (activeTab === 'income') {
+    } else if (activeTab === 'income_statement') {
       loadIncomeStatement();
     }
   }, [activeTab, trialView, incomeView, selectedSponsor, periodMonth]);
@@ -564,25 +652,12 @@ function AccountingPageContent() {
             value: incomeData?.companies?.every((c) => c.netIsComplete) ? 'مكتمل' : 'محدود النطاق',
             isPositive: incomeData?.companies?.every((c) => c.netIsComplete),
           }}
-          onClick={() => setActiveTab('income')}
+          onClick={() => setActiveTab('income_statement')}
         />
       </div>
 
       {/* Sub Tabs Navigation */}
       <div className="flex border-b border-[var(--line)] gap-2 overflow-x-auto no-scrollbar">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'coa'}
-          onClick={() => setActiveTab('coa')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'coa'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          شجرة دليل الحسابات المستهدف ({coaSummary.total || 403})
-        </button>
 
         <button
           type="button"
@@ -630,10 +705,10 @@ function AccountingPageContent() {
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab === 'trial'}
-          onClick={() => setActiveTab('trial')}
+          aria-selected={activeTab === 'trial_balance'}
+          onClick={() => setActiveTab('trial_balance')}
           className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'trial'
+            activeTab === 'trial_balance'
               ? 'border-[var(--accent)] text-[var(--accent)]'
               : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
           }`}
@@ -644,10 +719,10 @@ function AccountingPageContent() {
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab === 'income'}
-          onClick={() => setActiveTab('income')}
+          aria-selected={activeTab === 'income_statement'}
+          onClick={() => setActiveTab('income_statement')}
           className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'income'
+            activeTab === 'income_statement'
               ? 'border-[var(--accent)] text-[var(--accent)]'
               : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
           }`}
@@ -659,96 +734,7 @@ function AccountingPageContent() {
       {/* ======================================================== */}
       {/* TAB 1: Chart of Accounts (COA) Tree & Table              */}
       {/* ======================================================== */}
-      {activeTab === 'coa' && (
-        <div className="space-y-4">
-          {/* Toolbar */}
-          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
-            <div className="flex-1 relative">
-              <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none" />
-              <input
-                type="text"
-                placeholder="ابحث برقم الحساب أو الاسم العربي..."
-                value={coaSearch}
-                onChange={(e) => setCoaSearch(e.target.value)}
-                className="w-full ps-9 pe-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden focus:ring-1 focus:ring-[var(--accent)]"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={coaTypeFilter}
-                onChange={(e) => setCoaTypeFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل التصنيفات (1-5)</option>
-                <option value="1">1 - الأصول</option>
-                <option value="2">2 - الخصوم</option>
-                <option value="3">3 - حقوق الملكية</option>
-                <option value="4">4 - الإيرادات</option>
-                <option value="5">5 - المصروفات</option>
-              </select>
-
-              <select
-                value={coaSourceFilter}
-                onChange={(e) => setCoaSourceFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل المصادر</option>
-                <option value="excel">Excel 2024 ({coaSummary.sourceBreakdown.excel2024})</option>
-                <option value="modified">تعديل مالي ({coaSummary.sourceBreakdown.modified})</option>
-                <option value="new">حسابات جديدة ({coaSummary.sourceBreakdown.newAccounts})</option>
-              </select>
-
-              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--raised)] border border-[var(--line)] text-xs text-[var(--ink)] cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={coaPostingOnly}
-                  onChange={(e) => setCoaPostingOnly(e.target.checked)}
-                  className="rounded text-[var(--accent)]"
-                />
-                <span>حسابات الترحيل فقط</span>
-              </label>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const headers = ['رمز الحساب', 'اسم الحساب', 'المستوى', 'الحساب الأب', 'ترحيل مباشر', 'الطبيعة', 'المصدر'];
-                  const rows = filteredAccounts.map((a) => [
-                    a.code,
-                    a.nameAr,
-                    a.level,
-                    a.parent || a.parentCode || '—',
-                    (a.posting ?? a.isPosting) ? 'نعم' : 'لا',
-                    a.nature || '—',
-                    a.source || a.sourceType || '—',
-                  ]);
-                  handleExportExcel('دليل_الحسابات_المستهدف', headers, rows, [0, 2]);
-                }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition"
-              >
-                <Download size={14} />
-                <span>تصدير Excel</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Table */}
-          {loadingCoa ? (
-            <div className="space-y-2">
-              <Skeleton className="h-12 rounded-xl" rows={8} />
-            </div>
-          ) : coaError ? (
-            <ErrorState title="تعذر تحميل الدليل المستهدف" message={coaError} onRetry={loadCoa} />
-          ) : (
-            <DataTable
-              columns={coaColumns}
-              data={filteredAccounts}
-              emptyTitle="لا توجد حسابات مطابقة للبحث"
-              emptyDescription="جرّب تعديل الفلاتر أو إدخال رقم كود مختلف."
-            />
-          )}
-        </div>
-      )}
+      
 
       {/* ======================================================== */}
       {/* TAB: Manual Journals (BR §28)                            */}
@@ -836,7 +822,7 @@ function AccountingPageContent() {
       {/* ======================================================== */}
       {/* TAB 3: Trial Balance (ميزان المراجعة التحليلي)             */}
       {/* ======================================================== */}
-      {activeTab === 'trial' && (
+      {activeTab === 'trial_balance' && (
         <div className="space-y-4">
           {/* Controls toolbar */}
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
@@ -940,7 +926,7 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companies.find(c => c.id === company.companyCode || c.code === company.companyCode || c.id === company.sponsorId)?.nameAr || company.companyCode}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
@@ -1120,7 +1106,7 @@ function AccountingPageContent() {
       {/* ======================================================== */}
       {/* TAB 4: Income Statement (قائمة الدخل والنتائج)             */}
       {/* ======================================================== */}
-      {activeTab === 'income' && (
+      {activeTab === 'income_statement' && (
         <div className="space-y-4">
           {/* Controls toolbar */}
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
@@ -1193,7 +1179,7 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companies.find(c => c.id === company.companyCode || c.code === company.companyCode || c.id === company.sponsorId)?.nameAr || company.companyCode}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
