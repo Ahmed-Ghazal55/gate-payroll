@@ -21,6 +21,7 @@ public static partial class SchemaAuditNotify
         EnsureNotify(c,tx);
         EnsureTask(c,tx);
         EnsureChat(c,tx);
+        SchemaChatExtras.Ensure(c,tx);
         SeedActionLabels(c,tx);
     }
 
