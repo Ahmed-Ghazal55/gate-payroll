@@ -1181,7 +1181,7 @@ function ImportColumnsSpecTable({
   const filterCols = useMemo(
     () => [
       { key: '__idx', header: '#', type: 'number' as const, getValue: (c: ImportCatalogColumn & { __idx: number }) => c.__idx },
-      { key: 'name', header: 'اسم العمود (Header)', type: 'text' as const, getValue: (c: ImportCatalogColumn & { __idx: number }) => c.name || '' },
+      { key: 'name', header: 'اسم العمود', type: 'text' as const, getValue: (c: ImportCatalogColumn & { __idx: number }) => c.name || '' },
       {
         key: 'required',
         header: 'الإلزامية',

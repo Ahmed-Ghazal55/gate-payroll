@@ -38,6 +38,18 @@ function cellText(value: unknown): string {
   return String(value);
 }
 
+function catalogStatusLabel(value: unknown): string {
+  const s = String(value ?? '').trim();
+  if (!s) return '—';
+  const low = s.toLowerCase();
+  if (low === 'active' || low === 'enabled' || s === '1' || low === 'true') return 'نشط';
+  if (low === 'inactive' || low === 'disabled' || s === '0' || low === 'false') return 'غير نشط';
+  if (low === 'archived') return 'مؤرشف';
+  if (low === 'pending') return 'قيد الانتظار';
+  if (low === 'suspended') return 'موقوف';
+  return s;
+}
+
 function pickField(row: Record<string, unknown>, ...keys: string[]): string {
   for (const key of keys) {
     const value = row[key];
@@ -179,9 +191,9 @@ function HrCatalogsPageInner() {
             type: 'list',
             filterType: 'list',
             getValue: (r) => pickField(r, 'Status', 'status'),
-            labelOf: (v) => cellText(v),
+            labelOf: (v) => catalogStatusLabel(v),
             toneOf: statusTone,
-            render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
+            render: (r) => <span>{catalogStatusLabel(pickField(r, 'Status', 'status'))}</span>,
           },
         ];
       case 'city-settings':
@@ -192,7 +204,6 @@ function HrCatalogsPageInner() {
             type: 'list',
             filterType: 'list',
             getValue: (r) => pickField(r, 'Code', 'code'),
-            labelOf: (v) => cellText(v),
             render: (r) => (
               <span className="font-mono font-bold text-[var(--accent)]">
                 {cellText(pickField(r, 'Code', 'code'))}
@@ -205,7 +216,6 @@ function HrCatalogsPageInner() {
             type: 'list',
             filterType: 'list',
             getValue: (r) => pickField(r, 'NameAr', 'nameAr'),
-            labelOf: (v) => cellText(v),
             render: (r) => (
               <span className="font-semibold">
                 {cellText(pickField(r, 'NameAr', 'nameAr'))}
@@ -218,7 +228,6 @@ function HrCatalogsPageInner() {
             type: 'list',
             filterType: 'list',
             getValue: (r) => pickField(r, 'RegionAr', 'regionAr'),
-            labelOf: (v) => cellText(v),
             render: (r) => <span>{cellText(pickField(r, 'RegionAr', 'regionAr'))}</span>,
           },
           {
@@ -227,7 +236,6 @@ function HrCatalogsPageInner() {
             type: 'list',
             filterType: 'list',
             getValue: (r) => pickField(r, 'CountryCode', 'countryCode'),
-            labelOf: (v) => cellText(v),
             render: (r) => <span className="font-mono">{cellText(pickField(r, 'CountryCode', 'countryCode'))}</span>,
           },
           {
@@ -236,16 +244,15 @@ function HrCatalogsPageInner() {
             type: 'list',
             filterType: 'list',
             getValue: (r) => pickField(r, 'Status', 'status'),
-            labelOf: (v) => cellText(v),
+            labelOf: (v) => catalogStatusLabel(v),
             toneOf: statusTone,
-            render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
+            render: (r) => <span>{catalogStatusLabel(pickField(r, 'Status', 'status'))}</span>,
           },
           {
             key: 'EnabledFrom',
             header: 'مفعّل من',
             type: 'date',
             getValue: (r) => pickField(r, 'EnabledFrom', 'enabledFrom'),
-            labelOf: (v) => cellText(v),
             render: (r) => (
               <span className="font-mono text-xs">
                 {cellText(pickField(r, 'EnabledFrom', 'enabledFrom'))}
@@ -291,7 +298,6 @@ function HrCatalogsPageInner() {
             header: 'أنواع العمل',
             type: 'list',
             getValue: (r) => pickField(r, 'WorkTypeCodes', 'workTypeCodes'),
-            labelOf: (v) => cellText(v),
             render: (r) => (
               <span className="text-xs">{cellText(pickField(r, 'WorkTypeCodes', 'workTypeCodes'))}</span>
             ),
@@ -301,9 +307,9 @@ function HrCatalogsPageInner() {
             header: 'الحالة',
             type: 'list',
             getValue: (r) => pickField(r, 'Status', 'status'),
-            labelOf: (v) => cellText(v),
+            labelOf: (v) => catalogStatusLabel(v),
             toneOf: statusTone,
-            render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
+            render: (r) => <span>{catalogStatusLabel(pickField(r, 'Status', 'status'))}</span>,
           },
         ];
       default:
@@ -344,9 +350,9 @@ function HrCatalogsPageInner() {
             header: 'الحالة',
             type: 'list',
             getValue: (r) => pickField(r, 'Status', 'status'),
-            labelOf: (v) => cellText(v),
+            labelOf: (v) => catalogStatusLabel(v),
             toneOf: statusTone,
-            render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
+            render: (r) => <span>{catalogStatusLabel(pickField(r, 'Status', 'status'))}</span>,
           },
         ];
     }

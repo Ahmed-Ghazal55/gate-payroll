@@ -1091,12 +1091,33 @@ function DebtsPageContent() {
         header: 'الحالة',
         type: 'list',
         getValue: (app) => app.status,
+        labelOf: (v) => {
+          const s = String(v ?? '').toLowerCase();
+          if (s === 'pending' || s === 'pending_approval') return 'بانتظار الاعتماد';
+          if (s === 'approved') return 'معتمد';
+          if (s === 'rejected') return 'مرفوض';
+          if (s === 'cancelled' || s === 'canceled') return 'ملغي';
+          return debtStatusLabel(String(v ?? ''));
+        },
         toneOf: defaultStatusTone,
-        render: (app) => (
-          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--warning)]/10 text-[var(--warning)]">
-            {app.status}
-          </span>
-        ),
+        render: (app) => {
+          const s = String(app.status ?? '').toLowerCase();
+          const label =
+            s === 'pending' || s === 'pending_approval'
+              ? 'بانتظار الاعتماد'
+              : s === 'approved'
+                ? 'معتمد'
+                : s === 'rejected'
+                  ? 'مرفوض'
+                  : s === 'cancelled' || s === 'canceled'
+                    ? 'ملغي'
+                    : debtStatusLabel(app.status);
+          return (
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--warning)]/10 text-[var(--warning)]">
+              {label}
+            </span>
+          );
+        },
       },
       {
         key: 'actions',

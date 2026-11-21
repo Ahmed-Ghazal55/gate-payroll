@@ -308,7 +308,7 @@ function OperationsPageInner() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
                 <div className="text-xs text-[var(--muted)]">الحالة</div>
-                <div className="font-semibold mt-1">{String(detail.status || '—')}</div>
+                <div className="font-semibold mt-1">{formatFuelStatusAr(detail.status)}</div>
               </div>
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
                 <div className="text-xs text-[var(--muted)]">المركبات</div>
@@ -440,7 +440,7 @@ function OperationsPageInner() {
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
-                <div className="text-xs text-[var(--muted)]">رقم الهيكل (VIN)</div>
+                <div className="text-xs text-[var(--muted)]">رقم الهيكل</div>
                 <div className="font-mono font-medium mt-0.5"><bdi>{String(detail.vin || '—')}</bdi></div>
               </div>
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">

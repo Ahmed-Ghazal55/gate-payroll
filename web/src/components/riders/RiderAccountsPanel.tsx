@@ -19,6 +19,7 @@ import {
 } from '../../lib/api';
 import { SourceBadge } from '../ui/SourceBadge';
 import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../ui/ColumnFilterMenu';
+import { platformLabelAr } from '../../features/companies/company-stats';
 
 export interface RiderAccountsPanelProps {
   iqama: string;
@@ -43,8 +44,8 @@ export function RiderAccountsPanel({ iqama, className = '' }: RiderAccountsPanel
     () => [
       { key: 'code', header: 'كود الحساب', type: 'text' as const, getValue: (acc: RiderAccountRow) => acc.code || acc.id || '' },
       { key: 'externalAccountId', header: 'معرف المنصة الخارجي', type: 'text' as const, getValue: (acc: RiderAccountRow) => acc.externalAccountId || '' },
-      { key: 'platformCode', header: 'المنصة', type: 'list' as const, getValue: (acc: RiderAccountRow) => acc.platformCode || '' },
-      { key: 'cityId', header: 'المدينة', type: 'list' as const, getValue: (acc: RiderAccountRow) => acc.cityId || '' },
+      { key: 'platformCode', header: 'المنصة', type: 'list' as const, getValue: (acc: RiderAccountRow) => acc.platformCode || '', labelOf: (v: unknown) => platformLabelAr(String(v ?? '')) || String(v ?? '') },
+      { key: 'cityId', header: 'المدينة', type: 'list' as const, getValue: (acc: RiderAccountRow) => acc.cityId || '', labelOf: (v: unknown) => String(v || '—') },
       {
         key: 'relationship',
         header: 'العلاقة',

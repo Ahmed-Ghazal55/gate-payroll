@@ -1024,7 +1024,7 @@ function PayrollPageInner() {
     () => [
       {
         key: 'metric',
-        header: 'المقياس (Metric)',
+        header: 'المقياس',
         type: 'list',
         filterType: 'list',
         getValue: (r) => r.metric || '',
@@ -1902,8 +1902,36 @@ function PayrollPageInner() {
   const policiesFilterCols = useMemo(
     () => [
       { key: 'name', header: 'اسم السياسة', type: 'text' as const, getValue: (p: any) => p.name || p.id || '' },
-      { key: 'kind', header: 'النوع', type: 'list' as const, getValue: (p: any) => p.kind || '' },
-      { key: 'platform', header: 'المنصة', type: 'list' as const, getValue: (p: any) => p.platform || '' },
+      {
+        key: 'kind',
+        header: 'النوع',
+        type: 'list' as const,
+        getValue: (p: any) => p.kind || '',
+        labelOf: (v: unknown) => {
+          const s = String(v ?? '').toLowerCase();
+          if (s === 'scheme' || s === 'pay_scheme') return 'خطة احتساب';
+          if (s === 'terms' || s === 'pay_terms') return 'شروط تشغيل';
+          if (s === 'eligibility' || s === 'pay_eligibility') return 'قاعدة استحقاق';
+          if (s === 'deduction') return 'سياسة استقطاع';
+          if (s === 'allowance') return 'سياسة بدل';
+          return String(v ?? '');
+        },
+      },
+      {
+        key: 'platform',
+        header: 'المنصة',
+        type: 'list' as const,
+        getValue: (p: any) => p.platform || '',
+        labelOf: (v: unknown) => {
+          const s = String(v ?? '').toLowerCase();
+          if (s === 'ninja') return 'نينجا';
+          if (s === 'jahez') return 'جاهز';
+          if (s === 'hungerstation') return 'هنقرستيشن';
+          if (s === 'keeta') return 'كيتا';
+          if (s === 'thechefz' || s === 'chefz') return 'ذا شيفز';
+          return String(v ?? '');
+        },
+      },
       { key: 'effectiveFrom', header: 'تاريخ السريان', type: 'date' as const, getValue: (p: any) => p.effectiveFrom || '' },
       {
         key: 'status',
@@ -1922,7 +1950,26 @@ function PayrollPageInner() {
   const ledgerFilterCols = useMemo(
     () => [
       { key: 'period', header: 'الفترة', type: 'date' as const, getValue: (r: any) => r.period || '' },
-      { key: 'kind', header: 'نوع الحركة', type: 'list' as const, getValue: (r: any) => r.kind || '' },
+      {
+        key: 'kind',
+        header: 'نوع الحركة',
+        type: 'list' as const,
+        getValue: (r: any) => r.kind || '',
+        labelOf: (v: unknown) => {
+          const s = String(v ?? '').toLowerCase();
+          if (s === 'salary' || s === 'net_pay') return 'صافي راتب';
+          if (s === 'deduction') return 'استقطاع';
+          if (s === 'debt' || s === 'debt_installment') return 'قسط مديونية';
+          if (s === 'advance') return 'سلفة';
+          if (s === 'adjustment') return 'تسوية';
+          if (s === 'payout') return 'صرف';
+          if (s === 'fuel') return 'وقود';
+          if (s === 'rent' || s === 'vehicle_rent') return 'إيجار مركبة';
+          if (s === 'housing') return 'سكن';
+          if (s === 'bonus') return 'مكافأة';
+          return String(v ?? '');
+        },
+      },
       { key: 'amount', header: 'المبلغ', type: 'number' as const, numeric: true, getValue: (r: any) => Number(r.amount ?? 0) },
       { key: 'sourceRef', header: 'المرجع', type: 'text' as const, getValue: (r: any) => r.sourceRef || '' },
     ],
@@ -5756,14 +5803,53 @@ function EligibilityRulesMiniTable({
 }) {
   const cols = useMemo(
     () => [
-      { key: 'metric', header: 'المعيار (Metric)', type: 'list' as const, getValue: (r: any) => r.metric || '' },
-      { key: 'operator', header: 'عامل المقارنة', type: 'list' as const, getValue: (r: any) => r.operator || '' },
-      { key: 'threshold', header: 'الحد الأدنى (Threshold)', type: 'number' as const, numeric: true, getValue: (r: any) => Number(r.threshold ?? 0) },
+      {
+        key: 'metric',
+        header: 'المعيار',
+        type: 'list' as const,
+        getValue: (r: any) => r.metric || '',
+        labelOf: (v: unknown) => {
+          const map: Record<string, string> = {
+            orders: 'الطلبات',
+            work_days: 'أيام العمل',
+            workDays: 'أيام العمل',
+            hours: 'ساعات العمل',
+            acceptance_rate: 'نسبة القبول',
+            attendance_days: 'أيام الحضور',
+          };
+          return map[String(v ?? '')] || String(v ?? '');
+        },
+      },
+      {
+        key: 'operator',
+        header: 'عامل المقارنة',
+        type: 'list' as const,
+        getValue: (r: any) => r.operator || '',
+        labelOf: (v: unknown) => {
+          const map: Record<string, string> = {
+            '>=': 'أكبر من أو يساوي',
+            '>': 'أكبر من',
+            '<=': 'أصغر من أو يساوي',
+            '<': 'أصغر من',
+            '==': 'يساوي',
+            '=': 'يساوي',
+            '!=': 'لا يساوي',
+            gte: 'أكبر من أو يساوي',
+            gt: 'أكبر من',
+            lte: 'أصغر من أو يساوي',
+            lt: 'أصغر من',
+            eq: 'يساوي',
+          };
+          return map[String(v ?? '')] || String(v ?? '');
+        },
+      },
+      { key: 'threshold', header: 'الحد الأدنى', type: 'number' as const, numeric: true, getValue: (r: any) => Number(r.threshold ?? 0) },
       {
         key: 'effect',
         header: 'الأثر عند عدم التحقق',
         type: 'list' as const,
         getValue: (r: any) => r.effect?.type || 'zero',
+        labelOf: (v: unknown) => (v === 'zero' ? 'تصفير الاستحقاق' : v === 'deduct' ? 'خصم' : v === 'cap' ? 'تحديد سقف' : String(v ?? '')),
         toneOf: (v: unknown) => (v === 'zero' ? 'danger' : 'warning'),
       },
     ],

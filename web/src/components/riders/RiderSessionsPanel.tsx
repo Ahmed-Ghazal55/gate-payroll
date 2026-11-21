@@ -52,7 +52,19 @@ export function RiderSessionsPanel() {
     () => [
       { key: 'riderName', header: 'المندوب', type: 'text' as const, getValue: (s: RiderSession) => `${s.riderName || ''} ${s.iqama || ''}`.trim() },
       { key: 'deviceFingerprint', header: 'الجهاز', type: 'text' as const, getValue: (s: RiderSession) => s.deviceFingerprint || '' },
-      { key: 'language', header: 'اللغة', type: 'list' as const, getValue: (s: RiderSession) => s.language || '' },
+      {
+        key: 'language',
+        header: 'اللغة',
+        type: 'list' as const,
+        getValue: (s: RiderSession) => s.language || '',
+        labelOf: (v: unknown) => {
+          const s = String(v ?? '').toLowerCase();
+          if (s === 'ar') return 'العربية';
+          if (s === 'en') return 'الإنجليزية';
+          if (s === 'ur') return 'الأردية';
+          return String(v ?? '—');
+        },
+      },
       { key: 'createdAt', header: 'بداية الجلسة', type: 'date' as const, getValue: (s: RiderSession) => s.createdAt || '' },
       { key: 'lastSeenAt', header: 'آخر استخدام', type: 'date' as const, getValue: (s: RiderSession) => s.lastSeenAt || '' },
       { key: 'expiresAtUtc', header: 'تنتهي', type: 'date' as const, getValue: (s: RiderSession) => s.expiresAtUtc || '' },

@@ -546,8 +546,8 @@ function AdminPageInner() {
   const auditFilterCols = useMemo(
     () => [
       { key: 'id', header: 'المعرف', type: 'text' as const, getValue: (l: any) => String(l.id ?? '') },
-      { key: 'action', header: 'نوع العملية (Action)', type: 'list' as const, getValue: (l: any) => l.action || '' },
-      { key: 'actor', header: 'المنفذ (Actor)', type: 'list' as const, getValue: (l: any) => l.actor || 'system' },
+      { key: 'action', header: 'نوع العملية', type: 'list' as const, getValue: (l: any) => l.action || '' },
+      { key: 'actor', header: 'المنفذ', type: 'list' as const, getValue: (l: any) => l.actor || 'system' },
       { key: 'at', header: 'التاريخ والوقت', type: 'date' as const, getValue: (l: any) => l.at || l.createdAt || '' },
     ],
     []

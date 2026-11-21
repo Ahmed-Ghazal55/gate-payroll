@@ -660,7 +660,7 @@ export function NinjaInvoiceUploadScreen({
       },
       {
         key: 'captainId',
-        header: 'معرف الكابتن (Captain ID)',
+        header: 'معرف الكابتن',
         type: 'text',
         filterType: 'text',
         getValue: (line) => line.captainId,
