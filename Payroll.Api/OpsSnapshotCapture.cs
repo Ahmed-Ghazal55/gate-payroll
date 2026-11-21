@@ -13,7 +13,7 @@ public static class OpsSnapshotCapture
 {
     public const string CapturePermission="pay.manage";
     const byte ManifestCaptured=1,ManifestEmpty=2,ManifestMissing=3;
-    const byte CaptureOpen=0,CaptureFrozen=1;
+    public const byte CaptureOpen=0,CaptureFrozen=1;
 
     /// <summary>Used-field allowlists per catalogue kind (fields-used only).</summary>
     public static readonly IReadOnlyDictionary<string,string[]> UsedFields=new Dictionary<string,string[]>(StringComparer.Ordinal)
