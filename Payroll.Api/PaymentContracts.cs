@@ -57,7 +57,7 @@ public static class PaymentContracts
         }
         if(rent&&input.N("deposit")>0)
         {
-            var deposit=PaymentsEngine.Create(c,tx,actor,new(){["type"]="expense",["companyId"]=company,["supplierId"]=supplier,["idempotencyKey"]=id+":deposit",["reference"]=id+":deposit",["period"]=day.ToString("yyyy-MM"),["occurredOn"]=start,["dueOn"]=start,["lines"]=new JsonArray(new JsonObject{["accountCode"]="125101",["amount"]=input.N("deposit"),["costCentreId"]=cc}),["contractId"]=id});
+            var deposit=PaymentsEngine.Create(c,tx,actor,new(){["type"]="expense",["companyId"]=company,["supplierId"]=supplier,["idempotencyKey"]=id+":deposit",["reference"]=id+":deposit",["period"]=day.ToString("yyyy-MM"),["occurredOn"]=start,["dueOn"]=start,["lines"]=new JsonArray(new JsonObject{["accountCode"]="125101",["amount"]=input.N("deposit"),["costCentreId"]=cc}),["contractId"]=id,["runMode"]=input.N("runMode"),["payoutBlocked"]=input.B("payoutBlocked")});
             _=deposit;
         }
     }
