@@ -47,6 +47,12 @@ public sealed class SalPayCalcTests
         if(app=="ninja")facts.Rows["ninja_daily_deduction"]=[];
         facts.Rows["platform_account"]=[new(){["id"]=account,["externalAccountId"]="A"}];
         facts.Rows["assignment"]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["actualRiderProfileId"]=rider,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-31"}];
+        if(app=="hs")facts.Rows["hs_wallet"]=
+        [
+            new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["balance"]=100,["amount"]=100,["asOf"]="2026-10-31",["fundingType"]="invoice_close"},
+            new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["balance"]=100,["amount"]=100,["asOf"]="2026-10-31",["fundingType"]="custody"}
+        ];
+        if(app=="chefz")facts.Rows["chefz_settlement"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["RiderAmount"]=800,["GrossEarnings"]=1000,["CompanyAmount"]=200}];
         var reasons=new Dictionary<string,string>(StringComparer.Ordinal);
         foreach(var kv in facts.Rows)if(kv.Value.Count==0)reasons[kv.Key]="none";
         OpsSnapshotCapture.Capture(c,tx,actor,run,facts,reasons);

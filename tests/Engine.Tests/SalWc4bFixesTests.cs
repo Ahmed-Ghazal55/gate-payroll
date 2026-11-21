@@ -45,7 +45,7 @@ public sealed class SalWc4bFixesTests
     }
 
     static string FrozenRun(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,ClaimsPrincipal actor,string company,string app,
-        string? accountId=null,string? riderId=null,string? schemeId=null)
+        string? accountId=null,string? riderId=null,string? schemeId=null,bool? keetaEligible=null,decimal? frozenGross=null)
     {
         string run=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,tx,"INSERT INTO sal_pay_run(id,company_id,app_code,period_month) VALUES(@id,@c,@app,'2026-10-01')",("@id",run),("@c",company),("@app",app));
@@ -55,14 +55,21 @@ public sealed class SalWc4bFixesTests
             facts.Rows[kind]=[];
         string account=accountId??MoneySchemaFixture.Id(),rider=riderId??MoneySchemaFixture.Id();
         string primary=app switch{"ninja"=>"ninja_daily","keeta"=>"keeta_invoice_row","hs"=>"hs_ops","amazon"=>"platform_ops","chefz"=>"chefz_settlement","jahez"=>"jahez_day",_=>"assignment"};
-        facts.Rows[primary]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["riderProfileId"]=rider,["erpRiderId"]=rider,["orders"]=1,["reportDate"]="2026-10-01",["RiderAmount"]=800,["gross"]=800}];
+        decimal gross=frozenGross??800m;
+        facts.Rows[primary]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["riderProfileId"]=rider,["erpRiderId"]=rider,["orders"]=1,["reportDate"]="2026-10-01",["RiderAmount"]=gross,["gross"]=gross}];
         if(app=="ninja")facts.Rows["ninja_daily_deduction"]=[];
         facts.Rows["platform_account"]=[new(){["id"]=account,["externalAccountId"]="A1",["code"]="A1"}];
         facts.Rows["assignment"]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["actualRiderProfileId"]=rider,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-31"}];
-        facts.Rows["scheme"]=[new(){["id"]=schemeId??MoneySchemaFixture.Id(),["erpRiderId"]=rider,["schemeCode"]="commission",["source"]="pay_settings"}];
-        facts.Rows["eligibility"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["eligible"]=true,["source"]="pay_settings"}];
-        if(app=="hs")facts.Rows["hs_wallet"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["balance"]=100,["asOf"]="2026-10-31",["fundingType"]="invoice_close"}];
-        if(app=="chefz")facts.Rows["chefz_settlement"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["RiderAmount"]=800,["GrossEarnings"]=1000,["CompanyAmount"]=200}];
+        string schemeCode=app=="keeta"&&keetaEligible==false?"salary":"commission";
+        facts.Rows["scheme"]=[new(){["id"]=schemeId??MoneySchemaFixture.Id(),["erpRiderId"]=rider,["schemeCode"]=schemeCode,["source"]="pay_settings"}];
+        bool eligible=keetaEligible??true;
+        facts.Rows["eligibility"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["eligible"]=eligible,["source"]=eligible?"pay_settings":"keeta_eligibility_view"}];
+        if(app=="hs")facts.Rows["hs_wallet"]=
+        [
+            new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["balance"]=100,["amount"]=100,["asOf"]="2026-10-31",["fundingType"]="invoice_close"},
+            new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["balance"]=100,["amount"]=100,["asOf"]="2026-10-31",["fundingType"]="custody"}
+        ];
+        if(app=="chefz")facts.Rows["chefz_settlement"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["RiderAmount"]=gross,["GrossEarnings"]=1000,["CompanyAmount"]=200}];
         var reasons=new Dictionary<string,string>(StringComparer.Ordinal);
         foreach(var kv in facts.Rows)if(kv.Value.Count==0)reasons[kv.Key]="none";
         OpsSnapshotCapture.Capture(c,tx,actor,run,facts,reasons);
@@ -119,7 +126,7 @@ public sealed class SalWc4bFixesTests
         var actor=Admin();
         using var tx=c.BeginTransaction();
         string rider=MoneySchemaFixture.Id();
-        string run=FrozenRun(c,tx,actor,company,"keeta",riderId:rider);
+        string run=FrozenRun(c,tx,actor,company,"keeta",riderId:rider,keetaEligible:false,frozenGross:100m);
         var result=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
@@ -148,7 +155,7 @@ public sealed class SalWc4bFixesTests
         var actor=Admin();
         using var tx=c.BeginTransaction();
         string rider=MoneySchemaFixture.Id();
-        string run=FrozenRun(c,tx,actor,company,"keeta",riderId:rider);
+        string run=FrozenRun(c,tx,actor,company,"keeta",riderId:rider,keetaEligible:false,frozenGross:100m);
         var result=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
@@ -291,7 +298,7 @@ public sealed class SalWc4bFixesTests
         });
         Assert.AreEqual("confirmed",confirmed["rows"]![0]!["debtConfirmStatus"]!.GetValue<string>());
         Assert.AreEqual(450m,confirmed["rows"]![0]!["salaryNet"]!.GetValue<decimal>());
-        Assert.AreEqual(50m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT amount FROM sal_pay_run_item WHERE pay_run_rider_id=@r AND item_code='old_debt_instalment' AND amount<>0",("@r",riderId))));
+        Assert.AreEqual(50m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(amount),0) FROM sal_pay_run_item WHERE pay_run_rider_id=@r AND item_code='old_debt_instalment' AND amount<>0",("@r",riderId))));
         Assert.AreEqual(2L,MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM debt_debt_movement WHERE pay_run_rider_id=@r AND source_type='salary_deduction'",("@r",riderId)));
         tx.Commit();
     }
