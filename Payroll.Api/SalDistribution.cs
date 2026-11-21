@@ -343,7 +343,8 @@ public static class SalDistribution
     {
         using var cmd=Store.Command(c,tx,$"""
             SELECT i.id,i.item_code,i.amount,i.period_month,i.bearer_status,
-                   inv.id AS invoice_id,inv.app_code,inv.company_id,inv.run_mode,inv.payout_blocked
+                   inv.id AS invoice_id,inv.app_code,inv.company_id,inv.run_mode,inv.payout_blocked,
+                   l.erp_platform_account_id
             FROM {SchemaSql.Q(c,"sal","platform_invoice_item")} i
             INNER JOIN {SchemaSql.Q(c,"sal","platform_invoice_line")} l ON l.id=i.line_id
             INNER JOIN {SchemaSql.Q(c,"sal","platform_invoice")} inv ON inv.id=l.invoice_id
@@ -357,7 +358,8 @@ public static class SalDistribution
             ["amount"]=Convert.ToDecimal(reader["amount"]),["periodMonth"]=ReadMonth(reader["period_month"]),
             ["bearerStatus"]=Convert.ToInt32(reader["bearer_status"]),["invoiceId"]=reader["invoice_id"].ToString(),
             ["app"]=reader["app_code"].ToString(),["companyId"]=reader["company_id"].ToString(),
-            ["runMode"]=Convert.ToInt32(reader["run_mode"]),["payoutBlocked"]=Convert.ToInt32(reader["payout_blocked"])==1
+            ["runMode"]=Convert.ToInt32(reader["run_mode"]),["payoutBlocked"]=Convert.ToInt32(reader["payout_blocked"])==1,
+            ["erpPlatformAccountId"]=reader["erp_platform_account_id"] is DBNull?"":reader["erp_platform_account_id"].ToString()!
         };
         reader.Close();
         FinancialScopes.DemandSponsor(actor,item.S("companyId"));
@@ -481,16 +483,33 @@ public static class SalDistribution
         if(runId=="")
             runId=FindFrozenPayRun(c,tx,item.S("companyId"),item.S("app"),item.S("periodMonth"));
         if(runId=="")return; // no freeze yet — dated forge check waits for a frozen run when provided
+        // Codex RWC4: match the item's platform account and the supplied run's company/app/month — not any rider/date in the run.
+        DemandRunMatchesItem(c,tx,runId,item);
+        string account=item.S("erpPlatformAccountId");
         var assignments=LoadFrozenKind(c,tx,runId,"assignment");
         J.Need(assignments.Count>0,"لا تعيينات مجمّدة للتحقق من المندوب.",409);
         bool ok=assignments.Any(a=>
         {
             string assigned=a.S("actualRiderProfileId",a.S("riderProfileId"));
             if(!string.Equals(assigned,riderId,StringComparison.Ordinal))return false;
+            if(account!=""&&!string.Equals(a.S("platformRiderAccountId"),account,StringComparison.Ordinal))return false;
             if(itemDate=="")return true;
             return OverlapsDate(a.S("effectiveFrom"),a.S("effectiveTo"),itemDate);
         });
         J.Need(ok,"المندوب ليس ضمن التعيينات المجمّدة للحساب/التاريخ.",409);
+    }
+
+    static void DemandRunMatchesItem(DbConnection c,DbTransaction? tx,string payRunId,JsonObject item)
+    {
+        using var cmd=Store.Command(c,tx,$"""
+            SELECT company_id,app_code,period_month FROM {SchemaSql.Q(c,"sal","pay_run")} WHERE id=@id
+            """,("@id",payRunId));
+        using var reader=cmd.ExecuteReader();
+        J.Need(reader.Read(),"دورة الرواتب غير موجودة.",404);
+        J.Need(string.Equals(reader["company_id"].ToString(),item.S("companyId"),StringComparison.Ordinal),"دورة التقاط لا تطابق شركة البند.",409);
+        J.Need(string.Equals(reader["app_code"].ToString(),item.S("app"),StringComparison.Ordinal),"دورة التقاط لا تطابق تطبيق البند.",409);
+        string runMonth=ReadMonth(reader["period_month"]);
+        J.Need(string.Equals(runMonth,item.S("periodMonth"),StringComparison.Ordinal),"دورة التقاط لا تطابق شهر البند.",409);
     }
 
     static string FindFrozenPayRun(DbConnection c,DbTransaction? tx,string companyId,string app,string periodMonth)

@@ -14,20 +14,25 @@ public static class SalPayCalc
     {
         AccessPolicy.Demand(actor,ManagePermission);
         Ensure(c,tx);
-        var run=LoadRun(c,tx,payRunId);
+        var run=LoadRun(c,tx,actor,payRunId);
         J.Need(run.N("captureState")>=OpsSnapshotCapture.CaptureFrozen,"جمّد التقاط المدخلات قبل الاحتساب.",409);
         MoneyWriteGuards.Demand((byte)run.N("runMode"),run.B("payoutBlocked"),MoneyEffectKind.Accounting);
         var rules=AppPayRules.For(run.S("app"));
         var riders=(input["riders"] as JsonArray??[]).OfType<JsonObject>().ToList();
         J.Need(riders.Count>0,"أدخل مناديب الاحتساب.",400);
+        var assignments=LoadFrozenKind(c,tx,payRunId,"assignment");
 
         var outRiders=new JsonArray();
         foreach(var src in riders)
         {
             rules.ValidateRider(src);
             string erpRider=src.Required("erpRiderId");
+            DemandAssigned(assignments,erpRider);
             decimal gross=J.Money(src.N("gross"));
             decimal commission=J.Money(src.N("commission"));
+            // Chefz: RiderAmount is the entitlement; commission is Omar's already-netted figure — do not subtract again.
+            bool chefz=string.Equals(run.S("app"),"chefz",StringComparison.OrdinalIgnoreCase);
+            decimal entitlement=chefz?gross:J.Money(gross-commission);
             bool keetaIneligible=src.B("keetaIneligible");
             string scheme=src.S("schemeType","commission");
 
@@ -40,18 +45,46 @@ public static class SalPayCalc
                 bool operating=rules.OperatingCostOnCompany(src,item);
                 string code=item.S("itemCode","l1");
                 string account=item.S("accountCode","112505");
-                if(operating){companyOperating+=amount;l1Items.Add(Item("level1",code,amount,false,account,null));}
+                if(operating){companyOperating+=amount;l1Items.Add(Item("level1",code,amount,false,account,item.S("debtId")));}
                 else{level1Personal+=amount;l1Items.Add(Item("level1",code,amount,true,account,item.S("debtId")));}
             }
 
-            decimal netAfterL1=J.Money(gross-level1Personal);
+            decimal wagesRoom=entitlement;
+            decimal residualPersonal=rules.AdjustLevel1(src,l1Items,ref level1Personal,ref companyOperating,ref wagesRoom);
+
+            // Mudad is L1 before NET/L2 (Codex RWC4); preserve through recalculation via request fields.
+            decimal mudadAmount=0;
+            string mudadLineId=src.S("mudadLineId");
+            if(mudadLineId!="")
+            {
+                mudadAmount=J.Money(src.N("mudadAmount",src.N("amount")));
+                J.Need(mudadAmount>=0,"مبلغ مدد لا يكون سالباً.",400);
+                DemandMudadLine(c,tx,mudadLineId,run.S("companyId"),run.S("periodMonth"),erpRider,mudadAmount);
+                level1Personal=J.Money(level1Personal+mudadAmount);
+                l1Items.Add(Item("level1","mudad_salary",mudadAmount,true,"112505",null));
+            }
+            else
+            {
+                // Re-apply previously linked mudad on recalc so NET/L2 stay correct.
+                mudadAmount=LoadExistingMudad(c,tx,payRunId,erpRider);
+                if(mudadAmount>0)
+                {
+                    level1Personal=J.Money(level1Personal+mudadAmount);
+                    l1Items.Add(Item("level1","mudad_salary",mudadAmount,true,"112505",null));
+                }
+            }
+
+            decimal netAfterL1=J.Money(entitlement-level1Personal);
+            // Keeta protected salary: net floor zero (§22.9.2).
+            if(keetaIneligible&&string.Equals(scheme,"salary",StringComparison.OrdinalIgnoreCase)&&netAfterL1<0)
+                netAfterL1=0;
+
             decimal level2Total=0;
             var l2Items=new List<JsonObject>();
             foreach(var item in (src["level2"] as JsonArray??[]).OfType<JsonObject>())
             {
                 decimal amount=J.Money(item.N("amount"));
                 J.Need(amount>=0,"مبلغ المستوى 2 لا يكون سالباً.",400);
-                // L2 capped by positive net remaining (BR §40.6).
                 decimal room=Math.Max(0,netAfterL1-level2Total);
                 decimal take=J.Money(Math.Min(amount,room));
                 level2Total+=take;
@@ -72,7 +105,6 @@ public static class SalPayCalc
             {
                 riderId=existingId;
                 J.Need(CanRecalc(c,tx,riderId),"لا إعادة احتساب بعد تأكيد الدين أو الاعتماد.",409);
-                // Zero prior item amounts (retain forbids delete); new lines continue after max line_no.
                 Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","pay_run_item")} SET amount=0,updated_by=@by,updated_at=@at WHERE pay_run_rider_id=@r",
                     ("@by",actor.Identity!.Name!),("@at",now),("@r",riderId));
                 Exec(c,tx,$"""
@@ -100,17 +132,20 @@ public static class SalPayCalc
             {
                 lineNo++;
                 string id=SchemaSql.GuidText(SchemaSql.NewId());
+                string? debtId=NullIfEmpty(it.S("debtId"));
                 Exec(c,tx,$"""
                     INSERT INTO {SchemaSql.Q(c,"sal","pay_run_item")}
-                    (id,period_month,pay_run_rider_id,line_no,stage_code,item_code,amount,affects_net,account_code,created_by,created_at)
-                    VALUES(@id,@pm,@r,@line,@stage,@code,@amt,@aff,@acc,@by,@at)
+                    (id,period_month,pay_run_rider_id,line_no,stage_code,item_code,amount,affects_net,account_code,debt_id,created_by,created_at)
+                    VALUES(@id,@pm,@r,@line,@stage,@code,@amt,@aff,@acc,@debt,@by,@at)
                     """,("@id",id),("@pm",run.S("periodMonth")),("@r",riderId),("@line",lineNo),
                     ("@stage",stage),("@code",it.S("itemCode")),("@amt",it.N("amount")),
                     ("@aff",it.B("affectsNet")?1:0),("@acc",it.S("accountCode")),
+                    ("@debt",(object?)debtId??DBNull.Value),
                     ("@by",actor.Identity!.Name!),("@at",now));
+                // Persist debt_id only here; settle balances at debt-confirm / salary-approve (SchemaDebt source guards).
             }
             Persist(Item("invoice","gross",gross,true,"212103",null),"invoice");
-            if(commission!=0)Persist(Item("commission","commission",commission,true,"411104",null),"commission");
+            if(commission!=0&&!chefz)Persist(Item("commission","commission",commission,true,"411104",null),"commission");
             foreach(var it in l1Items)Persist(it,"level1");
             Persist(Item("net","net_after_l1",netAfterL1,true,"212103",null),"net");
             foreach(var it in l2Items)Persist(it,"level2");
@@ -122,7 +157,8 @@ public static class SalPayCalc
                 ["schemeType"]=scheme,["level1Total"]=level1Personal,["companyOperatingTotal"]=companyOperating,
                 ["netAfterLevel1"]=netAfterL1,["level2Total"]=level2Total,["salaryNet"]=salaryNet,
                 ["oldDebtInstalment"]=proposedDebt,["keetaIneligible"]=keetaIneligible,
-                ["createsNegativeDebt"]=createsNegativeDebt
+                ["createsNegativeDebt"]=createsNegativeDebt,["personalResidualDebt"]=residualPersonal,
+                ["mudadAmount"]=mudadAmount
             });
         }
 
@@ -140,7 +176,7 @@ public static class SalPayCalc
     {
         AccessPolicy.Demand(actor,ManagePermission);
         Ensure(c,tx);
-        var run=LoadRun(c,tx,payRunId);
+        var run=LoadRun(c,tx,actor,payRunId);
         var rows=new JsonArray();
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
         cmd.CommandText=$"""
@@ -196,7 +232,7 @@ public static class SalPayCalc
         string payRunId=input.Required("payRunId"),erpRider=input.Required("erpRiderId"),lineId=input.Required("mudadLineId");
         decimal amount=J.Money(input.N("amount"));
         J.Need(amount>=0,"مبلغ مدد لا يكون سالباً.",400);
-        var run=LoadRun(c,tx,payRunId);
+        var run=LoadRun(c,tx,actor,payRunId);
         MoneyWriteGuards.Demand((byte)run.N("runMode"),run.B("payoutBlocked"),MoneyEffectKind.Accounting);
 
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
@@ -215,8 +251,7 @@ public static class SalPayCalc
         string period=ReadMonth(r["period_month"]);
         r.Close();
 
-        object? lineOk=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"hr","mudad_line")} WHERE id=@id AND match_status=2",("@id",lineId));
-        J.Need(lineOk is not null,"صف مدد غير مطابق.",404);
+        DemandMudadLine(c,tx,lineId,run.S("companyId"),period,erpRider,amount);
 
         string dedId=SchemaSql.GuidText(SchemaSql.NewId());
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
@@ -233,6 +268,7 @@ public static class SalPayCalc
             ||ex.GetBaseException().Message.Contains("Money row replacement",StringComparison.OrdinalIgnoreCase))
         {throw new ApiError("خصم مدد لهذا الصف مسجل مسبقاً.",409);}
 
+        // Fold into L1 conceptually: reduce net now; caller should recalculate for L2 reorder.
         decimal newNet=J.Money(net-amount);
         Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")} SET salary_net=@net,updated_by=@by,updated_at=@at WHERE id=@id",
             ("@net",newNet),("@by",actor.Identity!.Name!),("@at",now),("@id",riderId));
@@ -240,13 +276,13 @@ public static class SalPayCalc
         int nextLine=Convert.ToInt32(SchemaSql.Scalar(c,tx,$"SELECT COALESCE(MAX(line_no),0)+1 FROM {SchemaSql.Q(c,"sal","pay_run_item")} WHERE pay_run_rider_id=@r",("@r",riderId))!);
         Exec(c,tx,$"""
             INSERT INTO {SchemaSql.Q(c,"sal","pay_run_item")}
-            (id,period_month,pay_run_rider_id,line_no,stage_code,item_code,amount,affects_net,account_code,created_by,created_at)
-            VALUES(@id,@pm,@r,@line,'level1','mudad_salary',@amt,1,'112505',@by,@at)
+            (id,period_month,pay_run_rider_id,line_no,stage_code,item_code,amount,affects_net,account_code,debt_id,created_by,created_at)
+            VALUES(@id,@pm,@r,@line,'level1','mudad_salary',@amt,1,'112505',NULL,@by,@at)
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pm",period),("@r",riderId),("@line",nextLine),
             ("@amt",amount),("@by",actor.Identity!.Name!),("@at",now));
 
         Store.Audit(c,tx,"sal.mudad_applied",dedId,actor.Identity!.Name!);
-        return new(){["id"]=dedId,["payRunRiderId"]=riderId,["mudadLineId"]=lineId,["amount"]=amount,["salaryNet"]=newNet};
+        return new(){["id"]=dedId,["payRunRiderId"]=riderId,["mudadLineId"]=lineId,["amount"]=amount,["salaryNet"]=newNet,["noteAr"]="أعد الاحتساب لضم مدد قبل المستوى 2."};
     }
 
     public static void Map(RouteGroupBuilder api,Store store)
@@ -269,11 +305,25 @@ public static class SalPayCalc
     {
         SchemaHrCompany.Ensure(c,tx);SchemaPayPayable.Ensure(c,tx);
         SchemaOrgCostCentre.Ensure(c,tx);SchemaFinAccount.Ensure(c,tx);
+        SchemaFinPeriod.Ensure(c,tx);SchemaFinJournal.Ensure(c,tx);SchemaFinPeriodBalance.Ensure(c,tx);
         SchemaSalPayRun.Ensure(c,tx);SchemaHrMudad.Ensure(c,tx);SchemaSalMudad.Ensure(c,tx);
         SchemaDebt.Ensure(c,tx);SchemaOperationCapture.Ensure(c,tx);
+        EnsureItemDebtColumn(c,tx);
     }
 
-    static JsonObject LoadRun(DbConnection c,DbTransaction tx,string id)
+    static void EnsureItemDebtColumn(DbConnection c,DbTransaction? tx)
+    {
+        string t=SchemaSql.Q(c,"sal","pay_run_item");
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"IF COL_LENGTH(N'sal.pay_run_item',N'debt_id') IS NULL ALTER TABLE {t} ADD debt_id {SchemaSql.GuidType(c)} NULL;");
+        else
+        {
+            object? has=SchemaSql.Scalar(c,tx,"SELECT 1 FROM pragma_table_info('sal_pay_run_item') WHERE name='debt_id'");
+            if(has is null or DBNull)SchemaSql.Exec(c,tx,$"ALTER TABLE {t} ADD COLUMN debt_id TEXT NULL;");
+        }
+    }
+
+    static JsonObject LoadRun(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
         cmd.CommandText=$"""
@@ -283,7 +333,7 @@ public static class SalPayCalc
         Add(cmd,"@id",id);
         using var r=cmd.ExecuteReader();
         J.Need(r.Read(),"مسير الرواتب غير موجود.",404);
-        return new()
+        var run=new JsonObject
         {
             ["id"]=r["id"].ToString()!,["companyId"]=r["company_id"].ToString()!,
             ["app"]=r["app_code"].ToString()!,["periodMonth"]=ReadMonth(r["period_month"]),
@@ -291,6 +341,67 @@ public static class SalPayCalc
             ["runMode"]=Convert.ToInt32(r["run_mode"]),["payoutBlocked"]=Convert.ToInt32(r["payout_blocked"])==1,
             ["captureState"]=Convert.ToInt32(r["capture_state"])
         };
+        r.Close();
+        FinancialScopes.DemandSponsor(actor,run.S("companyId"));
+        var platform=PayPlatforms.For(run.S("app"));
+        J.Need(FinancialScopes.Platform(actor,platform.Platform),"المنصة خارج نطاق المستخدم.",403);
+        return run;
+    }
+
+    static void DemandAssigned(List<JsonObject> assignments,string erpRider)
+    {
+        if(assignments.Count==0)return;
+        bool ok=assignments.Any(a=>
+            string.Equals(a.S("actualRiderProfileId",a.S("riderProfileId",a.S("erpRiderId"))),erpRider,StringComparison.Ordinal));
+        J.Need(ok,"المندوب غير معيّن في التقاط التجميد.",409);
+    }
+
+    static List<JsonObject> LoadFrozenKind(DbConnection c,DbTransaction tx,string payRunId,string kind)
+    {
+        var rows=new List<JsonObject>();
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        cmd.CommandText=$"""
+            SELECT s.payload FROM {SchemaSql.Q(c,"fin","operation_snapshot_link")} l
+            INNER JOIN {SchemaSql.Q(c,"sal","ops_snapshot")} s ON s.id=l.snapshot_id
+            WHERE l.operation_type='pay_run' AND l.operation_id=@run AND l.snapshot_kind=@kind
+            """;
+        Add(cmd,"@run",payRunId);Add(cmd,"@kind",kind);
+        using var reader=cmd.ExecuteReader();
+        while(reader.Read())
+        {
+            var payload=System.Text.Json.Nodes.JsonNode.Parse(reader.GetString(0)) as JsonObject??new JsonObject();
+            rows.Add(payload);
+        }
+        return rows;
+    }
+
+    static void DemandMudadLine(DbConnection c,DbTransaction tx,string lineId,string companyId,string periodMonth,string erpRider,decimal amount)
+    {
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        cmd.CommandText=$"""
+            SELECT company_id,period_month,erp_employee_id,basic_salary,match_status
+            FROM {SchemaSql.Q(c,"hr","mudad_line")} WHERE id=@id
+            """;
+        Add(cmd,"@id",lineId);
+        using var r=cmd.ExecuteReader();
+        J.Need(r.Read(),"صف مدد غير موجود.",404);
+        J.Need(Convert.ToInt32(r["match_status"])==2,"صف مدد غير مطابق.",404);
+        J.Need(string.Equals(r["company_id"].ToString(),companyId,StringComparison.Ordinal),"صف مدد لشركة أخرى.",404);
+        J.Need(string.Equals(ReadMonth(r["period_month"]),periodMonth.Length>=10?periodMonth[..10]:periodMonth,StringComparison.Ordinal)
+            ||string.Equals(ReadMonth(r["period_month"]),periodMonth,StringComparison.Ordinal),"صف مدد لشهر آخر.",404);
+        J.Need(r["erp_employee_id"] is not DBNull&&string.Equals(r["erp_employee_id"].ToString(),erpRider,StringComparison.Ordinal),"صف مدد لموظف آخر.",404);
+        if(r["basic_salary"] is not DBNull)
+            J.Need(J.Money(Convert.ToDecimal(r["basic_salary"]))==amount||amount<=J.Money(Convert.ToDecimal(r["basic_salary"])),"مبلغ مدد لا يطابق المصدر.",409);
+    }
+
+    static decimal LoadExistingMudad(DbConnection c,DbTransaction tx,string payRunId,string erpRider)
+    {
+        object? amt=SchemaSql.Scalar(c,tx,$"""
+            SELECT COALESCE(SUM(d.amount),0) FROM {SchemaSql.Q(c,"sal","mudad_deduction")} d
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run_rider")} r ON r.id=d.pay_run_rider_id
+            WHERE r.pay_run_id=@run AND r.erp_rider_id=@erp
+            """,("@run",payRunId),("@erp",erpRider));
+        return amt is null or DBNull?0m:J.Money(Convert.ToDecimal(amt));
     }
 
     static string? FindPendingRider(DbConnection c,DbTransaction tx,string payRunId,string erpRider)
@@ -324,6 +435,7 @@ public static class SalPayCalc
         _=>Convert.ToDateTime(value,CultureInfo.InvariantCulture).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)
     };
 
+    static string? NullIfEmpty(string? s)=>string.IsNullOrWhiteSpace(s)?null:s.Trim();
     static int Exec(DbConnection c,DbTransaction tx,string sql,params (string Name,object Value)[] values)
     {
         using var cmd=c.CreateCommand();cmd.Transaction=tx;cmd.CommandText=sql;

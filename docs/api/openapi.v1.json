@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:18593/"
+      "url": "http://127.0.0.1:45845/"
     }
   ],
   "paths": {
@@ -119,7 +119,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -137,7 +137,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -360,7 +360,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -1199,7 +1199,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -2502,7 +2502,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -3055,7 +3055,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -3408,7 +3408,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -3477,7 +3477,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -3563,7 +3563,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -3649,7 +3649,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -3735,7 +3735,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -12038,7 +12038,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -20458,7 +20458,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -20476,7 +20476,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -20494,7 +20494,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -20512,7 +20512,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -20530,7 +20530,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -22235,7 +22235,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -28859,7 +28859,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -29162,6 +29162,46 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/jahez-reconciliations/day/{id}/correct": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Reverse and correct Jahez day journals after approval",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful response (stored wire field names)",
@@ -30003,7 +30043,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -31566,7 +31606,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -33512,7 +33552,7 @@
               "string"
             ]
           },
-          "snapshot": { },
+          "snapshot": {},
           "checkpoint": {
             "$ref": "#/components/schemas/JsonElement"
           },
@@ -34635,8 +34675,8 @@
       "JsonArray": {
         "type": "array"
       },
-      "JsonElement": { },
-      "JsonNode": { },
+      "JsonElement": {},
+      "JsonNode": {},
       "JsonObject": {
         "type": "object"
       },

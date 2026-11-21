@@ -29,8 +29,10 @@ public static class OpsSnapshotCapture
         ["eligibility"]=["id","erpRiderId","eligible","source"],
         ["keeta_invoice_row"]=["id","erpPlatformAccountId","gross","deductions","orders"],
         ["hs_ops"]=["id","erpPlatformAccountId","orders","workDate"],
-        ["hs_wallet"]=["id","erpRiderId","balance","asOf"],
-        ["platform_ops"]=["id","erpPlatformAccountId","orders","workDate"]
+        ["hs_wallet"]=["id","erpRiderId","balance","asOf","fundingType"],
+        ["platform_ops"]=["id","erpPlatformAccountId","orders","workDate"],
+        ["chefz_settlement"]=["id","erpRiderId","RiderAmount","GrossEarnings","CompanyAmount"],
+        ["jahez_day"]=["id","erpRiderId","platformRiderAccountId","net","commission","orders","workDate"]
     };
 
     public static JsonObject Capture(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string payRunId,IOpsLiveFactsReader facts,IReadOnlyDictionary<string,string>? zeroKindReasons=null)
@@ -178,8 +180,12 @@ public static class OpsSnapshotCapture
     static string AppendSnapshot(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string payRunId,string company,string app,string month,string kind,JsonObject row)
     {
         var used=ProjectUsed(kind,row);
-        string erpRow=used.S("id");
-        J.Need(erpRow!="","صف التشغيل بلا معرّف.",400);
+        string sourceKey=used.S("id");
+        J.Need(sourceKey!="","صف التشغيل بلا معرّف.",400);
+        // SQL Server erp_row_id is uniqueidentifier — keep textual keys (pay-assignment:…) in payload.sourceKey.
+        string erpRow=StableErpRowId(sourceKey);
+        if(!string.Equals(sourceKey,erpRow,StringComparison.Ordinal))
+            used["sourceKey"]=sourceKey;
         byte[] hash=Fingerprint(used);
         string snapId=SchemaSql.GuidText(SchemaSql.NewId());
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
@@ -197,6 +203,16 @@ public static class OpsSnapshotCapture
             VALUES(@id,'pay_run',@run,@snap,@kind,@erp,@hash,@pm)
             """,("@id",linkId),("@run",payRunId),("@snap",snapId),("@kind",kind),("@erp",erpRow),("@hash",hash),("@pm",month));
         return linkId;
+    }
+
+    /// <summary>Map any source id to a GUID column value; preserve the original via payload.sourceKey when hashed.</summary>
+    public static string StableErpRowId(string sourceKey)
+    {
+        if(Guid.TryParse(sourceKey,out var g))return SchemaSql.GuidText(g);
+        byte[] hash=SHA256.HashData(Encoding.UTF8.GetBytes("ops-erp-row:"+sourceKey));
+        Span<byte> guidBytes=stackalloc byte[16];
+        hash.AsSpan(0,16).CopyTo(guidBytes);
+        return SchemaSql.GuidText(new Guid(guidBytes));
     }
 
     static void UpsertManifest(DbConnection c,DbTransaction tx,string payRunId,string kind,string month,byte status,string? linkId,string? emptyReason)

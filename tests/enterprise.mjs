@@ -1,6 +1,7 @@
 import {seedAccountingCash} from './financial-fixtures.mjs';
 import {seedWorkRows} from './work-seed.mjs';
 import {spawn} from 'node:child_process';
+import {createServer} from 'node:net';
 import {mkdtempSync,rmSync,mkdirSync,writeFileSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -9,7 +10,8 @@ import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const data=mkdtempSync(path.join(tmpdir(),'gate-enterprise-test-'));
-const port=19349, base=`http://127.0.0.1:${port}`;
+const portProbe=createServer();await new Promise(r=>portProbe.listen(0,'127.0.0.1',r));const port=portProbe.address().port;await new Promise(r=>portProbe.close(r));
+const base=`http://127.0.0.1:${port}`;
 const published=process.env.PAYROLL_TEST_PUBLISHED;
 const dotnetBin = process.env.DOTNET_PATH || (process.platform === 'win32' && existsSync('D:/Projectes/.codex-tools/dotnet/dotnet.exe') ? 'D:/Projectes/.codex-tools/dotnet/dotnet.exe' : 'dotnet');
 const exeName = process.platform === 'win32' ? 'Payroll.Api.exe' : 'Payroll.Api';

@@ -46,6 +46,7 @@ public static partial class AccessPolicy
     }
     /// <summary>Read-only bypass check for views (allowedActions/blockers): reads the dated grant from the DB, writes no audit.
     /// Login claims never carry the grant, so views must not rely on <see cref="BypassActive(ClaimsPrincipal,DbConnection?,DbTransaction?)"/> without a connection.</summary>
+    // W2 scoped grants (WC1H) + M-0667 SystemAdmin default exception for view-time checks.
     public static bool BypassForView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string? scope=null)
         =>actor.Identity?.IsAuthenticated==true&&!string.IsNullOrWhiteSpace(actor.Identity.Name)
           &&(actor.IsInRole("SystemAdmin")||ActiveBypassGrant(c,tx,actor.Identity.Name,scope)!=null);
