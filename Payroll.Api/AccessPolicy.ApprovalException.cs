@@ -13,7 +13,7 @@ public static partial class AccessPolicy
         !string.IsNullOrWhiteSpace(actor.FindFirstValue("approvalExceptionReason"));
     // Pure when tx is null (allowedActions). Every committed exception use is audited in
     // the same transaction and stamps the operation's actual stored document.
-    public static bool Independent(ClaimsPrincipal actor,string maker,string operation,DbConnection? c=null,DbTransaction? tx=null,JsonObject? record=null,DateTimeOffset? evidenceAt=null)
+    public static bool Independent(ClaimsPrincipal actor,string maker,string operation,DbConnection? c=null,DbTransaction? tx=null,JsonObject? record=null,DateTimeOffset? evidenceAt=null,string? scope=null)
     {
         if(!SamePerson(actor,maker))return true;
         if(evidenceAt is {} approved)
@@ -27,16 +27,16 @@ public static partial class AccessPolicy
                    ||(a.S("action")=="approval.self_exception"&&string.Equals(actor.Identity.Name,"ghazal",StringComparison.OrdinalIgnoreCase)
                       &&string.CompareOrdinal(a.S("approvalExceptionUntil"),used.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"))>=0)));
         }
-        // BR §35: new self-approvals use dated bypass grants only. ApprovalException claims no longer open new approvals; historical self_exception audits stay valid above.
-        var grant=c!=null?ActiveBypassGrant(c,tx,actor.Identity!.Name!):null;
-        bool bypass=grant!=null||BypassActive(actor,c,tx);
+        // BR §35: new self-approvals use dated bypass grants only; grant scope must match the dual operation.
+        var grant=c!=null?ActiveBypassGrant(c,tx,actor.Identity!.Name!,scope):null;
+        bool bypass=grant!=null||(scope==null&&BypassActive(actor,c,tx));
         if(!bypass)return false;
         if(tx!=null)
         {
             J.Need(c!=null&&record!=null&&record.S("id")!="","استثناء الاعتماد يحتاج مستندًا وسجل مراجعة.",409);
             record!["selfApprovedException"]=true;
-            grant??=ActiveBypassGrant(c!,tx,actor.Identity!.Name!);
-            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant?.S("id")??"",["reason"]=grant?.S("reason")??actor.FindFirstValue("approvalBypassReason")??"",["approvalBypassUntil"]=grant?.S("to")??actor.FindFirstValue("approvalBypassUntil")??"",["selfApprovedException"]=true,["badge"]="bypass_maker_checker"},tx);
+            grant??=ActiveBypassGrant(c!,tx,actor.Identity!.Name!,scope);
+            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant?.S("id")??"",["scope"]=grant?.S("scope")??scope??"",["reason"]=grant?.S("reason")??actor.FindFirstValue("approvalBypassReason")??"",["approvalBypassUntil"]=grant?.S("to")??actor.FindFirstValue("approvalBypassUntil")??"",["selfApprovedException"]=true,["badge"]="bypass_maker_checker"},tx);
         }
         return true;
     }

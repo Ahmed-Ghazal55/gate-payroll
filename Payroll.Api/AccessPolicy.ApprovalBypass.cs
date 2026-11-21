@@ -7,26 +7,44 @@ namespace Payroll;
 public static partial class AccessPolicy
 {
     public const string BypassPermission="approval.bypass_maker_checker",BypassGrantKind="approval_bypass_grant";
-    public static JsonObject? ActiveBypassGrant(DbConnection c,DbTransaction? tx,string username)
+    public const string ScopePayApprovals="pay_approvals",ScopeInvoiceApprovals="invoice_approvals";
+    public static bool ScopeCovers(string? grantScope,string? needed)
+    {
+        if(string.IsNullOrWhiteSpace(needed))return true;
+        if(string.IsNullOrWhiteSpace(grantScope))return false;
+        if(string.Equals(grantScope,needed,StringComparison.OrdinalIgnoreCase))return true;
+        // M-0677 / answers: pay approvals (+ invoice on every platform) — not shared-rider or Jahez.
+        if(string.Equals(grantScope,ScopePayApprovals,StringComparison.OrdinalIgnoreCase)
+           &&needed is ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or "pay.approve" or "approvals.decide")
+            return true;
+        if(string.Equals(grantScope,ScopeInvoiceApprovals,StringComparison.OrdinalIgnoreCase)
+           &&needed.Contains("invoice",StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+    public static JsonObject? ActiveBypassGrant(DbConnection c,DbTransaction? tx,string username,string? scope=null)
     {
         string name=UserAccess.Normalize(username);var today=Today();
         return Store.List(c,BypassGrantKind,tx).Where(g=>UserAccess.Normalize(g.S("username"))==name&&g.S("revokedAt")==""
             &&DateOnly.TryParseExact(g.S("from"),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var from)
             &&DateOnly.TryParseExact(g.S("to"),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var to)
-            &&from<=today&&to>=today).OrderByDescending(g=>g.S("to")).FirstOrDefault();
+            &&from<=today&&to>=today
+            &&ScopeCovers(g.S("scope",ScopePayApprovals),scope))
+            .OrderByDescending(g=>g.S("to")).FirstOrDefault();
     }
-    public static bool BypassActive(ClaimsPrincipal actor,DbConnection? c=null,DbTransaction? tx=null)
+    public static bool BypassActive(ClaimsPrincipal actor,DbConnection? c=null,DbTransaction? tx=null,string? scope=null)
     {
         if(actor.Identity?.IsAuthenticated!=true||string.IsNullOrWhiteSpace(actor.Identity.Name))return false;
-        if(c!=null)return ActiveBypassGrant(c,tx,actor.Identity.Name)!=null;
+        if(c!=null)return ActiveBypassGrant(c,tx,actor.Identity.Name,scope)!=null;
         return string.Equals(actor.FindFirstValue("approvalBypass"),"1",StringComparison.Ordinal)
             &&DateOnly.TryParseExact(actor.FindFirstValue("approvalBypassUntil")??"","yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var until)
-            &&until>=Today();
+            &&until>=Today()
+            &&ScopeCovers(actor.FindFirstValue("approvalBypassScope")??ScopePayApprovals,scope);
     }
     /// <summary>Read-only bypass check for views (allowedActions/blockers): reads the dated grant from the DB, writes no audit.
     /// Login claims never carry the grant, so views must not rely on <see cref="BypassActive(ClaimsPrincipal,DbConnection?,DbTransaction?)"/> without a connection.</summary>
-    public static bool BypassForView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor)
-        =>actor.Identity?.IsAuthenticated==true&&!string.IsNullOrWhiteSpace(actor.Identity.Name)&&ActiveBypassGrant(c,tx,actor.Identity.Name)!=null;
+    public static bool BypassForView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string? scope=null)
+        =>actor.Identity?.IsAuthenticated==true&&!string.IsNullOrWhiteSpace(actor.Identity.Name)&&ActiveBypassGrant(c,tx,actor.Identity.Name,scope)!=null;
     /// <summary>View-time maker-checker: another user, or the actor holds an active bypass grant. The approve action still audits via <c>Independent(...,c,tx,record)</c>.</summary>
     public static bool IndependentForView(ClaimsPrincipal actor,string maker,bool bypass)
         =>!SamePerson(actor,maker)||bypass;
@@ -43,10 +61,14 @@ public static partial class AccessPolicy
         J.Need(DateOnly.TryParseExact(fromRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var from),"تاريخ البداية غير صالح.");
         J.Need(DateOnly.TryParseExact(toRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var to)&&to>=from&&to<=Today().AddDays(365),"تاريخ النهاية غير صالح.");
         J.Need(reason.Length is >=3 and <=500&&!reason.Any(char.IsControl),"سبب المنح مطلوب من 3 إلى 500 حرف.");
+        string scope=input.S("scope",ScopePayApprovals).Trim();
+        J.Need(scope is ScopePayApprovals or ScopeInvoiceApprovals or ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or ApprovalsArea.DualSharedRiderRelease
+            ||scope.StartsWith("approvals.dual.",StringComparison.Ordinal),"نطاق منح التجاوز غير صالح.");
         var grant=new JsonObject
         {
             ["id"]="approval-bypass:"+Guid.NewGuid().ToString("N"),
             ["userId"]=user.S("id"),["username"]=user.S("username"),
+            ["scope"]=scope,
             ["from"]=from.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
             ["to"]=to.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
             ["reason"]=reason,["grantedBy"]=actor.Identity!.Name,["grantedAt"]=DateTimeOffset.UtcNow.ToString("O"),

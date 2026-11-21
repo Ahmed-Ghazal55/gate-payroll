@@ -425,8 +425,11 @@ public static class FinancialCore
             ["status"] = "pending",
             ["payload"] = payload,
             ["requestedBy"] = actor,
-            ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
+            ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"),
+            ["amountSar"] = payload.N("amountSar", payload.N("amount", payload.N("total")))
         };
+        string? dual = ApprovalsArea.DualForKind(requestKind);
+        if (dual != null) req["dualPermission"] = dual;
         Store.Save(c, "approval_request", req, tx);
 
         var notif = new JsonObject

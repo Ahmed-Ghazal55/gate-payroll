@@ -157,19 +157,41 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))return Has("forms.manage");
         return false;
     }
-    /// <summary>BR §35 / M-0672: permission-only in general; two-person only when <paramref name="dualPermission"/>
-    /// is a dedicated dual code (bank file, payment out, shared-rider release) or the request carries one.</summary>
+    /// <summary>BR §35 / M-0672: permission-only in general; two-person only when the server-derived dual code
+    /// (bank file, payment out, shared-rider release) applies. Client dualPermission is ignored when kind maps.</summary>
     public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide",System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null,string operation="approval.decide",JsonObject? record=null,string? dualPermission=null)
     {
         Demand(actor,permission);
-        string dual=dualPermission??request.S("dualPermission");
-        if(ApprovalsArea.RequiresDual(dual))Demand(actor,dual);
+        string? dual=dualPermission??ApprovalsArea.ResolveDual(request);
+        if(ApprovalsArea.RequiresDual(dual))Demand(actor,dual!);
         string name=actor.Identity?.Name??"";
         // BR §35 / M-0672: maker≠checker only for dedicated dual money-out / shared-rider codes.
         if(ApprovalsArea.RequiresDual(dual))
-            J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
+            J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request,scope:dual),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
         // Department/rank still apply; §35 bypass grant can open them via Independent (same as before).
         if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))
-            J.Need(Independent(actor,name,operation+".department_rank",c,tx,record??request),"القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
+            J.Need(Independent(actor,name,operation+".department_rank",c,tx,record??request,scope:dual),"القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
+        DemandApprovalLimit(actor,request,c,tx);
     }
+
+    public static bool WithinApprovalLimit(ClaimsPrincipal actor,JsonObject request,System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null)
+    {
+        if(Administrator(actor)||c==null)return true;
+        decimal amount=request.N("amountSar",request.N("amount",request.N("total")));
+        if(amount<=0)return true;
+        string rank=actor.FindFirstValue("rank")??RankCode(actor.FindFirstValue("rankLevel"));
+        string department=actor.FindFirstValue("department")??request.S("targetDepartment");
+        ApprovalsArea.EnsureLimitsSeeded(c,tx);
+        var row=Store.List(c,ApprovalsArea.LimitsKind,tx).FirstOrDefault(l=>l.S("rank")==rank&&l.S("department")==department)
+            ??SchemaApprovals.FindLimit(c,tx,rank,department);
+        if(row==null||row.B("unlimited")||row["limitSar"] is null)return true;
+        return amount<=row.N("limitSar");
+    }
+
+    public static void DemandApprovalLimit(ClaimsPrincipal actor,JsonObject request,System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null)
+    {
+        J.Need(WithinApprovalLimit(actor,request,c,tx),"المبلغ يتجاوز حد الاعتماد للرتبة والقسم.",403);
+    }
+
+    static string RankCode(string? level)=>level switch{"5"=>"GM","4"=>"A+","3"=>"A","2"=>"B",_=>"C"};
 }

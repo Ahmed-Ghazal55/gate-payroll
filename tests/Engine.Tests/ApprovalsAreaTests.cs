@@ -63,4 +63,27 @@ public sealed class ApprovalsAreaTests
         Assert.AreEqual("approved",decided.S("status"));
         Assert.AreEqual(0,decided["allowedActions"]!.AsArray().Count);
     }
+
+    [TestMethod]
+    public void DualForKindIsServerDerivedAndLimitIsEnforced()
+    {
+        Assert.AreEqual(ApprovalsArea.DualBankFile,ApprovalsArea.DualForKind("bank_file"));
+        Assert.AreEqual(ApprovalsArea.DualSharedRiderRelease,ApprovalsArea.DualForKind("shared_rider_release"));
+        using var f=new PayFixture();
+        var actor=UserAccess.Principal(new JsonObject{["username"]="limit-user",["role"]="FinancialAccountant",["department"]="OPS",["rankLevel"]=2,["rank"]="B",["customPermissions"]=new JsonArray("approvals.decide")});
+        f.Store.Write((c,tx)=>ApprovalsArea.PutLimits(c,tx,PayFixture.Maker,new(){["items"]=new JsonArray(new JsonObject{["rank"]="B",["department"]="OPS",["limitSar"]=0})}));
+        var req=new JsonObject{["id"]="synthetic-limit-request",["kind"]="generic",["requestedBy"]="other",["targetDepartment"]="OPS",["requiredRankLevel"]=1,["amountSar"]=50,["status"]="pending",["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(actor,req,new(),"approvals.decide",c,tx);return true;})).Status);
+    }
+
+    [TestMethod]
+    public void BypassGrantScopeDoesNotCoverSharedRiderRelease()
+    {
+        using var f=new PayFixture();
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="u-scope",["username"]="scoped",["role"]="FinancialAccountant",["customPermissions"]=new JsonArray(ApprovalsArea.DualSharedRiderRelease,"approvals.decide")},tx);
+            AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="scoped",["from"]=Day(0),["to"]=Day(7),["reason"]="pay only",["scope"]=AccessPolicy.ScopePayApprovals});return true;});
+        var actor=UserAccess.Principal(new JsonObject{["username"]="scoped",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=4,["customPermissions"]=new JsonArray(ApprovalsArea.DualSharedRiderRelease,"approvals.decide")});
+        var req=new JsonObject{["id"]="synthetic-shared",["kind"]="shared_rider_release",["requestedBy"]="scoped",["targetDepartment"]="FIN",["requiredRankLevel"]=1,["dualPermission"]=ApprovalsArea.DualSharedRiderRelease};
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(actor,req,new(),"approvals.decide",c,tx,dualPermission:ApprovalsArea.DualSharedRiderRelease);return true;})).Status);
+    }
 }
